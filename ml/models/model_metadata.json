@@ -1,7 +1,7 @@
 {
   "model_type": "RandomForestClassifier",
-  "n_estimators": 500,
-  "max_depth": 15,
+  "n_estimators": 2000,
+  "max_depth": 25,
   "n_features": 80,
   "n_classes": 3,
   "class_names": [
@@ -9,8 +9,8 @@
     "neutral",
     "negative"
   ],
-  "training_samples": 102503,
-  "n_datasets": 9,
+  "training_samples": 162088,
+  "n_datasets": 12,
   "datasets": [
     "DEAP",
     "GAMEEMO",
@@ -20,12 +20,15 @@
     "Brainwave",
     "Muse-Mental",
     "Muse2-MI",
+    "Confused-Student",
+    "Muse-Subconscious",
+    "EmoKey",
     "SEED-IV"
   ],
-  "cv_accuracy": 0.9497,
-  "cv_f1": 0.9496,
-  "train_accuracy": 0.9953074544159684,
-  "train_f1": 0.995305889078072,
-  "train_time_seconds": 26.222209930419922,
+  "cv_accuracy": 0.8607,
+  "cv_f1": 0.86,
+  "train_accuracy": 0.9777775035783032,
+  "train_f1": 0.9779722137215523,
+  "train_time_seconds": 343.1205780506134,
   "feature_extraction": "PCA-aligned 80-dim from multi-source EEG features"
 }
