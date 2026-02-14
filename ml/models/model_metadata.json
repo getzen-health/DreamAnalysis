@@ -1,0 +1,31 @@
+{
+  "model_type": "RandomForestClassifier",
+  "n_estimators": 500,
+  "max_depth": 15,
+  "n_features": 80,
+  "n_classes": 3,
+  "class_names": [
+    "positive",
+    "neutral",
+    "negative"
+  ],
+  "training_samples": 102503,
+  "n_datasets": 9,
+  "datasets": [
+    "DEAP",
+    "GAMEEMO",
+    "EEG-ER",
+    "DENS",
+    "SEED",
+    "Brainwave",
+    "Muse-Mental",
+    "Muse2-MI",
+    "SEED-IV"
+  ],
+  "cv_accuracy": 0.9497,
+  "cv_f1": 0.9496,
+  "train_accuracy": 0.9953074544159684,
+  "train_f1": 0.995305889078072,
+  "train_time_seconds": 26.222209930419922,
+  "feature_extraction": "PCA-aligned 80-dim from multi-source EEG features"
+}

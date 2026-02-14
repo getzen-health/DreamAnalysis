@@ -1,0 +1,65 @@
+[
+  {
+    "name": "DEAP",
+    "accuracy_mean": 0.66015625,
+    "accuracy_std": 0.02139541240254555,
+    "f1_macro_mean": 0.35700443407601506,
+    "f1_macro_std": 0.02129448570663324,
+    "n_features": 17,
+    "n_samples": 1280
+  },
+  {
+    "name": "GAMEEMO",
+    "accuracy_mean": 0.5397024777104577,
+    "accuracy_std": 0.0268884777337018,
+    "f1_macro_mean": 0.4657802865618973,
+    "f1_macro_std": 0.04598664871876277,
+    "n_features": 17,
+    "n_samples": 1008
+  },
+  {
+    "name": "EEG-ER",
+    "accuracy_mean": 0.57,
+    "accuracy_std": 0.032697642154582575,
+    "f1_macro_mean": 0.4976302781925946,
+    "f1_macro_std": 0.04266249554870462,
+    "n_features": 17,
+    "n_samples": 900
+  },
+  {
+    "name": "DENS",
+    "accuracy_mean": 0.577030976037405,
+    "accuracy_std": 0.03164458351115086,
+    "f1_macro_mean": 0.40720088894983225,
+    "f1_macro_std": 0.06743952097432218,
+    "n_features": 17,
+    "n_samples": 293
+  },
+  {
+    "name": "SEED",
+    "accuracy_mean": 0.9999410724808486,
+    "accuracy_std": 0.00011785503830288314,
+    "f1_macro_mean": 0.9999400452343071,
+    "f1_macro_std": 0.00011990953138574233,
+    "n_features": 23,
+    "n_samples": 50910
+  },
+  {
+    "name": "Brainwave",
+    "accuracy_mean": 0.9690393728491165,
+    "accuracy_std": 0.0087120129691774,
+    "f1_macro_mean": 0.9688734136708945,
+    "f1_macro_std": 0.008853621054597121,
+    "n_features": 50,
+    "n_samples": 2132
+  },
+  {
+    "name": "Combined: DEAP+GAMEEMO+EEG-ER+DENS",
+    "accuracy_mean": 0.716745823644849,
+    "accuracy_std": 0.015065332502673657,
+    "f1_macro_mean": 0.6919998045325545,
+    "f1_macro_std": 0.018647657407586105,
+    "n_features": 17,
+    "n_samples": 3481
+  }
+]
