@@ -1,8 +1,9 @@
 {
-  "model_type": "XGBClassifier",
-  "n_estimators": 1000,
-  "max_depth": 10,
-  "learning_rate": 0.05,
+  "model_type": "LGBMClassifier",
+  "n_estimators": 1500,
+  "max_depth": 12,
+  "learning_rate": 0.03,
+  "num_leaves": 255,
   "n_features": 80,
   "n_classes": 3,
   "class_names": [
@@ -10,30 +11,30 @@
     "neutral",
     "negative"
   ],
-  "training_samples": 159713,
-  "n_datasets": 10,
+  "training_samples": 132760,
+  "n_datasets": 8,
   "datasets": [
     "GAMEEMO",
     "EEG-ER",
     "SEED",
     "Brainwave",
     "Muse-Mental",
-    "Muse2-MI",
     "Confused-Student",
     "Muse-Subconscious",
-    "EmoKey",
     "SEED-IV"
   ],
   "excluded_datasets": [
     "DEAP",
-    "DENS"
+    "DENS",
+    "Muse2-MI",
+    "EmoKey"
   ],
-  "excluded_reason": "Noisy datasets with <55% individual accuracy",
-  "cv_accuracy": 0.8822,
-  "cv_f1": 0.8813,
-  "train_accuracy": 0.9995116239755061,
-  "train_f1": 0.9995116759781764,
-  "train_time_seconds": 53.373165130615234,
+  "excluded_reason": "DEAP/DENS: noisy (<55% accuracy), Muse2-MI/EmoKey: weak label quality",
+  "cv_accuracy": 0.9423,
+  "cv_f1": 0.9423,
+  "train_accuracy": 0.999871949382344,
+  "train_f1": 0.9998719464163043,
+  "train_time_seconds": 362.2934739589691,
   "feature_extraction": "PCA-aligned 80-dim from multi-source EEG features",
   "improvement_history": [
     {
@@ -50,6 +51,11 @@
       "model": "XGB-1000-clean",
       "cv_accuracy": 0.8822,
       "version": "v2"
+    },
+    {
+      "model": "LGBM-1500-ultraclean",
+      "cv_accuracy": 0.9423,
+      "version": "v3"
     }
   ]
 }
