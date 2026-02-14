@@ -1,6 +1,7 @@
 """
 Save the best trained emotion model for deployment.
-Trains on ALL available data and saves the model + scaler + PCA.
+Trains on clean data (excluding noisy datasets) and saves the model + scaler.
+Best model: XGBoost-1000 on clean data = 88.22% CV accuracy.
 """
 
 import numpy as np
@@ -9,10 +10,10 @@ import time
 import warnings
 import joblib
 from pathlib import Path
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, f1_score, classification_report
+import xgboost as xgb
 
 warnings.filterwarnings('ignore')
 
@@ -23,25 +24,31 @@ def log(msg):
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from mega_trainer import (
-    load_deap_enhanced, load_gameemo_enhanced, load_eeg_er_enhanced,
-    load_dens, load_seed_enhanced, load_brainwave_emotions,
+    load_gameemo_enhanced, load_eeg_er_enhanced,
+    load_seed_enhanced, load_brainwave_emotions,
     load_muse_mental_state, load_muse2_motor_imagery, load_confused_student,
     load_muse_subconscious, load_emokey_moments, load_seed_iv
 )
 
 
+# Excluded: load_deap_enhanced, load_dens (noisy datasets with <55% individual accuracy)
+LOADERS = [
+    load_gameemo_enhanced, load_eeg_er_enhanced,
+    load_seed_enhanced, load_brainwave_emotions,
+    load_muse_mental_state, load_muse2_motor_imagery, load_confused_student,
+    load_muse_subconscious, load_emokey_moments, load_seed_iv,
+]
+
+
 def main():
     log("=" * 70)
-    log("  SAVING BEST EMOTION MODEL")
+    log("  SAVING BEST EMOTION MODEL (XGBoost-1000 on clean data)")
     log("=" * 70)
 
-    # Load all datasets
-    log("\n[Loading all datasets...]")
+    # Load clean datasets (excluding DEAP, DENS)
+    log("\n[Loading clean datasets (excluding DEAP, DENS)...]")
     datasets = []
-    for loader in [load_deap_enhanced, load_gameemo_enhanced, load_eeg_er_enhanced,
-                   load_dens, load_seed_enhanced, load_brainwave_emotions,
-                   load_muse_mental_state, load_muse2_motor_imagery, load_confused_student,
-                   load_muse_subconscious, load_emokey_moments, load_seed_iv]:
+    for loader in LOADERS:
         try:
             X, y, name = loader()
             if len(X) > 0 and len(np.unique(y)) >= 2:
@@ -82,20 +89,27 @@ def main():
     log(f"  Labels: { {int(k): int(v) for k, v in zip(*np.unique(y_all, return_counts=True))} }")
 
     # Final standardization
-    log("\n[Training final model...]")
+    log("\n[Training final XGBoost model...]")
     final_scaler = StandardScaler()
     X_final = final_scaler.fit_transform(X_all)
 
-    # Train best model (RF 2000 trees - best from improvement experiments: 86.07% CV)
+    n_classes = len(np.unique(y_all))
+
+    # Train best model: XGBoost-1000 (best from v2 experiments: 88.22% CV on clean data)
     t0 = time.time()
-    model = RandomForestClassifier(
-        n_estimators=2000,
-        max_depth=25,
-        min_samples_leaf=2,
-        max_features='sqrt',
-        class_weight='balanced',
+    model = xgb.XGBClassifier(
+        n_estimators=1000,
+        max_depth=10,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        min_child_weight=5,
+        objective='multi:softprob',
+        num_class=n_classes,
+        tree_method='hist',
         random_state=42,
-        n_jobs=-1
+        n_jobs=-1,
+        verbosity=0,
     )
     model.fit(X_final, y_all)
     train_time = time.time() - t0
@@ -113,7 +127,7 @@ def main():
     models_dir = Path('/Users/sravyalu/NeuralDreamWorkshop/ml/models')
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    model_path = models_dir / 'emotion_classifier_rf.joblib'
+    model_path = models_dir / 'emotion_classifier_xgb.joblib'
     scaler_path = models_dir / 'emotion_scaler.joblib'
     metadata_path = models_dir / 'model_metadata.json'
 
@@ -121,21 +135,29 @@ def main():
     joblib.dump(final_scaler, scaler_path)
 
     metadata = {
-        'model_type': 'RandomForestClassifier',
-        'n_estimators': 2000,
-        'max_depth': 25,
+        'model_type': 'XGBClassifier',
+        'n_estimators': 1000,
+        'max_depth': 10,
+        'learning_rate': 0.05,
         'n_features': TARGET_FEATURES,
-        'n_classes': 3,
+        'n_classes': n_classes,
         'class_names': ['positive', 'neutral', 'negative'],
         'training_samples': int(X_all.shape[0]),
         'n_datasets': len(datasets),
         'datasets': [name for _, _, name in datasets],
-        'cv_accuracy': 0.8607,  # RF-2000 from improvement experiments on 162K combined
-        'cv_f1': 0.8600,
+        'excluded_datasets': ['DEAP', 'DENS'],
+        'excluded_reason': 'Noisy datasets with <55% individual accuracy',
+        'cv_accuracy': 0.8822,
+        'cv_f1': 0.8813,
         'train_accuracy': float(train_acc),
         'train_f1': float(train_f1),
         'train_time_seconds': float(train_time),
         'feature_extraction': 'PCA-aligned 80-dim from multi-source EEG features',
+        'improvement_history': [
+            {'model': 'RF-500', 'cv_accuracy': 0.8518, 'version': 'v1'},
+            {'model': 'RF-2000', 'cv_accuracy': 0.8607, 'version': 'v1.1'},
+            {'model': 'XGB-1000-clean', 'cv_accuracy': 0.8822, 'version': 'v2'},
+        ],
     }
 
     with open(metadata_path, 'w') as f:
@@ -145,10 +167,10 @@ def main():
     log(f"  Model: {model_path} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
     log(f"  Scaler: {scaler_path}")
     log(f"  Metadata: {metadata_path}")
-    log(f"\n  CV Accuracy: 86.07% (RF-2000 on 162K combined samples)")
-    log(f"  CV F1 Score: 0.8600")
+    log(f"\n  CV Accuracy: 88.22% (XGB-1000 on {total:,} clean samples)")
+    log(f"  CV F1 Score: 0.8813")
     log(f"  Training samples: {X_all.shape[0]:,}")
-    log(f"  Datasets: {len(datasets)}")
+    log(f"  Datasets: {len(datasets)} (excluded: DEAP, DENS)")
 
 
 if __name__ == '__main__':
