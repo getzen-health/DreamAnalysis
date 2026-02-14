@@ -1,4 +1,5 @@
-import { type User, type InsertUser, type HealthMetrics, type InsertHealthMetrics, type DreamAnalysis, type InsertDreamAnalysis, type AiChat, type InsertAiChat, type UserSettings, type InsertUserSettings } from "@shared/schema";
+import { eq, desc, asc, sql } from "drizzle-orm";
+import { type User, type InsertUser, type HealthMetrics, type InsertHealthMetrics, type DreamAnalysis, type InsertDreamAnalysis, type AiChat, type InsertAiChat, type UserSettings, type InsertUserSettings, type EmotionReading, type InsertEmotionReading, type DreamSymbol, type InsertDreamSymbol, users, healthMetrics, dreamAnalysis, aiChats, userSettings, emotionReadings, dreamSymbols } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -8,26 +9,37 @@ export interface IStorage {
   getHealthMetrics(userId: string, limit?: number): Promise<HealthMetrics[]>;
   createHealthMetrics(metrics: InsertHealthMetrics): Promise<HealthMetrics>;
   getDreamAnalyses(userId: string, limit?: number): Promise<DreamAnalysis[]>;
+  getDreamAnalysisById(id: string): Promise<DreamAnalysis | undefined>;
   createDreamAnalysis(analysis: InsertDreamAnalysis): Promise<DreamAnalysis>;
+  updateDreamAnalysis(id: string, updates: Partial<DreamAnalysis>): Promise<DreamAnalysis | undefined>;
   getAiChats(userId: string, limit?: number): Promise<AiChat[]>;
   createAiChat(chat: InsertAiChat): Promise<AiChat>;
   getUserSettings(userId: string): Promise<UserSettings | undefined>;
   updateUserSettings(userId: string, settings: Partial<InsertUserSettings>): Promise<UserSettings>;
+  getEmotionReadings(userId: string, limit?: number): Promise<EmotionReading[]>;
+  createEmotionReading(reading: InsertEmotionReading): Promise<EmotionReading>;
+  getDreamSymbols(userId: string): Promise<DreamSymbol[]>;
+  upsertDreamSymbol(symbol: InsertDreamSymbol): Promise<DreamSymbol>;
+  clearUserData(userId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
-  private healthMetrics: Map<string, HealthMetrics>;
-  private dreamAnalyses: Map<string, DreamAnalysis>;
-  private aiChats: Map<string, AiChat>;
-  private userSettings: Map<string, UserSettings>;
+  private healthMetricsMap: Map<string, HealthMetrics>;
+  private dreamAnalysesMap: Map<string, DreamAnalysis>;
+  private aiChatsMap: Map<string, AiChat>;
+  private userSettingsMap: Map<string, UserSettings>;
+  private emotionReadingsMap: Map<string, EmotionReading>;
+  private dreamSymbolsMap: Map<string, DreamSymbol>;
 
   constructor() {
     this.users = new Map();
-    this.healthMetrics = new Map();
-    this.dreamAnalyses = new Map();
-    this.aiChats = new Map();
-    this.userSettings = new Map();
+    this.healthMetricsMap = new Map();
+    this.dreamAnalysesMap = new Map();
+    this.aiChatsMap = new Map();
+    this.userSettingsMap = new Map();
+    this.emotionReadingsMap = new Map();
+    this.dreamSymbolsMap = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -42,13 +54,13 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
+    const user: User = { ...insertUser, id, email: insertUser.email || null, createdAt: new Date() };
     this.users.set(id, user);
     return user;
   }
 
   async getHealthMetrics(userId: string, limit = 50): Promise<HealthMetrics[]> {
-    return Array.from(this.healthMetrics.values())
+    return Array.from(this.healthMetricsMap.values())
       .filter(metric => metric.userId === userId)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, limit);
@@ -56,42 +68,60 @@ export class MemStorage implements IStorage {
 
   async createHealthMetrics(insertMetrics: InsertHealthMetrics): Promise<HealthMetrics> {
     const id = randomUUID();
-    const metrics: HealthMetrics = { 
-      ...insertMetrics, 
-      id, 
+    const metrics: HealthMetrics = {
+      ...insertMetrics,
+      id,
       timestamp: new Date(),
       userId: insertMetrics.userId || null,
       dailySteps: insertMetrics.dailySteps || null,
       sleepDuration: insertMetrics.sleepDuration || null
     };
-    this.healthMetrics.set(id, metrics);
+    this.healthMetricsMap.set(id, metrics);
     return metrics;
   }
 
   async getDreamAnalyses(userId: string, limit = 20): Promise<DreamAnalysis[]> {
-    return Array.from(this.dreamAnalyses.values())
+    return Array.from(this.dreamAnalysesMap.values())
       .filter(analysis => analysis.userId === userId)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, limit);
   }
 
+  async getDreamAnalysisById(id: string): Promise<DreamAnalysis | undefined> {
+    return this.dreamAnalysesMap.get(id);
+  }
+
   async createDreamAnalysis(insertAnalysis: InsertDreamAnalysis): Promise<DreamAnalysis> {
     const id = randomUUID();
-    const analysis: DreamAnalysis = { 
-      ...insertAnalysis, 
-      id, 
+    const analysis: DreamAnalysis = {
+      ...insertAnalysis,
+      id,
       timestamp: new Date(),
       userId: insertAnalysis.userId || null,
       symbols: insertAnalysis.symbols || [],
       emotions: insertAnalysis.emotions || [],
-      aiAnalysis: insertAnalysis.aiAnalysis || null
+      aiAnalysis: insertAnalysis.aiAnalysis || null,
+      imageUrl: insertAnalysis.imageUrl || null,
+      lucidityScore: insertAnalysis.lucidityScore || null,
+      sleepQuality: insertAnalysis.sleepQuality || null,
+      voiceRecordingUrl: insertAnalysis.voiceRecordingUrl || null,
+      tags: insertAnalysis.tags || null,
+      sleepDuration: insertAnalysis.sleepDuration || null,
     };
-    this.dreamAnalyses.set(id, analysis);
+    this.dreamAnalysesMap.set(id, analysis);
     return analysis;
   }
 
+  async updateDreamAnalysis(id: string, updates: Partial<DreamAnalysis>): Promise<DreamAnalysis | undefined> {
+    const existing = this.dreamAnalysesMap.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...updates };
+    this.dreamAnalysesMap.set(id, updated);
+    return updated;
+  }
+
   async getAiChats(userId: string, limit = 50): Promise<AiChat[]> {
-    return Array.from(this.aiChats.values())
+    return Array.from(this.aiChatsMap.values())
       .filter(chat => chat.userId === userId)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
       .slice(-limit);
@@ -99,18 +129,18 @@ export class MemStorage implements IStorage {
 
   async createAiChat(insertChat: InsertAiChat): Promise<AiChat> {
     const id = randomUUID();
-    const chat: AiChat = { 
-      ...insertChat, 
-      id, 
+    const chat: AiChat = {
+      ...insertChat,
+      id,
       timestamp: new Date(),
       userId: insertChat.userId || null
     };
-    this.aiChats.set(id, chat);
+    this.aiChatsMap.set(id, chat);
     return chat;
   }
 
   async getUserSettings(userId: string): Promise<UserSettings | undefined> {
-    return Array.from(this.userSettings.values()).find(settings => settings.userId === userId);
+    return Array.from(this.userSettingsMap.values()).find(settings => settings.userId === userId);
   }
 
   async updateUserSettings(userId: string, partialSettings: Partial<InsertUserSettings>): Promise<UserSettings> {
@@ -127,9 +157,82 @@ export class MemStorage implements IStorage {
       ...existing,
       ...partialSettings,
     };
-    this.userSettings.set(id, settings);
+    this.userSettingsMap.set(id, settings);
     return settings;
+  }
+
+  async getEmotionReadings(userId: string, limit = 50): Promise<EmotionReading[]> {
+    return Array.from(this.emotionReadingsMap.values())
+      .filter(r => r.userId === userId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, limit);
+  }
+
+  async createEmotionReading(insertReading: InsertEmotionReading): Promise<EmotionReading> {
+    const id = randomUUID();
+    const reading: EmotionReading = {
+      ...insertReading,
+      id,
+      timestamp: new Date(),
+      userId: insertReading.userId || null,
+      valence: insertReading.valence || null,
+      arousal: insertReading.arousal || null,
+      eegSnapshot: insertReading.eegSnapshot || null,
+    };
+    this.emotionReadingsMap.set(id, reading);
+    return reading;
+  }
+
+  async getDreamSymbols(userId: string): Promise<DreamSymbol[]> {
+    return Array.from(this.dreamSymbolsMap.values())
+      .filter(s => s.userId === userId);
+  }
+
+  async upsertDreamSymbol(insertSymbol: InsertDreamSymbol): Promise<DreamSymbol> {
+    const existing = Array.from(this.dreamSymbolsMap.values()).find(
+      s => s.userId === insertSymbol.userId && s.symbol === insertSymbol.symbol
+    );
+    if (existing) {
+      const updated: DreamSymbol = {
+        ...existing,
+        frequency: (existing.frequency || 0) + 1,
+        lastSeen: new Date(),
+        meaning: insertSymbol.meaning || existing.meaning,
+      };
+      this.dreamSymbolsMap.set(existing.id, updated);
+      return updated;
+    }
+    const id = randomUUID();
+    const symbol: DreamSymbol = {
+      id,
+      userId: insertSymbol.userId || null,
+      symbol: insertSymbol.symbol,
+      meaning: insertSymbol.meaning || null,
+      frequency: 1,
+      firstSeen: new Date(),
+      lastSeen: new Date(),
+    };
+    this.dreamSymbolsMap.set(id, symbol);
+    return symbol;
+  }
+
+  async clearUserData(userId: string): Promise<void> {
+    Array.from(this.healthMetricsMap.entries()).forEach(([key, val]) => {
+      if (val.userId === userId) this.healthMetricsMap.delete(key);
+    });
+    Array.from(this.dreamAnalysesMap.entries()).forEach(([key, val]) => {
+      if (val.userId === userId) this.dreamAnalysesMap.delete(key);
+    });
+    Array.from(this.aiChatsMap.entries()).forEach(([key, val]) => {
+      if (val.userId === userId) this.aiChatsMap.delete(key);
+    });
+    Array.from(this.emotionReadingsMap.entries()).forEach(([key, val]) => {
+      if (val.userId === userId) this.emotionReadingsMap.delete(key);
+    });
+    Array.from(this.dreamSymbolsMap.entries()).forEach(([key, val]) => {
+      if (val.userId === userId) this.dreamSymbolsMap.delete(key);
+    });
   }
 }
 
-export const storage = new MemStorage();
+export const storage: IStorage = new MemStorage();

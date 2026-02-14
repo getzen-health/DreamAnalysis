@@ -4,13 +4,65 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./hooks/use-theme";
+import { AuthProvider } from "./hooks/use-auth";
+import AppLayout from "./layouts/app-layout";
+import Landing from "@/pages/landing";
+import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
+import BrainMonitor from "@/pages/brain-monitor";
+import HealthAnalytics from "@/pages/health-analytics";
+import DreamJournal from "@/pages/dream-journal";
+import DreamPatterns from "@/pages/dream-patterns";
+import EmotionLab from "@/pages/emotion-lab";
+import AICompanionPage from "@/pages/ai-companion";
+import Insights from "@/pages/insights";
+import SettingsPage from "@/pages/settings";
+import Neurofeedback from "@/pages/neurofeedback";
+import SessionHistory from "@/pages/session-history";
+import BrainConnectivity from "@/pages/brain-connectivity";
 import NotFound from "@/pages/not-found";
 
-function Router() {
+function AppRoutes() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
+      <Route path="/welcome" component={Landing} />
+      <Route path="/auth" component={AuthPage} />
+      <Route path="/">
+        <AppLayout><Dashboard /></AppLayout>
+      </Route>
+      <Route path="/brain-monitor">
+        <AppLayout><BrainMonitor /></AppLayout>
+      </Route>
+      <Route path="/health-analytics">
+        <AppLayout><HealthAnalytics /></AppLayout>
+      </Route>
+      <Route path="/dream-journal">
+        <AppLayout><DreamJournal /></AppLayout>
+      </Route>
+      <Route path="/dream-patterns">
+        <AppLayout><DreamPatterns /></AppLayout>
+      </Route>
+      <Route path="/emotion-lab">
+        <AppLayout><EmotionLab /></AppLayout>
+      </Route>
+      <Route path="/ai-companion">
+        <AppLayout><AICompanionPage /></AppLayout>
+      </Route>
+      <Route path="/insights">
+        <AppLayout><Insights /></AppLayout>
+      </Route>
+      <Route path="/neurofeedback">
+        <AppLayout><Neurofeedback /></AppLayout>
+      </Route>
+      <Route path="/sessions">
+        <AppLayout><SessionHistory /></AppLayout>
+      </Route>
+      <Route path="/brain-connectivity">
+        <AppLayout><BrainConnectivity /></AppLayout>
+      </Route>
+      <Route path="/settings">
+        <AppLayout><SettingsPage /></AppLayout>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -20,10 +72,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <AppRoutes />
+          </TooltipProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

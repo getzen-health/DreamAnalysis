@@ -4,3 +4,12 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# ML data files (too large for git)
+ml/data/
+ml/models/*.joblib
+ml/models/*.pkl
+*.dat
+*.mat
+*.npz
+*.zip

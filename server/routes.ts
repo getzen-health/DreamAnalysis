@@ -4,8 +4,8 @@ import { storage } from "./storage";
 import OpenAI from "openai";
 import { insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema, insertUserSettingsSchema } from "@shared/schema";
 
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "default_key"
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {

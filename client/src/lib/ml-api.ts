@@ -1,0 +1,494 @@
+const ML_API_URL = import.meta.env.VITE_ML_API_URL || "http://localhost:8000";
+
+interface CrossChannelMetrics {
+  n_channels: number;
+  coherence_alpha?: number;
+  plv_alpha?: number;
+}
+
+interface SignalQuality {
+  sqi: number;
+  artifacts_detected: string[];
+  clean_ratio: number;
+  rejected_epochs: number[];
+  channel_quality: number[];
+}
+
+interface AnomalyResult {
+  is_anomaly: boolean;
+  anomaly_score: number;
+  spikes_detected: number;
+  seizure_probability: number;
+  alert_level: "normal" | "watch" | "warning" | "critical";
+}
+
+interface PersonalModelResult {
+  has_personal: boolean;
+  personal_prediction?: string;
+  personal_confidence?: number;
+  personal_probabilities?: Record<string, number>;
+}
+
+interface EEGAnalysisResult {
+  sleep_stage: {
+    stage: string;
+    stage_index: number;
+    confidence: number;
+    probabilities: Record<string, number>;
+  };
+  emotions: {
+    emotion: string;
+    confidence: number;
+    probabilities: Record<string, number>;
+    valence: number;
+    arousal: number;
+    stress_index: number;
+    focus_index: number;
+    relaxation_index: number;
+    band_powers: Record<string, number>;
+  };
+  dream_detection: {
+    is_dreaming: boolean;
+    probability: number;
+    rem_likelihood: number;
+    dream_intensity: number;
+    lucidity_estimate: number;
+  };
+  features: Record<string, number>;
+  band_powers: Record<string, number>;
+  cross_channel?: CrossChannelMetrics;
+  signal_quality?: SignalQuality;
+  anomaly?: AnomalyResult;
+  personal?: PersonalModelResult;
+}
+
+interface SimulationResult {
+  signals: number[][];
+  fs: number;
+  state: string;
+  duration: number;
+  timestamps: number[];
+  analysis: {
+    sleep_stage: EEGAnalysisResult["sleep_stage"];
+    emotions: EEGAnalysisResult["emotions"];
+    dream_detection: EEGAnalysisResult["dream_detection"];
+  };
+}
+
+interface ModelsStatus {
+  sleep_staging: { loaded: boolean; type: string };
+  emotion_classifier: { loaded: boolean; type: string };
+  dream_detector: { loaded: boolean; type: string };
+  available_states: string[];
+}
+
+interface DeviceInfo {
+  type: string;
+  name: string;
+  channels: number;
+  sample_rate: number;
+  available: boolean;
+}
+
+interface DeviceListResponse {
+  brainflow_available: boolean;
+  devices: DeviceInfo[];
+  connected?: boolean;
+  message?: string;
+}
+
+interface DeviceStatusResponse {
+  connected: boolean;
+  streaming: boolean;
+  device_type: string | null;
+  n_channels: number;
+  sample_rate: number;
+  brainflow_available: boolean;
+}
+
+interface BenchmarkResult {
+  model_name: string;
+  dataset: string;
+  accuracy: number;
+  f1_macro: number;
+  per_class: Record<string, { precision: number; recall: number; f1: number; support: number }>;
+  confusion_matrix: number[][];
+  inference_time_ms?: number;
+  n_test_samples?: number;
+}
+
+// Wavelet analysis types
+interface WaveletResult {
+  spectrogram: {
+    coefficients: number[][];
+    frequencies: number[];
+    times: number[];
+  };
+  dwt_energies: Record<string, number>;
+  events: {
+    sleep_spindles: Array<{ start: number; end: number; amplitude: number }>;
+    k_complexes: Array<{ time: number; amplitude: number }>;
+  };
+}
+
+// Neurofeedback types
+interface NeurofeedbackProtocol {
+  name: string;
+  description: string;
+}
+
+interface NeurofeedbackEvalResult {
+  status: string;
+  score?: number;
+  reward?: boolean;
+  feedback_value?: number;
+  streak?: number;
+  progress?: number;
+  baseline?: number;
+}
+
+interface NeurofeedbackStopResult {
+  status: string;
+  stats: {
+    total_rewards: number;
+    reward_rate: number;
+    avg_score: number;
+    max_streak: number;
+    total_evaluations: number;
+  };
+}
+
+// Session types
+interface SessionSummary {
+  session_id: string;
+  user_id: string;
+  session_type: string;
+  start_time: number;
+  status: string;
+  summary: {
+    duration_sec?: number;
+    n_frames?: number;
+    n_channels?: number;
+    n_samples?: number;
+  };
+}
+
+// Connectivity types
+interface ConnectivityResult {
+  connectivity_matrix: number[][];
+  graph_metrics: {
+    clustering_coefficient: number;
+    avg_path_length: number;
+    small_world_index: number;
+    hub_nodes: number[];
+    modularity: number;
+    degree_centrality?: number[];
+  };
+  directed_flow: {
+    granger: {
+      matrix: number[][];
+      significant_pairs: Array<{ from: number; to: number; strength: number }>;
+    };
+    dtf_matrix: number[][];
+    dominant_direction: string;
+  };
+}
+
+// Calibration types
+interface CalibrationStatus {
+  calibrated: boolean;
+  n_samples: number;
+  personal_accuracy: number;
+  classes: string[];
+}
+
+async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${ML_API_URL}/api${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`ML API error: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+}
+
+async function mlFetchRaw(endpoint: string, options?: RequestInit): Promise<string> {
+  const response = await fetch(`${ML_API_URL}/api${endpoint}`, options);
+  if (!response.ok) {
+    throw new Error(`ML API error: ${response.status} ${response.statusText}`);
+  }
+  return response.text();
+}
+
+// ─── Core Analysis ───────────────────────────────────────────────────────
+
+export async function analyzeEEG(
+  signals: number[][],
+  fs: number = 256
+): Promise<EEGAnalysisResult> {
+  return mlFetch<EEGAnalysisResult>("/analyze-eeg", {
+    method: "POST",
+    body: JSON.stringify({ signals, fs }),
+  });
+}
+
+export async function simulateEEG(
+  state: string = "rest",
+  duration: number = 30,
+  fs: number = 256,
+  nChannels: number = 1
+): Promise<SimulationResult> {
+  return mlFetch<SimulationResult>("/simulate-eeg", {
+    method: "POST",
+    body: JSON.stringify({
+      state,
+      duration,
+      fs,
+      n_channels: nChannels,
+    }),
+  });
+}
+
+export async function getModelsStatus(): Promise<ModelsStatus> {
+  return mlFetch<ModelsStatus>("/models/status");
+}
+
+export async function getModelsBenchmarks(): Promise<Record<string, BenchmarkResult>> {
+  return mlFetch<Record<string, BenchmarkResult>>("/models/benchmarks");
+}
+
+// ─── Wavelet Analysis (Phase 5) ─────────────────────────────────────────
+
+export async function analyzeWavelet(
+  signals: number[][],
+  fs: number = 256
+): Promise<WaveletResult> {
+  return mlFetch<WaveletResult>("/analyze-wavelet", {
+    method: "POST",
+    body: JSON.stringify({ signals, fs }),
+  });
+}
+
+// ─── Signal Quality (Phase 6) ───────────────────────────────────────────
+
+export async function cleanSignal(
+  signals: number[][],
+  fs: number = 256
+): Promise<{
+  cleaned_signals: number[][];
+  removed_components: number[];
+  before_sqi: number[];
+  after_sqi: number[];
+  improvement: number;
+}> {
+  return mlFetch("/clean-signal", {
+    method: "POST",
+    body: JSON.stringify({ signals, fs }),
+  });
+}
+
+// ─── Neurofeedback (Phase 7) ────────────────────────────────────────────
+
+export async function getNeurofeedbackProtocols(): Promise<Record<string, NeurofeedbackProtocol>> {
+  return mlFetch<Record<string, NeurofeedbackProtocol>>("/neurofeedback/protocols");
+}
+
+export async function startNeurofeedback(
+  protocolType: string = "alpha_up",
+  calibrate: boolean = true,
+  threshold?: number
+): Promise<{ status: string; protocol: string }> {
+  return mlFetch("/neurofeedback/start", {
+    method: "POST",
+    body: JSON.stringify({
+      protocol_type: protocolType,
+      calibrate,
+      threshold,
+    }),
+  });
+}
+
+export async function evaluateNeurofeedback(
+  bandPowers: Record<string, number>,
+  channelPowers?: Record<string, number>[]
+): Promise<NeurofeedbackEvalResult> {
+  return mlFetch<NeurofeedbackEvalResult>("/neurofeedback/evaluate", {
+    method: "POST",
+    body: JSON.stringify({
+      band_powers: bandPowers,
+      channel_powers: channelPowers,
+    }),
+  });
+}
+
+export async function stopNeurofeedback(): Promise<NeurofeedbackStopResult> {
+  return mlFetch<NeurofeedbackStopResult>("/neurofeedback/stop", { method: "POST" });
+}
+
+// ─── Session Recording (Phase 8) ────────────────────────────────────────
+
+export async function startSession(
+  sessionType: string = "general",
+  userId: string = "default"
+): Promise<{ status: string; session_id: string }> {
+  return mlFetch("/sessions/start", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, session_type: sessionType }),
+  });
+}
+
+export async function stopSession(): Promise<Record<string, unknown>> {
+  return mlFetch("/sessions/stop", { method: "POST" });
+}
+
+export async function listSessions(
+  userId?: string,
+  sessionType?: string
+): Promise<SessionSummary[]> {
+  const params = new URLSearchParams();
+  if (userId) params.set("user_id", userId);
+  if (sessionType) params.set("session_type", sessionType);
+  const qs = params.toString();
+  return mlFetch<SessionSummary[]>(`/sessions${qs ? `?${qs}` : ""}`);
+}
+
+export async function getSession(sessionId: string): Promise<Record<string, unknown>> {
+  return mlFetch(`/sessions/${sessionId}`);
+}
+
+export async function deleteSession(sessionId: string): Promise<{ status: string }> {
+  return mlFetch(`/sessions/${sessionId}`, { method: "DELETE" });
+}
+
+export async function exportSession(sessionId: string, format: string = "csv"): Promise<string> {
+  return mlFetchRaw(`/sessions/${sessionId}/export?format=${format}`);
+}
+
+// ─── Calibration & Personal Models (Phase 9) ────────────────────────────
+
+export async function startCalibration(): Promise<{
+  status: string;
+  steps: Array<{ step: number; instruction: string; label: string; duration_sec: number }>;
+}> {
+  return mlFetch("/calibration/start", { method: "POST" });
+}
+
+export async function submitCalibration(
+  signalsList: number[][][],
+  labels: string[],
+  fs: number = 256
+): Promise<{ calibrated: boolean; n_samples: number; personal_accuracy: number }> {
+  return mlFetch("/calibration/submit", {
+    method: "POST",
+    body: JSON.stringify({ signals_list: signalsList, labels, fs }),
+  });
+}
+
+export async function submitFeedback(
+  signals: number[][],
+  predictedLabel: string,
+  correctLabel: string,
+  userId: string = "default"
+): Promise<{ updated: boolean }> {
+  return mlFetch("/feedback", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: userId,
+      signals,
+      predicted_label: predictedLabel,
+      correct_label: correctLabel,
+    }),
+  });
+}
+
+export async function getCalibrationStatus(
+  userId: string = "default"
+): Promise<CalibrationStatus> {
+  return mlFetch<CalibrationStatus>(`/calibration/status?user_id=${userId}`);
+}
+
+// ─── Connectivity (Phase 10) ────────────────────────────────────────────
+
+export async function analyzeConnectivity(
+  signals: number[][],
+  fs: number = 256
+): Promise<ConnectivityResult> {
+  return mlFetch<ConnectivityResult>("/analyze-connectivity", {
+    method: "POST",
+    body: JSON.stringify({ signals, fs }),
+  });
+}
+
+// ─── Anomaly Detection (Phase 11) ───────────────────────────────────────
+
+export async function setAnomalyBaseline(
+  featuresList: Record<string, number>[]
+): Promise<{ fitted: boolean; n_samples: number }> {
+  return mlFetch("/anomaly/set-baseline", {
+    method: "POST",
+    body: JSON.stringify({ features_list: featuresList }),
+  });
+}
+
+// ─── Device Management ──────────────────────────────────────────────────
+
+export async function listDevices(): Promise<DeviceListResponse> {
+  return mlFetch<DeviceListResponse>("/devices");
+}
+
+export async function connectDevice(
+  deviceType: string,
+  params?: Record<string, string>
+): Promise<Record<string, unknown>> {
+  return mlFetch("/devices/connect", {
+    method: "POST",
+    body: JSON.stringify({ device_type: deviceType, params }),
+  });
+}
+
+export async function disconnectDevice(): Promise<Record<string, string>> {
+  return mlFetch("/devices/disconnect", { method: "POST" });
+}
+
+export async function getDeviceStatus(): Promise<DeviceStatusResponse> {
+  return mlFetch<DeviceStatusResponse>("/devices/status");
+}
+
+export async function startDeviceStream(): Promise<Record<string, unknown>> {
+  return mlFetch("/devices/start-stream", { method: "POST" });
+}
+
+export async function stopDeviceStream(): Promise<Record<string, string>> {
+  return mlFetch("/devices/stop-stream", { method: "POST" });
+}
+
+export function getWebSocketUrl(): string {
+  const wsProtocol = ML_API_URL.startsWith("https") ? "wss" : "ws";
+  const host = ML_API_URL.replace(/^https?:\/\//, "");
+  return `${wsProtocol}://${host}/ws/eeg-stream`;
+}
+
+export type {
+  EEGAnalysisResult,
+  SimulationResult,
+  ModelsStatus,
+  CrossChannelMetrics,
+  SignalQuality,
+  AnomalyResult,
+  PersonalModelResult,
+  DeviceInfo,
+  DeviceListResponse,
+  DeviceStatusResponse,
+  BenchmarkResult,
+  WaveletResult,
+  NeurofeedbackProtocol,
+  NeurofeedbackEvalResult,
+  NeurofeedbackStopResult,
+  SessionSummary,
+  ConnectivityResult,
+  CalibrationStatus,
+};
