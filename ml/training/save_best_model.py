@@ -86,11 +86,13 @@ def main():
     final_scaler = StandardScaler()
     X_final = final_scaler.fit_transform(X_all)
 
-    # Train best model (RF 500 trees)
+    # Train best model (RF 2000 trees - best from improvement experiments: 86.07% CV)
     t0 = time.time()
     model = RandomForestClassifier(
-        n_estimators=500,
-        max_depth=15,
+        n_estimators=2000,
+        max_depth=25,
+        min_samples_leaf=2,
+        max_features='sqrt',
         class_weight='balanced',
         random_state=42,
         n_jobs=-1
@@ -120,16 +122,16 @@ def main():
 
     metadata = {
         'model_type': 'RandomForestClassifier',
-        'n_estimators': 500,
-        'max_depth': 15,
+        'n_estimators': 2000,
+        'max_depth': 25,
         'n_features': TARGET_FEATURES,
         'n_classes': 3,
         'class_names': ['positive', 'neutral', 'negative'],
         'training_samples': int(X_all.shape[0]),
         'n_datasets': len(datasets),
         'datasets': [name for _, _, name in datasets],
-        'cv_accuracy': 0.8480,  # From mega_trainer 12-dataset results (RF on 139K combined)
-        'cv_f1': 0.8482,
+        'cv_accuracy': 0.8607,  # RF-2000 from improvement experiments on 162K combined
+        'cv_f1': 0.8600,
         'train_accuracy': float(train_acc),
         'train_f1': float(train_f1),
         'train_time_seconds': float(train_time),
@@ -143,8 +145,8 @@ def main():
     log(f"  Model: {model_path} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
     log(f"  Scaler: {scaler_path}")
     log(f"  Metadata: {metadata_path}")
-    log(f"\n  CV Accuracy: 84.80% (MEGA-Combined RF on 139K+ samples)")
-    log(f"  CV F1 Score: 0.8482")
+    log(f"\n  CV Accuracy: 86.07% (RF-2000 on 162K combined samples)")
+    log(f"  CV F1 Score: 0.8600")
     log(f"  Training samples: {X_all.shape[0]:,}")
     log(f"  Datasets: {len(datasets)}")
 
