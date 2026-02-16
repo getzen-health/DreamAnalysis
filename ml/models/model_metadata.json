@@ -4,22 +4,24 @@
   "max_depth": 12,
   "learning_rate": 0.03,
   "num_leaves": 255,
-  "n_features": 80,
+  "n_features": 87,
+  "n_pca_features": 80,
+  "n_dataset_features": 7,
+  "feature_type": "PCA-aligned + one-hot dataset source",
   "n_classes": 3,
   "class_names": [
     "positive",
     "neutral",
     "negative"
   ],
-  "training_samples": 132760,
-  "n_datasets": 8,
+  "training_samples": 119949,
+  "n_datasets": 7,
   "datasets": [
     "GAMEEMO",
     "EEG-ER",
     "SEED",
     "Brainwave",
     "Muse-Mental",
-    "Confused-Student",
     "Muse-Subconscious",
     "SEED-IV"
   ],
@@ -27,15 +29,16 @@
     "DEAP",
     "DENS",
     "Muse2-MI",
-    "EmoKey"
+    "EmoKey",
+    "Confused-Student"
   ],
-  "excluded_reason": "DEAP/DENS: noisy (<55% accuracy), Muse2-MI/EmoKey: weak label quality",
-  "cv_accuracy": 0.9423,
-  "cv_f1": 0.9423,
-  "train_accuracy": 0.999871949382344,
-  "train_f1": 0.9998719464163043,
-  "train_time_seconds": 362.2934739589691,
-  "feature_extraction": "PCA-aligned 80-dim from multi-source EEG features",
+  "excluded_reason": "DEAP/DENS: noisy (<55% acc), Muse2-MI/EmoKey: weak labels, Confused-Student: 37.2% error (wrong task type)",
+  "cv_accuracy": 0.9779,
+  "cv_f1": 0.9779,
+  "train_accuracy": 0.9998582730994006,
+  "train_f1": 0.999858268658128,
+  "train_time_seconds": 563.4990639686584,
+  "feature_extraction": "PCA-aligned 80-dim + 7 one-hot dataset source features",
   "improvement_history": [
     {
       "model": "RF-500",
@@ -56,6 +59,16 @@
       "model": "LGBM-1500-ultraclean",
       "cv_accuracy": 0.9423,
       "version": "v3"
+    },
+    {
+      "model": "LGBM-1500-dataset-aware",
+      "cv_accuracy": 0.9443,
+      "version": "v5"
+    },
+    {
+      "model": "LGBM-1500-aware-premium",
+      "cv_accuracy": 0.9779,
+      "version": "v7"
     }
   ]
 }
