@@ -15,7 +15,9 @@
     "baseline-8ds-aware": {"accuracy": 0.9446, "f1": 0.9446, "datasets": 8, "samples": 132760},
     "drop-Confused-aware": {"accuracy": 0.9779, "f1": 0.9779, "datasets": 7, "samples": 119949},
     "drop-Confused-EEGER-aware": {"accuracy": 0.9804, "f1": 0.9804, "datasets": 6, "samples": 118149},
-    "drop-Confused-EEGER-GAMEEMO-aware": {"accuracy": 0.9830, "f1": 0.9830, "datasets": 5, "samples": 115917}
+    "drop-Confused-EEGER-GAMEEMO-aware": {"accuracy": 0.9830, "f1": 0.9830, "datasets": 5, "samples": 115917},
+    "drop-worst3+Brainwave-aware": {"accuracy": 0.9849, "f1": 0.9850, "datasets": 4, "samples": 113785},
+    "drop-worst3+Brainwave-plain": {"accuracy": 0.9845, "f1": 0.9846, "datasets": 4, "samples": 113785}
   },
   "confidence_cleaning_results": {
     "clean-1pct": {"accuracy": 0.9476, "samples_removed": 1328},
