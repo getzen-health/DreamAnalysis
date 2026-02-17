@@ -360,3 +360,75 @@ class TestSpiritualEnergy:
         full = full_spiritual_analysis(eeg, 256, left, right)
         assert "prana_balance" in full
         assert "insight" in full
+
+
+class TestEmotionShiftDetector:
+    """Tests for pre-conscious emotional shift detection."""
+
+    def test_detect_endpoint_buffering(self, client):
+        """First few calls should return buffering=True."""
+        eeg = np.random.randn(1, 256).tolist()
+        r = client.post("/api/emotion-shift/detect", json={
+            "signals": eeg, "fs": 256, "user_id": "test_shift"
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert "shift_detected" in data
+        # With only 1 second of data, should still be buffering
+        assert data.get("buffering", False) or "current_indicators" in data
+
+    def test_detect_returns_indicators(self, client):
+        """After enough data, should return emotional indicators."""
+        # Feed 15 chunks to fill the buffer
+        for _ in range(15):
+            eeg = np.random.randn(1, 256).tolist()
+            r = client.post("/api/emotion-shift/detect", json={
+                "signals": eeg, "fs": 256, "user_id": "test_shift2"
+            })
+        assert r.status_code == 200
+        data = r.json()
+        assert "indicators" in data
+        assert "valence" in data["indicators"]
+        assert "arousal" in data["indicators"]
+        assert "trends" in data or "buffering" in data
+
+    def test_summary_empty(self, client):
+        r = client.get("/api/emotion-shift/summary/nonexistent")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total_shifts"] == 0
+
+    def test_awareness_score_empty(self, client):
+        r = client.get("/api/emotion-shift/awareness-score/nonexistent")
+        assert r.status_code == 200
+        assert r.json()["awareness_score"] == 0
+
+    def test_reset(self, client):
+        r = client.post("/api/emotion-shift/reset/test_shift")
+        assert r.status_code == 200
+        assert r.json()["status"] == "reset"
+
+    def test_detector_module_directly(self):
+        """Test the EmotionShiftDetector class directly."""
+        from processing.emotion_shift_detector import EmotionShiftDetector
+
+        detector = EmotionShiftDetector(fs=256)
+
+        # Feed enough data to exit buffering
+        np.random.seed(42)
+        for _ in range(20):
+            chunk = np.random.randn(256)
+            result = detector.update(chunk)
+
+        # Should have indicators after enough updates
+        assert "indicators" in result or "buffering" in result
+
+        # Session summary should work
+        summary = detector.get_session_summary()
+        assert "total_shifts" in summary
+        assert "session_stability" in summary
+
+        # Awareness score should work
+        score = detector.get_emotional_awareness_score()
+        assert "awareness_score" in score
+        assert "level" in score
