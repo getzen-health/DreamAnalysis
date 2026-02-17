@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-02-17 14:16:54",
+  "total_time_sec": 3594.3,
+  "models": [
+    {
+      "model_name": "sleep_staging",
+      "cv_accuracy": 0.9298356353428165,
+      "cv_std": 0.0038022182438423578,
+      "n_samples": 27464,
+      "n_classes": 5,
+      "train_time_sec": 70.4,
+      "model_size_mb": 43.9
+    },
+    {
+      "model_name": "dream_detector",
+      "cv_accuracy": 0.9720361238411226,
+      "cv_std": 0.0014545026576607454,
+      "n_samples": 27464,
+      "n_classes": 2,
+      "train_time_sec": 15.6,
+      "model_size_mb": 10.0
+    },
+    {
+      "model_name": "flow_state",
+      "cv_accuracy": 0.628607277289837,
+      "cv_std": 0.009751246789322673,
+      "n_samples": 3985,
+      "n_classes": 4,
+      "train_time_sec": 33.9,
+      "model_size_mb": 23.0
+    },
+    {
+      "model_name": "creativity",
+      "cv_accuracy": 0.991764705882353,
+      "cv_std": 0.00797921174485328,
+      "n_samples": 850,
+      "n_classes": 4,
+      "train_time_sec": 2.1,
+      "model_size_mb": 1.6
+    },
+    {
+      "model_name": "memory_encoding",
+      "cv_accuracy": 0.991764705882353,
+      "cv_std": 0.00599884648657976,
+      "n_samples": 850,
+      "n_classes": 4,
+      "train_time_sec": 1.9,
+      "model_size_mb": 1.6
+    }
+  ]
+}

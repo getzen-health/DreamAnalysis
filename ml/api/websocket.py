@@ -62,6 +62,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
     run_models = True
     run_quality = True
     run_smoothing = True
+    run_spiritual = False  # opt-in for spiritual energy analysis
 
     # Lazy-init pipeline singletons
     models = None
@@ -143,6 +144,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         run_models = cmd.get("run_models", run_models)
                         run_quality = cmd.get("run_quality", run_quality)
                         run_smoothing = cmd.get("run_smoothing", run_smoothing)
+                        run_spiritual = cmd.get("run_spiritual", run_spiritual)
                 except (json.JSONDecodeError, AttributeError):
                     pass
             except asyncio.TimeoutError:
@@ -240,6 +242,27 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         frame["confidence_summary"] = conf_summary
                     if coherence is not None:
                         frame["coherence"] = coherence
+
+                    # Spiritual energy analysis (opt-in)
+                    if run_spiritual:
+                        try:
+                            from processing.spiritual_energy import (
+                                compute_chakra_activations,
+                                compute_chakra_balance,
+                                compute_meditation_depth,
+                                compute_aura_energy,
+                                compute_consciousness_level,
+                            )
+                            chakras = compute_chakra_activations(processed, fs)
+                            frame["spiritual"] = {
+                                "chakras": chakras,
+                                "chakra_balance": compute_chakra_balance(chakras),
+                                "meditation_depth": compute_meditation_depth(processed, fs),
+                                "aura": compute_aura_energy(processed, fs),
+                                "consciousness": compute_consciousness_level(processed, fs),
+                            }
+                        except Exception:
+                            pass
 
                     # Pipe to session recorder
                     if session_recorder and session_recorder.is_recording:
