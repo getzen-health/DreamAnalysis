@@ -1,202 +1,318 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
 } from "recharts";
-import { Moon, TrendingUp, Eye, Zap, Repeat, Star, Loader2 } from "lucide-react";
+import { Moon, TrendingUp, Brain, Activity, Sparkles } from "lucide-react";
 
-const EMOTION_COLORS: Record<string, string> = {
-  joy: "hsl(120, 100%, 55%)",
-  curiosity: "hsl(195, 100%, 50%)",
-  anxiety: "hsl(15, 100%, 60%)",
-  confusion: "hsl(270, 70%, 65%)",
-  fear: "hsl(0, 80%, 50%)",
-  peace: "hsl(180, 70%, 50%)",
-};
-
-const TYPE_COLORS = [
-  "hsl(195, 100%, 50%)",
-  "hsl(270, 70%, 65%)",
-  "hsl(15, 100%, 60%)",
-  "hsl(120, 100%, 55%)",
-];
-
-export default function DreamPatterns() {
-  const userId = "demo-user";
-
-  const { data: dreams = [], isLoading } = useQuery({
-    queryKey: ["/api/dream-analysis", userId],
-    queryFn: async () => {
-      const res = await fetch(`/api/dream-analysis/${userId}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
-
-  // Generate analytics from dream data
-  const symbolFrequency = dreams.reduce((acc: Record<string, number>, dream: any) => {
-    const symbols = (dream.symbols as string[]) || [];
-    symbols.forEach((s: string) => { acc[s] = (acc[s] || 0) + 1; });
-    return acc;
-  }, {});
-
-  const symbolData = Object.entries(symbolFrequency)
-    .sort(([, a], [, b]) => (b as number) - (a as number))
-    .slice(0, 8)
-    .map(([symbol, count]) => ({ symbol, count }));
-
-  const dreamTypeDistribution = dreams.reduce((acc: Record<string, number>, dream: any) => {
-    const tags = (dream.tags as string[]) || ["normal"];
-    tags.forEach((t: string) => { acc[t] = (acc[t] || 0) + 1; });
-    if (tags.length === 0) acc["normal"] = (acc["normal"] || 0) + 1;
-    return acc;
-  }, {});
-
-  const typeData = Object.entries(dreamTypeDistribution).map(([name, value]) => ({ name, value }));
-
-  // Frequency calendar data (last 30 days)
-  const calendarData = Array.from({ length: 30 }, (_, i) => {
+/* ---------- simulated multi-night data ---------- */
+function generateNightlyData() {
+  const nights = [];
+  for (let i = 6; i >= 0; i--) {
     const date = new Date();
-    date.setDate(date.getDate() - (29 - i));
-    const dateStr = date.toISOString().split("T")[0];
-    const count = dreams.filter((d: any) => d.timestamp?.startsWith?.(dateStr)).length;
+    date.setDate(date.getDate() - i);
+    nights.push({
+      day: date.toLocaleDateString("en-US", { weekday: "short" }),
+      remMinutes: Math.round(60 + Math.random() * 60),
+      deepMinutes: Math.round(40 + Math.random() * 50),
+      lightMinutes: Math.round(120 + Math.random() * 80),
+      dreamEpisodes: Math.round(1 + Math.random() * 4),
+      avgIntensity: Math.round(30 + Math.random() * 50),
+      avgLucidity: Math.round(5 + Math.random() * 30),
+      sleepScore: Math.round(55 + Math.random() * 35),
+    });
+  }
+  return nights;
+}
+
+function generateHypnogram() {
+  // Simulated sleep architecture for last night (30-min intervals, 8 hours)
+  const stages = ["Wake", "N1", "N2", "N3", "REM"];
+  const stageValues: Record<string, number> = { Wake: 4, REM: 3, N1: 2, N2: 1, N3: 0 };
+  const typical = [
+    "Wake", "N1", "N2", "N3", "N3", "N2", "REM",
+    "N2", "N3", "N3", "N2", "REM", "REM",
+    "N2", "N2", "REM",
+  ];
+  const now = new Date();
+  now.setHours(23, 0, 0, 0);
+  return typical.map((stage, i) => {
+    const t = new Date(now.getTime() + i * 30 * 60000);
     return {
-      date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      dreams: count || Math.random() > 0.6 ? Math.floor(Math.random() * 3) : 0,
+      time: t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+      stage: stageValues[stage],
+      label: stage,
     };
   });
+}
 
-  // Emotion trends
-  const emotionTrends = [
-    { day: "Mon", joy: 7.2, curiosity: 5.1, anxiety: 2.3, peace: 6.4 },
-    { day: "Tue", joy: 6.8, curiosity: 6.2, anxiety: 3.1, peace: 5.8 },
-    { day: "Wed", joy: 8.1, curiosity: 4.5, anxiety: 1.8, peace: 7.2 },
-    { day: "Thu", joy: 7.5, curiosity: 5.8, anxiety: 2.9, peace: 6.1 },
-    { day: "Fri", joy: 6.9, curiosity: 5.3, anxiety: 3.5, peace: 5.5 },
-    { day: "Sat", joy: 8.3, curiosity: 6.7, anxiety: 1.5, peace: 7.8 },
-    { day: "Sun", joy: 7.8, curiosity: 5.9, anxiety: 2.1, peace: 7.0 },
-  ];
+function generateRemCycles() {
+  return Array.from({ length: 5 }, (_, i) => ({
+    cycle: `Cycle ${i + 1}`,
+    duration: Math.round(8 + Math.random() * 20),
+    intensity: Math.round(30 + i * 8 + Math.random() * 20),
+    lucidity: Math.round(5 + i * 5 + Math.random() * 15),
+  }));
+}
 
-  if (isLoading) {
-    return (
-      <main className="p-4 md:p-6 flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </main>
-    );
-  }
+/* ========== Component ========== */
+export default function DreamPatterns() {
+  const [nightlyData] = useState(generateNightlyData);
+  const [hypnogram] = useState(generateHypnogram);
+  const [remCycles] = useState(generateRemCycles);
+
+  const totalDreams = nightlyData.reduce((s, n) => s + n.dreamEpisodes, 0);
+  const avgRem = Math.round(nightlyData.reduce((s, n) => s + n.remMinutes, 0) / nightlyData.length);
+  const avgScore = Math.round(nightlyData.reduce((s, n) => s + n.sleepScore, 0) / nightlyData.length);
+
+  const STAGE_NAMES = ["N3 (Deep)", "N2 (Light)", "N1", "REM", "Wake"];
 
   return (
-    <main className="p-4 md:p-6 space-y-6">
-      {/* Dream Frequency Heatmap */}
-      <Card className="glass-card p-6 rounded-xl hover-glow">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-futuristic font-semibold flex items-center gap-2">
-            <Moon className="h-5 w-5 text-secondary" />
-            Dream Frequency (Last 30 Days)
-          </h3>
-          <Badge variant="outline" className="border-primary/30 text-primary">
-            {dreams.length} total dreams
-          </Badge>
+    <main className="p-6 space-y-6 max-w-5xl">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Dreams Detected", value: totalDreams, sub: "last 7 nights", color: "text-secondary" },
+          { label: "Avg REM", value: `${avgRem}min`, sub: "per night", color: "text-primary" },
+          { label: "Sleep Score", value: avgScore, sub: "7-day avg", color: "text-accent" },
+          { label: "REM Cycles", value: remCycles.length, sub: "last night", color: "text-foreground" },
+        ].map((stat) => (
+          <Card key={stat.label} className="glass-card p-4 hover-glow text-center">
+            <p className={`text-2xl font-semibold ${stat.color}`}>{stat.value}</p>
+            <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
+            <p className="text-[10px] text-muted-foreground/60">{stat.sub}</p>
+          </Card>
+        ))}
+      </div>
+
+      {/* Sleep Architecture (Hypnogram) */}
+      <Card className="glass-card p-5 hover-glow">
+        <div className="flex items-center gap-2 mb-4">
+          <Brain className="h-4 w-4 text-secondary" />
+          <h3 className="text-sm font-medium">Sleep Architecture — Last Night</h3>
         </div>
         <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={calendarData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-            <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} stroke="hsl(var(--foreground))" opacity={0.5} />
-            <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--foreground))" opacity={0.5} />
-            <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-            <Bar dataKey="dreams" fill="hsl(270, 70%, 65%)" radius={[4, 4, 0, 0]} />
-          </BarChart>
+          <AreaChart data={hypnogram}>
+            <defs>
+              <linearGradient id="hypnoGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0.3} />
+                <stop offset="100%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <XAxis
+              dataKey="time"
+              tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              domain={[0, 4]}
+              ticks={[0, 1, 2, 3, 4]}
+              tickFormatter={(v: number) => STAGE_NAMES[v] || ""}
+              tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }}
+              width={70}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "hsl(220, 22%, 9%)",
+                border: "1px solid hsl(220, 18%, 20%)",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+              labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+              formatter={(value: number) => [STAGE_NAMES[value] || "Unknown", "Stage"]}
+            />
+            <Area
+              type="stepAfter"
+              dataKey="stage"
+              stroke="hsl(262, 45%, 65%)"
+              fill="url(#hypnoGrad)"
+              strokeWidth={2}
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Most Common Symbols */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-6 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Top Dream Symbols
-          </h3>
-          {symbolData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={symbolData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                <XAxis type="number" tick={{ fontSize: 10 }} stroke="hsl(var(--foreground))" opacity={0.5} />
-                <YAxis dataKey="symbol" type="category" tick={{ fontSize: 11 }} width={100} stroke="hsl(var(--foreground))" opacity={0.5} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                <Bar dataKey="count" fill="hsl(195, 100%, 50%)" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-[250px] text-foreground/40">
-              Record dreams to see symbol patterns
-            </div>
-          )}
+      {/* Weekly Trends */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Dream Episodes & Intensity */}
+        <Card className="glass-card p-5 hover-glow">
+          <div className="flex items-center gap-2 mb-4">
+            <Moon className="h-4 w-4 text-secondary" />
+            <h3 className="text-sm font-medium">Dream Detection — 7 Days</h3>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={nightlyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide />
+              <Tooltip
+                contentStyle={{
+                  background: "hsl(220, 22%, 9%)",
+                  border: "1px solid hsl(220, 18%, 20%)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+              />
+              <Bar
+                dataKey="dreamEpisodes"
+                fill="hsl(262, 45%, 65%)"
+                radius={[4, 4, 0, 0]}
+                name="Dreams Detected"
+              />
+            </BarChart>
+          </ResponsiveContainer>
         </Card>
 
-        {/* Dream Type Distribution */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-6 flex items-center gap-2">
-            <Eye className="h-5 w-5 text-secondary" />
-            Dream Type Distribution
-          </h3>
-          {typeData.length > 0 ? (
-            <div className="flex items-center gap-6">
-              <ResponsiveContainer width="60%" height={250}>
-                <PieChart>
-                  <Pie data={typeData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name }) => name}>
-                    {typeData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={TYPE_COLORS[index % TYPE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-2">
-                {typeData.map((item, i) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ background: TYPE_COLORS[i % TYPE_COLORS.length] }} />
-                    <span className="text-sm capitalize">{item.name}</span>
-                    <span className="text-xs text-foreground/50">({item.value as number})</span>
-                  </div>
-                ))}
+        {/* REM vs Deep vs Light */}
+        <Card className="glass-card p-5 hover-glow">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-medium">Sleep Stages — 7 Days</h3>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={nightlyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis hide />
+              <Tooltip
+                contentStyle={{
+                  background: "hsl(220, 22%, 9%)",
+                  border: "1px solid hsl(220, 18%, 20%)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+              />
+              <Bar dataKey="deepMinutes" stackId="a" fill="hsl(262, 45%, 55%)" name="Deep" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="lightMinutes" stackId="a" fill="hsl(220, 50%, 50%)" name="Light" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="remMinutes" stackId="a" fill="hsl(152, 60%, 48%)" name="REM" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex justify-center gap-4 mt-3">
+            {[
+              { label: "Deep", color: "hsl(262, 45%, 55%)" },
+              { label: "Light", color: "hsl(220, 50%, 50%)" },
+              { label: "REM", color: "hsl(152, 60%, 48%)" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: item.color }} />
+                <span className="text-[10px] text-muted-foreground">{item.label}</span>
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-[250px] text-foreground/40">
-              Record dreams to see type distribution
-            </div>
-          )}
+            ))}
+          </div>
         </Card>
       </div>
 
-      {/* Emotion Trends */}
-      <Card className="glass-card p-6 rounded-xl hover-glow">
-        <h3 className="text-lg font-futuristic font-semibold mb-6 flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-success" />
-          Dream Emotion Trends
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={emotionTrends}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-            <XAxis dataKey="day" stroke="hsl(var(--foreground))" opacity={0.5} />
-            <YAxis domain={[0, 10]} stroke="hsl(var(--foreground))" opacity={0.5} />
-            <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-            <Line type="monotone" dataKey="joy" stroke={EMOTION_COLORS.joy} strokeWidth={2} dot={{ r: 4 }} />
-            <Line type="monotone" dataKey="curiosity" stroke={EMOTION_COLORS.curiosity} strokeWidth={2} dot={{ r: 4 }} />
-            <Line type="monotone" dataKey="anxiety" stroke={EMOTION_COLORS.anxiety} strokeWidth={2} dot={{ r: 4 }} />
-            <Line type="monotone" dataKey="peace" stroke={EMOTION_COLORS.peace} strokeWidth={2} dot={{ r: 4 }} />
+      {/* REM Cycle Progression */}
+      <Card className="glass-card p-5 hover-glow">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium">REM Cycle Progression — Last Night</h3>
+        </div>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={remCycles}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
+            <XAxis
+              dataKey="cycle"
+              tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "hsl(220, 22%, 9%)",
+                border: "1px solid hsl(220, 18%, 20%)",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+              labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+            />
+            <Line
+              type="monotone"
+              dataKey="intensity"
+              stroke="hsl(38, 85%, 58%)"
+              strokeWidth={2}
+              dot={{ r: 4, fill: "hsl(38, 85%, 58%)" }}
+              name="Intensity %"
+            />
+            <Line
+              type="monotone"
+              dataKey="lucidity"
+              stroke="hsl(200, 70%, 55%)"
+              strokeWidth={2}
+              dot={{ r: 4, fill: "hsl(200, 70%, 55%)" }}
+              name="Lucidity %"
+            />
+            <Line
+              type="monotone"
+              dataKey="duration"
+              stroke="hsl(152, 60%, 48%)"
+              strokeWidth={2}
+              dot={{ r: 4, fill: "hsl(152, 60%, 48%)" }}
+              name="Duration (min)"
+            />
           </LineChart>
         </ResponsiveContainer>
-        <div className="flex justify-center gap-6 mt-4">
-          {Object.entries({ joy: "Joy", curiosity: "Curiosity", anxiety: "Anxiety", peace: "Peace" }).map(([key, label]) => (
-            <div key={key} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ background: EMOTION_COLORS[key] }} />
-              <span className="text-xs text-foreground/70">{label}</span>
+        <div className="flex justify-center gap-4 mt-3">
+          {[
+            { label: "Intensity", color: "hsl(38, 85%, 58%)" },
+            { label: "Lucidity", color: "hsl(200, 70%, 55%)" },
+            { label: "Duration", color: "hsl(152, 60%, 48%)" },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ background: item.color }} />
+              <span className="text-[10px] text-muted-foreground">{item.label}</span>
             </div>
           ))}
         </div>
       </Card>
+
+      {/* AI Analysis */}
+      <div className="ai-insight-card">
+        <div className="flex items-start gap-3">
+          <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1">Pattern Analysis</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Over 7 nights, your BCI detected {totalDreams} dream episodes with an average of {avgRem} minutes
+              of REM sleep per night. REM cycle duration naturally increases through the night — your
+              later cycles show {remCycles.length > 2 ? `${remCycles[remCycles.length - 1].duration}min vs ${remCycles[0].duration}min` : "healthy progression"},
+              which is consistent with normal sleep architecture. Lucidity estimates trend upward in later
+              cycles, suggesting enhanced self-awareness during extended REM periods.
+            </p>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }

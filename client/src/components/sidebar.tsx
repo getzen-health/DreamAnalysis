@@ -45,7 +45,7 @@ const sections: NavSection[] = [
     title: "Analysis",
     items: [
       { path: "/brain-monitor", label: "Brain Monitor", icon: Activity },
-      { path: "/dreams", label: "Dreams", icon: Moon },
+      { path: "/dreams", label: "Dream Detection", icon: Moon },
       { path: "/dream-patterns", label: "Dream Patterns", icon: BarChart2 },
       { path: "/brain-connectivity", label: "Connectivity", icon: Network },
       { path: "/health-analytics", label: "Health", icon: HeartPulse },

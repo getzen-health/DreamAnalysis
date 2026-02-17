@@ -9,7 +9,7 @@ const routeTitles: Record<string, string> = {
   "/inner-energy": "Inner Energy",
   "/brain-monitor": "Brain Monitor",
   "/brain-connectivity": "Brain Connectivity",
-  "/dreams": "Dream Journal",
+  "/dreams": "Dream Detection",
   "/dream-patterns": "Dream Patterns",
   "/health-analytics": "Health Analytics",
   "/neurofeedback": "Neurofeedback",
