@@ -17,7 +17,7 @@ import warnings
 from pathlib import Path
 from sklearn.ensemble import (
     RandomForestClassifier, ExtraTreesClassifier,
-    HistGradientBoostingClassifier, VotingClassifier
+    VotingClassifier
 )
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler

@@ -194,12 +194,12 @@ def main():
     with open(metadata_path, 'w') as f:
         json.dump(metadata, f, indent=2)
 
-    log(f"\n[Model saved]")
+    log("\n[Model saved]")
     log(f"  Model: {model_path} ({model_path.stat().st_size / 1024 / 1024:.1f} MB)")
     log(f"  Scaler: {scaler_path}")
     log(f"  Metadata: {metadata_path}")
     log(f"\n  CV Accuracy: 97.79% (LGBM-1500 + dataset-aware on {total:,} premium-clean samples)")
-    log(f"  CV F1 Score: 0.9779")
+    log("  CV F1 Score: 0.9779")
     log(f"  Training samples: {X_all.shape[0]:,}")
     log(f"  Features: {total_features} ({TARGET_FEATURES} PCA + {n_datasets} dataset IDs)")
     log(f"  Datasets: {n_datasets} (excluded: {', '.join(EXCLUDED)})")

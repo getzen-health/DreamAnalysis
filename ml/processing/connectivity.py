@@ -6,8 +6,7 @@ and graph-theoretic metrics (clustering, path length, small-world index).
 """
 
 import numpy as np
-from scipy import signal as scipy_signal
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
 
 def compute_granger_causality(

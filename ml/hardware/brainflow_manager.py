@@ -4,14 +4,12 @@ Supports: OpenBCI Cyton/Ganglion, Muse 2/S, Emotiv EPOC, NeuroSky, Synthetic.
 Gracefully degrades if brainflow is not installed.
 """
 
-import time
 import threading
-import numpy as np
 from typing import Dict, List, Optional, Callable
 
 try:
-    from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds
-    from brainflow.data_filter import DataFilter
+    from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds  # noqa: F401
+    from brainflow.data_filter import DataFilter  # noqa: F401
 
     BRAINFLOW_AVAILABLE = True
 except ImportError:

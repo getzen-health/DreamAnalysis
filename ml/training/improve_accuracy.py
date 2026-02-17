@@ -16,14 +16,14 @@ import warnings
 from pathlib import Path
 from sklearn.ensemble import (
     RandomForestClassifier, ExtraTreesClassifier,
-    GradientBoostingClassifier, HistGradientBoostingClassifier,
-    VotingClassifier, StackingClassifier, BaggingClassifier
+    HistGradientBoostingClassifier,
+    VotingClassifier, StackingClassifier
 )
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.model_selection import StratifiedKFold, cross_val_score, RandomizedSearchCV
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.model_selection import StratifiedKFold, RandomizedSearchCV
+from sklearn.metrics import accuracy_score, f1_score
 from scipy.stats import randint, uniform
 
 warnings.filterwarnings('ignore')

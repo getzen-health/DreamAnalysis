@@ -397,8 +397,8 @@ def main():
 
     log(f"  EfficientEEGNet: {compact_params:,} params, ~{compact_size_kb:.0f} KB")
     log(f"  LargerEEGNet:    {large_params:,} params, ~{large_size_kb:.0f} KB")
-    log(f"  LightGBM-1500:   ~102 MB (saved model)")
-    log(f"  LightGBM-500:    ~35 MB (estimated)")
+    log("  LightGBM-1500:   ~102 MB (saved model)")
+    log("  LightGBM-500:    ~35 MB (estimated)")
 
     # ====================================================================
     # EXP 4: LightGBM with noise-robust settings

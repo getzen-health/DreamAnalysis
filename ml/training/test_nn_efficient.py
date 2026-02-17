@@ -269,8 +269,8 @@ def main():
     residual_params = sum(p.numel() for p in residual.parameters())
     log(f"  EfficientMLP:  {compact_params:>8,} params  ({compact_params*4/1024:.0f} KB)")
     log(f"  ResidualMLP:   {residual_params:>8,} params  ({residual_params*4/1024:.0f} KB)")
-    log(f"  LightGBM-1500: ~26,000,000 params  (102,400 KB = 100 MB)")
-    log(f"  LightGBM-500:  ~8,000,000 params   (~35,000 KB = 34 MB)")
+    log("  LightGBM-1500: ~26,000,000 params  (102,400 KB = 100 MB)")
+    log("  LightGBM-500:  ~8,000,000 params   (~35,000 KB = 34 MB)")
 
     # Summary
     elapsed = time.time() - t_start

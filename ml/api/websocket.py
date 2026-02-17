@@ -1,7 +1,6 @@
 """WebSocket endpoint for real-time EEG streaming."""
 
 import asyncio
-import json
 import time
 import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
@@ -32,7 +31,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
         # Try to get device manager
         device_manager = None
         try:
-            from hardware.brainflow_manager import BrainFlowManager, BRAINFLOW_AVAILABLE
+            from hardware.brainflow_manager import BRAINFLOW_AVAILABLE
             if BRAINFLOW_AVAILABLE:
                 from api.routes import _get_device_manager
                 device_manager = _get_device_manager()

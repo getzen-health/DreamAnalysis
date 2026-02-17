@@ -1,12 +1,9 @@
 import numpy as np
-import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
-import seaborn as sns
-import scipy.signal as signal
 
 # 1. Simulate neural signal data (mimicking EEG or Neuralink-like data)
 def generate_neural_signals(n_samples=1000, n_features=64, n_classes=3):

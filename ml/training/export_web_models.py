@@ -4,7 +4,6 @@ Loads sklearn .pkl models, converts to ONNX with proper input/output shapes,
 and copies to client/public/models/ for static serving via Vite.
 """
 
-import sys
 import shutil
 from pathlib import Path
 import numpy as np
@@ -27,7 +26,7 @@ def export_sklearn_to_onnx(pkl_path: Path, output_path: Path, n_features: int = 
         from skl2onnx import convert_sklearn
         from skl2onnx.common.data_types import FloatTensorType
     except ImportError:
-        print(f"skl2onnx not installed. Install with: pip install skl2onnx")
+        print("skl2onnx not installed. Install with: pip install skl2onnx")
         print(f"Copying .pkl as fallback for: {pkl_path.name}")
         return False
 

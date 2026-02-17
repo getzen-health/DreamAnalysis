@@ -1,0 +1,6 @@
+[lint]
+ignore = [
+    "E402",   # module-import-not-at-top-of-file (common in ML for optional deps)
+    "E741",   # ambiguous-variable-name (l, I, O are standard in math/ML)
+    "F841",   # unused-variable (common pattern in ML pipelines)
+]

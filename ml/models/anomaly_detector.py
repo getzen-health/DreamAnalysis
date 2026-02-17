@@ -7,7 +7,6 @@ plus specialized detectors for spikes and seizure patterns.
 import numpy as np
 from scipy import signal as scipy_signal
 from typing import Dict, List, Optional
-from collections import deque
 
 
 class AnomalyDetector:

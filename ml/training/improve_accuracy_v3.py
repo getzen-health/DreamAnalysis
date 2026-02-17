@@ -8,7 +8,6 @@ import time
 import json
 import warnings
 from pathlib import Path
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import StratifiedKFold
@@ -25,7 +24,7 @@ from mega_trainer import (
     load_seed_enhanced, load_brainwave_emotions,
     load_muse_mental_state, load_muse2_motor_imagery, load_confused_student,
     load_muse_subconscious, load_emokey_moments, load_seed_iv,
-    combine_datasets, log
+    log
 )
 
 

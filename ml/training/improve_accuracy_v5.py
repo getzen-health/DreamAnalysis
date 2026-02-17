@@ -21,7 +21,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, f1_score
-from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.ensemble import RandomForestClassifier
 import lightgbm as lgb
 import xgboost as xgb
 import optuna
@@ -383,7 +383,7 @@ def main():
     log(f"  Best so far: {best_exp_name} = {best_exp_acc:.4f}")
 
     # 6a: Optuna on base PCA=80 (50 trials, 3-fold for speed)
-    log(f"\n  Running Optuna on PCA=80 (50 trials, 3-fold)...")
+    log("\n  Running Optuna on PCA=80 (50 trials, 3-fold)...")
     t0 = time.time()
     best_params, best_val = optuna_lgbm_search(X80, y80, n_trials=50, n_splits=3)
     optuna_time = time.time() - t0
@@ -400,7 +400,7 @@ def main():
     all_results["LGBM-optuna-pca80"] = r
 
     # 6b: Optuna on dataset-aware features
-    log(f"\n  Running Optuna on dataset-aware features (50 trials)...")
+    log("\n  Running Optuna on dataset-aware features (50 trials)...")
     t0 = time.time()
     best_params_aware, best_val_aware = optuna_lgbm_search(X_aware, y80, n_trials=50, n_splits=3)
     optuna_time2 = time.time() - t0

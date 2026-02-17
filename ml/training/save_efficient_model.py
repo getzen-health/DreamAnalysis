@@ -227,7 +227,7 @@ def main():
     with open(metadata_path, 'w') as f:
         json.dump(metadata, f, indent=2)
 
-    log(f"\n[Model saved]")
+    log("\n[Model saved]")
     log(f"  Model: {nn_path} ({model_size_kb:.0f} KB)")
     log(f"  Scaler: {scaler_path}")
     log(f"  Metadata: {metadata_path}")
