@@ -12,6 +12,8 @@ ml/data/
 ml/models/*.joblib
 ml/models/*.pkl
 ml/models/*.pt
+ml/models/saved/*.pkl
+ml/models/saved/*.onnx
 *.dat
 *.mat
 *.npz
