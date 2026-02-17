@@ -107,6 +107,11 @@ class ConfidenceCalibrator:
         # Calibrate full distribution if available
         calibrated_probs = None
         if raw_probs is not None:
+            # Handle dict-style probabilities
+            if isinstance(raw_probs, dict):
+                raw_probs = np.array(list(raw_probs.values()), dtype=float)
+            elif isinstance(raw_probs, list):
+                raw_probs = np.array(raw_probs, dtype=float)
             calibrated_probs = self._calibrate_distribution(
                 raw_probs, prior["compression"]
             )
