@@ -557,6 +557,31 @@ async def list_sessions(user_id: Optional[str] = None, session_type: Optional[st
     return SessionRecorder.list_sessions(user_id, session_type)
 
 
+# Session analytics (MUST be above /sessions/{session_id} to avoid catch-all)
+from storage.session_analytics import compare_sessions, get_session_trends, get_weekly_report
+
+
+@router.get("/sessions/trends")
+async def session_trends(user_id: Optional[str] = None, last_n: int = 20):
+    """Get trends across recent sessions."""
+    return _numpy_safe(get_session_trends(user_id, last_n))
+
+
+@router.get("/sessions/weekly-report")
+async def weekly_report(user_id: Optional[str] = None):
+    """Generate a weekly progress report comparing this week to last week."""
+    return _numpy_safe(get_weekly_report(user_id))
+
+
+@router.get("/sessions/compare/{session_a}/{session_b}")
+async def compare_two_sessions(session_a: str, session_b: str):
+    """Compare two sessions side-by-side with per-metric deltas."""
+    result = compare_sessions(session_a, session_b)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return _numpy_safe(result)
+
+
 @router.get("/sessions/{session_id}")
 async def get_session(session_id: str):
     """Get full session data."""

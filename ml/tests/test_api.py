@@ -148,3 +148,52 @@ class TestAccuracyPipelineAPI:
         assert r.status_code == 200
         data = r.json()
         assert "is_coherent" in data
+
+
+class TestSessionAnalytics:
+    def test_session_trends_empty(self, client):
+        r = client.get("/api/sessions/trends?user_id=nonexistent_user")
+        assert r.status_code == 200
+        data = r.json()
+        assert "session_count" in data
+
+    def test_weekly_report(self, client):
+        r = client.get("/api/sessions/weekly-report")
+        assert r.status_code == 200
+        data = r.json()
+        assert "this_week_sessions" in data
+        assert "highlights" in data
+
+    def test_compare_missing_sessions(self, client):
+        r = client.get("/api/sessions/compare/fake_a/fake_b")
+        assert r.status_code == 404
+
+    def test_session_analytics_functions(self):
+        from storage.session_analytics import (
+            compare_sessions, get_session_trends, get_weekly_report,
+            _aggregate_timeline, _is_improvement, _build_narrative,
+        )
+
+        # Test aggregation
+        timeline = [
+            {"band_powers": {"alpha": 10, "beta": 5}, "flow_score": 0.6},
+            {"band_powers": {"alpha": 12, "beta": 7}, "flow_score": 0.8},
+        ]
+        metrics = _aggregate_timeline(timeline)
+        assert "band_powers.alpha" in metrics
+        assert metrics["band_powers.alpha"] == 11.0
+        assert metrics["flow_score"] == 0.7
+
+        # Test improvement detection
+        assert _is_improvement("flow_score", 0.1) is True
+        assert _is_improvement("flow_score", -0.1) is False
+        assert _is_improvement("stress_index", -5) is True
+        assert _is_improvement("unknown_metric", 0.1) is None
+
+        # Test narrative
+        comparison = {
+            "flow_score": {"pct_change": 25.0, "improved": True},
+            "stress_index": {"pct_change": -10.0, "improved": True},
+        }
+        narrative = _build_narrative(comparison)
+        assert len(narrative) > 0
