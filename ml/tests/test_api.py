@@ -1,5 +1,6 @@
 """Tests for FastAPI endpoints."""
 
+import numpy as np
 import pytest
 
 
@@ -105,3 +106,45 @@ class TestHealthIntegration:
             },
         })
         assert r.status_code == 200
+
+
+class TestAccuracyPipelineAPI:
+    def test_analyze_eeg_accurate(self, client):
+        signal = (np.random.randn(1024) * 20).tolist()
+        r = client.post("/api/analyze-eeg-accurate", json={
+            "signals": [signal],
+            "sample_rate": 256,
+            "user_id": "test_user",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "ok"
+        assert "quality" in data
+        assert "analysis" in data
+        assert "smoothed_states" in data
+        assert "confidence_summary" in data
+        assert "coherence" in data
+
+    def test_signal_quality_endpoint(self, client):
+        signal = (np.random.randn(1024) * 20).tolist()
+        r = client.post("/api/signal-quality", json={
+            "signals": [signal],
+            "sample_rate": 256,
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert "quality_score" in data
+        assert "is_usable" in data
+
+    def test_confidence_reliability(self, client):
+        r = client.get("/api/confidence/reliability")
+        assert r.status_code == 200
+        data = r.json()
+        assert "sleep_staging" in data
+        assert "reliability_tier" in data["sleep_staging"]
+
+    def test_state_engine_coherence(self, client):
+        r = client.get("/api/state-engine/coherence")
+        assert r.status_code == 200
+        data = r.json()
+        assert "is_coherent" in data
