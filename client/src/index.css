@@ -255,8 +255,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: hsl(var(--success));
-  box-shadow: 0 0 6px hsl(var(--success));
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
 }
 
 .neural-particle {

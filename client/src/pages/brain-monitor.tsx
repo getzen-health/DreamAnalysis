@@ -165,9 +165,10 @@ export default function BrainMonitor() {
 
   // Count electrode statuses
   const channelQuality = signalQuality?.channel_quality || [];
-  const activeCount = channelQuality.filter((q) => q >= 80).length || 60;
-  const weakCount = channelQuality.filter((q) => q >= 60 && q < 80).length || 3;
-  const errorCount = channelQuality.filter((q) => q < 60).length || 1;
+  const hasRealData = channelQuality.length > 0;
+  const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 64;
+  const weakCount = hasRealData ? channelQuality.filter((q) => q >= 60 && q < 80).length : 0;
+  const errorCount = hasRealData ? channelQuality.filter((q) => q < 60).length : 0;
 
   return (
     <main className="p-4 md:p-6 space-y-6">
@@ -183,7 +184,7 @@ export default function BrainMonitor() {
         {/* EEG Brain Waves */}
         <div className="xl:col-span-2 glass-card p-6 rounded-xl hover-glow">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-futuristic font-semibold">
+            <h3 className="text-lg font-semibold">
               EEG Brain Wave Activity
             </h3>
             <div className="flex items-center space-x-3">
@@ -238,7 +239,7 @@ export default function BrainMonitor() {
         {/* Neural Network Graph */}
         <div className="glass-card p-6 rounded-xl hover-glow neural-glow">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-futuristic font-semibold">
+            <h3 className="text-lg font-semibold">
               Brain Regions
             </h3>
             <Activity className="text-accent" />
@@ -251,7 +252,7 @@ export default function BrainMonitor() {
       {wavelet && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-futuristic font-semibold">
+            <h3 className="text-lg font-semibold">
               Wavelet Spectrogram
             </h3>
             <div className="flex items-center gap-4 text-xs text-foreground/50">
@@ -284,7 +285,7 @@ export default function BrainMonitor() {
       {/* Electrode Status Grid */}
       <Card className="glass-card p-6 rounded-xl hover-glow">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-futuristic font-semibold">
+          <h3 className="text-lg font-semibold">
             Electrode Status Grid
           </h3>
           <span className="text-sm text-foreground/70 font-mono">
