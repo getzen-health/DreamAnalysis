@@ -232,14 +232,14 @@ export default function SessionHistory() {
                                 : "—"}
                             </span>
                             {entry.band_powers &&
-                              typeof entry.band_powers === "object" && (
+                              typeof entry.band_powers === "object" ? (
                                 <span className="text-primary">
                                   α:{" "}
                                   {(
                                     entry.band_powers as Record<string, number>
                                   ).alpha?.toFixed(2) || "—"}
                                 </span>
-                              )}
+                              ) : null}
                           </div>
                         )
                       )}

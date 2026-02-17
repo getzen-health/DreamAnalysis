@@ -42,7 +42,7 @@ interface DreamPrediction {
 const SLEEP_STAGES = ["Wake", "N1", "N2", "N3", "REM"];
 const EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"];
 
-type InferenceSession = InstanceType<typeof import("onnxruntime-web").InferenceSession>;
+type InferenceSession = import("onnxruntime-web").InferenceSession;
 
 class LocalMLEngine {
   private sleepSession: InferenceSession | null = null;
