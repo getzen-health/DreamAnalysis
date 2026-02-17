@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { ScoreCircle } from "@/components/score-circle";
 import { Sparkles, Eye, Activity } from "lucide-react";
 
 interface ChakraState {
@@ -101,7 +101,6 @@ export default function InnerEnergy() {
   const update = useCallback(() => {
     setEnergy((prev) => {
       const next = simulateEnergy();
-      // Smooth transitions
       return {
         ...next,
         chakras: next.chakras.map((c, i) => ({
@@ -129,40 +128,97 @@ export default function InnerEnergy() {
     return () => clearInterval(interval);
   }, [update]);
 
+  const meditationPercent = Math.round(energy.meditationDepth * 10);
+
   return (
-    <main className="p-6 space-y-6 max-w-4xl">
+    <main className="p-6 space-y-6 max-w-5xl">
       {/* Guidance */}
-      <div className="bg-secondary/5 border border-secondary/15 rounded-xl p-4">
+      <div className="ai-insight-card">
         <div className="flex items-start gap-3">
-          <Sparkles className="h-5 w-5 text-secondary mt-0.5 shrink-0" />
-          <p className="text-sm text-foreground/80">{energy.guidance}</p>
+          <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1">Energy Guidance</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {energy.guidance}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Score Gauges */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="score-card p-5 flex flex-col items-center hover-glow">
+          <ScoreCircle
+            value={meditationPercent}
+            label="Meditation"
+            gradientId="grad-meditation"
+            colorFrom="hsl(152, 60%, 48%)"
+            colorTo="hsl(200, 70%, 55%)"
+            size="md"
+          />
+          <Badge variant="secondary" className="text-xs mt-2">
+            {energy.meditationStage}
+          </Badge>
+        </div>
+
+        <div className="score-card p-5 flex flex-col items-center hover-glow">
+          <ScoreCircle
+            value={Math.round(energy.consciousnessLevel / 10)}
+            label="Consciousness"
+            gradientId="grad-consciousness"
+            colorFrom="hsl(262, 45%, 65%)"
+            colorTo="hsl(320, 55%, 60%)"
+            size="md"
+          />
+          <Badge variant="secondary" className="text-xs mt-2">
+            {energy.consciousnessName}
+          </Badge>
+        </div>
+
+        <div className="score-card p-5 flex flex-col items-center hover-glow">
+          <ScoreCircle
+            value={energy.thirdEyeActivation}
+            label="Third Eye"
+            gradientId="grad-thirdeye"
+            colorFrom="hsl(240, 55%, 60%)"
+            colorTo="hsl(280, 50%, 60%)"
+            size="md"
+          />
+          <p className="text-[10px] text-muted-foreground mt-2">
+            Gamma + high-beta prefrontal
+          </p>
         </div>
       </div>
 
       {/* Chakra Activations */}
-      <Card className="glass-card p-6">
-        <h3 className="text-base font-medium mb-5">Energy Centers</h3>
+      <Card className="glass-card p-6 hover-glow">
+        <h3 className="text-sm font-medium mb-5 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-accent" />
+          Energy Centers
+        </h3>
         <div className="space-y-3">
           {[...energy.chakras].reverse().map((chakra) => (
             <div key={chakra.name} className="flex items-center gap-3">
               <div
                 className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: chakra.color }}
+                style={{
+                  backgroundColor: chakra.color,
+                  boxShadow: `0 0 6px ${chakra.color}66`,
+                }}
               />
               <div className="w-24 shrink-0">
                 <div className="text-sm font-medium">{chakra.name}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-[10px] text-muted-foreground">
                   {chakra.sanskrit}
                 </div>
               </div>
               <div className="flex-1">
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-1000"
                     style={{
                       width: `${chakra.activation}%`,
-                      backgroundColor: chakra.color,
-                      opacity: 0.7,
+                      background: `linear-gradient(90deg, ${chakra.color}88, ${chakra.color})`,
                     }}
                   />
                 </div>
@@ -173,60 +229,9 @@ export default function InnerEnergy() {
             </div>
           ))}
         </div>
-        <div className="mt-4 pt-3 border-t border-border text-sm text-muted-foreground">
-          Dominant: <span className="text-foreground">{energy.dominantEnergy}</span>
+        <div className="mt-4 pt-3 border-t border-border/30 text-sm text-muted-foreground">
+          Dominant: <span className="text-foreground font-medium">{energy.dominantEnergy}</span>
         </div>
-      </Card>
-
-      {/* Meditation & Consciousness */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card className="glass-card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium">Meditation Depth</h3>
-          </div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-semibold">
-              {energy.meditationDepth}
-            </span>
-            <span className="text-sm text-muted-foreground">/ 10</span>
-          </div>
-          <Badge variant="secondary" className="text-xs">
-            {energy.meditationStage}
-          </Badge>
-        </Card>
-
-        <Card className="glass-card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Eye className="h-4 w-4 text-secondary" />
-            <h3 className="text-sm font-medium">Consciousness</h3>
-          </div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-semibold">
-              {energy.consciousnessLevel}
-            </span>
-            <span className="text-sm text-muted-foreground">/ 1000</span>
-          </div>
-          <Badge variant="secondary" className="text-xs">
-            {energy.consciousnessName}
-          </Badge>
-        </Card>
-      </div>
-
-      {/* Third Eye */}
-      <Card className="glass-card p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-medium mb-1">Third Eye Activation</h3>
-            <p className="text-xs text-muted-foreground">
-              Gamma + high-beta activity in prefrontal cortex
-            </p>
-          </div>
-          <span className="text-lg font-mono">
-            {energy.thirdEyeActivation}%
-          </span>
-        </div>
-        <Progress value={energy.thirdEyeActivation} className="h-2 mt-3" />
       </Card>
     </main>
   );
