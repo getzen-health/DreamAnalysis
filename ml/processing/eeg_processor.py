@@ -54,14 +54,14 @@ def preprocess(raw_eeg: np.ndarray, fs: float = 256.0) -> np.ndarray:
 def extract_band_powers(eeg: np.ndarray, fs: float = 256.0) -> Dict[str, float]:
     """Extract power spectral density for each EEG frequency band."""
     freqs, psd = scipy_signal.welch(eeg, fs=fs, nperseg=min(len(eeg), int(fs * 2)))
-    total_power = np.trapz(psd, freqs)
+    total_power = np.trapezoid(psd, freqs)
     if total_power == 0:
         total_power = 1e-10
 
     band_powers = {}
     for band_name, (low, high) in BANDS.items():
         mask = (freqs >= low) & (freqs <= high)
-        band_power = np.trapz(psd[mask], freqs[mask])
+        band_power = np.trapezoid(psd[mask], freqs[mask])
         band_powers[band_name] = float(band_power / total_power)
 
     return band_powers

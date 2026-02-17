@@ -170,18 +170,22 @@ class EmotionClassifier:
         """ONNX model inference."""
         processed = preprocess(eeg, fs)
         bands = extract_band_powers(processed, fs)
-        features = np.array(list(bands.values()), dtype=np.float32).reshape(1, -1)
+        features_dict = extract_features(processed, fs)
+        features = np.array(list(features_dict.values()), dtype=np.float32).reshape(1, -1)
 
         input_name = self.onnx_session.get_inputs()[0].name
         outputs = self.onnx_session.run(None, {input_name: features})
-        probs = outputs[0][0]
-        emotion_idx = int(np.argmax(probs))
+        # outputs[0] = predicted label, outputs[1] = probability map
+        emotion_idx = int(outputs[0][0])
+        prob_map = outputs[1][0]  # dict {class_idx: probability}
+        n_classes = len(EMOTIONS)
+        probs = [float(prob_map.get(i, 0.0)) for i in range(n_classes)]
 
         return {
-            "emotion": EMOTIONS[emotion_idx],
+            "emotion": EMOTIONS[emotion_idx] if emotion_idx < n_classes else "unknown",
             "emotion_index": emotion_idx,
-            "confidence": float(probs[emotion_idx]),
-            "probabilities": {EMOTIONS[i]: float(p) for i, p in enumerate(probs)},
+            "confidence": float(probs[emotion_idx]) if emotion_idx < n_classes else 0.0,
+            "probabilities": {EMOTIONS[i]: probs[i] for i in range(n_classes)},
             "valence": 0.0,
             "arousal": 0.0,
             "band_powers": bands,

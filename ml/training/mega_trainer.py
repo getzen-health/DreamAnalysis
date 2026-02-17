@@ -1,7 +1,7 @@
 """
 Mega Trainer: Unified emotion classifier across ALL available datasets.
-Combines 9+ EEG datasets (DEAP, GAMEEMO, EEG-ER, DENS, SEED, Brainwave,
-Muse Mental State, Muse2 Motor Imagery, SEED-IV) into a single pipeline.
+Combines 10+ EEG datasets (DEAP, GAMEEMO, EEG-ER, DENS, SEED, Brainwave,
+Muse Mental State, Muse2 Motor Imagery, SEED-IV, DREAMER, STEW) into a single pipeline.
 
 All datasets mapped to 3-class: 0=positive, 1=neutral, 2=negative
 """
@@ -943,6 +943,172 @@ def load_seed_iv():
     return X, y, "SEED-IV"
 
 
+def load_dreamer():
+    """DREAMER: 23 subjects, 14 EEG channels @ 128Hz, 18 film clips.
+    Valence/arousal/dominance labels (1-5). Stored as MATLAB v7.3 (HDF5).
+    Download: https://zenodo.org/records/546113/files/DREAMER.mat
+    """
+    log("  Loading DREAMER...")
+    import h5py
+
+    mat_path = Path('/Users/sravyalu/NeuralDreamWorkshop/ml/data/DREAMER.mat')
+    if not mat_path.exists():
+        log("    DREAMER.mat not found, skipping")
+        return np.array([]), np.array([]), "DREAMER"
+
+    SFREQ = 128
+    WIN = 4 * SFREQ    # 4-second windows
+    STEP = 2 * SFREQ   # 50% overlap (2-second step)
+    N_CHANNELS = 14
+
+    X, y = [], []
+
+    try:
+        with h5py.File(str(mat_path), 'r') as f:
+            # Navigate HDF5 structure: DREAMER -> Data
+            dreamer_ref = f['DREAMER']
+            data_ref = dreamer_ref['Data']
+
+            n_subjects = data_ref.shape[1]
+            log(f"    Found {n_subjects} subjects")
+
+            for subj_idx in range(n_subjects):
+                subj_ref = data_ref[0, subj_idx]
+                subj = f[subj_ref]
+
+                # Get EEG data and labels
+                eeg_ref = subj['EEG']
+                stim_data = eeg_ref['stimuli']
+                baseline_data = eeg_ref['baseline']
+
+                # Get valence scores
+                valence_data = subj['ScoreValence']
+
+                n_trials = stim_data.shape[1]
+
+                for trial_idx in range(n_trials):
+                    # Get trial EEG: dereference to get actual data
+                    trial_ref = stim_data[0, trial_idx]
+                    trial_eeg = np.array(f[trial_ref])  # (samples, channels)
+
+                    # Get valence label
+                    val_ref = valence_data[0, trial_idx]
+                    valence = float(np.array(f[val_ref]).flat[0])
+
+                    # Map valence (1-5) to 3-class
+                    if valence >= 3.5:
+                        label = 0   # positive
+                    elif valence <= 2.5:
+                        label = 2   # negative
+                    else:
+                        label = 1   # neutral
+
+                    # Ensure correct shape (samples, channels) -> (channels, samples)
+                    if trial_eeg.shape[0] == N_CHANNELS:
+                        eeg = trial_eeg  # already (channels, samples)
+                    elif trial_eeg.shape[1] == N_CHANNELS:
+                        eeg = trial_eeg.T  # transpose to (channels, samples)
+                    else:
+                        # Try to use available channels
+                        if trial_eeg.shape[0] < trial_eeg.shape[1]:
+                            eeg = trial_eeg[:N_CHANNELS, :]
+                        else:
+                            eeg = trial_eeg[:, :N_CHANNELS].T
+
+                    # Window into segments
+                    n_samples = eeg.shape[1]
+                    for start in range(0, n_samples - WIN, STEP):
+                        segment = eeg[:, start:start + WIN]
+                        feat = extract_multichannel(segment, SFREQ)
+                        X.append(feat)
+                        y.append(label)
+
+    except Exception as e:
+        log(f"    Error loading DREAMER: {e}")
+        return np.array([]), np.array([]), "DREAMER"
+
+    if len(X) == 0:
+        return np.array([]), np.array([]), "DREAMER"
+
+    X, y = np.array(X), np.array(y)
+    log(f"    DREAMER: {len(X)} samples, {X.shape[1]} features")
+    return X, y, "DREAMER"
+
+
+def load_stew():
+    """STEW: 48 subjects, 14 EEG channels (Emotiv EPOC) @ 128Hz.
+    3-class cognitive workload: 0=low, 1=medium, 2=high.
+    Downloaded via Kaggle: mitulahirwal/mental-cognitive-workload-eeg-data-stew-dataset
+    """
+    log("  Loading STEW...")
+    from scipy.io import loadmat
+
+    base = Path('/Users/sravyalu/.cache/kagglehub/datasets/mitulahirwal/mental-cognitive-workload-eeg-data-stew-dataset/versions/1')
+    dataset_path = base / 'dataset.mat'
+    labels_path = base / 'class_012.mat'
+
+    if not dataset_path.exists():
+        log("    STEW dataset not found, skipping")
+        return np.array([]), np.array([]), "STEW"
+
+    SFREQ = 128
+    WIN = 4 * SFREQ    # 4-second windows
+    STEP = 2 * SFREQ   # 50% overlap
+
+    X, y = [], []
+
+    try:
+        data_mat = loadmat(str(dataset_path))
+        labels_mat = loadmat(str(labels_path))
+
+        # dataset.mat: shape (14, 19200, 45) = (channels, samples, segments)
+        # class_012.mat: shape (45, 1) with values 0, 1, 2
+        eeg_data = None
+        for key in data_mat:
+            if not key.startswith('_'):
+                eeg_data = data_mat[key]
+                break
+
+        labels = None
+        for key in labels_mat:
+            if not key.startswith('_'):
+                labels = labels_mat[key].flatten()
+                break
+
+        if eeg_data is None or labels is None:
+            log("    Could not find data/labels in STEW .mat files")
+            return np.array([]), np.array([]), "STEW"
+
+        n_channels, n_samples, n_segments = eeg_data.shape
+        log(f"    STEW shape: {eeg_data.shape}, {n_segments} segments, {n_channels} channels")
+
+        # Map workload classes to emotion classes:
+        # low workload (0) → positive/relaxed (0)
+        # medium workload (1) → neutral (1)
+        # high workload (2) → negative/stressed (2)
+        for seg_idx in range(n_segments):
+            segment = eeg_data[:, :, seg_idx]  # (14, 19200)
+            label = int(labels[seg_idx])
+
+            # Window into 4-second segments with 50% overlap
+            for start in range(0, n_samples - WIN, STEP):
+                window = segment[:, start:start + WIN]
+                feat = extract_multichannel(window, SFREQ)
+                X.append(feat)
+                y.append(label)
+
+    except Exception as e:
+        log(f"    Error loading STEW: {e}")
+        return np.array([]), np.array([]), "STEW"
+
+    if len(X) == 0:
+        return np.array([]), np.array([]), "STEW"
+
+    X, y = np.array(X), np.array(y)
+    log(f"    STEW: {len(X)} samples, {X.shape[1]} features")
+    return X, y, "STEW"
+
+
 # ─── EVALUATION ──────────────────────────────────────────────────────
 
 def evaluate_models(X, y, dataset_name, n_features_target=None):
@@ -1092,7 +1258,7 @@ def main():
     pre_extracted_datasets = []  # Different feature spaces
 
     # 1. Raw EEG datasets (38-dim multichannel features)
-    for loader in [load_deap_enhanced, load_gameemo_enhanced, load_eeg_er_enhanced, load_dens]:
+    for loader in [load_deap_enhanced, load_gameemo_enhanced, load_eeg_er_enhanced, load_dens, load_dreamer, load_stew]:
         try:
             X, y, name = loader()
             if len(X) > 0:
