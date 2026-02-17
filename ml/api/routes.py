@@ -47,6 +47,7 @@ from processing.connectivity import (
     compute_dtf,
     compute_graph_metrics,
 )
+from processing.emotion_shift_detector import EmotionShiftDetector
 from processing.spiritual_energy import (
     compute_chakra_activations,
     compute_chakra_balance,
@@ -104,6 +105,9 @@ dream_model = DreamDetector(model_path=_find_model("dream_detector_model"))
 flow_model = FlowStateDetector(model_path=_find_model("flow_state_model"))
 creativity_model = CreativityDetector(model_path=_find_model("creativity_model"))
 memory_model = MemoryEncodingPredictor(model_path=_find_model("memory_encoding_model"))
+
+# Emotion shift detectors (per-user)
+_emotion_shift_detectors: Dict[str, EmotionShiftDetector] = {}
 
 # Hardware manager (lazy init)
 _device_manager = None
@@ -1557,3 +1561,77 @@ async def full_spiritual_analysis_endpoint(data: EEGInput):
 
     result = full_spiritual_analysis(processed, data.fs, eeg_left, eeg_right)
     return _numpy_safe(result)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  EMOTIONAL SHIFT DETECTION — Pre-conscious awareness
+# ═══════════════════════════════════════════════════════════════
+
+
+class EmotionShiftRequest(BaseModel):
+    signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
+    fs: float = Field(default=256.0)
+    user_id: str = Field(default="default")
+
+
+@router.post("/emotion-shift/detect")
+async def detect_emotion_shift(req: EmotionShiftRequest):
+    """Feed EEG data and detect pre-conscious emotional shifts.
+
+    Call this continuously (~4Hz) during a session. The detector
+    watches for EEG patterns that precede conscious emotion changes
+    — the same signals animals read in us before we notice ourselves.
+
+    Returns shift alerts with type, guidance, and body awareness cues.
+    """
+    if req.user_id not in _emotion_shift_detectors:
+        _emotion_shift_detectors[req.user_id] = EmotionShiftDetector(fs=req.fs)
+
+    detector = _emotion_shift_detectors[req.user_id]
+    signals = np.array(req.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+
+    # Also run emotion model for richer context
+    emotion_pred = emotion_model.predict(eeg, req.fs)
+    result = detector.update(eeg, emotion_pred)
+
+    return _numpy_safe(result)
+
+
+@router.get("/emotion-shift/summary/{user_id}")
+async def emotion_shift_summary(user_id: str):
+    """Get session summary of all emotional shifts detected.
+
+    Shows shift timeline, dominant patterns, stability assessment,
+    and personalized insights about emotional patterns.
+    """
+    detector = _emotion_shift_detectors.get(user_id)
+    if detector is None:
+        return {"total_shifts": 0, "message": "No active session for this user"}
+
+    return _numpy_safe(detector.get_session_summary())
+
+
+@router.get("/emotion-shift/awareness-score/{user_id}")
+async def emotion_awareness_score(user_id: str):
+    """Get emotional awareness score for the session.
+
+    Tracks how many shifts were observed — building this muscle
+    over time gives humans animal-like emotional perception.
+    """
+    detector = _emotion_shift_detectors.get(user_id)
+    if detector is None:
+        return {"awareness_score": 0, "level": "Beginning", "message": "Start a session first."}
+
+    return _numpy_safe(detector.get_emotional_awareness_score())
+
+
+@router.post("/emotion-shift/reset/{user_id}")
+async def reset_emotion_shift(user_id: str):
+    """Reset the emotion shift detector for a new session."""
+    if user_id in _emotion_shift_detectors:
+        del _emotion_shift_detectors[user_id]
+    return {"status": "reset", "user_id": user_id}

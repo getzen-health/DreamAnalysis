@@ -63,6 +63,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
     run_quality = True
     run_smoothing = True
     run_spiritual = False  # opt-in for spiritual energy analysis
+    run_emotion_shift = True  # on by default — core feature
 
     # Lazy-init pipeline singletons
     models = None
@@ -145,6 +146,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         run_quality = cmd.get("run_quality", run_quality)
                         run_smoothing = cmd.get("run_smoothing", run_smoothing)
                         run_spiritual = cmd.get("run_spiritual", run_spiritual)
+                        run_emotion_shift = cmd.get("run_emotion_shift", run_emotion_shift)
                 except (json.JSONDecodeError, AttributeError):
                     pass
             except asyncio.TimeoutError:
@@ -242,6 +244,19 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         frame["confidence_summary"] = conf_summary
                     if coherence is not None:
                         frame["coherence"] = coherence
+
+                    # Emotion shift detection (on by default)
+                    if run_emotion_shift:
+                        try:
+                            from processing.emotion_shift_detector import EmotionShiftDetector
+                            if not hasattr(eeg_stream_endpoint, '_shift_detector'):
+                                eeg_stream_endpoint._shift_detector = EmotionShiftDetector(fs=fs)
+                            emotion_pred = analysis.get("emotions")
+                            shift = eeg_stream_endpoint._shift_detector.update(eeg, emotion_pred)
+                            if shift.get("shift_detected"):
+                                frame["emotion_shift"] = shift
+                        except Exception:
+                            pass
 
                     # Spiritual energy analysis (opt-in)
                     if run_spiritual:
