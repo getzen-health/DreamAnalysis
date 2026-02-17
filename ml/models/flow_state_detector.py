@@ -19,9 +19,9 @@ Outputs flow probability (0-1) and component scores:
 """
 
 import numpy as np
-from typing import Dict
+from typing import Dict, Optional
 from processing.eeg_processor import (
-    extract_band_powers, preprocess, compute_hjorth_parameters
+    extract_band_powers, extract_features, preprocess, compute_hjorth_parameters
 )
 
 
@@ -31,12 +31,31 @@ FLOW_STATES = ["no_flow", "micro_flow", "flow", "deep_flow"]
 class FlowStateDetector:
     """EEG-based flow state detector using frequency band analysis."""
 
-    def __init__(self):
+    def __init__(self, model_path: Optional[str] = None):
         self.model_type = "feature-based"
+        self.sklearn_model = None
+        self.feature_names = None
+        self.scaler = None
         self.calibration_data = []
         self.baseline_alpha = None
         self.baseline_beta = None
         self.baseline_theta = None
+
+        if model_path:
+            self._load_model(model_path)
+
+    def _load_model(self, model_path: str):
+        """Load trained model from pkl file."""
+        if model_path.endswith(".pkl"):
+            try:
+                import joblib
+                data = joblib.load(model_path)
+                self.sklearn_model = data["model"]
+                self.feature_names = data["feature_names"]
+                self.scaler = data.get("scaler")
+                self.model_type = "sklearn"
+            except Exception:
+                pass
 
     def calibrate(self, resting_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with 30-60s of resting EEG for personalized thresholds."""
@@ -54,6 +73,9 @@ class FlowStateDetector:
             'absorption', 'effortlessness', 'focus_quality',
             'time_distortion', 'band_powers'
         """
+        if self.sklearn_model is not None:
+            return self._predict_sklearn(eeg, fs)
+
         processed = preprocess(eeg, fs)
         bands = extract_band_powers(processed, fs)
         hjorth = compute_hjorth_parameters(processed)
@@ -156,6 +178,34 @@ class FlowStateDetector:
                 "effortlessness": round(effortlessness, 3),
                 "focus_quality": round(focus_quality, 3),
                 "time_distortion": round(time_distortion, 3),
+            },
+            "band_powers": bands,
+        }
+
+    def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
+        """Sklearn model inference using extracted features."""
+        processed = preprocess(eeg, fs)
+        features = extract_features(processed, fs)
+        bands = extract_band_powers(processed, fs)
+        feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+
+        if self.scaler is not None:
+            feature_vector = self.scaler.transform(feature_vector)
+
+        probs = self.sklearn_model.predict_proba(feature_vector)[0]
+        state_idx = int(np.argmax(probs))
+        flow_score = float(state_idx / 3.0 * 0.7 + probs[state_idx] * 0.3)
+
+        return {
+            "state": FLOW_STATES[state_idx],
+            "state_index": state_idx,
+            "flow_score": round(float(np.clip(flow_score, 0, 1)), 3),
+            "confidence": round(float(probs[state_idx]), 3),
+            "components": {
+                "absorption": round(float(probs[2] + probs[3]) / 2, 3) if len(probs) > 3 else 0.5,
+                "effortlessness": round(float(bands.get("alpha", 0.3)), 3),
+                "focus_quality": round(float(bands.get("beta", 0.2)), 3),
+                "time_distortion": round(float(bands.get("theta", 0.15)), 3),
             },
             "band_powers": bands,
         }

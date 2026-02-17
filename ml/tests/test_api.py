@@ -197,3 +197,166 @@ class TestSessionAnalytics:
         }
         narrative = _build_narrative(comparison)
         assert len(narrative) > 0
+
+
+class TestSpiritualEnergy:
+    """Tests for spiritual energy / self-awareness BCI endpoints."""
+
+    def test_chakra_info(self, client):
+        r = client.get("/api/spiritual/chakras/info")
+        assert r.status_code == 200
+        data = r.json()
+        assert "chakras" in data
+        assert "root" in data["chakras"]
+        assert "crown" in data["chakras"]
+        assert data["chakras"]["root"]["sanskrit"] == "Muladhara"
+        assert data["chakras"]["crown"]["sanskrit"] == "Sahasrara"
+        assert "consciousness_levels" in data
+
+    def test_chakra_analysis(self, client):
+        eeg = np.random.randn(1, 1024).tolist()
+        r = client.post("/api/spiritual/chakras", json={"signals": eeg, "fs": 256})
+        assert r.status_code == 200
+        data = r.json()
+        assert "chakras" in data
+        assert "balance" in data
+        for chakra in ["root", "sacral", "solar_plexus", "heart", "throat", "third_eye", "crown"]:
+            assert chakra in data["chakras"]
+            assert "activation" in data["chakras"][chakra]
+            assert 0 <= data["chakras"][chakra]["activation"] <= 100
+        assert "harmony_score" in data["balance"]
+        assert "dominant_chakra" in data["balance"]
+
+    def test_meditation_depth(self, client):
+        eeg = np.random.randn(1, 1024).tolist()
+        r = client.post("/api/spiritual/meditation-depth", json={"signals": eeg, "fs": 256})
+        assert r.status_code == 200
+        data = r.json()
+        assert "depth_score" in data
+        assert 0 <= data["depth_score"] <= 10
+        assert "stage" in data
+        assert "guidance" in data
+
+    def test_aura_energy(self, client):
+        eeg = np.random.randn(1, 1024).tolist()
+        r = client.post("/api/spiritual/aura", json={"signals": eeg, "fs": 256})
+        assert r.status_code == 200
+        data = r.json()
+        assert "dominant_color" in data
+        assert "blended_aura_color" in data
+        assert "layers" in data
+        assert len(data["layers"]) == 3  # inner, middle, outer
+
+    def test_kundalini_flow(self, client):
+        eeg = np.random.randn(1, 1024).tolist()
+        r = client.post("/api/spiritual/kundalini", json={"signals": eeg, "fs": 256})
+        assert r.status_code == 200
+        data = r.json()
+        assert "highest_chakra_reached" in data
+        assert "awakening_status" in data
+        assert "chakra_progression" in data
+        assert len(data["chakra_progression"]) == 7
+
+    def test_consciousness_level(self, client):
+        eeg = np.random.randn(1, 1024).tolist()
+        r = client.post("/api/spiritual/consciousness", json={"signals": eeg, "fs": 256})
+        assert r.status_code == 200
+        data = r.json()
+        assert "score" in data
+        assert 0 <= data["score"] <= 1000
+        assert "level" in data
+
+    def test_third_eye(self, client):
+        eeg = np.random.randn(1, 1024).tolist()
+        r = client.post("/api/spiritual/third-eye", json={"signals": eeg, "fs": 256})
+        assert r.status_code == 200
+        data = r.json()
+        assert "activation_pct" in data
+        assert "status" in data
+        assert "insight" in data
+
+    def test_prana_balance(self, client):
+        eeg = np.random.randn(2, 1024).tolist()
+        r = client.post("/api/spiritual/prana-balance", json={"signals": eeg, "fs": 256})
+        assert r.status_code == 200
+        data = r.json()
+        assert "dominant_nadi" in data
+        assert data["dominant_nadi"] in ["ida", "pingala", "sushumna"]
+        assert "balance_quality" in data
+        assert "guidance" in data
+
+    def test_full_spiritual_analysis(self, client):
+        eeg = np.random.randn(2, 1024).tolist()
+        r = client.post("/api/spiritual/full-analysis", json={"signals": eeg, "fs": 256})
+        assert r.status_code == 200
+        data = r.json()
+        assert "chakras" in data
+        assert "meditation_depth" in data
+        assert "aura" in data
+        assert "kundalini" in data
+        assert "consciousness" in data
+        assert "third_eye" in data
+        assert "prana_balance" in data  # 2 channels provided
+        assert "insight" in data
+        assert "summary" in data["insight"]
+        assert "recommended_practices" in data["insight"]
+
+    def test_spiritual_module_functions(self):
+        """Test spiritual energy functions directly."""
+        from processing.spiritual_energy import (
+            compute_chakra_activations,
+            compute_chakra_balance,
+            compute_meditation_depth,
+            compute_aura_energy,
+            compute_kundalini_flow,
+            compute_prana_balance,
+            compute_consciousness_level,
+            compute_third_eye_activation,
+            full_spiritual_analysis,
+        )
+
+        np.random.seed(42)
+        eeg = np.random.randn(2048)
+
+        # Test chakras
+        chakras = compute_chakra_activations(eeg, 256)
+        assert len(chakras) == 7
+        for name, data in chakras.items():
+            assert "activation" in data
+            assert "sanskrit" in data
+
+        # Test balance
+        balance = compute_chakra_balance(chakras)
+        assert 0 <= balance["harmony_score"] <= 100
+        assert balance["energy_flow"] in ["ascending", "descending", "balanced"]
+
+        # Test meditation
+        med = compute_meditation_depth(eeg, 256)
+        assert 0 <= med["depth_score"] <= 10
+
+        # Test aura
+        aura = compute_aura_energy(eeg, 256)
+        assert aura["blended_aura_color"].startswith("#")
+
+        # Test kundalini
+        kund = compute_kundalini_flow(eeg, 256)
+        assert len(kund["chakra_progression"]) == 7
+
+        # Test prana
+        left = np.random.randn(2048)
+        right = np.random.randn(2048)
+        prana = compute_prana_balance(left, right, 256)
+        assert prana["dominant_nadi"] in ["ida", "pingala", "sushumna"]
+
+        # Test consciousness
+        consc = compute_consciousness_level(eeg, 256)
+        assert 0 <= consc["score"] <= 1000
+
+        # Test third eye
+        te = compute_third_eye_activation(eeg, 256)
+        assert 0 <= te["activation_pct"] <= 100
+
+        # Test full analysis
+        full = full_spiritual_analysis(eeg, 256, left, right)
+        assert "prana_balance" in full
+        assert "insight" in full

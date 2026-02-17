@@ -22,8 +22,8 @@ Two novel detectors that no one has deployed as real-time tools:
 """
 
 import numpy as np
-from typing import Dict
-from processing.eeg_processor import extract_band_powers, preprocess
+from typing import Dict, Optional
+from processing.eeg_processor import extract_band_powers, extract_features, preprocess
 
 
 class CreativityDetector:
@@ -31,10 +31,28 @@ class CreativityDetector:
 
     STATES = ["analytical", "transitional", "creative", "insight"]
 
-    def __init__(self):
+    def __init__(self, model_path: Optional[str] = None):
         self.model_type = "feature-based"
+        self.sklearn_model = None
+        self.feature_names = None
+        self.scaler = None
         self.baseline_alpha = None
         self.baseline_gamma = None
+
+        if model_path:
+            self._load_model(model_path)
+
+    def _load_model(self, model_path: str):
+        if model_path.endswith(".pkl"):
+            try:
+                import joblib
+                data = joblib.load(model_path)
+                self.sklearn_model = data["model"]
+                self.feature_names = data["feature_names"]
+                self.scaler = data.get("scaler")
+                self.model_type = "sklearn"
+            except Exception:
+                pass
 
     def calibrate(self, resting_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with resting EEG baseline."""
@@ -51,6 +69,9 @@ class CreativityDetector:
             'divergent_thinking', 'insight_potential', 'internal_attention',
             'associative_richness'
         """
+        if self.sklearn_model is not None:
+            return self._predict_sklearn(eeg, fs)
+
         processed = preprocess(eeg, fs)
         bands = extract_band_powers(processed, fs)
 
@@ -142,6 +163,35 @@ class CreativityDetector:
         }
 
 
+    def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
+        """Sklearn model inference using extracted features."""
+        processed = preprocess(eeg, fs)
+        features = extract_features(processed, fs)
+        bands = extract_band_powers(processed, fs)
+        feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+
+        if self.scaler is not None:
+            feature_vector = self.scaler.transform(feature_vector)
+
+        probs = self.sklearn_model.predict_proba(feature_vector)[0]
+        state_idx = int(np.argmax(probs))
+        creativity_score = float(state_idx / 3.0 * 0.6 + probs[state_idx] * 0.4)
+
+        return {
+            "state": self.STATES[state_idx],
+            "state_index": state_idx,
+            "creativity_score": round(float(np.clip(creativity_score, 0, 1)), 3),
+            "confidence": round(float(probs[state_idx]), 3),
+            "components": {
+                "divergent_thinking": round(float(probs[2]) if len(probs) > 2 else 0.3, 3),
+                "insight_potential": round(float(probs[3]) if len(probs) > 3 else 0.1, 3),
+                "internal_attention": round(float(bands.get("theta", 0.15)), 3),
+                "associative_richness": round(float(bands.get("alpha", 0.2)), 3),
+            },
+            "band_powers": bands,
+        }
+
+
 class MemoryEncodingPredictor:
     """Predicts whether the brain is actively encoding information into memory.
 
@@ -151,10 +201,28 @@ class MemoryEncodingPredictor:
 
     STATES = ["poor_encoding", "weak_encoding", "active_encoding", "deep_encoding"]
 
-    def __init__(self):
+    def __init__(self, model_path: Optional[str] = None):
         self.model_type = "feature-based"
+        self.sklearn_model = None
+        self.feature_names = None
+        self.scaler = None
         self.baseline_theta = None
         self.baseline_alpha = None
+
+        if model_path:
+            self._load_model(model_path)
+
+    def _load_model(self, model_path: str):
+        if model_path.endswith(".pkl"):
+            try:
+                import joblib
+                data = joblib.load(model_path)
+                self.sklearn_model = data["model"]
+                self.feature_names = data["feature_names"]
+                self.scaler = data.get("scaler")
+                self.model_type = "sklearn"
+            except Exception:
+                pass
 
     def calibrate(self, resting_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with resting EEG baseline."""
@@ -171,6 +239,9 @@ class MemoryEncodingPredictor:
             'attention_level', 'hippocampal_theta', 'encoding_depth',
             'will_remember_probability'
         """
+        if self.sklearn_model is not None:
+            return self._predict_sklearn(eeg, fs)
+
         processed = preprocess(eeg, fs)
         bands = extract_band_powers(processed, fs)
 
@@ -261,6 +332,36 @@ class MemoryEncodingPredictor:
                 "hippocampal_theta": round(hippocampal_theta, 3),
                 "encoding_depth": round(encoding_depth, 3),
                 "alpha_desynchronization": round(alpha_desync, 3),
+            },
+            "band_powers": bands,
+        }
+
+    def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
+        """Sklearn model inference using extracted features."""
+        processed = preprocess(eeg, fs)
+        features = extract_features(processed, fs)
+        bands = extract_band_powers(processed, fs)
+        feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+
+        if self.scaler is not None:
+            feature_vector = self.scaler.transform(feature_vector)
+
+        probs = self.sklearn_model.predict_proba(feature_vector)[0]
+        state_idx = int(np.argmax(probs))
+        encoding_score = float(state_idx / 3.0 * 0.6 + probs[state_idx] * 0.4)
+        will_remember = float(np.clip(0.3 + encoding_score * 0.5, 0.15, 0.85))
+
+        return {
+            "state": self.STATES[state_idx],
+            "state_index": state_idx,
+            "encoding_score": round(float(np.clip(encoding_score, 0, 1)), 3),
+            "will_remember_probability": round(will_remember, 3),
+            "confidence": round(float(probs[state_idx]), 3),
+            "components": {
+                "attention_level": round(float(bands.get("beta", 0.2)), 3),
+                "hippocampal_theta": round(float(bands.get("theta", 0.15)), 3),
+                "encoding_depth": round(float(probs[3]) if len(probs) > 3 else 0.2, 3),
+                "alpha_desynchronization": round(1.0 - float(bands.get("alpha", 0.3)), 3),
             },
             "band_powers": bands,
         }

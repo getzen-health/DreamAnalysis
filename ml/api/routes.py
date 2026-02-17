@@ -47,6 +47,19 @@ from processing.connectivity import (
     compute_dtf,
     compute_graph_metrics,
 )
+from processing.spiritual_energy import (
+    compute_chakra_activations,
+    compute_chakra_balance,
+    compute_meditation_depth,
+    compute_aura_energy,
+    compute_kundalini_flow,
+    compute_prana_balance,
+    compute_consciousness_level,
+    compute_third_eye_activation,
+    full_spiritual_analysis,
+    CHAKRAS,
+    CONSCIOUSNESS_LEVELS,
+)
 
 router = APIRouter()
 
@@ -88,9 +101,9 @@ def _find_model(prefix: str) -> Optional[str]:
 sleep_model = SleepStagingModel(model_path=_find_model("sleep_staging_model"))
 emotion_model = EmotionClassifier(model_path=_find_model("emotion_classifier_model"))
 dream_model = DreamDetector(model_path=_find_model("dream_detector_model"))
-flow_model = FlowStateDetector()
-creativity_model = CreativityDetector()
-memory_model = MemoryEncodingPredictor()
+flow_model = FlowStateDetector(model_path=_find_model("flow_state_model"))
+creativity_model = CreativityDetector(model_path=_find_model("creativity_model"))
+memory_model = MemoryEncodingPredictor(model_path=_find_model("memory_encoding_model"))
 
 # Hardware manager (lazy init)
 _device_manager = None
@@ -1362,3 +1375,185 @@ async def analyze_eeg_accurate(req: AccurateAnalysisRequest):
         "is_calibrated": calibration.is_calibrated,
         "personalization": p_status,
     })
+
+
+# ═══════════════════════════════════════════════════════════════
+#  SPIRITUAL ENERGY / SELF-AWARENESS ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.get("/spiritual/chakras/info")
+async def chakra_info():
+    """Get information about all 7 chakras and their EEG frequency mappings."""
+    return {
+        "chakras": {
+            name: {
+                "sanskrit": info["sanskrit"],
+                "frequency_band_hz": info["frequency_band"],
+                "color": info["color"],
+                "element": info["element"],
+                "qualities": info["qualities"],
+                "location": info["location"],
+                "mantra": info["mantra"],
+            }
+            for name, info in CHAKRAS.items()
+        },
+        "consciousness_levels": CONSCIOUSNESS_LEVELS,
+    }
+
+
+@router.post("/spiritual/chakras")
+async def analyze_chakras(data: EEGInput):
+    """Analyze chakra activation levels from EEG brainwaves.
+
+    Maps delta through gamma frequency bands to the 7 energy centers,
+    returning activation levels, balance, and guidance.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    processed = preprocess(eeg, data.fs)
+
+    activations = compute_chakra_activations(processed, data.fs)
+    balance = compute_chakra_balance(activations)
+
+    return _numpy_safe({
+        "chakras": activations,
+        "balance": balance,
+    })
+
+
+@router.post("/spiritual/meditation-depth")
+async def analyze_meditation(data: EEGInput):
+    """Measure meditation depth from EEG patterns.
+
+    Uses alpha/theta ratios, spectral entropy, and gamma detection
+    to classify meditation depth on a 0-10 scale with stage labels.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    processed = preprocess(eeg, data.fs)
+
+    return _numpy_safe(compute_meditation_depth(processed, data.fs))
+
+
+@router.post("/spiritual/aura")
+async def analyze_aura(data: EEGInput):
+    """Generate aura color and energy visualization from EEG.
+
+    Maps brain frequency content to traditional aura colors with
+    layered inner/middle/outer visualization data.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    processed = preprocess(eeg, data.fs)
+
+    return _numpy_safe(compute_aura_energy(processed, data.fs))
+
+
+@router.post("/spiritual/kundalini")
+async def analyze_kundalini(data: EEGInput):
+    """Track kundalini energy flow through the chakra system.
+
+    Measures progressive activation from root to crown, flow
+    continuity, and awakening status.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    processed = preprocess(eeg, data.fs)
+
+    return _numpy_safe(compute_kundalini_flow(processed, data.fs))
+
+
+@router.post("/spiritual/prana-balance")
+async def analyze_prana(data: EEGInput):
+    """Analyze prana/chi energy balance from bilateral EEG.
+
+    Uses hemispheric asymmetry to determine balance between
+    Ida (yin/lunar) and Pingala (yang/solar) energy channels.
+    Requires at least 2 channels (left and right hemisphere).
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    if signals.shape[0] < 2:
+        # With single channel, simulate bilateral by splitting
+        mid = len(signals[0]) // 2
+        eeg_left = preprocess(signals[0][:mid], data.fs)
+        eeg_right = preprocess(signals[0][mid:], data.fs)
+    else:
+        eeg_left = preprocess(signals[0], data.fs)
+        eeg_right = preprocess(signals[1], data.fs)
+
+    return _numpy_safe(compute_prana_balance(eeg_left, eeg_right, data.fs))
+
+
+@router.post("/spiritual/consciousness")
+async def analyze_consciousness(data: EEGInput):
+    """Estimate consciousness level from EEG patterns.
+
+    Maps brain activity to a 0-1000 consciousness scale with
+    level descriptions from Deep Sleep to Cosmic Consciousness.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    processed = preprocess(eeg, data.fs)
+
+    return _numpy_safe(compute_consciousness_level(processed, data.fs))
+
+
+@router.post("/spiritual/third-eye")
+async def analyze_third_eye(data: EEGInput):
+    """Measure third eye (Ajna) activation through gamma analysis.
+
+    Tracks high beta and gamma activity correlated with intuitive
+    experiences and heightened perception.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    processed = preprocess(eeg, data.fs)
+
+    return _numpy_safe(compute_third_eye_activation(processed, data.fs))
+
+
+@router.post("/spiritual/full-analysis")
+async def full_spiritual_analysis_endpoint(data: EEGInput):
+    """Complete spiritual energy analysis — all metrics in one call.
+
+    Returns chakras, meditation depth, aura, kundalini flow,
+    consciousness level, third eye, and personalized insights.
+    Includes prana balance if 2+ channels provided.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    processed = preprocess(eeg, data.fs)
+
+    eeg_left = None
+    eeg_right = None
+    if signals.shape[0] >= 2:
+        eeg_left = preprocess(signals[0], data.fs)
+        eeg_right = preprocess(signals[1], data.fs)
+
+    result = full_spiritual_analysis(processed, data.fs, eeg_left, eeg_right)
+    return _numpy_safe(result)
