@@ -9,6 +9,9 @@ import numpy as np
 from scipy import signal as scipy_signal
 from typing import Dict, List, Tuple, Optional
 
+# Numpy 2.x renamed np.trapz to np.trapezoid
+_trapezoid = getattr(np, 'trapezoid', np.trapz)
+
 
 def detect_eye_blinks(
     signal_data: np.ndarray, fs: float = 256.0, threshold: float = 100.0
@@ -54,9 +57,9 @@ def detect_muscle_artifacts(
     for start in range(0, len(signal_data) - window_samples + 1, step):
         segment = signal_data[start : start + window_samples]
         freqs, psd = scipy_signal.welch(segment, fs=fs, nperseg=min(len(segment), int(fs)))
-        total_power = np.trapezoid(psd, freqs) + 1e-10
+        total_power = _trapezoid(psd, freqs) + 1e-10
         hf_mask = freqs >= 30.0
-        hf_power = np.trapezoid(psd[hf_mask], freqs[hf_mask])
+        hf_power = _trapezoid(psd[hf_mask], freqs[hf_mask])
         ratio = float(hf_power / total_power)
 
         if ratio > threshold:
@@ -134,13 +137,13 @@ def compute_signal_quality_index(
 
     # 2. Line noise ratio (50/60 Hz)
     freqs, psd = scipy_signal.welch(signal_data, fs=fs, nperseg=min(len(signal_data), int(fs * 2)))
-    total_power = np.trapezoid(psd, freqs) + 1e-10
+    total_power = _trapezoid(psd, freqs) + 1e-10
 
     for line_freq in [50.0, 60.0]:
         if line_freq < fs / 2:
             mask = (freqs >= line_freq - 2) & (freqs <= line_freq + 2)
             if mask.any():
-                line_power = np.trapezoid(psd[mask], freqs[mask])
+                line_power = _trapezoid(psd[mask], freqs[mask])
                 line_ratio = line_power / total_power
                 if line_ratio > 0.2:
                     score -= 20
@@ -150,7 +153,7 @@ def compute_signal_quality_index(
     # 3. High-frequency contamination
     hf_mask = freqs >= 40.0
     if hf_mask.any():
-        hf_ratio = np.trapezoid(psd[hf_mask], freqs[hf_mask]) / total_power
+        hf_ratio = _trapezoid(psd[hf_mask], freqs[hf_mask]) / total_power
         if hf_ratio > 0.4:
             score -= 15
         elif hf_ratio > 0.25:
@@ -249,10 +252,10 @@ def ica_artifact_removal(
 
             # High HF power ratio → muscle artifact
             freqs, psd = scipy_signal.welch(component, fs=fs, nperseg=min(len(component), int(fs)))
-            total = np.trapezoid(psd, freqs) + 1e-10
+            total = _trapezoid(psd, freqs) + 1e-10
             hf_mask = freqs >= 30.0
             if hf_mask.any():
-                hf_ratio = np.trapezoid(psd[hf_mask], freqs[hf_mask]) / total
+                hf_ratio = _trapezoid(psd[hf_mask], freqs[hf_mask]) / total
                 if hf_ratio > 0.5:
                     sources[:, comp] = 0
                     removed.append(comp)
