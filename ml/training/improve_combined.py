@@ -16,25 +16,20 @@ import pandas as pd
 import pickle
 import json
 import time
-import glob
 from pathlib import Path
 from collections import Counter
 from sklearn.model_selection import StratifiedKFold
 from sklearn.ensemble import (
     GradientBoostingClassifier, RandomForestClassifier,
-    ExtraTreesClassifier, VotingClassifier, StackingClassifier,
+    ExtraTreesClassifier, VotingClassifier,
 )
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import LinearSVC
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 from processing.eeg_processor import (
     preprocess, extract_features, extract_band_powers,
-    compute_hjorth_parameters, spectral_entropy, bandpass_filter,
-    BANDS,
 )
 from training.data_loaders import _circumplex_to_emotion
 
