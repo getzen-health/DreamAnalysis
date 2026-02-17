@@ -4,9 +4,9 @@
   "max_depth": 12,
   "learning_rate": 0.03,
   "num_leaves": 255,
-  "n_features": 87,
+  "n_features": 88,
   "n_pca_features": 80,
-  "n_dataset_features": 7,
+  "n_dataset_features": 8,
   "feature_type": "PCA-aligned + one-hot dataset source",
   "n_classes": 3,
   "class_names": [
@@ -14,8 +14,8 @@
     "neutral",
     "negative"
   ],
-  "training_samples": 119949,
-  "n_datasets": 7,
+  "training_samples": 123234,
+  "n_datasets": 8,
   "datasets": [
     "GAMEEMO",
     "EEG-ER",
@@ -23,7 +23,8 @@
     "Brainwave",
     "Muse-Mental",
     "Muse-Subconscious",
-    "SEED-IV"
+    "SEED-IV",
+    "STEW"
   ],
   "excluded_datasets": [
     "DEAP",
@@ -35,9 +36,9 @@
   "excluded_reason": "DEAP/DENS: noisy (<55% acc), Muse2-MI/EmoKey: weak labels, Confused-Student: 37.2% error (wrong task type)",
   "cv_accuracy": 0.9779,
   "cv_f1": 0.9779,
-  "train_accuracy": 0.9998582730994006,
-  "train_f1": 0.999858268658128,
-  "train_time_seconds": 563.4990639686584,
+  "train_accuracy": 0.999862051057338,
+  "train_f1": 0.9998620469442823,
+  "train_time_seconds": 274.49415278434753,
   "feature_extraction": "PCA-aligned 80-dim + 7 one-hot dataset source features",
   "improvement_history": [
     {

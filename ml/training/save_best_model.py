@@ -34,16 +34,18 @@ from mega_trainer import (
     load_gameemo_enhanced, load_eeg_er_enhanced,
     load_seed_enhanced, load_brainwave_emotions,
     load_muse_mental_state,
-    load_muse_subconscious, load_seed_iv
+    load_muse_subconscious, load_seed_iv,
+    load_dreamer, load_stew,
 )
 
 
-# Premium-clean: 7 datasets (excluded Confused-Student due to 37.2% error rate)
+# Premium-clean: 9 datasets (added DREAMER + STEW, excluded noisy ones)
 LOADERS = [
     load_gameemo_enhanced, load_eeg_er_enhanced,
     load_seed_enhanced, load_brainwave_emotions,
     load_muse_mental_state,
     load_muse_subconscious, load_seed_iv,
+    load_dreamer, load_stew,
 ]
 
 EXCLUDED = ['DEAP', 'DENS', 'Muse2-MI', 'EmoKey', 'Confused-Student']

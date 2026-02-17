@@ -9,6 +9,7 @@ Provides loaders for:
 - MOABB — standardized BCI benchmark datasets
 """
 
+import os
 import numpy as np
 from pathlib import Path
 from typing import Tuple, Optional
@@ -862,6 +863,27 @@ def list_available_datasets() -> dict:
         "status": moabb_status,
         "task": "MI, P300, SSVEP (dozens of datasets)",
         "loader": "load_moabb_dataset()",
+    }
+
+    # DREAMER
+    dreamer_path = Path("data/DREAMER.mat")
+    dreamer_exists = dreamer_path.exists() and dreamer_path.stat().st_size > 1_000_000
+    datasets["dreamer"] = {
+        "name": "DREAMER (Zenodo)",
+        "status": "ready" if dreamer_exists else "not downloaded or corrupt",
+        "task": "emotion recognition (14-ch EEG, 23 subjects, 18 film clips)",
+        "loader": "load_dreamer()",
+        "download": "curl -L -o data/DREAMER.mat https://zenodo.org/records/546113/files/DREAMER.mat",
+    }
+
+    # STEW
+    stew_path = Path(os.path.expanduser('~/.cache/kagglehub/datasets/mitulahirwal/mental-cognitive-workload-eeg-data-stew-dataset/versions/1/dataset.mat'))
+    datasets["stew"] = {
+        "name": "STEW (Kaggle)",
+        "status": "ready" if stew_path.exists() else "not downloaded",
+        "task": "cognitive workload (14-ch EEG, 48 subjects, 3-class)",
+        "loader": "load_stew()",
+        "download": "kagglehub.dataset_download('mitulahirwal/mental-cognitive-workload-eeg-data-stew-dataset')",
     }
 
     return datasets

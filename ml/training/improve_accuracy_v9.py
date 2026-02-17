@@ -36,6 +36,8 @@ from mega_trainer import (
     load_seed_enhanced, load_brainwave_emotions,
     load_muse_mental_state, load_confused_student,
     load_muse_subconscious, load_seed_iv,
+    load_dreamer,
+    load_stew,
     log
 )
 
@@ -49,6 +51,8 @@ ALL_LOADERS = {
     'Confused-Student': load_confused_student,
     'Muse-Subconscious': load_muse_subconscious,
     'SEED-IV': load_seed_iv,
+    'DREAMER': load_dreamer,
+    'STEW': load_stew,
 }
 
 N_JOBS = 8
