@@ -100,7 +100,10 @@ jobs:
           assert data['sleep_staging']['loaded'] == True
           assert data['emotion_classifier']['loaded'] == True
           assert data['dream_detector']['loaded'] == True
-          print('Model loading: PASSED')
+          assert data['flow_state']['loaded'] == True
+          assert data['creativity']['loaded'] == True
+          assert data['memory_encoding']['loaded'] == True
+          print('Model loading: PASSED (6 models)')
           "
 
       - name: Test simulate-eeg endpoint
@@ -118,7 +121,11 @@ jobs:
           assert 'analysis' in data
           assert 'emotions' in data['analysis']
           assert 'emotion' in data['analysis']['emotions']
-          print('Simulate-EEG: PASSED')
+          assert 'flow_state' in data['analysis']
+          assert 'flow_score' in data['analysis']['flow_state']
+          assert 'creativity' in data['analysis']
+          assert 'memory_encoding' in data['analysis']
+          print('Simulate-EEG: PASSED (6 analyses)')
           "
 
       - name: Test feature extraction

@@ -5,7 +5,7 @@ from api.websocket import eeg_stream_endpoint
 
 app = FastAPI(
     title="Neural Dream Workshop - ML Service",
-    description="EEG signal processing, sleep staging, emotion classification, and dream detection",
+    description="EEG signal processing: sleep staging, emotion classification, dream detection, flow state, creativity detection, and memory encoding prediction",
     version="1.0.0",
 )
 
