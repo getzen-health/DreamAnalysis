@@ -2,19 +2,11 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Brain,
-  ChartLine,
-  Activity,
-  BarChart3,
-  Moon,
-  Bot,
+  Heart,
+  Sparkles,
+  Clock,
   Settings,
   Menu,
-  Zap,
-  TrendingUp,
-  Sparkles,
-  Headphones,
-  Clock,
-  Network,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -22,17 +14,10 @@ import { useDevice } from "@/hooks/use-device";
 import { DeviceConnection } from "@/components/device-connection";
 
 const navigationItems = [
-  { path: "/", label: "Dashboard", icon: ChartLine },
-  { path: "/brain-monitor", label: "Real-Time Monitor", icon: Activity },
-  { path: "/health-analytics", label: "Health Analytics", icon: BarChart3 },
-  { path: "/dream-journal", label: "Dream Journal", icon: Moon },
-  { path: "/dream-patterns", label: "Dream Patterns", icon: TrendingUp },
-  { path: "/emotion-lab", label: "Emotion Lab", icon: Zap },
-  { path: "/neurofeedback", label: "Neurofeedback", icon: Headphones },
-  { path: "/brain-connectivity", label: "Connectivity", icon: Network },
+  { path: "/", label: "Dashboard", icon: Brain },
+  { path: "/emotions", label: "Emotions", icon: Heart },
+  { path: "/inner-energy", label: "Inner Energy", icon: Sparkles },
   { path: "/sessions", label: "Sessions", icon: Clock },
-  { path: "/ai-companion", label: "AI Companion", icon: Bot },
-  { path: "/insights", label: "Insights", icon: Sparkles },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -43,66 +28,45 @@ export function Sidebar() {
   const [location] = useLocation();
   const device = useDevice();
 
-  const statusLabel =
-    device.state === "streaming"
-      ? "STREAMING"
-      : device.state === "connected"
-        ? "CONNECTED"
-        : device.state === "connecting"
-          ? "CONNECTING..."
-          : "DISCONNECTED";
-
-  const statusColor =
-    device.state === "streaming"
-      ? "text-primary"
-      : device.state === "connected"
-        ? "text-success"
-        : device.state === "connecting"
-          ? "text-warning"
-          : "text-foreground/50";
+  const isConnected = device.state === "streaming" || device.state === "connected";
 
   return (
     <>
       {/* Mobile Menu Toggle */}
       {isMobile && (
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-50 glass-card border-primary/20 hover-glow"
+          className="fixed top-4 left-4 z-50"
           onClick={() => setIsOpen(!isOpen)}
-          data-testid="button-mobile-menu"
         >
-          <Menu className="h-5 w-5 text-primary" />
+          <Menu className="h-5 w-5" />
         </Button>
       )}
 
       {/* Sidebar */}
       <div
-        className={`fixed left-0 top-0 w-64 h-screen glass-card border-r border-primary/20 z-40 transition-transform duration-300 ${
+        className={`fixed left-0 top-0 w-56 h-screen bg-sidebar border-r border-border z-40 transition-transform duration-200 ${
           isMobile
             ? isOpen
               ? "translate-x-0"
               : "-translate-x-full"
             : "translate-x-0"
         }`}
-        data-testid="sidebar-navigation"
       >
-        <div className="p-6">
+        <div className="p-5 flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center mb-8">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center mr-3">
-              <Brain className="text-white text-lg" />
+            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center mr-3">
+              <Brain className="h-4 w-4 text-primary" />
             </div>
-            <div>
-              <h1 className="font-futuristic text-lg font-bold text-gradient">
-                Neural Dream
-              </h1>
-              <p className="text-xs text-secondary">Weaver v2.1</p>
-            </div>
+            <span className="text-base font-semibold text-foreground">
+              NeuralDream
+            </span>
           </div>
 
           {/* Navigation */}
-          <nav className="space-y-2">
+          <nav className="space-y-1 flex-1">
             {navigationItems.map((item) => {
               const Icon = item.icon;
               const isActive =
@@ -113,19 +77,14 @@ export function Sidebar() {
                 <Link
                   key={item.path}
                   href={item.path}
-                  onClick={() => {
-                    if (isMobile) {
-                      setIsOpen(false);
-                    }
-                  }}
-                  className={`w-full flex items-center px-4 py-3 rounded-lg transition-all ${
+                  onClick={() => isMobile && setIsOpen(false)}
+                  className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isActive
-                      ? "bg-primary/10 text-primary border border-primary/30 hover-glow"
-                      : "text-foreground/70 hover:bg-card hover:text-foreground"
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
-                  data-testid={`nav-${item.path === "/" ? "dashboard" : item.path.slice(1)}`}
                 >
-                  <Icon className="mr-3 h-5 w-5" />
+                  <Icon className="mr-3 h-4 w-4" />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -133,36 +92,21 @@ export function Sidebar() {
           </nav>
 
           {/* BCI Status */}
-          <div className="mt-8 pt-6 border-t border-border">
-            <button
-              onClick={() => setDeviceModalOpen(true)}
-              className="w-full text-left hover:bg-card/50 rounded-lg p-2 -m-2 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-foreground/70">BCI Status</span>
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    device.state === "streaming"
-                      ? "bg-primary animate-pulse"
-                      : device.state === "connected"
-                        ? "bg-success"
-                        : device.state === "connecting"
-                          ? "bg-warning animate-pulse"
-                          : "bg-foreground/30"
-                  }`}
-                  data-testid="status-indicator"
-                ></div>
-              </div>
-              <p className={`text-xs font-mono ${statusColor}`}>
-                {statusLabel}
-              </p>
-              {device.deviceStatus && device.state !== "disconnected" && (
-                <p className="text-xs text-foreground/40 mt-1">
-                  {device.deviceStatus.n_channels}ch | {device.deviceStatus.sample_rate}Hz
-                </p>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={() => setDeviceModalOpen(true)}
+            className="mt-auto pt-4 border-t border-border text-left hover:bg-muted/50 rounded-lg p-2 -mx-1 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isConnected ? "bg-success" : "bg-muted-foreground/40"
+                }`}
+              />
+              <span className="text-xs text-muted-foreground">
+                {isConnected ? "BCI Connected" : "No Device"}
+              </span>
+            </div>
+          </button>
         </div>
       </div>
 
@@ -171,7 +115,6 @@ export function Sidebar() {
         <div
           className="fixed inset-0 bg-black/50 z-30"
           onClick={() => setIsOpen(false)}
-          data-testid="sidebar-overlay"
         />
       )}
 

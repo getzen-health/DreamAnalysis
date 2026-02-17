@@ -181,8 +181,8 @@ export default function SettingsPage() {
     <main className="p-4 md:p-6 space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* BCI Configuration */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-6">
+        <Card className="glass-card p-6 rounded-xl ">
+          <h3 className="text-lg font-medium font-semibold mb-6">
             BCI Configuration
           </h3>
           <div className="space-y-6">
@@ -258,8 +258,8 @@ export default function SettingsPage() {
         </Card>
 
         {/* Interface Settings */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-6">
+        <Card className="glass-card p-6 rounded-xl ">
+          <h3 className="text-lg font-medium font-semibold mb-6">
             Interface Settings
           </h3>
           <div className="space-y-6">
@@ -325,8 +325,8 @@ export default function SettingsPage() {
 
       {/* Data Export & Privacy */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-6">
+        <Card className="glass-card p-6 rounded-xl ">
+          <h3 className="text-lg font-medium font-semibold mb-6">
             Data Export
           </h3>
           <div className="space-y-4">
@@ -354,8 +354,8 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-6">
+        <Card className="glass-card p-6 rounded-xl ">
+          <h3 className="text-lg font-medium font-semibold mb-6">
             Privacy & Security
           </h3>
           <div className="space-y-4">
@@ -403,7 +403,7 @@ export default function SettingsPage() {
               </AlertDialogTrigger>
               <AlertDialogContent className="glass-card border-destructive/30">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="font-futuristic text-destructive">
+                  <AlertDialogTitle className="font-medium text-destructive">
                     Clear All Data
                   </AlertDialogTitle>
                   <AlertDialogDescription>
@@ -456,8 +456,8 @@ export default function SettingsPage() {
         </div>
 
         {/* Edge Inference (Phase 12) */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-4 flex items-center gap-2">
+        <Card className="glass-card p-6 rounded-xl ">
+          <h3 className="text-lg font-medium font-semibold mb-4 flex items-center gap-2">
             <Cpu className="h-5 w-5 text-primary" />
             Edge Inference
           </h3>
@@ -493,8 +493,8 @@ export default function SettingsPage() {
 
       {/* Model Performance */}
       {Object.keys(benchmarks).length > 0 && (
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-6 flex items-center gap-2">
+        <Card className="glass-card p-6 rounded-xl ">
+          <h3 className="text-lg font-medium font-semibold mb-6 flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
             Model Performance
           </h3>

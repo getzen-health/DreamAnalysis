@@ -9,17 +9,10 @@ import AppLayout from "./layouts/app-layout";
 import Landing from "@/pages/landing";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
-import BrainMonitor from "@/pages/brain-monitor";
-import HealthAnalytics from "@/pages/health-analytics";
-import DreamJournal from "@/pages/dream-journal";
-import DreamPatterns from "@/pages/dream-patterns";
 import EmotionLab from "@/pages/emotion-lab";
-import AICompanionPage from "@/pages/ai-companion";
-import Insights from "@/pages/insights";
-import SettingsPage from "@/pages/settings";
-import Neurofeedback from "@/pages/neurofeedback";
+import InnerEnergy from "@/pages/inner-energy";
 import SessionHistory from "@/pages/session-history";
-import BrainConnectivity from "@/pages/brain-connectivity";
+import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -30,35 +23,14 @@ function AppRoutes() {
       <Route path="/">
         <AppLayout><Dashboard /></AppLayout>
       </Route>
-      <Route path="/brain-monitor">
-        <AppLayout><BrainMonitor /></AppLayout>
-      </Route>
-      <Route path="/health-analytics">
-        <AppLayout><HealthAnalytics /></AppLayout>
-      </Route>
-      <Route path="/dream-journal">
-        <AppLayout><DreamJournal /></AppLayout>
-      </Route>
-      <Route path="/dream-patterns">
-        <AppLayout><DreamPatterns /></AppLayout>
-      </Route>
-      <Route path="/emotion-lab">
+      <Route path="/emotions">
         <AppLayout><EmotionLab /></AppLayout>
       </Route>
-      <Route path="/ai-companion">
-        <AppLayout><AICompanionPage /></AppLayout>
-      </Route>
-      <Route path="/insights">
-        <AppLayout><Insights /></AppLayout>
-      </Route>
-      <Route path="/neurofeedback">
-        <AppLayout><Neurofeedback /></AppLayout>
+      <Route path="/inner-energy">
+        <AppLayout><InnerEnergy /></AppLayout>
       </Route>
       <Route path="/sessions">
         <AppLayout><SessionHistory /></AppLayout>
-      </Route>
-      <Route path="/brain-connectivity">
-        <AppLayout><BrainConnectivity /></AppLayout>
       </Route>
       <Route path="/settings">
         <AppLayout><SettingsPage /></AppLayout>
