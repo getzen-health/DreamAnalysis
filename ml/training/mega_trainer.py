@@ -1107,6 +1107,54 @@ def load_stew():
     return X, y, "STEW"
 
 
+# ─── NOISE AUGMENTATION ──────────────────────────────────────────────
+
+def augment_dataset_features(X, y, n_augmented=2, difficulty='medium'):
+    """Create noise-augmented copies of feature vectors.
+
+    Since we extract features AFTER noise, we simulate the effect of
+    noise on features by adding calibrated perturbations that match
+    what real dry-electrode noise would produce in feature space.
+
+    Args:
+        X: Feature array (n_samples, n_features)
+        y: Labels array
+        n_augmented: Number of augmented copies per sample
+        difficulty: 'easy', 'medium', 'hard'
+
+    Returns:
+        X_aug, y_aug with original + augmented samples
+    """
+    noise_scales = {'easy': 0.05, 'medium': 0.15, 'hard': 0.30}
+    scale = noise_scales.get(difficulty, 0.15)
+
+    X_aug = [X.copy()]
+    y_aug = [y.copy()]
+
+    for _ in range(n_augmented):
+        # Feature-space noise (simulates sensor noise effect on extracted features)
+        noise = np.random.randn(*X.shape) * scale * (np.std(X, axis=0, keepdims=True) + 1e-10)
+        X_noisy = X + noise
+
+        # Randomly zero out some features (simulates channel dropout)
+        dropout_mask = np.random.random(X.shape) > 0.05
+        X_noisy *= dropout_mask
+
+        # Randomly scale features (simulates amplitude variation between sessions)
+        amp_scale = np.random.uniform(0.8, 1.2, size=(1, X.shape[1]))
+        X_noisy *= amp_scale
+
+        X_aug.append(X_noisy)
+        y_aug.append(y.copy())
+
+    X_combined = np.vstack(X_aug)
+    y_combined = np.concatenate(y_aug)
+
+    # Shuffle
+    idx = np.random.permutation(len(X_combined))
+    return X_combined[idx], y_combined[idx]
+
+
 # ─── EVALUATION ──────────────────────────────────────────────────────
 
 def evaluate_models(X, y, dataset_name, n_features_target=None):

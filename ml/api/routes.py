@@ -11,6 +11,8 @@ import numpy as np
 from models.sleep_staging import SleepStagingModel
 from models.emotion_classifier import EmotionClassifier
 from models.dream_detector import DreamDetector
+from models.flow_state_detector import FlowStateDetector
+from models.creativity_detector import CreativityDetector, MemoryEncodingPredictor
 from simulation.eeg_simulator import simulate_eeg, STATE_PROFILES
 from processing.eeg_processor import (
     extract_features,
@@ -64,6 +66,9 @@ def _find_model(prefix: str) -> Optional[str]:
 sleep_model = SleepStagingModel(model_path=_find_model("sleep_staging_model"))
 emotion_model = EmotionClassifier(model_path=_find_model("emotion_classifier_model"))
 dream_model = DreamDetector(model_path=_find_model("dream_detector_model"))
+flow_model = FlowStateDetector()
+creativity_model = CreativityDetector()
+memory_model = MemoryEncodingPredictor()
 
 # Hardware manager (lazy init)
 _device_manager = None
@@ -307,6 +312,9 @@ async def simulate_eeg_endpoint(request: SimulateRequest):
     sleep_result = sleep_model.predict(eeg, request.fs)
     emotion_result = emotion_model.predict(eeg, request.fs)
     dream_result = dream_model.predict(eeg, request.fs)
+    flow_result = flow_model.predict(eeg, request.fs)
+    creativity_result = creativity_model.predict(eeg, request.fs)
+    memory_result = memory_model.predict(eeg, request.fs)
 
     return {
         **result,
@@ -314,6 +322,9 @@ async def simulate_eeg_endpoint(request: SimulateRequest):
             "sleep_stage": sleep_result,
             "emotions": emotion_result,
             "dream_detection": dream_result,
+            "flow_state": flow_result,
+            "creativity": creativity_result,
+            "memory_encoding": memory_result,
         },
     }
 
@@ -336,6 +347,21 @@ async def models_status():
             "loaded": True,
             "type": dream_model.model_type,
             "classes": ["dreaming", "not_dreaming"],
+        },
+        "flow_state": {
+            "loaded": True,
+            "type": flow_model.model_type,
+            "classes": ["no_flow", "micro_flow", "flow", "deep_flow"],
+        },
+        "creativity": {
+            "loaded": True,
+            "type": creativity_model.model_type,
+            "classes": ["analytical", "transitional", "creative", "insight"],
+        },
+        "memory_encoding": {
+            "loaded": True,
+            "type": memory_model.model_type,
+            "classes": ["poor_encoding", "weak_encoding", "active_encoding", "deep_encoding"],
         },
         "available_states": list(STATE_PROFILES.keys()),
     }
