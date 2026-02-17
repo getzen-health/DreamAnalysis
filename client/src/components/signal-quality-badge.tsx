@@ -38,13 +38,13 @@ export function SignalQualityBadge({ sqi, artifacts = [], compact = false }: Sig
       {artifacts.length > 0 && (
         <div className="flex items-center gap-1 ml-1">
           {artifacts.includes("eye_blink") && (
-            <Eye className="h-3 w-3 opacity-70" title="Eye blink detected" />
+            <Eye className="h-3 w-3 opacity-70" aria-label="Eye blink detected" />
           )}
           {artifacts.includes("muscle") && (
-            <Zap className="h-3 w-3 opacity-70" title="Muscle artifact detected" />
+            <Zap className="h-3 w-3 opacity-70" aria-label="Muscle artifact detected" />
           )}
           {artifacts.includes("electrode_pop") && (
-            <Radio className="h-3 w-3 opacity-70" title="Electrode pop detected" />
+            <Radio className="h-3 w-3 opacity-70" aria-label="Electrode pop detected" />
           )}
         </div>
       )}
