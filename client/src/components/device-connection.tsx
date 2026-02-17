@@ -61,7 +61,7 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="glass-card border-primary/20 max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-futuristic flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2">
             <Radio className="h-5 w-5 text-primary" />
             EEG Device Manager
           </DialogTitle>

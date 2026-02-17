@@ -1,25 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, ZAxis
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ScatterChart, Scatter, ZAxis,
 } from "recharts";
-import { Brain, Zap, Heart, Activity, TrendingUp, Loader2 } from "lucide-react";
+import { Brain, Heart, Activity, TrendingUp, Zap } from "lucide-react";
 import { EmotionWheel } from "@/components/emotion-wheel";
 import { BrainBands } from "@/components/brain-bands";
-
-const EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"];
-const EMOTION_COLORS: Record<string, string> = {
-  happy: "hsl(120, 100%, 55%)",
-  sad: "hsl(220, 70%, 50%)",
-  angry: "hsl(0, 80%, 50%)",
-  fearful: "hsl(270, 70%, 65%)",
-  relaxed: "hsl(195, 100%, 50%)",
-  focused: "hsl(45, 100%, 50%)",
-};
 
 interface EmotionState {
   emotion: string;
@@ -34,8 +22,6 @@ interface EmotionState {
 }
 
 export default function EmotionLab() {
-  const userId = "demo-user";
-
   const [currentEmotion, setCurrentEmotion] = useState<EmotionState>({
     emotion: "relaxed",
     confidence: 0.72,
@@ -50,7 +36,6 @@ export default function EmotionLab() {
 
   const [emotionHistory, setEmotionHistory] = useState<Array<EmotionState & { time: string }>>([]);
 
-  // Simulate real-time emotion updates
   const updateEmotions = useCallback(() => {
     setCurrentEmotion(prev => {
       const newBands: Record<string, number> = {};
@@ -103,13 +88,11 @@ export default function EmotionLab() {
     return () => clearInterval(interval);
   }, [updateEmotions]);
 
-  // Track history
   useEffect(() => {
     const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setEmotionHistory(prev => [...prev.slice(-20), { ...currentEmotion, time: now }]);
   }, [currentEmotion]);
 
-  // Valence-Arousal scatter data
   const vaData = emotionHistory.map((e, i) => ({
     valence: e.valence,
     arousal: e.arousal,
@@ -118,13 +101,13 @@ export default function EmotionLab() {
   }));
 
   return (
-    <main className="p-4 md:p-6 space-y-6">
-      {/* Top Row: Current Emotion + Indices */}
+    <main className="p-6 space-y-6 max-w-5xl">
+      {/* Top Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Emotion Wheel */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-4 flex items-center gap-2">
-            <Heart className="h-5 w-5 text-success" />
+        <Card className="glass-card p-6">
+          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <Heart className="h-4 w-4 text-primary" />
             Current Emotion
           </h3>
           <EmotionWheel
@@ -134,52 +117,52 @@ export default function EmotionLab() {
           />
         </Card>
 
-        {/* Brain Frequency Bands */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-4 flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            Brain Wave Bands
+        {/* Brain Bands */}
+        <Card className="glass-card p-6">
+          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <Brain className="h-4 w-4 text-primary" />
+            Brain Waves
           </h3>
           <BrainBands bandPowers={currentEmotion.band_powers} />
         </Card>
 
-        {/* Mental State Indices */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-4 flex items-center gap-2">
-            <Activity className="h-5 w-5 text-secondary" />
+        {/* Mental State */}
+        <Card className="glass-card p-6">
+          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-secondary" />
             Mental State
           </h3>
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm text-foreground/80">Stress Index</span>
-                <span className="text-sm font-mono text-warning">{Math.round(currentEmotion.stress_index)}</span>
-              </div>
-              <Progress value={currentEmotion.stress_index} className="h-2.5" />
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm text-foreground/80">Focus Index</span>
-                <span className="text-sm font-mono text-primary">{Math.round(currentEmotion.focus_index)}</span>
-              </div>
-              <Progress value={currentEmotion.focus_index} className="h-2.5" />
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm text-foreground/80">Relaxation Index</span>
-                <span className="text-sm font-mono text-success">{Math.round(currentEmotion.relaxation_index)}</span>
-              </div>
-              <Progress value={currentEmotion.relaxation_index} className="h-2.5" />
-            </div>
-            <div className="pt-3 border-t border-border">
               <div className="flex justify-between mb-1 text-sm">
-                <span>Valence</span>
+                <span className="text-muted-foreground">Stress</span>
+                <span className="font-mono text-warning">{Math.round(currentEmotion.stress_index)}</span>
+              </div>
+              <Progress value={currentEmotion.stress_index} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between mb-1 text-sm">
+                <span className="text-muted-foreground">Focus</span>
+                <span className="font-mono text-primary">{Math.round(currentEmotion.focus_index)}</span>
+              </div>
+              <Progress value={currentEmotion.focus_index} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between mb-1 text-sm">
+                <span className="text-muted-foreground">Relaxation</span>
+                <span className="font-mono text-success">{Math.round(currentEmotion.relaxation_index)}</span>
+              </div>
+              <Progress value={currentEmotion.relaxation_index} className="h-2" />
+            </div>
+            <div className="pt-3 border-t border-border text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Valence</span>
                 <span className={`font-mono ${currentEmotion.valence >= 0 ? "text-success" : "text-destructive"}`}>
                   {currentEmotion.valence >= 0 ? "+" : ""}{currentEmotion.valence.toFixed(2)}
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span>Arousal</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Arousal</span>
                 <span className="font-mono text-secondary">{currentEmotion.arousal.toFixed(2)}</span>
               </div>
             </div>
@@ -187,47 +170,47 @@ export default function EmotionLab() {
         </Card>
       </div>
 
-      {/* Bottom Row: Timeline + V/A Plot */}
+      {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Emotion Timeline */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Emotion Timeline
+        {/* Timeline */}
+        <Card className="glass-card p-6">
+          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Timeline
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={220}>
             <LineChart data={emotionHistory.slice(-15)}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-              <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="hsl(var(--foreground))" opacity={0.5} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="hsl(var(--foreground))" opacity={0.5} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+              <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
               <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-              <Line type="monotone" dataKey="stress_index" stroke="hsl(var(--warning))" strokeWidth={2} dot={false} name="Stress" />
-              <Line type="monotone" dataKey="focus_index" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Focus" />
-              <Line type="monotone" dataKey="relaxation_index" stroke="hsl(var(--success))" strokeWidth={2} dot={false} name="Relaxation" />
+              <Line type="monotone" dataKey="stress_index" stroke="hsl(var(--warning))" strokeWidth={1.5} dot={false} name="Stress" />
+              <Line type="monotone" dataKey="focus_index" stroke="hsl(var(--primary))" strokeWidth={1.5} dot={false} name="Focus" />
+              <Line type="monotone" dataKey="relaxation_index" stroke="hsl(var(--success))" strokeWidth={1.5} dot={false} name="Relaxation" />
             </LineChart>
           </ResponsiveContainer>
         </Card>
 
-        {/* Valence-Arousal Plot */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-futuristic font-semibold mb-4 flex items-center gap-2">
-            <Zap className="h-5 w-5 text-warning" />
+        {/* Valence-Arousal */}
+        <Card className="glass-card p-6">
+          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-warning" />
             Valence-Arousal Space
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={220}>
             <ScatterChart>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-              <XAxis type="number" dataKey="valence" domain={[-1, 1]} name="Valence" tick={{ fontSize: 10 }} stroke="hsl(var(--foreground))" opacity={0.5} />
-              <YAxis type="number" dataKey="arousal" domain={[0, 1]} name="Arousal" tick={{ fontSize: 10 }} stroke="hsl(var(--foreground))" opacity={0.5} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+              <XAxis type="number" dataKey="valence" domain={[-1, 1]} name="Valence" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+              <YAxis type="number" dataKey="arousal" domain={[0, 1]} name="Arousal" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
               <ZAxis type="number" dataKey="size" range={[30, 150]} />
               <Tooltip
                 contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
                 formatter={(value: number, name: string) => [value.toFixed(2), name]}
               />
-              <Scatter data={vaData} fill="hsl(var(--primary))" fillOpacity={0.6} />
+              <Scatter data={vaData} fill="hsl(var(--primary))" fillOpacity={0.5} />
             </ScatterChart>
           </ResponsiveContainer>
-          <div className="flex justify-between text-xs text-foreground/50 mt-2 px-4">
+          <div className="flex justify-between text-xs text-muted-foreground mt-2 px-4">
             <span>Negative</span>
             <span>Valence</span>
             <span>Positive</span>

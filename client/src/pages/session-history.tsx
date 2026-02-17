@@ -83,8 +83,8 @@ export default function SessionHistory() {
   return (
     <main className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-3">
-        <Clock className="h-6 w-6 text-primary" />
-        <h2 className="text-xl font-futuristic font-bold">Session History</h2>
+        <Clock className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-semibold">Session History</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -165,9 +165,9 @@ export default function SessionHistory() {
         {/* Session Detail */}
         <div className="lg:col-span-2">
           {selectedSession && sessionDetail ? (
-            <Card className="glass-card p-6 rounded-xl hover-glow">
+            <Card className="glass-card p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-futuristic font-semibold">
+                <h3 className="text-base font-medium">
                   Session Detail
                 </h3>
                 <span className="text-xs font-mono text-foreground/50">
