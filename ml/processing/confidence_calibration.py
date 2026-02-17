@@ -144,6 +144,12 @@ class ConfidenceCalibrator:
 
         raw_probs = prediction.get("probabilities")
 
+        # Handle dict-style probabilities (e.g., {"Wake": 0.5, "N1": 0.2})
+        if isinstance(raw_probs, dict):
+            raw_probs = np.array(list(raw_probs.values()), dtype=float)
+        elif isinstance(raw_probs, list):
+            raw_probs = np.array(raw_probs, dtype=float)
+
         cal = self.calibrate(model_name, raw_conf, raw_probs)
 
         # Add calibration info to prediction

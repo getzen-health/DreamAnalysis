@@ -145,6 +145,12 @@ class StateTracker:
         raw_idx = self.state_to_idx.get(raw_state, 0)
 
         # Build raw probability distribution
+        # Handle dict-style probabilities (e.g., {"Wake": 0.5, "N1": 0.2})
+        if isinstance(raw_probs, dict):
+            raw_probs = np.array(list(raw_probs.values()), dtype=float)
+        elif isinstance(raw_probs, list):
+            raw_probs = np.array(raw_probs, dtype=float)
+
         if raw_probs is not None and len(raw_probs) == self.n_states:
             raw_dist = np.array(raw_probs, dtype=float)
         else:
