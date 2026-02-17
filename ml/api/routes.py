@@ -13,6 +13,11 @@ from models.emotion_classifier import EmotionClassifier
 from models.dream_detector import DreamDetector
 from models.flow_state_detector import FlowStateDetector
 from models.creativity_detector import CreativityDetector, MemoryEncodingPredictor
+from processing.signal_quality import SignalQualityChecker
+from processing.calibration import UserCalibration, CalibrationRunner, CALIBRATION_STEPS
+from processing.state_transitions import BrainStateEngine
+from processing.confidence_calibration import ConfidenceCalibrator, add_uncertainty_labels
+from processing.user_feedback import FeedbackCollector, PersonalizedPipeline
 from simulation.eeg_simulator import simulate_eeg, STATE_PROFILES
 from processing.eeg_processor import (
     extract_features,
@@ -47,6 +52,23 @@ router = APIRouter()
 
 MODEL_DIR = Path("models/saved")
 BENCHMARK_DIR = Path("benchmarks")
+
+
+def _numpy_safe(obj):
+    """Recursively convert numpy types to native Python for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: _numpy_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_numpy_safe(v) for v in obj]
+    if isinstance(obj, (np.bool_,)):
+        return bool(obj)
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
 
 
 def _find_model(prefix: str) -> Optional[str]:
@@ -998,3 +1020,320 @@ async def supported_metrics():
             "dream_detection": ["dreaming", "not_dreaming"],
         },
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+#  ACCURACY PIPELINE ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+# Singletons for accuracy modules
+_quality_checker = SignalQualityChecker(fs=256)
+_state_engine = BrainStateEngine()
+_confidence_cal = ConfidenceCalibrator()
+_calibration_runners: Dict[str, CalibrationRunner] = {}
+
+
+# ── Signal Quality ──
+
+class SignalQualityRequest(BaseModel):
+    signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
+    sample_rate: int = 256
+
+
+@router.post("/signal-quality")
+async def check_signal_quality(req: SignalQualityRequest):
+    """Check EEG signal quality before analysis.
+
+    Returns quality score (0-1), usability flag, and per-channel details.
+    Noisy signals should be rejected before running models.
+    """
+    checker = SignalQualityChecker(fs=req.sample_rate)
+    signals = np.array(req.signals)
+
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    if signals.shape[0] == 1:
+        result = checker.check_quality(signals[0])
+    else:
+        result = checker.check_multichannel(signals)
+
+    return _numpy_safe(result)
+
+
+# ── Confidence & Reliability ──
+
+@router.get("/confidence/reliability")
+async def get_model_reliability():
+    """Get reliability assessment for all 6 models.
+
+    Shows expected accuracy, calibration method, and reliability tier
+    (high/medium/low) for each model.
+    """
+    return _confidence_cal.get_all_reliability()
+
+
+@router.post("/confidence/calibrate")
+async def calibrate_confidence(model_name: str, raw_confidence: float):
+    """Calibrate a single confidence score.
+
+    Transforms raw model confidence into an honest, calibrated probability.
+    """
+    result = _confidence_cal.calibrate(model_name, raw_confidence)
+    return result
+
+
+# ── Calibration Protocol ──
+
+@router.get("/calibration/steps")
+async def get_calibration_steps():
+    """Get the 4-step calibration protocol instructions.
+
+    Each step has a name, instruction, duration (seconds), and purpose.
+    """
+    return {"steps": CALIBRATION_STEPS, "total_duration_seconds": 120}
+
+
+@router.post("/calibration/start/{user_id}")
+async def start_user_calibration(user_id: str, sample_rate: int = 256):
+    """Start a new calibration session for a user."""
+    _calibration_runners[user_id] = CalibrationRunner(fs=sample_rate)
+    return {
+        "status": "started",
+        "user_id": user_id,
+        "steps": CALIBRATION_STEPS,
+    }
+
+
+class CalibrationEpochRequest(BaseModel):
+    condition: str = Field(..., description="Calibration condition name")
+    signal: List[float] = Field(..., description="EEG epoch (4 seconds)")
+
+
+@router.post("/calibration/add-epoch/{user_id}")
+async def add_calibration_epoch(user_id: str, req: CalibrationEpochRequest):
+    """Add an EEG epoch to the calibration for a specific condition."""
+    runner = _calibration_runners.get(user_id)
+    if runner is None:
+        raise HTTPException(404, f"No calibration session for user {user_id}")
+
+    signal = np.array(req.signal)
+
+    # Check quality first
+    checker = SignalQualityChecker(fs=runner.fs)
+    quality = checker.check_quality(signal)
+
+    if not quality["is_usable"]:
+        return {
+            "status": "rejected",
+            "reason": "Signal quality too low",
+            "quality": quality,
+        }
+
+    runner.add_epoch(req.condition, signal)
+    progress = runner.get_progress()
+
+    return {
+        "status": "accepted",
+        "quality": quality,
+        "progress": progress,
+    }
+
+
+@router.post("/calibration/complete/{user_id}")
+async def complete_calibration(user_id: str):
+    """Complete calibration and compute per-user baselines."""
+    runner = _calibration_runners.get(user_id)
+    if runner is None:
+        raise HTTPException(404, f"No calibration session for user {user_id}")
+
+    progress = runner.get_progress()
+    if not progress["is_complete"]:
+        return {
+            "status": "incomplete",
+            "progress": progress,
+            "message": "Need at least 3 epochs per condition",
+        }
+
+    cal = runner.compute_calibration(user_id)
+    del _calibration_runners[user_id]
+
+    return {
+        "status": "complete",
+        "alpha_reactivity": cal.alpha_reactivity,
+        "beta_reactivity": cal.beta_reactivity,
+        "theta_alpha_ratio_rest": cal.theta_alpha_ratio_rest,
+        "global_band_means": cal.global_band_means,
+    }
+
+
+@router.get("/calibration/status/{user_id}")
+async def get_calibration_status(user_id: str):
+    """Check if a user has a saved calibration profile."""
+    cal = UserCalibration.load(user_id)
+
+    # Check for in-progress calibration
+    runner = _calibration_runners.get(user_id)
+    in_progress = None
+    if runner:
+        in_progress = runner.get_progress()
+
+    return {
+        "is_calibrated": cal.is_calibrated,
+        "calibrated_at": cal.calibrated_at,
+        "alpha_reactivity": cal.alpha_reactivity,
+        "in_progress": in_progress,
+    }
+
+
+# ── State Transitions ──
+
+@router.get("/state-engine/summary")
+async def get_state_engine_summary():
+    """Get current state of all temporal smoothing trackers."""
+    return _state_engine.get_summary()
+
+
+@router.get("/state-engine/coherence")
+async def get_state_coherence():
+    """Check if current brain states are physiologically coherent."""
+    return _state_engine.get_cross_state_coherence()
+
+
+# ── User Feedback & Personalization ──
+
+class FeedbackRequest(BaseModel):
+    user_id: str = "default"
+    model_name: str = Field(..., description="Model that was wrong")
+    predicted_state: str = Field(..., description="What the model said")
+    corrected_state: str = Field(..., description="What user says is correct")
+    features: Optional[List[float]] = None
+
+
+@router.post("/feedback/correction")
+async def submit_correction(req: FeedbackRequest):
+    """Submit a state correction (model said X, but I was actually Y)."""
+    fc = FeedbackCollector(req.user_id)
+    features = np.array(req.features) if req.features else None
+    fc.record_state_correction(
+        req.model_name, req.predicted_state, req.corrected_state, features
+    )
+    stats = fc.get_feedback_stats()
+    return {
+        "status": "recorded",
+        "total_feedback": stats["total_entries"],
+        "can_personalize": stats.get("can_personalize", {}),
+    }
+
+
+class SelfReportRequest(BaseModel):
+    user_id: str = "default"
+    reported_state: str = Field(..., description="User's current state")
+    model_name: str = "general"
+    features: Optional[List[float]] = None
+
+
+@router.post("/feedback/self-report")
+async def submit_self_report(req: SelfReportRequest):
+    """Submit a self-report of current state (no model prediction needed)."""
+    fc = FeedbackCollector(req.user_id)
+    features = np.array(req.features) if req.features else None
+    fc.record_self_report(req.reported_state, req.model_name, features)
+    return {"status": "recorded"}
+
+
+@router.get("/personalization/status/{user_id}")
+async def get_personalization_status(user_id: str):
+    """Get personalization status for a user."""
+    pipeline = PersonalizedPipeline(user_id)
+    pipeline.update_from_feedback()
+    return pipeline.get_personalization_status()
+
+
+# ── Enhanced Analysis (with full accuracy pipeline) ──
+
+class AccurateAnalysisRequest(BaseModel):
+    signals: List[List[float]] = Field(..., description="EEG signals")
+    sample_rate: int = 256
+    user_id: str = "default"
+
+
+@router.post("/analyze-eeg-accurate")
+async def analyze_eeg_accurate(req: AccurateAnalysisRequest):
+    """Run EEG analysis with full accuracy pipeline.
+
+    Unlike /analyze-eeg, this endpoint runs:
+    1. Signal quality gate
+    2. Per-user calibration (if available)
+    3. All 6 models
+    4. Confidence calibration
+    5. State transition smoothing
+    6. Personalization (if feedback exists)
+    """
+    signals = np.array(req.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+
+    channel_data = signals[0]
+
+    # Step 1: Quality gate
+    checker = SignalQualityChecker(fs=req.sample_rate)
+    quality = checker.check_quality(channel_data)
+
+    if not quality["is_usable"]:
+        return {
+            "status": "rejected",
+            "reason": "Signal quality too low for analysis",
+            "quality": quality,
+        }
+
+    # Step 2: Features + calibration
+    processed = preprocess(channel_data, req.sample_rate)
+    features_dict = extract_features(processed, req.sample_rate)
+    features_array = np.array([v for _, v in sorted(features_dict.items())])
+
+    calibration = UserCalibration.load(req.user_id)
+    if calibration.is_calibrated:
+        features_array = calibration.normalize_features(features_array)
+
+    # Step 3: Run models
+    analysis = {
+        "sleep_staging": sleep_model.predict(channel_data, req.sample_rate),
+        "emotions": emotion_model.predict(channel_data, req.sample_rate),
+        "dream_detection": dream_model.predict(channel_data, req.sample_rate),
+        "flow_state": flow_model.predict(channel_data, req.sample_rate),
+        "creativity": creativity_model.predict(channel_data, req.sample_rate),
+        "memory_encoding": memory_model.predict(channel_data, req.sample_rate),
+    }
+
+    # Step 4: Confidence calibration
+    add_uncertainty_labels(analysis, _confidence_cal)
+    conf_summary = analysis.pop("_confidence_summary", {})
+
+    # Step 5: State smoothing
+    smoothed = _state_engine.update({
+        "sleep": analysis.get("sleep_staging", {}),
+        "flow": analysis.get("flow_state", {}),
+        "emotion": analysis.get("emotions", {}),
+        "creativity": analysis.get("creativity", {}),
+        "memory": analysis.get("memory_encoding", {}),
+        "dream": analysis.get("dream_detection", {}),
+    })
+
+    # Step 6: Personalization
+    pipeline = PersonalizedPipeline(req.user_id)
+    pipeline.update_from_feedback()
+    p_status = pipeline.get_personalization_status()
+
+    coherence = _state_engine.get_cross_state_coherence()
+
+    return _numpy_safe({
+        "status": "ok",
+        "quality": quality,
+        "analysis": analysis,
+        "smoothed_states": smoothed,
+        "confidence_summary": conf_summary,
+        "coherence": coherence,
+        "is_calibrated": calibration.is_calibrated,
+        "personalization": p_status,
+    })
