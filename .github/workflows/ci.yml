@@ -128,6 +128,72 @@ jobs:
           print('Simulate-EEG: PASSED (6 analyses)')
           "
 
+      - name: Test health endpoints
+        run: |
+          cd ml
+          python -c "
+          from main import app
+          from fastapi.testclient import TestClient
+          import time
+          client = TestClient(app)
+
+          # Supported metrics
+          r = client.get('/api/health/supported-metrics')
+          assert r.status_code == 200
+          data = r.json()
+          assert len(data['apple_health']['import']) >= 10
+          assert len(data['google_fit']) >= 10
+          assert len(data['health_connect']) >= 5
+          print('Health supported metrics: PASSED')
+
+          # Ingest Apple Health
+          r = client.post('/api/health/ingest', json={
+              'user_id': 'ci_test', 'source': 'apple_health',
+              'data': {'type': 'HKQuantityTypeIdentifierHeartRate',
+                       'samples': [{'startDate': '2024-01-01T10:00:00Z', 'value': 72}]}
+          })
+          assert r.status_code == 200 and r.json()['metric'] == 'heart_rate'
+          print('Health ingest (Apple): PASSED')
+
+          # Ingest Google Fit
+          r = client.post('/api/health/ingest', json={
+              'user_id': 'ci_test', 'source': 'google_fit',
+              'data': {'dataTypeName': 'com.google.step_count.delta',
+                       'point': [{'startTimeNanos': '1704067200000000000', 'value': [{'intVal': 8500}]}]}
+          })
+          assert r.status_code == 200 and r.json()['metric'] == 'steps'
+          print('Health ingest (Google Fit): PASSED')
+
+          # Store brain session
+          r = client.post('/api/health/brain-session', json={
+              'user_id': 'ci_test', 'session_id': 'ci_sess',
+              'start_time': time.time() - 1800, 'end_time': time.time(),
+              'analysis': {
+                  'flow_state': {'state': 'flow', 'flow_score': 0.8},
+                  'creativity': {'state': 'creative', 'creativity_score': 0.6},
+                  'memory_encoding': {'state': 'active', 'will_remember_probability': 0.7},
+                  'emotions': {'emotion': 'focused', 'valence': 0.6, 'arousal': 0.4},
+                  'sleep_stage': {}, 'dream_detection': {},
+              }
+          })
+          assert r.status_code == 200
+          print('Health brain session: PASSED')
+
+          # Daily summary
+          r = client.get('/api/health/daily-summary/ci_test')
+          assert r.status_code == 200 and 'brain' in r.json()
+          print('Health daily summary: PASSED')
+
+          # Export to HealthKit
+          r = client.post('/api/health/export-to-healthkit/ci_test', json={
+              'brain_session': {'start_time': '2024-01-01T10:00:00Z', 'end_time': '2024-01-01T10:30:00Z',
+                                'flow_state': {'state': 'deep_flow', 'flow_score': 0.9}, 'sleep_stage': {}}
+          })
+          assert r.status_code == 200
+          print('Health export to HealthKit: PASSED')
+          print('All health endpoint tests: PASSED')
+          "
+
       - name: Test feature extraction
         run: |
           cd ml

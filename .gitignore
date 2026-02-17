@@ -16,3 +16,4 @@ ml/models/*.pt
 *.mat
 *.npz
 *.zip
+*.db
