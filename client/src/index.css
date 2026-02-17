@@ -4,45 +4,72 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(220 20% 4%);
-  --foreground: hsl(210 20% 90%);
-  --card: hsl(220 18% 7%);
-  --card-foreground: hsl(210 20% 88%);
-  --popover: hsl(220 20% 6%);
-  --popover-foreground: hsl(210 20% 90%);
-  --primary: hsl(200 80% 55%);
-  --primary-foreground: hsl(220 20% 4%);
-  --secondary: hsl(260 50% 60%);
-  --secondary-foreground: hsl(210 20% 90%);
-  --muted: hsl(220 15% 12%);
-  --muted-foreground: hsl(210 15% 55%);
-  --accent: hsl(260 50% 60%);
-  --accent-foreground: hsl(220 20% 4%);
-  --destructive: hsl(0 70% 55%);
-  --destructive-foreground: hsl(210 20% 90%);
-  --border: hsl(220 15% 13%);
-  --input: hsl(220 18% 10%);
-  --ring: hsl(200 80% 55%);
-  --success: hsl(150 60% 50%);
-  --success-foreground: hsl(220 20% 4%);
-  --warning: hsl(30 80% 55%);
-  --warning-foreground: hsl(220 20% 4%);
-  --chart-1: hsl(200 80% 55%);
-  --chart-2: hsl(260 50% 60%);
-  --chart-3: hsl(150 60% 50%);
-  --chart-4: hsl(30 80% 55%);
-  --chart-5: hsl(340 60% 55%);
-  --sidebar: hsl(220 18% 6%);
-  --sidebar-foreground: hsl(210 20% 88%);
-  --sidebar-primary: hsl(200 80% 55%);
-  --sidebar-primary-foreground: hsl(220 20% 4%);
-  --sidebar-accent: hsl(260 50% 60%);
-  --sidebar-accent-foreground: hsl(220 20% 4%);
-  --sidebar-border: hsl(220 15% 13%);
-  --sidebar-ring: hsl(200 80% 55%);
+  --background: hsl(222 25% 6%);
+  --foreground: hsl(38 20% 92%);
+  --card: hsl(220 22% 9%);
+  --card-foreground: hsl(38 15% 88%);
+  --popover: hsl(220 22% 8%);
+  --popover-foreground: hsl(38 20% 92%);
+  --primary: hsl(152 60% 48%);
+  --primary-foreground: hsl(152 25% 8%);
+  --secondary: hsl(262 45% 65%);
+  --secondary-foreground: hsl(262 15% 95%);
+  --muted: hsl(220 18% 13%);
+  --muted-foreground: hsl(220 12% 52%);
+  --accent: hsl(38 85% 58%);
+  --accent-foreground: hsl(38 30% 10%);
+  --destructive: hsl(4 72% 55%);
+  --destructive-foreground: hsl(0 0% 96%);
+  --border: hsl(220 18% 15%);
+  --input: hsl(220 18% 12%);
+  --ring: hsl(152 60% 48%);
+  --success: hsl(152 60% 48%);
+  --success-foreground: hsl(152 25% 8%);
+  --warning: hsl(38 85% 58%);
+  --warning-foreground: hsl(38 30% 10%);
+  --neural-blue: hsl(200 70% 55%);
+  --neural-cyan: hsl(180 65% 50%);
+  --neural-purple: hsl(262 45% 65%);
+  --neural-green: hsl(152 60% 48%);
+  --chart-1: hsl(152 60% 48%);
+  --chart-2: hsl(262 45% 65%);
+  --chart-3: hsl(38 85% 58%);
+  --chart-4: hsl(200 70% 55%);
+  --chart-5: hsl(320 55% 60%);
+  --sidebar: hsl(222 25% 5%);
+  --sidebar-foreground: hsl(38 15% 85%);
+  --sidebar-primary: hsl(152 60% 48%);
+  --sidebar-primary-foreground: hsl(152 25% 8%);
+  --sidebar-accent: hsl(220 18% 13%);
+  --sidebar-accent-foreground: hsl(38 20% 92%);
+  --sidebar-border: hsl(220 20% 10%);
+  --sidebar-ring: hsl(152 60% 48%);
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-  --radius: 10px;
+  --font-futuristic: 'Inter', system-ui, sans-serif;
+  --radius: 12px;
+}
+
+.dark {
+  --background: hsl(222 25% 6%);
+  --foreground: hsl(38 20% 92%);
+  --card: hsl(220 22% 9%);
+  --card-foreground: hsl(38 15% 88%);
+  --popover: hsl(220 22% 8%);
+  --popover-foreground: hsl(38 20% 92%);
+  --primary: hsl(152 60% 48%);
+  --primary-foreground: hsl(152 25% 8%);
+  --secondary: hsl(262 45% 65%);
+  --secondary-foreground: hsl(262 15% 95%);
+  --muted: hsl(220 18% 13%);
+  --muted-foreground: hsl(220 12% 52%);
+  --accent: hsl(38 85% 58%);
+  --accent-foreground: hsl(38 30% 10%);
+  --destructive: hsl(4 72% 55%);
+  --destructive-foreground: hsl(0 0% 96%);
+  --border: hsl(220 18% 15%);
+  --input: hsl(220 18% 12%);
+  --ring: hsl(152 60% 48%);
 }
 
 @layer base {
@@ -59,22 +86,147 @@
 
 @layer components {
   .glass-card {
-    @apply border rounded-xl;
-    background-color: hsl(var(--card));
-    border-color: hsl(var(--border));
+    @apply rounded-2xl border;
+    background: linear-gradient(
+      135deg,
+      hsl(220 22% 9% / 0.85) 0%,
+      hsl(222 25% 7% / 0.90) 100%
+    );
+    border-color: hsl(220 18% 20% / 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow:
+      0 4px 24px hsl(0 0% 0% / 0.25),
+      inset 0 1px 0 hsl(38 20% 92% / 0.04);
+  }
+
+  .score-card {
+    @apply rounded-2xl border;
+    background: linear-gradient(
+      145deg,
+      hsl(220 22% 10% / 0.95) 0%,
+      hsl(220 25% 8% / 0.98) 100%
+    );
+    border-color: hsl(220 18% 22% / 0.7);
+    box-shadow:
+      0 8px 40px hsl(0 0% 0% / 0.3),
+      inset 0 1px 0 hsl(38 20% 92% / 0.05);
+  }
+
+  .hover-glow {
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+
+  .hover-glow:hover {
+    box-shadow:
+      0 8px 32px hsl(0 0% 0% / 0.3),
+      0 0 0 1px hsl(152 60% 48% / 0.15),
+      inset 0 1px 0 hsl(38 20% 92% / 0.06);
+    border-color: hsl(152 60% 48% / 0.25);
+  }
+
+  .glow-effect {
+    box-shadow:
+      0 0 20px hsl(152 60% 48% / 0.2),
+      0 0 40px hsl(152 60% 48% / 0.08);
+  }
+
+  .neural-glow {
+    box-shadow:
+      0 0 15px hsl(262 45% 65% / 0.3),
+      0 0 30px hsl(262 45% 65% / 0.15);
   }
 
   .text-gradient {
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+    background: linear-gradient(135deg, hsl(152 60% 52%), hsl(38 85% 62%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  .ai-insight-card {
+    @apply rounded-2xl border p-5;
+    background: linear-gradient(
+      135deg,
+      hsl(152 30% 10% / 0.8) 0%,
+      hsl(38 30% 10% / 0.6) 100%
+    );
+    border-color: hsl(152 60% 48% / 0.2);
+  }
+
+  .shift-alert {
+    @apply rounded-xl border p-4;
+    background: linear-gradient(
+      135deg,
+      hsl(38 60% 10% / 0.9) 0%,
+      hsl(38 40% 8% / 0.8) 100%
+    );
+    border-color: hsl(38 85% 58% / 0.3);
+  }
+
+  .shift-alert-calm {
+    @apply rounded-xl border p-4;
+    background: linear-gradient(
+      135deg,
+      hsl(152 40% 10% / 0.9) 0%,
+      hsl(152 30% 8% / 0.8) 100%
+    );
+    border-color: hsl(152 60% 48% / 0.3);
+  }
+
+  .nav-section-label {
+    @apply text-[10px] font-semibold tracking-widest uppercase px-3 pt-4 pb-1;
+    color: hsl(220 12% 40%);
+  }
+
+  .neural-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.02;
+    background-image:
+      radial-gradient(circle at 20% 30%, var(--neural-green) 1px, transparent 1px),
+      radial-gradient(circle at 80% 70%, var(--neural-purple) 1px, transparent 1px);
+    background-size: 60px 60px, 80px 80px;
+    pointer-events: none;
+    z-index: -1;
+  }
 }
 
 @layer utilities {
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
   .animate-brain-wave {
     animation: brain-wave 1.5s ease-in-out infinite;
+  }
+
+  .animate-shift-glow {
+    animation: shift-glow 2s ease-in-out infinite;
+  }
+
+  .animate-score-fill {
+    animation: score-fill 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .font-futuristic {
+    font-family: var(--font-futuristic);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px hsl(152 60% 48% / 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px hsl(152 60% 48% / 0.4);
   }
 }
 
@@ -85,9 +237,43 @@
   75% { transform: scaleY(1.2); }
 }
 
+@keyframes shift-glow {
+  0%, 100% { box-shadow: 0 0 12px hsl(38 85% 58% / 0.1); }
+  50% { box-shadow: 0 0 24px hsl(38 85% 58% / 0.25); }
+}
+
+@keyframes score-fill {
+  from { stroke-dashoffset: 377; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
 .status-indicator {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: hsl(var(--success));
+  box-shadow: 0 0 6px hsl(var(--success));
+}
+
+.neural-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: var(--neural-green);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+.neural-connection {
+  stroke-dasharray: 5, 5;
+  animation: neural-flow 3s linear infinite;
+}
+
+@keyframes neural-flow {
+  0% { stroke-dashoffset: 10; }
+  100% { stroke-dashoffset: 0; }
 }

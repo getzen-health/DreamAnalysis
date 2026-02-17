@@ -182,7 +182,7 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* BCI Configuration */}
         <Card className="glass-card p-6 rounded-xl ">
-          <h3 className="text-lg font-medium font-semibold mb-6">
+          <h3 className="text-lg font-semibold mb-6">
             BCI Configuration
           </h3>
           <div className="space-y-6">
@@ -259,7 +259,7 @@ export default function SettingsPage() {
 
         {/* Interface Settings */}
         <Card className="glass-card p-6 rounded-xl ">
-          <h3 className="text-lg font-medium font-semibold mb-6">
+          <h3 className="text-lg font-semibold mb-6">
             Interface Settings
           </h3>
           <div className="space-y-6">
@@ -326,7 +326,7 @@ export default function SettingsPage() {
       {/* Data Export & Privacy */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="glass-card p-6 rounded-xl ">
-          <h3 className="text-lg font-medium font-semibold mb-6">
+          <h3 className="text-lg font-semibold mb-6">
             Data Export
           </h3>
           <div className="space-y-4">
@@ -355,7 +355,7 @@ export default function SettingsPage() {
         </Card>
 
         <Card className="glass-card p-6 rounded-xl ">
-          <h3 className="text-lg font-medium font-semibold mb-6">
+          <h3 className="text-lg font-semibold mb-6">
             Privacy & Security
           </h3>
           <div className="space-y-4">
@@ -457,7 +457,7 @@ export default function SettingsPage() {
 
         {/* Edge Inference (Phase 12) */}
         <Card className="glass-card p-6 rounded-xl ">
-          <h3 className="text-lg font-medium font-semibold mb-4 flex items-center gap-2">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Cpu className="h-5 w-5 text-primary" />
             Edge Inference
           </h3>
@@ -494,7 +494,7 @@ export default function SettingsPage() {
       {/* Model Performance */}
       {Object.keys(benchmarks).length > 0 && (
         <Card className="glass-card p-6 rounded-xl ">
-          <h3 className="text-lg font-medium font-semibold mb-6 flex items-center gap-2">
+          <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
             Model Performance
           </h3>
