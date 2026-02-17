@@ -5,7 +5,7 @@ The same ML pipeline works for both simulated and real data.
 """
 
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict
 
 
 # Frequency profiles for different brain states (relative power in each band)

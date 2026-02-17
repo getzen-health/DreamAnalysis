@@ -164,13 +164,13 @@ def load_dens(
         # Find EEG file (.set format)
         set_files = list((subj_dir / "eeg").glob("*_eeg.set"))
         if not set_files:
-            print(f"    No .set file found, skipping")
+            print("    No .set file found, skipping")
             continue
 
         # Find behavioral file with emotion ratings
         beh_files = list((subj_dir / "beh").glob("*_beh.tsv"))
         if not beh_files:
-            print(f"    No behavioral file found, skipping")
+            print("    No behavioral file found, skipping")
             continue
 
         # Load behavioral data (valence/arousal ratings per trial)
@@ -186,7 +186,7 @@ def load_dens(
                     continue
 
         if not trials:
-            print(f"    No valid trials in behavioral data, skipping")
+            print("    No valid trials in behavioral data, skipping")
             continue
 
         # Load events file to find stimulus onsets
@@ -215,7 +215,7 @@ def load_dens(
         # Pick only EEG channels
         eeg_picks = mne.pick_types(raw.info, eeg=True, exclude="bads")
         if len(eeg_picks) == 0:
-            print(f"    No EEG channels found, skipping")
+            print("    No EEG channels found, skipping")
             continue
         raw.pick(eeg_picks)
 

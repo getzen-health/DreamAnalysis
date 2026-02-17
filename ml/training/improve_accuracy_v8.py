@@ -415,7 +415,7 @@ def main():
     bp3['random_state'] = 42
     bp3['n_jobs'] = N_JOBS
     bp3['verbose'] = -1
-    r = evaluate(X_iter, y_iter, f"optuna-7ds-3round-clean (50t)", params=bp3)
+    r = evaluate(X_iter, y_iter, "optuna-7ds-3round-clean (50t)", params=bp3)
     all_results["optuna-7ds-3round-clean"] = r
 
     # === FINAL SUMMARY ===

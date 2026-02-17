@@ -189,7 +189,7 @@ def train(simulated: bool = False, data_dir: str = "data/deap", output_dir: str 
     min_count = min(class_counts.values())
     stratify_param = y if min_count >= 2 else None
     if stratify_param is None:
-        print(f"  Warning: some classes have <2 samples, disabling stratification")
+        print("  Warning: some classes have <2 samples, disabling stratification")
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=stratify_param
@@ -201,9 +201,7 @@ def train(simulated: bool = False, data_dir: str = "data/deap", output_dir: str 
 
     # Compute class weights to handle imbalanced data
     from sklearn.utils.class_weight import compute_sample_weight
-    from sklearn.ensemble import RandomForestClassifier, VotingClassifier
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.pipeline import Pipeline
+    from sklearn.ensemble import RandomForestClassifier
 
     sample_weights = compute_sample_weight("balanced", y_train)
 

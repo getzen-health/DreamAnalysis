@@ -9,7 +9,6 @@ Key optimizations vs original:
 Usage: python -u -m training.experiment_improvements_fast
 """
 
-import sys
 import numpy as np
 import pickle
 import json
@@ -24,8 +23,8 @@ from sklearn.preprocessing import StandardScaler
 
 from processing.eeg_processor import (
     bandpass_filter, notch_filter, extract_band_powers,
-    compute_hjorth_parameters, spectral_entropy, extract_features,
-    preprocess, BANDS,
+    extract_features,
+    preprocess,
 )
 from training.data_loaders import _circumplex_to_emotion
 

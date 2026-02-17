@@ -165,7 +165,7 @@ def main():
         all_results[f"LGBM-1500-pca{dim}"] = r
 
     # Baseline PCA=80
-    log(f"\n  PCA=80 (baseline):")
+    log("\n  PCA=80 (baseline):")
     X80, y80 = build_dataset(datasets, target_features=80)
     r = evaluate(X80, y80, "LGBM-1500-pca80 (baseline)", lgb.LGBMClassifier(**best_lgbm_params))
     all_results["LGBM-1500-pca80"] = r

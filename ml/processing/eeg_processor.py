@@ -9,7 +9,7 @@ import numpy as np
 import pywt
 from scipy import signal as scipy_signal
 from scipy.stats import entropy
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 
 # EEG frequency band definitions (Hz)

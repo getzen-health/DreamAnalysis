@@ -8,8 +8,6 @@ All datasets mapped to 3-class: 0=positive, 1=neutral, 2=negative
 
 import numpy as np
 import pandas as pd
-import os
-import sys
 import json
 import time
 import warnings
@@ -17,9 +15,9 @@ from pathlib import Path
 from scipy import signal
 from scipy.stats import skew, kurtosis
 from sklearn.ensemble import (GradientBoostingClassifier, RandomForestClassifier,
-                               ExtraTreesClassifier, VotingClassifier)
+                               ExtraTreesClassifier)
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
@@ -211,7 +209,7 @@ def load_gameemo_enhanced():
                 feat = extract_multichannel(segment, SFREQ)
                 X.append(feat)
                 y.append(label)
-        except Exception as e:
+        except Exception:
             continue
 
     return np.array(X), np.array(y), "GAMEEMO"
@@ -932,7 +930,7 @@ def load_seed_iv():
 
                         X.append(feat[:23])
                         y.append(mapped_label)
-            except Exception as e:
+            except Exception:
                 continue
 
     if len(X) == 0:
@@ -1316,7 +1314,7 @@ def main():
         log(f"\n  Combined: {len(all_X)} samples, {all_X.shape[1]} features")
         log(f"  Sources: {names}")
 
-        results = evaluate_models(all_X, all_y, f"Combined-Raw-EEG")
+        results = evaluate_models(all_X, all_y, "Combined-Raw-EEG")
         if results:
             best_model = max(results, key=lambda m: results[m]['f1'])
             all_results['Combined-Raw-EEG'] = {

@@ -1,6 +1,4 @@
 """Quick run: Combined experiment + save all results."""
-import sys
-import numpy as np
 import json
 import time
 from pathlib import Path

@@ -166,7 +166,7 @@ def main():
 
     # Optuna on best dataset exclusion config
     log(f"\n{'='*60}")
-    log(f"  Optuna optimization on best config")
+    log("  Optuna optimization on best config")
     log(f"{'='*60}")
 
     # Determine best exclusion set
@@ -213,7 +213,7 @@ def main():
             accs.append(accuracy_score(y[te], yp))
         return np.mean(accs)
 
-    log(f"  Running Optuna (80 trials, 3-fold)...")
+    log("  Running Optuna (80 trials, 3-fold)...")
     t0 = time.time()
     study = optuna.create_study(direction='maximize')
     study.optimize(objective, n_trials=80)
@@ -227,17 +227,17 @@ def main():
     bp['random_state'] = 42
     bp['n_jobs'] = N_JOBS
     bp['verbose'] = -1
-    r = evaluate(X_aware, y, f"LGBM-optuna-aware-best-excl", params=bp)
+    r = evaluate(X_aware, y, "LGBM-optuna-aware-best-excl", params=bp)
     all_results["LGBM-optuna-aware-best-excl"] = r
 
     # Also try Optuna on drop-Confused specifically
     if best_exclusion != {'Confused-Student'}:
-        log(f"\n  Also trying Optuna on drop-Confused only...")
+        log("\n  Also trying Optuna on drop-Confused only...")
         datasets_dc = load_datasets(exclude={'Confused-Student'})
         n_dc = len(datasets_dc)
         X_dc, y_dc, src_dc = build_dataset_with_source(datasets_dc, target_features=80)
         X_dc_aware = add_dataset_features(X_dc, src_dc, n_dc)
-        r = evaluate(X_dc_aware, y_dc, f"LGBM-optuna-aware-dropConfused", params=bp)
+        r = evaluate(X_dc_aware, y_dc, "LGBM-optuna-aware-dropConfused", params=bp)
         all_results["LGBM-optuna-aware-dropConfused"] = r
 
     # === FINAL SUMMARY ===

@@ -39,7 +39,6 @@ from processing.connectivity import (
     compute_granger_causality,
     compute_dtf,
     compute_graph_metrics,
-    compute_connectivity_dynamics,
 )
 
 router = APIRouter()

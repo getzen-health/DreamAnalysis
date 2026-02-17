@@ -16,9 +16,9 @@ import pickle
 import json
 from pathlib import Path
 from collections import Counter
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.model_selection import StratifiedKFold
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.preprocessing import StandardScaler
 

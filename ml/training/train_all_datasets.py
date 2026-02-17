@@ -18,18 +18,17 @@ import pandas as pd
 import pickle
 import json
 import time
-import glob
 from pathlib import Path
 from collections import Counter
 from sklearn.model_selection import StratifiedKFold
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 from processing.eeg_processor import (
-    preprocess, extract_features, extract_band_powers, BANDS,
+    preprocess, extract_features,
 )
 from training.data_loaders import _circumplex_to_emotion
 
@@ -137,7 +136,7 @@ def load_gameemo_features(epoch_sec=30.0, fs=128.0):
                 feats = extract_features(processed, fs)
                 X_list.append(list(feats.values()))
                 y_list.append(GAME_LABELS[game])
-        except Exception as e:
+        except Exception:
             continue
 
     if not X_list:

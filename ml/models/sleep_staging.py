@@ -12,7 +12,7 @@ Supports three inference paths: ONNX > sklearn > feature-based fallback.
 """
 
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from processing.eeg_processor import extract_features, extract_band_powers, preprocess
 
 SLEEP_STAGES = ["Wake", "N1", "N2", "N3", "REM"]
