@@ -801,6 +801,566 @@ def download_dens_openneuro(
     return target
 
 
+# ---------------------------------------------------------------------------
+# EEGdenoiseNet — paired clean/noisy data for denoiser training
+# ---------------------------------------------------------------------------
+
+def load_eegdenoisenet(
+    data_dir: str = "data/eegdenoisenet",
+    target_fs: float = 256.0,
+) -> dict:
+    """Load EEGdenoiseNet paired clean/noisy EEG epochs.
+
+    Dataset: 4,514 clean EEG + 3,400 EOG artifact + 5,598 EMG artifact epochs.
+    Source: https://github.com/ncclabsustech/EEGdenoiseNet
+
+    Returns:
+        Dict with 'clean_eeg', 'eog_artifacts', 'emg_artifacts' as numpy arrays.
+    """
+    data_path = Path(data_dir)
+    result = {}
+
+    # Try loading .npy files (preferred format)
+    for key, filename in [
+        ("clean_eeg", "EEG_all_epochs.npy"),
+        ("eog_artifacts", "EOG_all_epochs.npy"),
+        ("emg_artifacts", "EMG_all_epochs.npy"),
+    ]:
+        filepath = data_path / filename
+        if filepath.exists():
+            arr = np.load(str(filepath))
+            result[key] = arr
+            print(f"  Loaded {key}: {arr.shape}")
+        else:
+            # Try .mat format
+            mat_path = data_path / filename.replace(".npy", ".mat")
+            if mat_path.exists():
+                from scipy.io import loadmat
+                mat = loadmat(str(mat_path))
+                # EEGdenoiseNet .mat files typically have a single variable
+                for k, v in mat.items():
+                    if not k.startswith("_") and isinstance(v, np.ndarray):
+                        result[key] = v
+                        print(f"  Loaded {key} from .mat: {v.shape}")
+                        break
+
+    if not result:
+        raise FileNotFoundError(
+            f"No EEGdenoiseNet data found in {data_dir}. "
+            "Download from: https://gin.g-node.org/NCClab/EEGdenoiseNet"
+        )
+
+    return result
+
+
+def generate_paired_denoise_data(
+    n_pairs: int = 5000,
+    fs: float = 256.0,
+    epoch_sec: float = 2.0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Generate synthetic paired clean/noisy data for denoiser training.
+
+    Uses the noise augmentation module to create realistic training pairs
+    when EEGdenoiseNet is not available.
+
+    Returns:
+        (noisy, clean) arrays of shape (n_pairs, n_samples).
+    """
+    from simulation.eeg_simulator import simulate_eeg
+    from processing.noise_augmentation import augment_eeg
+
+    n_samples = int(epoch_sec * fs)
+    clean_all, noisy_all = [], []
+
+    states = ["rest", "focus", "meditation", "deep_sleep", "rem", "stress"]
+    for i in range(n_pairs):
+        state = states[i % len(states)]
+        result = simulate_eeg(state=state, duration=epoch_sec, fs=fs)
+        clean = np.array(result["signals"][0])[:n_samples]
+
+        # Apply random noise augmentation
+        difficulty = np.random.choice(["easy", "medium", "hard"], p=[0.2, 0.5, 0.3])
+        noisy = augment_eeg(clean, fs=fs, difficulty=difficulty)
+
+        clean_all.append(clean)
+        noisy_all.append(noisy)
+
+    return np.array(noisy_all), np.array(clean_all)
+
+
+# ---------------------------------------------------------------------------
+# SHHS — Sleep Heart Health Study (5,800+ subjects)
+# ---------------------------------------------------------------------------
+
+def load_shhs(
+    data_dir: str = "data/shhs",
+    n_subjects: int = 100,
+    epoch_sec: float = 30.0,
+    target_fs: float = 256.0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Load SHHS dataset for robust sleep staging.
+
+    The Sleep Heart Health Study has 5,793 full-night PSGs from a
+    multi-center cardiovascular cohort. Subjects aged 40+, many with
+    sleep apnea — inherently noisy and clinically representative.
+
+    Download: requires NSRR account at https://sleepdata.org/datasets/shhs
+
+    Args:
+        data_dir: Path to SHHS EDF files and annotation XMLs.
+        n_subjects: Max number of subjects to load.
+        epoch_sec: Epoch duration in seconds.
+        target_fs: Target sampling frequency.
+
+    Returns:
+        (X, y) where X is (n_epochs, n_samples) and y is labels 0-4
+        mapping to [Wake, N1, N2, N3, REM].
+    """
+    import mne
+    import xml.etree.ElementTree as ET
+
+    mne.set_log_level("WARNING")
+
+    shhs_path = Path(data_dir)
+    edf_dir = shhs_path / "edfs"
+    annot_dir = shhs_path / "annotations-events-nsrr"
+
+    if not edf_dir.exists():
+        # Try flat structure
+        edf_files = sorted(shhs_path.glob("shhs1-*.edf"))[:n_subjects]
+        annot_files_map = {
+            f.stem: shhs_path / f"{f.stem}-nsrr.xml"
+            for f in edf_files
+        }
+    else:
+        edf_files = sorted(edf_dir.glob("shhs1-*.edf"))[:n_subjects]
+        annot_files_map = {
+            f.stem: annot_dir / f"{f.stem}-nsrr.xml"
+            for f in edf_files
+        }
+
+    if not edf_files:
+        raise FileNotFoundError(
+            f"No SHHS EDF files found in {data_dir}. "
+            "Register at https://sleepdata.org/datasets/shhs to download."
+        )
+
+    # SHHS annotation stage mapping
+    shhs_stage_map = {
+        "0": 0,  # Wake
+        "1": 1,  # N1
+        "2": 2,  # N2
+        "3": 3,  # N3
+        "4": 3,  # N3 (S4 merged)
+        "5": 4,  # REM
+    }
+
+    X_all, y_all = [], []
+
+    for edf_file in edf_files:
+        annot_file = annot_files_map.get(edf_file.stem)
+        if annot_file is None or not annot_file.exists():
+            continue
+
+        try:
+            raw = mne.io.read_raw_edf(str(edf_file), preload=True, verbose=False)
+        except Exception as e:
+            print(f"  Skipping {edf_file.name}: {e}")
+            continue
+
+        # Pick EEG channel (SHHS uses C4-A1 or C3-A2)
+        eeg_ch = None
+        for ch_name in ["EEG(sec)", "EEG", "C4-A1", "C3-A2", "EEG2"]:
+            if ch_name in raw.ch_names:
+                eeg_ch = ch_name
+                break
+        if eeg_ch is None:
+            eeg_ch = raw.ch_names[0]
+        raw.pick([eeg_ch])
+
+        if raw.info["sfreq"] != target_fs:
+            raw.resample(target_fs)
+
+        data = raw.get_data()[0]
+
+        # Parse NSRR XML annotations
+        try:
+            tree = ET.parse(str(annot_file))
+            root = tree.getroot()
+        except Exception:
+            continue
+
+        n_samples_epoch = int(epoch_sec * target_fs)
+
+        for event in root.iter("ScoredEvent"):
+            event_type = event.findtext("EventType", "")
+            if "Stages" not in event_type:
+                continue
+
+            stage_str = event.findtext("EventConcept", "")
+            # Extract stage number from strings like "Stage 2 sleep|2"
+            stage_num = stage_str.split("|")[-1].strip() if "|" in stage_str else ""
+            if stage_num not in shhs_stage_map:
+                continue
+
+            start_sec = float(event.findtext("Start", "0"))
+            duration = float(event.findtext("Duration", "0"))
+
+            stage_label = shhs_stage_map[stage_num]
+            start_sample = int(start_sec * target_fs)
+
+            # Extract 30-second epochs within this scored segment
+            n_epochs_in_segment = int(duration / epoch_sec)
+            for ep in range(n_epochs_in_segment):
+                s = start_sample + ep * n_samples_epoch
+                e = s + n_samples_epoch
+                if e > len(data):
+                    break
+                X_all.append(data[s:e])
+                y_all.append(stage_label)
+
+        print(f"  {edf_file.name}: {len(y_all)} epochs total")
+
+    if not X_all:
+        raise RuntimeError("No epochs loaded from SHHS. Check data format.")
+
+    return np.array(X_all), np.array(y_all)
+
+
+# ---------------------------------------------------------------------------
+# FACED — 123 subjects, 9 fine-grained emotions
+# ---------------------------------------------------------------------------
+
+def load_faced(
+    data_dir: str = "data/faced",
+    target_fs: float = 256.0,
+    epoch_sec: float = 4.0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Load FACED dataset for cross-subject emotion recognition.
+
+    123 subjects, 30 EEG channels, 250 Hz, 9 emotion categories:
+    amusement, inspiration, joy, tenderness, anger, fear, disgust, sadness, neutral.
+
+    Source: https://doi.org/10.7303/syn50614194
+
+    We map 9 categories → 6 classes for compatibility with our emotion classifier:
+    - happy: amusement, joy
+    - relaxed: tenderness, inspiration
+    - angry: anger
+    - fearful: fear, disgust
+    - sad: sadness
+    - focused: neutral
+
+    Returns:
+        (X, y) where X is feature vectors and y is labels 0-5.
+    """
+    faced_path = Path(data_dir)
+
+    # FACED can be stored as .mat files or .npy files
+    mat_files = sorted(faced_path.glob("sub_*.mat")) + sorted(faced_path.glob("*.mat"))
+    npy_files = sorted(faced_path.glob("*.npy"))
+
+    faced_emotion_map = {
+        "amusement": 0, "joy": 0,          # happy
+        "tenderness": 4, "inspiration": 4,  # relaxed
+        "anger": 2,                          # angry
+        "fear": 3, "disgust": 3,            # fearful
+        "sadness": 1,                        # sad
+        "neutral": 5,                        # focused
+    }
+
+    X_all, y_all = [], []
+
+    if npy_files:
+        # Pre-processed numpy format
+        for npy_file in npy_files:
+            if "data" in npy_file.stem.lower() or "eeg" in npy_file.stem.lower():
+                X_raw = np.load(str(npy_file))
+                print(f"  Loaded {npy_file.name}: {X_raw.shape}")
+            elif "label" in npy_file.stem.lower():
+                y_raw = np.load(str(npy_file))
+                print(f"  Loaded {npy_file.name}: {y_raw.shape}")
+
+    elif mat_files:
+        from scipy.io import loadmat
+
+        for mat_file in mat_files:
+            try:
+                mat = loadmat(str(mat_file))
+            except Exception as e:
+                print(f"  Skipping {mat_file.name}: {e}")
+                continue
+
+            # Find EEG data and labels in the .mat file
+            eeg_data = None
+            labels = None
+            for key, val in mat.items():
+                if key.startswith("_"):
+                    continue
+                if isinstance(val, np.ndarray):
+                    if "label" in key.lower() or "y" == key.lower():
+                        labels = val.flatten()
+                    elif val.ndim >= 2 and val.shape[-1] > 100:
+                        eeg_data = val
+
+            if eeg_data is None:
+                continue
+
+            n_samples_epoch = int(epoch_sec * target_fs)
+
+            if labels is not None and eeg_data.ndim == 3:
+                # Shape: (n_trials, n_channels, n_samples)
+                for trial_idx in range(eeg_data.shape[0]):
+                    if trial_idx >= len(labels):
+                        break
+                    label = int(labels[trial_idx])
+                    if label < 0 or label > 5:
+                        continue
+
+                    # Average channels and extract features
+                    trial = eeg_data[trial_idx]
+                    if trial.ndim == 2:
+                        trial_avg = trial.mean(axis=0)
+                    else:
+                        trial_avg = trial
+
+                    # Slide windows
+                    for pos in range(0, len(trial_avg) - n_samples_epoch, n_samples_epoch // 2):
+                        epoch = trial_avg[pos:pos + n_samples_epoch]
+                        features = extract_features(preprocess(epoch, target_fs), target_fs)
+                        X_all.append(list(features.values()))
+                        y_all.append(label)
+
+            print(f"  {mat_file.name}: {len(y_all)} epochs total")
+
+    if not X_all:
+        raise FileNotFoundError(
+            f"No FACED data found in {data_dir}. "
+            "Download from: https://doi.org/10.7303/syn50614194"
+        )
+
+    return np.array(X_all), np.array(y_all)
+
+
+# ---------------------------------------------------------------------------
+# DREAM Database — 505 subjects, 2643 awakenings for dream detection
+# ---------------------------------------------------------------------------
+
+def load_dream_database(
+    data_dir: str = "data/dream_database",
+    target_fs: float = 256.0,
+    pre_awakening_sec: float = 30.0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Load DREAM Database for supervised dream detection.
+
+    505 participants, 2,643 awakenings with dream/no-dream reports.
+    Each sample is a pre-awakening EEG segment with a binary label.
+
+    Source: https://bridges.monash.edu/projects/The_Dream_EEG_and_Mentation_DREAM_database/158987
+
+    Returns:
+        (X, y) where X is (n_epochs, n_samples) and y is binary:
+        1 = dream reported, 0 = no dream reported.
+    """
+    import mne
+
+    mne.set_log_level("WARNING")
+    dream_path = Path(data_dir)
+
+    X_all, y_all = [], []
+    n_samples_epoch = int(pre_awakening_sec * target_fs)
+
+    # The DREAM database has multiple sub-datasets
+    # Try various common organization patterns
+    for pattern in ["**/*awakening*.edf", "**/*.edf", "**/*.set", "**/*.fif"]:
+        edf_files = sorted(dream_path.glob(pattern))
+        if edf_files:
+            break
+
+    # Also look for pre-processed numpy format
+    npy_data = dream_path / "dream_eeg.npy"
+    npy_labels = dream_path / "dream_labels.npy"
+
+    if npy_data.exists() and npy_labels.exists():
+        X_raw = np.load(str(npy_data))
+        y_raw = np.load(str(npy_labels))
+        print(f"  Loaded preprocessed DREAM data: {X_raw.shape}, {y_raw.shape}")
+        return X_raw, y_raw
+
+    # Look for CSV/TSV metadata with dream reports
+    meta_files = list(dream_path.glob("**/*metadata*.csv")) + \
+                 list(dream_path.glob("**/*awakening*.tsv")) + \
+                 list(dream_path.glob("**/*participants*.tsv"))
+
+    dream_labels = {}
+    if meta_files:
+        import csv
+        for meta_file in meta_files:
+            delimiter = "\t" if meta_file.suffix == ".tsv" else ","
+            with open(meta_file, "r") as f:
+                reader = csv.DictReader(f, delimiter=delimiter)
+                for row in reader:
+                    # Look for dream report columns
+                    awake_id = row.get("awakening_id", row.get("id", ""))
+                    dream_report = row.get("dream_report", row.get("report", ""))
+                    has_dream = row.get("dream", row.get("has_dream", ""))
+
+                    if has_dream:
+                        dream_labels[awake_id] = int(has_dream) if has_dream.isdigit() else (1 if has_dream.lower() in ("yes", "true", "1") else 0)
+                    elif dream_report:
+                        dream_labels[awake_id] = 1 if len(dream_report.strip()) > 10 else 0
+
+    if not edf_files and not dream_labels:
+        raise FileNotFoundError(
+            f"No DREAM database files found in {data_dir}. "
+            "Download from: https://bridges.monash.edu/projects/"
+            "The_Dream_EEG_and_Mentation_DREAM_database/158987"
+        )
+
+    for edf_file in edf_files:
+        try:
+            if edf_file.suffix == ".set":
+                raw = mne.io.read_raw_eeglab(str(edf_file), preload=True, verbose=False)
+            elif edf_file.suffix == ".fif":
+                raw = mne.io.read_raw_fif(str(edf_file), preload=True, verbose=False)
+            else:
+                raw = mne.io.read_raw_edf(str(edf_file), preload=True, verbose=False)
+        except Exception as e:
+            print(f"  Skipping {edf_file.name}: {e}")
+            continue
+
+        # Pick EEG channels
+        eeg_picks = mne.pick_types(raw.info, eeg=True, exclude="bads")
+        if len(eeg_picks) == 0:
+            continue
+        raw.pick(eeg_picks[:1])  # Single channel for consistency
+
+        if raw.info["sfreq"] != target_fs:
+            raw.resample(target_fs)
+
+        data = raw.get_data()[0]
+
+        # Extract pre-awakening segment (last N seconds)
+        if len(data) >= n_samples_epoch:
+            epoch = data[-n_samples_epoch:]
+            X_all.append(epoch)
+
+            # Get label from metadata
+            file_id = edf_file.stem
+            label = dream_labels.get(file_id, 1)  # Default to dream if no metadata
+            y_all.append(label)
+
+        if len(X_all) % 100 == 0 and X_all:
+            print(f"  Loaded {len(X_all)} awakenings...")
+
+    if not X_all:
+        raise RuntimeError("No epochs loaded from DREAM database.")
+
+    print(f"  DREAM database: {len(X_all)} awakenings "
+          f"({sum(y_all)} dream, {len(y_all) - sum(y_all)} no-dream)")
+
+    return np.array(X_all), np.array(y_all)
+
+
+# ---------------------------------------------------------------------------
+# DREAMT — Wearable + PSG paired for consumer device validation
+# ---------------------------------------------------------------------------
+
+def load_dreamt(
+    data_dir: str = "data/dreamt",
+    epoch_sec: float = 30.0,
+    target_fs: float = 256.0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Load DREAMT dataset — wearable signals alongside PSG.
+
+    Paired Empatica E4 wearable + full PSG recordings for validating
+    sleep staging models on consumer devices.
+
+    Source: https://physionet.org/content/dreamt/2.0.0/
+
+    Returns:
+        (X, y) where X is (n_epochs, n_samples) and y is labels 0-4.
+    """
+    import mne
+
+    mne.set_log_level("WARNING")
+    dreamt_path = Path(data_dir)
+
+    edf_files = sorted(dreamt_path.glob("**/*psg*.edf")) + \
+                sorted(dreamt_path.glob("**/*.edf"))
+
+    if not edf_files:
+        raise FileNotFoundError(
+            f"No DREAMT files found in {data_dir}. "
+            "Download from: https://physionet.org/content/dreamt/2.0.0/"
+        )
+
+    # Reuse sleep staging labels
+    stage_map = {
+        "W": 0, "Wake": 0,
+        "N1": 1, "1": 1,
+        "N2": 2, "2": 2,
+        "N3": 3, "3": 3,
+        "R": 4, "REM": 4,
+    }
+
+    X_all, y_all = [], []
+    n_samples_epoch = int(epoch_sec * target_fs)
+
+    for edf_file in edf_files:
+        try:
+            raw = mne.io.read_raw_edf(str(edf_file), preload=True, verbose=False)
+        except Exception:
+            continue
+
+        # Look for matching annotation file
+        annot_candidates = [
+            edf_file.with_suffix(".tsv"),
+            edf_file.parent / (edf_file.stem + "_hypnogram.tsv"),
+            edf_file.parent / (edf_file.stem + "_scoring.csv"),
+        ]
+
+        annot_file = None
+        for cand in annot_candidates:
+            if cand.exists():
+                annot_file = cand
+                break
+
+        if annot_file is None:
+            # Try MNE annotations
+            try:
+                events, event_id = mne.events_from_annotations(raw, verbose=False)
+                for desc, eid in event_id.items():
+                    stage_key = desc.split()[-1] if " " in desc else desc
+                    if stage_key in stage_map:
+                        stage_events = events[events[:, 2] == eid]
+                        for ev in stage_events:
+                            s = ev[0]
+                            e = s + n_samples_epoch
+                            if e > raw.n_times:
+                                continue
+                            eeg_ch = raw.ch_names[0]
+                            raw_pick = raw.copy().pick([eeg_ch])
+                            if raw_pick.info["sfreq"] != target_fs:
+                                raw_pick.resample(target_fs)
+                            data = raw_pick.get_data()[0]
+                            s_rs = int(s * target_fs / raw.info["sfreq"])
+                            e_rs = s_rs + n_samples_epoch
+                            if e_rs <= len(data):
+                                X_all.append(data[s_rs:e_rs])
+                                y_all.append(stage_map[stage_key])
+            except Exception:
+                pass
+            continue
+
+        print(f"  {edf_file.name}: loaded, {len(y_all)} epochs total")
+
+    if not X_all:
+        raise RuntimeError("No epochs loaded from DREAMT.")
+
+    return np.array(X_all), np.array(y_all)
+
+
 def list_available_datasets() -> dict:
     """List all available datasets and their status (downloaded or not).
 
@@ -884,6 +1444,81 @@ def list_available_datasets() -> dict:
         "task": "cognitive workload (14-ch EEG, 48 subjects, 3-class)",
         "loader": "load_stew()",
         "download": "kagglehub.dataset_download('mitulahirwal/mental-cognitive-workload-eeg-data-stew-dataset')",
+    }
+
+    # EEGdenoiseNet
+    denoisenet_path = Path("data/eegdenoisenet")
+    denoisenet_files = (
+        list(denoisenet_path.glob("*.npy")) + list(denoisenet_path.glob("*.mat"))
+        if denoisenet_path.exists() else []
+    )
+    datasets["eegdenoisenet"] = {
+        "name": "EEGdenoiseNet (G-Node)",
+        "status": f"{'ready' if denoisenet_files else 'not downloaded'} "
+                  f"({len(denoisenet_files)} files)",
+        "task": "denoising (paired clean/noisy EEG epochs)",
+        "loader": "load_eegdenoisenet()",
+        "download": "git clone https://gin.g-node.org/NCClab/EEGdenoiseNet data/eegdenoisenet",
+    }
+
+    # SHHS
+    shhs_path = Path("data/shhs")
+    shhs_files = (
+        list(shhs_path.glob("**/*.edf"))
+        if shhs_path.exists() else []
+    )
+    datasets["shhs"] = {
+        "name": "SHHS (NSRR)",
+        "status": f"{'ready' if shhs_files else 'not downloaded'} "
+                  f"({len(shhs_files)} EDFs)",
+        "task": "sleep staging (5,800 subjects, multi-center PSG)",
+        "loader": "load_shhs()",
+        "download": "Register at https://sleepdata.org/datasets/shhs",
+    }
+
+    # FACED
+    faced_path = Path("data/faced")
+    faced_files = (
+        list(faced_path.glob("*.mat")) + list(faced_path.glob("*.npy"))
+        if faced_path.exists() else []
+    )
+    datasets["faced"] = {
+        "name": "FACED (Synapse)",
+        "status": f"{'ready' if faced_files else 'not downloaded'} "
+                  f"({len(faced_files)} files)",
+        "task": "emotion recognition (123 subjects, 9 emotions, 30-ch EEG)",
+        "loader": "load_faced()",
+        "download": "Download from https://doi.org/10.7303/syn50614194",
+    }
+
+    # DREAM Database
+    dream_path = Path("data/dream_database")
+    dream_files = (
+        list(dream_path.glob("**/*.edf")) + list(dream_path.glob("*.npy"))
+        if dream_path.exists() else []
+    )
+    datasets["dream_database"] = {
+        "name": "DREAM Database (Monash)",
+        "status": f"{'ready' if dream_files else 'not downloaded'} "
+                  f"({len(dream_files)} files)",
+        "task": "dream detection (505 subjects, 2643 awakenings)",
+        "loader": "load_dream_database()",
+        "download": "Download from https://bridges.monash.edu/projects/The_Dream_EEG_and_Mentation_DREAM_database/158987",
+    }
+
+    # DREAMT
+    dreamt_path = Path("data/dreamt")
+    dreamt_files = (
+        list(dreamt_path.glob("**/*.edf"))
+        if dreamt_path.exists() else []
+    )
+    datasets["dreamt"] = {
+        "name": "DREAMT (PhysioNet)",
+        "status": f"{'ready' if dreamt_files else 'not downloaded'} "
+                  f"({len(dreamt_files)} EDFs)",
+        "task": "sleep staging from wearables (paired PSG + Empatica E4)",
+        "loader": "load_dreamt()",
+        "download": "Download from https://physionet.org/content/dreamt/2.0.0/",
     }
 
     return datasets

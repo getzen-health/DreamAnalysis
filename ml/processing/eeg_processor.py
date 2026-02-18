@@ -54,6 +54,99 @@ def preprocess(raw_eeg: np.ndarray, fs: float = 256.0) -> np.ndarray:
     return filtered
 
 
+# Cached instances for ML-based preprocessing (lazy loaded)
+_denoiser_instance = None
+_artifact_classifier_instance = None
+
+
+def _get_denoiser():
+    """Lazy-load the denoising autoencoder if available."""
+    global _denoiser_instance
+    if _denoiser_instance is not None:
+        return _denoiser_instance
+
+    from pathlib import Path
+    model_path = Path("models/saved/denoiser_model.pt")
+    if model_path.exists():
+        try:
+            from models.denoising_autoencoder import EEGDenoiser
+            _denoiser_instance = EEGDenoiser(fs=256.0, model_path=str(model_path))
+            return _denoiser_instance
+        except Exception:
+            pass
+    return None
+
+
+def _get_artifact_classifier():
+    """Lazy-load the artifact classifier if available."""
+    global _artifact_classifier_instance
+    if _artifact_classifier_instance is not None:
+        return _artifact_classifier_instance
+
+    from pathlib import Path
+    model_path = Path("models/saved/artifact_classifier_model.pkl")
+    if model_path.exists():
+        try:
+            from models.artifact_classifier import ArtifactClassifier
+            _artifact_classifier_instance = ArtifactClassifier(model_path=str(model_path))
+            return _artifact_classifier_instance
+        except Exception:
+            pass
+    return None
+
+
+def preprocess_robust(
+    raw_eeg: np.ndarray,
+    fs: float = 256.0,
+    use_denoiser: bool = True,
+    use_artifact_classifier: bool = True,
+    reject_artifacts: bool = False,
+) -> np.ndarray:
+    """Enhanced preprocessing with ML-based denoising and artifact handling.
+
+    Pipeline:
+        1. Classical bandpass + notch filtering (always)
+        2. ML denoiser (if trained model available)
+        3. Artifact classification (if trained model available)
+        4. Optional artifact rejection (zeros out artifact segments)
+
+    Falls back to classical preprocessing if ML models not available.
+
+    Args:
+        raw_eeg: Raw EEG signal (1D array).
+        fs: Sampling frequency.
+        use_denoiser: Try to use the trained denoising autoencoder.
+        use_artifact_classifier: Try to use the artifact classifier.
+        reject_artifacts: Zero out detected artifact segments.
+
+    Returns:
+        Preprocessed (and optionally denoised) signal.
+    """
+    # Step 1: Classical filtering (always applied)
+    filtered = preprocess(raw_eeg, fs)
+
+    # Step 2: ML denoiser
+    if use_denoiser:
+        denoiser = _get_denoiser()
+        if denoiser is not None:
+            try:
+                filtered = denoiser.denoise(filtered)
+            except Exception:
+                pass  # Fall back to classical-only
+
+    # Step 3: Artifact handling
+    if use_artifact_classifier and reject_artifacts:
+        classifier = _get_artifact_classifier()
+        if classifier is not None:
+            try:
+                mask = classifier.get_clean_mask(filtered, fs, window_sec=1.0)
+                filtered = filtered * mask  # Zero out artifact segments
+            except Exception:
+                pass
+
+    return filtered
+
+
 def extract_band_powers(eeg: np.ndarray, fs: float = 256.0) -> Dict[str, float]:
     """Extract power spectral density for each EEG frequency band."""
     freqs, psd = scipy_signal.welch(eeg, fs=fs, nperseg=min(len(eeg), int(fs * 2)))
