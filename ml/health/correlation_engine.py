@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 from typing import Dict, List
 from datetime import datetime
+import numpy as np
 
 
 DB_PATH = Path(__file__).parent.parent / "data" / "health_brain.db"
@@ -157,7 +158,13 @@ class HealthBrainDB:
         dream = session.get("dream_detection", {})
         if isinstance(dream, str):
             dream = {"is_dreaming": dream == "dreaming", "confidence": session.get("dream_confidence")}
-        bands = emotion.get("band_powers", {}) if isinstance(emotion, dict) else {}
+        # Band powers can be at top level or nested in any model dict
+        bands = session.get("band_powers", {})
+        if not bands:
+            for sub in (emotion, flow, creativity, sleep):
+                if isinstance(sub, dict) and sub.get("band_powers"):
+                    bands = sub["band_powers"]
+                    break
         flow_components = flow.get("components", {}) if isinstance(flow, dict) else {}
 
         with sqlite3.connect(self.db_path) as conn:
@@ -297,11 +304,14 @@ class HealthBrainDB:
 
         if not brain_rows or not health_rows:
             return [{
-                "type": "info",
+                "insight_type": "info",
                 "title": "Not enough data yet",
                 "description": f"We need at least a few days of both brain and health data to find patterns. "
                                f"Currently: {len(brain_rows)} brain sessions, {len(health_rows)} health samples.",
                 "correlation_strength": 0,
+                "evidence_count": 0,
+                "brain_metric": "",
+                "health_metric": "",
             }]
 
         # Group by day for daily correlations
@@ -370,7 +380,7 @@ class HealthBrainDB:
                 best_hour = max(flow_by_hour, key=lambda h: sum(flow_by_hour[h]) / len(flow_by_hour[h]))
                 best_avg = sum(flow_by_hour[best_hour]) / len(flow_by_hour[best_hour])
                 insights.append({
-                    "type": "time_pattern",
+                    "insight_type": "time_pattern",
                     "title": "Your Peak Flow Hour",
                     "description": f"Your brain enters flow most easily around {best_hour}:00 "
                                    f"(avg score: {best_avg:.2f}). Schedule deep work here.",
@@ -385,7 +395,7 @@ class HealthBrainDB:
             dream_days = [r for r in brain_rows if r["dream_detected"]]
             if dream_days:
                 insights.append({
-                    "type": "dream_pattern",
+                    "insight_type": "dream_pattern",
                     "title": "Dream Activity",
                     "description": f"Dreams detected in {len(dream_days)} of {len(brain_rows)} sessions. "
                                    f"Dream analysis helps track REM quality and emotional processing.",
@@ -404,7 +414,7 @@ class HealthBrainDB:
                         correlation_strength, evidence_count,
                         brain_metric, health_metric)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (user_id, insight.get("type", "correlation"),
+                    (user_id, insight.get("insight_type", "correlation"),
                      insight["title"], insight.get("description", ""),
                      insight.get("correlation_strength", 0),
                      insight.get("evidence_count", 0),
@@ -497,15 +507,31 @@ def _correlate_metric_to_brain(health_by_day, brain_by_day, health_metric,
     brain_vals = []
 
     for day in common_days:
-        h_samples = [s for s in health_by_day[day]
-                     if (s["metric"] if isinstance(s, dict) else "") == health_metric or
-                        (s["metric"] if hasattr(s, "__getitem__") and "metric" in (s.keys() if hasattr(s, "keys") else []) else "") == health_metric]
+        # sqlite3.Row and dict both support [] access
+        h_samples = []
+        for s in health_by_day[day]:
+            try:
+                if s["metric"] == health_metric:
+                    h_samples.append(s)
+            except (KeyError, TypeError):
+                continue
 
         if not h_samples:
             continue
 
-        h_val = sum(s["value"] for s in h_samples if s["value"] is not None) / max(len(h_samples), 1)
-        b_vals = [b[brain_field] for b in brain_by_day[day] if b[brain_field] is not None]
+        valid_vals = [s["value"] for s in h_samples if s["value"] is not None]
+        if not valid_vals:
+            continue
+        h_val = sum(valid_vals) / len(valid_vals)
+
+        b_vals = []
+        for b in brain_by_day[day]:
+            try:
+                val = b[brain_field]
+                if val is not None:
+                    b_vals.append(val)
+            except (KeyError, TypeError):
+                continue
 
         if b_vals:
             health_vals.append(h_val)
@@ -514,8 +540,6 @@ def _correlate_metric_to_brain(health_by_day, brain_by_day, health_metric,
     if len(health_vals) < 3:
         return insights
 
-    # Simple correlation
-    import numpy as np
     h_arr = np.array(health_vals)
     b_arr = np.array(brain_vals)
 
@@ -531,7 +555,7 @@ def _correlate_metric_to_brain(health_by_day, brain_by_day, health_metric,
         desc = desc.replace("{pct}", str(int(abs(correlation) * 100)))
 
         insights.append({
-            "type": "correlation",
+            "insight_type": "correlation",
             "title": title_template,
             "description": desc,
             "correlation_strength": round(abs(correlation), 3),
