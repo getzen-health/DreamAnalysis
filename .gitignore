@@ -32,3 +32,5 @@ dream-analysis-*.png
 
 # Linter cache
 .ruff_cache/
+.vercel
+.env*.local
