@@ -38,6 +38,9 @@ class StressDetector:
         self.baseline_beta = None
         # Track stress over time for trend analysis
         self._stress_history = []
+        # Auto-calibration: collect first N readings to compute personal baseline
+        self._calibration_buffer: list = []
+        self._is_calibrated = False
 
         if model_path:
             self._load_model(model_path)
@@ -81,6 +84,14 @@ class StressDetector:
         delta = bands.get("delta", 0)
         gamma = bands.get("gamma", 0)
 
+        # Auto-calibration: collect first 7 readings to compute personal baseline
+        if not self._is_calibrated and self.baseline_alpha is None:
+            self._calibration_buffer.append({"alpha": alpha, "beta": beta})
+            if len(self._calibration_buffer) >= 7:
+                self.baseline_alpha = float(np.median([b["alpha"] for b in self._calibration_buffer]))
+                self.baseline_beta = float(np.median([b["beta"] for b in self._calibration_buffer]))
+                self._is_calibrated = True
+
         base_alpha = self.baseline_alpha or 0.25
         base_beta = self.baseline_beta or 0.15
 
@@ -103,12 +114,14 @@ class StressDetector:
         theta_stress = float(np.clip(np.tanh(theta * 5 - 0.5), 0, 1))
 
         # 5. Gamma Suppression (chronic stress suppresses gamma)
-        gamma_suppression = float(np.clip(1.0 - np.tanh(gamma * 15), 0, 1))
+        # Linear mapping: 0.0 when gamma >= 0.05 (healthy), 1.0 only when gamma = 0
+        gamma_suppression = float(np.clip((0.05 - gamma) / 0.05, 0, 1))
 
         # 6. Signal Irregularity (Hjorth complexity increases under stress)
         complexity = hjorth.get("complexity", 1.0) if isinstance(hjorth, dict) else 1.0
         activity = hjorth.get("activity", 0.01) if isinstance(hjorth, dict) else 0.01
-        neural_irregularity = float(np.clip(np.tanh(complexity - 1.0), 0, 1))
+        # Centered at normal complexity 1.5; only positive above that
+        neural_irregularity = float(np.clip((complexity - 1.5) / 1.5, 0, 1))
 
         # 7. Cortisol Proxy (sustained beta + suppressed alpha over time)
         cortisol_proxy = float(np.clip(
@@ -147,17 +160,17 @@ class StressDetector:
             stress_trend = 0.0
 
         # === Classify Level ===
-        if stress_index >= 0.70:
+        if stress_index >= 0.65:
             level_idx = 3  # high
         elif stress_index >= 0.45:
             level_idx = 2  # moderate
-        elif stress_index >= 0.20:
+        elif stress_index >= 0.30:
             level_idx = 1  # mild
         else:
             level_idx = 0  # relaxed
 
         # Confidence
-        thresholds = [0.0, 0.20, 0.45, 0.70, 1.0]
+        thresholds = [0.0, 0.30, 0.45, 0.65, 1.0]
         mid = (thresholds[level_idx] + thresholds[level_idx + 1]) / 2
         dist = abs(stress_index - mid)
         range_size = thresholds[level_idx + 1] - thresholds[level_idx]

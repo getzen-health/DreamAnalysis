@@ -27,6 +27,8 @@ import {
   type WaveletResult,
   type AnomalyResult,
 } from "@/lib/ml-api";
+import { MoodMusicPlayer } from "@/components/mood-music-player";
+import { Badge } from "@/components/ui/badge";
 
 export default function BrainMonitor() {
   const { isLocal, latencyMs, isReady } = useInference();
@@ -171,16 +173,44 @@ export default function BrainMonitor() {
 
       {/* Emotion Shift Alert */}
       {latestFrame?.emotion_shift?.shift_detected && (
-        <div className="shift-alert p-4 rounded-xl flex items-center gap-3">
-          <Zap className="h-5 w-5 text-accent shrink-0" />
-          <div>
-            <p className="text-sm font-medium">Emotional Shift: {latestFrame.emotion_shift.shift_type?.replace(/_/g, " ")}</p>
-            <p className="text-xs text-muted-foreground">
-              {latestFrame.emotion_shift.description}
-              {" "}(magnitude: {((latestFrame.emotion_shift.magnitude ?? 0) * 100).toFixed(0)}%)
-            </p>
+        <div className="shift-alert p-4 rounded-xl flex items-start gap-3">
+          <Zap className="h-5 w-5 text-accent shrink-0 mt-0.5" />
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium">Emotional Shift</span>
+              {latestFrame.emotion_shift.previous_emotion && latestFrame.emotion_shift.previous_emotion !== "unknown" && (
+                <>
+                  <Badge variant="outline" className="text-[10px] capitalize">{latestFrame.emotion_shift.previous_emotion}</Badge>
+                  <span className="text-xs text-muted-foreground">&rarr;</span>
+                </>
+              )}
+              {latestFrame.emotion_shift.current_emotion && (
+                <Badge className="text-[10px] capitalize">{latestFrame.emotion_shift.current_emotion}</Badge>
+              )}
+              <span className="text-[10px] text-muted-foreground ml-auto">
+                {((latestFrame.emotion_shift.magnitude ?? 0) * 100).toFixed(0)}% magnitude
+              </span>
+            </div>
+            {latestFrame.emotion_shift.reason && (
+              <p className="text-xs text-foreground/70">{latestFrame.emotion_shift.reason}</p>
+            )}
+            <p className="text-xs text-muted-foreground">{latestFrame.emotion_shift.description}</p>
+            {latestFrame.emotion_shift.body_feeling && (
+              <p className="text-[10px] text-muted-foreground italic">{latestFrame.emotion_shift.body_feeling}</p>
+            )}
+            {latestFrame.emotion_shift.guidance && (
+              <p className="text-[10px] text-accent/80">{latestFrame.emotion_shift.guidance}</p>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Mood Music Player */}
+      {isStreaming && (
+        <MoodMusicPlayer
+          emotion={stableAnalysis?.emotions?.emotion}
+          isStreaming={isStreaming}
+        />
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

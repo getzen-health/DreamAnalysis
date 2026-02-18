@@ -265,12 +265,13 @@ class EmotionClassifier:
             + 0.20 * max(0, 1 - gamma * 4)
         )
 
-        # Angry: negative valence, high arousal, high beta
+        # Angry: strongly negative valence, high arousal, high beta
         probs[2] = (
-            0.25 * max(0, -valence * 0.8)
-            + 0.30 * max(0, arousal - 0.5)
-            + 0.30 * min(1, beta_alpha_ratio * 0.5)
-            + 0.15 * min(1, gamma * 2)
+            0.30 * max(0, -valence)                          # needs clear negative valence
+            + 0.25 * max(0, arousal - 0.6)                   # higher arousal bar
+            + 0.25 * max(0, beta_alpha_ratio - 1.0) * 0.5   # only counts when beta > alpha
+            + 0.10 * min(1, gamma * 2)
+            + 0.10 * max(0, 1 - alpha * 3)                   # suppressed when alpha is high
         )
 
         # Fearful/Anxious: negative valence, high arousal, very high beta/alpha
@@ -406,7 +407,10 @@ class EmotionClassifier:
         features = extract_features(processed, fs)
         de = differential_entropy(processed, fs)
 
-        feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+        try:
+            feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+        except KeyError:
+            return self._predict_features(eeg, fs)
         probs = self.sklearn_model.predict_proba(feature_vector)[0]
         emotion_idx = int(np.argmax(probs))
 

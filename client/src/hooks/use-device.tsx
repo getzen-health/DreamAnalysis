@@ -114,8 +114,10 @@ interface EEGStreamFrame {
     description: string;
     body_feeling: string;
     guidance: string;
+    reason: string;
     magnitude: number;
     confidence: number;
+    previous_emotion: string;
     current_emotion: string;
     indicators: Record<string, number>;
     trends: Record<string, unknown>;

@@ -114,6 +114,7 @@ class EmotionShiftDetector:
         # Shift detection state
         self._last_shift_time = 0.0
         self._cooldown_sec = 10.0  # Don't alert more than once per 10s
+        self._previous_emotion = "unknown"
         self._current_emotion = "unknown"
         self._shift_count = 0
 
@@ -157,7 +158,10 @@ class EmotionShiftDetector:
             valence = emotion_prediction.get("valence", valence)
             arousal = emotion_prediction.get("arousal", arousal)
             stress = emotion_prediction.get("stress_index", stress)
-            self._current_emotion = emotion_prediction.get("emotion", self._current_emotion)
+            new_emotion = emotion_prediction.get("emotion", self._current_emotion)
+            if new_emotion != self._current_emotion:
+                self._previous_emotion = self._current_emotion
+            self._current_emotion = new_emotion
 
         # Store in history
         self._timestamps.append(now)
@@ -200,7 +204,9 @@ class EmotionShiftDetector:
                 "shift_type": shift_analysis["shift_type"],
                 "description": shift_analysis["description"],
                 "magnitude": shift_analysis["magnitude"],
+                "previous_emotion": self._previous_emotion,
                 "current_emotion": self._current_emotion,
+                "reason": shift_analysis.get("reason", ""),
                 "indicators": shift_analysis["indicators"],
             }
             self.shift_log.append(shift_entry)
@@ -214,8 +220,10 @@ class EmotionShiftDetector:
             "description": shift_analysis.get("description"),
             "body_feeling": shift_analysis.get("body_feeling"),
             "guidance": shift_analysis.get("guidance"),
+            "reason": shift_analysis.get("reason", ""),
             "magnitude": shift_analysis.get("magnitude", 0),
             "confidence": shift_analysis.get("confidence", 0),
+            "previous_emotion": self._previous_emotion,
             "current_emotion": self._current_emotion,
             "indicators": {
                 "valence": round(valence, 3),
@@ -290,17 +298,22 @@ class EmotionShiftDetector:
 
         # --- Pattern matching for specific emotional shifts ---
 
+        prev = self._previous_emotion
+        curr = self._current_emotion
+
         # Approaching anxiety: beta up, alpha down, stress rising
         if (d_stress > SHIFT_THRESHOLDS["stress_index"]
                 and band_deltas.get("beta", 0) > 0.02
                 and band_deltas.get("alpha", 0) < -0.01):
             info = EMOTION_PRECURSORS["approaching_anxiety"]
             magnitude = abs(d_stress) / 100 + abs(band_deltas.get("beta", 0))
+            reason = f"Beta power increased by {abs(band_deltas.get('beta', 0)):.0%} while alpha dropped {abs(band_deltas.get('alpha', 0)):.0%} — your brain shifted from {prev} to {curr}"
             return {
                 "shift_detected": True,
                 "shift_type": "approaching_anxiety",
                 "magnitude": round(min(1.0, magnitude), 3),
                 "confidence": round(min(1.0, abs(d_stress) / 30), 3),
+                "reason": reason,
                 "trends": trends,
                 "indicators": {"stress_delta": d_stress, "beta_delta": band_deltas.get("beta", 0)},
                 **info,
@@ -312,11 +325,13 @@ class EmotionShiftDetector:
                 and band_deltas.get("theta", 0) > 0.01):
             info = EMOTION_PRECURSORS["approaching_sadness"]
             magnitude = abs(d_valence) + abs(d_arousal)
+            reason = f"Theta power rose by {abs(band_deltas.get('theta', 0)):.0%} as arousal dropped {abs(d_arousal):.0%} — your brain shifted from {prev} to {curr}"
             return {
                 "shift_detected": True,
                 "shift_type": "approaching_sadness",
                 "magnitude": round(min(1.0, magnitude), 3),
                 "confidence": round(min(1.0, abs(d_valence) / 0.4), 3),
+                "reason": reason,
                 "trends": trends,
                 "indicators": {"valence_delta": d_valence, "arousal_delta": d_arousal},
                 **info,
@@ -328,11 +343,13 @@ class EmotionShiftDetector:
                 and band_deltas.get("beta", 0) < -0.01):
             info = EMOTION_PRECURSORS["approaching_calm"]
             magnitude = abs(d_calm) / 2 + abs(band_deltas.get("alpha", 0))
+            reason = f"Alpha power increased by {abs(band_deltas.get('alpha', 0)):.0%} while beta dropped {abs(band_deltas.get('beta', 0)):.0%} — your brain shifted from {prev} to {curr}"
             return {
                 "shift_detected": True,
                 "shift_type": "approaching_calm",
                 "magnitude": round(min(1.0, magnitude), 3),
                 "confidence": round(min(1.0, d_calm / 0.8), 3),
+                "reason": reason,
                 "trends": trends,
                 "indicators": {"calm_ratio_delta": d_calm, "alpha_delta": band_deltas.get("alpha", 0)},
                 **info,
@@ -344,11 +361,13 @@ class EmotionShiftDetector:
                 and band_deltas.get("theta", 0) < -0.01):
             info = EMOTION_PRECURSORS["approaching_focus"]
             magnitude = abs(d_entropy) + abs(band_deltas.get("beta", 0))
+            reason = f"Beta structured up {abs(band_deltas.get('beta', 0)):.0%} and theta dropped {abs(band_deltas.get('theta', 0)):.0%} — your brain shifted from {prev} to {curr}"
             return {
                 "shift_detected": True,
                 "shift_type": "approaching_focus",
                 "magnitude": round(min(1.0, magnitude), 3),
                 "confidence": round(min(1.0, abs(d_entropy) / 0.15), 3),
+                "reason": reason,
                 "trends": trends,
                 "indicators": {"entropy_delta": d_entropy, "beta_delta": band_deltas.get("beta", 0)},
                 **info,
@@ -359,11 +378,13 @@ class EmotionShiftDetector:
                 and band_deltas.get("gamma", 0) > 0.005):
             info = EMOTION_PRECURSORS["approaching_joy"]
             magnitude = abs(d_valence) + abs(band_deltas.get("gamma", 0))
+            reason = f"Gamma bursts up {abs(band_deltas.get('gamma', 0)):.0%} with valence rising {abs(d_valence):.0%} — your brain shifted from {prev} to {curr}"
             return {
                 "shift_detected": True,
                 "shift_type": "approaching_joy",
                 "magnitude": round(min(1.0, magnitude), 3),
                 "confidence": round(min(1.0, d_valence / 0.3), 3),
+                "reason": reason,
                 "trends": trends,
                 "indicators": {"valence_delta": d_valence, "gamma_delta": band_deltas.get("gamma", 0)},
                 **info,
@@ -373,11 +394,13 @@ class EmotionShiftDetector:
         if valence_var > 0.15 and arousal_var > 0.08:
             info = EMOTION_PRECURSORS["emotional_turbulence"]
             magnitude = valence_var + arousal_var
+            reason = f"Rapid band fluctuations — valence variability {valence_var:.0%}, arousal variability {arousal_var:.0%} — shifting between {prev} and {curr}"
             return {
                 "shift_detected": True,
                 "shift_type": "emotional_turbulence",
                 "magnitude": round(min(1.0, magnitude), 3),
                 "confidence": round(min(1.0, valence_var / 0.3), 3),
+                "reason": reason,
                 "trends": trends,
                 "indicators": {"valence_variability": valence_var, "arousal_variability": arousal_var},
                 **info,
@@ -388,12 +411,14 @@ class EmotionShiftDetector:
         if abs(d_valence) > SHIFT_THRESHOLDS["valence"] or abs(d_arousal) > SHIFT_THRESHOLDS["arousal"]:
             direction = "positive" if d_valence > 0 else "negative"
             energy = "energizing" if d_arousal > 0 else "calming"
+            reason = f"Valence changed by {abs(d_valence):.0%} and arousal by {abs(d_arousal):.0%} — your brain shifted from {prev} to {curr}"
             return {
                 "shift_detected": True,
                 "shift_type": "general_shift",
                 "description": f"Emotional state shifting — {direction} valence, {energy} arousal",
                 "body_feeling": "Something is changing in your emotional landscape",
                 "guidance": "Pause and check in with yourself. What are you feeling right now?",
+                "reason": reason,
                 "magnitude": round(min(1.0, abs(d_valence) + abs(d_arousal)), 3),
                 "confidence": round(min(1.0, max(abs(d_valence), abs(d_arousal)) / 0.3), 3),
                 "trends": trends,
