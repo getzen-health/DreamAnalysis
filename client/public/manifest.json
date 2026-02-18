@@ -1,7 +1,7 @@
 {
-  "name": "Neural Dream Workshop",
-  "short_name": "DreamWorkshop",
-  "description": "AI-powered dream analysis, EEG brain monitoring, and emotion detection",
+  "name": "Svapnastra",
+  "short_name": "Svapnastra",
+  "description": "AI-powered dream detection, EEG brain monitoring, and emotion detection from brain waves",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0e1a",
