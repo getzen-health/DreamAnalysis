@@ -8,12 +8,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Wifi, WifiOff, Radio, Activity } from "lucide-react";
-import { useDevice, type DeviceState } from "@/hooks/use-device";
+import { type DeviceState, type UseDeviceReturn } from "@/hooks/use-device";
 
 interface DeviceConnectionProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  device: ReturnType<typeof useDevice>;
+  device: UseDeviceReturn;
 }
 
 function StatusBadge({ state }: { state: DeviceState }) {
