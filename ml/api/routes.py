@@ -1635,3 +1635,123 @@ async def reset_emotion_shift(user_id: str):
     if user_id in _emotion_shift_detectors:
         del _emotion_shift_detectors[user_id]
     return {"status": "reset", "user_id": user_id}
+
+
+# ─── Denoising & Artifact Classification ─────────────────────────────────
+
+
+class DenoiseRequest(BaseModel):
+    signals: List[List[float]]
+    fs: float = 256.0
+
+
+@router.post("/denoise")
+async def denoise_signal(req: DenoiseRequest):
+    """Denoise EEG signals using the trained autoencoder.
+
+    Falls back to classical bandpass + notch filtering if the
+    trained model is not available.
+
+    Returns cleaned signals and SNR improvement estimate.
+    """
+    from processing.eeg_processor import preprocess_robust
+
+    results = []
+    for ch_data in req.signals:
+        signal = np.array(ch_data, dtype=np.float64)
+        cleaned = preprocess_robust(signal, req.fs, use_denoiser=True)
+        results.append(cleaned.tolist())
+
+    return _numpy_safe({
+        "cleaned_signals": results,
+        "n_channels": len(results),
+        "method": "ml_denoiser" if _get_denoiser_status() else "classical_filter",
+    })
+
+
+@router.post("/classify-artifacts")
+async def classify_artifacts(req: DenoiseRequest):
+    """Classify artifact types in EEG signal segments.
+
+    Returns per-window artifact type classification with confidence scores.
+    """
+    try:
+        from models.artifact_classifier import ArtifactClassifier
+        classifier = ArtifactClassifier(model_path="models/saved/artifact_classifier_model.pkl")
+    except Exception:
+        classifier = None
+
+    if classifier is None or classifier.model is None:
+        # Fallback to heuristic detection
+        results = []
+        for ch_data in req.signals:
+            signal = np.array(ch_data, dtype=np.float64)
+            blinks = detect_eye_blinks(signal, req.fs)
+            muscle = detect_muscle_artifacts(signal, req.fs)
+            pops = detect_electrode_pops(signal, req.fs)
+            sqi = compute_signal_quality_index(signal, req.fs)
+            results.append({
+                "sqi": sqi,
+                "eye_blinks": len(blinks),
+                "muscle_artifacts": len(muscle),
+                "electrode_pops": len(pops),
+                "method": "heuristic",
+            })
+        return _numpy_safe({"channels": results})
+
+    all_results = []
+    for ch_data in req.signals:
+        signal = np.array(ch_data, dtype=np.float64)
+        classifications = classifier.classify_signal(signal, req.fs, window_sec=1.0)
+        sqi = compute_signal_quality_index(signal, req.fs)
+        all_results.append({
+            "sqi": sqi,
+            "windows": classifications,
+            "artifact_summary": _summarize_artifacts(classifications),
+            "method": "ml_classifier",
+        })
+
+    return _numpy_safe({"channels": all_results})
+
+
+@router.get("/denoise/status")
+async def denoise_status():
+    """Check availability of ML denoiser and artifact classifier models."""
+    return {
+        "denoiser_available": _get_denoiser_status(),
+        "artifact_classifier_available": _get_artifact_classifier_status(),
+        "denoiser_model_path": "models/saved/denoiser_model.pt",
+        "artifact_model_path": "models/saved/artifact_classifier_model.pkl",
+    }
+
+
+@router.get("/datasets")
+async def list_datasets():
+    """List all available EEG datasets and their download status."""
+    try:
+        from training.data_loaders import list_available_datasets
+        return list_available_datasets()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _get_denoiser_status() -> bool:
+    return Path("models/saved/denoiser_model.pt").exists()
+
+
+def _get_artifact_classifier_status() -> bool:
+    return Path("models/saved/artifact_classifier_model.pkl").exists()
+
+
+def _summarize_artifacts(classifications: list) -> dict:
+    """Summarize artifact types from window classifications."""
+    from collections import Counter
+    types = [c["artifact_type"] for c in classifications]
+    counts = Counter(types)
+    total = len(types)
+    return {
+        "total_windows": total,
+        "clean_windows": counts.get("clean", 0),
+        "clean_ratio": counts.get("clean", 0) / max(total, 1),
+        "artifact_counts": dict(counts),
+    }
