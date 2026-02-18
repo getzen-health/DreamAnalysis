@@ -19,3 +19,15 @@ ml/models/saved/*.onnx
 *.npz
 *.zip
 *.db
+
+# Unused large model
+ml/models/emotion_classifier_rf.joblib
+
+# Screenshots (moved to attached_assets/)
+dream-analysis-*.png
+
+# Replit
+.replit
+
+# Linter cache
+.ruff_cache/
