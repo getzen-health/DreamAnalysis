@@ -48,6 +48,12 @@ from processing.connectivity import (
     compute_graph_metrics,
 )
 from processing.emotion_shift_detector import EmotionShiftDetector
+from models.drowsiness_detector import DrowsinessDetector
+from models.cognitive_load_estimator import CognitiveLoadEstimator
+from models.attention_classifier import AttentionClassifier
+from models.stress_detector import StressDetector
+from models.lucid_dream_detector import LucidDreamDetector
+from models.meditation_classifier import MeditationClassifier
 from processing.spiritual_energy import (
     compute_chakra_activations,
     compute_chakra_balance,
@@ -105,6 +111,14 @@ dream_model = DreamDetector(model_path=_find_model("dream_detector_model"))
 flow_model = FlowStateDetector(model_path=_find_model("flow_state_model"))
 creativity_model = CreativityDetector(model_path=_find_model("creativity_model"))
 memory_model = MemoryEncodingPredictor(model_path=_find_model("memory_encoding_model"))
+
+# New cognitive models (Phase 15)
+drowsiness_model = DrowsinessDetector(model_path=_find_model("drowsiness_model"))
+cognitive_load_model = CognitiveLoadEstimator(model_path=_find_model("cognitive_load_model"))
+attention_model = AttentionClassifier(model_path=_find_model("attention_model"))
+stress_model = StressDetector(model_path=_find_model("stress_model"))
+lucid_dream_model = LucidDreamDetector(model_path=_find_model("lucid_dream_model"))
+meditation_model = MeditationClassifier(model_path=_find_model("meditation_model"))
 
 # Emotion shift detectors (per-user)
 _emotion_shift_detectors: Dict[str, EmotionShiftDetector] = {}
@@ -355,6 +369,17 @@ async def simulate_eeg_endpoint(request: SimulateRequest):
     creativity_result = creativity_model.predict(eeg, request.fs)
     memory_result = memory_model.predict(eeg, request.fs)
 
+    drowsiness_result = drowsiness_model.predict(eeg, request.fs)
+    cognitive_load_result = cognitive_load_model.predict(eeg, request.fs)
+    attention_result = attention_model.predict(eeg, request.fs)
+    stress_result = stress_model.predict(eeg, request.fs)
+    lucid_result = lucid_dream_model.predict(
+        eeg, request.fs,
+        is_rem=(sleep_result.get("stage") == "REM"),
+        sleep_stage=sleep_result.get("stage_index", 0),
+    )
+    meditation_result = meditation_model.predict(eeg, request.fs)
+
     return {
         **result,
         "analysis": {
@@ -364,6 +389,12 @@ async def simulate_eeg_endpoint(request: SimulateRequest):
             "flow_state": flow_result,
             "creativity": creativity_result,
             "memory_encoding": memory_result,
+            "drowsiness": drowsiness_result,
+            "cognitive_load": cognitive_load_result,
+            "attention": attention_result,
+            "stress": stress_result,
+            "lucid_dream": lucid_result,
+            "meditation": meditation_result,
         },
     }
 
@@ -401,6 +432,36 @@ async def models_status():
             "loaded": True,
             "type": memory_model.model_type,
             "classes": ["poor_encoding", "weak_encoding", "active_encoding", "deep_encoding"],
+        },
+        "drowsiness": {
+            "loaded": True,
+            "type": drowsiness_model.model_type,
+            "classes": ["alert", "drowsy", "sleepy"],
+        },
+        "cognitive_load": {
+            "loaded": True,
+            "type": cognitive_load_model.model_type,
+            "classes": ["low", "moderate", "high"],
+        },
+        "attention": {
+            "loaded": True,
+            "type": attention_model.model_type,
+            "classes": ["distracted", "passive", "focused", "hyperfocused"],
+        },
+        "stress": {
+            "loaded": True,
+            "type": stress_model.model_type,
+            "classes": ["relaxed", "mild", "moderate", "high"],
+        },
+        "lucid_dream": {
+            "loaded": True,
+            "type": lucid_dream_model.model_type,
+            "classes": ["non_lucid", "pre_lucid", "lucid", "controlled"],
+        },
+        "meditation": {
+            "loaded": True,
+            "type": meditation_model.model_type,
+            "classes": ["surface", "light", "moderate", "deep", "transcendent"],
         },
         "available_states": list(STATE_PROFILES.keys()),
     }
@@ -839,12 +900,6 @@ async def stop_stream():
 # Dataset management endpoints
 # ---------------------------------------------------------------------------
 
-@router.get("/datasets")
-async def list_datasets():
-    """List all available EEG datasets and their download status."""
-    from training.data_loaders import list_available_datasets
-    return list_available_datasets()
-
 
 @router.post("/datasets/download-deap")
 async def download_deap():
@@ -1060,6 +1115,12 @@ async def supported_metrics():
             "sleep_staging": ["Wake", "N1", "N2", "N3", "REM"],
             "emotions": ["happy", "sad", "angry", "fearful", "relaxed", "focused"],
             "dream_detection": ["dreaming", "not_dreaming"],
+            "drowsiness": ["alert", "drowsy", "sleepy"],
+            "cognitive_load": ["low", "moderate", "high"],
+            "attention": ["distracted", "passive", "focused", "hyperfocused"],
+            "stress": ["relaxed", "mild", "moderate", "high"],
+            "lucid_dream": ["non_lucid", "pre_lucid", "lucid", "controlled"],
+            "meditation": ["surface", "light", "moderate", "deep", "transcendent"],
         },
     }
 
@@ -1338,14 +1399,25 @@ async def analyze_eeg_accurate(req: AccurateAnalysisRequest):
     if calibration.is_calibrated:
         features_array = calibration.normalize_features(features_array)
 
-    # Step 3: Run models
+    # Step 3: Run all 12 models
+    sleep_pred = sleep_model.predict(channel_data, req.sample_rate)
     analysis = {
-        "sleep_staging": sleep_model.predict(channel_data, req.sample_rate),
+        "sleep_staging": sleep_pred,
         "emotions": emotion_model.predict(channel_data, req.sample_rate),
         "dream_detection": dream_model.predict(channel_data, req.sample_rate),
         "flow_state": flow_model.predict(channel_data, req.sample_rate),
         "creativity": creativity_model.predict(channel_data, req.sample_rate),
         "memory_encoding": memory_model.predict(channel_data, req.sample_rate),
+        "drowsiness": drowsiness_model.predict(channel_data, req.sample_rate),
+        "cognitive_load": cognitive_load_model.predict(channel_data, req.sample_rate),
+        "attention": attention_model.predict(channel_data, req.sample_rate),
+        "stress": stress_model.predict(channel_data, req.sample_rate),
+        "lucid_dream": lucid_dream_model.predict(
+            channel_data, req.sample_rate,
+            is_rem=(sleep_pred.get("stage") == "REM"),
+            sleep_stage=sleep_pred.get("stage_index", 0),
+        ),
+        "meditation": meditation_model.predict(channel_data, req.sample_rate),
     }
 
     # Step 4: Confidence calibration
@@ -1635,6 +1707,117 @@ async def reset_emotion_shift(user_id: str):
     if user_id in _emotion_shift_detectors:
         del _emotion_shift_detectors[user_id]
     return {"status": "reset", "user_id": user_id}
+
+
+# ═══════════════════════════════════════════════════════════════
+#  COGNITIVE MODELS — Drowsiness, Cognitive Load, Attention,
+#  Stress, Lucid Dream, Meditation
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.post("/predict-drowsiness")
+async def predict_drowsiness(data: EEGInput):
+    """Detect drowsiness level from EEG: alert / drowsy / sleepy.
+
+    Uses theta/beta ratio, alpha attenuation, and slow-wave increase
+    to classify alertness state.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    return _numpy_safe(drowsiness_model.predict(eeg, data.fs))
+
+
+@router.post("/predict-cognitive-load")
+async def predict_cognitive_load(data: EEGInput):
+    """Estimate cognitive load from EEG: low / moderate / high.
+
+    Uses frontal theta, working memory load markers, and task
+    engagement metrics to assess cognitive demand.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    return _numpy_safe(cognitive_load_model.predict(eeg, data.fs))
+
+
+@router.post("/predict-attention")
+async def predict_attention(data: EEGInput):
+    """Classify attention state: distracted / passive / focused / hyperfocused.
+
+    Uses theta/beta ratio (ADHD gold standard), beta engagement,
+    and spectral concentration to assess attention.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    return _numpy_safe(attention_model.predict(eeg, data.fs))
+
+
+@router.post("/predict-stress")
+async def predict_stress(data: EEGInput):
+    """Detect stress level: relaxed / mild / moderate / high.
+
+    Multi-dimensional stress assessment using high-beta activation,
+    alpha suppression, cortisol proxy, and autonomic index.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    return _numpy_safe(stress_model.predict(eeg, data.fs))
+
+
+class LucidDreamRequest(BaseModel):
+    signals: List[List[float]] = Field(..., description="EEG signals")
+    fs: float = Field(default=256.0)
+    is_rem: bool = Field(default=True, description="Whether currently in REM sleep")
+    sleep_stage: int = Field(default=4, description="Current sleep stage (4=REM)")
+
+
+@router.post("/predict-lucid-dream")
+async def predict_lucid_dream(req: LucidDreamRequest):
+    """Detect lucid dreaming during REM sleep.
+
+    States: non_lucid / pre_lucid / lucid / controlled.
+    Uses 40Hz gamma surge (Voss et al.), metacognition index,
+    and alpha-gamma coupling. Only meaningful during REM sleep.
+    """
+    signals = np.array(req.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    return _numpy_safe(lucid_dream_model.predict(
+        eeg, req.fs, is_rem=req.is_rem, sleep_stage=req.sleep_stage
+    ))
+
+
+@router.post("/predict-meditation")
+async def predict_meditation(data: EEGInput):
+    """Classify meditation depth: surface / light / moderate / deep / transcendent.
+
+    Uses alpha stability, theta depth, gamma transcendence,
+    theta-gamma coupling, and matches to meditation traditions.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+    return _numpy_safe(meditation_model.predict(eeg, data.fs))
+
+
+@router.get("/cognitive-models/session-stats")
+async def cognitive_session_stats():
+    """Get session statistics for all cognitive models that track history."""
+    stats = {}
+    if hasattr(lucid_dream_model, 'get_session_stats'):
+        stats["lucid_dream"] = lucid_dream_model.get_session_stats()
+    if hasattr(meditation_model, 'get_session_stats'):
+        stats["meditation"] = meditation_model.get_session_stats()
+    return _numpy_safe(stats)
 
 
 # ─── Denoising & Artifact Classification ─────────────────────────────────
