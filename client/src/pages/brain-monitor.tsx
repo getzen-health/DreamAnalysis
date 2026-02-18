@@ -67,7 +67,16 @@ export default function BrainMonitor() {
 
   // Derive display values from stream or simulation
   const analysis = latestFrame?.analysis;
-  const signalQuality = latestFrame?.quality ?? null;
+  const rawQuality = latestFrame?.quality as Record<string, unknown> | undefined;
+  // Backend sends quality_score (0-1) or sqi; normalize to 0-100
+  const signalQuality = rawQuality
+    ? {
+        sqi: ((rawQuality.sqi as number) ?? (rawQuality.quality_score as number) ?? 0) * 100,
+        artifacts_detected: (rawQuality.artifacts_detected as string[]) ?? (rawQuality.rejection_reasons as string[]) ?? [],
+        clean_ratio: (rawQuality.clean_ratio as number) ?? 0,
+        channel_quality: (rawQuality.channel_quality as number[]) ?? [],
+      }
+    : null;
 
   const alphaHz = analysis?.band_powers?.alpha
     ? `${(analysis.band_powers.alpha * 12).toFixed(1)} Hz`

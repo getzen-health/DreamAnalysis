@@ -106,6 +106,17 @@ class BrainFlowManager:
                 bf_params.ip_address = params["ip_address"]
             if "ip_port" in params:
                 bf_params.ip_port = params["ip_port"]
+            if "timeout" in params:
+                bf_params.timeout = int(params["timeout"])
+
+        # BLE devices (Muse) need longer discovery timeout
+        is_ble = device_type.startswith("muse_")
+        if is_ble and bf_params.timeout == 0:
+            bf_params.timeout = 15  # 15s BLE scan (default 6s is often too short)
+
+        # Enable verbose BrainFlow logging for debugging
+        if is_ble:
+            BoardShim.enable_dev_board_logger()
 
         self.board = BoardShim(board_id, bf_params)
         self.board.prepare_session()
