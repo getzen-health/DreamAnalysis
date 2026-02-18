@@ -6,7 +6,6 @@ import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
 import { SessionControls } from "@/components/session-controls";
 import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import {
   Activity,
   Radio,
@@ -21,7 +20,6 @@ import {
   Battery,
   Shield,
 } from "lucide-react";
-import { useMetrics } from "@/hooks/use-metrics";
 import { useInference } from "@/hooks/use-inference";
 import { useDevice } from "@/hooks/use-device";
 import {
@@ -31,7 +29,6 @@ import {
 } from "@/lib/ml-api";
 
 export default function BrainMonitor() {
-  const { eegData, neuralActivity } = useMetrics();
   const { isLocal, latencyMs, isReady } = useInference();
   const device = useDevice();
   const { state: deviceState, latestFrame, deviceStatus } = device;
@@ -41,6 +38,27 @@ export default function BrainMonitor() {
   const [anomaly] = useState<AnomalyResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const waveletTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Build EEG chart data from real signals (accumulate last 50 points)
+  const [eegData, setEegData] = useState<{ alphaWaves: number[]; betaWaves: number[] }>({
+    alphaWaves: [],
+    betaWaves: [],
+  });
+
+  useEffect(() => {
+    if (!isStreaming || !latestFrame?.signals) return;
+    const signals = latestFrame.signals;
+    // Use channel 1 (AF7 — frontal left) for alpha-ish, channel 2 (AF8 — frontal right) for beta-ish
+    const ch0 = signals[0] ?? [];
+    const ch1 = signals[1] ?? signals[0] ?? [];
+    // Take last sample from each chunk
+    const alphaVal = ch0.length > 0 ? ch0[ch0.length - 1] : 0;
+    const betaVal = ch1.length > 0 ? ch1[ch1.length - 1] : 0;
+    setEegData((prev) => ({
+      alphaWaves: [...prev.alphaWaves.slice(-49), alphaVal],
+      betaWaves: [...prev.betaWaves.slice(-49), betaVal],
+    }));
+  }, [isStreaming, latestFrame?.timestamp]);
 
   // Request wavelet analysis every 2 seconds during streaming
   useEffect(() => {

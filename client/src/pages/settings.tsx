@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle, Download, BarChart3, Brain, Cpu } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
-import { useMetrics } from "@/hooks/use-metrics";
+const USER_ID = "default";
 import { useToast } from "@/hooks/use-toast";
 import { useInference } from "@/hooks/use-inference";
 import { getModelsBenchmarks, getCalibrationStatus, type BenchmarkResult, type CalibrationStatus } from "@/lib/ml-api";
@@ -56,7 +56,7 @@ const defaultSettings: SettingsState = {
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { userId } = useMetrics();
+  const userId = USER_ID;
   const { toast } = useToast();
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
   const [benchmarks, setBenchmarks] = useState<Record<string, BenchmarkResult>>({});
