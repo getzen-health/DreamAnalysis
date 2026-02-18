@@ -1,25 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
-import { Sparkles, Eye, Activity } from "lucide-react";
+import { Sparkles, Activity, Radio } from "lucide-react";
+import { useDevice } from "@/hooks/use-device";
 
 interface ChakraState {
   name: string;
   sanskrit: string;
   activation: number;
   color: string;
-}
-
-interface EnergyState {
-  chakras: ChakraState[];
-  meditationDepth: number;
-  meditationStage: string;
-  consciousnessLevel: number;
-  consciousnessName: string;
-  thirdEyeActivation: number;
-  dominantEnergy: string;
-  guidance: string;
 }
 
 const CHAKRA_COLORS: Record<string, string> = {
@@ -42,105 +32,102 @@ const CHAKRA_INFO = [
   { key: "crown", name: "Crown", sanskrit: "Sahasrara" },
 ];
 
-function simulateEnergy(): EnergyState {
-  const chakras = CHAKRA_INFO.map((c) => ({
-    name: c.name,
-    sanskrit: c.sanskrit,
-    activation: Math.round(20 + Math.random() * 60),
-    color: CHAKRA_COLORS[c.key],
-  }));
-
-  const maxChakra = chakras.reduce((max, c) =>
-    c.activation > max.activation ? c : max
-  );
-
-  const meditationDepth = +(1 + Math.random() * 6).toFixed(1);
-  const stages = [
-    "Settling",
-    "Relaxation",
-    "Light Absorption",
-    "Deep Absorption",
-    "Jhana",
-  ];
-  const stageIdx = Math.min(
-    stages.length - 1,
-    Math.floor(meditationDepth / 2)
-  );
-
-  const consciousness = Math.round(100 + Math.random() * 400);
-  const levels = ["Survival", "Desire", "Willpower", "Love", "Expression", "Insight", "Unity"];
-  const levelIdx = Math.min(
-    levels.length - 1,
-    Math.floor(consciousness / 150)
-  );
-
-  const guidances = [
-    "Focus on grounding. Feel the earth beneath you.",
-    "Let creative energy flow. Don't resist the stream.",
-    "Your heart center is open. Practice compassion.",
-    "Speak your truth today. Your throat is activated.",
-    "Inner vision is strong. Trust your intuition.",
-    "Higher awareness is accessible. Stay present.",
-  ];
-
-  return {
-    chakras,
-    meditationDepth,
-    meditationStage: stages[stageIdx],
-    consciousnessLevel: consciousness,
-    consciousnessName: levels[levelIdx],
-    thirdEyeActivation: Math.round(10 + Math.random() * 50),
-    dominantEnergy: maxChakra.name,
-    guidance: guidances[Math.floor(Math.random() * guidances.length)],
+function getGuidance(dominant: string, meditationDepth: string): string {
+  const guides: Record<string, string> = {
+    Root: "Focus on grounding. Feel the earth beneath you. Strong delta activity indicates deep stability.",
+    Sacral: "Let creative energy flow. Your theta waves suggest heightened imagination and openness.",
+    "Solar Plexus": "Your willpower center is active. Channel this steady alpha-theta blend into focused intention.",
+    Heart: "Your heart center is open. Strong alpha waves indicate emotional balance and compassion.",
+    Throat: "Speak your truth today. Beta activity shows your communication center is energized.",
+    "Third Eye": "Inner vision is strong. High-frequency activity suggests heightened intuition and insight.",
+    Crown: "Higher awareness is accessible. Gamma waves indicate transcendent awareness. Stay present.",
   };
+  const base = guides[dominant] || "Your energy centers are balanced. Continue observing with gentle awareness.";
+  if (meditationDepth === "Deep Absorption" || meditationDepth === "Jhana") {
+    return base + " You've reached a deep meditative state — maintain this awareness.";
+  }
+  return base;
 }
 
 export default function InnerEnergy() {
-  const [energy, setEnergy] = useState<EnergyState>(simulateEnergy);
+  const { latestFrame, state: deviceState } = useDevice();
+  const isStreaming = deviceState === "streaming";
+  const analysis = latestFrame?.analysis;
 
-  const update = useCallback(() => {
-    setEnergy((prev) => {
-      const next = simulateEnergy();
-      return {
-        ...next,
-        chakras: next.chakras.map((c, i) => ({
-          ...c,
-          activation: Math.round(
-            prev.chakras[i].activation * 0.7 + c.activation * 0.3
-          ),
-        })),
-        meditationDepth: +(
-          prev.meditationDepth * 0.7 +
-          next.meditationDepth * 0.3
-        ).toFixed(1),
-        consciousnessLevel: Math.round(
-          prev.consciousnessLevel * 0.7 + next.consciousnessLevel * 0.3
-        ),
-        thirdEyeActivation: Math.round(
-          prev.thirdEyeActivation * 0.7 + next.thirdEyeActivation * 0.3
-        ),
-      };
-    });
-  }, []);
+  const bandPowers = analysis?.band_powers ?? {};
+  const meditation = analysis?.meditation;
+  const attention = analysis?.attention;
+  const flowState = analysis?.flow_state;
 
-  useEffect(() => {
-    const interval = setInterval(update, 4000);
-    return () => clearInterval(interval);
-  }, [update]);
+  // Derive chakra activations from band powers
+  const chakras: ChakraState[] = useMemo(() => {
+    const d = (bandPowers.delta ?? 0) * 100;
+    const t = (bandPowers.theta ?? 0) * 100;
+    const a = (bandPowers.alpha ?? 0) * 100;
+    const b = (bandPowers.beta ?? 0) * 100;
+    const g = (bandPowers.gamma ?? 0) * 100;
 
-  const meditationPercent = Math.round(energy.meditationDepth * 10);
+    const activations = [
+      Math.min(95, Math.round(d * 1.2)),        // Root — delta
+      Math.min(95, Math.round(t * 1.1)),         // Sacral — theta
+      Math.min(95, Math.round((a + t) * 0.6)),   // Solar Plexus — alpha/theta
+      Math.min(95, Math.round(a * 1.2)),          // Heart — alpha
+      Math.min(95, Math.round(b * 1.0)),          // Throat — beta
+      Math.min(95, Math.round((b + g) * 0.7)),    // Third Eye — high beta + gamma
+      Math.min(95, Math.round(g * 1.5)),           // Crown — gamma
+    ];
+
+    return CHAKRA_INFO.map((c, i) => ({
+      name: c.name,
+      sanskrit: c.sanskrit,
+      activation: isStreaming ? activations[i] : 0,
+      color: CHAKRA_COLORS[c.key],
+    }));
+  }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming]);
+
+  // Meditation depth from meditation model
+  const meditationScore = meditation?.meditation_score ?? 0;
+  const meditationPercent = isStreaming ? Math.round(meditationScore * 100) : 0;
+  const meditationStage = meditation?.depth ?? "—";
+
+  // Consciousness level derived from attention + flow + meditation
+  const consciousnessRaw = isStreaming
+    ? (attention?.attention_score ?? 0) * 30 + (flowState?.flow_score ?? 0) * 40 + meditationScore * 30
+    : 0;
+  const consciousnessPercent = Math.round(Math.min(100, consciousnessRaw));
+  const consciousnessLevels = ["Survival", "Desire", "Willpower", "Love", "Expression", "Insight", "Unity"];
+  const consciousnessName = consciousnessLevels[Math.min(6, Math.floor(consciousnessPercent / 15))] || "—";
+
+  // Third eye activation from gamma + high beta
+  const thirdEyeActivation = isStreaming
+    ? Math.round(Math.min(100, ((bandPowers.gamma ?? 0) + (bandPowers.beta ?? 0) * 0.3) * 150))
+    : 0;
+
+  // Dominant energy center
+  const dominantChakra = chakras.reduce((max, c) =>
+    c.activation > max.activation ? c : max, chakras[0]);
+
+  const guidance = isStreaming
+    ? getGuidance(dominantChakra.name, meditationStage)
+    : "Connect your Muse 2 to begin reading your energy centers from live EEG data.";
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">
+      {/* Connection Banner */}
+      {!isStreaming && (
+        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0" />
+          Connect your Muse 2 from the sidebar to see live energy data.
+        </div>
+      )}
+
       {/* Guidance */}
       <div className="ai-insight-card">
         <div className="flex items-start gap-3">
           <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
           <div>
             <p className="text-sm font-medium text-foreground mb-1">Energy Guidance</p>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {energy.guidance}
-            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">{guidance}</p>
           </div>
         </div>
       </div>
@@ -157,13 +144,13 @@ export default function InnerEnergy() {
             size="md"
           />
           <Badge variant="secondary" className="text-xs mt-2">
-            {energy.meditationStage}
+            {isStreaming ? meditationStage : "—"}
           </Badge>
         </div>
 
         <div className="score-card p-5 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={Math.round(energy.consciousnessLevel / 10)}
+            value={consciousnessPercent}
             label="Consciousness"
             gradientId="grad-consciousness"
             colorFrom="hsl(262, 45%, 65%)"
@@ -171,13 +158,13 @@ export default function InnerEnergy() {
             size="md"
           />
           <Badge variant="secondary" className="text-xs mt-2">
-            {energy.consciousnessName}
+            {isStreaming ? consciousnessName : "—"}
           </Badge>
         </div>
 
         <div className="score-card p-5 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={energy.thirdEyeActivation}
+            value={thirdEyeActivation}
             label="Third Eye"
             gradientId="grad-thirdeye"
             colorFrom="hsl(240, 55%, 60%)"
@@ -195,9 +182,12 @@ export default function InnerEnergy() {
         <h3 className="text-sm font-medium mb-5 flex items-center gap-2">
           <Activity className="h-4 w-4 text-accent" />
           Energy Centers
+          {isStreaming && (
+            <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+          )}
         </h3>
         <div className="space-y-3">
-          {[...energy.chakras].reverse().map((chakra) => (
+          {[...chakras].reverse().map((chakra) => (
             <div key={chakra.name} className="flex items-center gap-3">
               <div
                 className="w-3 h-3 rounded-full shrink-0"
@@ -208,9 +198,7 @@ export default function InnerEnergy() {
               />
               <div className="w-24 shrink-0">
                 <div className="text-sm font-medium">{chakra.name}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {chakra.sanskrit}
-                </div>
+                <div className="text-[10px] text-muted-foreground">{chakra.sanskrit}</div>
               </div>
               <div className="flex-1">
                 <div className="h-2.5 bg-muted rounded-full overflow-hidden">
@@ -229,9 +217,11 @@ export default function InnerEnergy() {
             </div>
           ))}
         </div>
-        <div className="mt-4 pt-3 border-t border-border/30 text-sm text-muted-foreground">
-          Dominant: <span className="text-foreground font-medium">{energy.dominantEnergy}</span>
-        </div>
+        {isStreaming && (
+          <div className="mt-4 pt-3 border-t border-border/30 text-sm text-muted-foreground">
+            Dominant: <span className="text-foreground font-medium">{dominantChakra.name}</span>
+          </div>
+        )}
       </Card>
     </main>
   );
