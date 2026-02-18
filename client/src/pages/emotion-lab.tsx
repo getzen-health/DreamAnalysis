@@ -182,13 +182,27 @@ export default function EmotionLab() {
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={emotionHistory.slice(-30)}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis dataKey="time" tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                <Line type="monotone" dataKey="stress_index" stroke="hsl(var(--warning))" strokeWidth={1.5} dot={false} name="Stress" />
-                <Line type="monotone" dataKey="focus_index" stroke="hsl(var(--primary))" strokeWidth={1.5} dot={false} name="Focus" />
-                <Line type="monotone" dataKey="relaxation_index" stroke="hsl(var(--success))" strokeWidth={1.5} dot={false} name="Relaxation" />
+                <defs>
+                  <linearGradient id="tlStressGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="tlFocusGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="tlRelaxGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(200, 70%, 55%)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="hsl(200, 70%, 55%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 22%)" opacity={0.6} />
+                <XAxis dataKey="time" tick={{ fontSize: 9, fill: "hsl(220, 12%, 52%)" }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220, 12%, 52%)" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12, color: "hsl(38, 20%, 92%)" }} labelStyle={{ color: "hsl(38, 20%, 92%)" }} itemStyle={{ color: "hsl(220, 12%, 75%)" }} />
+                <Line type="monotone" dataKey="stress_index" stroke="hsl(38, 85%, 58%)" strokeWidth={2.5} dot={false} name="Stress" />
+                <Line type="monotone" dataKey="focus_index" stroke="hsl(152, 60%, 48%)" strokeWidth={2.5} dot={false} name="Focus" />
+                <Line type="monotone" dataKey="relaxation_index" stroke="hsl(200, 70%, 55%)" strokeWidth={2.5} dot={false} name="Relaxation" />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -207,15 +221,24 @@ export default function EmotionLab() {
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <ScatterChart>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                <XAxis type="number" dataKey="valence" domain={[-1, 1]} name="Valence" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis type="number" dataKey="arousal" domain={[0, 1]} name="Arousal" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                <ZAxis type="number" dataKey="size" range={[30, 150]} />
+                <defs>
+                  <radialGradient id="vaGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="hsl(152, 60%, 55%)" stopOpacity={0.9} />
+                    <stop offset="70%" stopColor="hsl(200, 70%, 55%)" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0.3} />
+                  </radialGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 22%)" opacity={0.6} />
+                <XAxis type="number" dataKey="valence" domain={[-1, 1]} name="Valence" tick={{ fontSize: 10, fill: "hsl(220, 12%, 55%)" }} axisLine={{ stroke: "hsl(220, 18%, 25%)" }} tickLine={false} />
+                <YAxis type="number" dataKey="arousal" domain={[0, 1]} name="Arousal" tick={{ fontSize: 10, fill: "hsl(220, 12%, 55%)" }} axisLine={{ stroke: "hsl(220, 18%, 25%)" }} tickLine={false} />
+                <ZAxis type="number" dataKey="size" range={[40, 200]} />
                 <Tooltip
-                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                  contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12, color: "hsl(38, 20%, 92%)" }}
+                  labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                  itemStyle={{ color: "hsl(220, 12%, 75%)" }}
                   formatter={(value: number, name: string) => [value.toFixed(2), name]}
                 />
-                <Scatter data={vaData} fill="hsl(var(--primary))" fillOpacity={0.5} />
+                <Scatter data={vaData} fill="url(#vaGlow)" stroke="hsl(152, 60%, 55%)" strokeWidth={1} fillOpacity={0.85} />
               </ScatterChart>
             </ResponsiveContainer>
           )}

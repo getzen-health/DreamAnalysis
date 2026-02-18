@@ -346,24 +346,40 @@ export default function DreamDetection() {
         )}
       </Card>
 
-      {/* AI Interpretation */}
-      {isStreaming && (
-        <div className="ai-insight-card">
-          <div className="flex items-start gap-3">
-            <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-foreground mb-1">Dream Analysis</p>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {episodes.length >= 3
-                  ? `${episodes.length} dream episodes detected with an average REM probability of ${Math.round(episodes.reduce((s, e) => s + e.remProbability, 0) / episodes.length)}%. Your dream intensity pattern suggests active memory consolidation. Higher lucidity estimates in later cycles indicate healthy sleep architecture.`
-                  : episodes.length > 0
-                    ? `${episodes.length} dream episode${episodes.length > 1 ? "s" : ""} detected. Dream patterns are still building — more data will reveal your unique dream signature and REM cycling patterns.`
-                    : `Currently monitoring sleep stage: ${stageInfo.label}. Dream detection is active — episodes will be recorded automatically when REM-like patterns are identified.`}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* AI Interpretation — throttled to 10s */}
+      {isStreaming && <DreamInsightCard episodes={episodes} stageLabel={stageInfo.label} frameTs={latestFrame?.timestamp} />}
     </main>
+  );
+}
+
+/* Throttled dream insight card — only updates text every 10s */
+function DreamInsightCard({ episodes, stageLabel, frameTs }: { episodes: DreamEpisode[]; stageLabel: string; frameTs?: number }) {
+  const [text, setText] = useState("");
+  const timerRef = useRef(0);
+
+  useEffect(() => {
+    const now = Date.now();
+    if (now - timerRef.current < 10_000 && text) return;
+    timerRef.current = now;
+
+    const next = episodes.length >= 3
+      ? `${episodes.length} dream episodes detected with an average REM probability of ${Math.round(episodes.reduce((s, e) => s + e.remProbability, 0) / episodes.length)}%. Your dream intensity pattern suggests active memory consolidation. Higher lucidity estimates in later cycles indicate healthy sleep architecture.`
+      : episodes.length > 0
+        ? `${episodes.length} dream episode${episodes.length > 1 ? "s" : ""} detected. Dream patterns are still building — more data will reveal your unique dream signature and REM cycling patterns.`
+        : `Currently monitoring sleep stage: ${stageLabel}. Dream detection is active — episodes will be recorded automatically when REM-like patterns are identified.`;
+    setText(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameTs]);
+
+  return (
+    <div className="ai-insight-card">
+      <div className="flex items-start gap-3">
+        <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-foreground mb-1">Dream Analysis</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+        </div>
+      </div>
+    </div>
   );
 }

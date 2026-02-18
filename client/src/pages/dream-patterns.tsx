@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import {
   AreaChart,
@@ -283,24 +283,47 @@ export default function DreamPatterns() {
         </Card>
       )}
 
-      {/* AI Analysis */}
+      {/* AI Analysis — throttled to 10s */}
       {isStreaming && sessionData.length > 5 && (
-        <div className="ai-insight-card">
-          <div className="flex items-start gap-3">
-            <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-foreground mb-1">Pattern Analysis</p>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                This session captured {sessionData.length} data points with {totalDreamFrames} dream-active frames
-                and an average REM likelihood of {avgRem}%.
-                {remCycles.length > 0
-                  ? ` ${remCycles.length} complete REM cycle${remCycles.length > 1 ? "s" : ""} detected. REM cycle duration naturally increases through the night — later cycles tend to show higher intensity and lucidity.`
-                  : " No complete REM cycles detected yet — continue monitoring for full cycle analysis."}
-              </p>
-            </div>
-          </div>
-        </div>
+        <PatternInsightCard
+          sessionLen={sessionData.length}
+          dreamFrames={totalDreamFrames}
+          avgRem={avgRem}
+          remCycles={remCycles.length}
+          frameTs={latestFrame?.timestamp}
+        />
       )}
     </main>
+  );
+}
+
+/* Throttled pattern insight card */
+function PatternInsightCard({ sessionLen, dreamFrames, avgRem, remCycles, frameTs }: {
+  sessionLen: number; dreamFrames: number; avgRem: number; remCycles: number; frameTs?: number;
+}) {
+  const [text, setText] = useState("");
+  const timerRef = useRef(0);
+
+  useEffect(() => {
+    const now = Date.now();
+    if (now - timerRef.current < 10_000 && text) return;
+    timerRef.current = now;
+    const cycleText = remCycles > 0
+      ? ` ${remCycles} complete REM cycle${remCycles > 1 ? "s" : ""} detected. REM cycle duration naturally increases through the night — later cycles tend to show higher intensity and lucidity.`
+      : " No complete REM cycles detected yet — continue monitoring for full cycle analysis.";
+    setText(`This session captured ${sessionLen} data points with ${dreamFrames} dream-active frames and an average REM likelihood of ${avgRem}%.${cycleText}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameTs]);
+
+  return (
+    <div className="ai-insight-card">
+      <div className="flex items-start gap-3">
+        <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-foreground mb-1">Pattern Analysis</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+        </div>
+      </div>
+    </div>
   );
 }

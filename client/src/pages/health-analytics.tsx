@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
@@ -89,11 +89,32 @@ export default function HealthAnalytics() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
-  // Derive insights from current live data
-  const insights = [];
-  if (isStreaming) {
+  // Derive insights from current live data — throttled to 10s so user can read them
+  interface Insight {
+    title: string;
+    description: string;
+    strength: number;
+    brain: string;
+    health: string;
+  }
+
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const insightTimerRef = useRef(0);
+  const INSIGHT_THROTTLE = 10_000; // 10 seconds
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setInsights([]);
+      return;
+    }
+
+    const now = Date.now();
+    if (now - insightTimerRef.current < INSIGHT_THROTTLE && insights.length > 0) return;
+    insightTimerRef.current = now;
+
+    const next: Insight[] = [];
     if (flowScore > 60) {
-      insights.push({
+      next.push({
         title: "Flow State Active",
         description: `Your flow score is ${flowScore}%. This is optimal for deep work and creative problem solving. Minimize interruptions.`,
         strength: flowScore / 100,
@@ -102,7 +123,7 @@ export default function HealthAnalytics() {
       });
     }
     if (stressIndex > 50) {
-      insights.push({
+      next.push({
         title: "Elevated Stress Detected",
         description: `Stress index at ${stressIndex}%. Consider a breathing exercise or short break. High stress reduces cognitive performance.`,
         strength: stressIndex / 100,
@@ -111,7 +132,7 @@ export default function HealthAnalytics() {
       });
     }
     if (creativityScore > 50) {
-      insights.push({
+      next.push({
         title: "Creative State Detected",
         description: `Creativity score at ${creativityScore}%. Your theta-alpha ratio suggests heightened divergent thinking. Good time for brainstorming.`,
         strength: creativityScore / 100,
@@ -120,7 +141,7 @@ export default function HealthAnalytics() {
       });
     }
     if (memoryScore > 60) {
-      insights.push({
+      next.push({
         title: "Strong Memory Encoding",
         description: `Memory encoding score at ${memoryScore}%. Your brain is actively consolidating information. Great time for learning.`,
         strength: memoryScore / 100,
@@ -129,7 +150,7 @@ export default function HealthAnalytics() {
       });
     }
     if (drowsinessIndex > 60) {
-      insights.push({
+      next.push({
         title: "Drowsiness Alert",
         description: `Drowsiness index at ${drowsinessIndex}%. Consider a short break or physical activity to restore alertness.`,
         strength: drowsinessIndex / 100,
@@ -137,8 +158,8 @@ export default function HealthAnalytics() {
         health: "alertness",
       });
     }
-    if (insights.length === 0) {
-      insights.push({
+    if (next.length === 0) {
+      next.push({
         title: "Balanced Brain State",
         description: "Your neural patterns are balanced. All metrics within normal ranges. Keep up the good work!",
         strength: 0.5,
@@ -146,7 +167,9 @@ export default function HealthAnalytics() {
         health: "balance",
       });
     }
-  }
+    setInsights(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">

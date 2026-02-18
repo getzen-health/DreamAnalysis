@@ -110,9 +110,15 @@ interface EEGStreamFrame {
   coherence?: Record<string, unknown>;
   emotion_shift?: {
     shift_detected: boolean;
-    from_state: string;
-    to_state: string;
+    shift_type: string;
+    description: string;
+    body_feeling: string;
+    guidance: string;
     magnitude: number;
+    confidence: number;
+    current_emotion: string;
+    indicators: Record<string, number>;
+    trends: Record<string, unknown>;
   };
   spiritual?: Record<string, unknown>;
   timestamp: number;
@@ -177,6 +183,10 @@ function useDeviceInternal(): UseDeviceReturn {
   const reconnectRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isStreamingRef = useRef(false);
+  const lastFrameTimeRef = useRef(0);
+  const pendingFrameRef = useRef<EEGStreamFrame | null>(null);
+  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const FRAME_THROTTLE_MS = 1500; // update display every 1.5s
 
   /* WebSocket connection with auto-reconnect */
   const openWebSocket = useCallback(() => {
@@ -196,7 +206,26 @@ function useDeviceInternal(): UseDeviceReturn {
     ws.onmessage = (event) => {
       try {
         const frame: EEGStreamFrame = JSON.parse(event.data);
-        setLatestFrame(frame);
+        const now = Date.now();
+
+        // Throttle UI updates to every FRAME_THROTTLE_MS so humans can read values
+        if (now - lastFrameTimeRef.current >= FRAME_THROTTLE_MS) {
+          lastFrameTimeRef.current = now;
+          setLatestFrame(frame);
+        } else {
+          // Store pending frame, flush when throttle window expires
+          pendingFrameRef.current = frame;
+          if (!throttleTimerRef.current) {
+            throttleTimerRef.current = setTimeout(() => {
+              if (pendingFrameRef.current) {
+                lastFrameTimeRef.current = Date.now();
+                setLatestFrame(pendingFrameRef.current);
+                pendingFrameRef.current = null;
+              }
+              throttleTimerRef.current = null;
+            }, FRAME_THROTTLE_MS - (now - lastFrameTimeRef.current));
+          }
+        }
       } catch {
         // ignore parse errors
       }

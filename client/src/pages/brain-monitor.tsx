@@ -67,6 +67,20 @@ export default function BrainMonitor() {
 
   // Derive display values from stream or simulation
   const analysis = latestFrame?.analysis;
+
+  // Throttled snapshot of analysis for model cards (updates every 5s so user can read)
+  const [stableAnalysis, setStableAnalysis] = useState(analysis);
+  const modelCardTimerRef = useRef(0);
+  const MODEL_CARD_THROTTLE = 5_000;
+
+  useEffect(() => {
+    if (!isStreaming || !analysis) return;
+    const now = Date.now();
+    if (now - modelCardTimerRef.current < MODEL_CARD_THROTTLE && stableAnalysis) return;
+    modelCardTimerRef.current = now;
+    setStableAnalysis(analysis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
   const rawQuality = latestFrame?.quality as Record<string, unknown> | undefined;
   // Backend sends quality_score (0-1) or sqi; normalize to 0-100
   const signalQuality = rawQuality
@@ -138,10 +152,10 @@ export default function BrainMonitor() {
         <div className="shift-alert p-4 rounded-xl flex items-center gap-3">
           <Zap className="h-5 w-5 text-accent shrink-0" />
           <div>
-            <p className="text-sm font-medium">Emotional Shift Detected</p>
+            <p className="text-sm font-medium">Emotional Shift: {latestFrame.emotion_shift.shift_type?.replace(/_/g, " ")}</p>
             <p className="text-xs text-muted-foreground">
-              {latestFrame.emotion_shift.from_state} → {latestFrame.emotion_shift.to_state}
-              {" "}(magnitude: {(latestFrame.emotion_shift.magnitude * 100).toFixed(0)}%)
+              {latestFrame.emotion_shift.description}
+              {" "}(magnitude: {((latestFrame.emotion_shift.magnitude ?? 0) * 100).toFixed(0)}%)
             </p>
           </div>
         </div>
@@ -207,134 +221,24 @@ export default function BrainMonitor() {
         </div>
       </div>
 
-      {/* ── Live 12-Model Analysis Panel ─────────────────────────────── */}
-      {isStreaming && analysis && (
+      {/* ── Live 12-Model Analysis Panel (throttled to 5s) ────────────── */}
+      {isStreaming && stableAnalysis && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {/* Sleep Staging */}
-          <ModelCard
-            icon={<Moon className="h-4 w-4" />}
-            title="Sleep Stage"
-            value={analysis.sleep_staging?.stage ?? "—"}
-            score={analysis.sleep_staging?.confidence}
-            color="text-blue-400"
-          />
-
-          {/* Emotion */}
-          <ModelCard
-            icon={<Smile className="h-4 w-4" />}
-            title="Emotion"
-            value={analysis.emotions?.emotion ?? "—"}
-            score={analysis.emotions?.confidence}
-            color="text-pink-400"
-            extra={
-              analysis.emotions ? (
-                <div className="grid grid-cols-3 gap-2 mt-2 text-[10px] text-muted-foreground">
-                  <span>Valence: {(analysis.emotions.valence * 100).toFixed(0)}%</span>
-                  <span>Arousal: {(analysis.emotions.arousal * 100).toFixed(0)}%</span>
-                  <span>Stress: {(analysis.emotions.stress_index * 100).toFixed(0)}%</span>
-                </div>
-              ) : null
-            }
-          />
-
-          {/* Dream Detection */}
-          <ModelCard
-            icon={<Moon className="h-4 w-4" />}
-            title="Dream"
-            value={analysis.dream_detection?.is_dreaming ? "Dreaming" : "Awake"}
-            score={analysis.dream_detection?.probability}
-            color="text-purple-400"
-            extra={
-              analysis.dream_detection ? (
-                <div className="text-[10px] text-muted-foreground mt-1">
-                  REM: {(analysis.dream_detection.rem_likelihood * 100).toFixed(0)}% |
-                  Lucidity: {(analysis.dream_detection.lucidity_estimate * 100).toFixed(0)}%
-                </div>
-              ) : null
-            }
-          />
-
-          {/* Flow State */}
-          <ModelCard
-            icon={<Zap className="h-4 w-4" />}
-            title="Flow State"
-            value={analysis.flow_state?.in_flow ? "In Flow" : "Normal"}
-            score={analysis.flow_state?.flow_score}
-            color="text-green-400"
-          />
-
-          {/* Creativity */}
-          <ModelCard
-            icon={<Lightbulb className="h-4 w-4" />}
-            title="Creativity"
-            value={analysis.creativity?.state ?? "—"}
-            score={analysis.creativity?.creativity_score}
-            color="text-amber-400"
-          />
-
-          {/* Memory Encoding */}
-          <ModelCard
-            icon={<Brain className="h-4 w-4" />}
-            title="Memory"
-            value={analysis.memory_encoding?.state ?? "—"}
-            score={analysis.memory_encoding?.encoding_score}
-            color="text-cyan-400"
-          />
-
-          {/* Attention */}
-          <ModelCard
-            icon={<Eye className="h-4 w-4" />}
-            title="Attention"
-            value={analysis.attention?.state ?? "—"}
-            score={analysis.attention?.attention_score}
-            color="text-emerald-400"
-          />
-
-          {/* Drowsiness */}
-          <ModelCard
-            icon={<Battery className="h-4 w-4" />}
-            title="Drowsiness"
-            value={analysis.drowsiness?.state ?? "—"}
-            score={analysis.drowsiness?.drowsiness_index}
-            color="text-orange-400"
-          />
-
-          {/* Cognitive Load */}
-          <ModelCard
-            icon={<Gauge className="h-4 w-4" />}
-            title="Cognitive Load"
-            value={analysis.cognitive_load?.level ?? "—"}
-            score={analysis.cognitive_load?.load_index}
-            color="text-red-400"
-          />
-
-          {/* Stress */}
-          <ModelCard
-            icon={<Shield className="h-4 w-4" />}
-            title="Stress"
-            value={analysis.stress?.level ?? "—"}
-            score={analysis.stress?.stress_index}
-            color="text-rose-400"
-          />
-
-          {/* Meditation */}
-          <ModelCard
-            icon={<Heart className="h-4 w-4" />}
-            title="Meditation"
-            value={analysis.meditation?.depth ?? "—"}
-            score={analysis.meditation?.meditation_score}
-            color="text-violet-400"
-          />
-
-          {/* Lucid Dream (only visible during REM) */}
-          {analysis.lucid_dream && (
-            <ModelCard
-              icon={<Moon className="h-4 w-4" />}
-              title="Lucid Dream"
-              value={analysis.lucid_dream.state}
-              score={analysis.lucid_dream.lucidity_score}
-              color="text-fuchsia-400"
-            />
+          <ModelCard icon={<Moon className="h-4 w-4" />} title="Sleep Stage" value={stableAnalysis.sleep_staging?.stage ?? "—"} score={stableAnalysis.sleep_staging?.confidence} color="text-blue-400" />
+          <ModelCard icon={<Smile className="h-4 w-4" />} title="Emotion" value={stableAnalysis.emotions?.emotion ?? "—"} score={stableAnalysis.emotions?.confidence} color="text-pink-400"
+            extra={stableAnalysis.emotions ? (<div className="grid grid-cols-3 gap-2 mt-2 text-[10px] text-muted-foreground"><span>Valence: {(stableAnalysis.emotions.valence * 100).toFixed(0)}%</span><span>Arousal: {(stableAnalysis.emotions.arousal * 100).toFixed(0)}%</span><span>Stress: {(stableAnalysis.emotions.stress_index * 100).toFixed(0)}%</span></div>) : null} />
+          <ModelCard icon={<Moon className="h-4 w-4" />} title="Dream" value={stableAnalysis.dream_detection?.is_dreaming ? "Dreaming" : "Awake"} score={stableAnalysis.dream_detection?.probability} color="text-purple-400"
+            extra={stableAnalysis.dream_detection ? (<div className="text-[10px] text-muted-foreground mt-1">REM: {(stableAnalysis.dream_detection.rem_likelihood * 100).toFixed(0)}% | Lucidity: {(stableAnalysis.dream_detection.lucidity_estimate * 100).toFixed(0)}%</div>) : null} />
+          <ModelCard icon={<Zap className="h-4 w-4" />} title="Flow State" value={stableAnalysis.flow_state?.in_flow ? "In Flow" : "Normal"} score={stableAnalysis.flow_state?.flow_score} color="text-green-400" />
+          <ModelCard icon={<Lightbulb className="h-4 w-4" />} title="Creativity" value={stableAnalysis.creativity?.state ?? "—"} score={stableAnalysis.creativity?.creativity_score} color="text-amber-400" />
+          <ModelCard icon={<Brain className="h-4 w-4" />} title="Memory" value={stableAnalysis.memory_encoding?.state ?? "—"} score={stableAnalysis.memory_encoding?.encoding_score} color="text-cyan-400" />
+          <ModelCard icon={<Eye className="h-4 w-4" />} title="Attention" value={stableAnalysis.attention?.state ?? "—"} score={stableAnalysis.attention?.attention_score} color="text-emerald-400" />
+          <ModelCard icon={<Battery className="h-4 w-4" />} title="Drowsiness" value={stableAnalysis.drowsiness?.state ?? "—"} score={stableAnalysis.drowsiness?.drowsiness_index} color="text-orange-400" />
+          <ModelCard icon={<Gauge className="h-4 w-4" />} title="Cognitive Load" value={stableAnalysis.cognitive_load?.level ?? "—"} score={stableAnalysis.cognitive_load?.load_index} color="text-red-400" />
+          <ModelCard icon={<Shield className="h-4 w-4" />} title="Stress" value={stableAnalysis.stress?.level ?? "—"} score={stableAnalysis.stress?.stress_index} color="text-rose-400" />
+          <ModelCard icon={<Heart className="h-4 w-4" />} title="Meditation" value={stableAnalysis.meditation?.depth ?? "—"} score={stableAnalysis.meditation?.meditation_score} color="text-violet-400" />
+          {stableAnalysis.lucid_dream && (
+            <ModelCard icon={<Moon className="h-4 w-4" />} title="Lucid Dream" value={stableAnalysis.lucid_dream.state} score={stableAnalysis.lucid_dream.lucidity_score} color="text-fuchsia-400" />
           )}
         </div>
       )}

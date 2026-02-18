@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -65,33 +65,40 @@ export default function Insights() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
-  // Live brain profile radar
-  const radarData = useMemo(() => {
-    if (!isStreaming) return [];
-    return [
+  // Live brain profile radar — throttled to 8s
+  const [radarData, setRadarData] = useState<{ subject: string; value: number }[]>([]);
+  const radarTimerRef = useRef(0);
+  const RADAR_THROTTLE = 8_000;
+
+  useEffect(() => {
+    if (!isStreaming) { setRadarData([]); return; }
+    const now = Date.now();
+    if (now - radarTimerRef.current < RADAR_THROTTLE && radarData.length > 0) return;
+    radarTimerRef.current = now;
+    setRadarData([
       { subject: "Focus", value: Math.round((attention?.attention_score ?? 0) * 100) },
       { subject: "Creativity", value: Math.round((creativity?.creativity_score ?? 0) * 100) },
       { subject: "Relaxation", value: Math.round((emotions?.relaxation_index ?? 0) * 100) },
       { subject: "Memory", value: Math.round((memoryEncoding?.encoding_score ?? 0) * 100) },
       { subject: "Flow", value: Math.round((flowState?.flow_score ?? 0) * 100) },
       { subject: "Meditation", value: Math.round((meditation?.meditation_score ?? 0) * 100) },
-    ];
-  }, [
-    isStreaming,
-    attention?.attention_score,
-    creativity?.creativity_score,
-    emotions?.relaxation_index,
-    memoryEncoding?.encoding_score,
-    flowState?.flow_score,
-    meditation?.meditation_score,
-  ]);
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
 
-  // Generate dynamic insights from live data
-  const weeklyInsights = useMemo(() => {
-    if (!isStreaming) return [];
+  // Generate dynamic insights from live data — throttled to 12s
+  type InsightItem = { icon: typeof Lightbulb; title: string; description: string; type: "success" | "primary" | "secondary" | "warning" };
+  const [weeklyInsights, setWeeklyInsights] = useState<InsightItem[]>([]);
+  const insightTimerRef = useRef(0);
+  const INSIGHT_THROTTLE = 12_000;
 
-    const insights: { icon: typeof Lightbulb; title: string; description: string; type: "success" | "primary" | "secondary" | "warning" }[] = [];
+  useEffect(() => {
+    if (!isStreaming) { setWeeklyInsights([]); return; }
+    const now = Date.now();
+    if (now - insightTimerRef.current < INSIGHT_THROTTLE && weeklyInsights.length > 0) return;
+    insightTimerRef.current = now;
 
+    const insights: InsightItem[] = [];
     const focusScore = (attention?.attention_score ?? 0) * 100;
     const creativityScore = (creativity?.creativity_score ?? 0) * 100;
     const stressIndex = (stress?.stress_index ?? emotions?.stress_index ?? 0) * 100;
@@ -99,105 +106,35 @@ export default function Insights() {
     const flowScore = (flowState?.flow_score ?? 0) * 100;
     const dreamProb = (dreamDetection?.probability ?? 0) * 100;
     const meditationScore = (meditation?.meditation_score ?? 0) * 100;
-    const memoryScore = (memoryEncoding?.encoding_score ?? 0) * 100;
 
-    // Focus insight
     if (focusScore > 60) {
-      insights.push({
-        icon: Brain,
-        title: "High Focus State Detected",
-        description: `Your attention score is ${Math.round(focusScore)}%. Prefrontal beta activity indicates strong concentration. This is ideal for analytical tasks and deep work.`,
-        type: "primary",
-      });
+      insights.push({ icon: Brain, title: "High Focus State Detected", description: `Your attention score is ${Math.round(focusScore)}%. Prefrontal beta activity indicates strong concentration. This is ideal for analytical tasks and deep work.`, type: "primary" });
     } else if (focusScore < 30) {
-      insights.push({
-        icon: Brain,
-        title: "Low Focus — Consider a Break",
-        description: `Attention score at ${Math.round(focusScore)}%. Your brain may benefit from a short break or change of activity to restore focus.`,
-        type: "warning",
-      });
+      insights.push({ icon: Brain, title: "Low Focus — Consider a Break", description: `Attention score at ${Math.round(focusScore)}%. Your brain may benefit from a short break or change of activity to restore focus.`, type: "warning" });
     }
-
-    // Creativity insight
     if (creativityScore > 50) {
-      insights.push({
-        icon: Lightbulb,
-        title: "Creative State Active",
-        description: `Creativity at ${Math.round(creativityScore)}%. Your theta-alpha ratio suggests heightened divergent thinking. Great time for brainstorming or creative work.`,
-        type: "success",
-      });
+      insights.push({ icon: Lightbulb, title: "Creative State Active", description: `Creativity at ${Math.round(creativityScore)}%. Your theta-alpha ratio suggests heightened divergent thinking. Great time for brainstorming or creative work.`, type: "success" });
     }
-
-    // Stress insight
     if (stressIndex > 50) {
-      insights.push({
-        icon: Heart,
-        title: "Elevated Stress Detected",
-        description: `Stress index at ${Math.round(stressIndex)}% while relaxation is ${Math.round(relaxIndex)}%. Consider a breathing exercise — deep breaths can shift your neural balance within minutes.`,
-        type: "warning",
-      });
+      insights.push({ icon: Heart, title: "Elevated Stress Detected", description: `Stress index at ${Math.round(stressIndex)}% while relaxation is ${Math.round(relaxIndex)}%. Consider a breathing exercise — deep breaths can shift your neural balance within minutes.`, type: "warning" });
     } else if (relaxIndex > 60) {
-      insights.push({
-        icon: Heart,
-        title: "Calm & Balanced",
-        description: `Relaxation at ${Math.round(relaxIndex)}% with low stress (${Math.round(stressIndex)}%). Your autonomic nervous system is in a parasympathetic state — great for recovery.`,
-        type: "success",
-      });
+      insights.push({ icon: Heart, title: "Calm & Balanced", description: `Relaxation at ${Math.round(relaxIndex)}% with low stress (${Math.round(stressIndex)}%). Your autonomic nervous system is in a parasympathetic state — great for recovery.`, type: "success" });
     }
-
-    // Flow state insight
     if (flowScore > 60) {
-      insights.push({
-        icon: Sparkles,
-        title: "Flow State Achieved",
-        description: `Flow score at ${Math.round(flowScore)}%. You're in the zone — high focus with moderate arousal and low stress. Protect this state by minimizing interruptions.`,
-        type: "success",
-      });
+      insights.push({ icon: Sparkles, title: "Flow State Achieved", description: `Flow score at ${Math.round(flowScore)}%. You're in the zone — high focus with moderate arousal and low stress. Protect this state by minimizing interruptions.`, type: "success" });
     }
-
-    // Dream/Sleep insight
     if (dreamProb > 40) {
-      insights.push({
-        icon: Moon,
-        title: "Dream-Like Brain Patterns",
-        description: `Dream probability at ${Math.round(dreamProb)}%. Your theta-dominant pattern resembles REM-like activity. This may indicate a hypnagogic state.`,
-        type: "secondary",
-      });
+      insights.push({ icon: Moon, title: "Dream-Like Brain Patterns", description: `Dream probability at ${Math.round(dreamProb)}%. Your theta-dominant pattern resembles REM-like activity. This may indicate a hypnagogic state.`, type: "secondary" });
     }
-
-    // Meditation insight
     if (meditationScore > 50) {
-      insights.push({
-        icon: Bed,
-        title: "Deep Meditative State",
-        description: `Meditation score at ${Math.round(meditationScore)}%. Strong alpha coherence with low beta. Your brain is in a restful yet aware state.`,
-        type: "primary",
-      });
+      insights.push({ icon: Bed, title: "Deep Meditative State", description: `Meditation score at ${Math.round(meditationScore)}%. Strong alpha coherence with low beta. Your brain is in a restful yet aware state.`, type: "primary" });
     }
-
-    // Fallback
     if (insights.length === 0) {
-      insights.push({
-        icon: Brain,
-        title: "Balanced Neural Activity",
-        description: "All brain metrics are within normal ranges. Your neural patterns show a healthy balance of activity across frequency bands.",
-        type: "primary",
-      });
+      insights.push({ icon: Brain, title: "Balanced Neural Activity", description: "All brain metrics are within normal ranges. Your neural patterns show a healthy balance of activity across frequency bands.", type: "primary" });
     }
-
-    return insights.slice(0, 4);
-  }, [
-    isStreaming,
-    attention?.attention_score,
-    creativity?.creativity_score,
-    stress?.stress_index,
-    emotions?.stress_index,
-    emotions?.relaxation_index,
-    flowState?.flow_score,
-    dreamDetection?.probability,
-    meditation?.meditation_score,
-    memoryEncoding?.encoding_score,
-  ]);
+    setWeeklyInsights(insights.slice(0, 4));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
 
   const colorMap = {
     success: "bg-success/10 border-success/30 text-success",
@@ -266,14 +203,14 @@ export default function Insights() {
               <p className="text-xs text-foreground/50 mb-4">EEG band power changes during this session</p>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={bandHistory}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                  <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="hsl(var(--foreground))" opacity={0.5} />
-                  <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--foreground))" opacity={0.5} />
-                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                  <Line type="monotone" dataKey="theta" stroke="hsl(195, 100%, 50%)" strokeWidth={2} dot={false} name="Theta" />
-                  <Line type="monotone" dataKey="alpha" stroke="hsl(120, 100%, 55%)" strokeWidth={2} dot={false} name="Alpha" />
-                  <Line type="monotone" dataKey="beta" stroke="hsl(45, 100%, 50%)" strokeWidth={2} dot={false} name="Beta" />
-                  <Line type="monotone" dataKey="delta" stroke="hsl(270, 70%, 65%)" strokeWidth={2} dot={false} name="Delta" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 22%)" opacity={0.6} />
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220, 12%, 52%)" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "hsl(220, 12%, 52%)" }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "hsl(38, 20%, 92%)" }} />
+                  <Line type="monotone" dataKey="theta" stroke="hsl(195, 100%, 50%)" strokeWidth={2.5} dot={false} name="Theta" />
+                  <Line type="monotone" dataKey="alpha" stroke="hsl(152, 60%, 48%)" strokeWidth={2.5} dot={false} name="Alpha" />
+                  <Line type="monotone" dataKey="beta" stroke="hsl(38, 85%, 58%)" strokeWidth={2.5} dot={false} name="Beta" />
+                  <Line type="monotone" dataKey="delta" stroke="hsl(262, 45%, 65%)" strokeWidth={2.5} dot={false} name="Delta" />
                 </LineChart>
               </ResponsiveContainer>
             </>
@@ -298,10 +235,10 @@ export default function Insights() {
               <p className="text-xs text-foreground/50 mb-4">Current cognitive capabilities</p>
               <ResponsiveContainer width="100%" height={250}>
                 <RadarChart data={radarData}>
-                  <PolarGrid stroke="hsl(var(--border))" opacity={0.3} />
-                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: "hsl(var(--foreground))", opacity: 0.7 }} />
-                  <PolarRadiusAxis tick={{ fontSize: 8 }} domain={[0, 100]} />
-                  <Radar name="Current" dataKey="value" stroke="hsl(195, 100%, 50%)" fill="hsl(195, 100%, 50%)" fillOpacity={0.3} />
+                  <PolarGrid stroke="hsl(220, 18%, 25%)" opacity={0.6} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "hsl(220, 12%, 60%)" }} />
+                  <PolarRadiusAxis tick={{ fontSize: 8, fill: "hsl(220, 12%, 45%)" }} domain={[0, 100]} />
+                  <Radar name="Current" dataKey="value" stroke="hsl(152, 60%, 48%)" fill="hsl(152, 60%, 48%)" fillOpacity={0.25} strokeWidth={2} />
                 </RadarChart>
               </ResponsiveContainer>
             </>
@@ -309,27 +246,18 @@ export default function Insights() {
         </Card>
       </div>
 
-      {/* Live Metric Summary */}
-      {isStreaming && (
+      {/* Live Metric Summary — uses same radar throttle so numbers stay stable */}
+      {isStreaming && radarData.length > 0 && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Heart className="h-5 w-5 text-success" />
             Current Brain State Summary
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: "Focus", value: Math.round((attention?.attention_score ?? 0) * 100), color: "text-primary" },
-              { label: "Creativity", value: Math.round((creativity?.creativity_score ?? 0) * 100), color: "text-secondary" },
-              { label: "Stress", value: Math.round((stress?.stress_index ?? emotions?.stress_index ?? 0) * 100), color: "text-warning" },
-              { label: "Relaxation", value: Math.round((emotions?.relaxation_index ?? 0) * 100), color: "text-success" },
-              { label: "Flow", value: Math.round((flowState?.flow_score ?? 0) * 100), color: "text-accent" },
-              { label: "Meditation", value: Math.round((meditation?.meditation_score ?? 0) * 100), color: "text-primary" },
-              { label: "Memory", value: Math.round((memoryEncoding?.encoding_score ?? 0) * 100), color: "text-secondary" },
-              { label: "Dream Prob", value: Math.round((dreamDetection?.probability ?? 0) * 100), color: "text-accent" },
-            ].map((m) => (
-              <div key={m.label} className="text-center">
-                <p className="text-xs text-muted-foreground">{m.label}</p>
-                <p className={`text-xl font-mono font-bold ${m.color}`}>{m.value}%</p>
+            {radarData.map((m) => (
+              <div key={m.subject} className="text-center">
+                <p className="text-xs text-muted-foreground">{m.subject}</p>
+                <p className="text-xl font-mono font-bold text-primary">{m.value}%</p>
               </div>
             ))}
           </div>

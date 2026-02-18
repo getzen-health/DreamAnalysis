@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
@@ -107,9 +107,22 @@ export default function InnerEnergy() {
   const dominantChakra = chakras.reduce((max, c) =>
     c.activation > max.activation ? c : max, chakras[0]);
 
-  const guidance = isStreaming
-    ? getGuidance(dominantChakra.name, meditationStage)
-    : "Connect your Muse 2 to begin reading your energy centers from live EEG data.";
+  // Throttle guidance text to 10s so user can read it
+  const [guidance, setGuidance] = useState("Connect your Muse 2 to begin reading your energy centers from live EEG data.");
+  const guidanceTimerRef = useRef(0);
+  const GUIDANCE_THROTTLE = 10_000;
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setGuidance("Connect your Muse 2 to begin reading your energy centers from live EEG data.");
+      return;
+    }
+    const now = Date.now();
+    if (now - guidanceTimerRef.current < GUIDANCE_THROTTLE && guidance !== "Connect your Muse 2 to begin reading your energy centers from live EEG data.") return;
+    guidanceTimerRef.current = now;
+    setGuidance(getGuidance(dominantChakra.name, meditationStage));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">
