@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-build:
+  frontend:
     name: Lint, Type Check & Build
     runs-on: ubuntu-latest
 
@@ -30,34 +30,13 @@ jobs:
         env:
           NODE_ENV: production
 
-  ml-lint:
-    name: Python ML Lint
+  ml:
+    name: ML Lint + Test + Coverage
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: ml/requirements.txt
-
-      - name: Install Python dependencies
-        run: |
-          cd ml
-          pip install -r requirements.txt
-          pip install ruff
-
-      - name: Lint Python code
-        run: |
-          cd ml
-          ruff check .
-
-  ml-test:
-    name: ML Service Tests
-    runs-on: ubuntu-latest
-    needs: ml-lint
+    defaults:
+      run:
+        working-directory: ml
 
     steps:
       - uses: actions/checkout@v4
@@ -69,154 +48,22 @@ jobs:
           cache-dependency-path: ml/requirements.txt
 
       - name: Install dependencies
-        run: |
-          cd ml
-          pip install -r requirements.txt
-          pip install pytest httpx pytest-cov
+        run: pip install -r requirements.txt ruff pytest httpx pytest-cov
 
-      - name: Test ML service health
-        run: |
-          cd ml
-          python -c "
-          from main import app
-          from fastapi.testclient import TestClient
-          client = TestClient(app)
-          r = client.get('/health')
-          assert r.status_code == 200
-          assert r.json()['status'] == 'healthy'
-          print('Health check: PASSED')
-          "
+      - name: Lint Python code
+        run: ruff check .
 
-      - name: Test model loading
-        run: |
-          cd ml
-          python -c "
-          from main import app
-          from fastapi.testclient import TestClient
-          client = TestClient(app)
-          r = client.get('/api/models/status')
-          assert r.status_code == 200
-          data = r.json()
-          assert data['sleep_staging']['loaded'] == True
-          assert data['emotion_classifier']['loaded'] == True
-          assert data['dream_detector']['loaded'] == True
-          assert data['flow_state']['loaded'] == True
-          assert data['creativity']['loaded'] == True
-          assert data['memory_encoding']['loaded'] == True
-          print('Model loading: PASSED (6 models)')
-          "
-
-      - name: Test simulate-eeg endpoint
-        run: |
-          cd ml
-          python -c "
-          from main import app
-          from fastapi.testclient import TestClient
-          client = TestClient(app)
-          r = client.post('/api/simulate-eeg', json={
-              'state': 'rest', 'duration': 2.0, 'fs': 256, 'n_channels': 1
-          })
-          assert r.status_code == 200
-          data = r.json()
-          assert 'analysis' in data
-          assert 'emotions' in data['analysis']
-          assert 'emotion' in data['analysis']['emotions']
-          assert 'flow_state' in data['analysis']
-          assert 'flow_score' in data['analysis']['flow_state']
-          assert 'creativity' in data['analysis']
-          assert 'memory_encoding' in data['analysis']
-          print('Simulate-EEG: PASSED (6 analyses)')
-          "
-
-      - name: Test health endpoints
-        run: |
-          cd ml
-          python -c "
-          from main import app
-          from fastapi.testclient import TestClient
-          import time
-          client = TestClient(app)
-
-          # Supported metrics
-          r = client.get('/api/health/supported-metrics')
-          assert r.status_code == 200
-          data = r.json()
-          assert len(data['apple_health']['import']) >= 10
-          assert len(data['google_fit']) >= 10
-          assert len(data['health_connect']) >= 5
-          print('Health supported metrics: PASSED')
-
-          # Ingest Apple Health
-          r = client.post('/api/health/ingest', json={
-              'user_id': 'ci_test', 'source': 'apple_health',
-              'data': {'type': 'HKQuantityTypeIdentifierHeartRate',
-                       'samples': [{'startDate': '2024-01-01T10:00:00Z', 'value': 72}]}
-          })
-          assert r.status_code == 200 and r.json()['metric'] == 'heart_rate'
-          print('Health ingest (Apple): PASSED')
-
-          # Ingest Google Fit
-          r = client.post('/api/health/ingest', json={
-              'user_id': 'ci_test', 'source': 'google_fit',
-              'data': {'dataTypeName': 'com.google.step_count.delta',
-                       'point': [{'startTimeNanos': '1704067200000000000', 'value': [{'intVal': 8500}]}]}
-          })
-          assert r.status_code == 200 and r.json()['metric'] == 'steps'
-          print('Health ingest (Google Fit): PASSED')
-
-          # Store brain session
-          r = client.post('/api/health/brain-session', json={
-              'user_id': 'ci_test', 'session_id': 'ci_sess',
-              'start_time': time.time() - 1800, 'end_time': time.time(),
-              'analysis': {
-                  'flow_state': {'state': 'flow', 'flow_score': 0.8},
-                  'creativity': {'state': 'creative', 'creativity_score': 0.6},
-                  'memory_encoding': {'state': 'active', 'will_remember_probability': 0.7},
-                  'emotions': {'emotion': 'focused', 'valence': 0.6, 'arousal': 0.4},
-                  'sleep_stage': {}, 'dream_detection': {},
-              }
-          })
-          assert r.status_code == 200
-          print('Health brain session: PASSED')
-
-          # Daily summary
-          r = client.get('/api/health/daily-summary/ci_test')
-          assert r.status_code == 200 and 'brain' in r.json()
-          print('Health daily summary: PASSED')
-
-          # Export to HealthKit
-          r = client.post('/api/health/export-to-healthkit/ci_test', json={
-              'brain_session': {'start_time': '2024-01-01T10:00:00Z', 'end_time': '2024-01-01T10:30:00Z',
-                                'flow_state': {'state': 'deep_flow', 'flow_score': 0.9}, 'sleep_stage': {}}
-          })
-          assert r.status_code == 200
-          print('Health export to HealthKit: PASSED')
-          print('All health endpoint tests: PASSED')
-          "
-
-      - name: Test feature extraction
-        run: |
-          cd ml
-          python -c "
-          import numpy as np
-          from processing.eeg_processor import extract_features, preprocess
-          signal = np.random.randn(512)
-          processed = preprocess(signal, 256)
-          features = extract_features(processed, 256)
-          assert len(features) == 17, f'Expected 17 features, got {len(features)}'
-          print(f'Feature extraction: PASSED ({len(features)} features)')
-          "
+      - name: Run tests with coverage
+        run: pytest tests/ -v --tb=short --cov=. --cov-report=term-missing
 
       - name: ML inference benchmark
         run: |
-          cd ml
           python -c "
           import time, numpy as np
           from main import app
           from fastapi.testclient import TestClient
           client = TestClient(app)
 
-          # Benchmark simulate-eeg (runs all 12 models)
           times = []
           for i in range(3):
               start = time.time()
@@ -261,3 +108,29 @@ jobs:
           pip install pip-audit
           cd ml && pip-audit -r requirements.txt || true
         continue-on-error: true
+
+  deploy:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    needs: [frontend, ml]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel Environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
