@@ -299,6 +299,34 @@ function useDeviceInternal(): UseDeviceReturn {
     setLatestFrame(null);
   }, []);
 
+  // On mount: check if backend device is still connected/streaming (survives refresh)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await getDeviceStatus();
+        if (cancelled) return;
+        if (status.streaming) {
+          setDeviceStatus(status);
+          setSelectedDevice(status.device_type);
+          setBrainflowAvailable(status.brainflow_available);
+          setState("streaming");
+          isStreamingRef.current = true;
+          reconnectRef.current = 0;
+          openWebSocket();
+        } else if (status.connected) {
+          setDeviceStatus(status);
+          setSelectedDevice(status.device_type);
+          setBrainflowAvailable(status.brainflow_available);
+          setState("connected");
+        }
+      } catch {
+        // ML service not available
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [openWebSocket]);
+
   // Poll device status when connected
   useEffect(() => {
     if (state !== "connected" && state !== "streaming") return;

@@ -5,8 +5,6 @@ import { ScoreCircle } from "@/components/score-circle";
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   LineChart,
   Line,
   XAxis,
@@ -18,175 +16,196 @@ import {
 import {
   Heart,
   Activity,
-  Moon,
+  Brain,
   Sparkles,
-  Footprints,
-  Flame,
-  Wind,
+  Zap,
   TrendingUp,
+  Radio,
 } from "lucide-react";
-import {
-  getHealthDailySummary,
-  getHealthInsights,
-  getHealthTrends,
-  type HealthInsight,
-  type HealthTrend,
-} from "@/lib/ml-api";
+import { useDevice } from "@/hooks/use-device";
 
-/* ---------- simulated fallback data ---------- */
-function generateFallbackMetrics() {
-  return {
-    heartRate: 68 + Math.round(Math.random() * 12),
-    hrv: 35 + Math.round(Math.random() * 25),
-    steps: 5000 + Math.round(Math.random() * 7000),
-    sleepHours: +(6 + Math.random() * 2.5).toFixed(1),
-    calories: 1800 + Math.round(Math.random() * 600),
-    spO2: 95 + Math.round(Math.random() * 4),
-    respiratoryRate: 12 + Math.round(Math.random() * 6),
-    stressLevel: 20 + Math.round(Math.random() * 40),
-  };
-}
-
-function generateFallbackWeekly() {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return {
-      day: d.toLocaleDateString("en-US", { weekday: "short" }),
-      heartRate: 62 + Math.round(Math.random() * 15),
-      hrv: 30 + Math.round(Math.random() * 30),
-      steps: 4000 + Math.round(Math.random() * 8000),
-      sleep: +(5.5 + Math.random() * 3).toFixed(1),
-      stress: 15 + Math.round(Math.random() * 45),
-    };
-  });
-}
-
-function generateFallbackInsights(): HealthInsight[] {
-  return [
-    {
-      insight_type: "exercise_flow",
-      title: "Exercise boosts your flow state",
-      description: "On days with 8,000+ steps, your flow scores are 23% higher. Physical activity primes the brain for focused work.",
-      correlation_strength: 0.72,
-      evidence_count: 14,
-      brain_metric: "flow_score",
-      health_metric: "steps",
-    },
-    {
-      insight_type: "hrv_creativity",
-      title: "High HRV correlates with creativity",
-      description: "When your HRV is above 45ms, creativity scores increase significantly. Try breathing exercises to boost HRV.",
-      correlation_strength: 0.65,
-      evidence_count: 11,
-      brain_metric: "creativity_score",
-      health_metric: "hrv_sdnn",
-    },
-    {
-      insight_type: "sleep_memory",
-      title: "Deep sleep strengthens memory encoding",
-      description: "Nights with 7+ hours of sleep show 35% better memory encoding the next day. Prioritize sleep consistency.",
-      correlation_strength: 0.81,
-      evidence_count: 18,
-      brain_metric: "encoding_score",
-      health_metric: "sleep_analysis",
-    },
-    {
-      insight_type: "heart_rate_arousal",
-      title: "Elevated heart rate tracks emotional arousal",
-      description: "Your resting heart rate closely tracks emotional arousal patterns. Calming techniques lower both simultaneously.",
-      correlation_strength: 0.58,
-      evidence_count: 22,
-      brain_metric: "arousal",
-      health_metric: "heart_rate",
-    },
-  ];
+/* ---------- types ---------- */
+interface HealthPoint {
+  time: string;
+  stress: number;
+  focus: number;
+  relaxation: number;
+  cogLoad: number;
 }
 
 /* ========== Component ========== */
 export default function HealthAnalytics() {
-  const [metrics] = useState(generateFallbackMetrics);
-  const [weekly] = useState(generateFallbackWeekly);
-  const [insights, setInsights] = useState<HealthInsight[]>(generateFallbackInsights);
-  const [apiConnected, setApiConnected] = useState(false);
+  const { latestFrame, state: deviceState } = useDevice();
+  const isStreaming = deviceState === "streaming";
+  const analysis = latestFrame?.analysis;
 
-  // Try to fetch real data from backend
+  // Extract live metrics from ML models
+  const emotions = analysis?.emotions;
+  const stress = analysis?.stress;
+  const attention = analysis?.attention;
+  const cognitiveLoad = analysis?.cognitive_load;
+  const flowState = analysis?.flow_state;
+  const creativity = analysis?.creativity;
+  const drowsiness = analysis?.drowsiness;
+  const memoryEncoding = analysis?.memory_encoding;
+
+  // Current metrics
+  const stressIndex = isStreaming ? Math.round((stress?.stress_index ?? emotions?.stress_index ?? 0) * 100) : 0;
+  const focusScore = isStreaming ? Math.round((attention?.attention_score ?? emotions?.focus_index ?? 0) * 100) : 0;
+  const relaxScore = isStreaming ? Math.round((emotions?.relaxation_index ?? 0) * 100) : 0;
+  const cogLoadIndex = isStreaming ? Math.round((cognitiveLoad?.load_index ?? 0) * 100) : 0;
+  const flowScore = isStreaming ? Math.round((flowState?.flow_score ?? 0) * 100) : 0;
+  const creativityScore = isStreaming ? Math.round((creativity?.creativity_score ?? 0) * 100) : 0;
+  const drowsinessIndex = isStreaming ? Math.round((drowsiness?.drowsiness_index ?? 0) * 100) : 0;
+  const memoryScore = isStreaming ? Math.round((memoryEncoding?.encoding_score ?? 0) * 100) : 0;
+
+  // Composite scores
+  const brainHealthScore = isStreaming
+    ? Math.round(focusScore * 0.25 + relaxScore * 0.25 + (100 - stressIndex) * 0.25 + flowScore * 0.25)
+    : 0;
+  const cognitiveScore = isStreaming
+    ? Math.round(focusScore * 0.3 + creativityScore * 0.25 + memoryScore * 0.25 + (100 - drowsinessIndex) * 0.2)
+    : 0;
+  const wellbeingScore = isStreaming
+    ? Math.round(relaxScore * 0.35 + (100 - stressIndex) * 0.35 + flowScore * 0.3)
+    : 0;
+
+  // Accumulate timeline
+  const [timeline, setTimeline] = useState<HealthPoint[]>([]);
+
   useEffect(() => {
-    async function fetchReal() {
-      try {
-        const realInsights = await getHealthInsights("demo-user");
-        if (realInsights && realInsights.length > 0) {
-          setInsights(realInsights);
-          setApiConnected(true);
-        }
-      } catch {
-        // Backend not available, use fallback data
-      }
-    }
-    fetchReal();
-  }, []);
+    if (!isStreaming || !analysis) return;
+    const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    setTimeline((prev) => [
+      ...prev.slice(-60),
+      {
+        time: now,
+        stress: stressIndex,
+        focus: focusScore,
+        relaxation: relaxScore,
+        cogLoad: cogLoadIndex,
+      },
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
 
-  const sleepScore = Math.round(Math.min(100, (metrics.sleepHours / 8) * 100));
-  const activityScore = Math.round(Math.min(100, (metrics.steps / 10000) * 100));
-  const heartScore = Math.round(Math.max(0, 100 - Math.abs(metrics.heartRate - 70) * 2));
+  // Derive insights from current live data
+  const insights = [];
+  if (isStreaming) {
+    if (flowScore > 60) {
+      insights.push({
+        title: "Flow State Active",
+        description: `Your flow score is ${flowScore}%. This is optimal for deep work and creative problem solving. Minimize interruptions.`,
+        strength: flowScore / 100,
+        brain: "flow_score",
+        health: "focus",
+      });
+    }
+    if (stressIndex > 50) {
+      insights.push({
+        title: "Elevated Stress Detected",
+        description: `Stress index at ${stressIndex}%. Consider a breathing exercise or short break. High stress reduces cognitive performance.`,
+        strength: stressIndex / 100,
+        brain: "stress_index",
+        health: "relaxation",
+      });
+    }
+    if (creativityScore > 50) {
+      insights.push({
+        title: "Creative State Detected",
+        description: `Creativity score at ${creativityScore}%. Your theta-alpha ratio suggests heightened divergent thinking. Good time for brainstorming.`,
+        strength: creativityScore / 100,
+        brain: "creativity",
+        health: "cognitive",
+      });
+    }
+    if (memoryScore > 60) {
+      insights.push({
+        title: "Strong Memory Encoding",
+        description: `Memory encoding score at ${memoryScore}%. Your brain is actively consolidating information. Great time for learning.`,
+        strength: memoryScore / 100,
+        brain: "memory",
+        health: "encoding",
+      });
+    }
+    if (drowsinessIndex > 60) {
+      insights.push({
+        title: "Drowsiness Alert",
+        description: `Drowsiness index at ${drowsinessIndex}%. Consider a short break or physical activity to restore alertness.`,
+        strength: drowsinessIndex / 100,
+        brain: "drowsiness",
+        health: "alertness",
+      });
+    }
+    if (insights.length === 0) {
+      insights.push({
+        title: "Balanced Brain State",
+        description: "Your neural patterns are balanced. All metrics within normal ranges. Keep up the good work!",
+        strength: 0.5,
+        brain: "overall",
+        health: "balance",
+      });
+    }
+  }
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">
+      {/* Connection Banner */}
+      {!isStreaming && (
+        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0" />
+          Connect your Muse 2 from the sidebar to see live health analytics.
+        </div>
+      )}
+
       {/* Score Gauges */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="score-card p-4 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={heartScore}
-            label="Heart"
-            gradientId="grad-heart"
-            colorFrom="hsl(4, 72%, 55%)"
-            colorTo="hsl(25, 85%, 55%)"
+            value={brainHealthScore}
+            label="Brain Health"
+            gradientId="grad-brain-health"
+            colorFrom="hsl(152, 60%, 48%)"
+            colorTo="hsl(200, 70%, 55%)"
             size="sm"
           />
-          <p className="text-xs text-muted-foreground mt-1">{metrics.heartRate} BPM</p>
+          <p className="text-xs text-muted-foreground mt-1">Focus + Relaxation + Low Stress</p>
         </div>
         <div className="score-card p-4 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={sleepScore}
-            label="Sleep"
-            gradientId="grad-health-sleep"
+            value={cognitiveScore}
+            label="Cognitive"
+            gradientId="grad-cognitive"
             colorFrom="hsl(262, 45%, 65%)"
             colorTo="hsl(220, 50%, 50%)"
             size="sm"
           />
-          <p className="text-xs text-muted-foreground mt-1">{metrics.sleepHours}h</p>
+          <p className="text-xs text-muted-foreground mt-1">Focus + Creativity + Memory</p>
         </div>
         <div className="score-card p-4 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={activityScore}
-            label="Activity"
-            gradientId="grad-activity"
-            colorFrom="hsl(152, 60%, 48%)"
-            colorTo="hsl(38, 85%, 58%)"
+            value={wellbeingScore}
+            label="Wellbeing"
+            gradientId="grad-wellbeing"
+            colorFrom="hsl(38, 85%, 58%)"
+            colorTo="hsl(25, 85%, 55%)"
             size="sm"
           />
-          <p className="text-xs text-muted-foreground mt-1">{metrics.steps.toLocaleString()} steps</p>
-        </div>
-        <div className="score-card p-4 flex flex-col items-center hover-glow">
-          <ScoreCircle
-            value={metrics.spO2}
-            label="SpO2"
-            gradientId="grad-spo2"
-            colorFrom="hsl(200, 70%, 55%)"
-            colorTo="hsl(152, 60%, 48%)"
-            size="sm"
-          />
-          <p className="text-xs text-muted-foreground mt-1">{metrics.spO2}%</p>
+          <p className="text-xs text-muted-foreground mt-1">Relaxation + Low Stress + Flow</p>
         </div>
       </div>
 
       {/* Vital Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: Heart, label: "HRV", value: `${metrics.hrv}ms`, color: "text-destructive" },
-          { icon: Wind, label: "Resp Rate", value: `${metrics.respiratoryRate}/min`, color: "text-primary" },
-          { icon: Flame, label: "Calories", value: metrics.calories.toLocaleString(), color: "text-accent" },
-          { icon: Activity, label: "Stress", value: `${metrics.stressLevel}%`, color: metrics.stressLevel > 50 ? "text-warning" : "text-success" },
+          { icon: Activity, label: "Stress", value: `${stressIndex}%`, color: stressIndex > 50 ? "text-warning" : "text-success" },
+          { icon: Brain, label: "Focus", value: `${focusScore}%`, color: "text-primary" },
+          { icon: Zap, label: "Flow", value: `${flowScore}%`, color: "text-accent" },
+          { icon: Heart, label: "Relaxation", value: `${relaxScore}%`, color: "text-success" },
+          { icon: TrendingUp, label: "Creativity", value: `${creativityScore}%`, color: "text-secondary" },
+          { icon: Brain, label: "Memory", value: `${memoryScore}%`, color: "text-primary" },
+          { icon: Activity, label: "Cog Load", value: `${cogLoadIndex}%`, color: cogLoadIndex > 70 ? "text-warning" : "text-foreground" },
+          { icon: Activity, label: "Drowsiness", value: `${drowsinessIndex}%`, color: drowsinessIndex > 60 ? "text-warning" : "text-success" },
         ].map((stat) => {
           const Icon = stat.icon;
           return (
@@ -201,155 +220,123 @@ export default function HealthAnalytics() {
         })}
       </div>
 
-      {/* Weekly Trends */}
+      {/* Timeline */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Heart Rate & HRV */}
+        {/* Stress & Relaxation */}
         <Card className="glass-card p-5 hover-glow">
           <div className="flex items-center gap-2 mb-4">
-            <Heart className="h-4 w-4 text-destructive" />
-            <h3 className="text-sm font-medium">Heart Rate & HRV — 7 Days</h3>
+            <Heart className="h-4 w-4 text-success" />
+            <h3 className="text-sm font-medium">Stress vs Relaxation</h3>
+            {isStreaming && (
+              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+            )}
           </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={weekly}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: "hsl(38, 20%, 92%)" }}
-              />
-              <Line type="monotone" dataKey="heartRate" stroke="hsl(4, 72%, 55%)" strokeWidth={2} dot={{ r: 3 }} name="HR (BPM)" />
-              <Line type="monotone" dataKey="hrv" stroke="hsl(200, 70%, 55%)" strokeWidth={2} dot={{ r: 3 }} name="HRV (ms)" />
-            </LineChart>
-          </ResponsiveContainer>
+          {timeline.length < 2 ? (
+            <div className="h-[180px] flex items-center justify-center text-sm text-muted-foreground">
+              {isStreaming ? "Collecting data..." : "Connect device to see trends"}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={timeline.slice(-30)}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                />
+                <Line type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" strokeWidth={2} dot={false} name="Stress %" />
+                <Line type="monotone" dataKey="relaxation" stroke="hsl(152, 60%, 48%)" strokeWidth={2} dot={false} name="Relaxation %" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </Card>
 
-        {/* Steps */}
+        {/* Focus & Cognitive Load */}
         <Card className="glass-card p-5 hover-glow">
           <div className="flex items-center gap-2 mb-4">
-            <Footprints className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium">Daily Steps — 7 Days</h3>
+            <Brain className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-medium">Focus & Cognitive Load</h3>
+            {isStreaming && (
+              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+            )}
           </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={weekly}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-              <YAxis hide />
-              <Tooltip
-                contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: "hsl(38, 20%, 92%)" }}
-              />
-              <Bar dataKey="steps" fill="hsl(152, 60%, 48%)" radius={[4, 4, 0, 0]} name="Steps" />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-
-        {/* Sleep Duration */}
-        <Card className="glass-card p-5 hover-glow">
-          <div className="flex items-center gap-2 mb-4">
-            <Moon className="h-4 w-4 text-secondary" />
-            <h3 className="text-sm font-medium">Sleep Duration — 7 Days</h3>
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={weekly}>
-              <defs>
-                <linearGradient id="sleepHealthGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-              <YAxis domain={[4, 10]} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: "hsl(38, 20%, 92%)" }}
-              />
-              <Area type="monotone" dataKey="sleep" stroke="hsl(262, 45%, 65%)" fill="url(#sleepHealthGrad)" strokeWidth={2} name="Sleep (h)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Card>
-
-        {/* Stress Levels */}
-        <Card className="glass-card p-5 hover-glow">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-warning" />
-            <h3 className="text-sm font-medium">Stress Level — 7 Days</h3>
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={weekly}>
-              <defs>
-                <linearGradient id="stressHealthGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: "hsl(38, 20%, 92%)" }}
-              />
-              <Area type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" fill="url(#stressHealthGrad)" strokeWidth={2} name="Stress %" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {timeline.length < 2 ? (
+            <div className="h-[180px] flex items-center justify-center text-sm text-muted-foreground">
+              {isStreaming ? "Collecting data..." : "Connect device to see trends"}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={timeline.slice(-30)}>
+                <defs>
+                  <linearGradient id="focusGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(200, 70%, 55%)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="hsl(200, 70%, 55%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                />
+                <Area type="monotone" dataKey="focus" stroke="hsl(200, 70%, 55%)" fill="url(#focusGrad)" strokeWidth={2} dot={false} name="Focus %" />
+                <Line type="monotone" dataKey="cogLoad" stroke="hsl(262, 45%, 65%)" strokeWidth={1.5} dot={false} name="Cog Load %" strokeDasharray="4 4" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </Card>
       </div>
 
-      {/* Brain-Health Correlations */}
-      <Card className="glass-card p-5 hover-glow">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium">Brain-Health Correlations</h3>
-          </div>
-          <Badge variant={apiConnected ? "default" : "secondary"} className="text-[10px]">
-            {apiConnected ? "Live Data" : "Simulated"}
-          </Badge>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {insights.map((insight, i) => (
-            <div
-              key={i}
-              className="p-4 rounded-xl"
-              style={{
-                background: "hsl(220, 22%, 8%)",
-                border: "1px solid hsl(220, 18%, 13%)",
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-medium text-foreground">{insight.title}</h4>
-                <span
-                  className="text-[10px] font-mono px-2 py-0.5 rounded-full"
-                  style={{
-                    background: `hsl(152, 60%, 48%, ${insight.correlation_strength * 0.2})`,
-                    color: "hsl(152, 60%, 48%)",
-                  }}
-                >
-                  r={insight.correlation_strength.toFixed(2)}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {insight.description}
-              </p>
-              <div className="flex gap-2 mt-2">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                  {insight.brain_metric.replace(/_/g, " ")}
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">
-                  {insight.health_metric.replace(/_/g, " ")}
-                </span>
-                {insight.evidence_count > 0 && (
-                  <span className="text-[10px] text-muted-foreground/60">
-                    {insight.evidence_count} data points
-                  </span>
-                )}
-              </div>
+      {/* Brain-Health Insights */}
+      {insights.length > 0 && (
+        <Card className="glass-card p-5 hover-glow">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-medium">Brain-Health Insights</h3>
             </div>
-          ))}
-        </div>
-      </Card>
+            <Badge variant={isStreaming ? "default" : "secondary"} className="text-[10px]">
+              {isStreaming ? "Live Data" : "No Data"}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {insights.map((insight, i) => (
+              <div
+                key={i}
+                className="p-4 rounded-xl"
+                style={{
+                  background: "hsl(220, 22%, 8%)",
+                  border: "1px solid hsl(220, 18%, 13%)",
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium text-foreground">{insight.title}</h4>
+                  <span
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+                    style={{
+                      background: `hsl(152, 60%, 48%, ${insight.strength * 0.2})`,
+                      color: "hsl(152, 60%, 48%)",
+                    }}
+                  >
+                    {Math.round(insight.strength * 100)}%
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{insight.description}</p>
+                <div className="flex gap-2 mt-2">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                    {insight.brain.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">
+                    {insight.health}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </main>
   );
 }

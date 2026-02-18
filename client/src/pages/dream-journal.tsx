@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
@@ -10,22 +10,13 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
-import { Moon, Brain, Eye, Sparkles, Waves, Activity } from "lucide-react";
+import { Moon, Brain, Eye, Sparkles, Waves, Activity, Radio } from "lucide-react";
+import { useDevice } from "@/hooks/use-device";
 
 /* ---------- types ---------- */
-interface DreamState {
-  isDreaming: boolean;
-  probability: number;
-  remLikelihood: number;
-  dreamIntensity: number;
-  lucidityEstimate: number;
-  sleepStage: string;
-  sleepStageConfidence: number;
-}
-
 interface DreamEpisode {
   startTime: string;
-  duration: number; // minutes
+  duration: number;
   intensity: number;
   lucidity: number;
   remProbability: number;
@@ -47,118 +38,96 @@ const STAGE_LABELS: Record<string, { label: string; color: string }> = {
   REM: { label: "REM", color: "hsl(152, 60%, 48%)" },
 };
 
-function generateDreamEpisodes(): DreamEpisode[] {
-  const episodes: DreamEpisode[] = [];
-  const now = new Date();
-  // Simulate detected dream episodes from last night
-  const dreamCount = 2 + Math.floor(Math.random() * 3);
-  for (let i = 0; i < dreamCount; i++) {
-    const hoursAgo = 2 + i * 1.5 + Math.random();
-    const t = new Date(now.getTime() - hoursAgo * 3600000);
-    episodes.push({
-      startTime: t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-      duration: Math.round(5 + Math.random() * 25),
-      intensity: Math.round(30 + Math.random() * 60),
-      lucidity: Math.round(5 + Math.random() * 40),
-      remProbability: Math.round(60 + Math.random() * 35),
-      stage: Math.random() > 0.3 ? "REM" : "N2",
-    });
-  }
-  return episodes.reverse();
-}
-
 /* ========== Component ========== */
 export default function DreamDetection() {
-  const [dreamState, setDreamState] = useState<DreamState>({
-    isDreaming: false,
-    probability: 0.12,
-    remLikelihood: 0.08,
-    dreamIntensity: 15,
-    lucidityEstimate: 5,
-    sleepStage: "Wake",
-    sleepStageConfidence: 0.85,
-  });
+  const { latestFrame, state: deviceState } = useDevice();
+  const isStreaming = deviceState === "streaming";
+  const analysis = latestFrame?.analysis;
 
-  const [episodes] = useState<DreamEpisode[]>(generateDreamEpisodes);
+  const dreamDetection = analysis?.dream_detection;
+  const sleepStaging = analysis?.sleep_staging;
+  const lucidDream = analysis?.lucid_dream;
 
-  const [sleepTimeline, setSleepTimeline] = useState<SleepPoint[]>(() => {
-    return Array.from({ length: 20 }, (_, i) => {
-      const t = new Date(Date.now() - (19 - i) * 5 * 60000);
-      return {
-        time: t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-        rem: Math.random() * 40,
-        dreamProb: Math.random() * 30,
-      };
-    });
-  });
+  // Live dream state
+  const isDreaming = dreamDetection?.is_dreaming ?? false;
+  const dreamProbability = dreamDetection?.probability ?? 0;
+  const remLikelihood = dreamDetection?.rem_likelihood ?? 0;
+  const dreamIntensity = Math.round((dreamDetection?.dream_intensity ?? 0) * 100);
+  const lucidityEstimate = Math.round((dreamDetection?.lucidity_estimate ?? 0) * 100);
+  const sleepStage = sleepStaging?.stage ?? "Wake";
+  const sleepStageConfidence = sleepStaging?.confidence ?? 0;
 
-  const update = useCallback(() => {
-    setDreamState((prev) => {
-      const remLikelihood = Math.max(0, Math.min(1, prev.remLikelihood + (Math.random() - 0.5) * 0.08));
-      const probability = Math.max(0, Math.min(1, remLikelihood * 0.7 + Math.random() * 0.15));
-      const isDreaming = probability > 0.55;
-      const dreamIntensity = isDreaming
-        ? Math.round(40 + Math.random() * 50)
-        : Math.round(Math.max(0, prev.dreamIntensity * 0.8 + Math.random() * 5));
-      const lucidityEstimate = isDreaming
-        ? Math.round(10 + Math.random() * 35)
-        : Math.round(Math.max(0, prev.lucidityEstimate * 0.7));
-
-      const stages = ["Wake", "N1", "N2", "N3", "REM"];
-      const stageWeights = [
-        1 - remLikelihood,
-        remLikelihood * 0.2,
-        0.3,
-        0.15,
-        remLikelihood * 0.8,
-      ];
-      const maxIdx = stageWeights.indexOf(Math.max(...stageWeights));
-
-      return {
-        isDreaming,
-        probability,
-        remLikelihood,
-        dreamIntensity,
-        lucidityEstimate,
-        sleepStage: stages[maxIdx],
-        sleepStageConfidence: 0.6 + Math.random() * 0.35,
-      };
-    });
-
-    setSleepTimeline((prev) => {
-      const now = new Date();
-      return [
-        ...prev.slice(1),
-        {
-          time: now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-          rem: Math.random() * 50,
-          dreamProb: Math.random() * 40,
-        },
-      ];
-    });
-  }, []);
+  // Accumulate sleep timeline from live data
+  const [sleepTimeline, setSleepTimeline] = useState<SleepPoint[]>([]);
 
   useEffect(() => {
-    const interval = setInterval(update, 4000);
-    return () => clearInterval(interval);
-  }, [update]);
+    if (!isStreaming || !dreamDetection) return;
+    const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    setSleepTimeline((prev) => [
+      ...prev.slice(-40),
+      {
+        time: now,
+        rem: Math.round(remLikelihood * 100),
+        dreamProb: Math.round(dreamProbability * 100),
+      },
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
 
-  const stageInfo = STAGE_LABELS[dreamState.sleepStage] || STAGE_LABELS.Wake;
+  // Detect dream episodes — track transitions
+  const [episodes, setEpisodes] = useState<DreamEpisode[]>([]);
+  const wasDreamingRef = useRef(false);
+  const dreamStartRef = useRef<Date | null>(null);
+
+  useEffect(() => {
+    if (!isStreaming) return;
+
+    if (isDreaming && !wasDreamingRef.current) {
+      // Dream just started
+      dreamStartRef.current = new Date();
+      wasDreamingRef.current = true;
+    } else if (!isDreaming && wasDreamingRef.current && dreamStartRef.current) {
+      // Dream just ended — record episode
+      const duration = Math.round((Date.now() - dreamStartRef.current.getTime()) / 60000);
+      setEpisodes((prev) => [
+        ...prev,
+        {
+          startTime: dreamStartRef.current!.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+          duration: Math.max(1, duration),
+          intensity: dreamIntensity,
+          lucidity: lucidityEstimate,
+          remProbability: Math.round(remLikelihood * 100),
+          stage: sleepStage === "REM" ? "REM" : sleepStage,
+        },
+      ]);
+      wasDreamingRef.current = false;
+      dreamStartRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDreaming, isStreaming]);
+
+  const stageInfo = STAGE_LABELS[sleepStage] || STAGE_LABELS.Wake;
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">
+      {/* Connection Banner */}
+      {!isStreaming && (
+        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0" />
+          Connect your Muse 2 from the sidebar to see live dream detection data.
+        </div>
+      )}
+
       {/* Live Detection Status */}
-      {dreamState.isDreaming && (
+      {isDreaming && isStreaming && (
         <div className="shift-alert-calm">
           <div className="flex items-start gap-3">
             <Moon className="h-5 w-5 text-success mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-foreground">
-                Dream State Detected
-              </p>
+              <p className="text-sm font-medium text-foreground">Dream State Detected</p>
               <p className="text-sm text-muted-foreground mt-1">
-                REM activity detected with {Math.round(dreamState.probability * 100)}% confidence.
-                Dream intensity: {dreamState.dreamIntensity}%. Lucidity: {dreamState.lucidityEstimate}%.
+                REM activity detected with {Math.round(dreamProbability * 100)}% confidence.
+                Dream intensity: {dreamIntensity}%. Lucidity: {lucidityEstimate}%.
               </p>
             </div>
           </div>
@@ -169,7 +138,7 @@ export default function DreamDetection() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="score-card p-4 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={Math.round(dreamState.probability * 100)}
+            value={isStreaming ? Math.round(dreamProbability * 100) : 0}
             label="Dream Prob"
             gradientId="grad-dream-prob"
             colorFrom="hsl(262, 45%, 65%)"
@@ -179,7 +148,7 @@ export default function DreamDetection() {
         </div>
         <div className="score-card p-4 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={Math.round(dreamState.remLikelihood * 100)}
+            value={isStreaming ? Math.round(remLikelihood * 100) : 0}
             label="REM"
             gradientId="grad-rem"
             colorFrom="hsl(152, 60%, 48%)"
@@ -189,7 +158,7 @@ export default function DreamDetection() {
         </div>
         <div className="score-card p-4 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={dreamState.dreamIntensity}
+            value={isStreaming ? dreamIntensity : 0}
             label="Intensity"
             gradientId="grad-intensity"
             colorFrom="hsl(38, 85%, 58%)"
@@ -199,7 +168,7 @@ export default function DreamDetection() {
         </div>
         <div className="score-card p-4 flex flex-col items-center hover-glow">
           <ScoreCircle
-            value={dreamState.lucidityEstimate}
+            value={isStreaming ? lucidityEstimate : 0}
             label="Lucidity"
             gradientId="grad-lucidity"
             colorFrom="hsl(200, 70%, 55%)"
@@ -216,23 +185,26 @@ export default function DreamDetection() {
           <div className="flex items-center gap-2 mb-4">
             <Brain className="h-4 w-4 text-secondary" />
             <h3 className="text-sm font-medium">Sleep Stage</h3>
+            {isStreaming && (
+              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+            )}
           </div>
           <div className="text-center py-4">
             <div
               className="w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-3"
               style={{
-                background: `${stageInfo.color}20`,
-                border: `2px solid ${stageInfo.color}`,
-                boxShadow: `0 0 12px ${stageInfo.color}33`,
+                background: isStreaming ? `${stageInfo.color}20` : "hsl(220, 22%, 12%)",
+                border: `2px solid ${isStreaming ? stageInfo.color : "hsl(220, 18%, 20%)"}`,
+                boxShadow: isStreaming ? `0 0 12px ${stageInfo.color}33` : "none",
               }}
             >
-              <Waves className="h-6 w-6" style={{ color: stageInfo.color }} />
+              <Waves className="h-6 w-6" style={{ color: isStreaming ? stageInfo.color : "hsl(220, 12%, 42%)" }} />
             </div>
-            <p className="text-lg font-semibold" style={{ color: stageInfo.color }}>
-              {stageInfo.label}
+            <p className="text-lg font-semibold" style={{ color: isStreaming ? stageInfo.color : "hsl(220, 12%, 42%)" }}>
+              {isStreaming ? stageInfo.label : "—"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {Math.round(dreamState.sleepStageConfidence * 100)}% confidence
+              {isStreaming ? `${Math.round(sleepStageConfidence * 100)}% confidence` : "No data"}
             </p>
           </div>
           <div className="mt-3 pt-3 border-t border-border/30 space-y-2">
@@ -242,14 +214,12 @@ export default function DreamDetection() {
                   className="w-2 h-2 rounded-full shrink-0"
                   style={{
                     backgroundColor: info.color,
-                    opacity: dreamState.sleepStage === key ? 1 : 0.3,
+                    opacity: sleepStage === key ? 1 : 0.3,
                   }}
                 />
                 <span
                   className={
-                    dreamState.sleepStage === key
-                      ? "text-foreground font-medium"
-                      : "text-muted-foreground"
+                    sleepStage === key ? "text-foreground font-medium" : "text-muted-foreground"
                   }
                 >
                   {info.label}
@@ -264,57 +234,44 @@ export default function DreamDetection() {
           <div className="flex items-center gap-2 mb-4">
             <Activity className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-medium">REM & Dream Activity</h3>
+            {isStreaming && (
+              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+            )}
           </div>
           <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sleepTimeline}>
-                <defs>
-                  <linearGradient id="remGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="dreamProbGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="time"
-                  tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis hide domain={[0, 60]} />
-                <Tooltip
-                  contentStyle={{
-                    background: "hsl(220, 22%, 9%)",
-                    border: "1px solid hsl(220, 18%, 20%)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                  labelStyle={{ color: "hsl(38, 20%, 92%)" }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="rem"
-                  stroke="hsl(152, 60%, 48%)"
-                  fill="url(#remGrad)"
-                  strokeWidth={2}
-                  dot={false}
-                  name="REM Activity"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="dreamProb"
-                  stroke="hsl(262, 45%, 65%)"
-                  fill="url(#dreamProbGrad)"
-                  strokeWidth={1.5}
-                  dot={false}
-                  name="Dream Probability"
-                  strokeDasharray="4 4"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {sleepTimeline.length < 2 ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                {isStreaming ? "Collecting data..." : "Connect device to see dream activity"}
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sleepTimeline.slice(-30)}>
+                  <defs>
+                    <linearGradient id="remGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="dreamProbGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
+                  <YAxis hide domain={[0, 100]} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(220, 22%, 9%)",
+                      border: "1px solid hsl(220, 18%, 20%)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                    labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                  />
+                  <Area type="monotone" dataKey="rem" stroke="hsl(152, 60%, 48%)" fill="url(#remGrad)" strokeWidth={2} dot={false} name="REM Activity %" />
+                  <Area type="monotone" dataKey="dreamProb" stroke="hsl(262, 45%, 65%)" fill="url(#dreamProbGrad)" strokeWidth={1.5} dot={false} name="Dream Prob %" strokeDasharray="4 4" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Card>
       </div>
@@ -333,7 +290,9 @@ export default function DreamDetection() {
 
         {episodes.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
-            No dream episodes detected yet. Connect your BCI device and sleep to begin detection.
+            {isStreaming
+              ? "No dream episodes detected yet. Dream episodes are recorded when the dream detection model identifies REM-like activity."
+              : "Connect your BCI device and sleep to begin detection."}
           </p>
         ) : (
           <div className="space-y-3">
@@ -349,19 +308,13 @@ export default function DreamDetection() {
                 <div
                   className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                   style={{
-                    background:
-                      ep.stage === "REM"
-                        ? "hsl(152, 60%, 48%, 0.15)"
-                        : "hsl(262, 45%, 65%, 0.15)",
+                    background: ep.stage === "REM" ? "hsl(152, 60%, 48%, 0.15)" : "hsl(262, 45%, 65%, 0.15)",
                   }}
                 >
                   <Moon
                     className="h-5 w-5"
                     style={{
-                      color:
-                        ep.stage === "REM"
-                          ? "hsl(152, 60%, 48%)"
-                          : "hsl(262, 45%, 65%)",
+                      color: ep.stage === "REM" ? "hsl(152, 60%, 48%)" : "hsl(262, 45%, 65%)",
                     }}
                   />
                 </div>
@@ -372,14 +325,8 @@ export default function DreamDetection() {
                       variant="outline"
                       className="text-[10px] px-1.5 py-0"
                       style={{
-                        borderColor:
-                          ep.stage === "REM"
-                            ? "hsl(152, 60%, 48%, 0.4)"
-                            : "hsl(262, 45%, 65%, 0.4)",
-                        color:
-                          ep.stage === "REM"
-                            ? "hsl(152, 60%, 48%)"
-                            : "hsl(262, 45%, 65%)",
+                        borderColor: ep.stage === "REM" ? "hsl(152, 60%, 48%, 0.4)" : "hsl(262, 45%, 65%, 0.4)",
+                        color: ep.stage === "REM" ? "hsl(152, 60%, 48%)" : "hsl(262, 45%, 65%)",
                       }}
                     >
                       {ep.stage}
@@ -400,21 +347,23 @@ export default function DreamDetection() {
       </Card>
 
       {/* AI Interpretation */}
-      <div className="ai-insight-card">
-        <div className="flex items-start gap-3">
-          <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-foreground mb-1">Dream Analysis</p>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {episodes.length >= 3
-                ? `${episodes.length} dream episodes detected overnight with an average REM probability of ${Math.round(episodes.reduce((s, e) => s + e.remProbability, 0) / episodes.length)}%. Your dream intensity pattern suggests active memory consolidation. Higher lucidity estimates in later cycles indicate healthy sleep architecture.`
-                : episodes.length > 0
-                  ? `${episodes.length} dream episode${episodes.length > 1 ? "s" : ""} detected. Dream patterns are still building — more overnight data will reveal your unique dream signature and REM cycling patterns.`
-                  : "No dream episodes detected yet. Connect your BCI headband before sleep to enable automatic dream detection via REM and EEG spectral analysis."}
-            </p>
+      {isStreaming && (
+        <div className="ai-insight-card">
+          <div className="flex items-start gap-3">
+            <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-foreground mb-1">Dream Analysis</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {episodes.length >= 3
+                  ? `${episodes.length} dream episodes detected with an average REM probability of ${Math.round(episodes.reduce((s, e) => s + e.remProbability, 0) / episodes.length)}%. Your dream intensity pattern suggests active memory consolidation. Higher lucidity estimates in later cycles indicate healthy sleep architecture.`
+                  : episodes.length > 0
+                    ? `${episodes.length} dream episode${episodes.length > 1 ? "s" : ""} detected. Dream patterns are still building — more data will reveal your unique dream signature and REM cycling patterns.`
+                    : `Currently monitoring sleep stage: ${stageInfo.label}. Dream detection is active — episodes will be recorded automatically when REM-like patterns are identified.`}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }

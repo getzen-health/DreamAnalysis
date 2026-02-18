@@ -11,14 +11,14 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Headphones, Play, Square, Volume2, VolumeX, Trophy, Target, Timer } from "lucide-react";
+import { Headphones, Play, Square, Volume2, VolumeX, Trophy, Target, Timer, Radio } from "lucide-react";
 import {
   getNeurofeedbackProtocols,
   startNeurofeedback,
   evaluateNeurofeedback,
   stopNeurofeedback,
-  simulateEEG,
 } from "@/lib/ml-api";
+import { useDevice } from "@/hooks/use-device";
 
 type SessionPhase = "idle" | "calibrating" | "training" | "summary";
 
@@ -31,6 +31,10 @@ interface SessionStats {
 }
 
 export default function Neurofeedback() {
+  const { latestFrame, state: deviceState } = useDevice();
+  const isStreaming = deviceState === "streaming";
+  const bandPowers = latestFrame?.analysis?.band_powers;
+
   const [phase, setPhase] = useState<SessionPhase>("idle");
   const [protocols, setProtocols] = useState<Record<string, { name: string; description: string }>>({});
   const [selectedProtocol, setSelectedProtocol] = useState("alpha_up");
@@ -38,7 +42,6 @@ export default function Neurofeedback() {
   const [score, setScore] = useState(0);
   const [reward, setReward] = useState(false);
   const [streak, setStreak] = useState(0);
-  const [feedbackValue, setFeedbackValue] = useState(0);
   const [rewardCount, setRewardCount] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -75,6 +78,7 @@ export default function Neurofeedback() {
   }, [audioEnabled]);
 
   const handleStart = async () => {
+    if (!isStreaming) return;
     try {
       const result = await startNeurofeedback(selectedProtocol, true);
       if (result.status === "calibrating") {
@@ -94,18 +98,17 @@ export default function Neurofeedback() {
   const startEvalLoop = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(async () => {
-      try {
-        // Simulate band powers (in real use, these come from the device)
-        const sim = await simulateEEG("rest", 1, 256, 1);
-        const bandPowers = sim.analysis?.emotions?.band_powers || {
-          delta: 0.2,
-          theta: 0.15,
-          alpha: 0.3 + Math.random() * 0.2,
-          beta: 0.2,
-          gamma: 0.05,
-        };
+      // Use real band powers from live Muse 2 data
+      const liveBands = bandPowers ?? {
+        delta: 0,
+        theta: 0,
+        alpha: 0,
+        beta: 0,
+        gamma: 0,
+      };
 
-        const evalResult = await evaluateNeurofeedback(bandPowers);
+      try {
+        const evalResult = await evaluateNeurofeedback(liveBands);
 
         if (evalResult.status === "calibrating") {
           setCalibrationProgress((evalResult.progress || 0) * 100);
@@ -113,7 +116,6 @@ export default function Neurofeedback() {
           setPhase("training");
         } else if (evalResult.status === "active") {
           setScore(evalResult.score || 0);
-          setFeedbackValue(evalResult.feedback_value || 0);
           setStreak(evalResult.streak || 0);
           if (evalResult.reward) {
             setReward(true);
@@ -169,24 +171,24 @@ export default function Neurofeedback() {
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  // Circular gauge gradient based on score
-  const gaugeColor =
-    score >= 70
-      ? "text-success"
-      : score >= 40
-        ? "text-warning"
-        : "text-foreground/50";
-
   const circumference = 2 * Math.PI * 80;
   const dashOffset = circumference * (1 - score / 100);
 
   return (
     <main className="p-4 md:p-6 space-y-6">
+      {/* Connection Banner */}
+      {!isStreaming && (
+        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0" />
+          Connect your Muse 2 and start streaming to use neurofeedback training.
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Headphones className="h-6 w-6 text-primary" />
-          <h2 className="text-xl font-futuristic font-bold">Neurofeedback Training</h2>
+          <h2 className="text-xl font-semibold font-bold">Neurofeedback Training</h2>
         </div>
         {phase !== "idle" && phase !== "summary" && (
           <div className="flex items-center gap-3">
@@ -209,7 +211,7 @@ export default function Neurofeedback() {
       {phase === "idle" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="glass-card p-6 rounded-xl hover-glow">
-            <h3 className="text-lg font-futuristic font-semibold mb-4">Select Protocol</h3>
+            <h3 className="text-lg font-semibold mb-4">Select Protocol</h3>
             <div className="space-y-4">
               <Select value={selectedProtocol} onValueChange={setSelectedProtocol}>
                 <SelectTrigger className="w-full bg-card/50 border border-primary/30">
@@ -246,21 +248,38 @@ export default function Neurofeedback() {
                 </div>
               </div>
 
-              <Button onClick={handleStart} className="w-full bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30">
+              <Button
+                onClick={handleStart}
+                disabled={!isStreaming}
+                className="w-full bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 disabled:opacity-50"
+              >
                 <Play className="h-4 w-4 mr-2" />
-                Start Training
+                {isStreaming ? "Start Training" : "Connect Device First"}
               </Button>
             </div>
           </Card>
 
           <Card className="glass-card p-6 rounded-xl hover-glow">
-            <h3 className="text-lg font-futuristic font-semibold mb-4">How It Works</h3>
+            <h3 className="text-lg font-semibold mb-4">How It Works</h3>
             <div className="space-y-3 text-sm text-foreground/70">
-              <p>1. <strong>Calibration</strong> (30s): Measure your baseline brain activity</p>
-              <p>2. <strong>Training</strong>: Watch the gauge and try to increase your score</p>
-              <p>3. <strong>Rewards</strong>: Audio/visual feedback when you hit the target</p>
-              <p>4. <strong>Progress</strong>: Track improvements across sessions</p>
+              <p>1. <strong>Connect Muse 2</strong> from the sidebar and start streaming</p>
+              <p>2. <strong>Calibration</strong> (30s): Measure your baseline brain activity</p>
+              <p>3. <strong>Training</strong>: Watch the gauge and try to increase your score</p>
+              <p>4. <strong>Rewards</strong>: Audio/visual feedback when you hit the target</p>
             </div>
+            {isStreaming && bandPowers && (
+              <div className="mt-4 pt-4 border-t border-border/30">
+                <p className="text-xs text-muted-foreground mb-2">Current Band Powers:</p>
+                <div className="grid grid-cols-5 gap-2">
+                  {Object.entries(bandPowers).map(([band, power]) => (
+                    <div key={band} className="text-center">
+                      <p className="text-[10px] text-muted-foreground capitalize">{band}</p>
+                      <p className="text-xs font-mono text-primary">{((power as number) * 100).toFixed(0)}%</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       )}
@@ -268,9 +287,9 @@ export default function Neurofeedback() {
       {/* Calibrating */}
       {phase === "calibrating" && (
         <Card className="glass-card p-8 rounded-xl hover-glow max-w-lg mx-auto text-center">
-          <h3 className="text-lg font-futuristic font-semibold mb-4">Calibrating Baseline</h3>
+          <h3 className="text-lg font-semibold mb-4">Calibrating Baseline</h3>
           <p className="text-sm text-foreground/60 mb-6">
-            Relax and breathe normally. Measuring your baseline brain activity...
+            Relax and breathe normally. Measuring your baseline brain activity from your Muse 2...
           </p>
           <Progress value={calibrationProgress} className="h-3 mb-4" />
           <p className="text-xs font-mono text-foreground/50">
@@ -290,16 +309,7 @@ export default function Neurofeedback() {
               }`}
             >
               <svg width="200" height="200" viewBox="0 0 200 200">
-                {/* Background circle */}
-                <circle
-                  cx="100"
-                  cy="100"
-                  r="80"
-                  fill="none"
-                  stroke="rgba(255,255,255,0.1)"
-                  strokeWidth="12"
-                />
-                {/* Score arc */}
+                <circle cx="100" cy="100" r="80" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="12" />
                 <circle
                   cx="100"
                   cy="100"
@@ -313,26 +323,10 @@ export default function Neurofeedback() {
                   transform="rotate(-90 100 100)"
                   className="transition-all duration-300"
                 />
-                {/* Score text */}
-                <text
-                  x="100"
-                  y="95"
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize="36"
-                  fontFamily="monospace"
-                  fontWeight="bold"
-                >
+                <text x="100" y="95" textAnchor="middle" fill="white" fontSize="36" fontFamily="monospace" fontWeight="bold">
                   {score.toFixed(0)}
                 </text>
-                <text
-                  x="100"
-                  y="120"
-                  textAnchor="middle"
-                  fill="rgba(255,255,255,0.5)"
-                  fontSize="12"
-                  fontFamily="monospace"
-                >
+                <text x="100" y="120" textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize="12" fontFamily="monospace">
                   SCORE
                 </text>
               </svg>
@@ -373,7 +367,7 @@ export default function Neurofeedback() {
         <Card className="glass-card p-8 rounded-xl hover-glow max-w-lg mx-auto">
           <div className="text-center space-y-6">
             <Trophy className="h-12 w-12 text-warning mx-auto" />
-            <h3 className="text-xl font-futuristic font-semibold">Session Complete</h3>
+            <h3 className="text-xl font-semibold">Session Complete</h3>
 
             <div className="grid grid-cols-2 gap-4 text-center">
               <div>
