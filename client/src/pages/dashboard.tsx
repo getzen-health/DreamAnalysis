@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { ScoreCircle } from "@/components/score-circle";
@@ -89,6 +89,38 @@ const CHAKRA_COLORS = [
 
 const CHAKRA_LABELS = ["Root", "Sacral", "Solar", "Heart", "Throat", "Eye", "Crown"];
 
+/* Emotion shift type descriptions — mirrors backend EMOTION_PRECURSORS */
+const EMOTION_PRECURSORS: Record<string, { description: string; guidance: string }> = {
+  approaching_anxiety: {
+    description: "Rising tension — beta increasing, alpha dropping",
+    guidance: "Take 3 slow breaths. Ground yourself in the present moment.",
+  },
+  approaching_sadness: {
+    description: "Withdrawal pattern — right frontal activation increasing",
+    guidance: "Notice this feeling without judgment. It's information, not identity.",
+  },
+  approaching_calm: {
+    description: "Settling pattern — alpha rising, beta decreasing",
+    guidance: "Beautiful — your nervous system is settling. Let it happen.",
+  },
+  approaching_focus: {
+    description: "Engagement pattern — beta structured, theta dropping",
+    guidance: "You're entering a focused state. Channel it toward what matters.",
+  },
+  approaching_joy: {
+    description: "Approach pattern — left frontal activation, gamma bursts",
+    guidance: "Savor this. Consciously noting positive states strengthens them.",
+  },
+  emotional_turbulence: {
+    description: "Rapid fluctuation — emotional state is unstable",
+    guidance: "Your system is processing something. Pause. Breathe. Give yourself space.",
+  },
+  general_shift: {
+    description: "Your emotional state is shifting",
+    guidance: "Pause and check in with yourself. What are you feeling right now?",
+  },
+};
+
 const QUICK_ACTIONS = [
   { href: "/brain-monitor", icon: Activity, label: "Brain Monitor", color: "hsl(200, 70%, 55%)" },
   { href: "/dreams", icon: Moon, label: "Dream Journal", color: "hsl(262, 45%, 65%)" },
@@ -177,19 +209,22 @@ export default function Dashboard() {
     detected: boolean;
     type: string;
     description: string;
+    guidance: string;
+    bodyFeeling: string;
   } | null>(null);
 
   useEffect(() => {
     if (!emotionShift?.shift_detected) return;
-    const isCalm = emotionShift.to_state === "relaxed" || emotionShift.to_state === "calm";
+    const shiftType: string = emotionShift.shift_type ?? "general_shift";
+    const isCalm = shiftType === "approaching_calm" || shiftType === "approaching_joy";
     setShift({
       detected: true,
-      type: isCalm ? "approaching_calm" : "approaching_anxiety",
-      description: isCalm
-        ? "A wave of calm is settling in. Let it happen."
-        : `Shift from ${emotionShift.from_state} to ${emotionShift.to_state} detected. Take a slow breath.`,
+      type: isCalm ? "approaching_calm" : shiftType,
+      description: emotionShift.description ?? EMOTION_PRECURSORS[shiftType]?.description ?? "Emotional state is shifting",
+      guidance: emotionShift.guidance ?? EMOTION_PRECURSORS[shiftType]?.guidance ?? "Pause and check in with yourself.",
+      bodyFeeling: emotionShift.body_feeling ?? "",
     });
-  }, [emotionShift?.shift_detected, emotionShift?.from_state, emotionShift?.to_state]);
+  }, [emotionShift?.shift_detected, emotionShift?.shift_type]);
 
   // Dismiss shift after 8s
   useEffect(() => {
@@ -211,10 +246,21 @@ export default function Dashboard() {
     : 0;
 
   const hour = new Date().getHours();
-  const insightText = useMemo(
-    () => isStreaming ? getInsightText(stressIndex, focusIndex, relaxationIndex, hour) : "",
-    [isStreaming, stressIndex, focusIndex, relaxationIndex, hour],
-  );
+  const [insightText, setInsightText] = useState("");
+  const insightTimerRef = useRef(0);
+  const INSIGHT_THROTTLE_MS = 10_000; // 10 seconds
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setInsightText("");
+      return;
+    }
+    const now = Date.now();
+    if (now - insightTimerRef.current < INSIGHT_THROTTLE_MS && insightText) return;
+    insightTimerRef.current = now;
+    setInsightText(getInsightText(stressIndex, focusIndex, relaxationIndex, hour));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
 
   /* Sparkline renderer */
   const renderSparkline = (data: number[], color: string) => {
@@ -254,13 +300,17 @@ export default function Dashboard() {
       {shift?.detected && (
         <div
           className={
-            shift.type === "approaching_calm" ? "shift-alert-calm" : "shift-alert"
+            shift.type === "approaching_calm" || shift.type === "approaching_joy"
+              ? "shift-alert-calm"
+              : "shift-alert"
           }
         >
           <div className="flex items-start gap-3">
             <AlertCircle
               className={`h-5 w-5 mt-0.5 shrink-0 ${
-                shift.type === "approaching_calm" ? "text-success" : "text-warning"
+                shift.type === "approaching_calm" || shift.type === "approaching_joy"
+                  ? "text-success"
+                  : "text-warning"
               }`}
             />
             <div>
@@ -268,7 +318,11 @@ export default function Dashboard() {
                 Pre-Conscious Shift Detected
               </p>
               <p className="text-sm text-muted-foreground mt-1">{shift.description}</p>
-              {shift.type === "approaching_anxiety" && (
+              {shift.bodyFeeling && (
+                <p className="text-xs text-muted-foreground/70 mt-1 italic">{shift.bodyFeeling}</p>
+              )}
+              <p className="text-xs text-foreground/60 mt-2">{shift.guidance}</p>
+              {(shift.type === "approaching_anxiety" || shift.type === "emotional_turbulence") && (
                 <Link
                   href="/neurofeedback"
                   className="inline-flex items-center gap-1 mt-2 text-xs text-warning hover:text-warning/80 transition-colors"

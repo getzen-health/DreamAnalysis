@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Svapnastra — Architecture Guide</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #131620;
+    --border: #1c2030;
+    --text: #e8e0d4;
+    --muted: #6b7084;
+    --green: #3bb078;
+    --purple: #9b7ed8;
+    --amber: #d9a033;
+    --blue: #4a9fd6;
+    --red: #d65a5a;
+    --cyan: #4ac5c5;
+    --pink: #c56a9b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
+  h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--green);
+    margin: 2rem 0 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 0.95rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+  p, li { font-size: 0.85rem; color: var(--muted); line-height: 1.7; }
+  .hero {
+    background: linear-gradient(135deg, rgba(59,176,120,0.08), rgba(217,160,51,0.08));
+    border: 1px solid rgba(59,176,120,0.2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .hero p { color: var(--muted); margin-top: 0.5rem; }
+  .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+  .card-title { font-size: 0.85rem; font-weight: 600; color: var(--text); margin-bottom: 0.25rem; }
+  .card p { font-size: 0.8rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+  @media (max-width: 768px) { .grid-3 { grid-template-columns: 1fr; } }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .flow-num {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 700; color: white; flex-shrink: 0;
+  }
+  .flow-arrow { text-align: center; color: var(--border); font-size: 0.7rem; margin: 0.15rem 0 0.15rem 8px; }
+  .formula-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .formula-row:last-child { border-bottom: none; }
+  .formula-name { width: 110px; flex-shrink: 0; font-size: 0.85rem; font-weight: 600; }
+  .formula-code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.75rem;
+    background: rgba(255,255,255,0.04);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--text);
+    display: inline-block;
+    margin-bottom: 0.25rem;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+  .tag-green { background: rgba(59,176,120,0.15); color: var(--green); }
+  .tag-purple { background: rgba(155,126,216,0.15); color: var(--purple); }
+  .tag-amber { background: rgba(217,160,51,0.15); color: var(--amber); }
+  .tag-blue { background: rgba(74,159,214,0.15); color: var(--blue); }
+  .tag-red { background: rgba(214,90,90,0.15); color: var(--red); }
+  .tag-cyan { background: rgba(74,197,197,0.15); color: var(--cyan); }
+  .tag-pink { background: rgba(197,106,155,0.15); color: var(--pink); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
+  }
+  th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .band-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .section-collapse { cursor: pointer; user-select: none; }
+  .section-collapse:hover { opacity: 0.85; }
+  details summary { list-style: none; cursor: pointer; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before { content: '▸ '; color: var(--green); }
+  details[open] summary::before { content: '▾ '; }
+  .footer { text-align: center; padding: 2rem 0 1rem; color: var(--border); font-size: 0.75rem; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Svapnastra — Architecture Guide</h1>
+  <p>Complete breakdown of how every page, score, ML model, and data flow works in the application. Open each section to learn more.</p>
+</div>
+
+<!-- ════════════════ DATA FLOW ════════════════ -->
+<h2>1. How Data Flows</h2>
+<div class="card">
+  <div class="flow-step">
+    <div class="flow-num" style="background: var(--blue);">1</div>
+    <div>
+      <div class="card-title">Muse 2 Headband</div>
+      <p>4 EEG channels (TP9, AF7, AF8, TP10) at 256 Hz via Bluetooth</p>
+    </div>
+  </div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-step">
+    <div class="flow-num" style="background: var(--cyan);">2</div>
+    <div>
+      <div class="card-title">BrainFlow v5.20.1</div>
+      <p>Reads raw EEG signals from Muse 2 (board ID 38, native Bluetooth)</p>
+    </div>
+  </div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-step">
+    <div class="flow-num" style="background: var(--purple);">3</div>
+    <div>
+      <div class="card-title">FastAPI Backend (port 8000)</div>
+      <p>12 ML models process each chunk: sleep, emotion, dream, flow, creativity, memory, drowsiness, cognitive load, attention, stress, lucid dream, meditation</p>
+    </div>
+  </div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-step">
+    <div class="flow-num" style="background: var(--green);">4</div>
+    <div>
+      <div class="card-title">WebSocket /ws/eeg-stream @ 4Hz</div>
+      <p>Sends JSON frames with all 12 model outputs, band powers, signal quality, emotion shifts, and coherence data</p>
+    </div>
+  </div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-step">
+    <div class="flow-num" style="background: var(--amber);">5</div>
+    <div>
+      <div class="card-title">DeviceProvider (React Context)</div>
+      <p>Stores latestFrame globally. Every page reads from <code>useDevice()</code> hook. Throttled to 1.5s updates for readability.</p>
+    </div>
+  </div>
+  <div class="flow-arrow">↓</div>
+  <div class="flow-step">
+    <div class="flow-num" style="background: var(--red);">6</div>
+    <div>
+      <div class="card-title">Pages Render Live Data</div>
+      <p>Each page reads <code>latestFrame.analysis.*</code> — no fake data. All zeros when not streaming.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ 12 ML MODELS ════════════════ -->
+<h2>2. The 12 ML Models</h2>
+<p>Every WebSocket frame runs your EEG through all 12 models. Each returns a score (0-1) and a state label.</p>
+
+<div class="grid" style="margin-top: 0.75rem;">
+  <div class="card">
+    <div class="card-title"><span class="tag tag-blue">Sleep Staging</span></div>
+    <p><strong>Output:</strong> stage (Wake/N1/N2/N3/REM), confidence<br>
+    <strong>How:</strong> Delta/theta/alpha ratios + spindle detection</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-pink">Emotion</span></div>
+    <p><strong>Output:</strong> emotion (6 types), valence, arousal, stress, focus, relaxation<br>
+    <strong>How:</strong> CNN-LSTM or feature-based from band power ratios</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-purple">Dream Detection</span></div>
+    <p><strong>Output:</strong> is_dreaming, probability, rem_likelihood, intensity, lucidity<br>
+    <strong>How:</strong> REM-like patterns, theta dominance, eye movement</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-green">Flow State</span></div>
+    <p><strong>Output:</strong> in_flow, flow_score<br>
+    <strong>How:</strong> High focus + moderate arousal + low stress pattern</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-amber">Creativity</span></div>
+    <p><strong>Output:</strong> state, creativity_score<br>
+    <strong>How:</strong> Theta-alpha ratio — high theta + moderate alpha = creative</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-cyan">Memory Encoding</span></div>
+    <p><strong>Output:</strong> state, encoding_score<br>
+    <strong>How:</strong> Theta bursts + gamma coupling = memory consolidation</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-green">Attention</span></div>
+    <p><strong>Output:</strong> state, attention_score<br>
+    <strong>How:</strong> Prefrontal beta activity. High beta + low theta = focused</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-amber">Drowsiness</span></div>
+    <p><strong>Output:</strong> state, drowsiness_index<br>
+    <strong>How:</strong> Rising theta + dropping alpha + slow eye movements</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-red">Cognitive Load</span></div>
+    <p><strong>Output:</strong> level, load_index<br>
+    <strong>How:</strong> Frontal theta power. High theta + high beta = overload</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-red">Stress</span></div>
+    <p><strong>Output:</strong> level, stress_index<br>
+    <strong>How:</strong> High beta/alpha ratio + frontal asymmetry</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-purple">Meditation</span></div>
+    <p><strong>Output:</strong> depth (Surface/Light/Deep/Jhana), score<br>
+    <strong>How:</strong> Strong alpha coherence + low beta = meditative</p>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="tag tag-pink">Lucid Dream</span></div>
+    <p><strong>Output:</strong> state, lucidity_score (only during REM)<br>
+    <strong>How:</strong> Gamma bursts in frontal regions during REM</p>
+  </div>
+</div>
+
+<!-- ════════════════ BAND POWERS ════════════════ -->
+<h2>3. EEG Band Powers</h2>
+<p>Raw EEG is decomposed into 5 frequency bands. All values are relative power (0-1).</p>
+<table>
+  <tr><th>Band</th><th>Frequency</th><th>Associated With</th></tr>
+  <tr><td><span class="band-dot" style="background: hsl(270,70%,65%);"></span>Delta</td><td>0.5-4 Hz</td><td>Deep sleep, unconscious processing, healing</td></tr>
+  <tr><td><span class="band-dot" style="background: hsl(195,100%,50%);"></span>Theta</td><td>4-8 Hz</td><td>Relaxation, creativity, meditation, drowsiness</td></tr>
+  <tr><td><span class="band-dot" style="background: hsl(120,100%,55%);"></span>Alpha</td><td>8-12 Hz</td><td>Calm focus, relaxation with awareness, eyes-closed rest</td></tr>
+  <tr><td><span class="band-dot" style="background: hsl(45,100%,50%);"></span>Beta</td><td>12-30 Hz</td><td>Active thinking, problem-solving, anxiety, mental effort</td></tr>
+  <tr><td><span class="band-dot" style="background: hsl(0,80%,50%);"></span>Gamma</td><td>30-100 Hz</td><td>Higher cognition, memory binding, peak awareness</td></tr>
+</table>
+
+<!-- ════════════════ PAGES ════════════════ -->
+<h2>4. Pages Explained</h2>
+
+<!-- Dashboard -->
+<details open>
+  <summary><h3 style="display:inline;">Dashboard (/)</h3></summary>
+  <p>The main overview with 3 score circles, mood timeline, brain wave sparklines, energy centers, and emotional shift alerts.</p>
+
+  <h3>Score Formulas</h3>
+  <div class="card">
+    <div class="formula-row">
+      <div class="formula-name" style="color: var(--green);">Wellness</div>
+      <div>
+        <div class="formula-code">relaxation × 0.4 + (100 - stress) × 0.35 + focus × 0.25</div>
+        <p>Overall emotional wellbeing. High relaxation + low stress + decent focus.</p>
+      </div>
+    </div>
+    <div class="formula-row">
+      <div class="formula-name" style="color: var(--blue);">Sleep</div>
+      <div>
+        <div class="formula-code">sleep_staging.confidence × 100</div>
+        <p>How confidently the ML model classifies your current sleep stage.</p>
+      </div>
+    </div>
+    <div class="formula-row">
+      <div class="formula-name" style="color: var(--purple);">Brain</div>
+      <div>
+        <div class="formula-code">focus × 0.4 + relaxation × 0.3 + (100 - arousal × 60) × 0.3</div>
+        <p>Cognitive balance. High focus + calm relaxation + moderate arousal.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Emotional Shift Types</h3>
+  <p>Detected 2-8 seconds BEFORE you consciously notice a mood change.</p>
+  <div class="grid">
+    <div class="card"><span class="tag tag-amber">Approaching Anxiety</span><p style="margin-top:0.25rem;">Beta rising + alpha dropping + stress increasing</p></div>
+    <div class="card"><span class="tag tag-green">Approaching Calm</span><p style="margin-top:0.25rem;">Alpha rising + beta dropping + calm ratio up</p></div>
+    <div class="card"><span class="tag tag-blue">Approaching Sadness</span><p style="margin-top:0.25rem;">Valence dropping + arousal dropping + theta rising</p></div>
+    <div class="card"><span class="tag tag-green">Approaching Focus</span><p style="margin-top:0.25rem;">Entropy dropping + beta structured + theta down</p></div>
+    <div class="card"><span class="tag tag-amber">Approaching Joy</span><p style="margin-top:0.25rem;">Valence rising + gamma bursts</p></div>
+    <div class="card"><span class="tag tag-red">Emotional Turbulence</span><p style="margin-top:0.25rem;">High variability in valence + arousal</p></div>
+  </div>
+
+  <h3>Chakra → Band Power Mapping</h3>
+  <table>
+    <tr><th>Chakra</th><th>Band Source</th><th>Formula</th></tr>
+    <tr><td style="color:#ef4444;">Root</td><td>Delta</td><td><code>delta × 1.2</code></td></tr>
+    <tr><td style="color:#f97316;">Sacral</td><td>Theta</td><td><code>theta × 1.1</code></td></tr>
+    <tr><td style="color:#eab308;">Solar Plexus</td><td>Alpha + Theta</td><td><code>(alpha + theta) × 0.6</code></td></tr>
+    <tr><td style="color:#22c55e;">Heart</td><td>Alpha</td><td><code>alpha × 1.2</code></td></tr>
+    <tr><td style="color:#3b82f6;">Throat</td><td>Beta</td><td><code>beta × 1.0</code></td></tr>
+    <tr><td style="color:#6366f1;">Third Eye</td><td>Beta + Gamma</td><td><code>(beta + gamma) × 0.7</code></td></tr>
+    <tr><td style="color:#a855f7;">Crown</td><td>Gamma</td><td><code>gamma × 1.5</code></td></tr>
+  </table>
+</details>
+
+<!-- Emotion Lab -->
+<details>
+  <summary><h3 style="display:inline;">Emotion Lab (/emotions)</h3></summary>
+  <p>Deep dive into emotional state with 5 panels.</p>
+  <div class="card">
+    <div class="card-title">Emotion Wheel</div>
+    <p>Radial SVG with 6 emotions (happy, sad, angry, fearful, relaxed, focused). Distance from center = probability. Dominant emotion pulses.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Mental State</div>
+    <p><strong>Stress</strong> (0-100): beta/alpha ratio. <strong>Focus</strong> (0-100): inverse theta/beta ratio. <strong>Relaxation</strong> (0-100): alpha power.
+    <strong>Valence</strong> (-1 to +1): sad↔happy. <strong>Arousal</strong> (0-1): calm↔excited.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Valence-Arousal Scatter</div>
+    <p>2D emotional space. X = valence (sad↔happy), Y = arousal (calm↔excited). Your emotional trajectory plotted over time.</p>
+  </div>
+</details>
+
+<!-- Inner Energy -->
+<details>
+  <summary><h3 style="display:inline;">Inner Energy (/inner-energy)</h3></summary>
+  <p>Spiritual/meditative EEG interpretation through the chakra system.</p>
+  <div class="card">
+    <div class="formula-row">
+      <div class="formula-name" style="color: var(--green);">Meditation</div>
+      <div><div class="formula-code">meditation_model.score × 100</div><p>Depth: Surface → Light → Deep Absorption → Jhana</p></div>
+    </div>
+    <div class="formula-row">
+      <div class="formula-name" style="color: var(--purple);">Consciousness</div>
+      <div><div class="formula-code">attention × 30 + flow × 40 + meditation × 30</div><p>Levels: Survival → Desire → Willpower → Love → Expression → Insight → Unity</p></div>
+    </div>
+    <div class="formula-row">
+      <div class="formula-name" style="color: #6366f1;">Third Eye</div>
+      <div><div class="formula-code">(gamma + beta × 0.3) × 150</div><p>Prefrontal high-frequency activity — intuition and insight</p></div>
+    </div>
+  </div>
+</details>
+
+<!-- Brain Monitor -->
+<details>
+  <summary><h3 style="display:inline;">Brain Monitor (/brain-monitor)</h3></summary>
+  <p>Technical EEG view showing all 12 ML model outputs simultaneously.</p>
+  <div class="card"><div class="card-title">EEG Waveforms</div><p>Real-time alpha + beta wave chart with signal quality indicator, recording controls, DEVICE/SIMULATION label.</p></div>
+  <div class="card"><div class="card-title">12-Model Panel</div><p>Grid of cards — one per ML model. Each shows current state, confidence bar (0-100%), model-specific details.</p></div>
+  <div class="card"><div class="card-title">Wavelet Spectrogram</div><p>Time-frequency analysis every 2s. Shows sleep spindles, K-complexes, DWT energy distribution.</p></div>
+  <div class="card"><div class="card-title">Electrode Grid</div><p>8×8 grid showing per-channel quality. Green = good (80%+), Yellow = weak (60-80%), Red = error (&lt;60%).</p></div>
+</details>
+
+<!-- Dreams -->
+<details>
+  <summary><h3 style="display:inline;">Dream Detection (/dreams)</h3></summary>
+  <div class="card">
+    <div class="formula-row"><div class="formula-name" style="color: var(--purple);">Dream Prob</div><div><div class="formula-code">dream_detection.probability × 100</div><p>Likelihood of dream state based on theta dominance</p></div></div>
+    <div class="formula-row"><div class="formula-name" style="color: var(--green);">REM</div><div><div class="formula-code">dream_detection.rem_likelihood × 100</div><p>REM sleep probability from eye movements + mixed-frequency EEG</p></div></div>
+    <div class="formula-row"><div class="formula-name" style="color: var(--amber);">Intensity</div><div><div class="formula-code">dream_detection.dream_intensity × 100</div><p>Dream vividness from gamma + theta bursts</p></div></div>
+    <div class="formula-row"><div class="formula-name" style="color: var(--blue);">Lucidity</div><div><div class="formula-code">dream_detection.lucidity_estimate × 100</div><p>Awareness within dream — frontal gamma during REM</p></div></div>
+  </div>
+  <p>Dream episodes auto-detected when <code>is_dreaming</code> transitions false → true → false. Records: time, duration, intensity, lucidity, stage.</p>
+</details>
+
+<!-- Dream Patterns -->
+<details>
+  <summary><h3 style="display:inline;">Dream Patterns (/dream-patterns)</h3></summary>
+  <p>Session-level analytics: hypnogram (sleep architecture), dream activity bar chart, REM likelihood trend, REM cycle progression (intensity + lucidity + duration). Later cycles are naturally longer and more intense.</p>
+</details>
+
+<!-- Health Analytics -->
+<details>
+  <summary><h3 style="display:inline;">Health Analytics (/health-analytics)</h3></summary>
+  <div class="card">
+    <div class="formula-row"><div class="formula-name" style="color: var(--green);">Brain Health</div><div><div class="formula-code">focus × 0.25 + relax × 0.25 + (100-stress) × 0.25 + flow × 0.25</div><p>Balanced cognitive function</p></div></div>
+    <div class="formula-row"><div class="formula-name" style="color: var(--purple);">Cognitive</div><div><div class="formula-code">focus × 0.3 + creativity × 0.25 + memory × 0.25 + (100-drowsiness) × 0.2</div><p>Mental performance capacity</p></div></div>
+    <div class="formula-row"><div class="formula-name" style="color: var(--amber);">Wellbeing</div><div><div class="formula-code">relax × 0.35 + (100-stress) × 0.35 + flow × 0.3</div><p>Emotional balance — low stress + high relaxation + flow</p></div></div>
+  </div>
+  <p>Also: 8 vital stat cards (stress, focus, flow, relaxation, creativity, memory, cognitive load, drowsiness) with dynamic AI insights.</p>
+</details>
+
+<!-- Insights -->
+<details>
+  <summary><h3 style="display:inline;">Insights (/insights)</h3></summary>
+  <p>AI-generated brain insights. Up to 4 shown at once based on thresholds:</p>
+  <table>
+    <tr><th>When</th><th>Insight</th></tr>
+    <tr><td>Focus &gt; 60%</td><td>High Focus State — ideal for analytical tasks</td></tr>
+    <tr><td>Focus &lt; 30%</td><td>Low Focus — consider a break</td></tr>
+    <tr><td>Creativity &gt; 50%</td><td>Creative State — good for brainstorming</td></tr>
+    <tr><td>Stress &gt; 50%</td><td>Elevated Stress — try breathing exercise</td></tr>
+    <tr><td>Relaxation &gt; 60%</td><td>Calm & Balanced — parasympathetic state</td></tr>
+    <tr><td>Flow &gt; 60%</td><td>Flow State Achieved — minimize interruptions</td></tr>
+    <tr><td>Dream Prob &gt; 40%</td><td>Dream-Like Patterns — hypnagogic state</td></tr>
+    <tr><td>Meditation &gt; 50%</td><td>Deep Meditative State</td></tr>
+  </table>
+  <p>Also: 6-axis radar chart (Focus, Creativity, Relaxation, Memory, Flow, Meditation) + band power trends.</p>
+</details>
+
+<!-- Neurofeedback -->
+<details>
+  <summary><h3 style="display:inline;">Neurofeedback (/neurofeedback)</h3></summary>
+  <p>Real-time brain training in 4 phases:</p>
+  <div class="card"><div class="card-title">1. Protocol Selection</div><p>Choose: Alpha Enhancement, SMR Training, Theta/Beta Ratio, Alpha Asymmetry. Toggle audio.</p></div>
+  <div class="card"><div class="card-title">2. Calibration (30s)</div><p>Measures baseline. Relax and breathe normally.</p></div>
+  <div class="card"><div class="card-title">3. Training</div><p>Score gauge (0-100). Band powers sent to backend every 1s vs calibrated baseline. Score &gt; threshold = reward (523Hz tone + green flash). Tracks rewards + streaks.</p></div>
+  <div class="card"><div class="card-title">4. Summary</div><p>Total rewards, reward rate %, average score, best streak.</p></div>
+</details>
+
+<!-- Other pages -->
+<details>
+  <summary><h3 style="display:inline;">Other Pages</h3></summary>
+  <div class="card"><div class="card-title">Brain Connectivity (/brain-connectivity)</div><p>Network analysis: connectivity matrix, graph metrics (clustering, path length, small-world index, modularity), directed flow (Granger causality).</p></div>
+  <div class="card"><div class="card-title">AI Companion (/ai-companion)</div><p>Chat with EEG-aware AI that references your current brain state.</p></div>
+  <div class="card"><div class="card-title">Sessions (/sessions)</div><p>Browse, view, export (CSV), delete recorded EEG sessions.</p></div>
+  <div class="card"><div class="card-title">Settings (/settings)</div><p>Hardware config, alert thresholds, visual effects, local/server inference, calibration, benchmarks, theme, data management.</p></div>
+</details>
+
+<div class="footer">
+  Svapnastra &middot; 12 ML Models &middot; 13 Pages &middot; 4Hz Real-Time Streaming &middot; 100% Live Data
+</div>
+
+</body>
+</html>

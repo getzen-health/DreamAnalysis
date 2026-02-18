@@ -44,17 +44,22 @@ function generateInsight(analysis: Record<string, unknown>): string {
   // Emotion insight
   const emotion = emotions?.emotion as string | undefined;
   const valence = emotions?.valence as number | undefined;
+  const valPct = valence != null ? Math.round(valence * 100) : 0;
   if (emotion) {
     if (emotion === "relaxed" || emotion === "calm") {
       parts.push("Your brain is in a calm, relaxed state right now — great for mindfulness or creative thinking.");
     } else if (emotion === "focused" || emotion === "engaged") {
       parts.push("You're showing strong focus patterns. This is a good time for deep work or problem-solving.");
-    } else if (emotion === "anxious" || emotion === "stressed") {
+    } else if (emotion === "fearful" || emotion === "anxious" || emotion === "stressed") {
       parts.push("I'm detecting some stress in your brainwave patterns. Consider a breathing exercise or short break.");
     } else if (emotion === "happy" || emotion === "excited") {
       parts.push("Your emotional state looks positive! High valence patterns suggest you're in a good mood.");
+    } else if (emotion === "sad") {
+      parts.push("Your brain patterns show lower valence — this could mean quiet reflection or low energy. It's not necessarily negative; your brain may be in a restful processing mode.");
+    } else if (emotion === "angry") {
+      parts.push("High arousal with negative valence detected. Your beta activity is elevated — a brief mindfulness pause could help restore balance.");
     } else {
-      parts.push(`Current emotional state: ${emotion} (valence: ${((valence ?? 0.5) * 100).toFixed(0)}%).`);
+      parts.push(`Your brain is showing ${valPct >= 0 ? "positive" : "slightly negative"} valence (${valPct}%) with ${emotion} patterns.`);
     }
   }
 
@@ -141,13 +146,15 @@ export function AICompanion({ userId }: AICompanionProps) {
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
 
-  // Auto-generate brain insight when streaming starts
-  useEffect(() => {
-    if (!isStreaming || !analysis) return;
+  // Auto-generate brain insight when streaming starts (once)
+  const hasAutoInsightRef = useRef(false);
 
-    // Generate an initial insight after 3 seconds of data
+  useEffect(() => {
+    if (!isStreaming || !analysis || hasAutoInsightRef.current) return;
+
     const timer = setTimeout(() => {
       if (chatHistory.length === 0) {
+        hasAutoInsightRef.current = true;
         const insight = generateInsight(analysis as Record<string, unknown>);
         setChatHistory([
           {
@@ -158,7 +165,7 @@ export function AICompanion({ userId }: AICompanionProps) {
           },
         ]);
       }
-    }, 3000);
+    }, 5000);
 
     return () => clearTimeout(timer);
   }, [isStreaming, analysis, chatHistory.length]);
