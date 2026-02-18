@@ -79,6 +79,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
             from api.routes import (
                 sleep_model, emotion_model, dream_model,
                 flow_model, creativity_model, memory_model,
+                drowsiness_model, cognitive_load_model, attention_model,
+                stress_model, lucid_dream_model, meditation_model,
             )
             models = {
                 "sleep": sleep_model,
@@ -87,6 +89,12 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                 "flow": flow_model,
                 "creativity": creativity_model,
                 "memory": memory_model,
+                "drowsiness": drowsiness_model,
+                "cognitive_load": cognitive_load_model,
+                "attention": attention_model,
+                "stress": stress_model,
+                "lucid_dream": lucid_dream_model,
+                "meditation": meditation_model,
             }
         except Exception:
             models = {}
@@ -187,17 +195,29 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                             except Exception:
                                 pass
 
-                    # Run all 6 models
+                    # Run all 12 models
                     if run_models:
                         m = _init_models()
                         if m:
                             try:
-                                analysis["sleep_staging"] = m["sleep"].predict(eeg, fs)
-                                analysis["emotions"] = m["emotion"].predict(eeg, fs)
-                                analysis["dream_detection"] = m["dream"].predict(eeg, fs)
-                                analysis["flow_state"] = m["flow"].predict(eeg, fs)
-                                analysis["creativity"] = m["creativity"].predict(eeg, fs)
-                                analysis["memory_encoding"] = m["memory"].predict(eeg, fs)
+                                sleep_pred = m["sleep"].predict(eeg, fs) if "sleep" in m else {}
+                                analysis["sleep_staging"] = sleep_pred
+                                analysis["emotions"] = m["emotion"].predict(eeg, fs) if "emotion" in m else {}
+                                analysis["dream_detection"] = m["dream"].predict(eeg, fs) if "dream" in m else {}
+                                analysis["flow_state"] = m["flow"].predict(eeg, fs) if "flow" in m else {}
+                                analysis["creativity"] = m["creativity"].predict(eeg, fs) if "creativity" in m else {}
+                                analysis["memory_encoding"] = m["memory"].predict(eeg, fs) if "memory" in m else {}
+                                analysis["drowsiness"] = m["drowsiness"].predict(eeg, fs) if "drowsiness" in m else {}
+                                analysis["cognitive_load"] = m["cognitive_load"].predict(eeg, fs) if "cognitive_load" in m else {}
+                                analysis["attention"] = m["attention"].predict(eeg, fs) if "attention" in m else {}
+                                analysis["stress"] = m["stress"].predict(eeg, fs) if "stress" in m else {}
+                                if "lucid_dream" in m:
+                                    analysis["lucid_dream"] = m["lucid_dream"].predict(
+                                        eeg, fs,
+                                        is_rem=(sleep_pred.get("stage") == "REM"),
+                                        sleep_stage=sleep_pred.get("stage_index", 0),
+                                    )
+                                analysis["meditation"] = m["meditation"].predict(eeg, fs) if "meditation" in m else {}
                             except Exception:
                                 pass
 
