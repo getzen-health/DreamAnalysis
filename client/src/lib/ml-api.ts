@@ -529,14 +529,16 @@ export async function getHealthDailySummary(
 export async function getHealthInsights(
   userId: string
 ): Promise<HealthInsight[]> {
-  return mlFetch<HealthInsight[]>(`/health/insights/${userId}`);
+  const resp = await mlFetch<{ insights: HealthInsight[] }>(`/health/insights/${userId}`);
+  return resp.insights ?? [];
 }
 
 export async function getHealthTrends(
   userId: string,
   days: number = 30
 ): Promise<HealthTrend[]> {
-  return mlFetch<HealthTrend[]>(`/health/trends/${userId}?days=${days}`);
+  const resp = await mlFetch<{ trends: HealthTrend[] }>(`/health/trends/${userId}?days=${days}`);
+  return resp.trends ?? [];
 }
 
 export async function getSupportedHealthMetrics(): Promise<Record<string, string[]>> {
