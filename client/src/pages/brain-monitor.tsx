@@ -94,20 +94,21 @@ export default function BrainMonitor() {
 
   const alphaHz = analysis?.band_powers?.alpha
     ? `${(analysis.band_powers.alpha * 12).toFixed(1)} Hz`
-    : "8.5 Hz";
+    : "—";
 
   const betaHz = analysis?.band_powers?.beta
     ? `${(analysis.band_powers.beta * 30).toFixed(1)} Hz`
-    : "23.2 Hz";
+    : "—";
 
-  const sourceLabel = isStreaming ? "DEVICE" : "SIMULATION";
-  const sourceColor = isStreaming ? "text-primary" : "text-success";
+  const sourceLabel = isStreaming ? "LIVE" : "OFFLINE";
+  const sourceColor = isStreaming ? "text-primary" : "text-muted-foreground";
   const alertLevel: AlertLevel = anomaly?.alert_level || "normal";
 
-  // Electrode grid
+  // Electrode grid — only show real data, no random simulation
   const electrodeStatuses = useMemo(() => {
     const channelQuality = signalQuality?.channel_quality;
-    return Array.from({ length: 64 }, (_, i) => {
+    const nChannels = deviceStatus?.n_channels ?? (channelQuality?.length || 4);
+    return Array.from({ length: nChannels }, (_, i) => {
       let statusClass: string;
       if (channelQuality && i < channelQuality.length) {
         const q = channelQuality[i];
@@ -118,27 +119,30 @@ export default function BrainMonitor() {
               ? "border-warning/30 bg-warning/20"
               : "border-success/30 bg-success/20";
       } else {
-        const status = Math.random();
-        statusClass =
-          status > 0.9
-            ? "border-destructive/30 bg-destructive/20"
-            : status > 0.8
-              ? "border-warning/30 bg-warning/20"
-              : "border-success/30 bg-success/20";
+        // No data — show inactive
+        statusClass = "border-border/30 bg-muted/10";
       }
       const label = `${String.fromCharCode(65 + Math.floor(i / 8))}${(i % 8) + 1}`;
       return { statusClass, label };
     });
-  }, [signalQuality?.channel_quality]);
+  }, [signalQuality?.channel_quality, deviceStatus?.n_channels]);
 
   const channelQuality = signalQuality?.channel_quality || [];
   const hasRealData = channelQuality.length > 0;
-  const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 64;
+  const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 0;
   const weakCount = hasRealData ? channelQuality.filter((q) => q >= 60 && q < 80).length : 0;
   const errorCount = hasRealData ? channelQuality.filter((q) => q < 60).length : 0;
 
   return (
     <main className="p-4 md:p-6 space-y-6">
+      {/* Connection Banner */}
+      {!isStreaming && (
+        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0" />
+          Connect your Muse 2 from the sidebar to see live brain data. All visualizations require a real device connection.
+        </div>
+      )}
+
       {/* Alert Banner */}
       <AlertBanner
         level={alertLevel}
@@ -169,7 +173,7 @@ export default function BrainMonitor() {
               EEG Brain Wave Activity
             </h3>
             <div className="flex items-center space-x-3">
-              <SessionControls onRecordingChange={setIsRecording} />
+              {isStreaming && <SessionControls onRecordingChange={setIsRecording} />}
               {signalQuality && (
                 <SignalQualityBadge
                   sqi={signalQuality.sqi}
@@ -180,11 +184,10 @@ export default function BrainMonitor() {
               {isStreaming && (
                 <Radio className="h-4 w-4 text-primary animate-pulse" />
               )}
-              <div className="status-indicator w-2 h-2"></div>
               <span className={`text-sm font-mono ${sourceColor}`}>
                 {sourceLabel}
               </span>
-              {isReady && (
+              {isReady && isStreaming && (
                 <span className="text-xs font-mono text-foreground/40" title={`Inference: ${isLocal ? "local" : "server"} (${latencyMs.toFixed(0)}ms)`}>
                   {isLocal ? "LOCAL" : "SERVER"}
                 </span>
@@ -205,10 +208,16 @@ export default function BrainMonitor() {
               </p>
             </div>
           </div>
-          <EEGChart
-            alphaWaves={eegData.alphaWaves}
-            betaWaves={eegData.betaWaves}
-          />
+          {isStreaming ? (
+            <EEGChart
+              alphaWaves={eegData.alphaWaves}
+              betaWaves={eegData.betaWaves}
+            />
+          ) : (
+            <div className="h-64 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
+              Connect device to see live EEG waveforms
+            </div>
+          )}
         </div>
 
         {/* Neural Network Graph */}
@@ -217,7 +226,13 @@ export default function BrainMonitor() {
             <h3 className="text-lg font-semibold">Brain Regions</h3>
             <Activity className="text-accent" />
           </div>
-          <NeuralNetwork />
+          {isStreaming ? (
+            <NeuralNetwork />
+          ) : (
+            <div className="h-80 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
+              Connect device to see brain region activity
+            </div>
+          )}
         </div>
       </div>
 
@@ -306,26 +321,36 @@ export default function BrainMonitor() {
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold">Electrode Status Grid</h3>
           <span className="text-sm text-foreground/70 font-mono">
-            {deviceStatus?.n_channels
-              ? `${deviceStatus.n_channels} Channels`
-              : "64 Channels"}
+            {isStreaming
+              ? deviceStatus?.n_channels
+                ? `${deviceStatus.n_channels} Channels`
+                : "4 Channels"
+              : "No Device"}
           </span>
         </div>
-        <div className="grid grid-cols-8 gap-2 mb-4">
-          {electrodeStatuses.map((electrode, i) => (
-            <div
-              key={i}
-              className={`w-8 h-8 rounded border flex items-center justify-center text-xs font-mono ${electrode.statusClass}`}
-            >
-              {electrode.label}
+        {isStreaming ? (
+          <>
+            <div className="grid grid-cols-8 gap-2 mb-4">
+              {electrodeStatuses.map((electrode, i) => (
+                <div
+                  key={i}
+                  className={`w-8 h-8 rounded border flex items-center justify-center text-xs font-mono ${electrode.statusClass}`}
+                >
+                  {electrode.label}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-success">{activeCount} Active</span>
-          <span className="text-warning">{weakCount} Weak</span>
-          <span className="text-destructive">{errorCount} Error</span>
-        </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-success">{activeCount} Active</span>
+              <span className="text-warning">{weakCount} Weak</span>
+              <span className="text-destructive">{errorCount} Error</span>
+            </div>
+          </>
+        ) : (
+          <div className="h-24 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
+            Connect device to see electrode status
+          </div>
+        )}
       </Card>
     </main>
   );
