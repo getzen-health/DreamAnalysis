@@ -13,7 +13,7 @@ export const users = pgTable("users", {
 
 export const healthMetrics = pgTable("health_metrics", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   heartRate: integer("heart_rate").notNull(),
   stressLevel: integer("stress_level").notNull(),
   sleepQuality: integer("sleep_quality").notNull(),
@@ -27,7 +27,7 @@ export const healthMetrics = pgTable("health_metrics", {
 
 export const dreamAnalysis = pgTable("dream_analysis", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   dreamText: text("dream_text").notNull(),
   symbols: jsonb("symbols"),
   emotions: jsonb("emotions"),
@@ -45,7 +45,7 @@ export const dreamAnalysis = pgTable("dream_analysis", {
 
 export const dreamSymbols = pgTable("dream_symbols", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   symbol: text("symbol").notNull(),
   meaning: text("meaning"),
   frequency: integer("frequency").default(1),
@@ -57,7 +57,7 @@ export const dreamSymbols = pgTable("dream_symbols", {
 
 export const emotionReadings = pgTable("emotion_readings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   stress: real("stress").notNull(),
   happiness: real("happiness").notNull(),
   focus: real("focus").notNull(),
@@ -73,7 +73,7 @@ export const emotionReadings = pgTable("emotion_readings", {
 
 export const aiChats = pgTable("ai_chats", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   message: text("message").notNull(),
   isUser: boolean("is_user").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
@@ -83,7 +83,7 @@ export const aiChats = pgTable("ai_chats", {
 
 export const userSettings = pgTable("user_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).unique(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).unique(),
   theme: text("theme").default("dark"),
   electrodeCount: integer("electrode_count").default(64),
   samplingRate: integer("sampling_rate").default(500),
@@ -93,7 +93,7 @@ export const userSettings = pgTable("user_settings", {
 
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   endpoint: text("endpoint").notNull(),
   keys: jsonb("keys").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
