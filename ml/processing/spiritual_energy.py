@@ -13,13 +13,11 @@ Grounded in neuroscience:
 """
 
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 from scipy import signal as scipy_signal
-from scipy.stats import entropy
 
 from processing.eeg_processor import (
     extract_band_powers,
-    bandpass_filter,
     spectral_entropy,
     BANDS,
 )

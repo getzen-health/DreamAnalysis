@@ -18,7 +18,7 @@ Can be trained on:
 import numpy as np
 import joblib
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from scipy import signal as scipy_signal
 
 # Numpy 2.x compat
@@ -359,7 +359,7 @@ class ArtifactClassifier:
         """
         from simulation.eeg_simulator import simulate_eeg
         from processing.noise_augmentation import (
-            add_gaussian_noise, add_electrode_drift, add_motion_artifact,
+            add_motion_artifact,
             add_powerline_noise, add_emg_contamination, add_eye_blink,
         )
 

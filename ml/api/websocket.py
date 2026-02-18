@@ -130,7 +130,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
             from processing.signal_quality import SignalQualityChecker
             from processing.state_transitions import BrainStateEngine
             from processing.confidence_calibration import (
-                ConfidenceCalibrator, add_uncertainty_labels,
+                ConfidenceCalibrator,
             )
             quality_checker = SignalQualityChecker(fs=256)
             state_engine = BrainStateEngine()
