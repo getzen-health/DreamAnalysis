@@ -1,12 +1,13 @@
 import { Eye, Zap, Radio } from "lucide-react";
 
 interface SignalQualityBadgeProps {
-  sqi: number;
+  sqi?: number;
   artifacts?: string[];
   compact?: boolean;
 }
 
-export function SignalQualityBadge({ sqi, artifacts = [], compact = false }: SignalQualityBadgeProps) {
+export function SignalQualityBadge({ sqi: rawSqi, artifacts = [], compact = false }: SignalQualityBadgeProps) {
+  const sqi = rawSqi ?? 0;
   const color =
     sqi >= 80
       ? "text-success border-success/30 bg-success/10"
