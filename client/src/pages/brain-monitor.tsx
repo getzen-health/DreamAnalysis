@@ -6,98 +6,41 @@ import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
 import { SessionControls } from "@/components/session-controls";
 import { Card } from "@/components/ui/card";
-import { Activity, Radio } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import {
+  Activity,
+  Radio,
+  Moon,
+  Heart,
+  Brain,
+  Zap,
+  Eye,
+  Gauge,
+  Smile,
+  Lightbulb,
+  Battery,
+  Shield,
+} from "lucide-react";
 import { useMetrics } from "@/hooks/use-metrics";
 import { useInference } from "@/hooks/use-inference";
+import { useDevice } from "@/hooks/use-device";
 import {
-  getWebSocketUrl,
-  getDeviceStatus,
   analyzeWavelet,
-  type DeviceStatusResponse,
   type WaveletResult,
-  type SignalQuality,
   type AnomalyResult,
 } from "@/lib/ml-api";
 
-interface StreamFrame {
-  signals: number[][];
-  analysis: {
-    band_powers: Record<string, number>;
-    features: Record<string, number>;
-  };
-  timestamp: number;
-  n_channels: number;
-  sample_rate: number;
-}
-
 export default function BrainMonitor() {
   const { eegData, neuralActivity } = useMetrics();
-  const { analyze, isLocal, latencyMs, isReady } = useInference();
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [latestFrame, setLatestFrame] = useState<StreamFrame | null>(null);
-  const [deviceStatus, setDeviceStatus] = useState<DeviceStatusResponse | null>(null);
+  const { isLocal, latencyMs, isReady } = useInference();
+  const device = useDevice();
+  const { state: deviceState, latestFrame, deviceStatus } = device;
+  const isStreaming = deviceState === "streaming";
+
   const [wavelet, setWavelet] = useState<WaveletResult | null>(null);
-  const [signalQuality, setSignalQuality] = useState<SignalQuality | null>(null);
-  const [anomaly, setAnomaly] = useState<AnomalyResult | null>(null);
+  const [anomaly] = useState<AnomalyResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
   const waveletTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Poll device status to detect streaming
-  useEffect(() => {
-    let active = true;
-
-    const checkStatus = async () => {
-      try {
-        const status = await getDeviceStatus();
-        if (active) {
-          setDeviceStatus(status);
-          setIsStreaming(status.streaming);
-        }
-      } catch {
-        // ML service not available
-      }
-    };
-
-    checkStatus();
-    const interval = setInterval(checkStatus, 3000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, []);
-
-  // Connect to WebSocket when streaming is detected
-  useEffect(() => {
-    if (!isStreaming) {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      return;
-    }
-
-    const ws = new WebSocket(getWebSocketUrl());
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
-      try {
-        const frame: StreamFrame = JSON.parse(event.data);
-        setLatestFrame(frame);
-      } catch {
-        // ignore
-      }
-    };
-
-    ws.onclose = () => {
-      wsRef.current = null;
-    };
-
-    return () => {
-      ws.close();
-      wsRef.current = null;
-    };
-  }, [isStreaming]);
 
   // Request wavelet analysis every 2 seconds during streaming
   useEffect(() => {
@@ -123,20 +66,22 @@ export default function BrainMonitor() {
   }, [isStreaming, latestFrame]);
 
   // Derive display values from stream or simulation
-  const alphaHz = latestFrame?.analysis?.band_powers?.alpha
-    ? `${(latestFrame.analysis.band_powers.alpha * 12).toFixed(1)} Hz`
+  const analysis = latestFrame?.analysis;
+  const signalQuality = latestFrame?.quality ?? null;
+
+  const alphaHz = analysis?.band_powers?.alpha
+    ? `${(analysis.band_powers.alpha * 12).toFixed(1)} Hz`
     : "8.5 Hz";
 
-  const betaHz = latestFrame?.analysis?.band_powers?.beta
-    ? `${(latestFrame.analysis.band_powers.beta * 30).toFixed(1)} Hz`
+  const betaHz = analysis?.band_powers?.beta
+    ? `${(analysis.band_powers.beta * 30).toFixed(1)} Hz`
     : "23.2 Hz";
 
   const sourceLabel = isStreaming ? "DEVICE" : "SIMULATION";
   const sourceColor = isStreaming ? "text-primary" : "text-success";
-
   const alertLevel: AlertLevel = anomaly?.alert_level || "normal";
 
-  // Stabilize electrode grid — use real channel quality if available
+  // Electrode grid
   const electrodeStatuses = useMemo(() => {
     const channelQuality = signalQuality?.channel_quality;
     return Array.from({ length: 64 }, (_, i) => {
@@ -163,7 +108,6 @@ export default function BrainMonitor() {
     });
   }, [signalQuality?.channel_quality]);
 
-  // Count electrode statuses
   const channelQuality = signalQuality?.channel_quality || [];
   const hasRealData = channelQuality.length > 0;
   const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 64;
@@ -179,6 +123,20 @@ export default function BrainMonitor() {
         seizureProbability={anomaly?.seizure_probability}
         spikesDetected={anomaly?.spikes_detected}
       />
+
+      {/* Emotion Shift Alert */}
+      {latestFrame?.emotion_shift?.shift_detected && (
+        <div className="shift-alert p-4 rounded-xl flex items-center gap-3">
+          <Zap className="h-5 w-5 text-accent shrink-0" />
+          <div>
+            <p className="text-sm font-medium">Emotional Shift Detected</p>
+            <p className="text-xs text-muted-foreground">
+              {latestFrame.emotion_shift.from_state} → {latestFrame.emotion_shift.to_state}
+              {" "}(magnitude: {(latestFrame.emotion_shift.magnitude * 100).toFixed(0)}%)
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* EEG Brain Waves */}
@@ -213,19 +171,13 @@ export default function BrainMonitor() {
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="text-center">
               <p className="text-sm text-primary font-mono">Alpha Waves</p>
-              <p
-                className="text-2xl font-bold text-primary"
-                data-testid="alpha-waves"
-              >
+              <p className="text-2xl font-bold text-primary" data-testid="alpha-waves">
                 {alphaHz}
               </p>
             </div>
             <div className="text-center">
               <p className="text-sm text-secondary font-mono">Beta Waves</p>
-              <p
-                className="text-2xl font-bold text-secondary"
-                data-testid="beta-waves"
-              >
+              <p className="text-2xl font-bold text-secondary" data-testid="beta-waves">
                 {betaHz}
               </p>
             </div>
@@ -239,22 +191,176 @@ export default function BrainMonitor() {
         {/* Neural Network Graph */}
         <div className="glass-card p-6 rounded-xl hover-glow neural-glow">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold">
-              Brain Regions
-            </h3>
+            <h3 className="text-lg font-semibold">Brain Regions</h3>
             <Activity className="text-accent" />
           </div>
           <NeuralNetwork />
         </div>
       </div>
 
+      {/* ── Live 12-Model Analysis Panel ─────────────────────────────── */}
+      {isStreaming && analysis && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {/* Sleep Staging */}
+          <ModelCard
+            icon={<Moon className="h-4 w-4" />}
+            title="Sleep Stage"
+            value={analysis.sleep_staging?.stage ?? "—"}
+            score={analysis.sleep_staging?.confidence}
+            color="text-blue-400"
+          />
+
+          {/* Emotion */}
+          <ModelCard
+            icon={<Smile className="h-4 w-4" />}
+            title="Emotion"
+            value={analysis.emotions?.emotion ?? "—"}
+            score={analysis.emotions?.confidence}
+            color="text-pink-400"
+            extra={
+              analysis.emotions ? (
+                <div className="grid grid-cols-3 gap-2 mt-2 text-[10px] text-muted-foreground">
+                  <span>Valence: {(analysis.emotions.valence * 100).toFixed(0)}%</span>
+                  <span>Arousal: {(analysis.emotions.arousal * 100).toFixed(0)}%</span>
+                  <span>Stress: {(analysis.emotions.stress_index * 100).toFixed(0)}%</span>
+                </div>
+              ) : null
+            }
+          />
+
+          {/* Dream Detection */}
+          <ModelCard
+            icon={<Moon className="h-4 w-4" />}
+            title="Dream"
+            value={analysis.dream_detection?.is_dreaming ? "Dreaming" : "Awake"}
+            score={analysis.dream_detection?.probability}
+            color="text-purple-400"
+            extra={
+              analysis.dream_detection ? (
+                <div className="text-[10px] text-muted-foreground mt-1">
+                  REM: {(analysis.dream_detection.rem_likelihood * 100).toFixed(0)}% |
+                  Lucidity: {(analysis.dream_detection.lucidity_estimate * 100).toFixed(0)}%
+                </div>
+              ) : null
+            }
+          />
+
+          {/* Flow State */}
+          <ModelCard
+            icon={<Zap className="h-4 w-4" />}
+            title="Flow State"
+            value={analysis.flow_state?.in_flow ? "In Flow" : "Normal"}
+            score={analysis.flow_state?.flow_score}
+            color="text-green-400"
+          />
+
+          {/* Creativity */}
+          <ModelCard
+            icon={<Lightbulb className="h-4 w-4" />}
+            title="Creativity"
+            value={analysis.creativity?.state ?? "—"}
+            score={analysis.creativity?.creativity_score}
+            color="text-amber-400"
+          />
+
+          {/* Memory Encoding */}
+          <ModelCard
+            icon={<Brain className="h-4 w-4" />}
+            title="Memory"
+            value={analysis.memory_encoding?.state ?? "—"}
+            score={analysis.memory_encoding?.encoding_score}
+            color="text-cyan-400"
+          />
+
+          {/* Attention */}
+          <ModelCard
+            icon={<Eye className="h-4 w-4" />}
+            title="Attention"
+            value={analysis.attention?.state ?? "—"}
+            score={analysis.attention?.attention_score}
+            color="text-emerald-400"
+          />
+
+          {/* Drowsiness */}
+          <ModelCard
+            icon={<Battery className="h-4 w-4" />}
+            title="Drowsiness"
+            value={analysis.drowsiness?.state ?? "—"}
+            score={analysis.drowsiness?.drowsiness_index}
+            color="text-orange-400"
+          />
+
+          {/* Cognitive Load */}
+          <ModelCard
+            icon={<Gauge className="h-4 w-4" />}
+            title="Cognitive Load"
+            value={analysis.cognitive_load?.level ?? "—"}
+            score={analysis.cognitive_load?.load_index}
+            color="text-red-400"
+          />
+
+          {/* Stress */}
+          <ModelCard
+            icon={<Shield className="h-4 w-4" />}
+            title="Stress"
+            value={analysis.stress?.level ?? "—"}
+            score={analysis.stress?.stress_index}
+            color="text-rose-400"
+          />
+
+          {/* Meditation */}
+          <ModelCard
+            icon={<Heart className="h-4 w-4" />}
+            title="Meditation"
+            value={analysis.meditation?.depth ?? "—"}
+            score={analysis.meditation?.meditation_score}
+            color="text-violet-400"
+          />
+
+          {/* Lucid Dream (only visible during REM) */}
+          {analysis.lucid_dream && (
+            <ModelCard
+              icon={<Moon className="h-4 w-4" />}
+              title="Lucid Dream"
+              value={analysis.lucid_dream.state}
+              score={analysis.lucid_dream.lucidity_score}
+              color="text-fuchsia-400"
+            />
+          )}
+        </div>
+      )}
+
+      {/* Band Powers Bar */}
+      {isStreaming && analysis?.band_powers && (
+        <Card className="glass-card p-6 rounded-xl hover-glow">
+          <h3 className="text-lg font-semibold mb-4">Band Powers</h3>
+          <div className="space-y-3">
+            {Object.entries(analysis.band_powers).map(([band, value]) => (
+              <div key={band} className="flex items-center gap-3">
+                <span className="text-xs font-mono w-16 text-muted-foreground capitalize">{band}</span>
+                <div className="flex-1">
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "hsl(220,22%,12%)" }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min(100, (value as number) * 100)}%`,
+                        background: bandColor(band),
+                      }}
+                    />
+                  </div>
+                </div>
+                <span className="text-xs font-mono w-12 text-right">{((value as number) * 100).toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Spectrogram Panel */}
       {wavelet && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">
-              Wavelet Spectrogram
-            </h3>
+            <h3 className="text-lg font-semibold">Wavelet Spectrogram</h3>
             <div className="flex items-center gap-4 text-xs text-foreground/50">
               {wavelet.events.sleep_spindles.length > 0 && (
                 <span className="text-cyan-400">
@@ -285,9 +391,7 @@ export default function BrainMonitor() {
       {/* Electrode Status Grid */}
       <Card className="glass-card p-6 rounded-xl hover-glow">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold">
-            Electrode Status Grid
-          </h3>
+          <h3 className="text-lg font-semibold">Electrode Status Grid</h3>
           <span className="text-sm text-foreground/70 font-mono">
             {deviceStatus?.n_channels
               ? `${deviceStatus.n_channels} Channels`
@@ -312,4 +416,65 @@ export default function BrainMonitor() {
       </Card>
     </main>
   );
+}
+
+/* ── Helper: Model Card Component ────────────────────────────────── */
+
+function ModelCard({
+  icon,
+  title,
+  value,
+  score,
+  color,
+  extra,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  score?: number;
+  color: string;
+  extra?: React.ReactNode;
+}) {
+  const pct = score != null ? Math.round(score * 100) : null;
+
+  return (
+    <Card className="glass-card p-4 rounded-xl hover-glow">
+      <div className="flex items-center gap-2 mb-2">
+        <span className={color}>{icon}</span>
+        <span className="text-xs text-muted-foreground font-medium">{title}</span>
+      </div>
+      <p className={`text-lg font-semibold capitalize ${color}`}>{value}</p>
+      {pct != null && (
+        <div className="mt-2">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+            <span>Confidence</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(220,22%,12%)" }}>
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${pct}%`,
+                background: `linear-gradient(90deg, hsl(152,60%,48%), hsl(38,85%,58%))`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+      {extra}
+    </Card>
+  );
+}
+
+/* ── Helper: band color ──────────────────────────────────────────── */
+
+function bandColor(band: string): string {
+  const colors: Record<string, string> = {
+    delta: "hsl(262,45%,65%)",
+    theta: "hsl(200,70%,55%)",
+    alpha: "hsl(152,60%,48%)",
+    beta: "hsl(38,85%,58%)",
+    gamma: "hsl(340,70%,55%)",
+  };
+  return colors[band] || "hsl(152,60%,48%)";
 }
