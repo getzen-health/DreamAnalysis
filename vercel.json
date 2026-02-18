@@ -1,6 +1,6 @@
 {
   "framework": "vite",
-  "buildCommand": "npx vite build",
+  "buildCommand": "vite build",
   "outputDirectory": "dist/public",
   "functions": {
     "api/**/*.ts": {
