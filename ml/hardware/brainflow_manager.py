@@ -16,15 +16,32 @@ except ImportError:
     BRAINFLOW_AVAILABLE = False
 
 # Device type to BrainFlow board ID mapping
+# Board IDs verified against BrainFlow v5.20.1
 DEVICE_MAP = {
     "synthetic": {"board_id": -1, "name": "Synthetic Board", "channels": 16, "sample_rate": 256},
     "openbci_cyton": {"board_id": 0, "name": "OpenBCI Cyton", "channels": 8, "sample_rate": 250},
     "openbci_ganglion": {"board_id": 1, "name": "OpenBCI Ganglion", "channels": 4, "sample_rate": 200},
     "openbci_cyton_daisy": {"board_id": 2, "name": "OpenBCI Cyton+Daisy", "channels": 16, "sample_rate": 125},
-    "muse_2": {"board_id": 22, "name": "Muse 2", "channels": 4, "sample_rate": 256},
-    "muse_s": {"board_id": 21, "name": "Muse S", "channels": 4, "sample_rate": 256},
-    "emotiv_epoc": {"board_id": 45, "name": "Emotiv EPOC", "channels": 14, "sample_rate": 256},
-    "neurosky": {"board_id": 13, "name": "NeuroSky MindWave", "channels": 1, "sample_rate": 512},
+    "muse_2": {
+        "board_id": 38, "name": "Muse 2", "channels": 4, "sample_rate": 256,
+        "eeg_names": ["TP9", "AF7", "AF8", "TP10"],
+        "notes": "Native Bluetooth (macOS/Linux). No dongle needed.",
+    },
+    "muse_2_bled": {
+        "board_id": 22, "name": "Muse 2 (BLED Dongle)", "channels": 4, "sample_rate": 256,
+        "eeg_names": ["TP9", "AF7", "AF8", "TP10"],
+        "notes": "Requires BLED112 USB Bluetooth dongle.",
+    },
+    "muse_s": {
+        "board_id": 39, "name": "Muse S", "channels": 4, "sample_rate": 256,
+        "eeg_names": ["TP9", "AF7", "AF8", "TP10"],
+        "notes": "Native Bluetooth (macOS/Linux). No dongle needed.",
+    },
+    "muse_s_bled": {
+        "board_id": 21, "name": "Muse S (BLED Dongle)", "channels": 4, "sample_rate": 256,
+        "eeg_names": ["TP9", "AF7", "AF8", "TP10"],
+        "notes": "Requires BLED112 USB Bluetooth dongle.",
+    },
 }
 
 
@@ -38,6 +55,8 @@ class BrainFlowManager:
         self.current_device_type = None
         self.n_channels = 0
         self.sample_rate = 0
+        self.eeg_channel_names = []
+        self._board_id = None
         self._stream_thread = None
         self._stream_callback = None
         self._stop_event = threading.Event()
@@ -93,13 +112,21 @@ class BrainFlowManager:
 
         self.is_connected = True
         self.current_device_type = device_type
+        self._board_id = board_id
         self.n_channels = len(BoardShim.get_eeg_channels(board_id))
         self.sample_rate = BoardShim.get_sampling_rate(board_id)
+
+        try:
+            names = BoardShim.get_eeg_names(board_id)
+            self.eeg_channel_names = names.split(",") if isinstance(names, str) else list(names)
+        except Exception:
+            self.eeg_channel_names = [f"CH{i}" for i in range(self.n_channels)]
 
         return {
             "status": "connected",
             "device": device_info["name"],
             "channels": self.n_channels,
+            "channel_names": self.eeg_channel_names,
             "sample_rate": self.sample_rate,
         }
 
@@ -117,8 +144,10 @@ class BrainFlowManager:
         self.board = None
         self.is_connected = False
         self.current_device_type = None
+        self._board_id = None
         self.n_channels = 0
         self.sample_rate = 0
+        self.eeg_channel_names = []
 
     def start_streaming(self, callback: Optional[Callable] = None):
         """Start data streaming from the connected board.
@@ -159,15 +188,13 @@ class BrainFlowManager:
         if not self.is_connected or self.board is None:
             return None
 
-        if not BRAINFLOW_AVAILABLE:
+        if not BRAINFLOW_AVAILABLE or self._board_id is None:
             return None
-
-        board_id = DEVICE_MAP.get(self.current_device_type, {}).get("board_id", -1)
 
         try:
             data = self.board.get_current_board_data(n_samples)
-            eeg_channels = BoardShim.get_eeg_channels(board_id)
-            timestamp_channel = BoardShim.get_timestamp_channel(board_id)
+            eeg_channels = BoardShim.get_eeg_channels(self._board_id)
+            timestamp_channel = BoardShim.get_timestamp_channel(self._board_id)
 
             signals = data[eeg_channels].tolist()
             timestamps = data[timestamp_channel].tolist() if timestamp_channel < data.shape[0] else []
@@ -177,6 +204,7 @@ class BrainFlowManager:
                 "timestamps": timestamps,
                 "sample_rate": self.sample_rate,
                 "n_channels": len(eeg_channels),
+                "channel_names": self.eeg_channel_names,
             }
         except Exception:
             return None
