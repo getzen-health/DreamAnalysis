@@ -74,13 +74,11 @@ export default function Landing() {
       <section className="relative min-h-screen flex items-center justify-center px-4">
         <div className="max-w-4xl mx-auto text-center z-10">
           <Badge variant="outline" className="mb-6 border-secondary/50 text-secondary px-4 py-1.5">
-            First-of-its-Kind Neural Dream Platform
+            First-of-its-Kind BCI Dream Platform
           </Badge>
 
           <h1 className="text-5xl md:text-7xl font-futuristic font-bold mb-6">
-            <span className="text-gradient">Neural Dream</span>
-            <br />
-            <span className="text-foreground/90">Workshop</span>
+            <span className="text-gradient">Svapnastra</span>
           </h1>
 
           <p className="text-lg md:text-xl text-foreground/60 max-w-2xl mx-auto mb-8 leading-relaxed">
@@ -180,7 +178,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-primary" />
-            <span className="font-futuristic text-sm font-bold text-gradient">Neural Dream Workshop</span>
+            <span className="font-futuristic text-sm font-bold text-gradient">Svapnastra</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-foreground/40">
             <span>Built with AI + Neuroscience</span>
