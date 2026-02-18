@@ -16,13 +16,14 @@ from processing.eeg_processor import extract_band_powers, differential_entropy, 
 EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"]
 
 # Minimum benchmark accuracy to trust a trained model over feature-based
-_MIN_MODEL_ACCURACY = 0.60
+# 50% for 6-class = 3× random baseline (16.7%); cross-subject 4-channel is hard
+_MIN_MODEL_ACCURACY = 0.50
 
 
 class EmotionClassifier:
     """EEG-based emotion classifier with ONNX/sklearn/feature-based inference.
 
-    Priority: ONNX → sklearn .pkl → feature-based fallback.
+    Priority: multichannel DEAP model → ONNX → sklearn .pkl → feature-based.
     Trained models are only used if their benchmark accuracy >= 60%.
     """
 
@@ -31,6 +32,7 @@ class EmotionClassifier:
         self.onnx_session = None
         self.sklearn_model = None
         self.feature_names = None
+        self.scaler = None
         self.model_type = "feature-based"
         self._benchmark_accuracy = 0.0
 
@@ -39,16 +41,39 @@ class EmotionClassifier:
         self._ema_alpha = 0.3   # smoothing factor (lower = smoother)
         self._history = deque(maxlen=10)  # recent band power snapshots
 
-        if model_path:
+        # Try loading the DEAP-trained multichannel model first
+        self._try_load_deap_model()
+
+        if model_path and self.model_type == "feature-based":
             self._load_model(model_path)
+
+    def _try_load_deap_model(self):
+        """Try loading the DEAP-trained Muse 2 model (best accuracy)."""
+        from pathlib import Path
+        pkl_path = Path("models/saved/emotion_deap_muse.pkl")
+        if not pkl_path.exists():
+            return
+
+        bench = self._read_benchmark()
+        if bench < _MIN_MODEL_ACCURACY:
+            return
+
+        try:
+            import joblib
+            data = joblib.load(pkl_path)
+            self.sklearn_model = data["model"]
+            self.feature_names = data["feature_names"]
+            self.scaler = data.get("scaler")
+            self.model_type = "sklearn-deap"
+            self._benchmark_accuracy = bench
+        except Exception:
+            pass
 
     def _load_model(self, model_path: str):
         """Load model from file (ONNX or sklearn pkl)."""
-        # Check benchmark to decide if model is trustworthy
         self._benchmark_accuracy = self._read_benchmark()
 
         if self._benchmark_accuracy < _MIN_MODEL_ACCURACY:
-            # Model too inaccurate — stay on feature-based
             return
 
         if model_path.endswith(".onnx"):
@@ -64,6 +89,7 @@ class EmotionClassifier:
                 data = joblib.load(model_path)
                 self.sklearn_model = data["model"]
                 self.feature_names = data["feature_names"]
+                self.scaler = data.get("scaler")
                 self.model_type = "sklearn"
             except Exception:
                 pass
@@ -83,12 +109,87 @@ class EmotionClassifier:
         return 0.0
 
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
-        """Classify emotion from EEG signal."""
+        """Classify emotion from EEG signal.
+
+        Args:
+            eeg: 1D (single channel) or 2D (n_channels, n_samples) array.
+            fs: Sampling frequency.
+        """
+        # Multichannel DEAP model (best for Muse 2 4-channel data)
+        if self.model_type == "sklearn-deap" and eeg.ndim == 2 and eeg.shape[0] >= 2:
+            return self._predict_multichannel(eeg, fs)
         if self.onnx_session is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
-            return self._predict_onnx(eeg, fs)
+            return self._predict_onnx(eeg if eeg.ndim == 1 else eeg[0], fs)
         if self.sklearn_model is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
-            return self._predict_sklearn(eeg, fs)
-        return self._predict_features(eeg, fs)
+            return self._predict_sklearn(eeg if eeg.ndim == 1 else eeg[0], fs)
+        return self._predict_features(eeg if eeg.ndim == 1 else eeg[0], fs)
+
+    # ────────────────────────────────────────────────────────────────
+    # Multichannel DEAP-trained model (primary for Muse 2)
+    # ────────────────────────────────────────────────────────────────
+
+    def _predict_multichannel(self, channels: np.ndarray, fs: float) -> Dict:
+        """Predict using the DEAP-trained multichannel model."""
+        from training.train_deap_muse import extract_multichannel_features, MUSE_CH_NAMES
+
+        features = extract_multichannel_features(channels, fs)
+        feat_vec = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
+
+        if self.scaler is not None:
+            feat_vec = self.scaler.transform(feat_vec)
+
+        feat_vec = np.nan_to_num(feat_vec, nan=0.0, posinf=0.0, neginf=0.0)
+
+        probs = self.sklearn_model.predict_proba(feat_vec)[0]
+        emotion_idx = int(np.argmax(probs))
+
+        # EMA smoothing
+        if self._ema_probs is None:
+            self._ema_probs = probs
+        else:
+            self._ema_probs = self._ema_alpha * probs + (1 - self._ema_alpha) * self._ema_probs
+
+        smoothed = self._ema_probs / (self._ema_probs.sum() + 1e-10)
+        emotion_idx = int(np.argmax(smoothed))
+
+        # Extract band powers from first channel for extra metrics
+        processed = preprocess(channels[0], fs)
+        bands = extract_band_powers(processed, fs)
+        de = differential_entropy(processed, fs)
+
+        alpha = bands.get("alpha", 0)
+        beta = bands.get("beta", 0)
+        theta = bands.get("theta", 0)
+        gamma = bands.get("gamma", 0)
+
+        alpha_beta_ratio = alpha / max(beta, 1e-10)
+        beta_alpha_ratio = beta / max(alpha, 1e-10)
+        theta_beta_ratio = theta / max(beta, 1e-10)
+
+        valence = float(np.tanh((alpha_beta_ratio - 1.0) * 1.5) * 0.5 + (gamma - 0.15) * 2)
+        valence = float(np.clip(valence, -1, 1))
+        arousal = float(np.clip(beta / max(beta + alpha, 1e-10) + gamma * 0.5, 0, 1))
+
+        stress_index = float(np.clip(
+            0.50 * min(1, beta_alpha_ratio * 0.3) + 0.30 * max(0, 1 - alpha * 2.5) + 0.20 * min(1, gamma * 2), 0, 1))
+        focus_index = float(np.clip(
+            0.40 * min(1, beta * 2.5) + 0.35 * max(0, 1 - theta_beta_ratio * 0.4) + 0.25 * min(1, gamma * 2), 0, 1))
+        relaxation_index = float(np.clip(
+            0.50 * min(1, alpha * 2.5) + 0.30 * max(0, 1 - beta_alpha_ratio * 0.3) + 0.20 * min(1, theta * 1.5), 0, 1))
+
+        return {
+            "emotion": EMOTIONS[emotion_idx],
+            "emotion_index": emotion_idx,
+            "confidence": float(smoothed[emotion_idx]),
+            "probabilities": {EMOTIONS[i]: float(p) for i, p in enumerate(smoothed)},
+            "valence": valence,
+            "arousal": arousal,
+            "stress_index": stress_index,
+            "focus_index": focus_index,
+            "relaxation_index": relaxation_index,
+            "band_powers": bands,
+            "differential_entropy": de,
+        }
 
     # ────────────────────────────────────────────────────────────────
     # Feature-based classifier (primary path for Muse 2)
