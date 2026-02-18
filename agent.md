@@ -57,6 +57,10 @@ Frontend talks to Express for CRUD + AI, and directly to FastAPI for ML inferenc
 - Processing pipeline: raw EEG → artifact detection → bandpass filter → feature extraction → model inference
 - 17-feature vectors: 5 band powers + 3 Hjorth params + entropy + band ratios + asymmetry
 
+## Commit Rules
+
+- Do NOT add `Co-Authored-By` lines to commit messages.
+
 ## Common Pitfalls
 
 1. **routes.py is 2K lines** — Don't add endpoints randomly. Check the category sections.
