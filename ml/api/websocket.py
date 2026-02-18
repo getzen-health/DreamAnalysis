@@ -2,11 +2,19 @@
 
 import asyncio
 import json
+import logging
 import time
+import uuid
 import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
 
 from processing.eeg_processor import extract_features, extract_band_powers, preprocess
+
+logger = logging.getLogger(__name__)
+
+# Per-connection state storage (keyed by connection ID)
+_connection_state: dict[str, dict] = {}
+MAX_CONNECTIONS = 50
 
 
 def _numpy_safe(obj):
@@ -55,15 +63,28 @@ async def eeg_stream_endpoint(websocket: WebSocket):
 
     Reads from BrainFlow device if connected. Client should handle reconnection.
     """
+    # Enforce connection limit
+    if len(_connection_state) >= MAX_CONNECTIONS:
+        logger.warning("WebSocket connection rejected: max connections (%d) reached", MAX_CONNECTIONS)
+        await websocket.close(code=1013, reason="Max connections reached")
+        return
+
+    conn_id = str(uuid.uuid4())
+    logger.info("WebSocket connected: %s", conn_id)
     await websocket.accept()
 
-    # Per-connection state
+    # Per-connection state (stored in module-level dict, cleaned up on disconnect)
+    _connection_state[conn_id] = {
+        "user_id": "default",
+        "shift_detector": None,
+    }
     user_id = "default"
     run_models = True
     run_quality = True
     run_smoothing = True
     run_spiritual = False  # opt-in for spiritual energy analysis
     run_emotion_shift = True  # on by default — core feature
+    last_pong = time.time()
 
     # Lazy-init pipeline singletons
     models = None
@@ -96,7 +117,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                 "lucid_dream": lucid_dream_model,
                 "meditation": meditation_model,
             }
-        except Exception:
+        except Exception as e:
+            logger.error("Failed to load ML models: %s", e)
             models = {}
         return models
 
@@ -113,8 +135,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
             quality_checker = SignalQualityChecker(fs=256)
             state_engine = BrainStateEngine()
             confidence_cal = ConfidenceCalibrator()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Failed to init accuracy pipeline: %s", e)
 
     try:
         # Get device manager
@@ -124,16 +146,16 @@ async def eeg_stream_endpoint(websocket: WebSocket):
             if BRAINFLOW_AVAILABLE:
                 from api.routes import _get_device_manager
                 device_manager = _get_device_manager()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("BrainFlow not available: %s", e)
 
         # Get session recorder
         session_recorder = None
         try:
             from api.routes import _session_recorder
             session_recorder = _session_recorder
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Session recorder not available: %s", e)
 
         frame_interval = 0.25  # 4 Hz
 
@@ -174,7 +196,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         processed = preprocess(eeg, fs)
                         bands = extract_band_powers(processed, fs)
                         features = extract_features(processed, fs)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning("EEG processing error: %s", e)
                         bands = {}
                         features = {}
 
@@ -192,8 +215,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                 from processing.signal_quality import SignalQualityChecker
                                 qc = SignalQualityChecker(fs=fs) if fs != 256 else quality_checker
                                 quality_result = qc.check_quality(eeg)
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning("Signal quality check failed: %s", e)
 
                     # Run all 12 models
                     if run_models:
@@ -218,8 +241,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                         sleep_stage=sleep_pred.get("stage_index", 0),
                                     )
                                 analysis["meditation"] = m["meditation"].predict(eeg, fs) if "meditation" in m else {}
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning("Model inference error: %s", e)
 
                     # Confidence calibration
                     conf_summary = None
@@ -228,8 +251,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                             from processing.confidence_calibration import add_uncertainty_labels
                             add_uncertainty_labels(analysis, confidence_cal)
                             conf_summary = analysis.pop("_confidence_summary", None)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("Confidence calibration error: %s", e)
 
                     # State transition smoothing
                     smoothed = None
@@ -245,8 +268,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                 "dream": analysis.get("dream_detection", {}),
                             })
                             coherence = state_engine.get_cross_state_coherence()
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("State smoothing error: %s", e)
 
                     frame = {
                         "signals": data["signals"],
@@ -265,18 +288,20 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                     if coherence is not None:
                         frame["coherence"] = coherence
 
-                    # Emotion shift detection (on by default)
+                    # Emotion shift detection (per-connection detector)
                     if run_emotion_shift:
                         try:
                             from processing.emotion_shift_detector import EmotionShiftDetector
-                            if not hasattr(eeg_stream_endpoint, '_shift_detector'):
-                                eeg_stream_endpoint._shift_detector = EmotionShiftDetector(fs=fs)
+                            conn = _connection_state.get(conn_id, {})
+                            if conn.get("shift_detector") is None:
+                                conn["shift_detector"] = EmotionShiftDetector(fs=fs)
+                                _connection_state[conn_id] = conn
                             emotion_pred = analysis.get("emotions")
-                            shift = eeg_stream_endpoint._shift_detector.update(eeg, emotion_pred)
+                            shift = conn["shift_detector"].update(eeg, emotion_pred)
                             if shift.get("shift_detected"):
                                 frame["emotion_shift"] = shift
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("Emotion shift detection error: %s", e)
 
                     # Spiritual energy analysis (opt-in)
                     if run_spiritual:
@@ -296,15 +321,15 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                 "aura": compute_aura_energy(processed, fs),
                                 "consciousness": compute_consciousness_level(processed, fs),
                             }
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("Spiritual energy analysis error: %s", e)
 
                     # Pipe to session recorder
                     if session_recorder and session_recorder.is_recording:
                         try:
                             session_recorder.add_frame(signals, frame["analysis"])
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("Session recording error: %s", e)
 
             if frame:
                 await websocket.send_json(_numpy_safe(frame))
@@ -315,9 +340,12 @@ async def eeg_stream_endpoint(websocket: WebSocket):
             await asyncio.sleep(sleep_time)
 
     except WebSocketDisconnect:
-        pass
-    except Exception:
+        logger.info("WebSocket disconnected: %s", conn_id)
+    except Exception as e:
+        logger.error("WebSocket error for %s: %s", conn_id, e)
         try:
             await websocket.close()
         except Exception:
             pass
+    finally:
+        _connection_state.pop(conn_id, None)

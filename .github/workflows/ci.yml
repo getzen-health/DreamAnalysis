@@ -72,7 +72,7 @@ jobs:
         run: |
           cd ml
           pip install -r requirements.txt
-          pip install pytest httpx
+          pip install pytest httpx pytest-cov
 
       - name: Test ML service health
         run: |
@@ -206,3 +206,58 @@ jobs:
           assert len(features) == 17, f'Expected 17 features, got {len(features)}'
           print(f'Feature extraction: PASSED ({len(features)} features)')
           "
+
+      - name: ML inference benchmark
+        run: |
+          cd ml
+          python -c "
+          import time, numpy as np
+          from main import app
+          from fastapi.testclient import TestClient
+          client = TestClient(app)
+
+          # Benchmark simulate-eeg (runs all 12 models)
+          times = []
+          for i in range(3):
+              start = time.time()
+              r = client.post('/api/simulate-eeg', json={
+                  'state': 'rest', 'duration': 2.0, 'fs': 256, 'n_channels': 1
+              })
+              elapsed_ms = (time.time() - start) * 1000
+              times.append(elapsed_ms)
+              assert r.status_code == 200
+
+          avg_ms = sum(times) / len(times)
+          print(f'ML inference avg: {avg_ms:.0f}ms (3 runs)')
+          assert avg_ms < 5000, f'Inference too slow: {avg_ms:.0f}ms > 5000ms limit'
+          print('ML benchmark: PASSED')
+          "
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high || true
+        continue-on-error: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Audit pip dependencies
+        run: |
+          pip install pip-audit
+          cd ml && pip-audit -r requirements.txt || true
+        continue-on-error: true

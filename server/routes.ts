@@ -42,7 +42,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/dream-analysis", async (req, res) => {
     try {
       const { dreamText, userId } = req.body;
-      
+
+      if (!dreamText || typeof dreamText !== "string") {
+        return res.status(400).json({ message: "dreamText is required" });
+      }
+      if (dreamText.length > 10000) {
+        return res.status(400).json({ message: "dreamText exceeds max length (10000 chars)" });
+      }
+
       // Analyze dream with OpenAI
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const response = await openai.chat.completions.create({
@@ -60,14 +67,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         response_format: { type: "json_object" }
       });
 
-      const analysis = JSON.parse(response.choices[0].message.content || "{}");
-      
+      let analysis: Record<string, unknown>;
+      try {
+        analysis = JSON.parse(response.choices[0].message.content || "{}");
+      } catch {
+        analysis = {};
+      }
+
       const dreamAnalysis = await storage.createDreamAnalysis({
         userId,
         dreamText,
-        symbols: analysis.symbols || [],
-        emotions: analysis.emotions || [],
-        aiAnalysis: analysis.analysis || ""
+        symbols: (analysis.symbols as string[]) || [],
+        emotions: (analysis.emotions as Array<{emotion: string; intensity: number}>) || [],
+        aiAnalysis: (analysis.analysis as string) || ""
       });
 
       res.json(dreamAnalysis);
@@ -89,7 +101,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai-chat", async (req, res) => {
     try {
       const { message, userId } = req.body;
-      
+
+      if (!message || typeof message !== "string") {
+        return res.status(400).json({ message: "message is required" });
+      }
+      if (message.length > 5000) {
+        return res.status(400).json({ message: "message exceeds max length (5000 chars)" });
+      }
+
       // Store user message
       await storage.createAiChat({
         userId,
@@ -138,7 +157,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/analyze-mood", async (req, res) => {
     try {
       const { text, userId } = req.body;
-      
+
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ message: "text is required" });
+      }
+      if (text.length > 5000) {
+        return res.status(400).json({ message: "text exceeds max length (5000 chars)" });
+      }
+
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const response = await openai.chat.completions.create({
         model: "gpt-5",
@@ -155,7 +181,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         response_format: { type: "json_object" }
       });
 
-      const analysis = JSON.parse(response.choices[0].message.content || "{}");
+      let analysis: Record<string, unknown>;
+      try {
+        analysis = JSON.parse(response.choices[0].message.content || "{}");
+      } catch {
+        analysis = {};
+      }
       res.json(analysis);
     } catch (error) {
       res.status(500).json({ message: "Failed to analyze mood" });
