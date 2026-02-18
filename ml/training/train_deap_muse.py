@@ -432,15 +432,18 @@ def save_model(result: dict, output_dir: str = "models/saved"):
     }, pkl_path)
     print(f"\nSaved sklearn model: {pkl_path} ({pkl_path.stat().st_size / 1024:.0f} KB)")
 
-    # Try ONNX export
+    # Try ONNX export (use onnxmltools for LightGBM support)
     onnx_path = out / "emotion_deap_muse.onnx"
     try:
-        from skl2onnx import convert_sklearn
+        import onnxmltools
+        from onnxmltools.convert.lightgbm.shape_calculators import calculate_linear_classifier_output_shapes  # noqa: F401
         from skl2onnx.common.data_types import FloatTensorType
 
         n_features = len(result["feature_names"])
         initial_type = [("input", FloatTensorType([None, n_features]))]
-        onnx_model = convert_sklearn(result["model"], initial_types=initial_type)
+        onnx_model = onnxmltools.convert_lightgbm(
+            result["model"], initial_types=initial_type, target_opset=11
+        )
 
         with open(onnx_path, "wb") as f:
             f.write(onnx_model.SerializeToString())

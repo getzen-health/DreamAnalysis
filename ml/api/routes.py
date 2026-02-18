@@ -249,7 +249,8 @@ async def analyze_eeg(input_data: EEGInput):
             eeg = signals[0]
 
         sleep_result = sleep_model.predict(eeg, fs)
-        emotion_result = emotion_model.predict(eeg, fs)
+        # Pass multichannel data to emotion model for DEAP-trained model
+        emotion_result = emotion_model.predict(signals if n_channels >= 2 else eeg, fs)
         dream_result = dream_model.predict(eeg, fs)
 
         processed = preprocess(eeg, fs)
