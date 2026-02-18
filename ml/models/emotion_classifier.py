@@ -115,8 +115,8 @@ class EmotionClassifier:
             eeg: 1D (single channel) or 2D (n_channels, n_samples) array.
             fs: Sampling frequency.
         """
-        # Multichannel DEAP model (best for Muse 2 4-channel data)
-        if self.model_type == "sklearn-deap" and eeg.ndim == 2 and eeg.shape[0] >= 2:
+        # Multichannel DEAP model (requires exactly 4 Muse 2 channels: AF7, AF8, TP9, TP10)
+        if self.model_type == "sklearn-deap" and eeg.ndim == 2 and eeg.shape[0] >= 4:
             return self._predict_multichannel(eeg, fs)
         if self.onnx_session is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
             return self._predict_onnx(eeg if eeg.ndim == 1 else eeg[0], fs)
