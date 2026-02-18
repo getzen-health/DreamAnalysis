@@ -472,6 +472,83 @@ export function getWebSocketUrl(): string {
   return `${wsProtocol}://${host}/ws/eeg-stream`;
 }
 
+// ─── Health Integration ─────────────────────────────────────────────────
+
+interface HealthSample {
+  metric: string;
+  value: number;
+  timestamp: string;
+  source: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface HealthDailySummary {
+  date: string;
+  health: Record<string, { avg: number; min: number; max: number; count: number }>;
+  brain: Record<string, number>;
+}
+
+interface HealthInsight {
+  insight_type: string;
+  title: string;
+  description: string;
+  correlation_strength: number;
+  evidence_count: number;
+  brain_metric: string;
+  health_metric: string;
+}
+
+interface HealthTrend {
+  date: string;
+  flow_score: number | null;
+  creativity_score: number | null;
+  encoding_score: number | null;
+  valence: number | null;
+  arousal: number | null;
+}
+
+export async function ingestHealthData(
+  userId: string,
+  source: "apple_health" | "google_fit" | "health_connect",
+  data: Record<string, unknown>
+): Promise<{ stored: number; metrics: string[] }> {
+  return mlFetch("/health/ingest", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, source, data }),
+  });
+}
+
+export async function getHealthDailySummary(
+  userId: string,
+  date?: string
+): Promise<HealthDailySummary> {
+  const params = date ? `?date=${date}` : "";
+  return mlFetch<HealthDailySummary>(`/health/daily-summary/${userId}${params}`);
+}
+
+export async function getHealthInsights(
+  userId: string
+): Promise<HealthInsight[]> {
+  return mlFetch<HealthInsight[]>(`/health/insights/${userId}`);
+}
+
+export async function getHealthTrends(
+  userId: string,
+  days: number = 30
+): Promise<HealthTrend[]> {
+  return mlFetch<HealthTrend[]>(`/health/trends/${userId}?days=${days}`);
+}
+
+export async function getSupportedHealthMetrics(): Promise<Record<string, string[]>> {
+  return mlFetch<Record<string, string[]>>("/health/supported-metrics");
+}
+
+export async function exportToHealthKit(
+  userId: string
+): Promise<{ exported_records: number }> {
+  return mlFetch("/health/export-to-healthkit/" + userId, { method: "POST" });
+}
+
 export type {
   EEGAnalysisResult,
   SimulationResult,
@@ -491,4 +568,8 @@ export type {
   SessionSummary,
   ConnectivityResult,
   CalibrationStatus,
+  HealthSample,
+  HealthDailySummary,
+  HealthInsight,
+  HealthTrend,
 };
