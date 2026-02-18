@@ -17,7 +17,6 @@ import argparse
 import json
 import pickle
 import time
-import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -456,7 +455,7 @@ def save_model(result: dict, output_dir: str = "models/saved"):
     bench_path.parent.mkdir(parents=True, exist_ok=True)
     benchmark = {
         "model_name": "emotion_deap_muse",
-        "dataset": f"DEAP-32subj-4ch-muse",
+        "dataset": "DEAP-32subj-4ch-muse",
         "accuracy": result["mean_accuracy"],
         "f1_macro": result["mean_f1"],
         "n_samples": result["n_samples"],
@@ -525,9 +524,9 @@ def main():
 
     # Check if model meets the 60% threshold for production use
     if result["mean_accuracy"] >= 0.60:
-        print(f"\n✓ Model exceeds 60% accuracy threshold — will be used for live inference!")
+        print("\n✓ Model exceeds 60% accuracy threshold — will be used for live inference!")
     else:
-        print(f"\n✗ Model below 60% threshold — feature-based classifier will be used instead.")
+        print("\n✗ Model below 60% threshold — feature-based classifier will be used instead.")
         print("  To improve: collect more Muse 2 data with --online-data flag.")
 
 

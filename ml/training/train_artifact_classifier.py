@@ -33,7 +33,7 @@ def load_tuh_artifacts(
 
     mne.set_log_level("WARNING")
 
-    from models.artifact_classifier import extract_artifact_features, ARTIFACT_NAME_TO_ID
+    from models.artifact_classifier import extract_artifact_features
 
     tuh_path = Path(data_dir)
     edf_files = sorted(tuh_path.glob("**/*.edf"))
@@ -166,7 +166,7 @@ def train_artifact_classifier(
     elapsed = time.time() - start_time
 
     print(f"\n{'='*50}")
-    print(f"Artifact Classifier Training Complete")
+    print("Artifact Classifier Training Complete")
     print(f"{'='*50}")
     print(f"  Model type:       {results['model_type']}")
     print(f"  Test accuracy:    {results['accuracy']:.4f}")

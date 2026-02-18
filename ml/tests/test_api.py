@@ -170,7 +170,6 @@ class TestSessionAnalytics:
 
     def test_session_analytics_functions(self):
         from storage.session_analytics import (
-            compare_sessions, get_session_trends, get_weekly_report,
             _aggregate_timeline, _is_improvement, _build_narrative,
         )
 

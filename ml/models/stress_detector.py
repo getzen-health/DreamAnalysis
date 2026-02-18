@@ -194,7 +194,7 @@ class StressDetector:
         level_idx = int(np.argmax(probs))
         stress_index = float(
             probs[1] * 0.3 + probs[2] * 0.6 + probs[3] * 1.0
-        ) if len(probs) >= 4 else float(probs[state_idx])
+        ) if len(probs) >= 4 else float(probs[level_idx])
 
         return {
             "level": STRESS_LEVELS[min(level_idx, 3)],

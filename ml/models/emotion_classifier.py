@@ -130,7 +130,7 @@ class EmotionClassifier:
 
     def _predict_multichannel(self, channels: np.ndarray, fs: float) -> Dict:
         """Predict using the DEAP-trained multichannel model."""
-        from training.train_deap_muse import extract_multichannel_features, MUSE_CH_NAMES
+        from training.train_deap_muse import extract_multichannel_features
 
         features = extract_multichannel_features(channels, fs)
         feat_vec = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)

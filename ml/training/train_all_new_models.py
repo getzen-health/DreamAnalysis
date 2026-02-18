@@ -13,10 +13,9 @@ import json
 import time
 import numpy as np
 from pathlib import Path
-from collections import Counter
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score
 import joblib
 
 from processing.eeg_processor import extract_features, preprocess

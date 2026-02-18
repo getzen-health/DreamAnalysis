@@ -126,7 +126,7 @@ def train_denoiser(
     elapsed = time.time() - start_time
 
     print(f"\n{'='*50}")
-    print(f"Denoiser Training Complete")
+    print("Denoiser Training Complete")
     print(f"{'='*50}")
     print(f"  Final loss:        {stats['final_loss']:.6f}")
     print(f"  SNR before:        {avg_snr_before:.2f} dB")

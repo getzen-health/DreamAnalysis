@@ -6,9 +6,7 @@ improvement metrics for the user dashboard.
 
 import json
 import numpy as np
-from pathlib import Path
 from typing import Dict, List, Optional
-from datetime import datetime
 
 from storage.session_recorder import SESSIONS_DIR
 

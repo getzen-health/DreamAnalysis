@@ -21,7 +21,7 @@ import time
 import json
 import numpy as np
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple
 
 import joblib
 from sklearn.model_selection import StratifiedKFold, cross_val_score

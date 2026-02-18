@@ -19,7 +19,7 @@ The goal: give humans the same emotional awareness that animals have.
 
 import time
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from collections import deque
 
 from processing.eeg_processor import extract_band_powers, preprocess, spectral_entropy
