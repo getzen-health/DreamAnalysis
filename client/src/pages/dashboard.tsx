@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { ScoreCircle } from "@/components/score-circle";
@@ -22,7 +22,6 @@ import {
   Lightbulb,
   HeartPulse,
   Sparkles,
-  Zap,
   Radio,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
@@ -76,18 +75,6 @@ function getInsightText(
   }
   return "Your neural patterns are balanced. Regular check-ins help build emotional awareness over time.";
 }
-
-const CHAKRA_COLORS = [
-  "hsl(0, 72%, 55%)",
-  "hsl(25, 85%, 55%)",
-  "hsl(45, 90%, 55%)",
-  "hsl(152, 60%, 48%)",
-  "hsl(200, 70%, 55%)",
-  "hsl(240, 55%, 60%)",
-  "hsl(280, 50%, 60%)",
-];
-
-const CHAKRA_LABELS = ["Root", "Sacral", "Solar", "Heart", "Throat", "Eye", "Crown"];
 
 /* Emotion shift type descriptions — mirrors backend EMOTION_PRECURSORS */
 const EMOTION_PRECURSORS: Record<string, { description: string; guidance: string }> = {
@@ -184,25 +171,6 @@ export default function Dashboard() {
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
-
-  // Chakra energy derived from band powers
-  const chakras = useMemo(() => {
-    if (!bandPowers.delta) return [0, 0, 0, 0, 0, 0, 0];
-    const d = (bandPowers.delta ?? 0) * 100;
-    const t = (bandPowers.theta ?? 0) * 100;
-    const a = (bandPowers.alpha ?? 0) * 100;
-    const b = (bandPowers.beta ?? 0) * 100;
-    const g = (bandPowers.gamma ?? 0) * 100;
-    return [
-      Math.min(95, d * 1.2),        // Root — delta
-      Math.min(95, t * 1.1),        // Sacral — theta
-      Math.min(95, (a + t) * 0.6),  // Solar — alpha/theta
-      Math.min(95, a * 1.2),        // Heart — alpha
-      Math.min(95, b * 1.0),        // Throat — beta
-      Math.min(95, (b + g) * 0.7),  // Third Eye — high beta + gamma
-      Math.min(95, g * 1.5),        // Crown — gamma
-    ];
-  }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma]);
 
   // Shift alert from emotion_shift
   const [shift, setShift] = useState<{
@@ -508,40 +476,6 @@ export default function Dashboard() {
           )}
         </Card>
       </div>
-
-      {/* ---- Energy Preview ---- */}
-      <Card className="glass-card p-5 hover-glow">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-accent" />
-            <h3 className="text-sm font-medium">Energy Centers</h3>
-          </div>
-          <Link
-            href="/inner-energy"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-          >
-            Full map <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <div className="flex items-end gap-3 justify-center h-24">
-          {chakras.map((val, i) => (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <div
-                className="w-6 rounded-t-sm transition-all duration-700"
-                style={{
-                  height: `${Math.max(4, val * 0.8)}px`,
-                  background: `linear-gradient(to top, ${CHAKRA_COLORS[i]}88, ${CHAKRA_COLORS[i]})`,
-                  boxShadow: `0 0 8px ${CHAKRA_COLORS[i]}44`,
-                }}
-              />
-              <span className="text-[9px] text-muted-foreground">{CHAKRA_LABELS[i]}</span>
-            </div>
-          ))}
-        </div>
-        {!isStreaming && (
-          <p className="text-center text-xs text-muted-foreground mt-2">Connect device to see energy levels</p>
-        )}
-      </Card>
 
       {/* ---- Quick Actions ---- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
