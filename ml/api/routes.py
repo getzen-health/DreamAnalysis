@@ -495,6 +495,11 @@ async def analyze_wavelet(data: EEGInput):
 
         eeg = signals[0]
         fs = data.fs
+
+        # Need at least 34 samples for bandpass filter (padlen=33)
+        if len(eeg) < 34:
+            raise HTTPException(status_code=422, detail=f"Signal too short ({len(eeg)} samples). Need at least 34.")
+
         processed = preprocess(eeg, fs)
 
         spectrogram = compute_cwt_spectrogram(processed, fs)
@@ -510,6 +515,8 @@ async def analyze_wavelet(data: EEGInput):
                 "k_complexes": k_complexes,
             },
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
