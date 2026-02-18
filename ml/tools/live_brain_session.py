@@ -46,6 +46,12 @@ from models.emotion_classifier import EmotionClassifier
 from models.dream_detector import DreamDetector
 from models.flow_state_detector import FlowStateDetector
 from models.creativity_detector import CreativityDetector, MemoryEncodingPredictor
+from models.drowsiness_detector import DrowsinessDetector
+from models.cognitive_load_estimator import CognitiveLoadEstimator
+from models.attention_classifier import AttentionClassifier
+from models.stress_detector import StressDetector
+from models.lucid_dream_detector import LucidDreamDetector
+from models.meditation_classifier import MeditationClassifier
 from health.correlation_engine import HealthBrainDB
 
 
@@ -65,8 +71,8 @@ class C:
 def print_banner():
     print(f"""
 {C.BOLD}{C.CYAN}╔══════════════════════════════════════════════════╗
-║     NeuralDreamWorkshop — Live Brain Session     ║
-║     6-Model Real-Time EEG + Accuracy Pipeline    ║
+║        Svapnastra — Live Brain Session           ║
+║    12-Model Real-Time EEG + Accuracy Pipeline    ║
 ╚══════════════════════════════════════════════════╝{C.END}
 """)
 
@@ -184,6 +190,55 @@ def print_analysis(analysis: dict, elapsed: float, quality: dict,
     mc = mem_colors.get(mem_state, C.END)
     print(f"  {C.BOLD}MEMORY{C.END}     {mc}{mem_state:>8}{C.END}{sm_mark}  {format_bar(mem_prob)} {mem_prob:.0%}{uncertain}")
 
+    print()
+
+    # ── 7. Drowsiness ──
+    drow = analysis.get("drowsiness", {})
+    drow_state = drow.get("state", "?")
+    drow_score = drow.get("drowsiness_index", 0)
+    drow_colors = {"alert": C.GREEN, "drowsy": C.YELLOW, "sleepy": C.RED}
+    dc = drow_colors.get(drow_state, C.END)
+    print(f"  {C.BOLD}DROWSY{C.END}     {dc}{drow_state:>8}{C.END}  {format_bar(drow_score)} {drow_score:.0%}")
+
+    # ── 8. Attention ──
+    att = analysis.get("attention", {})
+    att_state = att.get("state", "?")
+    att_score = att.get("attention_score", 0)
+    att_colors = {"distracted": C.RED, "passive": C.YELLOW, "focused": C.GREEN, "hyperfocused": C.CYAN}
+    ac = att_colors.get(att_state, C.END)
+    print(f"  {C.BOLD}ATTENTION{C.END}  {ac}{att_state:>8}{C.END}  {format_bar(att_score)} {att_score:.0%}")
+
+    # ── 9. Cognitive Load ──
+    cog = analysis.get("cognitive_load", {})
+    cog_level = cog.get("level", "?")
+    cog_score = cog.get("load_index", 0)
+    cog_colors = {"low": C.GREEN, "moderate": C.YELLOW, "high": C.RED}
+    coc = cog_colors.get(cog_level, C.END)
+    print(f"  {C.BOLD}COG LOAD{C.END}   {coc}{cog_level:>8}{C.END}  {format_bar(cog_score)} {cog_score:.0%}")
+
+    # ── 10. Stress ──
+    stress = analysis.get("stress", {})
+    stress_level = stress.get("level", "?")
+    stress_idx = stress.get("stress_index", 0)
+    stress_colors = {"relaxed": C.GREEN, "mild": C.YELLOW, "moderate": C.RED, "high": C.RED}
+    stc = stress_colors.get(stress_level, C.END)
+    print(f"  {C.BOLD}STRESS{C.END}     {stc}{stress_level:>8}{C.END}  {format_bar(stress_idx)} {stress_idx:.0%}")
+
+    # ── 11. Meditation ──
+    med = analysis.get("meditation", {})
+    med_depth = med.get("depth", "?")
+    med_score = med.get("meditation_score", 0)
+    med_colors = {"surface": C.DIM, "light": C.YELLOW, "moderate": C.GREEN, "deep": C.CYAN, "transcendent": C.RED}
+    mdc = med_colors.get(med_depth, C.END)
+    print(f"  {C.BOLD}MEDITATE{C.END}   {mdc}{med_depth:>8}{C.END}  {format_bar(med_score)} {med_score:.0%}")
+
+    # ── 12. Lucid Dream (only during REM) ──
+    lucid = analysis.get("lucid_dream", {})
+    lucid_state = lucid.get("state", "?")
+    lucid_score = lucid.get("lucidity_score", 0)
+    if lucid_state != "?" and sleep.get("stage") == "REM":
+        print(f"  {C.BOLD}LUCID{C.END}      {C.RED}{lucid_state:>8}{C.END}  {format_bar(lucid_score)} {lucid_score:.0%}")
+
     # ── Personalization indicator ──
     personalization = flow.get("personalization", "none")
     if personalization != "none":
@@ -205,16 +260,28 @@ def print_analysis(analysis: dict, elapsed: float, quality: dict,
 
 
 def run_analysis(signal_data, fs, models, calibration, personalization, features_array):
-    """Run all 6 models on EEG data, with optional calibration and personalization."""
-    sleep_model, emotion_model, dream_model, flow_model, creativity_model, memory_model = models
+    """Run all 12 models on EEG data, with optional calibration and personalization."""
+    (sleep_model, emotion_model, dream_model, flow_model, creativity_model,
+     memory_model, drowsiness_model, cognitive_load_model, attention_model,
+     stress_model, lucid_dream_model, meditation_model) = models
 
-    # Run all 6 models
+    # Run all 12 models
     sleep_result = sleep_model.predict(signal_data, fs)
     emotion_result = emotion_model.predict(signal_data, fs)
     dream_result = dream_model.predict(signal_data, fs)
     flow_result = flow_model.predict(signal_data, fs)
     creativity_result = creativity_model.predict(signal_data, fs)
     memory_result = memory_model.predict(signal_data, fs)
+    drowsiness_result = drowsiness_model.predict(signal_data, fs)
+    cognitive_load_result = cognitive_load_model.predict(signal_data, fs)
+    attention_result = attention_model.predict(signal_data, fs)
+    stress_result = stress_model.predict(signal_data, fs)
+    lucid_result = lucid_dream_model.predict(
+        signal_data, fs,
+        is_rem=(sleep_result.get("stage") == "REM"),
+        sleep_stage=sleep_result.get("stage_index", 0),
+    )
+    meditation_result = meditation_model.predict(signal_data, fs)
 
     predictions = {
         "sleep_staging": sleep_result,
@@ -223,6 +290,12 @@ def run_analysis(signal_data, fs, models, calibration, personalization, features
         "flow_state": flow_result,
         "creativity": creativity_result,
         "memory_encoding": memory_result,
+        "drowsiness": drowsiness_result,
+        "cognitive_load": cognitive_load_result,
+        "attention": attention_result,
+        "stress": stress_result,
+        "lucid_dream": lucid_result,
+        "meditation": meditation_result,
     }
 
     # Apply personalization if available (blends personal + global models)
@@ -370,16 +443,25 @@ def run_session(device_type: str, user_id: str, duration: int):
     else:
         print(f"  {C.DIM}No user feedback yet{C.END} — predictions use global models only")
 
-    # ── Initialize 6 ML models ──
-    print("\nLoading 6 analysis models...")
+    # ── Initialize 12 ML models ──
+    print("\nLoading 12 analysis models...")
     sleep_model = SleepStagingModel()
     emotion_model = EmotionClassifier()
     dream_model = DreamDetector()
     flow_model = FlowStateDetector()
     creativity_model = CreativityDetector()
     memory_model = MemoryEncodingPredictor()
-    models = (sleep_model, emotion_model, dream_model, flow_model, creativity_model, memory_model)
-    print(f"  {C.GREEN}All 6 models loaded{C.END}")
+    drowsiness_model = DrowsinessDetector()
+    cognitive_load_model = CognitiveLoadEstimator()
+    attention_model = AttentionClassifier()
+    stress_model = StressDetector()
+    lucid_dream_model = LucidDreamDetector()
+    meditation_model = MeditationClassifier()
+    models = (sleep_model, emotion_model, dream_model, flow_model,
+              creativity_model, memory_model, drowsiness_model,
+              cognitive_load_model, attention_model, stress_model,
+              lucid_dream_model, meditation_model)
+    print(f"  {C.GREEN}All 12 models loaded{C.END}")
 
     # ── Initialize health DB ──
     db = HealthBrainDB()
@@ -396,9 +478,10 @@ def run_session(device_type: str, user_id: str, duration: int):
         print(f"  {C.RED}Connection failed: {e}{C.END}")
         if device_type == "muse_2":
             print("\n  Tips for Muse 2:")
-            print("  1. Make sure BLED112 dongle is plugged in")
-            print("  2. Turn on Muse 2 (hold button until light)")
-            print("  3. Make sure Muse is not connected to phone app")
+            print("  1. Turn on Muse 2 (hold button until LED flashes)")
+            print("  2. Make sure Muse is NOT connected to phone app")
+            print("  3. macOS: uses native Bluetooth — no dongle needed")
+            print("  4. If still fails, try 'muse_2_bled' with BLED112 USB dongle")
         sys.exit(1)
 
     fs = result["sample_rate"]
@@ -543,7 +626,7 @@ def run_session(device_type: str, user_id: str, duration: int):
 
             # Check for correlations
             insights = db.generate_insights(user_id, days=30)
-            if insights and insights[0].get("type") != "info":
+            if insights and insights[0].get("insight_type") != "info":
                 print(f"\n{C.BOLD}Brain-Health Insights:{C.END}")
                 for insight in insights:
                     print(f"  - {insight['title']}: {insight['description']}")
@@ -592,7 +675,8 @@ def run_session(device_type: str, user_id: str, duration: int):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NeuralDreamWorkshop Live Brain Session")
     parser.add_argument("--device", default="synthetic", choices=[
-        "synthetic", "muse_2", "muse_s", "openbci_cyton", "openbci_ganglion", "neurosky"
+        "synthetic", "muse_2", "muse_2_bled", "muse_s", "muse_s_bled",
+        "openbci_cyton", "openbci_ganglion", "openbci_cyton_daisy",
     ], help="EEG device to connect to (default: synthetic)")
     parser.add_argument("--user", default="default", help="User ID for health correlation")
     parser.add_argument("--duration", type=int, default=0, help="Session duration in seconds (0 = unlimited)")
