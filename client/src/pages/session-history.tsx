@@ -90,19 +90,53 @@ function getDominantEmotion(sessions: SessionSummary[]): string {
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
 }
 
-function buildTrendData(sessions: SessionSummary[]) {
-  return sessions
-    .filter((s) => s.summary?.avg_focus != null)
-    .slice(-30)
-    .map((s) => ({
-      date: new Date((s.start_time ?? 0) * 1000).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
-      focus: Math.round((s.summary.avg_focus ?? 0) * 100),
-      stress: Math.round((s.summary.avg_stress ?? 0) * 100),
-      flow: Math.round((s.summary.avg_flow ?? 0) * 100),
-      creativity: Math.round((s.summary.avg_creativity ?? 0) * 100),
+function avgArr(arr: number[]) {
+  return arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+}
+
+function buildTrendData(sessions: SessionSummary[], days: number) {
+  const map: Record<string, { focus: number[]; stress: number[]; flow: number[]; creativity: number[]; ts: number }> = {};
+
+  for (const s of sessions) {
+    if (s.summary?.avg_focus == null) continue;
+    const d = new Date((s.start_time ?? 0) * 1000);
+    let key: string;
+    let ts: number;
+
+    if (days <= 1) {
+      key = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      ts = d.getTime();
+    } else if (days <= 7) {
+      key = d.toLocaleDateString("en-US", { weekday: "short" });
+      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    } else if (days <= 30) {
+      key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    } else if (days <= 90) {
+      const ws = new Date(d);
+      ws.setDate(d.getDate() - d.getDay());
+      key = ws.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      ts = ws.getTime();
+    } else {
+      key = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+      ts = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    }
+
+    if (!map[key]) map[key] = { focus: [], stress: [], flow: [], creativity: [], ts };
+    map[key].focus.push((s.summary.avg_focus ?? 0) * 100);
+    map[key].stress.push((s.summary.avg_stress ?? 0) * 100);
+    map[key].flow.push((s.summary.avg_flow ?? 0) * 100);
+    map[key].creativity.push((s.summary.avg_creativity ?? 0) * 100);
+  }
+
+  return Object.entries(map)
+    .sort((a, b) => a[1].ts - b[1].ts)
+    .map(([date, data]) => ({
+      date,
+      focus: avgArr(data.focus),
+      stress: avgArr(data.stress),
+      flow: avgArr(data.flow),
+      creativity: avgArr(data.creativity),
     }));
 }
 
@@ -150,7 +184,7 @@ export default function SessionHistory() {
   const peakFocus = findPeakHour(periodSessions, "avg_focus");
   const peakFlow = findPeakHour(periodSessions, "avg_flow");
   const peakRelax = findPeakHour(periodSessions, "avg_relaxation");
-  const trendData = buildTrendData(periodSessions);
+  const trendData = buildTrendData(periodSessions, periodDays);
 
   /* Day groups */
   const dayGroups = groupByDay(periodSessions);

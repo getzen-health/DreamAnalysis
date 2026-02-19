@@ -335,6 +335,24 @@ function useDeviceInternal(): UseDeviceReturn {
     setLatestFrame(null);
   }, []);
 
+  // Auto-restart a new session every 30 minutes while streaming
+  // so each saved chunk is manageable and "Today" chart updates regularly
+  useEffect(() => {
+    if (!isStreamingRef.current) return;
+    const interval = setInterval(() => {
+      if (isStreamingRef.current) {
+        stopSession()
+          .catch(() => {})
+          .finally(() => {
+            if (isStreamingRef.current) {
+              startSession("general").catch(() => {});
+            }
+          });
+      }
+    }, 30 * 60 * 1000); // every 30 minutes
+    return () => clearInterval(interval);
+  }, [state]);
+
   // On mount: check if backend device is still connected/streaming (survives refresh)
   useEffect(() => {
     let cancelled = false;

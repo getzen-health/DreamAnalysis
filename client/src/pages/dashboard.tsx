@@ -6,6 +6,8 @@ import { ScoreCircle } from "@/components/score-circle";
 import {
   AreaChart,
   Area,
+  LineChart,
+  Line,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -128,6 +130,7 @@ const QUICK_ACTIONS = [
 const USER_ID = "default";
 
 const PERIOD_TABS = [
+  { label: "Today", days: 1 },
   { label: "Week", days: 7 },
   { label: "Month", days: 30 },
   { label: "3 Months", days: 90 },
@@ -158,6 +161,66 @@ function scoreColor(score: number): string {
   if (score > 70) return "hsl(152, 60%, 48%)";
   if (score >= 40) return "hsl(38, 85%, 58%)";
   return "hsl(4, 72%, 55%)";
+}
+
+/* Build time-series chart data from sessions with the right X-axis granularity */
+type ChartPoint = { date: string; focus: number; stress: number; flow: number; creativity: number; ts: number };
+
+function avg(arr: number[]) {
+  return arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+}
+
+function buildChartData(sessions: SessionSummary[], days: number): ChartPoint[] {
+  const map: Record<string, { focus: number[]; stress: number[]; flow: number[]; creativity: number[]; ts: number }> = {};
+
+  for (const s of sessions) {
+    if (s.summary?.avg_focus == null) continue;
+    const d = new Date((s.start_time ?? 0) * 1000);
+    let key: string;
+    let ts: number;
+
+    if (days <= 1) {
+      // Today: group by hour
+      key = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      ts = d.getTime();
+    } else if (days <= 7) {
+      // Week: group by day
+      key = d.toLocaleDateString("en-US", { weekday: "short" });
+      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    } else if (days <= 30) {
+      // Month: group by day
+      key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    } else if (days <= 90) {
+      // 3 Months: group by week starting day
+      const dayOfWeek = d.getDay();
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - dayOfWeek);
+      key = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      ts = weekStart.getTime();
+    } else {
+      // Year: group by month
+      key = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+      ts = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    }
+
+    if (!map[key]) map[key] = { focus: [], stress: [], flow: [], creativity: [], ts };
+    map[key].focus.push((s.summary.avg_focus ?? 0) * 100);
+    map[key].stress.push((s.summary.avg_stress ?? 0) * 100);
+    map[key].flow.push((s.summary.avg_flow ?? 0) * 100);
+    map[key].creativity.push((s.summary.avg_creativity ?? 0) * 100);
+  }
+
+  return Object.entries(map)
+    .sort((a, b) => a[1].ts - b[1].ts)
+    .map(([date, data]) => ({
+      date,
+      ts: data.ts,
+      focus: avg(data.focus),
+      stress: avg(data.stress),
+      flow: avg(data.flow),
+      creativity: avg(data.creativity),
+    }));
 }
 
 /* ========== Component ========== */
@@ -214,6 +277,11 @@ export default function Dashboard() {
     memory: Math.round(memoryScore),
   };
 
+  // Today time-series — accumulate every frame while streaming
+  const [todayTimeline, setTodayTimeline] = useState<
+    Array<{ time: string; focus: number; stress: number; flow: number; creativity: number }>
+  >([]);
+
   // Mood timeline — accumulate from live data
   const [moodHistory, setMoodHistory] = useState<MoodPoint[]>([]);
 
@@ -228,6 +296,16 @@ export default function Dashboard() {
         stress: Math.round(stressIndex),
       },
     ]);
+    setTodayTimeline((prev) => [
+      ...prev.slice(-120), // keep up to 3 hours at 1.5s intervals
+      {
+        time: now,
+        focus: Math.round(focusIndex),
+        stress: Math.round(stressIndex),
+        flow: Math.round(flowScore),
+        creativity: Math.round(creativityScore),
+      },
+    ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
@@ -239,7 +317,7 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (!isStreaming || !bandPowers.alpha) return;
+    if (!isStreaming || bandPowers.alpha == null) return;
     setBandHistory((prev) => ({
       alpha: [...prev.alpha.slice(-30), (bandPowers.alpha ?? 0) * 100],
       theta: [...prev.theta.slice(-30), (bandPowers.theta ?? 0) * 100],
@@ -329,20 +407,8 @@ export default function Dashboard() {
     (s) => (s.start_time ?? 0) >= Date.now() / 1000 - trendDays * 86400
   );
 
-  // Build trend chart data from session summaries
-  const sessionTrendData = periodSessions
-    .filter((s) => s.summary?.avg_focus != null)
-    .slice(-30)
-    .map((s) => ({
-      date: new Date((s.start_time ?? 0) * 1000).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
-      focus: Math.round((s.summary.avg_focus ?? 0) * 100),
-      stress: Math.round((s.summary.avg_stress ?? 0) * 100),
-      flow: Math.round((s.summary.avg_flow ?? 0) * 100),
-      creativity: Math.round((s.summary.avg_creativity ?? 0) * 100),
-    }));
+  // Build time-series chart data with correct granularity per period
+  const sessionTrendData = buildChartData(periodSessions, trendDays);
 
   // Peak focus hour
   const peakFocusHour = (() => {
@@ -569,10 +635,85 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {sessionTrendData.length < 2 ? (
+        {/* TODAY: time-series chart of how metrics changed throughout the day */}
+        {trendDays === 1 && isStreaming ? (
+          <>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
+              <span className="text-xs text-muted-foreground">
+                {currentEmotion !== "—" ? <span className="capitalize">{currentEmotion}</span> : "Current session"}
+              </span>
+              <div className="ml-auto flex gap-3">
+                {[
+                  { label: "F", value: Math.round(focusIndex), color: "text-primary" },
+                  { label: "S", value: Math.round(stressIndex), color: "text-warning" },
+                  { label: "Fl", value: Math.round(flowScore), color: "text-success" },
+                  { label: "C", value: Math.round(creativityScore), color: "text-secondary" },
+                ].map((m) => (
+                  <span key={m.label} className={`text-xs font-mono font-semibold ${m.color}`}>
+                    {m.label} {m.value}%
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {todayTimeline.length < 2 ? (
+              <div className="h-44 flex items-center justify-center text-sm text-muted-foreground">
+                <span className="text-[10px] font-mono text-primary animate-pulse mr-2">●</span>
+                Collecting time-series data...
+              </div>
+            ) : (
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={todayTimeline}>
+                    <XAxis
+                      dataKey="time"
+                      tick={{ fontSize: 9 }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis hide domain={[0, 100]} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 8,
+                        fontSize: 11,
+                      }}
+                      formatter={(v: number) => `${v}%`}
+                    />
+                    <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(152, 60%, 48%)" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38, 85%, 58%)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" isAnimationActive={false} />
+                    <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(200, 70%, 55%)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="creativity" name="Creativity" stroke="hsl(262, 45%, 65%)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Legend */}
+            <div className="flex gap-4 mt-2 flex-wrap">
+              {[
+                { label: "Focus", color: "hsl(152, 60%, 48%)" },
+                { label: "Stress", color: "hsl(38, 85%, 58%)", dashed: true },
+                { label: "Flow", color: "hsl(200, 70%, 55%)" },
+                { label: "Creativity", color: "hsl(262, 45%, 65%)" },
+              ].map((l) => (
+                <div key={l.label} className="flex items-center gap-1.5">
+                  <svg width="18" height="8">
+                    <line x1="0" y1="4" x2="18" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} />
+                  </svg>
+                  <span className="text-[10px] text-muted-foreground">{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : sessionTrendData.length < 2 ? (
           <div className="h-40 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
             <Brain className="h-8 w-8 text-muted-foreground/40" />
-            <p>Connect your Muse 2 to track mental health over time</p>
+            <p>{trendDays === 1 ? "No sessions recorded today yet" : "No sessions in this period"}</p>
+            <p className="text-xs text-muted-foreground/60">Connect your Muse 2 to start recording</p>
           </div>
         ) : (
           <>
@@ -617,12 +758,7 @@ export default function Dashboard() {
                       <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis hide domain={[0, 100]} />
                   <Tooltip
                     contentStyle={{
@@ -633,43 +769,10 @@ export default function Dashboard() {
                     }}
                     formatter={(v: number) => `${v}%`}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="focus"
-                    name="Focus"
-                    stroke="hsl(152, 60%, 48%)"
-                    fill="url(#dashFocusGrad)"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="stress"
-                    name="Stress"
-                    stroke="hsl(38, 85%, 58%)"
-                    fill="none"
-                    strokeWidth={1.5}
-                    dot={false}
-                    strokeDasharray="4 4"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="flow"
-                    name="Flow"
-                    stroke="hsl(200, 70%, 55%)"
-                    fill="none"
-                    strokeWidth={1.5}
-                    dot={false}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="creativity"
-                    name="Creativity"
-                    stroke="hsl(262, 45%, 65%)"
-                    fill="none"
-                    strokeWidth={1.5}
-                    dot={false}
-                  />
+                  <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(152, 60%, 48%)" fill="url(#dashFocusGrad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="stress" name="Stress" stroke="hsl(38, 85%, 58%)" fill="none" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+                  <Area type="monotone" dataKey="flow" name="Flow" stroke="hsl(200, 70%, 55%)" fill="none" strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="creativity" name="Creativity" stroke="hsl(262, 45%, 65%)" fill="none" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -685,10 +788,7 @@ export default function Dashboard() {
                 const vals = sessionTrendData.map((t) => t[cat.key]);
                 const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
                 return (
-                  <span
-                    key={cat.key}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted ${cat.color}`}
-                  >
+                  <span key={cat.key} className={`px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted ${cat.color}`}>
                     {cat.label} {avg.toFixed(0)}%
                   </span>
                 );
