@@ -15,12 +15,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, BarChart3, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info } from "lucide-react";
+import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 const USER_ID = "default";
 import { useToast } from "@/hooks/use-toast";
-import { useInference } from "@/hooks/use-inference";
-import { getModelsBenchmarks, ingestHealthData, type BenchmarkResult } from "@/lib/ml-api";
+import { ingestHealthData } from "@/lib/ml-api";
 
 interface SettingsState {
   chartAnimations: boolean;
@@ -50,7 +49,6 @@ export default function SettingsPage() {
   const userId = USER_ID;
   const { toast } = useToast();
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
-  const [benchmarks, setBenchmarks] = useState<Record<string, BenchmarkResult>>({});
   const [healthStatus, setHealthStatus] = useState<HealthConnectionStatus>({
     apple_health: false,
     google_fit: false,
@@ -75,19 +73,6 @@ export default function SettingsPage() {
     }
     loadSettings();
   }, [userId]);
-
-  // Load model benchmarks
-  useEffect(() => {
-    async function loadBenchmarks() {
-      try {
-        const data = await getModelsBenchmarks();
-        setBenchmarks(data);
-      } catch {
-        // Benchmarks not available
-      }
-    }
-    loadBenchmarks();
-  }, []);
 
   // Save settings to API
   const saveSettings = useCallback(
@@ -477,75 +462,6 @@ export default function SettingsPage() {
         </Card>
       </div>
 
-      {/* Model Performance */}
-      {Object.keys(benchmarks).length > 0 && (
-        <Card className="glass-card p-6 rounded-xl">
-          <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            Model Performance
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 text-foreground/60 font-medium">Model</th>
-                  <th className="text-left py-2 text-foreground/60 font-medium">Dataset</th>
-                  <th className="text-right py-2 text-foreground/60 font-medium">Accuracy</th>
-                  <th className="text-right py-2 text-foreground/60 font-medium">F1 Score</th>
-                  <th className="text-right py-2 text-foreground/60 font-medium">Inference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(benchmarks).map(([key, bench]) => (
-                  <tr key={key} className="border-b border-border/50">
-                    <td className="py-3 font-mono text-foreground/80">
-                      {bench.model_name.replace(/_/g, " ")}
-                    </td>
-                    <td className="py-3 text-foreground/60">
-                      {bench.dataset}
-                    </td>
-                    <td className="py-3 text-right font-mono">
-                      <span className={bench.accuracy >= 0.8 ? "text-success" : bench.accuracy >= 0.6 ? "text-warning" : "text-destructive"}>
-                        {(bench.accuracy * 100).toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="py-3 text-right font-mono text-foreground/80">
-                      {(bench.f1_macro * 100).toFixed(1)}%
-                    </td>
-                    <td className="py-3 text-right font-mono text-foreground/60">
-                      {bench.inference_time_ms !== undefined
-                        ? `${bench.inference_time_ms.toFixed(1)}ms`
-                        : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {Object.entries(benchmarks).map(([key, bench]) => (
-            bench.per_class && Object.keys(bench.per_class).length > 0 && (
-              <details key={`detail-${key}`} className="mt-4">
-                <summary className="cursor-pointer text-sm text-foreground/60 hover:text-foreground/80">
-                  {bench.model_name.replace(/_/g, " ")} — per-class details
-                </summary>
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {Object.entries(bench.per_class).map(([cls, metrics]) => (
-                    <div key={cls} className="p-2 bg-card/50 rounded border border-border/30 text-xs">
-                      <p className="font-medium text-foreground/80">{cls}</p>
-                      <p className="text-foreground/50">
-                        P: {(metrics.precision * 100).toFixed(0)}% |
-                        R: {(metrics.recall * 100).toFixed(0)}% |
-                        F1: {(metrics.f1 * 100).toFixed(0)}%
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )
-          ))}
-        </Card>
-      )}
     </main>
   );
 }
