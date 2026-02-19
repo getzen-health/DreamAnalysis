@@ -528,19 +528,17 @@ export default function Dashboard() {
                 <span className="text-xs text-muted-foreground">{metric.label}</span>
               </div>
               <p className="text-xl font-semibold font-mono">
-                {isStreaming ? `${value}%` : "—"}
+                {value}%
               </p>
-              {isStreaming && (
-                <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${value}%`,
-                      backgroundColor: metric.color,
-                    }}
-                  />
-                </div>
-              )}
+              <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${value}%`,
+                    backgroundColor: metric.color,
+                  }}
+                />
+              </div>
             </Card>
           );
         })}
