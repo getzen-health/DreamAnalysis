@@ -425,7 +425,7 @@ export default function Dashboard() {
           </div>
 
           {/* Weekly change badges */}
-          {weeklyReport && (
+          {weeklyReport && weeklyReport.total_sessions > 0 && (
             <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3">
               {([
                 { label: "Stress", change: weeklyReport.stress_change, invert: true },
@@ -434,8 +434,9 @@ export default function Dashboard() {
                 { label: "Relaxation", change: weeklyReport.relaxation_change, invert: false },
                 { label: "Creativity", change: weeklyReport.creativity_change, invert: false },
               ]).map((item) => {
-                const isPositive = item.invert ? item.change < 0 : item.change > 0;
-                const displayChange = item.invert ? -item.change : item.change;
+                const change = item.change ?? 0;
+                const isPositive = item.invert ? change < 0 : change > 0;
+                const displayChange = item.invert ? -change : change;
                 return (
                   <div key={item.label} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
                     {isPositive ? (
