@@ -170,6 +170,14 @@ interface SessionSummary {
     n_frames?: number;
     n_channels?: number;
     n_samples?: number;
+    avg_stress?: number;
+    avg_focus?: number;
+    avg_relaxation?: number;
+    avg_flow?: number;
+    avg_creativity?: number;
+    avg_valence?: number;
+    avg_arousal?: number;
+    dominant_emotion?: string;
   };
 }
 

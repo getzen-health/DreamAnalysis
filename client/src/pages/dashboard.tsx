@@ -27,14 +27,13 @@ import {
   Cpu,
   MemoryStick,
   TrendingUp,
-  Settings,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import {
-  getHealthTrends,
   getHealthInsights,
-  type HealthTrend,
+  listSessions,
   type HealthInsight,
+  type SessionSummary,
 } from "@/lib/ml-api";
 
 /* ---------- types ---------- */
@@ -307,14 +306,15 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
-  // --- Health data queries ---
+  // --- Session data queries ---
   const [trendDays, setTrendDays] = useState(7);
 
-  const { data: healthTrends } = useQuery<HealthTrend[]>({
-    queryKey: ["health", "trends", USER_ID, trendDays],
-    queryFn: () => getHealthTrends(USER_ID, trendDays),
+  const { data: allSessions = [] } = useQuery<SessionSummary[]>({
+    queryKey: ["sessions"],
+    queryFn: () => listSessions(),
     retry: false,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 60_000,
   });
 
   const { data: healthInsights } = useQuery<HealthInsight[]>({
@@ -323,6 +323,59 @@ export default function Dashboard() {
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Filter sessions by selected period
+  const periodSessions = allSessions.filter(
+    (s) => (s.start_time ?? 0) >= Date.now() / 1000 - trendDays * 86400
+  );
+
+  // Build trend chart data from session summaries
+  const sessionTrendData = periodSessions
+    .filter((s) => s.summary?.avg_focus != null)
+    .slice(-30)
+    .map((s) => ({
+      date: new Date((s.start_time ?? 0) * 1000).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      focus: Math.round((s.summary.avg_focus ?? 0) * 100),
+      stress: Math.round((s.summary.avg_stress ?? 0) * 100),
+      flow: Math.round((s.summary.avg_flow ?? 0) * 100),
+      creativity: Math.round((s.summary.avg_creativity ?? 0) * 100),
+    }));
+
+  // Peak focus hour
+  const peakFocusHour = (() => {
+    const map: Record<number, { sum: number; count: number }> = {};
+    for (const s of periodSessions) {
+      const val = s.summary?.avg_focus;
+      if (val == null) continue;
+      const h = new Date((s.start_time ?? 0) * 1000).getHours();
+      if (!map[h]) map[h] = { sum: 0, count: 0 };
+      map[h].sum += val;
+      map[h].count += 1;
+    }
+    const entries = Object.entries(map);
+    if (!entries.length) return null;
+    const best = entries.reduce((a, b) =>
+      a[1].sum / a[1].count > b[1].sum / b[1].count ? a : b
+    );
+    const h = Number(best[0]);
+    const fmt = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+    return { label: fmt, value: Math.round((best[1].sum / best[1].count) * 100) };
+  })();
+
+  // Dominant emotion
+  const dominantEmotion = (() => {
+    const counts: Record<string, number> = {};
+    for (const s of periodSessions) {
+      const e = s.summary?.dominant_emotion;
+      if (e) counts[e] = (counts[e] ?? 0) + 1;
+    }
+    const entries = Object.entries(counts);
+    if (!entries.length) return null;
+    return entries.sort((a, b) => b[1] - a[1])[0][0];
+  })();
 
   /* Sparkline renderer */
   const renderSparkline = (data: number[], color: string) => {
@@ -492,12 +545,12 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* 6. Health Trends */}
+      {/* 6. Mental Health & Emotional Analysis */}
       <Card className="glass-card p-5 hover-glow">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium">Health Trends</h3>
+            <h3 className="text-sm font-medium">Mental Health & Emotional Analysis</h3>
           </div>
           <div className="flex gap-1">
             {PERIOD_TABS.map((tab) => (
@@ -516,70 +569,132 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="h-56">
-          {!healthTrends || healthTrends.length < 2 ? (
-            <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-              <Settings className="h-8 w-8 text-muted-foreground/40" />
-              <p>Connect Apple Health or Google Fit in Settings to see trends</p>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={healthTrends}>
-                <defs>
-                  <linearGradient id="trendFlow" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(d: string) => {
-                    const date = new Date(d);
-                    return `${date.getMonth() + 1}/${date.getDate()}`;
-                  }}
-                />
-                <YAxis hide domain={[0, 1]} />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                  formatter={(v: number) => `${(v * 100).toFixed(0)}%`}
-                />
-                <Area type="monotone" dataKey="flow_score" name="Flow" stroke="hsl(152, 60%, 48%)" fill="url(#trendFlow)" strokeWidth={2} dot={false} connectNulls />
-                <Area type="monotone" dataKey="creativity_score" name="Creativity" stroke="hsl(262, 45%, 65%)" fill="none" strokeWidth={1.5} dot={false} connectNulls />
-                <Area type="monotone" dataKey="encoding_score" name="Encoding" stroke="hsl(200, 70%, 55%)" fill="none" strokeWidth={1.5} dot={false} connectNulls />
-                <Area type="monotone" dataKey="valence" name="Valence" stroke="hsl(38, 85%, 58%)" fill="none" strokeWidth={1.5} dot={false} strokeDasharray="4 4" connectNulls />
-                <Area type="monotone" dataKey="arousal" name="Arousal" stroke="hsl(320, 55%, 60%)" fill="none" strokeWidth={1.5} dot={false} strokeDasharray="4 4" connectNulls />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Category pills */}
-        {healthTrends && healthTrends.length >= 2 && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {([
-              { key: "flow_score", label: "Flow", color: "text-success" },
-              { key: "creativity_score", label: "Creativity", color: "text-secondary" },
-              { key: "encoding_score", label: "Encoding", color: "text-[hsl(200,70%,55%)]" },
-              { key: "valence", label: "Valence", color: "text-warning" },
-              { key: "arousal", label: "Arousal", color: "text-[hsl(320,55%,60%)]" },
-            ] as const).map((cat) => {
-              const vals = healthTrends.map((t) => t[cat.key]).filter((v): v is number => v !== null);
-              const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-              return (
-                <span key={cat.key} className={`px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted ${cat.color}`}>
-                  {cat.label} {(avg * 100).toFixed(0)}%
-                </span>
-              );
-            })}
+        {sessionTrendData.length < 2 ? (
+          <div className="h-40 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+            <Brain className="h-8 w-8 text-muted-foreground/40" />
+            <p>Connect your Muse 2 to track mental health over time</p>
           </div>
+        ) : (
+          <>
+            {/* Compact insight row */}
+            {(peakFocusHour || dominantEmotion) && (
+              <div className="flex flex-wrap gap-3 mb-4">
+                {peakFocusHour && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/5 border border-primary/10">
+                    <Eye className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Peak focus</p>
+                      <p className="text-xs font-medium">{peakFocusHour.label} · {peakFocusHour.value}%</p>
+                    </div>
+                  </div>
+                )}
+                {dominantEmotion && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/5 border border-secondary/10">
+                    <Sparkles className="h-3.5 w-3.5 text-secondary shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Dominant emotion</p>
+                      <p className="text-xs font-medium capitalize">{dominantEmotion}</p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted">
+                  <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Sessions</p>
+                    <p className="text-xs font-medium">{periodSessions.length}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Trend chart */}
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sessionTrendData}>
+                  <defs>
+                    <linearGradient id="dashFocusGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis hide domain={[0, 100]} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                    formatter={(v: number) => `${v}%`}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="focus"
+                    name="Focus"
+                    stroke="hsl(152, 60%, 48%)"
+                    fill="url(#dashFocusGrad)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="stress"
+                    name="Stress"
+                    stroke="hsl(38, 85%, 58%)"
+                    fill="none"
+                    strokeWidth={1.5}
+                    dot={false}
+                    strokeDasharray="4 4"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="flow"
+                    name="Flow"
+                    stroke="hsl(200, 70%, 55%)"
+                    fill="none"
+                    strokeWidth={1.5}
+                    dot={false}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="creativity"
+                    name="Creativity"
+                    stroke="hsl(262, 45%, 65%)"
+                    fill="none"
+                    strokeWidth={1.5}
+                    dot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Metric pills */}
+            <div className="flex flex-wrap gap-2 mt-3">
+              {([
+                { key: "focus" as const, label: "Focus", color: "text-primary" },
+                { key: "stress" as const, label: "Stress", color: "text-warning" },
+                { key: "flow" as const, label: "Flow", color: "text-success" },
+                { key: "creativity" as const, label: "Creativity", color: "text-secondary" },
+              ]).map((cat) => {
+                const vals = sessionTrendData.map((t) => t[cat.key]);
+                const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+                return (
+                  <span
+                    key={cat.key}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted ${cat.color}`}
+                  >
+                    {cat.label} {avg.toFixed(0)}%
+                  </span>
+                );
+              })}
+            </div>
+          </>
         )}
       </Card>
 

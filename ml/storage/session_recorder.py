@@ -103,6 +103,28 @@ class SessionRecorder:
             "n_samples": all_signals.shape[1] if all_signals.size > 0 else 0,
         }
 
+        # Compute per-session metric averages from analysis timeline
+        if self.analysis_timeline:
+            from collections import Counter
+            emotions_data = [t["emotions"] for t in self.analysis_timeline if t.get("emotions")]
+            flow_data = [t["flow_state"] for t in self.analysis_timeline if t.get("flow_state")]
+            creativity_data = [t["creativity"] for t in self.analysis_timeline if t.get("creativity")]
+
+            if emotions_data:
+                summary["avg_stress"] = sum(e.get("stress_index", 0) for e in emotions_data) / len(emotions_data)
+                summary["avg_focus"] = sum(e.get("focus_index", 0) for e in emotions_data) / len(emotions_data)
+                summary["avg_relaxation"] = sum(e.get("relaxation_index", 0) for e in emotions_data) / len(emotions_data)
+                summary["avg_valence"] = sum(e.get("valence", 0) for e in emotions_data) / len(emotions_data)
+                summary["avg_arousal"] = sum(e.get("arousal", 0) for e in emotions_data) / len(emotions_data)
+                emotion_labels = [e.get("emotion", "") for e in emotions_data if e.get("emotion")]
+                if emotion_labels:
+                    summary["dominant_emotion"] = Counter(emotion_labels).most_common(1)[0][0]
+
+            if flow_data:
+                summary["avg_flow"] = sum(f.get("flow_score", 0) for f in flow_data) / len(flow_data)
+            if creativity_data:
+                summary["avg_creativity"] = sum(c.get("creativity_score", 0) for c in creativity_data) / len(creativity_data)
+
         # Save metadata + analysis timeline
         self.session_meta["status"] = "completed"
         self.session_meta["end_time"] = time.time()

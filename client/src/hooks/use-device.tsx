@@ -15,6 +15,8 @@ import {
   startDeviceStream,
   stopDeviceStream,
   getWebSocketUrl,
+  startSession,
+  stopSession,
   type DeviceInfo,
   type DeviceStatusResponse,
 } from "@/lib/ml-api";
@@ -287,6 +289,7 @@ function useDeviceInternal(): UseDeviceReturn {
       wsRef.current.close();
       wsRef.current = null;
     }
+    stopSession().catch(() => {}); // save recording if one was active
     try {
       await disconnectDevice();
     } catch {
@@ -306,6 +309,7 @@ function useDeviceInternal(): UseDeviceReturn {
       isStreamingRef.current = true;
       reconnectRef.current = 0;
       openWebSocket();
+      startSession("general").catch(() => {}); // auto-record while streaming
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start stream");
     }
@@ -321,6 +325,7 @@ function useDeviceInternal(): UseDeviceReturn {
       wsRef.current.close();
       wsRef.current = null;
     }
+    stopSession().catch(() => {}); // save the recording
     try {
       await stopDeviceStream();
     } catch {
@@ -345,6 +350,7 @@ function useDeviceInternal(): UseDeviceReturn {
           isStreamingRef.current = true;
           reconnectRef.current = 0;
           openWebSocket();
+          startSession("general").catch(() => {}); // resume auto-recording after page reload
         } else if (status.connected) {
           setDeviceStatus(status);
           setSelectedDevice(status.device_type);
