@@ -355,7 +355,8 @@ export function AICompanion({ userId }: AICompanionProps) {
                 ? "Ask about your brain state, mood, focus, stress..."
                 : "Connect your Muse 2 for live insights..."
             }
-            className="flex-1 bg-card/50 border border-primary/30 rounded-lg !text-foreground [caret-color:var(--foreground)]"
+            className="flex-1 bg-card/50 border border-primary/30 rounded-lg"
+            style={{ color: "var(--foreground)", caretColor: "var(--foreground)" }}
           />
           <Button
             onClick={handleSendMessage}
