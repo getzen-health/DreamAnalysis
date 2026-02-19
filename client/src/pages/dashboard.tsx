@@ -27,17 +27,14 @@ import {
   Cpu,
   MemoryStick,
   TrendingUp,
-  TrendingDown,
   Settings,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import {
   getHealthTrends,
   getHealthInsights,
-  getWeeklyReport,
   type HealthTrend,
   type HealthInsight,
-  type WeeklyReport,
 } from "@/lib/ml-api";
 
 /* ---------- types ---------- */
@@ -313,13 +310,6 @@ export default function Dashboard() {
   // --- Health data queries ---
   const [trendDays, setTrendDays] = useState(7);
 
-  const { data: weeklyReport } = useQuery<WeeklyReport>({
-    queryKey: ["health", "weekly-report", USER_ID],
-    queryFn: () => getWeeklyReport(USER_ID),
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
-
   const { data: healthTrends } = useQuery<HealthTrend[]>({
     queryKey: ["health", "trends", USER_ID, trendDays],
     queryFn: () => getHealthTrends(USER_ID, trendDays),
@@ -407,66 +397,22 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 3. Mental Health Score Hero */}
-      <Card className="glass-card p-6 hover-glow">
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="flex flex-col items-center">
-            <ScoreCircle
-              value={mentalHealthScore}
-              label="Mental Health"
-              gradientId="grad-mental-health"
-              colorFrom={scoreColor(mentalHealthScore)}
-              colorTo={mentalHealthScore > 70 ? "hsl(180, 65%, 50%)" : mentalHealthScore >= 40 ? "hsl(38, 60%, 65%)" : "hsl(4, 50%, 65%)"}
-              size="lg"
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              {isStreaming ? "Live composite score" : "Connect device to begin"}
-            </p>
-          </div>
-
-          {/* Weekly change badges */}
-          {weeklyReport && weeklyReport.total_sessions > 0 && (
-            <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {([
-                { label: "Stress", change: weeklyReport.stress_change, invert: true },
-                { label: "Focus", change: weeklyReport.focus_change, invert: false },
-                { label: "Flow", change: weeklyReport.flow_change, invert: false },
-                { label: "Relaxation", change: weeklyReport.relaxation_change, invert: false },
-                { label: "Creativity", change: weeklyReport.creativity_change, invert: false },
-              ]).map((item) => {
-                const change = item.change ?? 0;
-                const isPositive = item.invert ? change < 0 : change > 0;
-                const displayChange = item.invert ? -change : change;
-                return (
-                  <div key={item.label} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                    {isPositive ? (
-                      <TrendingUp className="h-3.5 w-3.5 text-success shrink-0" />
-                    ) : (
-                      <TrendingDown className="h-3.5 w-3.5 text-destructive shrink-0" />
-                    )}
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">{item.label}</p>
-                      <p className={`text-xs font-mono font-medium ${isPositive ? "text-success" : "text-destructive"}`}>
-                        {displayChange > 0 ? "+" : ""}{(displayChange * 100).toFixed(0)}%
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Sessions</p>
-                  <p className="text-xs font-mono font-medium text-foreground">{weeklyReport.total_sessions}</p>
-                </div>
-              </div>
-            </div>
-          )}
+      {/* 3. Score Circles — Mental Health + Wellness + Sleep + Brain */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+        <div className="score-card p-6 flex flex-col items-center hover-glow">
+          <ScoreCircle
+            value={mentalHealthScore}
+            label="Mental Health"
+            gradientId="grad-mental-health"
+            colorFrom={scoreColor(mentalHealthScore)}
+            colorTo={mentalHealthScore > 70 ? "hsl(180, 65%, 50%)" : mentalHealthScore >= 40 ? "hsl(38, 60%, 65%)" : "hsl(4, 50%, 65%)"}
+            size="lg"
+          />
+          <p className="text-xs text-muted-foreground mt-2">
+            {isStreaming ? "Live composite" : "—"}
+          </p>
         </div>
-      </Card>
 
-      {/* 4. Live Score Circles */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="score-card p-6 flex flex-col items-center hover-glow">
           <ScoreCircle
             value={wellnessScore}
@@ -636,10 +582,10 @@ export default function Dashboard() {
       </Card>
 
       {/* 7. AI Insight + Brain Waves (side by side) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 ${isStreaming ? "md:grid-cols-2" : ""} gap-4`}>
         {/* AI Insight */}
         {isStreaming && (
-          <div className="ai-insight-card md:col-span-2">
+          <div className="ai-insight-card">
             <div className="flex items-start gap-3">
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -669,7 +615,7 @@ export default function Dashboard() {
         )}
 
         {/* Brain Waves Sparklines */}
-        <Card className={`glass-card p-5 hover-glow ${!isStreaming ? "md:col-span-3" : ""}`}>
+        <Card className="glass-card p-5 hover-glow">
           <div className="flex items-center gap-2 mb-4">
             <Brain className="h-4 w-4 text-secondary" />
             <h3 className="text-sm font-medium">Brain Waves</h3>
