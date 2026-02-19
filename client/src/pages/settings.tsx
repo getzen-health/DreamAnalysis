@@ -524,7 +524,7 @@ function ExportBrainDataCard({ userId }: { userId: string }) {
       url.searchParams.set("from_ts", String(fromTs));
       url.searchParams.set("to_ts",   String(toTs));
       url.searchParams.set("format",  format);
-      url.searchParams.set("metrics", [...selected].join(","));
+      url.searchParams.set("metrics", Array.from(selected).join(","));
 
       const res = await fetch(url.toString());
       if (!res.ok) throw new Error(await res.text());

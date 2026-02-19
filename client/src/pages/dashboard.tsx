@@ -597,6 +597,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-medium">Mental Health & Emotional Analysis</h3>
+          </div>
           <div className="flex gap-1">
             {PERIOD_TABS.map((tab) => (
               <button
