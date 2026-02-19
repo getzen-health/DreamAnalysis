@@ -45,12 +45,6 @@ interface MoodPoint {
   stress: number;
 }
 
-interface BandHistory {
-  alpha: number[];
-  theta: number[];
-  beta: number[];
-}
-
 /* ---------- helpers ---------- */
 const EMOTION_LABELS: Record<string, string> = {
   happy: "Happy",
@@ -277,17 +271,21 @@ export default function Dashboard() {
     memory: Math.round(memoryScore),
   };
 
-  // Today time-series — accumulate every frame while streaming
+  // Today time-series — sample every 30s for the mental health chart
   const [todayTimeline, setTodayTimeline] = useState<
     Array<{ time: string; focus: number; stress: number; flow: number; creativity: number }>
   >([]);
+  const lastTimelineSampleRef = useRef(0);
+  const TIMELINE_INTERVAL_MS = 30_000; // one data point every 30 seconds
 
-  // Mood timeline — accumulate from live data
+  // Mood timeline — accumulate from live frames (for the fine-grained Mood Timeline chart)
   const [moodHistory, setMoodHistory] = useState<MoodPoint[]>([]);
 
   useEffect(() => {
     if (!isStreaming || !emotions) return;
     const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+    // Mood history: every frame (throttled by FRAME_THROTTLE_MS in useDevice)
     setMoodHistory((prev) => [
       ...prev.slice(-30),
       {
@@ -296,35 +294,25 @@ export default function Dashboard() {
         stress: Math.round(stressIndex),
       },
     ]);
-    setTodayTimeline((prev) => [
-      ...prev.slice(-120), // keep up to 3 hours at 1.5s intervals
-      {
-        time: now,
-        focus: Math.round(focusIndex),
-        stress: Math.round(stressIndex),
-        flow: Math.round(flowScore),
-        creativity: Math.round(creativityScore),
-      },
-    ]);
+
+    // Today timeline: only every 30s
+    const ts = Date.now();
+    if (ts - lastTimelineSampleRef.current >= TIMELINE_INTERVAL_MS) {
+      lastTimelineSampleRef.current = ts;
+      setTodayTimeline((prev) => [
+        ...prev.slice(-288), // 24h at 5-min intervals = 288 points max
+        {
+          time: now,
+          focus: Math.round(focusIndex),
+          stress: Math.round(stressIndex),
+          flow: Math.round(flowScore),
+          creativity: Math.round(creativityScore),
+        },
+      ]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
-  // Brain wave sparklines — accumulate from band powers
-  const [bandHistory, setBandHistory] = useState<BandHistory>({
-    alpha: [],
-    theta: [],
-    beta: [],
-  });
-
-  useEffect(() => {
-    if (!isStreaming || bandPowers.alpha == null) return;
-    setBandHistory((prev) => ({
-      alpha: [...prev.alpha.slice(-30), (bandPowers.alpha ?? 0) * 100],
-      theta: [...prev.theta.slice(-30), (bandPowers.theta ?? 0) * 100],
-      beta: [...prev.beta.slice(-30), (bandPowers.beta ?? 0) * 100],
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestFrame?.timestamp]);
 
   // Shift alert from emotion_shift
   const [shift, setShift] = useState<{
@@ -385,7 +373,7 @@ export default function Dashboard() {
   }, [latestFrame?.timestamp]);
 
   // --- Session data queries ---
-  const [trendDays, setTrendDays] = useState(7);
+  const [trendDays, setTrendDays] = useState(1); // default to Today
 
   const { data: allSessions = [] } = useQuery<SessionSummary[]>({
     queryKey: ["sessions"],
@@ -444,28 +432,6 @@ export default function Dashboard() {
   })();
 
   /* Sparkline renderer */
-  const renderSparkline = (data: number[], color: string) => {
-    if (data.length < 2) return null;
-    const w = 200;
-    const h = 40;
-    const max = Math.max(...data);
-    const min = Math.min(...data);
-    const range = max - min || 1;
-    const points = data
-      .map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`)
-      .join(" ");
-    return (
-      <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-        <polyline
-          points={points}
-          fill="none"
-          stroke={color}
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  };
 
   return (
     <main className="p-6 space-y-6 max-w-6xl">
@@ -875,98 +841,50 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* 8. Brain Waves + Mood Timeline (side by side) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Brain Waves Sparklines */}
-        <Card className="glass-card p-5 hover-glow">
-          <div className="flex items-center gap-2 mb-4">
-            <Brain className="h-4 w-4 text-secondary" />
-            <h3 className="text-sm font-medium">Brain Waves</h3>
-            {isStreaming && (
-              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
-            )}
-          </div>
-          {bandHistory.alpha.length < 2 ? (
-            <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
-              {isStreaming ? "Collecting..." : "No data"}
+      {/* 8. Mood Timeline */}
+      <Card className="glass-card p-5 hover-glow">
+        <div className="flex items-center gap-2 mb-4">
+          <Heart className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium">Mood Timeline</h3>
+          {isStreaming && (
+            <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+          )}
+        </div>
+        <div className="h-40">
+          {moodHistory.length < 2 ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              {isStreaming ? "Collecting data..." : "Connect device to see timeline"}
             </div>
           ) : (
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                  <span>Alpha</span>
-                  <span className="font-mono">{Math.round(bandHistory.alpha[bandHistory.alpha.length - 1])}%</span>
-                </div>
-                {renderSparkline(bandHistory.alpha, "hsl(152, 60%, 48%)")}
-              </div>
-              <div>
-                <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                  <span>Theta</span>
-                  <span className="font-mono">{Math.round(bandHistory.theta[bandHistory.theta.length - 1])}%</span>
-                </div>
-                {renderSparkline(bandHistory.theta, "hsl(262, 45%, 65%)")}
-              </div>
-              <div>
-                <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                  <span>Beta</span>
-                  <span className="font-mono">{Math.round(bandHistory.beta[bandHistory.beta.length - 1])}%</span>
-                </div>
-                {renderSparkline(bandHistory.beta, "hsl(200, 70%, 55%)")}
-              </div>
-            </div>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={moodHistory.slice(-20)}>
+                <defs>
+                  <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="time" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis hide domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                />
+                <Area type="monotone" dataKey="mood" stroke="hsl(152, 60%, 48%)" fill="url(#moodGrad)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+              </AreaChart>
+            </ResponsiveContainer>
           )}
-        </Card>
-
-        {/* Mood Timeline */}
-        <Card className="glass-card p-5 hover-glow">
-          <div className="flex items-center gap-2 mb-4">
-            <Heart className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium">Mood Timeline</h3>
-            {isStreaming && (
-              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
-            )}
-          </div>
-          <div className="h-40">
-            {moodHistory.length < 2 ? (
-              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                {isStreaming ? "Collecting data..." : "Connect device to see timeline"}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={moodHistory.slice(-20)}>
-                  <defs>
-                    <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis hide domain={[0, 100]} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                  />
-                  <Area type="monotone" dataKey="mood" stroke="hsl(152, 60%, 48%)" fill="url(#moodGrad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
 
       {/* 10. Quick Actions (4 items) */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
