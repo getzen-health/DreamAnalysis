@@ -3,18 +3,13 @@ import { Link, useLocation } from "wouter";
 import {
   Brain,
   Heart,
-  Sparkles,
   Activity,
   Moon,
-  BarChart2,
-  Network,
-  HeartPulse,
   Headphones,
   MessageSquare,
   Clock,
   Settings,
   Menu,
-  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -38,17 +33,13 @@ const sections: NavSection[] = [
     items: [
       { path: "/", label: "Dashboard", icon: Brain },
       { path: "/emotions", label: "Emotions", icon: Heart },
-      { path: "/inner-energy", label: "Inner Energy", icon: Sparkles },
+      { path: "/brain-monitor", label: "Brain Monitor", icon: Activity },
     ],
   },
   {
-    title: "Analysis",
+    title: "Dreams",
     items: [
-      { path: "/brain-monitor", label: "Brain Monitor", icon: Activity },
-      { path: "/dreams", label: "Dream Detection", icon: Moon },
-      { path: "/dream-patterns", label: "Dream Patterns", icon: BarChart2 },
-      { path: "/brain-connectivity", label: "Connectivity", icon: Network },
-      { path: "/health-analytics", label: "Health", icon: HeartPulse },
+      { path: "/dreams", label: "Dreams", icon: Moon },
     ],
   },
   {
@@ -56,7 +47,6 @@ const sections: NavSection[] = [
     items: [
       { path: "/neurofeedback", label: "Neurofeedback", icon: Headphones },
       { path: "/ai-companion", label: "AI Companion", icon: MessageSquare },
-      { path: "/insights", label: "Insights", icon: Lightbulb },
       { path: "/sessions", label: "Sessions", icon: Clock },
     ],
   },

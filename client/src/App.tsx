@@ -11,15 +11,10 @@ import Landing from "@/pages/landing";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import EmotionLab from "@/pages/emotion-lab";
-import InnerEnergy from "@/pages/inner-energy";
 import BrainMonitor from "@/pages/brain-monitor";
-import BrainConnectivity from "@/pages/brain-connectivity";
 import DreamJournal from "@/pages/dream-journal";
-import DreamPatterns from "@/pages/dream-patterns";
-import HealthAnalytics from "@/pages/health-analytics";
 import Neurofeedback from "@/pages/neurofeedback";
 import AICompanionPage from "@/pages/ai-companion";
-import Insights from "@/pages/insights";
 import SessionHistory from "@/pages/session-history";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
@@ -35,32 +30,17 @@ function AppRoutes() {
       <Route path="/emotions">
         <AppLayout><EmotionLab /></AppLayout>
       </Route>
-      <Route path="/inner-energy">
-        <AppLayout><InnerEnergy /></AppLayout>
-      </Route>
       <Route path="/brain-monitor">
         <AppLayout><BrainMonitor /></AppLayout>
       </Route>
-      <Route path="/brain-connectivity">
-        <AppLayout><BrainConnectivity /></AppLayout>
-      </Route>
       <Route path="/dreams">
         <AppLayout><DreamJournal /></AppLayout>
-      </Route>
-      <Route path="/dream-patterns">
-        <AppLayout><DreamPatterns /></AppLayout>
-      </Route>
-      <Route path="/health-analytics">
-        <AppLayout><HealthAnalytics /></AppLayout>
       </Route>
       <Route path="/neurofeedback">
         <AppLayout><Neurofeedback /></AppLayout>
       </Route>
       <Route path="/ai-companion">
         <AppLayout><AICompanionPage /></AppLayout>
-      </Route>
-      <Route path="/insights">
-        <AppLayout><Insights /></AppLayout>
       </Route>
       <Route path="/sessions">
         <AppLayout><SessionHistory /></AppLayout>
