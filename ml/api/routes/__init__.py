@@ -1,0 +1,46 @@
+"""ML API route package.
+
+Assembles all sub-routers into a single FastAPI APIRouter.
+main.py imports this as: from api.routes import router
+"""
+
+from fastapi import APIRouter
+
+from .analysis import router as _analysis
+from .models_status import router as _models_status
+from .wavelet import router as _wavelet
+from .neurofeedback import router as _neurofeedback
+from .sessions import router as _sessions
+from .data_collection import router as _data_collection
+from .calibration import router as _calibration
+from .connectivity import router as _connectivity
+from .devices import router as _devices
+from .datasets import router as _datasets
+from .health import router as _health
+from .accuracy import router as _accuracy
+from .brain_timeline import router as _brain_timeline
+from .spiritual import router as _spiritual
+from .emotion_shift import router as _emotion_shift
+from .cognitive import router as _cognitive
+from .denoising import router as _denoising
+
+router = APIRouter()
+
+# Registration order matters for path-param routes (specific before catch-all)
+router.include_router(_analysis)
+router.include_router(_models_status)
+router.include_router(_wavelet)
+router.include_router(_neurofeedback)
+router.include_router(_sessions)          # /sessions/trends etc BEFORE /sessions/{id}
+router.include_router(_data_collection)
+router.include_router(_calibration)
+router.include_router(_accuracy)          # /calibration/{user_id} variants after simple /calibration/*
+router.include_router(_connectivity)
+router.include_router(_devices)
+router.include_router(_datasets)
+router.include_router(_health)
+router.include_router(_brain_timeline)
+router.include_router(_spiritual)
+router.include_router(_emotion_shift)
+router.include_router(_cognitive)
+router.include_router(_denoising)

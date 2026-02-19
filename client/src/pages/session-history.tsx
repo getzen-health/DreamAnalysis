@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { ChartTooltip } from "@/components/chart-tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -155,10 +156,17 @@ function groupByDay(sessions: SessionSummary[]): Record<string, SessionSummary[]
   return groups;
 }
 
+/* ── Trend scrub point type ──────────────────────────────── */
+interface TrendPoint { date: string; focus: number; stress: number; flow: number; creativity: number; }
+
 /* ── Component ───────────────────────────────────────────── */
 export default function SessionHistory() {
   const [periodDays, setPeriodDays] = useState(7);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [scrubTrend, setScrubTrend] = useState<TrendPoint | null>(null);
+  const handleTrendMove = useCallback((s: { activePayload?: { payload: TrendPoint }[] }) => {
+    if (s?.activePayload?.[0]?.payload) setScrubTrend(s.activePayload[0].payload);
+  }, []);
 
   const { data: allSessions = [], isLoading, refetch } = useQuery<SessionSummary[]>({
     queryKey: ["sessions"],
@@ -369,12 +377,12 @@ export default function SessionHistory() {
           {/* Trend Chart */}
           {trendData.length >= 2 && (
             <Card className="glass-card p-5 hover-glow">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-2">
                 <TrendingUp className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-medium">Metrics Over Time</h3>
               </div>
               <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={192}>
                   <LineChart data={trendData}>
                     <XAxis
                       dataKey="date"
@@ -384,13 +392,11 @@ export default function SessionHistory() {
                     />
                     <YAxis hide domain={[0, 100]} />
                     <Tooltip
-                      contentStyle={{
-                        background: "var(--card)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                      formatter={(v: number) => `${v}%`}
+                      cursor={{ stroke: "hsl(220, 12%, 55%)", strokeWidth: 1, strokeDasharray: "4 4" }}
+                      contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 10, fontSize: 11 }}
+                  labelStyle={{ color: "hsl(220, 12%, 65%)", marginBottom: 4, fontSize: 10 }}
+                  itemStyle={{ padding: "1px 0" }}
+                  formatter={(value: number) => [`${value}%`]}
                     />
                     <Line
                       type="monotone"
@@ -399,6 +405,7 @@ export default function SessionHistory() {
                       stroke="hsl(152, 60%, 48%)"
                       strokeWidth={2}
                       dot={false}
+                      activeDot={{ r: 4, fill: "hsl(152, 60%, 48%)" }}
                     />
                     <Line
                       type="monotone"
@@ -408,6 +415,7 @@ export default function SessionHistory() {
                       strokeWidth={1.5}
                       dot={false}
                       strokeDasharray="4 4"
+                      activeDot={{ r: 4, fill: "hsl(38, 85%, 58%)" }}
                     />
                     <Line
                       type="monotone"
@@ -416,6 +424,7 @@ export default function SessionHistory() {
                       stroke="hsl(200, 70%, 55%)"
                       strokeWidth={1.5}
                       dot={false}
+                      activeDot={{ r: 4, fill: "hsl(200, 70%, 55%)" }}
                     />
                     <Line
                       type="monotone"
@@ -424,6 +433,7 @@ export default function SessionHistory() {
                       stroke="hsl(262, 45%, 65%)"
                       strokeWidth={1.5}
                       dot={false}
+                      activeDot={{ r: 4, fill: "hsl(262, 45%, 65%)" }}
                     />
                   </LineChart>
                 </ResponsiveContainer>

@@ -362,7 +362,7 @@ export default function DreamDetection() {
                     {isStreaming ? "Collecting data..." : "Connect device to see dream activity"}
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={192}>
                     <AreaChart data={sleepTimeline.slice(-30)}>
                       <defs>
                         <linearGradient id="remGrad" x1="0" y1="0" x2="0" y2="1">

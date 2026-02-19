@@ -654,7 +654,7 @@ export default function Dashboard() {
             <>
               {/* ── Chart ── */}
               <div className="h-48 select-none" style={{ touchAction: "pan-y" }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={192}>
                   <LineChart data={chartData}>
                     <XAxis
                       dataKey={dataKey}
@@ -792,7 +792,7 @@ export default function Dashboard() {
               {isStreaming ? "Collecting data..." : "Connect device to see timeline"}
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={160}>
               <AreaChart data={moodHistory.slice(-20)}>
                 <defs>
                   <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
