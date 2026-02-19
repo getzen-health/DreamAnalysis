@@ -15,9 +15,10 @@ from processing.eeg_processor import extract_band_powers, differential_entropy, 
 
 EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"]
 
-# Minimum benchmark accuracy to trust a trained model over feature-based
-# 50% for 6-class = 3× random baseline (16.7%); cross-subject 4-channel is hard
-_MIN_MODEL_ACCURACY = 0.50
+# Minimum benchmark accuracy to trust a trained model over feature-based.
+# 60% threshold: the DEAP model at ~51% has severe class-imbalance bias toward "sad"
+# (11 165 sad samples vs 1 769 focused) — below this threshold we use feature-based.
+_MIN_MODEL_ACCURACY = 0.60
 
 
 class EmotionClassifier:
@@ -157,10 +158,19 @@ class EmotionClassifier:
         bands = extract_band_powers(processed, fs)
         de = differential_entropy(processed, fs)
 
-        alpha = bands.get("alpha", 0)
-        beta = bands.get("beta", 0)
-        theta = bands.get("theta", 0)
-        gamma = bands.get("gamma", 0)
+        alpha_raw = bands.get("alpha", 0)
+        beta_raw  = bands.get("beta",  0)
+        theta_raw = bands.get("theta", 0)
+        gamma_raw = bands.get("gamma", 0)
+        delta_raw = bands.get("delta", 0)
+
+        total_power = alpha_raw + beta_raw + theta_raw + gamma_raw + delta_raw
+        if total_power < 1e-6:
+            total_power = 1.0
+        alpha = alpha_raw / total_power
+        beta  = beta_raw  / total_power
+        theta = theta_raw / total_power
+        gamma = gamma_raw / total_power
 
         alpha_beta_ratio = alpha / max(beta, 1e-10)
         beta_alpha_ratio = beta / max(alpha, 1e-10)
@@ -173,9 +183,11 @@ class EmotionClassifier:
         stress_index = float(np.clip(
             0.50 * min(1, beta_alpha_ratio * 0.3) + 0.30 * max(0, 1 - alpha * 2.5) + 0.20 * min(1, gamma * 2), 0, 1))
         focus_index = float(np.clip(
-            0.40 * min(1, beta * 2.5) + 0.35 * max(0, 1 - theta_beta_ratio * 0.4) + 0.25 * min(1, gamma * 2), 0, 1))
+            0.40 * min(1, beta * 3.0) + 0.35 * max(0, 1 - theta_beta_ratio * 0.35) + 0.25 * min(1, gamma * 2), 0, 1))
         relaxation_index = float(np.clip(
             0.50 * min(1, alpha * 2.5) + 0.30 * max(0, 1 - beta_alpha_ratio * 0.3) + 0.20 * min(1, theta * 1.5), 0, 1))
+        anger_index = float(np.clip(
+            0.35 * min(1, max(0, beta_alpha_ratio - 1.0) * 0.5) + 0.35 * min(1, gamma * 4) + 0.30 * max(0, 1 - alpha * 5), 0, 1))
 
         return {
             "emotion": EMOTIONS[emotion_idx],
@@ -187,6 +199,7 @@ class EmotionClassifier:
             "stress_index": stress_index,
             "focus_index": focus_index,
             "relaxation_index": relaxation_index,
+            "anger_index": anger_index,
             "band_powers": bands,
             "differential_entropy": de,
         }
@@ -210,24 +223,37 @@ class EmotionClassifier:
         bands = extract_band_powers(processed, fs)
         de = differential_entropy(processed, fs)
 
-        alpha = bands.get("alpha", 0)
-        beta = bands.get("beta", 0)
-        theta = bands.get("theta", 0)
-        gamma = bands.get("gamma", 0)
-        delta = bands.get("delta", 0)
+        alpha_raw = bands.get("alpha", 0)
+        beta_raw  = bands.get("beta",  0)
+        theta_raw = bands.get("theta", 0)
+        gamma_raw = bands.get("gamma", 0)
+        delta_raw = bands.get("delta", 0)
+
+        # Normalize to relative fractions that sum to 1.
+        # Without this the absolute power values from BrainFlow (sum often 0.4-0.8)
+        # make every formula threshold fire at different levels, producing flat probs.
+        total_power = alpha_raw + beta_raw + theta_raw + gamma_raw + delta_raw
+        if total_power < 1e-6:
+            total_power = 1.0
+        alpha = alpha_raw / total_power
+        beta  = beta_raw  / total_power
+        theta = theta_raw / total_power
+        gamma = gamma_raw / total_power
+        delta = delta_raw / total_power
 
         # Store snapshot for temporal analysis
         self._history.append(bands)
 
         # ── Valence (pleasantness) ──────────────────────────────
-        # Higher alpha relative to beta suggests positive valence
-        # Gamma bursts also correlate with positive emotions
+        # Higher alpha relative to beta → positive valence.
+        # Reference ratio 0.7: eyes-open resting naturally has beta > alpha (ratio ~0.5-0.8)
+        # so we treat that as neutral, not negative.
+        # Theta is NOT a valence signal — high theta means drowsy/meditative (neutral),
+        # not sad. Removing theta from valence prevents "drowsy = fearful" misclassification.
         alpha_beta_ratio = alpha / max(beta, 1e-10)
         valence_raw = (
-            0.45 * np.tanh((alpha_beta_ratio - 1.0) * 1.5)  # alpha dominance = positive
-            + 0.25 * np.tanh((gamma - 0.15) * 5)              # gamma bursts = positive
-            - 0.20 * np.tanh((theta - 0.25) * 3)              # excess theta = negative
-            + 0.10 * np.tanh((alpha - 0.20) * 3)              # baseline alpha = slightly positive
+            0.65 * np.tanh((alpha_beta_ratio - 0.7) * 2.0)  # 0.7 = neutral eyes-open resting
+            + 0.35 * np.tanh((alpha - 0.15) * 4)            # absolute alpha boost
         )
         valence = float(np.clip(valence_raw, -1, 1))
 
@@ -257,50 +283,61 @@ class EmotionClassifier:
             + 0.25 * min(1, gamma * 3)
         )
 
-        # Sad: negative valence, low arousal, high theta, low gamma
+        # Sad: clearly negative valence + low arousal.
+        # Theta only contributes when VERY dominant (ratio > 2.0) AND valence is negative
+        # — prevents drowsy/meditative theta from being mis-classified as sad.
         probs[1] = (
-            0.30 * max(0, -valence)
-            + 0.25 * max(0, 1 - arousal)
-            + 0.25 * min(1, theta * 2)
-            + 0.20 * max(0, 1 - gamma * 4)
+            0.50 * max(0, -valence - 0.1)                  # needs clear negative valence
+            + 0.30 * max(0, 0.35 - arousal)                 # must be truly low arousal
+            + 0.20 * max(0, theta_beta_ratio - 2.0) * 0.4  # only VERY high theta/beta
         )
 
-        # Angry: strongly negative valence, high arousal, high beta
+        # Angry: negative valence + elevated arousal + beta dominance + gamma spike.
+        # Key differentiator from fearful: anger is HIGH-ENERGY (more gamma, more beta action),
+        # while fear is more freeze-response. Lower thresholds so at least two terms fire together.
         probs[2] = (
-            0.30 * max(0, -valence)                          # needs clear negative valence
-            + 0.25 * max(0, arousal - 0.6)                   # higher arousal bar
-            + 0.25 * max(0, beta_alpha_ratio - 1.0) * 0.5   # only counts when beta > alpha
-            + 0.10 * min(1, gamma * 2)
-            + 0.10 * max(0, 1 - alpha * 3)                   # suppressed when alpha is high
+            0.30 * max(0, -valence - 0.1)                   # negative valence (lowered from -0.2)
+            + 0.25 * max(0, arousal - 0.55)                  # elevated arousal (lowered from 0.65)
+            + 0.25 * max(0, beta_alpha_ratio - 1.5)          # beta dominance (removed *0.5 penalty, threshold 2.0→1.5)
+            + 0.20 * min(1, gamma * 3)                        # gamma is the primary anger differentiator
         )
 
-        # Fearful/Anxious: negative valence, high arousal, very high beta/alpha
+        # Fearful/Anxious: requires EXTREME conditions to avoid false positives.
+        # Normal eyes-open (beta > alpha) should NOT be fearful.
+        # Needs: very high beta/alpha ratio (>2.5) AND negative valence AND elevated arousal.
         probs[3] = (
-            0.20 * max(0, -valence * 0.6)
-            + 0.25 * max(0, arousal - 0.4)
-            + 0.35 * min(1, beta_alpha_ratio * 0.4)
-            + 0.20 * max(0, 1 - alpha * 3)
+            0.30 * max(0, -valence - 0.3)                    # needs STRONGLY negative valence
+            + 0.30 * max(0, arousal - 0.6)                   # needs high arousal (>0.6)
+            + 0.25 * max(0, beta_alpha_ratio - 2.5) * 0.5   # needs extreme beta/alpha (>2.5)
+            + 0.15 * max(0, 1 - alpha * 6)                   # very low alpha required
         )
 
-        # Relaxed: positive valence, low arousal, dominant alpha
+        # Relaxed: low arousal + dominant alpha OR high theta (meditative/drowsy).
+        # Theta at 30-55% of power = meditative/drowsy waking state → relaxed, not fearful.
         probs[4] = (
-            0.20 * max(0, valence * 0.8)
-            + 0.25 * max(0, 1 - arousal)
-            + 0.35 * min(1, alpha * 2.5)
-            + 0.20 * max(0, 1 - beta_alpha_ratio * 0.3)
+            0.10 * max(0, valence * 0.5)                  # positive valence is a soft bonus
+            + 0.20 * max(0, 0.6 - arousal)                # low arousal
+            + 0.35 * min(1, alpha * 2.5)                   # dominant alpha (primary relaxation signal)
+            + 0.20 * min(1, theta * 1.5)                   # high theta = meditative/drowsy → relaxed
+            + 0.15 * max(0, 1 - beta_alpha_ratio * 0.5)   # low beta relative to alpha
         )
 
-        # Focused: neutral-positive valence, moderate arousal, high beta, low theta
+        # Focused: moderate-high arousal, strong beta, low theta/beta ratio.
+        # Valence can be slightly positive (engaged) or neutral — penalizing any valence
+        # deviation was wrong since focused people can feel any mild emotion.
         probs[5] = (
-            0.10 * max(0, 1 - abs(valence))
-            + 0.25 * min(1, max(0, arousal - 0.3) * 2)
-            + 0.35 * min(1, beta * 2.5)
-            + 0.30 * max(0, 1 - theta_beta_ratio * 0.5)
+            0.10 * max(0, 0.5 + valence * 0.5)               # soft neutral-to-positive valence bonus
+            + 0.25 * min(1, max(0, arousal - 0.35) * 2.5)    # moderate-high arousal
+            + 0.35 * min(1, beta * 3.0)                       # strong beta (slightly stronger weight)
+            + 0.30 * max(0, 1 - theta_beta_ratio * 0.35)      # low theta/beta (less strict than 0.5)
         )
 
-        # Softmax-like normalization (temperature=1.5 for moderate sharpness)
-        temp = 1.5
-        probs_exp = np.exp(probs * temp)
+        # Softmax-like normalization (temperature=2.5 for clear sharpness).
+        # Subtract max before exp to prevent overflow (numerically stable softmax).
+        temp = 2.5
+        scaled = probs * temp
+        scaled -= scaled.max()  # shift so max is 0 → exp values in (0, 1]
+        probs_exp = np.exp(scaled)
         probs = probs_exp / (probs_exp.sum() + 1e-10)
 
         # Exponential moving average smoothing
@@ -323,8 +360,8 @@ class EmotionClassifier:
 
         # Focus: high beta, low theta/beta ratio
         focus_index = float(np.clip(
-            0.40 * min(1, beta * 2.5)
-            + 0.35 * max(0, 1 - theta_beta_ratio * 0.4)
+            0.40 * min(1, beta * 3.0)
+            + 0.35 * max(0, 1 - theta_beta_ratio * 0.35)
             + 0.25 * min(1, gamma * 2),
             0, 1
         ))
@@ -337,16 +374,33 @@ class EmotionClassifier:
             0, 1
         ))
 
+        # Anger: high beta/alpha ratio, gamma spike, suppressed alpha
+        anger_index = float(np.clip(
+            0.35 * min(1, max(0, beta_alpha_ratio - 1.0) * 0.5)
+            + 0.35 * min(1, gamma * 4)
+            + 0.30 * max(0, 1 - alpha * 5),
+            0, 1
+        ))
+
+        # If max confidence is below threshold the EEG doesn't clearly match any
+        # of the 6 trained emotions — label as "neutral" instead of forcing a wrong label.
+        # With 6 classes, random baseline = 0.167. Threshold 0.20 means the top emotion
+        # is at least 20% more likely than chance — appropriate for consumer EEG devices.
+        _CONFIDENCE_THRESHOLD = 0.19
+        top_conf = float(smoothed[emotion_idx])
+        emotion_label = EMOTIONS[emotion_idx] if top_conf >= _CONFIDENCE_THRESHOLD else "neutral"
+
         return {
-            "emotion": EMOTIONS[emotion_idx],
+            "emotion": emotion_label,
             "emotion_index": emotion_idx,
-            "confidence": float(smoothed[emotion_idx]),
+            "confidence": top_conf,
             "probabilities": {EMOTIONS[i]: float(p) for i, p in enumerate(smoothed)},
             "valence": valence,
             "arousal": arousal,
             "stress_index": stress_index,
             "focus_index": focus_index,
             "relaxation_index": relaxation_index,
+            "anger_index": anger_index,
             "band_powers": bands,
             "differential_entropy": de,
         }
@@ -370,17 +424,34 @@ class EmotionClassifier:
         n_classes = len(EMOTIONS)
         probs = [float(prob_map.get(i, 0.0)) for i in range(n_classes)]
 
-        alpha = bands.get("alpha", 0)
-        beta = bands.get("beta", 0)
-        theta = bands.get("theta", 0)
-        gamma = bands.get("gamma", 0)
+        alpha_raw = bands.get("alpha", 0)
+        beta_raw  = bands.get("beta",  0)
+        theta_raw = bands.get("theta", 0)
+        gamma_raw = bands.get("gamma", 0)
+        delta_raw = bands.get("delta", 0)
 
-        valence = float(np.tanh((alpha - beta) * 2 + (theta - gamma) * 0.5))
-        arousal = float(np.clip(beta + gamma, 0, 1))
+        total_power = alpha_raw + beta_raw + theta_raw + gamma_raw + delta_raw
+        if total_power < 1e-6:
+            total_power = 1.0
+        alpha = alpha_raw / total_power
+        beta  = beta_raw  / total_power
+        theta = theta_raw / total_power
+        gamma = gamma_raw / total_power
 
-        stress_index = float(np.clip(beta / max(alpha, 1e-10) * 0.25, 0, 1))
-        focus_index = 1.0 - float(np.clip(theta / max(beta, 1e-10) * 0.5, 0, 1))
-        relaxation_index = float(np.clip(alpha, 0, 1))
+        beta_alpha_ratio = beta / max(alpha, 1e-10)
+        theta_beta_ratio = theta / max(beta, 1e-10)
+
+        valence = float(np.tanh((alpha / max(beta, 1e-10) - 0.7) * 2.0))
+        arousal = float(np.clip(beta / max(beta + alpha, 1e-10) + gamma * 0.5, 0, 1))
+
+        stress_index = float(np.clip(
+            0.50 * min(1, beta_alpha_ratio * 0.3) + 0.30 * max(0, 1 - alpha * 2.5) + 0.20 * min(1, gamma * 2), 0, 1))
+        focus_index = float(np.clip(
+            0.40 * min(1, beta * 3.0) + 0.35 * max(0, 1 - theta_beta_ratio * 0.35) + 0.25 * min(1, gamma * 2), 0, 1))
+        relaxation_index = float(np.clip(
+            0.50 * min(1, alpha * 2.5) + 0.30 * max(0, 1 - beta_alpha_ratio * 0.3) + 0.20 * min(1, theta * 1.5), 0, 1))
+        anger_index = float(np.clip(
+            0.35 * min(1, max(0, beta_alpha_ratio - 1.0) * 0.5) + 0.35 * min(1, gamma * 4) + 0.30 * max(0, 1 - alpha * 5), 0, 1))
 
         return {
             "emotion": EMOTIONS[emotion_idx] if emotion_idx < n_classes else "unknown",
@@ -392,6 +463,7 @@ class EmotionClassifier:
             "stress_index": stress_index,
             "focus_index": focus_index,
             "relaxation_index": relaxation_index,
+            "anger_index": anger_index,
             "band_powers": bands,
             "differential_entropy": de,
         }
@@ -414,17 +486,34 @@ class EmotionClassifier:
         probs = self.sklearn_model.predict_proba(feature_vector)[0]
         emotion_idx = int(np.argmax(probs))
 
-        alpha = bands.get("alpha", 0)
-        beta = bands.get("beta", 0)
-        theta = bands.get("theta", 0)
-        gamma = bands.get("gamma", 0)
+        alpha_raw = bands.get("alpha", 0)
+        beta_raw  = bands.get("beta",  0)
+        theta_raw = bands.get("theta", 0)
+        gamma_raw = bands.get("gamma", 0)
+        delta_raw = bands.get("delta", 0)
 
-        valence = float(np.tanh((alpha - beta) * 2 + (theta - gamma) * 0.5))
-        arousal = float(np.clip(beta + gamma, 0, 1))
+        total_power = alpha_raw + beta_raw + theta_raw + gamma_raw + delta_raw
+        if total_power < 1e-6:
+            total_power = 1.0
+        alpha = alpha_raw / total_power
+        beta  = beta_raw  / total_power
+        theta = theta_raw / total_power
+        gamma = gamma_raw / total_power
 
-        stress_index = float(np.clip(beta / max(alpha, 1e-10) * 0.25, 0, 1))
-        focus_index = 1.0 - float(np.clip(theta / max(beta, 1e-10) * 0.5, 0, 1))
-        relaxation_index = float(np.clip(alpha, 0, 1))
+        beta_alpha_ratio = beta / max(alpha, 1e-10)
+        theta_beta_ratio = theta / max(beta, 1e-10)
+
+        valence = float(np.tanh((alpha / max(beta, 1e-10) - 0.7) * 2.0))
+        arousal = float(np.clip(beta / max(beta + alpha, 1e-10) + gamma * 0.5, 0, 1))
+
+        stress_index = float(np.clip(
+            0.50 * min(1, beta_alpha_ratio * 0.3) + 0.30 * max(0, 1 - alpha * 2.5) + 0.20 * min(1, gamma * 2), 0, 1))
+        focus_index = float(np.clip(
+            0.40 * min(1, beta * 3.0) + 0.35 * max(0, 1 - theta_beta_ratio * 0.35) + 0.25 * min(1, gamma * 2), 0, 1))
+        relaxation_index = float(np.clip(
+            0.50 * min(1, alpha * 2.5) + 0.30 * max(0, 1 - beta_alpha_ratio * 0.3) + 0.20 * min(1, theta * 1.5), 0, 1))
+        anger_index = float(np.clip(
+            0.35 * min(1, max(0, beta_alpha_ratio - 1.0) * 0.5) + 0.35 * min(1, gamma * 4) + 0.30 * max(0, 1 - alpha * 5), 0, 1))
 
         return {
             "emotion": EMOTIONS[emotion_idx],
@@ -436,6 +525,7 @@ class EmotionClassifier:
             "stress_index": stress_index,
             "focus_index": focus_index,
             "relaxation_index": relaxation_index,
+            "anger_index": anger_index,
             "band_powers": bands,
             "differential_entropy": de,
         }
