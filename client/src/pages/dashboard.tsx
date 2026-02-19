@@ -271,6 +271,15 @@ export default function Dashboard() {
     memory: Math.round(memoryScore),
   };
 
+  // Scrub state for Apple-Health-style drag interaction
+  const [scrubPoint, setScrubPoint] = useState<{
+    label: string;
+    focus: number;
+    stress: number;
+    flow: number;
+    creativity: number;
+  } | null>(null);
+
   // Today time-series — sample every 30s for the mental health chart
   const [todayTimeline, setTodayTimeline] = useState<
     Array<{ time: string; focus: number; stress: number; flow: number; creativity: number }>
@@ -601,167 +610,145 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* TODAY: time-series chart of how metrics changed throughout the day */}
-        {trendDays === 1 && isStreaming ? (
-          <>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
-              <span className="text-xs text-muted-foreground">
-                {currentEmotion !== "—" ? <span className="capitalize">{currentEmotion}</span> : "Current session"}
-              </span>
-              <div className="ml-auto flex gap-3">
-                {[
-                  { label: "F", value: Math.round(focusIndex), color: "text-primary" },
-                  { label: "S", value: Math.round(stressIndex), color: "text-warning" },
-                  { label: "Fl", value: Math.round(flowScore), color: "text-success" },
-                  { label: "C", value: Math.round(creativityScore), color: "text-secondary" },
-                ].map((m) => (
-                  <span key={m.label} className={`text-xs font-mono font-semibold ${m.color}`}>
-                    {m.label} {m.value}%
-                  </span>
-                ))}
-              </div>
-            </div>
+        {/* Unified scrubbable chart — Apple Health / Whoop style */}
+        {(() => {
+          // Pick data source
+          const isLiveToday = trendDays === 1 && isStreaming;
+          const chartData = isLiveToday ? todayTimeline : sessionTrendData;
+          const dataKey = isLiveToday ? "time" : "date";
+          const hasData = chartData.length >= 2;
 
-            {todayTimeline.length < 2 ? (
-              <div className="h-44 flex items-center justify-center text-sm text-muted-foreground">
-                <span className="text-[10px] font-mono text-primary animate-pulse mr-2">●</span>
-                Collecting time-series data...
+          // What to show in the scrub header
+          const liveValues = {
+            label: isLiveToday ? "Now" : sessionTrendData.length > 0
+              ? sessionTrendData[sessionTrendData.length - 1].date
+              : "—",
+            focus: isLiveToday ? Math.round(focusIndex) : sessionTrendData.length > 0
+              ? sessionTrendData[sessionTrendData.length - 1].focus : 0,
+            stress: isLiveToday ? Math.round(stressIndex) : sessionTrendData.length > 0
+              ? sessionTrendData[sessionTrendData.length - 1].stress : 0,
+            flow: isLiveToday ? Math.round(flowScore) : sessionTrendData.length > 0
+              ? sessionTrendData[sessionTrendData.length - 1].flow : 0,
+            creativity: isLiveToday ? Math.round(creativityScore) : sessionTrendData.length > 0
+              ? sessionTrendData[sessionTrendData.length - 1].creativity : 0,
+          };
+          const display = scrubPoint ?? liveValues;
+
+          const handleMove = (state: Record<string, any>) => {
+            if (state?.activePayload?.length) {
+              const p = state.activePayload[0].payload;
+              setScrubPoint({
+                label: p[dataKey] ?? "",
+                focus: p.focus ?? 0,
+                stress: p.stress ?? 0,
+                flow: p.flow ?? 0,
+                creativity: p.creativity ?? 0,
+              });
+            }
+          };
+
+          if (!hasData && !isLiveToday) {
+            return (
+              <div className="h-40 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+                <Brain className="h-8 w-8 text-muted-foreground/40" />
+                <p>{trendDays === 1 ? "No sessions recorded today yet" : "No sessions in this period"}</p>
+                <p className="text-xs text-muted-foreground/60">Connect your Muse 2 to start recording</p>
               </div>
-            ) : (
-              <div className="h-44">
+            );
+          }
+
+          if (isLiveToday && !hasData) {
+            return (
+              <div className="h-44 flex items-center justify-center text-sm text-muted-foreground gap-2">
+                <span className="text-[10px] font-mono text-primary animate-pulse">●</span>
+                Collecting — first data point in ~30s
+              </div>
+            );
+          }
+
+          return (
+            <>
+              {/* ── Scrub header — updates as you drag ── */}
+              <div className="mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-xs text-muted-foreground font-mono transition-all duration-100">
+                    {display.label}
+                  </p>
+                  {isLiveToday && !scrubPoint && (
+                    <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "Focus", value: display.focus, color: "hsl(152,60%,48%)", textClass: "text-primary" },
+                    { label: "Stress", value: display.stress, color: "hsl(38,85%,58%)", textClass: "text-warning" },
+                    { label: "Flow", value: display.flow, color: "hsl(200,70%,55%)", textClass: "text-[hsl(200,70%,55%)]" },
+                    { label: "Creativity", value: display.creativity, color: "hsl(262,45%,65%)", textClass: "text-secondary" },
+                  ].map((m) => (
+                    <div key={m.label}>
+                      <p className="text-[10px] text-muted-foreground">{m.label}</p>
+                      <p className={`text-xl font-bold font-mono transition-all duration-100 ${m.textClass}`}>
+                        {m.value}%
+                      </p>
+                      <div className="mt-1 h-0.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-150"
+                          style={{ width: `${m.value}%`, backgroundColor: m.color }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Chart ── */}
+              <div className="h-36 select-none" style={{ touchAction: "pan-y" }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={todayTimeline}>
+                  <LineChart
+                    data={chartData}
+                    onMouseMove={handleMove}
+                    onMouseLeave={() => setScrubPoint(null)}
+                  >
                     <XAxis
-                      dataKey="time"
+                      dataKey={dataKey}
                       tick={{ fontSize: 9 }}
                       axisLine={false}
                       tickLine={false}
                       interval="preserveStartEnd"
                     />
                     <YAxis hide domain={[0, 100]} />
+                    {/* Invisible tooltip — we handle display ourselves in the header */}
                     <Tooltip
-                      contentStyle={{
-                        background: "var(--card)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 8,
-                        fontSize: 11,
-                      }}
-                      formatter={(v: number) => `${v}%`}
+                      cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
+                      content={() => null}
                     />
-                    <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(152, 60%, 48%)" strokeWidth={2} dot={false} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38, 85%, 58%)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" isAnimationActive={false} />
-                    <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(200, 70%, 55%)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="creativity" name="Creativity" stroke="hsl(262, 45%, 65%)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="focus" stroke="hsl(152,60%,48%)" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(152,60%,48%)" }} />
+                    <Line type="monotone" dataKey="stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(38,85%,58%)" }} />
+                    <Line type="monotone" dataKey="flow" stroke="hsl(200,70%,55%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(200,70%,55%)" }} />
+                    <Line type="monotone" dataKey="creativity" stroke="hsl(262,45%,65%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(262,45%,65%)" }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            )}
 
-            {/* Legend */}
-            <div className="flex gap-4 mt-2 flex-wrap">
-              {[
-                { label: "Focus", color: "hsl(152, 60%, 48%)" },
-                { label: "Stress", color: "hsl(38, 85%, 58%)", dashed: true },
-                { label: "Flow", color: "hsl(200, 70%, 55%)" },
-                { label: "Creativity", color: "hsl(262, 45%, 65%)" },
-              ].map((l) => (
-                <div key={l.label} className="flex items-center gap-1.5">
-                  <svg width="18" height="8">
-                    <line x1="0" y1="4" x2="18" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} />
-                  </svg>
-                  <span className="text-[10px] text-muted-foreground">{l.label}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : sessionTrendData.length < 2 ? (
-          <div className="h-40 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-            <Brain className="h-8 w-8 text-muted-foreground/40" />
-            <p>{trendDays === 1 ? "No sessions recorded today yet" : "No sessions in this period"}</p>
-            <p className="text-xs text-muted-foreground/60">Connect your Muse 2 to start recording</p>
-          </div>
-        ) : (
-          <>
-            {/* Compact insight row */}
-            {(peakFocusHour || dominantEmotion) && (
-              <div className="flex flex-wrap gap-3 mb-4">
-                {peakFocusHour && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/5 border border-primary/10">
-                    <Eye className="h-3.5 w-3.5 text-primary shrink-0" />
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">Peak focus</p>
-                      <p className="text-xs font-medium">{peakFocusHour.label} · {peakFocusHour.value}%</p>
-                    </div>
+              {/* ── Legend ── */}
+              <div className="flex gap-4 mt-2 flex-wrap">
+                {[
+                  { label: "Focus", color: "hsl(152,60%,48%)" },
+                  { label: "Stress", color: "hsl(38,85%,58%)", dashed: true },
+                  { label: "Flow", color: "hsl(200,70%,55%)" },
+                  { label: "Creativity", color: "hsl(262,45%,65%)" },
+                ].map((l) => (
+                  <div key={l.label} className="flex items-center gap-1.5">
+                    <svg width="18" height="8">
+                      <line x1="0" y1="4" x2="18" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} />
+                    </svg>
+                    <span className="text-[10px] text-muted-foreground">{l.label}</span>
                   </div>
-                )}
-                {dominantEmotion && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/5 border border-secondary/10">
-                    <Sparkles className="h-3.5 w-3.5 text-secondary shrink-0" />
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">Dominant emotion</p>
-                      <p className="text-xs font-medium capitalize">{dominantEmotion}</p>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted">
-                  <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">Sessions</p>
-                    <p className="text-xs font-medium">{periodSessions.length}</p>
-                  </div>
-                </div>
+                ))}
               </div>
-            )}
-
-            {/* Trend chart */}
-            <div className="h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={sessionTrendData}>
-                  <defs>
-                    <linearGradient id="dashFocusGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis hide domain={[0, 100]} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                    formatter={(v: number) => `${v}%`}
-                  />
-                  <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(152, 60%, 48%)" fill="url(#dashFocusGrad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="stress" name="Stress" stroke="hsl(38, 85%, 58%)" fill="none" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-                  <Area type="monotone" dataKey="flow" name="Flow" stroke="hsl(200, 70%, 55%)" fill="none" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="creativity" name="Creativity" stroke="hsl(262, 45%, 65%)" fill="none" strokeWidth={1.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Metric pills */}
-            <div className="flex flex-wrap gap-2 mt-3">
-              {([
-                { key: "focus" as const, label: "Focus", color: "text-primary" },
-                { key: "stress" as const, label: "Stress", color: "text-warning" },
-                { key: "flow" as const, label: "Flow", color: "text-success" },
-                { key: "creativity" as const, label: "Creativity", color: "text-secondary" },
-              ]).map((cat) => {
-                const vals = sessionTrendData.map((t) => t[cat.key]);
-                const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-                return (
-                  <span key={cat.key} className={`px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted ${cat.color}`}>
-                    {cat.label} {avg.toFixed(0)}%
-                  </span>
-                );
-              })}
-            </div>
-          </>
-        )}
+            </>
+          );
+        })()}
       </Card>
 
       {/* 7. AI Insight + Brain-Health Insights (side by side) */}
