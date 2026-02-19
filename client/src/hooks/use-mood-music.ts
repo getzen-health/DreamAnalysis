@@ -27,6 +27,7 @@ const SOUNDSCAPES: Record<string, Soundscape> = {
 const DEFAULT_SOUNDSCAPE = SOUNDSCAPES.relaxed;
 const CROSSFADE_SEC = 2.5;
 const DEBOUNCE_COUNT = 3;
+const BINAURAL_BASE_FREQ = 200;
 
 export interface MoodMusicState {
   isEnabled: boolean;
@@ -49,6 +50,10 @@ export function useMoodMusic(emotion?: string, isStreaming?: boolean): MoodMusic
   const [volume, setVolumeState] = useState(0.35);
   const [currentSoundscape, setCurrentSoundscape] = useState<Soundscape>(DEFAULT_SOUNDSCAPE);
 
+  // Use refs for values accessed inside audio callbacks to avoid stale closures
+  const volumeRef = useRef(0.35);
+  const isMutedRef = useRef(false);
+
   // Audio context + nodes
   const ctxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -57,17 +62,20 @@ export function useMoodMusic(emotion?: string, isStreaming?: boolean): MoodMusic
   const leftOscRef = useRef<OscillatorNode | null>(null);
   const rightOscRef = useRef<OscillatorNode | null>(null);
   const binauralGainRef = useRef<GainNode | null>(null);
-  const panLeftRef = useRef<StereoPannerNode | null>(null);
-  const panRightRef = useRef<StereoPannerNode | null>(null);
 
   // Emotion debounce
   const emotionCountRef = useRef<Record<string, number>>({});
   const lastAppliedEmotionRef = useRef<string>("");
 
-  const createNodes = useCallback((ctx: AudioContext) => {
+  const enable = useCallback(() => {
+    if (ctxRef.current) return;
+
+    const ctx = new AudioContext();
+    ctxRef.current = ctx;
+
     // Master gain
     const master = ctx.createGain();
-    master.gain.value = volume;
+    master.gain.value = volumeRef.current;
     master.connect(ctx.destination);
     masterGainRef.current = master;
 
@@ -81,9 +89,10 @@ export function useMoodMusic(emotion?: string, isStreaming?: boolean): MoodMusic
     drone.type = "sine";
     drone.frequency.value = DEFAULT_SOUNDSCAPE.droneFreq;
     drone.connect(droneGain);
+    drone.start();
     droneOscRef.current = drone;
 
-    // Binaural beat — left channel
+    // Binaural beat — stereo panned oscillators
     const binauralGain = ctx.createGain();
     binauralGain.gain.value = 0.15;
     binauralGain.connect(master);
@@ -92,40 +101,33 @@ export function useMoodMusic(emotion?: string, isStreaming?: boolean): MoodMusic
     const panL = ctx.createStereoPanner();
     panL.pan.value = -1;
     panL.connect(binauralGain);
-    panLeftRef.current = panL;
 
     const panR = ctx.createStereoPanner();
     panR.pan.value = 1;
     panR.connect(binauralGain);
-    panRightRef.current = panR;
 
-    const baseFreq = 200;
     const leftOsc = ctx.createOscillator();
     leftOsc.type = "sine";
-    leftOsc.frequency.value = baseFreq;
+    leftOsc.frequency.value = BINAURAL_BASE_FREQ;
     leftOsc.connect(panL);
+    leftOsc.start();
     leftOscRef.current = leftOsc;
 
     const rightOsc = ctx.createOscillator();
     rightOsc.type = "sine";
-    rightOsc.frequency.value = baseFreq + DEFAULT_SOUNDSCAPE.binauralBeat;
+    rightOsc.frequency.value = BINAURAL_BASE_FREQ + DEFAULT_SOUNDSCAPE.binauralBeat;
     rightOsc.connect(panR);
+    rightOsc.start();
     rightOscRef.current = rightOsc;
 
-    // Start all oscillators
-    drone.start();
-    leftOsc.start();
-    rightOsc.start();
-  }, [volume]);
+    // Some browsers start AudioContext in suspended state — explicitly resume
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
 
-  const enable = useCallback(() => {
-    if (ctxRef.current) return;
-    const ctx = new AudioContext();
-    ctxRef.current = ctx;
-    createNodes(ctx);
     setIsEnabled(true);
     setIsPlaying(true);
-  }, [createNodes]);
+  }, []);
 
   const toggle = useCallback(() => {
     const ctx = ctxRef.current;
@@ -140,21 +142,21 @@ export function useMoodMusic(emotion?: string, isStreaming?: boolean): MoodMusic
   }, []);
 
   const toggleMute = useCallback(() => {
-    setIsMuted((prev) => {
-      const next = !prev;
-      if (masterGainRef.current) {
-        masterGainRef.current.gain.value = next ? 0 : volume;
-      }
-      return next;
-    });
-  }, [volume]);
+    const next = !isMutedRef.current;
+    isMutedRef.current = next;
+    setIsMuted(next);
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = next ? 0 : volumeRef.current;
+    }
+  }, []);
 
   const setVolume = useCallback((v: number) => {
+    volumeRef.current = v;
     setVolumeState(v);
-    if (masterGainRef.current && !isMuted) {
+    if (masterGainRef.current && !isMutedRef.current) {
       masterGainRef.current.gain.value = v;
     }
-  }, [isMuted]);
+  }, []);
 
   // Crossfade to new soundscape
   const applySoundscape = useCallback((scape: Soundscape) => {
@@ -162,18 +164,21 @@ export function useMoodMusic(emotion?: string, isStreaming?: boolean): MoodMusic
     if (!ctx) return;
     const now = ctx.currentTime;
 
-    // Crossfade drone frequency
     if (droneOscRef.current) {
+      droneOscRef.current.frequency.cancelScheduledValues(now);
+      droneOscRef.current.frequency.setValueAtTime(droneOscRef.current.frequency.value, now);
       droneOscRef.current.frequency.linearRampToValueAtTime(scape.droneFreq, now + CROSSFADE_SEC);
     }
 
-    // Crossfade binaural beat
-    const baseFreq = 200;
     if (leftOscRef.current) {
-      leftOscRef.current.frequency.linearRampToValueAtTime(baseFreq, now + CROSSFADE_SEC);
+      leftOscRef.current.frequency.cancelScheduledValues(now);
+      leftOscRef.current.frequency.setValueAtTime(leftOscRef.current.frequency.value, now);
+      leftOscRef.current.frequency.linearRampToValueAtTime(BINAURAL_BASE_FREQ, now + CROSSFADE_SEC);
     }
     if (rightOscRef.current) {
-      rightOscRef.current.frequency.linearRampToValueAtTime(baseFreq + scape.binauralBeat, now + CROSSFADE_SEC);
+      rightOscRef.current.frequency.cancelScheduledValues(now);
+      rightOscRef.current.frequency.setValueAtTime(rightOscRef.current.frequency.value, now);
+      rightOscRef.current.frequency.linearRampToValueAtTime(BINAURAL_BASE_FREQ + scape.binauralBeat, now + CROSSFADE_SEC);
     }
 
     setCurrentSoundscape(scape);
@@ -187,11 +192,9 @@ export function useMoodMusic(emotion?: string, isStreaming?: boolean): MoodMusic
     const scape = SOUNDSCAPES[key];
     if (!scape || key === lastAppliedEmotionRef.current) return;
 
-    // Increment debounce counter
     const counts = emotionCountRef.current;
     counts[key] = (counts[key] || 0) + 1;
 
-    // Reset other counters
     for (const k of Object.keys(counts)) {
       if (k !== key) counts[k] = 0;
     }
@@ -208,9 +211,9 @@ export function useMoodMusic(emotion?: string, isStreaming?: boolean): MoodMusic
     return () => {
       const ctx = ctxRef.current;
       if (ctx) {
-        droneOscRef.current?.stop();
-        leftOscRef.current?.stop();
-        rightOscRef.current?.stop();
+        try { droneOscRef.current?.stop(); } catch { /* already stopped */ }
+        try { leftOscRef.current?.stop(); } catch { /* already stopped */ }
+        try { rightOscRef.current?.stop(); } catch { /* already stopped */ }
         ctx.close();
         ctxRef.current = null;
       }

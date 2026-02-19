@@ -14,22 +14,40 @@
   ],
   "per_class": {
     "happy": {
-      "support": 6
+      "precision": 0.5245,
+      "recall": 0.5325,
+      "f1": 0.5285,
+      "support": 9541
     },
     "sad": {
-      "support": 6
+      "precision": 0.5738,
+      "recall": 0.621,
+      "f1": 0.5964,
+      "support": 11165
     },
     "angry": {
-      "support": 6
+      "precision": 0.4385,
+      "recall": 0.4982,
+      "f1": 0.4665,
+      "support": 4669
     },
     "fearful": {
-      "support": 6
+      "precision": 0.408,
+      "recall": 0.3058,
+      "f1": 0.3496,
+      "support": 2639
     },
     "relaxed": {
-      "support": 6
+      "precision": 0.4963,
+      "recall": 0.4445,
+      "f1": 0.4689,
+      "support": 7337
     },
     "focused": {
-      "support": 6
+      "precision": 0.4248,
+      "recall": 0.3595,
+      "f1": 0.3895,
+      "support": 1769
     }
   },
   "confusion_matrix": [

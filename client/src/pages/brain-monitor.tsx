@@ -206,12 +206,10 @@ export default function BrainMonitor() {
       )}
 
       {/* Mood Music Player */}
-      {isStreaming && (
-        <MoodMusicPlayer
-          emotion={stableAnalysis?.emotions?.emotion}
-          isStreaming={isStreaming}
-        />
-      )}
+      <MoodMusicPlayer
+        emotion={stableAnalysis?.emotions?.emotion}
+        isStreaming={isStreaming}
+      />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* EEG Brain Waves */}

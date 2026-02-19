@@ -189,6 +189,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                 if data and data["signals"] and len(data["signals"][0]) > 0:
                     signals = np.array(data["signals"])
                     eeg = signals[0] if signals.shape[0] > 0 else np.zeros(64)
+                    # Keep full multichannel data for models that support it
+                    eeg_multi = signals if signals.ndim == 2 and signals.shape[0] >= 4 else None
                     fs = data.get("sample_rate", 256)
 
                     # Basic processing
@@ -225,7 +227,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                             try:
                                 sleep_pred = m["sleep"].predict(eeg, fs) if "sleep" in m else {}
                                 analysis["sleep_staging"] = sleep_pred
-                                analysis["emotions"] = m["emotion"].predict(eeg, fs) if "emotion" in m else {}
+                                analysis["emotions"] = m["emotion"].predict(eeg_multi if eeg_multi is not None else eeg, fs) if "emotion" in m else {}
                                 analysis["dream_detection"] = m["dream"].predict(eeg, fs) if "dream" in m else {}
                                 analysis["flow_state"] = m["flow"].predict(eeg, fs) if "flow" in m else {}
                                 analysis["creativity"] = m["creativity"].predict(eeg, fs) if "creativity" in m else {}

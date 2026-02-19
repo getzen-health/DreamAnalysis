@@ -4,9 +4,9 @@ import { storage } from "./storage";
 import OpenAI from "openai";
 import { insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema, insertUserSettingsSchema } from "@shared/schema";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health metrics endpoints
@@ -51,6 +51,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Analyze dream with OpenAI
+      if (!openai) return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const response = await openai.chat.completions.create({
         model: "gpt-5",
@@ -123,6 +124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "";
 
       // Generate AI response
+      if (!openai) return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const response = await openai.chat.completions.create({
         model: "gpt-5",
@@ -165,6 +167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "text exceeds max length (5000 chars)" });
       }
 
+      if (!openai) return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const response = await openai.chat.completions.create({
         model: "gpt-5",

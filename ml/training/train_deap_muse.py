@@ -375,6 +375,11 @@ def train_model(
     # Full classification report
     present_labels = sorted(set(all_y_true) | set(all_y_pred))
     present_names = [EMOTIONS[i] for i in present_labels]
+    report_dict = classification_report(
+        all_y_true, all_y_pred,
+        labels=present_labels, target_names=present_names, digits=3,
+        output_dict=True
+    )
     print("\nClassification Report:")
     print(classification_report(
         all_y_true, all_y_pred,
@@ -409,6 +414,7 @@ def train_model(
         "fold_accuracies": [float(a) for a in fold_accuracies],
         "fold_f1s": [float(f) for f in fold_f1s],
         "confusion_matrix": cm.tolist(),
+        "classification_report": report_dict,
         "n_samples": len(y),
     }
 
@@ -462,9 +468,12 @@ def save_model(result: dict, output_dir: str = "models/saved"):
         "n_features": len(result["feature_names"]),
         "fold_accuracies": result["fold_accuracies"],
         "per_class": {
-            EMOTIONS[i]: {
-                "support": int(sum(1 for y in result["confusion_matrix"][i]))
-            } for i in range(6)
+            name: {
+                "precision": float(result["classification_report"].get(name, {}).get("precision", 0)),
+                "recall": float(result["classification_report"].get(name, {}).get("recall", 0)),
+                "f1": float(result["classification_report"].get(name, {}).get("f1-score", 0)),
+                "support": int(result["classification_report"].get(name, {}).get("support", 0)),
+            } for name in EMOTIONS
         },
         "confusion_matrix": result["confusion_matrix"],
         "channels": MUSE_CH_NAMES,

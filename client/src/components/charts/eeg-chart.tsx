@@ -12,27 +12,20 @@ export function EEGChart({ alphaWaves, betaWaves }: EEGChartProps) {
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
 
+  // Create chart once on mount
   useEffect(() => {
     if (!chartRef.current) return;
-
     const ctx = chartRef.current.getContext('2d');
     if (!ctx) return;
-
-    // Destroy existing chart
-    if (chartInstance.current) {
-      chartInstance.current.destroy();
-    }
-
-    const labels = Array.from({length: alphaWaves.length}, (_, i) => i);
 
     const config: ChartConfiguration = {
       type: 'line',
       data: {
-        labels,
+        labels: [],
         datasets: [
           {
             label: 'Alpha Waves',
-            data: alphaWaves,
+            data: [],
             borderColor: 'hsl(195, 100%, 50%)',
             borderWidth: 2,
             pointRadius: 0,
@@ -40,7 +33,7 @@ export function EEGChart({ alphaWaves, betaWaves }: EEGChartProps) {
           },
           {
             label: 'Beta Waves',
-            data: betaWaves,
+            data: [],
             borderColor: 'hsl(270, 70%, 65%)',
             borderWidth: 2,
             pointRadius: 0,
@@ -53,14 +46,12 @@ export function EEGChart({ alphaWaves, betaWaves }: EEGChartProps) {
         maintainAspectRatio: false,
         animation: false,
         plugins: {
-          legend: { 
+          legend: {
             labels: { color: 'rgba(255, 255, 255, 0.7)' }
           }
         },
         scales: {
-          y: { 
-            min: -100,
-            max: 100,
+          y: {
             grid: { color: 'rgba(255, 255, 255, 0.1)' },
             ticks: { color: 'rgba(255, 255, 255, 0.7)' }
           },
@@ -74,10 +65,35 @@ export function EEGChart({ alphaWaves, betaWaves }: EEGChartProps) {
     chartInstance.current = new Chart(ctx, config);
 
     return () => {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
+      chartInstance.current?.destroy();
+      chartInstance.current = null;
     };
+  }, []);
+
+  // Update data in-place without destroying the chart
+  useEffect(() => {
+    const chart = chartInstance.current;
+    if (!chart) return;
+
+    const labels = Array.from({ length: alphaWaves.length }, (_, i) => i);
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = alphaWaves;
+    chart.data.datasets[1].data = betaWaves;
+
+    // Auto-scale Y axis based on actual signal range
+    const allValues = [...alphaWaves, ...betaWaves];
+    if (allValues.length > 0) {
+      const minVal = Math.min(...allValues);
+      const maxVal = Math.max(...allValues);
+      const padding = Math.max(10, (maxVal - minVal) * 0.15);
+      const yScale = chart.options.scales?.y;
+      if (yScale) {
+        yScale.min = minVal - padding;
+        yScale.max = maxVal + padding;
+      }
+    }
+
+    chart.update('none');
   }, [alphaWaves, betaWaves]);
 
   return (

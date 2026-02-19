@@ -409,7 +409,9 @@ export default function Dashboard() {
             size="lg"
           />
           <p className="text-xs text-muted-foreground mt-2">
-            {isStreaming ? "Live composite" : "—"}
+            {isStreaming
+              ? `${mentalHealthScore > 70 ? "Great" : mentalHealthScore >= 40 ? "Moderate" : "Low"}`
+              : "—"}
           </p>
         </div>
 
@@ -581,11 +583,11 @@ export default function Dashboard() {
         )}
       </Card>
 
-      {/* 7. AI Insight + Brain Waves (side by side) */}
-      <div className={`grid grid-cols-1 ${isStreaming ? "md:grid-cols-2" : ""} gap-4`}>
+      {/* 7. AI Insight + Brain-Health Insights (side by side) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* AI Insight */}
-        {isStreaming && (
-          <div className="ai-insight-card">
+        <div className="ai-insight-card">
+          {isStreaming ? (
             <div className="flex items-start gap-3">
               <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -611,9 +613,55 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground gap-2 py-6">
+              <Sparkles className="h-8 w-8 text-muted-foreground/40" />
+              <p>Connect device for live AI insights</p>
+            </div>
+          )}
+        </div>
 
+        {/* Brain-Health Insights */}
+        <Card className="glass-card p-5 hover-glow">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="h-4 w-4 text-accent" />
+            <h3 className="text-sm font-medium">Brain-Health Insights</h3>
+          </div>
+
+          {!healthInsights || healthInsights.length === 0 ? (
+            <div className="py-6 flex flex-col items-center text-sm text-muted-foreground gap-2">
+              <Brain className="h-8 w-8 text-muted-foreground/40" />
+              <p>Insights appear after a few days of data</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {healthInsights.slice(0, 3).map((insight, i) => (
+                <div key={i} className="p-3 rounded-xl bg-muted/50 border border-border">
+                  <p className="text-sm font-medium text-foreground mb-1">{insight.title}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed mb-2">{insight.description}</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                      insight.correlation_strength > 0.7
+                        ? "bg-success/10 text-success"
+                        : insight.correlation_strength > 0.4
+                          ? "bg-warning/10 text-warning"
+                          : "bg-muted text-muted-foreground"
+                    }`}>
+                      {insight.correlation_strength > 0.7 ? "Strong" : insight.correlation_strength > 0.4 ? "Moderate" : "Weak"} correlation
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {insight.evidence_count} data points
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* 8. Brain Waves + Mood Timeline (side by side) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Brain Waves Sparklines */}
         <Card className="glass-card p-5 hover-glow">
           <div className="flex items-center gap-2 mb-4">
@@ -653,95 +701,57 @@ export default function Dashboard() {
             </div>
           )}
         </Card>
-      </div>
 
-      {/* 8. Brain-Health Insights */}
-      <Card className="glass-card p-5 hover-glow">
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="h-4 w-4 text-accent" />
-          <h3 className="text-sm font-medium">Brain-Health Insights</h3>
-        </div>
-
-        {!healthInsights || healthInsights.length === 0 ? (
-          <div className="py-8 flex flex-col items-center text-sm text-muted-foreground gap-2">
-            <Brain className="h-8 w-8 text-muted-foreground/40" />
-            <p>Insights will appear after a few days of data</p>
+        {/* Mood Timeline */}
+        <Card className="glass-card p-5 hover-glow">
+          <div className="flex items-center gap-2 mb-4">
+            <Heart className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-medium">Mood Timeline</h3>
+            {isStreaming && (
+              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+            )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {healthInsights.slice(0, 3).map((insight, i) => (
-              <div key={i} className="p-4 rounded-xl bg-muted/50 border border-border">
-                <p className="text-sm font-medium text-foreground mb-1">{insight.title}</p>
-                <p className="text-xs text-muted-foreground leading-relaxed mb-2">{insight.description}</p>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                    insight.correlation_strength > 0.7
-                      ? "bg-success/10 text-success"
-                      : insight.correlation_strength > 0.4
-                        ? "bg-warning/10 text-warning"
-                        : "bg-muted text-muted-foreground"
-                  }`}>
-                    {insight.correlation_strength > 0.7 ? "Strong" : insight.correlation_strength > 0.4 ? "Moderate" : "Weak"} correlation
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {insight.evidence_count} data points
-                  </span>
-                </div>
+          <div className="h-40">
+            {moodHistory.length < 2 ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                {isStreaming ? "Collecting data..." : "Connect device to see timeline"}
               </div>
-            ))}
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={moodHistory.slice(-20)}>
+                  <defs>
+                    <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="time"
+                    tick={{ fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis hide domain={[0, 100]} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Area type="monotone" dataKey="mood" stroke="hsl(152, 60%, 48%)" fill="url(#moodGrad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
-        )}
-      </Card>
-
-      {/* 9. Mood Timeline */}
-      <Card className="glass-card p-5 hover-glow">
-        <div className="flex items-center gap-2 mb-4">
-          <Heart className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-medium">Mood Timeline</h3>
-          {isStreaming && (
-            <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
-          )}
-        </div>
-        <div className="h-40">
-          {moodHistory.length < 2 ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              {isStreaming ? "Collecting data..." : "Connect device to see timeline"}
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={moodHistory.slice(-20)}>
-                <defs>
-                  <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="time"
-                  tick={{ fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis hide domain={[0, 100]} />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                />
-                <Area type="monotone" dataKey="mood" stroke="hsl(152, 60%, 48%)" fill="url(#moodGrad)" strokeWidth={2} dot={false} />
-                <Area type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       {/* 10. Quick Actions (4 items) */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
