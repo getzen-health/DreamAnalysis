@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { useTheme } from "@/hooks/use-theme";
 import {
   Bot,
   Send,
@@ -141,6 +142,7 @@ export function AICompanion({ userId }: AICompanionProps) {
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
   const device = useDevice();
   const { latestFrame, state: deviceState } = device;
   const isStreaming = deviceState === "streaming";
@@ -355,7 +357,12 @@ export function AICompanion({ userId }: AICompanionProps) {
                 ? "Ask about your brain state, mood, focus, stress..."
                 : "Connect your Muse 2 for live insights..."
             }
-            className="flex-1 bg-card/50 border border-primary/30 rounded-lg"
+            className="flex-1 border border-primary/30 rounded-lg"
+            style={{
+              color: theme === "dark" ? "#ffffff" : "#000000",
+              WebkitTextFillColor: theme === "dark" ? "#ffffff" : "#000000",
+              caretColor: theme === "dark" ? "#ffffff" : "#000000",
+            }}
           />
           <Button
             onClick={handleSendMessage}

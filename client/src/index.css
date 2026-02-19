@@ -87,9 +87,7 @@
   input,
   textarea,
   select {
-    color: var(--foreground) !important;
-    -webkit-text-fill-color: var(--foreground) !important;
-    caret-color: var(--foreground);
+    color: inherit;
   }
 }
 
