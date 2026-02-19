@@ -545,6 +545,53 @@ export async function getSupportedHealthMetrics(): Promise<Record<string, string
   return mlFetch<Record<string, string[]>>("/health/supported-metrics");
 }
 
+// ─── Weekly Report & Session Trends ─────────────────────────────────────
+
+interface WeeklyReport {
+  user_id: string;
+  period_start: string;
+  period_end: string;
+  total_sessions: number;
+  avg_stress: number;
+  avg_focus: number;
+  avg_flow: number;
+  avg_relaxation: number;
+  avg_creativity: number;
+  stress_change: number;
+  focus_change: number;
+  flow_change: number;
+  relaxation_change: number;
+  creativity_change: number;
+}
+
+interface SessionTrend {
+  session_id: string;
+  date: string;
+  avg_stress: number;
+  avg_focus: number;
+  avg_flow: number;
+  avg_relaxation: number;
+  avg_creativity: number;
+}
+
+interface SessionTrends {
+  user_id: string;
+  trends: SessionTrend[];
+}
+
+export async function getWeeklyReport(userId: string): Promise<WeeklyReport> {
+  return mlFetch<WeeklyReport>(`/sessions/weekly-report?user_id=${encodeURIComponent(userId)}`);
+}
+
+export async function getSessionTrends(
+  userId: string,
+  lastN?: number
+): Promise<SessionTrends> {
+  const params = new URLSearchParams({ user_id: userId });
+  if (lastN !== undefined) params.set("last_n", String(lastN));
+  return mlFetch<SessionTrends>(`/sessions/trends?${params.toString()}`);
+}
+
 export async function exportToHealthKit(
   userId: string
 ): Promise<{ exported_records: number }> {
@@ -574,4 +621,7 @@ export type {
   HealthDailySummary,
   HealthInsight,
   HealthTrend,
+  WeeklyReport,
+  SessionTrend,
+  SessionTrends,
 };

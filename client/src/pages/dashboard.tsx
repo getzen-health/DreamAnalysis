@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { ScoreCircle } from "@/components/score-circle";
 import {
@@ -19,12 +20,25 @@ import {
   Moon,
   Headphones,
   MessageSquare,
-  Lightbulb,
-  HeartPulse,
   Sparkles,
   Radio,
+  Zap,
+  Eye,
+  Cpu,
+  MemoryStick,
+  TrendingUp,
+  TrendingDown,
+  Settings,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
+import {
+  getHealthTrends,
+  getHealthInsights,
+  getWeeklyReport,
+  type HealthTrend,
+  type HealthInsight,
+  type WeeklyReport,
+} from "@/lib/ml-api";
 
 /* ---------- types ---------- */
 interface MoodPoint {
@@ -113,9 +127,42 @@ const QUICK_ACTIONS = [
   { href: "/dreams", icon: Moon, label: "Dream Journal", color: "hsl(262, 45%, 65%)" },
   { href: "/ai-companion", icon: MessageSquare, label: "AI Companion", color: "hsl(152, 60%, 48%)" },
   { href: "/neurofeedback", icon: Headphones, label: "Neurofeedback", color: "hsl(38, 85%, 58%)" },
-  { href: "/insights", icon: Lightbulb, label: "Insights", color: "hsl(320, 55%, 60%)" },
-  { href: "/health-analytics", icon: HeartPulse, label: "Health", color: "hsl(4, 72%, 55%)" },
 ];
+
+const USER_ID = "default";
+
+const PERIOD_TABS = [
+  { label: "Week", days: 7 },
+  { label: "Month", days: 30 },
+  { label: "3 Months", days: 90 },
+  { label: "Year", days: 365 },
+];
+
+/* Metric card config */
+const HEALTH_METRICS = [
+  { key: "stress", label: "Stress", source: "stress_index", color: "var(--warning)", bgClass: "bg-warning/10", textClass: "text-warning" },
+  { key: "focus", label: "Focus", source: "focus_index", color: "var(--primary)", bgClass: "bg-primary/10", textClass: "text-primary" },
+  { key: "flow", label: "Flow", source: "flow_score", color: "var(--success)", bgClass: "bg-success/10", textClass: "text-success" },
+  { key: "creativity", label: "Creativity", source: "creativity_score", color: "var(--secondary)", bgClass: "bg-secondary/10", textClass: "text-secondary" },
+  { key: "cogLoad", label: "Cog Load", source: "load_index", color: "var(--neural-blue)", bgClass: "bg-[hsl(200,70%,55%)]/10", textClass: "text-[hsl(200,70%,55%)]" },
+  { key: "memory", label: "Memory", source: "encoding_score", color: "var(--neural-purple)", bgClass: "bg-[hsl(262,45%,65%)]/10", textClass: "text-[hsl(262,45%,65%)]" },
+];
+
+const METRIC_ICONS: Record<string, typeof Activity> = {
+  stress: Zap,
+  focus: Eye,
+  flow: Activity,
+  creativity: Sparkles,
+  cogLoad: Cpu,
+  memory: MemoryStick,
+};
+
+/* Score color helper */
+function scoreColor(score: number): string {
+  if (score > 70) return "hsl(152, 60%, 48%)";
+  if (score >= 40) return "hsl(38, 85%, 58%)";
+  return "hsl(4, 72%, 55%)";
+}
 
 /* ========== Component ========== */
 export default function Dashboard() {
@@ -129,6 +176,12 @@ export default function Dashboard() {
   const sleepStaging = analysis?.sleep_staging;
   const emotionShift = latestFrame?.emotion_shift;
 
+  // Live metrics from analysis sub-objects
+  const flowState = (analysis as Record<string, any>)?.flow_state;
+  const creativity = (analysis as Record<string, any>)?.creativity;
+  const cognitiveLoad = (analysis as Record<string, any>)?.cognitive_load;
+  const memoryEncoding = (analysis as Record<string, any>)?.memory_encoding;
+
   // Current metrics
   const stressIndex = (emotions?.stress_index ?? 0) * 100;
   const focusIndex = (emotions?.focus_index ?? 0) * 100;
@@ -137,6 +190,33 @@ export default function Dashboard() {
   const confidence = emotions?.confidence ?? 0;
   const valence = emotions?.valence ?? 0;
   const arousal = emotions?.arousal ?? 0;
+
+  // Derived live metrics
+  const flowScore = (flowState?.flow_score ?? 0) * 100;
+  const creativityScore = (creativity?.creativity_score ?? 0) * 100;
+  const cogLoadIndex = (cognitiveLoad?.load_index ?? 0) * 100;
+  const memoryScore = (memoryEncoding?.encoding_score ?? 0) * 100;
+
+  // Mental Health Score composite
+  const mentalHealthScore = isStreaming
+    ? Math.round(
+        (100 - stressIndex) * 0.25 +
+        focusIndex * 0.20 +
+        flowScore * 0.20 +
+        relaxationIndex * 0.20 +
+        creativityScore * 0.15
+      )
+    : 0;
+
+  // Live metric values for cards
+  const liveMetricValues: Record<string, number> = {
+    stress: Math.round(stressIndex),
+    focus: Math.round(focusIndex),
+    flow: Math.round(flowScore),
+    creativity: Math.round(creativityScore),
+    cogLoad: Math.round(cogLoadIndex),
+    memory: Math.round(memoryScore),
+  };
 
   // Mood timeline — accumulate from live data
   const [moodHistory, setMoodHistory] = useState<MoodPoint[]>([]);
@@ -216,7 +296,7 @@ export default function Dashboard() {
   const hour = new Date().getHours();
   const [insightText, setInsightText] = useState("");
   const insightTimerRef = useRef(0);
-  const INSIGHT_THROTTLE_MS = 10_000; // 10 seconds
+  const INSIGHT_THROTTLE_MS = 10_000;
 
   useEffect(() => {
     if (!isStreaming) {
@@ -229,6 +309,30 @@ export default function Dashboard() {
     setInsightText(getInsightText(stressIndex, focusIndex, relaxationIndex, hour));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
+
+  // --- Health data queries ---
+  const [trendDays, setTrendDays] = useState(7);
+
+  const { data: weeklyReport } = useQuery<WeeklyReport>({
+    queryKey: ["health", "weekly-report", USER_ID],
+    queryFn: () => getWeeklyReport(USER_ID),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: healthTrends } = useQuery<HealthTrend[]>({
+    queryKey: ["health", "trends", USER_ID, trendDays],
+    queryFn: () => getHealthTrends(USER_ID, trendDays),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: healthInsights } = useQuery<HealthInsight[]>({
+    queryKey: ["health", "insights", USER_ID],
+    queryFn: () => getHealthInsights(USER_ID),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
 
   /* Sparkline renderer */
   const renderSparkline = (data: number[], color: string) => {
@@ -256,7 +360,7 @@ export default function Dashboard() {
 
   return (
     <main className="p-6 space-y-6 max-w-6xl">
-      {/* Connection Banner */}
+      {/* 1. Connection Banner */}
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
@@ -264,7 +368,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ---- Emotional Shift Alert ---- */}
+      {/* 2. Emotional Shift Alert */}
       {shift?.detected && (
         <div
           className={
@@ -303,7 +407,64 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ---- Score Circles ---- */}
+      {/* 3. Mental Health Score Hero */}
+      <Card className="glass-card p-6 hover-glow">
+        <div className="flex flex-col md:flex-row items-center gap-6">
+          <div className="flex flex-col items-center">
+            <ScoreCircle
+              value={mentalHealthScore}
+              label="Mental Health"
+              gradientId="grad-mental-health"
+              colorFrom={scoreColor(mentalHealthScore)}
+              colorTo={mentalHealthScore > 70 ? "hsl(180, 65%, 50%)" : mentalHealthScore >= 40 ? "hsl(38, 60%, 65%)" : "hsl(4, 50%, 65%)"}
+              size="lg"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              {isStreaming ? "Live composite score" : "Connect device to begin"}
+            </p>
+          </div>
+
+          {/* Weekly change badges */}
+          {weeklyReport && (
+            <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {([
+                { label: "Stress", change: weeklyReport.stress_change, invert: true },
+                { label: "Focus", change: weeklyReport.focus_change, invert: false },
+                { label: "Flow", change: weeklyReport.flow_change, invert: false },
+                { label: "Relaxation", change: weeklyReport.relaxation_change, invert: false },
+                { label: "Creativity", change: weeklyReport.creativity_change, invert: false },
+              ]).map((item) => {
+                const isPositive = item.invert ? item.change < 0 : item.change > 0;
+                const displayChange = item.invert ? -item.change : item.change;
+                return (
+                  <div key={item.label} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                    {isPositive ? (
+                      <TrendingUp className="h-3.5 w-3.5 text-success shrink-0" />
+                    ) : (
+                      <TrendingDown className="h-3.5 w-3.5 text-destructive shrink-0" />
+                    )}
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">{item.label}</p>
+                      <p className={`text-xs font-mono font-medium ${isPositive ? "text-success" : "text-destructive"}`}>
+                        {displayChange > 0 ? "+" : ""}{(displayChange * 100).toFixed(0)}%
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Sessions</p>
+                  <p className="text-xs font-mono font-medium text-foreground">{weeklyReport.total_sessions}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* 4. Live Score Circles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="score-card p-6 flex flex-col items-center hover-glow">
           <ScoreCircle
@@ -352,92 +513,164 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ---- AI Insight ---- */}
-      {isStreaming && (
-        <div className="ai-insight-card">
-          <div className="flex items-start gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-              style={{
-                background: "linear-gradient(135deg, hsl(152,60%,48%,0.2), hsl(38,85%,58%,0.2))",
-              }}
-            >
-              <Sparkles className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground mb-1">AI Insight</p>
-              <p className="text-sm text-muted-foreground leading-relaxed">{insightText}</p>
-              <div className="flex gap-2 mt-3">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary">
-                  Stress {Math.round(stressIndex)}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary/10 text-secondary">
-                  Focus {Math.round(focusIndex)}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent/10 text-accent">
-                  Relax {Math.round(relaxationIndex)}
-                </span>
+      {/* 5. Health Metric Cards (6-grid) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        {HEALTH_METRICS.map((metric) => {
+          const Icon = METRIC_ICONS[metric.key];
+          const value = liveMetricValues[metric.key];
+          return (
+            <Card key={metric.key} className="glass-card p-4 hover-glow">
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${metric.bgClass}`}>
+                  <Icon className={`h-3.5 w-3.5 ${metric.textClass}`} />
+                </div>
+                <span className="text-xs text-muted-foreground">{metric.label}</span>
               </div>
-            </div>
+              <p className="text-xl font-semibold font-mono">
+                {isStreaming ? `${value}%` : "—"}
+              </p>
+              {isStreaming && (
+                <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${value}%`,
+                      backgroundColor: metric.color,
+                    }}
+                  />
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* 6. Health Trends */}
+      <Card className="glass-card p-5 hover-glow">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-medium">Health Trends</h3>
+          </div>
+          <div className="flex gap-1">
+            {PERIOD_TABS.map((tab) => (
+              <button
+                key={tab.days}
+                onClick={() => setTrendDays(tab.days)}
+                className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                  trendDays === tab.days
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
-      )}
 
-      {/* ---- Secondary Grid ---- */}
+        <div className="h-56">
+          {!healthTrends || healthTrends.length < 2 ? (
+            <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+              <Settings className="h-8 w-8 text-muted-foreground/40" />
+              <p>Connect Apple Health or Google Fit in Settings to see trends</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={healthTrends}>
+                <defs>
+                  <linearGradient id="trendFlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(d: string) => {
+                    const date = new Date(d);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                  }}
+                />
+                <YAxis hide domain={[0, 1]} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+                />
+                <Area type="monotone" dataKey="flow_score" name="Flow" stroke="hsl(152, 60%, 48%)" fill="url(#trendFlow)" strokeWidth={2} dot={false} connectNulls />
+                <Area type="monotone" dataKey="creativity_score" name="Creativity" stroke="hsl(262, 45%, 65%)" fill="none" strokeWidth={1.5} dot={false} connectNulls />
+                <Area type="monotone" dataKey="encoding_score" name="Encoding" stroke="hsl(200, 70%, 55%)" fill="none" strokeWidth={1.5} dot={false} connectNulls />
+                <Area type="monotone" dataKey="valence" name="Valence" stroke="hsl(38, 85%, 58%)" fill="none" strokeWidth={1.5} dot={false} strokeDasharray="4 4" connectNulls />
+                <Area type="monotone" dataKey="arousal" name="Arousal" stroke="hsl(320, 55%, 60%)" fill="none" strokeWidth={1.5} dot={false} strokeDasharray="4 4" connectNulls />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Category pills */}
+        {healthTrends && healthTrends.length >= 2 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {([
+              { key: "flow_score", label: "Flow", color: "text-success" },
+              { key: "creativity_score", label: "Creativity", color: "text-secondary" },
+              { key: "encoding_score", label: "Encoding", color: "text-[hsl(200,70%,55%)]" },
+              { key: "valence", label: "Valence", color: "text-warning" },
+              { key: "arousal", label: "Arousal", color: "text-[hsl(320,55%,60%)]" },
+            ] as const).map((cat) => {
+              const vals = healthTrends.map((t) => t[cat.key]).filter((v): v is number => v !== null);
+              const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+              return (
+                <span key={cat.key} className={`px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted ${cat.color}`}>
+                  {cat.label} {(avg * 100).toFixed(0)}%
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* 7. AI Insight + Brain Waves (side by side) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Mood Timeline */}
-        <Card className="glass-card p-5 md:col-span-2 hover-glow">
-          <div className="flex items-center gap-2 mb-4">
-            <Heart className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium">Mood Timeline</h3>
-            {isStreaming && (
-              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
-            )}
-          </div>
-          <div className="h-40">
-            {moodHistory.length < 2 ? (
-              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                {isStreaming ? "Collecting data..." : "Connect device to see timeline"}
+        {/* AI Insight */}
+        {isStreaming && (
+          <div className="ai-insight-card md:col-span-2">
+            <div className="flex items-start gap-3">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{
+                  background: "linear-gradient(135deg, hsl(152,60%,48%,0.2), hsl(38,85%,58%,0.2))",
+                }}
+              >
+                <Sparkles className="h-4 w-4 text-primary" />
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={moodHistory.slice(-20)}>
-                  <defs>
-                    <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis hide domain={[0, 100]} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(220, 22%, 9%)",
-                      border: "1px solid hsl(220, 18%, 20%)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                    labelStyle={{ color: "hsl(38, 20%, 92%)" }}
-                  />
-                  <Area type="monotone" dataKey="mood" stroke="hsl(152, 60%, 48%)" fill="url(#moodGrad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground mb-1">AI Insight</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{insightText}</p>
+                <div className="flex gap-2 mt-3">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary">
+                    Stress {Math.round(stressIndex)}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary/10 text-secondary">
+                    Focus {Math.round(focusIndex)}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent/10 text-accent">
+                    Relax {Math.round(relaxationIndex)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-        </Card>
+        )}
 
         {/* Brain Waves Sparklines */}
-        <Card className="glass-card p-5 hover-glow">
+        <Card className={`glass-card p-5 hover-glow ${!isStreaming ? "md:col-span-3" : ""}`}>
           <div className="flex items-center gap-2 mb-4">
             <Brain className="h-4 w-4 text-secondary" />
             <h3 className="text-sm font-medium">Brain Waves</h3>
@@ -477,8 +710,96 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* ---- Quick Actions ---- */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+      {/* 8. Brain-Health Insights */}
+      <Card className="glass-card p-5 hover-glow">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="h-4 w-4 text-accent" />
+          <h3 className="text-sm font-medium">Brain-Health Insights</h3>
+        </div>
+
+        {!healthInsights || healthInsights.length === 0 ? (
+          <div className="py-8 flex flex-col items-center text-sm text-muted-foreground gap-2">
+            <Brain className="h-8 w-8 text-muted-foreground/40" />
+            <p>Insights will appear after a few days of data</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {healthInsights.slice(0, 3).map((insight, i) => (
+              <div key={i} className="p-4 rounded-xl bg-muted/50 border border-border">
+                <p className="text-sm font-medium text-foreground mb-1">{insight.title}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed mb-2">{insight.description}</p>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                    insight.correlation_strength > 0.7
+                      ? "bg-success/10 text-success"
+                      : insight.correlation_strength > 0.4
+                        ? "bg-warning/10 text-warning"
+                        : "bg-muted text-muted-foreground"
+                  }`}>
+                    {insight.correlation_strength > 0.7 ? "Strong" : insight.correlation_strength > 0.4 ? "Moderate" : "Weak"} correlation
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {insight.evidence_count} data points
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* 9. Mood Timeline */}
+      <Card className="glass-card p-5 hover-glow">
+        <div className="flex items-center gap-2 mb-4">
+          <Heart className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium">Mood Timeline</h3>
+          {isStreaming && (
+            <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+          )}
+        </div>
+        <div className="h-40">
+          {moodHistory.length < 2 ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              {isStreaming ? "Collecting data..." : "Connect device to see timeline"}
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={moodHistory.slice(-20)}>
+                <defs>
+                  <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="time"
+                  tick={{ fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis hide domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                />
+                <Area type="monotone" dataKey="mood" stroke="hsl(152, 60%, 48%)" fill="url(#moodGrad)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </Card>
+
+      {/* 10. Quick Actions (4 items) */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
         {QUICK_ACTIONS.map((action) => {
           const Icon = action.icon;
           return (

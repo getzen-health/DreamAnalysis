@@ -1,16 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,18 +15,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, BarChart3, Brain, Cpu } from "lucide-react";
+import { AlertTriangle, Download, BarChart3, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 const USER_ID = "default";
 import { useToast } from "@/hooks/use-toast";
 import { useInference } from "@/hooks/use-inference";
-import { getModelsBenchmarks, getCalibrationStatus, type BenchmarkResult, type CalibrationStatus } from "@/lib/ml-api";
-import { CalibrationWizard } from "@/components/calibration-wizard";
+import { getModelsBenchmarks, ingestHealthData, type BenchmarkResult } from "@/lib/ml-api";
 
 interface SettingsState {
-  electrodeCount: string;
-  samplingRate: string;
-  stressAlertThreshold: number;
   chartAnimations: boolean;
   neuralFlowEffects: boolean;
   healthAlerts: boolean;
@@ -43,9 +32,6 @@ interface SettingsState {
 }
 
 const defaultSettings: SettingsState = {
-  electrodeCount: "64",
-  samplingRate: "500",
-  stressAlertThreshold: 75,
   chartAnimations: true,
   neuralFlowEffects: true,
   healthAlerts: true,
@@ -54,14 +40,25 @@ const defaultSettings: SettingsState = {
   anonymousAnalytics: false,
 };
 
+interface HealthConnectionStatus {
+  apple_health: boolean;
+  google_fit: boolean;
+}
+
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const userId = USER_ID;
   const { toast } = useToast();
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
   const [benchmarks, setBenchmarks] = useState<Record<string, BenchmarkResult>>({});
-  const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus | null>(null);
-  const { isLocal, latencyMs, isReady } = useInference();
+  const [healthStatus, setHealthStatus] = useState<HealthConnectionStatus>({
+    apple_health: false,
+    google_fit: false,
+  });
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  const appleFileRef = useRef<HTMLInputElement>(null);
+  const googleFileRef = useRef<HTMLInputElement>(null);
 
   // Load settings from API on mount
   useEffect(() => {
@@ -73,14 +70,13 @@ export default function SettingsPage() {
           setSettings((prev) => ({ ...prev, ...data }));
         }
       } catch (error) {
-        // Use defaults if API unavailable
         console.error("Failed to load settings:", error);
       }
     }
     loadSettings();
   }, [userId]);
 
-  // Load model benchmarks and calibration status
+  // Load model benchmarks
   useEffect(() => {
     async function loadBenchmarks() {
       try {
@@ -90,16 +86,7 @@ export default function SettingsPage() {
         // Benchmarks not available
       }
     }
-    async function loadCalibration() {
-      try {
-        const status = await getCalibrationStatus();
-        setCalibrationStatus(status);
-      } catch {
-        // Calibration not available
-      }
-    }
     loadBenchmarks();
-    loadCalibration();
   }, []);
 
   // Save settings to API
@@ -125,6 +112,37 @@ export default function SettingsPage() {
     const updated = { ...settings, [key]: value };
     setSettings(updated);
     saveSettings(updated);
+  };
+
+  const handleHealthUpload = async (source: "apple_health" | "google_fit", file: File) => {
+    setUploading(source);
+    try {
+      const text = await file.text();
+      let data: Record<string, unknown>;
+
+      if (file.name.endsWith(".json")) {
+        data = JSON.parse(text);
+      } else {
+        // XML or other — wrap raw text for backend parsing
+        data = { raw_xml: text, filename: file.name };
+      }
+
+      const result = await ingestHealthData(userId, source, data);
+      setHealthStatus((prev) => ({ ...prev, [source]: true }));
+      toast({
+        title: "Health Data Imported",
+        description: `Successfully imported ${result.stored} samples (${result.metrics.join(", ")}).`,
+      });
+    } catch (error) {
+      console.error("Health upload failed:", error);
+      toast({
+        title: "Import Failed",
+        description: "Could not parse the health export file. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(null);
+    }
   };
 
   const handleDataExport = async () => {
@@ -163,6 +181,7 @@ export default function SettingsPage() {
         method: "DELETE",
       });
       setSettings(defaultSettings);
+      setHealthStatus({ apple_health: false, google_fit: false });
       toast({
         title: "Data Cleared",
         description: "All your data has been permanently removed.",
@@ -180,85 +199,116 @@ export default function SettingsPage() {
   return (
     <main className="p-4 md:p-6 space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* BCI Configuration */}
-        <Card className="glass-card p-6 rounded-xl ">
+        {/* Health Connections */}
+        <Card className="glass-card p-6 rounded-xl">
           <h3 className="text-lg font-semibold mb-6">
-            BCI Configuration
+            Health Connections
           </h3>
-          <div className="space-y-6">
-            <div>
-              <Label className="text-sm font-medium text-foreground/80 mb-2">
-                Electrode Count
-              </Label>
-              <Select
-                value={settings.electrodeCount}
-                onValueChange={(value) =>
-                  updateSetting("electrodeCount", value)
-                }
-              >
-                <SelectTrigger className="w-full bg-card/50 border border-primary/30">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="32">32 Channels</SelectItem>
-                  <SelectItem value="64">64 Channels</SelectItem>
-                  <SelectItem value="128">128 Channels</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-foreground/80 mb-2">
-                Sampling Rate
-              </Label>
-              <Select
-                value={settings.samplingRate}
-                onValueChange={(value) =>
-                  updateSetting("samplingRate", value)
-                }
-              >
-                <SelectTrigger className="w-full bg-card/50 border border-primary/30">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="250">250 Hz</SelectItem>
-                  <SelectItem value="500">500 Hz</SelectItem>
-                  <SelectItem value="1000">1000 Hz</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium text-foreground/80 mb-4">
-                Alert Thresholds
-              </Label>
-              <div className="space-y-3">
+          <div className="space-y-5">
+            {/* Apple Health */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-destructive/10">
+                  <Apple className="h-5 w-5 text-destructive" />
+                </div>
                 <div>
-                  <Label className="text-xs text-foreground/60">
-                    Stress Level Alert
-                  </Label>
-                  <Slider
-                    value={[settings.stressAlertThreshold]}
-                    onValueChange={([value]) =>
-                      updateSetting("stressAlertThreshold", value)
-                    }
-                    max={100}
-                    step={1}
-                    className="w-full mt-2"
-                  />
-                  <div className="flex justify-between text-xs text-foreground/50 mt-1">
-                    <span>0%</span>
-                    <span>{settings.stressAlertThreshold}%</span>
-                    <span>100%</span>
+                  <p className="text-sm font-medium">Apple Health</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {healthStatus.apple_health ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3 text-success" />
+                        <span className="text-xs text-success">Connected</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Not Connected</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
+              <div>
+                <Input
+                  ref={appleFileRef}
+                  type="file"
+                  accept=".xml,.zip,.json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleHealthUpload("apple_health", file);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading === "apple_health"}
+                  onClick={() => appleFileRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  {uploading === "apple_health" ? "Uploading..." : "Upload Export"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Google Fit */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10">
+                  <Smartphone className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Google Fit</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {healthStatus.google_fit ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3 text-success" />
+                        <span className="text-xs text-success">Connected</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Not Connected</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Input
+                  ref={googleFileRef}
+                  type="file"
+                  accept=".xml,.zip,.json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleHealthUpload("google_fit", file);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading === "google_fit"}
+                  onClick={() => googleFileRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  {uploading === "google_fit" ? "Uploading..." : "Upload Export"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Coming soon note */}
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border">
+              <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                Direct API connection coming soon. For now, export your data from the Health app and upload the file here.
+              </p>
             </div>
           </div>
         </Card>
 
         {/* Interface Settings */}
-        <Card className="glass-card p-6 rounded-xl ">
+        <Card className="glass-card p-6 rounded-xl">
           <h3 className="text-lg font-semibold mb-6">
             Interface Settings
           </h3>
@@ -325,7 +375,7 @@ export default function SettingsPage() {
 
       {/* Data Export & Privacy */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass-card p-6 rounded-xl ">
+        <Card className="glass-card p-6 rounded-xl">
           <h3 className="text-lg font-semibold mb-6">
             Data Export
           </h3>
@@ -354,7 +404,7 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <Card className="glass-card p-6 rounded-xl ">
+        <Card className="glass-card p-6 rounded-xl">
           <h3 className="text-lg font-semibold mb-6">
             Privacy & Security
           </h3>
@@ -427,73 +477,9 @@ export default function SettingsPage() {
         </Card>
       </div>
 
-      {/* Personal Calibration & Edge Inference */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Personal Calibration (Phase 9) */}
-        <div>
-          <CalibrationWizard
-            onComplete={(result) => {
-              setCalibrationStatus({
-                calibrated: result.calibrated,
-                n_samples: 3,
-                personal_accuracy: result.personal_accuracy,
-                classes: ["relaxed", "focused", "stressed"],
-              });
-            }}
-          />
-          {calibrationStatus?.calibrated && (
-            <Card className="glass-card p-4 rounded-xl mt-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Brain className="h-4 w-4 text-success" />
-                <span className="text-sm font-medium text-success">Calibrated</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs text-foreground/60">
-                <span>Samples: {calibrationStatus.n_samples}</span>
-                <span>Accuracy: {(calibrationStatus.personal_accuracy * 100).toFixed(0)}%</span>
-              </div>
-            </Card>
-          )}
-        </div>
-
-        {/* Edge Inference (Phase 12) */}
-        <Card className="glass-card p-6 rounded-xl ">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Cpu className="h-5 w-5 text-primary" />
-            Edge Inference
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Inference Mode</Label>
-              <span className={`text-sm font-mono ${isLocal ? "text-success" : "text-foreground/60"}`}>
-                {isReady ? (isLocal ? "Local (ONNX)" : "Server API") : "Initializing..."}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Latency</Label>
-              <span className="text-sm font-mono text-foreground/60">
-                {latencyMs > 0 ? `${latencyMs.toFixed(1)}ms` : "—"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Local Processing</Label>
-              <Switch
-                checked={settings.localProcessing}
-                onCheckedChange={(checked) =>
-                  updateSetting("localProcessing", checked)
-                }
-                data-testid="switch-edge-inference"
-              />
-            </div>
-            <p className="text-xs text-foreground/40">
-              When ONNX models are available in /public/models/, inference runs locally in the browser with &lt;10ms latency. Otherwise, falls back to the server API.
-            </p>
-          </div>
-        </Card>
-      </div>
-
       {/* Model Performance */}
       {Object.keys(benchmarks).length > 0 && (
-        <Card className="glass-card p-6 rounded-xl ">
+        <Card className="glass-card p-6 rounded-xl">
           <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
             Model Performance
@@ -537,7 +523,6 @@ export default function SettingsPage() {
             </table>
           </div>
 
-          {/* Per-class breakdown */}
           {Object.entries(benchmarks).map(([key, bench]) => (
             bench.per_class && Object.keys(bench.per_class).length > 0 && (
               <details key={`detail-${key}`} className="mt-4">
