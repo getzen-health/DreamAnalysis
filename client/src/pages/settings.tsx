@@ -4,6 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -462,6 +470,162 @@ export default function SettingsPage() {
         </Card>
       </div>
 
+      {/* Export Brain Data */}
+      <ExportBrainDataCard userId={userId} />
+
     </main>
+  );
+}
+
+/* ── Export Brain Data Card ──────────────────────────────────── */
+const EXPORT_METRICS = [
+  { id: "focus_index",    label: "Focus"       },
+  { id: "stress_index",   label: "Stress"      },
+  { id: "relaxation_idx", label: "Relaxation"  },
+  { id: "flow_score",     label: "Flow"        },
+  { id: "valence",        label: "Valence"     },
+  { id: "alpha",          label: "Alpha band"  },
+  { id: "beta",           label: "Beta band"   },
+  { id: "theta",          label: "Theta band"  },
+];
+
+function ExportBrainDataCard({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+
+  const [fromDate, setFromDate] = useState(weekAgo);
+  const [toDate,   setToDate]   = useState(today);
+  const [format,   setFormat]   = useState<"csv" | "json">("csv");
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(["focus_index", "stress_index", "relaxation_idx", "flow_score", "valence"])
+  );
+  const [exporting, setExporting] = useState(false);
+
+  function toggleMetric(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function handleExport() {
+    if (selected.size === 0) {
+      toast({ title: "Select at least one metric", variant: "destructive" });
+      return;
+    }
+    setExporting(true);
+    try {
+      const fromTs = Math.floor(new Date(fromDate).getTime() / 1000);
+      const toTs   = Math.floor(new Date(toDate + "T23:59:59").getTime() / 1000);
+      const url = new URL("/api/ml/brain/export", window.location.origin);
+      url.searchParams.set("user_id", userId);
+      url.searchParams.set("from_ts", String(fromTs));
+      url.searchParams.set("to_ts",   String(toTs));
+      url.searchParams.set("format",  format);
+      url.searchParams.set("metrics", [...selected].join(","));
+
+      const res = await fetch(url.toString());
+      if (!res.ok) throw new Error(await res.text());
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `brain_export_${fromDate}_${toDate}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+
+      toast({ title: "Export complete", description: `${format.toUpperCase()} file downloaded.` });
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <Card className="glass-card p-6 rounded-xl">
+      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <Download className="h-4 w-4 text-primary" />
+        Export Brain Data
+      </h3>
+
+      {/* Date range */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1 block">From</Label>
+          <Input
+            type="date"
+            value={fromDate}
+            max={toDate}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1 block">To</Label>
+          <Input
+            type="date"
+            value={toDate}
+            min={fromDate}
+            max={today}
+            onChange={(e) => setToDate(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Metric checkboxes */}
+      <div className="mb-4">
+        <Label className="text-xs text-muted-foreground mb-2 block">Metrics</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {EXPORT_METRICS.map((m) => (
+            <div key={m.id} className="flex items-center gap-2">
+              <Checkbox
+                id={`metric-${m.id}`}
+                checked={selected.has(m.id)}
+                onCheckedChange={() => toggleMetric(m.id)}
+              />
+              <Label htmlFor={`metric-${m.id}`} className="text-xs cursor-pointer">
+                {m.label}
+              </Label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Format */}
+      <div className="mb-4">
+        <Label className="text-xs text-muted-foreground mb-1 block">Format</Label>
+        <Select value={format} onValueChange={(v) => setFormat(v as "csv" | "json")}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="csv">CSV</SelectItem>
+            <SelectItem value="json">JSON</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button
+        onClick={handleExport}
+        disabled={exporting}
+        className="w-full bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"
+      >
+        <Download className="mr-2 h-4 w-4" />
+        {exporting ? "Exporting…" : "Export Brain Data"}
+      </Button>
+
+      <p className="text-[10px] text-muted-foreground mt-3">
+        Exports raw 1Hz readings from TimescaleDB. Requires DATABASE_URL.
+      </p>
+    </Card>
   );
 }

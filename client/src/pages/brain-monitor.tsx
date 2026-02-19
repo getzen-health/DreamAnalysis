@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { EEGChart } from "@/components/charts/eeg-chart";
+import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { SpectrogramChart } from "@/components/charts/spectrogram-chart";
 import { NeuralNetwork } from "@/components/neural-network";
 import { SignalQualityBadge } from "@/components/signal-quality-badge";
@@ -40,27 +40,6 @@ export default function BrainMonitor() {
   const [anomaly] = useState<AnomalyResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const waveletTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Build EEG chart data from real signals (accumulate last 50 points)
-  const [eegData, setEegData] = useState<{ alphaWaves: number[]; betaWaves: number[] }>({
-    alphaWaves: [],
-    betaWaves: [],
-  });
-
-  useEffect(() => {
-    if (!isStreaming || !latestFrame?.signals) return;
-    const signals = latestFrame.signals;
-    // Use channel 1 (AF7 — frontal left) for alpha-ish, channel 2 (AF8 — frontal right) for beta-ish
-    const ch0 = signals[0] ?? [];
-    const ch1 = signals[1] ?? signals[0] ?? [];
-    // Take last sample from each chunk
-    const alphaVal = ch0.length > 0 ? ch0[ch0.length - 1] : 0;
-    const betaVal = ch1.length > 0 ? ch1[ch1.length - 1] : 0;
-    setEegData((prev) => ({
-      alphaWaves: [...prev.alphaWaves.slice(-49), alphaVal],
-      betaWaves: [...prev.betaWaves.slice(-49), betaVal],
-    }));
-  }, [isStreaming, latestFrame?.timestamp]);
 
   // Request wavelet analysis every 2 seconds during streaming
   useEffect(() => {
@@ -207,7 +186,7 @@ export default function BrainMonitor() {
 
       {/* Mood Music Player */}
       <MoodMusicPlayer
-        emotion={stableAnalysis?.emotions?.emotion}
+        emotion={stableAnalysis?.emotions?.emotion ?? undefined}
         isStreaming={isStreaming}
       />
 
@@ -255,10 +234,30 @@ export default function BrainMonitor() {
             </div>
           </div>
           {isStreaming ? (
-            <EEGChart
-              alphaWaves={eegData.alphaWaves}
-              betaWaves={eegData.betaWaves}
-            />
+            <>
+              <EEGWaveformCanvas
+                signals={latestFrame?.signals as number[][] | undefined}
+                windowSec={5}
+                height={280}
+              />
+              {/* Channel legend */}
+              <div className="flex items-center gap-4 mt-3">
+                {[
+                  { label: "TP9",  color: "hsl(200, 70%, 55%)" },
+                  { label: "AF7",  color: "hsl(152, 60%, 48%)" },
+                  { label: "AF8",  color: "hsl(38,  85%, 58%)" },
+                  { label: "TP10", color: "hsl(262, 45%, 65%)" },
+                ].map((ch) => (
+                  <div key={ch.label} className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full"
+                      style={{ background: ch.color }}
+                    />
+                    <span className="text-[10px] font-mono text-muted-foreground">{ch.label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="h-64 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
               Connect device to see live EEG waveforms

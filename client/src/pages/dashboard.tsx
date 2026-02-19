@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
+import { ContinuousBrainTimeline } from "@/components/charts/continuous-brain-timeline";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { ScoreCircle } from "@/components/score-circle";
@@ -37,6 +38,7 @@ import {
   type HealthInsight,
   type SessionSummary,
 } from "@/lib/ml-api";
+import { ChartTooltip } from "@/components/chart-tooltip";
 
 /* ---------- types ---------- */
 interface MoodPoint {
@@ -53,6 +55,7 @@ const EMOTION_LABELS: Record<string, string> = {
   fearful: "Anxious",
   relaxed: "Relaxed",
   focused: "Focused",
+  neutral: "Neutral",
 };
 
 function getInsightText(
@@ -239,7 +242,10 @@ export default function Dashboard() {
   const stressIndex = (emotions?.stress_index ?? 0) * 100;
   const focusIndex = (emotions?.focus_index ?? 0) * 100;
   const relaxationIndex = (emotions?.relaxation_index ?? 0) * 100;
-  const currentEmotion = emotions?.emotion ?? "—";
+  // emotions?.ready is false for first 30s while buffer fills
+  // ready=false only during first 30s buffer fill; undefined/true means result available
+  const emotionReady = !emotions || emotions.ready !== false || emotions.emotion != null;
+  const currentEmotion = emotionReady ? (emotions?.emotion ?? "—") : "Calibrating…";
   const confidence = emotions?.confidence ?? 0;
   const valence = emotions?.valence ?? 0;
   const arousal = emotions?.arousal ?? 0;
@@ -271,21 +277,13 @@ export default function Dashboard() {
     memory: Math.round(memoryScore),
   };
 
-  // Scrub state for Apple-Health-style drag interaction
-  const [scrubPoint, setScrubPoint] = useState<{
-    label: string;
-    focus: number;
-    stress: number;
-    flow: number;
-    creativity: number;
-  } | null>(null);
 
   // Today time-series — sample every 30s for the mental health chart
   const [todayTimeline, setTodayTimeline] = useState<
     Array<{ time: string; focus: number; stress: number; flow: number; creativity: number }>
   >([]);
   const lastTimelineSampleRef = useRef(0);
-  const TIMELINE_INTERVAL_MS = 30_000; // one data point every 30 seconds
+  const TIMELINE_INTERVAL_MS = 3_000; // one data point every 3 seconds
 
   // Mood timeline — accumulate from live frames (for the fine-grained Mood Timeline chart)
   const [moodHistory, setMoodHistory] = useState<MoodPoint[]>([]);
@@ -309,7 +307,7 @@ export default function Dashboard() {
     if (ts - lastTimelineSampleRef.current >= TIMELINE_INTERVAL_MS) {
       lastTimelineSampleRef.current = ts;
       setTodayTimeline((prev) => [
-        ...prev.slice(-288), // 24h at 5-min intervals = 288 points max
+        ...prev.slice(-600), // keep last 30 min at 3s intervals = 600 points max
         {
           time: now,
           focus: Math.round(focusIndex),
@@ -586,13 +584,19 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* 6. Mental Health & Emotional Analysis */}
-      <Card className="glass-card p-5 hover-glow">
+      {/* 6. Mental Health Trend — Apple Health-style continuous timeline */}
+      <ContinuousBrainTimeline
+        userId="default"
+        defaultMetric="focus_index"
+        title="Mental Health & Emotional Analysis"
+      />
+
+      {/* Legacy session chart — hidden, kept for reference */}
+      {false && <Card className="glass-card p-5 hover-glow">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-medium">Mental Health & Emotional Analysis</h3>
-          </div>
           <div className="flex gap-1">
             {PERIOD_TABS.map((tab) => (
               <button
@@ -612,42 +616,27 @@ export default function Dashboard() {
 
         {/* Unified scrubbable chart — Apple Health / Whoop style */}
         {(() => {
-          // Pick data source
           const isLiveToday = trendDays === 1 && isStreaming;
-          const chartData = isLiveToday ? todayTimeline : sessionTrendData;
+          const baseData = isLiveToday ? todayTimeline : sessionTrendData;
           const dataKey = isLiveToday ? "time" : "date";
-          const hasData = chartData.length >= 2;
 
-          // What to show in the scrub header
-          const liveValues = {
-            label: isLiveToday ? "Now" : sessionTrendData.length > 0
-              ? sessionTrendData[sessionTrendData.length - 1].date
-              : "—",
-            focus: isLiveToday ? Math.round(focusIndex) : sessionTrendData.length > 0
-              ? sessionTrendData[sessionTrendData.length - 1].focus : 0,
-            stress: isLiveToday ? Math.round(stressIndex) : sessionTrendData.length > 0
-              ? sessionTrendData[sessionTrendData.length - 1].stress : 0,
-            flow: isLiveToday ? Math.round(flowScore) : sessionTrendData.length > 0
-              ? sessionTrendData[sessionTrendData.length - 1].flow : 0,
-            creativity: isLiveToday ? Math.round(creativityScore) : sessionTrendData.length > 0
-              ? sessionTrendData[sessionTrendData.length - 1].creativity : 0,
-          };
-          const display = scrubPoint ?? liveValues;
+          // Always inject the live "Now" point when streaming Today — no collecting wait
+          const liveNow = isLiveToday
+            ? {
+                time: "Now",
+                focus: Math.round(focusIndex),
+                stress: Math.round(stressIndex),
+                flow: Math.round(flowScore),
+                creativity: Math.round(creativityScore),
+              }
+            : null;
+          const fullData = liveNow ? [...baseData, liveNow] : baseData;
+          // For live Today view, cap to last 120 points (6 min at 3s) for readability
+          const chartData = isLiveToday ? fullData.slice(-120) : fullData;
+          const hasData = chartData.length >= 1;
 
-          const handleMove = (state: Record<string, any>) => {
-            if (state?.activePayload?.length) {
-              const p = state.activePayload[0].payload;
-              setScrubPoint({
-                label: p[dataKey] ?? "",
-                focus: p.focus ?? 0,
-                stress: p.stress ?? 0,
-                flow: p.flow ?? 0,
-                creativity: p.creativity ?? 0,
-              });
-            }
-          };
 
-          if (!hasData && !isLiveToday) {
+          if (!hasData) {
             return (
               <div className="h-40 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
                 <Brain className="h-8 w-8 text-muted-foreground/40" />
@@ -657,58 +646,15 @@ export default function Dashboard() {
             );
           }
 
-          if (isLiveToday && !hasData) {
-            return (
-              <div className="h-44 flex items-center justify-center text-sm text-muted-foreground gap-2">
-                <span className="text-[10px] font-mono text-primary animate-pulse">●</span>
-                Collecting — first data point in ~30s
-              </div>
-            );
-          }
+          // Show timestamp only while scrubbing
+          const showDots = chartData.length <= 2;
 
           return (
             <>
-              {/* ── Scrub header — updates as you drag ── */}
-              <div className="mb-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <p className="text-xs text-muted-foreground font-mono transition-all duration-100">
-                    {display.label}
-                  </p>
-                  {isLiveToday && !scrubPoint && (
-                    <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
-                  )}
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { label: "Focus", value: display.focus, color: "hsl(152,60%,48%)", textClass: "text-primary" },
-                    { label: "Stress", value: display.stress, color: "hsl(38,85%,58%)", textClass: "text-warning" },
-                    { label: "Flow", value: display.flow, color: "hsl(200,70%,55%)", textClass: "text-[hsl(200,70%,55%)]" },
-                    { label: "Creativity", value: display.creativity, color: "hsl(262,45%,65%)", textClass: "text-secondary" },
-                  ].map((m) => (
-                    <div key={m.label}>
-                      <p className="text-[10px] text-muted-foreground">{m.label}</p>
-                      <p className={`text-xl font-bold font-mono transition-all duration-100 ${m.textClass}`}>
-                        {m.value}%
-                      </p>
-                      <div className="mt-1 h-0.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-150"
-                          style={{ width: `${m.value}%`, backgroundColor: m.color }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* ── Chart ── */}
-              <div className="h-36 select-none" style={{ touchAction: "pan-y" }}>
+              <div className="h-48 select-none" style={{ touchAction: "pan-y" }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={chartData}
-                    onMouseMove={handleMove}
-                    onMouseLeave={() => setScrubPoint(null)}
-                  >
+                  <LineChart data={chartData}>
                     <XAxis
                       dataKey={dataKey}
                       tick={{ fontSize: 9 }}
@@ -717,15 +663,17 @@ export default function Dashboard() {
                       interval="preserveStartEnd"
                     />
                     <YAxis hide domain={[0, 100]} />
-                    {/* Invisible tooltip — we handle display ourselves in the header */}
                     <Tooltip
                       cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
-                      content={() => null}
+                      contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 10, fontSize: 11 }}
+                  labelStyle={{ color: "hsl(220, 12%, 65%)", marginBottom: 4, fontSize: 10 }}
+                  itemStyle={{ padding: "1px 0" }}
+                  formatter={(value: number) => [`${value}%`]}
                     />
-                    <Line type="monotone" dataKey="focus" stroke="hsl(152,60%,48%)" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(152,60%,48%)" }} />
-                    <Line type="monotone" dataKey="stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} dot={false} strokeDasharray="4 3" isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(38,85%,58%)" }} />
-                    <Line type="monotone" dataKey="flow" stroke="hsl(200,70%,55%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(200,70%,55%)" }} />
-                    <Line type="monotone" dataKey="creativity" stroke="hsl(262,45%,65%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(262,45%,65%)" }} />
+                    <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(152,60%,48%)" strokeWidth={2} dot={showDots ? { r: 3, fill: "hsl(152,60%,48%)" } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(152,60%,48%)" }} />
+                    <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} strokeDasharray="4 3" dot={showDots ? { r: 3, fill: "hsl(38,85%,58%)" } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(38,85%,58%)" }} />
+                    <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(200,70%,55%)" strokeWidth={1.5} dot={showDots ? { r: 3, fill: "hsl(200,70%,55%)" } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(200,70%,55%)" }} />
+                    <Line type="monotone" dataKey="creativity" name="Creativity" stroke="hsl(262,45%,65%)" strokeWidth={1.5} dot={showDots ? { r: 3, fill: "hsl(262,45%,65%)" } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(262,45%,65%)" }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -749,7 +697,7 @@ export default function Dashboard() {
             </>
           );
         })()}
-      </Card>
+      </Card>}
 
       {/* 7. AI Insight + Brain-Health Insights (side by side) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

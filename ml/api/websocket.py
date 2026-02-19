@@ -9,12 +9,17 @@ import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
 
 from processing.eeg_processor import extract_features, extract_band_powers, preprocess
+from storage.timescale_writer import TimescaleWriter
 
 logger = logging.getLogger(__name__)
 
 # Per-connection state storage (keyed by connection ID)
 _connection_state: dict[str, dict] = {}
 MAX_CONNECTIONS = 50
+
+# Emotion classification window: 30 seconds at 256 Hz
+_EMOTION_WINDOW_SEC = 30
+_EMOTION_WINDOW_SAMPLES = 256 * _EMOTION_WINDOW_SEC  # 7 680 samples
 
 
 def _numpy_safe(obj):
@@ -77,8 +82,14 @@ async def eeg_stream_endpoint(websocket: WebSocket):
     _connection_state[conn_id] = {
         "user_id": "default",
         "shift_detector": None,
+        # Rolling 30s EEG buffer for emotion classification
+        "eeg_buffer": None,          # np.ndarray (n_channels, n_samples) or None
+        "emotion_result": None,      # last 30s emotion output (shown until next update)
+        "emotion_updated_at": 0.0,   # timestamp of last emotion computation
+        "emotion_samples_seen": 0,   # total samples accumulated so far
     }
     user_id = "default"
+    ts_writer = await TimescaleWriter.create(user_id)  # always-on TimescaleDB recording
     run_models = True
     run_quality = True
     run_smoothing = True
@@ -170,7 +181,12 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                 try:
                     cmd = json.loads(msg)
                     if cmd.get("command") == "set_user":
-                        user_id = cmd.get("user_id", "default")
+                        new_uid = cmd.get("user_id", "default")
+                        if new_uid != user_id:
+                            await ts_writer.close()
+                            user_id = new_uid
+                            ts_writer = await TimescaleWriter.create(user_id)
+                        user_id = new_uid
                     elif cmd.get("command") == "configure":
                         run_models = cmd.get("run_models", run_models)
                         run_quality = cmd.get("run_quality", run_quality)
@@ -220,6 +236,20 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                             except Exception as e:
                                 logger.warning("Signal quality check failed: %s", e)
 
+                    # ── Accumulate rolling 30s EEG buffer for emotion ──────────────
+                    conn_state = _connection_state.get(conn_id, {})
+                    chunk_samples = signals.shape[-1]  # typically 64
+                    buf = conn_state.get("eeg_buffer")
+                    if buf is None:
+                        buf = signals.copy()
+                    else:
+                        buf = np.concatenate([buf, signals], axis=-1)
+                        if buf.shape[-1] > _EMOTION_WINDOW_SAMPLES:
+                            buf = buf[:, -_EMOTION_WINDOW_SAMPLES:]
+                    conn_state["eeg_buffer"] = buf
+                    conn_state["emotion_samples_seen"] = conn_state.get("emotion_samples_seen", 0) + chunk_samples
+                    _connection_state[conn_id] = conn_state
+
                     # Run all 12 models
                     if run_models:
                         m = _init_models()
@@ -227,7 +257,48 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                             try:
                                 sleep_pred = m["sleep"].predict(eeg, fs) if "sleep" in m else {}
                                 analysis["sleep_staging"] = sleep_pred
-                                analysis["emotions"] = m["emotion"].predict(eeg_multi if eeg_multi is not None else eeg, fs) if "emotion" in m else {}
+
+                                # ── Emotion: 30s window only ──────────────────────────────
+                                # Accumulate 30s before first result; then re-run every 30s.
+                                # In the meantime the last result is reused so the UI stays
+                                # populated rather than flickering on every 64-sample chunk.
+                                buf_full = buf.shape[-1] >= _EMOTION_WINDOW_SAMPLES
+                                now = time.time()
+                                due = now - conn_state.get("emotion_updated_at", 0) >= _EMOTION_WINDOW_SEC
+                                if buf_full and (due or conn_state.get("emotion_result") is None):
+                                    try:
+                                        eeg_30s = buf if buf.shape[0] >= 4 else buf[0]
+                                        emotion_result = m["emotion"].predict(eeg_30s, fs) if "emotion" in m else {}
+                                        conn_state["emotion_result"] = emotion_result
+                                        conn_state["emotion_updated_at"] = now
+                                        _connection_state[conn_id] = conn_state
+                                        logger.info("[emotion] 30s window classified: %s (conf=%.2f)",
+                                                    emotion_result.get("emotion", "?"),
+                                                    emotion_result.get("confidence", 0))
+                                    except Exception as e:
+                                        logger.warning("30s emotion error: %s", e)
+
+                                # Attach last known emotion result (or none if still buffering)
+                                last_emotion = conn_state.get("emotion_result")
+                                if last_emotion:
+                                    samples_seen = conn_state.get("emotion_samples_seen", 0)
+                                    analysis["emotions"] = {
+                                        **last_emotion,
+                                        "window_sec": _EMOTION_WINDOW_SEC,
+                                        "buffered_sec": round(min(samples_seen, _EMOTION_WINDOW_SAMPLES) / fs, 1),
+                                        "ready": buf_full,
+                                    }
+                                else:
+                                    # Still buffering — tell the UI how far along we are
+                                    buffered_sec = round(buf.shape[-1] / fs, 1)
+                                    analysis["emotions"] = {
+                                        "emotion": None,
+                                        "confidence": 0,
+                                        "ready": False,
+                                        "buffered_sec": buffered_sec,
+                                        "window_sec": _EMOTION_WINDOW_SEC,
+                                    }
+
                                 analysis["dream_detection"] = m["dream"].predict(eeg, fs) if "dream" in m else {}
                                 analysis["flow_state"] = m["flow"].predict(eeg, fs) if "flow" in m else {}
                                 analysis["creativity"] = m["creativity"].predict(eeg, fs) if "creativity" in m else {}
@@ -326,6 +397,9 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         except Exception as e:
                             logger.warning("Spiritual energy analysis error: %s", e)
 
+                    # Always-on: push to TimescaleDB
+                    ts_writer.push_frame(frame, frame.get("signals", []))
+
                     # Pipe to session recorder
                     if session_recorder and session_recorder.is_recording:
                         try:
@@ -350,4 +424,5 @@ async def eeg_stream_endpoint(websocket: WebSocket):
         except Exception:
             pass
     finally:
+        await ts_writer.close()
         _connection_state.pop(conn_id, None)

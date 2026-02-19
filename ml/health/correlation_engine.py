@@ -11,18 +11,223 @@ Correlation types:
 """
 
 import json
+import logging
+import os
 import sqlite3
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime
 import numpy as np
 
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).parent.parent / "data" / "health_brain.db"
 
 
-class HealthBrainDB:
+# ═══════════════════════════════════════════════════════════════
+#  TimescaleDB (Neon) — drop-in replacement using psycopg2
+# ═══════════════════════════════════════════════════════════════
+
+class TimescaleHealthDB:
+    """Sync psycopg2-based replacement for HealthBrainDB targeting Neon/TimescaleDB.
+
+    Method signatures are identical to HealthBrainDB so routes.py needs no changes
+    other than the instantiation.
+    """
+
+    def __init__(self, db_url: Optional[str] = None):
+        import psycopg2
+        import psycopg2.extras
+        self._db_url = db_url or os.environ.get("DATABASE_URL")
+        if not self._db_url:
+            raise RuntimeError("DATABASE_URL is not set")
+        self._psycopg2 = psycopg2
+        self._extras = psycopg2.extras
+        # Verify connection
+        with self._connect() as conn:
+            conn.cursor().execute("SELECT 1")
+        logger.info("TimescaleHealthDB connected")
+
+    def _connect(self):
+        return self._psycopg2.connect(self._db_url)
+
+    # ------------------------------------------------------------------
+
+    def store_health_samples(self, user_id: str, metric: str, samples: List[Dict]):
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                for sample in samples:
+                    cur.execute(
+                        """
+                        INSERT INTO health_samples_ts
+                            (time, user_id, metric_type, value, unit, source, metadata)
+                        VALUES (
+                            to_timestamp(%s), %s, %s, %s, %s, %s, %s
+                        )
+                        """,
+                        (
+                            sample.get("timestamp", time.time()),
+                            user_id,
+                            metric,
+                            sample.get("value"),
+                            sample.get("unit"),
+                            sample.get("source", "unknown"),
+                            json.dumps(sample.get("metadata", {})),
+                        ),
+                    )
+            conn.commit()
+
+    def store_brain_session(self, user_id: str, session: Dict):
+        """Write one processed EEG session to brain_readings at 1Hz precision."""
+        analysis = session.get("analysis", session)
+        band_powers = analysis.get("band_powers", {})
+        emotions = analysis.get("emotions", {}) or {}
+        flow = analysis.get("flow_state", {}) or {}
+        sleep = analysis.get("sleep_staging", {}) or {}
+        ts = session.get("start_time", time.time())
+
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO brain_readings (
+                        time, user_id,
+                        alpha, beta, theta, gamma, delta,
+                        emotion, valence, arousal,
+                        focus_index, stress_index, relaxation_idx,
+                        flow_score, creativity_score, attention_score,
+                        sleep_stage, sqi
+                    ) VALUES (
+                        to_timestamp(%s), %s,
+                        %s, %s, %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s
+                    )
+                    """,
+                    (
+                        ts, user_id,
+                        band_powers.get("alpha"), band_powers.get("beta"),
+                        band_powers.get("theta"), band_powers.get("gamma"),
+                        band_powers.get("delta"),
+                        emotions.get("emotion"), emotions.get("valence"),
+                        emotions.get("arousal"),
+                        emotions.get("focus_index"), emotions.get("stress_index"),
+                        emotions.get("relaxation_index"),
+                        flow.get("flow_score"),
+                        analysis.get("creativity", {}).get("creativity_score") if isinstance(analysis.get("creativity"), dict) else None,
+                        analysis.get("attention", {}).get("attention_score") if isinstance(analysis.get("attention"), dict) else None,
+                        sleep.get("stage"),
+                        analysis.get("quality", {}).get("sqi") if isinstance(analysis.get("quality"), dict) else None,
+                    ),
+                )
+            conn.commit()
+
+    def get_daily_summary(self, user_id: str, date: str = None) -> Dict:
+        if date is None:
+            date = datetime.now().strftime("%Y-%m-%d")
+        with self._connect() as conn:
+            with conn.cursor(cursor_factory=self._extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        AVG(focus_index)      AS avg_focus,
+                        AVG(stress_index)     AS avg_stress,
+                        AVG(relaxation_idx)   AS avg_relaxation,
+                        AVG(flow_score)       AS avg_flow,
+                        AVG(valence)          AS avg_valence,
+                        AVG(arousal)          AS avg_arousal,
+                        COUNT(*)              AS sample_count,
+                        mode() WITHIN GROUP (ORDER BY emotion) AS dominant_emotion
+                    FROM brain_readings
+                    WHERE user_id = %s
+                      AND time >= %s::date
+                      AND time <  %s::date + INTERVAL '1 day'
+                    """,
+                    (user_id, date, date),
+                )
+                brain = dict(cur.fetchone() or {})
+                cur.execute(
+                    """
+                    SELECT metric_type,
+                           AVG(value) AS avg_val,
+                           MIN(value) AS min_val,
+                           MAX(value) AS max_val,
+                           COUNT(*)   AS count
+                    FROM health_samples_ts
+                    WHERE user_id = %s
+                      AND time >= %s::date
+                      AND time <  %s::date + INTERVAL '1 day'
+                    GROUP BY metric_type
+                    """,
+                    (user_id, date, date),
+                )
+                health = {
+                    row["metric_type"]: {
+                        "average": round(row["avg_val"], 1) if row["avg_val"] else None,
+                        "min": round(row["min_val"], 1) if row["min_val"] else None,
+                        "max": round(row["max_val"], 1) if row["max_val"] else None,
+                        "count": row["count"],
+                    }
+                    for row in (cur.fetchall() or [])
+                }
+        return {"date": date, "user_id": user_id, "brain": brain, "health": health}
+
+    def generate_insights(self, user_id: str, days: int = 30) -> List[Dict]:
+        """Delegate to legacy engine for now — TimescaleDB version reads from the agg views."""
+        try:
+            legacy = HealthBrainDB()
+            return legacy.generate_insights(user_id, days)
+        except Exception as exc:
+            logger.warning("generate_insights fallback failed: %s", exc)
+            return []
+
+    def get_insights(self, user_id: str, limit: int = 20) -> List[Dict]:
+        try:
+            legacy = HealthBrainDB()
+            return legacy.get_insights(user_id, limit)
+        except Exception:
+            return []
+
+    def get_brain_trends(self, user_id: str, days: int = 30) -> Dict:
+        """Queries brain_readings_1day continuous aggregate."""
+        with self._connect() as conn:
+            with conn.cursor(cursor_factory=self._extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        bucket::date::text         AS day,
+                        AVG(focus_index)           AS avg_focus,
+                        AVG(flow_score)            AS avg_flow,
+                        AVG(valence)               AS avg_valence,
+                        AVG(stress_index)          AS avg_stress,
+                        AVG(relaxation_idx)        AS avg_relaxation,
+                        SUM(sample_count)          AS sessions
+                    FROM brain_readings_1day
+                    WHERE user_id = %s
+                      AND bucket >= NOW() - (%s || ' days')::INTERVAL
+                    GROUP BY bucket::date
+                    ORDER BY day
+                    """,
+                    (user_id, str(days)),
+                )
+                rows = [dict(r) for r in (cur.fetchall() or [])]
+        return {"days": days, "data_points": len(rows), "trends": rows}
+
+    # Expose the legacy db_path attribute for sqlite-dependent code in routes.py
+    @property
+    def db_path(self):
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Legacy SQLite backend (kept as fallback when no DATABASE_URL)
+# ═══════════════════════════════════════════════════════════════
+
+class LegacyHealthBrainDB:
+    """Original SQLite implementation. Use when DATABASE_URL is not configured."""
     """SQLite storage for health + brain data correlation."""
 
     def __init__(self, db_path: str = None):
@@ -565,3 +770,9 @@ def _correlate_metric_to_brain(health_by_day, brain_by_day, health_metric,
         })
 
     return insights
+
+
+# ── Backward-compat alias ─────────────────────────────────────────────────
+# routes.py does `from health.correlation_engine import HealthBrainDB`
+# This alias keeps that working while pointing to the legacy SQLite class.
+HealthBrainDB = LegacyHealthBrainDB
