@@ -121,7 +121,10 @@ class EmotionClassifier:
             fs: Sampling frequency.
         """
         # Multichannel DEAP model (requires exactly 4 Muse 2 channels: AF7, AF8, TP9, TP10)
-        if self.model_type == "sklearn-deap" and eeg.ndim == 2 and eeg.shape[0] >= 4:
+        # Gated on accuracy — DEAP model at ~51% has severe class-imbalance bias toward "sad"
+        # (11,165 sad samples vs 1,769 focused), so skip it unless it meets the 60% threshold.
+        if (self.model_type == "sklearn-deap" and eeg.ndim == 2 and eeg.shape[0] >= 4
+                and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY):
             return self._predict_multichannel(eeg, fs)
         if self.onnx_session is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
             return self._predict_onnx(eeg if eeg.ndim == 1 else eeg[0], fs)
@@ -190,8 +193,11 @@ class EmotionClassifier:
         asym_valence = asymmetry.get("asymmetry_valence", 0.0)  # -1 to +1
 
         # Blend alpha-beta ratio valence (60%) with frontal asymmetry (40%)
-        # Asymmetry is a stronger valence signal when 4 channels are available
-        valence_abr = float(np.tanh((alpha_beta_ratio - 1.0) * 1.5) * 0.5 + (gamma - 0.15) * 2)
+        # Asymmetry is a stronger valence signal when 4 channels are available.
+        # Neutral baseline 0.8 (eyes-open resting: beta slightly > alpha for Muse).
+        # Gamma removed from valence — it's typically < 0.05 on consumer EEG and
+        # would constantly subtract from valence, falsely pushing toward negative.
+        valence_abr = float(np.tanh((alpha_beta_ratio - 0.8) * 1.5) * 0.6)
         valence = float(np.clip(0.60 * valence_abr + 0.40 * asym_valence, -1, 1))
         arousal = float(np.clip(beta / max(beta + alpha, 1e-10) + gamma * 0.5, 0, 1))
 
@@ -320,8 +326,10 @@ class EmotionClassifier:
         # Sad: clearly negative valence + low arousal.
         # Theta only contributes when VERY dominant (ratio > 2.0) AND valence is negative
         # — prevents drowsy/meditative theta from being mis-classified as sad.
+        # Raised threshold from -0.1 → -0.25: valence must be unambiguously negative
+        # (normal resting/relaxed states can sit around -0.05 to +0.15).
         probs[1] = (
-            0.50 * max(0, -valence - 0.1)                  # needs clear negative valence
+            0.50 * max(0, -valence - 0.25)                 # needs unambiguously negative valence
             + 0.30 * max(0, 0.35 - arousal)                 # must be truly low arousal
             + 0.20 * max(0, theta_beta_ratio - 2.0) * 0.4  # only VERY high theta/beta
         )
@@ -436,9 +444,10 @@ class EmotionClassifier:
 
         # If max confidence is below threshold the EEG doesn't clearly match any
         # of the 6 trained emotions — label as "neutral" instead of forcing a wrong label.
-        # With 6 classes, random baseline = 0.167. Threshold 0.19 means the top emotion
-        # is at least 14% above chance — appropriate for consumer EEG devices.
-        _CONFIDENCE_THRESHOLD = 0.19
+        # With 6 classes, random baseline = 0.167. Threshold 0.25 means the top emotion
+        # is at least 50% above chance before we commit to a label — prevents borderline
+        # states (e.g. slightly negative valence) from being labeled as "sad".
+        _CONFIDENCE_THRESHOLD = 0.25
         top_conf = float(smoothed[emotion_idx])
         emotion_label = EMOTIONS[emotion_idx] if top_conf >= _CONFIDENCE_THRESHOLD else "neutral"
 
