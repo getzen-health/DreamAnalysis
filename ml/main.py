@@ -42,15 +42,19 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS — restrict to known origins in production, allow all in development
+# CORS — allow localhost dev ports + Vercel deployment + any ngrok tunnel
 _allowed_origins = os.environ.get(
     "CORS_ORIGINS",
-    "http://localhost:5000,http://localhost:3000,http://localhost:3030,http://localhost:5173",
+    "http://localhost:5000,http://localhost:3000,http://localhost:3030,http://localhost:5173,https://dream-analysis.vercel.app",
 ).split(",")
+
+# Also accept any ngrok tunnel origin at runtime
+_allow_origin_regex = r"https://.*\.ngrok(-free)?\.app|https://.*\.ngrok\.io|https://.*\.ngrok-free\.dev"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
+    allow_origin_regex=_allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
