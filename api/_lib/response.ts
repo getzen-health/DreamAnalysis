@@ -8,7 +8,7 @@ export function error(res: VercelResponse, message: string, status: number = 500
   return res.status(status).json({ error: message });
 }
 
-export function methodNotAllowed(res: VercelResponse, allowedMethods: string[]) {
+export function methodNotAllowed(res: VercelResponse, allowedMethods: string[] = []) {
   res.setHeader('Allow', allowedMethods.join(', '));
   return res.status(405).json({ error: 'Method not allowed' });
 }

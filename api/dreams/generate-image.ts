@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       quality: "standard",
     });
 
-    const imageUrl = imageResponse.data[0]?.url;
+    const imageUrl = imageResponse.data?.[0]?.url;
 
     if (imageUrl) {
       await db
