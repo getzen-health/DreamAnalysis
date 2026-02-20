@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ContinuousBrainTimeline } from "@/components/charts/continuous-brain-timeline";
 import { ChartTooltip } from "@/components/chart-tooltip";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -471,12 +470,49 @@ export default function EmotionLab() {
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Continuous Timeline (TimescaleDB) */}
-        <ContinuousBrainTimeline
-          userId="default"
-          defaultMetric="focus_index"
-          title="Emotion History"
-        />
+        {/* Emotion Timeline Chart */}
+        <Card className="glass-card p-6">
+          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Emotion Timeline
+            {isLiveToday && isStreaming && (
+              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
+            )}
+          </h3>
+          {!hasTimelineData ? (
+            <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+              <Activity className="h-8 w-8 opacity-30" />
+              <p>{isLiveToday ? (isStreaming ? "Collecting data…" : "Connect device to see live data") : "No sessions in this period"}</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={timelineData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.5} />
+                <XAxis dataKey={timelineDataKey} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 11 }}
+                  formatter={(v: number) => [`${v}%`]}
+                />
+                <Line type="monotone" dataKey="focus_index" name="Focus" stroke="hsl(200, 70%, 55%)" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="stress_index" name="Stress" stroke="hsl(38, 85%, 58%)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="relaxation_index" name="Relax" stroke="hsl(152, 60%, 48%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+          <div className="flex gap-4 mt-2">
+            {[
+              { label: "Focus",   color: "hsl(200,70%,55%)" },
+              { label: "Stress",  color: "hsl(38,85%,58%)",  dashed: true },
+              { label: "Relax",   color: "hsl(152,60%,48%)" },
+            ].map((l) => (
+              <div key={l.label} className="flex items-center gap-1.5">
+                <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
+                <span className="text-[10px] text-muted-foreground">{l.label}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
 
         {/* Valence-Arousal Space */}
         <Card className="glass-card p-6">

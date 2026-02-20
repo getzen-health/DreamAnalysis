@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { ContinuousBrainTimeline } from "@/components/charts/continuous-brain-timeline";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { ScoreCircle } from "@/components/score-circle";
@@ -9,6 +8,7 @@ import {
   Area,
   LineChart,
   Line,
+  CartesianGrid,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -584,21 +584,17 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* 6. Mental Health Trend — Apple Health-style continuous timeline */}
-      <ContinuousBrainTimeline
-        userId="default"
-        defaultMetric="focus_index"
-        title="Mental Health & Emotional Analysis"
-      />
-
-      {/* Legacy session chart — hidden, kept for reference */}
-      {false && <Card className="glass-card p-5 hover-glow">
+      {/* 6. Mental Health Trend */}
+      <Card className="glass-card p-5 hover-glow">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-medium">Mental Health & Emotional Analysis</h3>
+            {trendDays === 1 && isStreaming && (
+              <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
+            )}
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             {PERIOD_TABS.map((tab) => (
               <button
                 key={tab.days}
@@ -615,31 +611,22 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Unified scrubbable chart — Apple Health / Whoop style */}
         {(() => {
           const isLiveToday = trendDays === 1 && isStreaming;
           const baseData = isLiveToday ? todayTimeline : sessionTrendData;
           const dataKey = isLiveToday ? "time" : "date";
 
-          // Always inject the live "Now" point when streaming Today — no collecting wait
           const liveNow = isLiveToday
-            ? {
-                time: "Now",
-                focus: Math.round(focusIndex),
-                stress: Math.round(stressIndex),
-                flow: Math.round(flowScore),
-                creativity: Math.round(creativityScore),
-              }
+            ? { time: "Now", focus: Math.round(focusIndex), stress: Math.round(stressIndex), flow: Math.round(flowScore), creativity: Math.round(creativityScore) }
             : null;
           const fullData = liveNow ? [...baseData, liveNow] : baseData;
-          // For live Today view, cap to last 120 points (6 min at 3s) for readability
           const chartData = isLiveToday ? fullData.slice(-120) : fullData;
           const hasData = chartData.length >= 1;
-
+          const showDots = chartData.length <= 3;
 
           if (!hasData) {
             return (
-              <div className="h-40 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+              <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
                 <Brain className="h-8 w-8 text-muted-foreground/40" />
                 <p>{trendDays === 1 ? "No sessions recorded today yet" : "No sessions in this period"}</p>
                 <p className="text-xs text-muted-foreground/60">Connect your Muse 2 to start recording</p>
@@ -647,50 +634,33 @@ export default function Dashboard() {
             );
           }
 
-          // Show timestamp only while scrubbing
-          const showDots = chartData.length <= 2;
-
           return (
             <>
-              {/* ── Chart ── */}
-              <div className="h-48 select-none" style={{ touchAction: "pan-y" }}>
-                <ResponsiveContainer width="100%" height={192}>
-                  <LineChart data={chartData}>
-                    <XAxis
-                      dataKey={dataKey}
-                      tick={{ fontSize: 9 }}
-                      axisLine={false}
-                      tickLine={false}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis hide domain={[0, 100]} />
-                    <Tooltip
-                      cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
-                      contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 10, fontSize: 11 }}
-                  labelStyle={{ color: "hsl(220, 12%, 65%)", marginBottom: 4, fontSize: 10 }}
-                  itemStyle={{ padding: "1px 0" }}
-                  formatter={(value: number) => [`${value}%`]}
-                    />
-                    <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(152,60%,48%)" strokeWidth={2} dot={showDots ? { r: 3, fill: "hsl(152,60%,48%)" } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(152,60%,48%)" }} />
-                    <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} strokeDasharray="4 3" dot={showDots ? { r: 3, fill: "hsl(38,85%,58%)" } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(38,85%,58%)" }} />
-                    <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(200,70%,55%)" strokeWidth={1.5} dot={showDots ? { r: 3, fill: "hsl(200,70%,55%)" } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(200,70%,55%)" }} />
-                    <Line type="monotone" dataKey="creativity" name="Creativity" stroke="hsl(262,45%,65%)" strokeWidth={1.5} dot={showDots ? { r: 3, fill: "hsl(262,45%,65%)" } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(262,45%,65%)" }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* ── Legend ── */}
+              <ResponsiveContainer width="100%" height={192}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
+                  <XAxis dataKey={dataKey} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={24} />
+                  <Tooltip
+                    cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
+                    contentStyle={{ background: "hsl(220,22%,9%)", border: "1px solid hsl(220,18%,20%)", borderRadius: 10, fontSize: 11 }}
+                    formatter={(value: number) => [`${value}%`]}
+                  />
+                  <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(152,60%,48%)" strokeWidth={2} dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(152,60%,48%)" }} />
+                  <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} strokeDasharray="4 3" dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(38,85%,58%)" }} />
+                  <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(200,70%,55%)" strokeWidth={1.5} dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(200,70%,55%)" }} />
+                  <Line type="monotone" dataKey="creativity" name="Creativity" stroke="hsl(262,45%,65%)" strokeWidth={1.5} dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(262,45%,65%)" }} />
+                </LineChart>
+              </ResponsiveContainer>
               <div className="flex gap-4 mt-2 flex-wrap">
                 {[
-                  { label: "Focus", color: "hsl(152,60%,48%)" },
-                  { label: "Stress", color: "hsl(38,85%,58%)", dashed: true },
-                  { label: "Flow", color: "hsl(200,70%,55%)" },
+                  { label: "Focus",      color: "hsl(152,60%,48%)" },
+                  { label: "Stress",     color: "hsl(38,85%,58%)",  dashed: true },
+                  { label: "Flow",       color: "hsl(200,70%,55%)" },
                   { label: "Creativity", color: "hsl(262,45%,65%)" },
                 ].map((l) => (
                   <div key={l.label} className="flex items-center gap-1.5">
-                    <svg width="18" height="8">
-                      <line x1="0" y1="4" x2="18" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} />
-                    </svg>
+                    <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
                     <span className="text-[10px] text-muted-foreground">{l.label}</span>
                   </div>
                 ))}
@@ -698,7 +668,7 @@ export default function Dashboard() {
             </>
           );
         })()}
-      </Card>}
+      </Card>
 
       {/* 7. AI Insight + Brain-Health Insights (side by side) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
