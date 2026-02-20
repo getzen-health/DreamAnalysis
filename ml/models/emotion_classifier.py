@@ -14,6 +14,7 @@ from collections import deque
 from processing.eeg_processor import (
     extract_band_powers, differential_entropy, extract_features, preprocess,
     compute_frontal_asymmetry, compute_theta_gamma_coupling, compute_dasm_rasm,
+    compute_frontal_midline_theta,
 )
 
 # Amplitude threshold above which an epoch is flagged as artifact-contaminated.
@@ -285,7 +286,7 @@ class EmotionClassifier:
                     "stress_index": 0.5, "focus_index": 0.5,
                     "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
                     "band_powers": {}, "differential_entropy": {},
-                    "dasm_rasm": {}, "artifact_detected": True,
+                    "dasm_rasm": {}, "frontal_midline_theta": {}, "artifact_detected": True,
                 }
             # No prior EMA — return neutral with artifact flag
             neutral = {e: 1.0 / 6 for e in EMOTIONS}
@@ -296,7 +297,7 @@ class EmotionClassifier:
                 "stress_index": 0.5, "focus_index": 0.5,
                 "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
                 "band_powers": {}, "differential_entropy": {},
-                "dasm_rasm": {}, "artifact_detected": True,
+                "dasm_rasm": {}, "frontal_midline_theta": {}, "artifact_detected": True,
             }
 
         # ── Multichannel support ─────────────────────────────────
@@ -366,6 +367,18 @@ class EmotionClassifier:
             dasm_beta_stress = float(
                 np.clip(np.tanh(dasm_rasm.get("dasm_beta", 0.0) * 0.5), 0, 1)
             )
+
+        # ── Frontal Midline Theta (FMT) ──────────────────────────
+        # FMT = ACC/mPFC theta (4-8 Hz). More reference-robust than FAA because
+        # theta at Fpz is less sensitive to the Fpz reference electrode problem.
+        # Left hemisphere FMT asymmetry → pleasant valence.
+        # Used as a supplemental output in the emotion dict.
+        fmt: Dict = {}
+        if channels is not None and channels.shape[0] >= 2:
+            try:
+                fmt = compute_frontal_midline_theta(channels[1], fs)  # AF7 channel
+            except Exception:
+                fmt = {}
 
         # ── Valence (pleasantness) ──────────────────────────────
         # Alpha/beta ratio (ABR) as secondary valence signal.
@@ -558,6 +571,7 @@ class EmotionClassifier:
             "band_powers": bands,
             "differential_entropy": de,
             "dasm_rasm": dasm_rasm,
+            "frontal_midline_theta": fmt,
             "artifact_detected": False,
         }
 
