@@ -84,3 +84,416 @@ Browser (React)
 | `shared/schema.ts` | Database schema (7 tables: users, health, dreams, emotions, chats, settings, push) |
 | `ml/main.py` | FastAPI app entry point |
 | `docs/COMPLETE_SCIENTIFIC_GUIDE.md` | 40KB scientific reference on EEG signal processing + ML |
+
+---
+
+## EEG Science Reference (Read This Every Session)
+
+This section documents the neuroscience, formulas, and architecture decisions for the ML pipeline. **Read this before touching any ML code.**
+
+### Muse 2 Electrode Positions
+
+```
+Muse 2 has 4 EEG channels + 2 reference (ear clips):
+  ch0 = AF7  — Left frontal  (key for FAA)
+  ch1 = AF8  — Right frontal (key for FAA)
+  ch2 = TP9  — Left temporal
+  ch3 = TP10 — Right temporal
+
+Sampling rate: 256 Hz
+Data type: float32, microvolts (µV)
+```
+
+**Critical**: AF7/AF8 sit directly over the frontalis muscle. Any jaw clenching, forehead tensing, or eyebrow raising injects EMG artifact at 20-100 Hz into these channels. Gamma power (30-100 Hz) from AF7/AF8 is predominantly **muscle noise, not neural signal**.
+
+### Brain Wave Bands (as defined in `eeg_processor.py`)
+
+| Band | Frequency | Mental State |
+|------|-----------|-------------|
+| **Delta** | 0.5 – 4 Hz | Deep sleep, unconscious processing |
+| **Theta** | 4 – 8 Hz | Drowsiness, meditation, creativity, memory encoding |
+| **Alpha** | 8 – 12 Hz | Relaxation, eyes-closed, calm focus, mind wandering |
+| **Beta** | 12 – 30 Hz | Active thinking, concentration, anxiety, stress |
+| Low-beta | 12 – 20 Hz | Task focus (non-anxious) |
+| High-beta | 20 – 30 Hz | Anxiety, stress, fight-or-flight |
+| **Gamma** | 30 – 100 Hz | **⚠ Mostly EMG at AF7/AF8 on Muse 2** (muscle artifact) |
+
+### Key EEG Ratios
+
+```python
+alpha_beta_ratio   = alpha / beta       # Relaxation vs alertness
+theta_beta_ratio   = theta / beta       # Creativity/drowsiness vs focus
+alpha_theta_ratio  = alpha / theta      # Calm wakefulness vs drowsiness
+theta_alpha_ratio  = theta / alpha      # Meditation depth
+high_beta_frac     = high_beta / beta   # Anxiety fraction of total beta
+delta_theta_ratio  = delta / theta      # Deep sleep marker
+```
+
+### Frontal Alpha Asymmetry (FAA) — Most Important Feature
+
+**Davidson (1992)** established: greater relative left-frontal alpha = approach motivation & positive affect. Greater relative right-frontal alpha = withdrawal motivation & negative affect/depression risk.
+
+**Formula:**
+```python
+# In eeg_processor.py: compute_frontal_asymmetry()
+frontal_asymmetry = log(AF8_alpha) - log(AF7_alpha)
+# = log(right_alpha) - log(left_alpha)
+
+asymmetry_valence = clip(tanh(frontal_asymmetry * 2.0), -1, 1)
+# FAA > 0 → positive valence (happy, excited)
+# FAA < 0 → negative valence (sad, depressed, fearful)
+```
+
+**Why this matters**: FAA is the single most validated EEG marker for emotional valence. It has 30 years of replication. The old code was discarding all multichannel data and only using ch0 (AF7), losing all asymmetry information. This was the **#1 bug** causing wrong emotion data.
+
+### Valence vs Arousal (Russell's Circumplex Model)
+
+All emotions live in a 2D space:
+```
+              HIGH AROUSAL (+1)
+              excited, angry, fearful
+                      |
+NEGATIVE ─────────────┼───────────── POSITIVE
+VALENCE (-1)          |           VALENCE (+1)
+              sad, bored, depressed
+              LOW AROUSAL (-1)
+```
+
+- **Valence** (positive/negative feeling): best predicted by FAA + alpha/beta ratio
+- **Arousal** (energetic/calm): best predicted by beta/(alpha+beta) ratio + theta
+- EEG predicts arousal better (70-85% accuracy) than valence (60-75%)
+
+### Signal Processing Pipeline
+
+```
+Raw Muse 2 EEG (256 Hz, 4 channels, µV)
+    │
+    ▼ preprocess() — ml/processing/eeg_processor.py
+    ├── Butterworth bandpass: 1-50 Hz, order=5 (filtfilt, zero-phase)
+    ├── Notch filter: 50 Hz (European mains noise)
+    ├── Notch filter: 60 Hz (US mains noise)
+    │
+    ▼ extract_band_powers() — Welch PSD
+    ├── delta, theta, alpha, beta, low_beta, high_beta, gamma
+    ├── Log-domain powers (better normality for ML)
+    ├── Hjorth parameters (activity, mobility, complexity)
+    ├── Spectral entropy
+    ├── Differential entropy per band
+    └── Key ratios (alpha/beta, theta/beta, etc.)
+    │
+    ▼ compute_frontal_asymmetry() — FAA
+    ├── Per-channel alpha power (AF7 and AF8)
+    ├── FAA = log(right_alpha) - log(left_alpha)
+    └── asymmetry_valence = tanh(FAA * 2.0)
+```
+
+### Emotion Classifier Inference Chain
+
+`ml/models/emotion_classifier.py` — **the most important ML file**
+
+```
+predict(eeg, fs=256)  ← receives (4, n_samples) array from Muse 2
+    │
+    ├── If DEAP ONNX model loaded AND accuracy ≥ 60%:
+    │       → _predict_onnx()
+    │
+    ├── If DEAP sklearn model loaded AND accuracy ≥ 60%:
+    │       → _predict_sklearn()
+    │
+    ├── If Muse-trained model available:
+    │       → _predict_multichannel()
+    │
+    └── Else (DEFAULT for live Muse 2 — DEAP model is 51.3%, below threshold):
+            → _predict_features()   ← THIS IS THE LIVE PATH
+```
+
+**DEAP model accuracy**: 51.3% — below the 60% threshold, so it falls back to `_predict_features()` (feature-based heuristics) for all live Muse 2 sessions. **The feature-based path is the production path.**
+
+### Emotion Output Structure
+
+```python
+{
+  "emotion": "happy"|"sad"|"angry"|"fear"|"surprise"|"neutral",
+  "probabilities": {
+      "happy": 0.0-1.0,
+      "sad": 0.0-1.0,
+      "angry": 0.0-1.0,
+      "fear": 0.0-1.0,
+      "surprise": 0.0-1.0,
+      "neutral": 0.0-1.0
+  },
+  "valence": -1.0 to 1.0,      # negative ↔ positive feeling
+  "arousal": 0.0 to 1.0,       # calm ↔ energetic
+  "stress_index": 0.0-1.0,
+  "focus_index": 0.0-1.0,
+  "relaxation_index": 0.0-1.0,
+  "anger_index": 0.0-1.0,
+  "frontal_asymmetry": float,   # FAA raw value
+  "temporal_asymmetry": float,
+  "model_type": "feature-based"|"onnx"|"sklearn"|"multichannel"
+}
+```
+
+---
+
+## ML Pipeline Bug Fixes (Feb 2026)
+
+These bugs were discovered via deep research and fixed in commit `270d27e`. **Do not revert these changes.**
+
+### Bug 1: Multichannel Data Stripped Before FAA Computation (CRITICAL)
+
+**File**: `ml/models/emotion_classifier.py`, `predict()`, line ~133
+
+**Old code** (broken):
+```python
+return self._predict_features(eeg if eeg.ndim == 1 else eeg[0], fs)
+# ↑ Always passed only AF7 (ch0), lost AF8/TP9/TP10 forever
+```
+
+**Fixed code**:
+```python
+return self._predict_features(eeg, fs)  # full multichannel array
+```
+
+**Inside `_predict_features()`**, added at the start:
+```python
+channels = eeg if eeg.ndim == 2 else None
+signal = eeg[0] if eeg.ndim == 2 else eeg   # AF7 for band powers
+processed = preprocess(signal, fs)
+```
+
+**Impact**: Without this fix, FAA was always zero. Every valence reading was based solely on band power ratios from AF7, making the system behave as if it had only one electrode.
+
+### Bug 2: Gamma Used as Neural Signal (EMG Contamination)
+
+**Old formulas** (wrong):
+```python
+arousal_raw = 0.35*β/(β+α) + 0.30*(1-α/(α+β+θ)) + 0.35*γ
+stress_index = 0.40*high_β/(β+α) + 0.35*(θ/α)*0.3 + 0.25*γ
+focus_index  = 0.35*β_ratio + 0.40*(1-α_ratio) + 0.25*γ
+angry prob   = ... + 0.15*min(1, γ*2.5)
+```
+
+**Fixed formulas** (gamma removed or near-zero):
+```python
+# Arousal — no gamma, uses delta as inverse relaxation signal:
+arousal_raw = 0.45*β/(β+α) + 0.30*(1-α/(α+β+θ)) + 0.25*(1-δ/(δ+β))
+
+# Stress — no gamma:
+stress_index = 0.45*high_β/(β+α) + 0.30*(θ/α)*0.3 + 0.25*high_β_frac
+
+# Focus — no gamma:
+focus_index = 0.45*β_ratio + 0.40*(1-α_ratio) + 0.15*(1-θ_β_ratio*0.2)
+
+# Angry — gamma reduced from 15% to 5%:
+probs[2] = 0.40*(neg_val) + 0.30*(arousal-0.45) + 0.25*beta_alpha + 0.05*min(1,γ*2.5)
+```
+
+**Impact**: Jaw clenching was falsely registering as high arousal, stress, anger, and focus.
+
+### Bug 3: Sad Threshold Too High — Almost Never Triggered
+
+**Old**:
+```python
+probs[1] = 0.50 * max(0, -valence - 0.25) + ...
+# Required valence < -0.25 before any sad probability
+```
+
+**Fixed**:
+```python
+probs[1] = 0.50 * max(0, -valence - 0.10) + ...
+# Triggers as soon as valence goes slightly negative
+```
+
+**Impact**: At resting state with neutral FAA (valence ≈ 0), sad was essentially impossible to detect.
+
+### Bug 4: Duplicate Arousal in `_predict_onnx` (Silent Override)
+
+In `_predict_onnx()`, lines 509 and 512 both computed `arousal` identically — the second silently overwrote the first with the same (wrong gamma-based) formula. Fixed to single corrected computation.
+
+### Bug 5: Single-Term Valence in ONNX/Sklearn Paths
+
+**Old** (one term):
+```python
+valence = tanh((alpha/beta - 0.7) * 2.0)
+```
+
+**Fixed** (two terms — alpha/beta ratio + absolute alpha level):
+```python
+valence = 0.65 * tanh((alpha/beta - 0.7) * 2.0) + 0.35 * tanh((alpha - 0.15) * 4)
+```
+
+**Impact**: Without the absolute alpha level term, the formula could give positive valence even with very low overall alpha (i.e., stressed state with slightly more alpha than beta).
+
+### FAA Integration (New Feature)
+
+**Added to `_predict_features()`**:
+```python
+faa_valence = 0.0
+if channels is not None and channels.shape[0] >= 2:
+    asym = compute_frontal_asymmetry(channels, fs, left_ch=0, right_ch=1)
+    faa_valence = asym.get("asymmetry_valence", 0.0)
+
+# Valence: 50% alpha/beta ratio + 50% FAA (when multichannel)
+if channels is not None and channels.shape[0] >= 2:
+    valence = clip(0.50 * valence_abr + 0.50 * faa_valence, -1, 1)
+else:
+    valence = clip(valence_abr, -1, 1)
+```
+
+---
+
+## Model Accuracy Reality Check
+
+| Model | Training CV Accuracy | Notes |
+|-------|---------------------|-------|
+| Emotion (DEAP) | 51.3% | Below 60% threshold → disabled, falls back to feature-based |
+| Emotion (DEAP ONNX) | ~51% | Same dataset, similar accuracy |
+| Sleep Staging | 92.98% | Trained on ISRUC/SHHS; reliable |
+| Dream Detector | 97.20% | Reliable |
+| Flow State | 62.86% | Marginal; use as rough guide |
+| Creativity | 99.18% | Likely overfit (850 samples) |
+| Memory Encoding | 99.18% | Likely overfit (850 samples) |
+
+**Why emotion accuracy is low on Muse 2**:
+- **Domain gap**: DEAP dataset uses 32-channel gel electrodes. Muse 2 has 4-channel dry electrodes. ~30 point accuracy penalty.
+- **Cross-subject gap**: Within-subject 90.97% vs cross-subject 64.82% (-26 points).
+- **Solution**: Feature-based heuristics calibrated to Muse 2 anatomy (what we use).
+
+**Expected real-world accuracy with heuristics**:
+- Arousal (calm vs energetic): 70-80%
+- Valence (positive vs negative): 60-70%
+- Specific emotions (happy/sad/angry): 55-65%
+
+---
+
+## Known Issues & Future Work
+
+### Issues Fixed
+- [x] Multichannel data stripped before FAA (commit `270d27e`)
+- [x] Gamma EMG noise inflating arousal/stress/focus/anger
+- [x] Sad never triggered (threshold -0.25 → -0.10)
+- [x] Duplicate arousal in `_predict_onnx`
+- [x] Single-term valence in ONNX/sklearn paths
+
+### Known Remaining Issues
+- [ ] **No baseline calibration**: Emotion readings are absolute, not relative to the user's resting state. A 2-minute resting-state recording at session start would dramatically improve accuracy (published: +15-29% improvement).
+- [ ] **1-second epoch too short**: Welch PSD needs 4-8 seconds for stable spectral estimates. Short epochs = noisy predictions. Consider 4-second sliding window with 50% overlap.
+- [ ] **No personalization**: The feature-based heuristics use population-average thresholds. Individual users have very different baselines (within-subject vs cross-subject gap: 26 points).
+- [ ] **EMG at TP9/TP10**: Temporal channels are also near muscles. Artifact rejection/ICA would help.
+- [ ] **Creativity/Memory models likely overfit**: 850 samples × 4 classes → ~212 per class is too few for reliable generalization.
+
+### Proposed Future Improvements (Priority Order)
+1. **Baseline protocol**: Record 2-min resting state at session start. Normalize all features against this baseline. (Biggest ROI)
+2. **Longer epochs**: Switch from 1-second to 4-second sliding window with 50% overlap.
+3. **Personal calibration**: After 5 sessions, compute per-user band-power priors and adjust thresholds.
+4. **Online learning**: `online_learner.py` exists but needs integration into the live inference path.
+
+---
+
+## EEG Science: The 16 Models Explained
+
+### What Each Model Actually Measures
+
+**Emotion Classifier** (`emotion_classifier.py`)
+- 6 discrete emotions + valence + arousal + stress/focus/relaxation indices
+- Primary signals: FAA (valence), beta/alpha ratio (arousal/stress), theta/beta ratio (calm)
+- Live path: feature-based heuristics (DEAP model below accuracy threshold)
+
+**Sleep Staging** (`sleep_staging.py`)
+- 5 stages: Wake, N1 (light sleep), N2 (sleep spindles/K-complexes), N3 (deep/slow-wave), REM
+- Primary signals: delta dominates N3, theta in REM, alpha spindles in N1/N2
+- Accuracy: 92.98% (ISRUC dataset)
+
+**Dream Detector** (`dream_detector.py`)
+- Binary: dreaming / not-dreaming
+- Primary signals: REM sleep + theta oscillations + REMs detected via EOG-like artifact
+- Accuracy: 97.20%
+
+**Flow State Detector** (`flow_state_detector.py`)
+- Measures "in the zone" state (0-1 score)
+- Primary signals: alpha/theta coherence, moderate beta (not too high = not anxious)
+- Research basis: Csikszentmihalyi's flow theory applied to EEG
+
+**Creativity Detector** (`creativity_detector.py`)
+- Alpha/theta power increases → divergent thinking / creativity
+- Research: theta during incubation, alpha during insight (Kounios & Beeman, 2014)
+
+**Drowsiness Detector** (`drowsiness_detector.py`)
+- Theta power increase + alpha slowing + slow eye movements
+- Research: PERCLOS metric + EEG theta (Lal & Craig, 2002)
+
+**Cognitive Load Estimator** (`cognitive_load_estimator.py`)
+- 3 levels: low/medium/high mental workload
+- Primary signal: frontal theta increase (working memory load)
+- Research: theta-gamma coupling (Lisman & Jensen, 2013)
+
+**Attention Classifier** (`attention_classifier.py`)
+- Beta/theta ratio → focused attention
+- High beta + low theta = high attention; alpha suppression = task engagement
+
+**Stress Detector** (`stress_detector.py`)
+- 4 levels: relaxed / mild / moderate / high
+- Primary signals: high-beta (20-30 Hz), right > left frontal alpha (Davidson asymmetry)
+- Research: Al-Shargie et al. (2016), Giannakakis et al. (2019)
+
+**Lucid Dream Detector** (`lucid_dream_detector.py`)
+- Gamma bursts (40 Hz) during REM = lucid awareness
+- Research: Voss et al. (2009) — first controlled lucid dream EEG study
+
+**Meditation Classifier** (`meditation_classifier.py`)
+- 5 depths: surface / light / moderate / deep / transcendent
+- Deep: theta dominance, minimal beta
+- Transcendent: gamma bursts + theta-gamma coupling
+- Research: Lutz et al. (2004), advanced meditators show 25× more gamma
+
+**Anomaly Detector** (`anomaly_detector.py`)
+- Isolation Forest — flags statistically unusual EEG patterns
+- Used for: detecting artifacts, unusual brain states, hardware disconnection
+
+**Artifact Classifier** (`artifact_classifier.py`)
+- Classifies: eye blink (large delta spike at Fp), muscle (broadband), electrode pop
+- Important for data quality scoring
+
+**Denoising Autoencoder** (`denoising_autoencoder.py`)
+- PyTorch autoencoder — reconstructs clean signal from noisy input
+- Trained on paired clean/noisy EEG
+
+**Online Learner** (`online_learner.py`)
+- Adapts model weights to individual users over time
+- Partially integrated — needs wiring into live inference path
+
+---
+
+## Processing Utilities Reference
+
+All in `ml/processing/eeg_processor.py`:
+
+```python
+preprocess(signal, fs)                       # Bandpass 1-50 Hz + notch 50/60 Hz
+extract_band_powers(signal, fs)              # delta/theta/alpha/beta/gamma powers
+extract_features(signal, fs)                 # 17 features: powers + ratios + Hjorth + entropy
+extract_features_multichannel(signals, fs)   # Average features across all 4 channels
+compute_frontal_asymmetry(signals, fs)       # FAA (AF7 vs AF8)
+compute_coherence(signals, fs, band)         # Mean inter-channel coherence in a band
+compute_phase_locking_value(signals, fs)     # PLV across channel pairs
+compute_cwt_spectrogram(signal, fs)          # Morlet wavelet time-frequency map
+compute_dwt_features(signal, fs)             # DWT band energy decomposition
+detect_sleep_spindles(signal, fs)            # 11-16 Hz bursts → N2 sleep
+detect_k_complexes(signal, fs)              # Slow high-amplitude waves → N2 sleep
+spectral_entropy(signal, fs)                 # Normalized spectral entropy
+differential_entropy(signal, fs)             # Per-band differential entropy
+```
+
+---
+
+## Session History & Major Changes
+
+| Date | Commit | Change |
+|------|--------|--------|
+| Feb 2026 | `270d27e` | Fix EEG emotion pipeline: FAA integration, remove EMG gamma noise, fix sad threshold, fix duplicate arousal, fix single-term valence |
+| Earlier | `709ccac` | Add Tesla Sales Dashboard |
+| Earlier | various | AI Companion fixes, session data consolidation, light mode tooltips, happiness bug |
+
+For the full scientific background, read `docs/COMPLETE_SCIENTIFIC_GUIDE.md` (40KB).
+For the interactive EEG science explainer with diagrams, open `docs/eeg-science-explainer.html` in a browser.
