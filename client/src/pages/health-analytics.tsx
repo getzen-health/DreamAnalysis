@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ContinuousBrainTimeline } from "@/components/charts/continuous-brain-timeline";
 import { ChartTooltip } from "@/components/chart-tooltip";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -262,13 +261,16 @@ export default function HealthAnalytics() {
         })}
       </div>
 
-      {/* Continuous Brain Timeline (TimescaleDB) */}
-      <ContinuousBrainTimeline userId="default" title="Brain Health Trends" />
-
-      {false && <div>
+      {/* Brain Health Trends */}
+      <Card className="glass-card p-5 hover-glow">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Trends</span>
+            <h3 className="text-sm font-medium">Brain Health Trends</h3>
+            {isLiveToday && isStreaming && (
+              <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
+            )}
+          </div>
           <div className="flex gap-1 flex-wrap">
             {PERIOD_TABS.map((tab) => (
               <button
@@ -286,108 +288,51 @@ export default function HealthAnalytics() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Stress vs Relaxation */}
-          <Card className="glass-card p-5 hover-glow">
-            <div className="flex items-center gap-2 mb-2">
-              <Heart className="h-4 w-4 text-success" />
-              <h3 className="text-sm font-medium">Stress vs Relaxation</h3>
-            </div>
-            {!hasData ? (
-              <div className="h-[180px] flex items-center justify-center text-sm text-muted-foreground">
-                {isLiveToday
-                  ? isStreaming ? "Collecting data..." : "Connect device to see trends"
-                  : "No sessions in this period"}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
-                  <XAxis dataKey={dataKey} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    cursor={{ stroke: "hsl(220, 12%, 55%)", strokeWidth: 1, strokeDasharray: "4 4" }}
-                    contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 10, fontSize: 11 }}
-                    labelStyle={{ color: "hsl(220, 12%, 65%)", marginBottom: 4, fontSize: 10 }}
-                    itemStyle={{ padding: "1px 0" }}
-                    formatter={(value: number) => [`${value}%`]}
-                  />
-                  <Line type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" strokeWidth={2} dot={false} name="Stress" activeDot={{ r: 4, fill: "hsl(38, 85%, 58%)" }} />
-                  <Line type="monotone" dataKey="relaxation" stroke="hsl(152, 60%, 48%)" strokeWidth={2} dot={false} name="Relaxation" activeDot={{ r: 4, fill: "hsl(152, 60%, 48%)" }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-            <div className="flex gap-4 mt-2">
+        {!hasData ? (
+          <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+            <Brain className="h-8 w-8 opacity-30" />
+            <p>{isLiveToday ? (isStreaming ? "Collecting data…" : "Connect device to see trends") : "No sessions in this period"}</p>
+          </div>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={192}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="focusGradH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(200,70%,55%)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="hsl(200,70%,55%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
+                <XAxis dataKey={dataKey} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={24} />
+                <Tooltip
+                  cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
+                  contentStyle={{ background: "hsl(220,22%,9%)", border: "1px solid hsl(220,18%,20%)", borderRadius: 10, fontSize: 11 }}
+                  formatter={(v: number) => [`${v}%`]}
+                />
+                <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(200,70%,55%)" fill="url(#focusGradH)" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="relaxation" name="Relax" stroke="hsl(152,60%,48%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(262,45%,65%)" strokeWidth={1.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="flex gap-4 mt-2 flex-wrap">
               {[
-                { label: "Stress", color: "hsl(38, 85%, 58%)" },
-                { label: "Relaxation", color: "hsl(152, 60%, 48%)" },
+                { label: "Focus",   color: "hsl(200,70%,55%)" },
+                { label: "Stress",  color: "hsl(38,85%,58%)",  dashed: true },
+                { label: "Relax",   color: "hsl(152,60%,48%)" },
+                { label: "Flow",    color: "hsl(262,45%,65%)", dashed: true },
               ].map((l) => (
                 <div key={l.label} className="flex items-center gap-1.5">
-                  <div className="w-3 h-0.5 rounded" style={{ background: l.color }} />
+                  <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
                   <span className="text-[10px] text-muted-foreground">{l.label}</span>
                 </div>
               ))}
             </div>
-          </Card>
-
-          {/* Focus & Cognitive Load (Today) / Focus & Flow (historical) */}
-          <Card className="glass-card p-5 hover-glow">
-            <div className="flex items-center gap-2 mb-2">
-              <Brain className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-medium">
-                {isLiveToday ? "Focus & Cognitive Load" : "Focus & Flow"}
-              </h3>
-            </div>
-            {!hasData ? (
-              <div className="h-[180px] flex items-center justify-center text-sm text-muted-foreground">
-                {isLiveToday
-                  ? isStreaming ? "Collecting data..." : "Connect device to see trends"
-                  : "No sessions in this period"}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="focusGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(200, 70%, 55%)" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="hsl(200, 70%, 55%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.4} />
-                  <XAxis dataKey={dataKey} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    cursor={{ stroke: "hsl(220, 12%, 55%)", strokeWidth: 1, strokeDasharray: "4 4" }}
-                    contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 10, fontSize: 11 }}
-                    labelStyle={{ color: "hsl(220, 12%, 65%)", marginBottom: 4, fontSize: 10 }}
-                    itemStyle={{ padding: "1px 0" }}
-                    formatter={(value: number) => [`${value}%`]}
-                  />
-                  <Area type="monotone" dataKey="focus" stroke="hsl(200, 70%, 55%)" fill="url(#focusGrad)" strokeWidth={2} dot={false} name="Focus" activeDot={{ r: 4, fill: "hsl(200, 70%, 55%)" }} />
-                  {isLiveToday ? (
-                    <Line type="monotone" dataKey="cogLoad" stroke="hsl(262, 45%, 65%)" strokeWidth={1.5} dot={false} name="Cog Load" strokeDasharray="4 4" activeDot={{ r: 4, fill: "hsl(262, 45%, 65%)" }} />
-                  ) : (
-                    <Line type="monotone" dataKey="flow" stroke="hsl(262, 45%, 65%)" strokeWidth={1.5} dot={false} name="Flow" strokeDasharray="4 4" activeDot={{ r: 4, fill: "hsl(262, 45%, 65%)" }} />
-                  )}
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-            <div className="flex gap-4 mt-2">
-              {[
-                { label: "Focus", color: "hsl(200, 70%, 55%)" },
-                { label: isLiveToday ? "Cog Load" : "Flow", color: "hsl(262, 45%, 65%)", dashed: true },
-              ].map((l) => (
-                <div key={l.label} className="flex items-center gap-1.5">
-                  <svg width="16" height="8">
-                    <line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} />
-                  </svg>
-                  <span className="text-[10px] text-muted-foreground">{l.label}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </div>}
+          </>
+        )}
+      </Card>
 
       {/* Brain-Health Insights (live only) */}
       {insights.length > 0 && (
