@@ -15,6 +15,7 @@ import {
   Lightbulb,
   Sparkles,
   BookOpen,
+  Wind,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -53,6 +54,7 @@ const sections: NavSection[] = [
   {
     title: "Wellness",
     items: [
+      { path: "/biofeedback", label: "Breathe", icon: Wind },
       { path: "/inner-energy", label: "Inner Energy", icon: Sparkles },
       { path: "/health-analytics", label: "Health Analytics", icon: BarChart3 },
       { path: "/insights", label: "Insights", icon: Lightbulb },

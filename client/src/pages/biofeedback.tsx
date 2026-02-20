@@ -1,0 +1,619 @@
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useDevice } from "@/hooks/use-device";
+import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus } from "lucide-react";
+
+// ─── Breathing exercise definitions ──────────────────────────────────────────
+
+interface BreathPhase {
+  label: string;
+  duration: number;  // seconds
+  expand: boolean;   // true = lungs filling
+}
+
+interface Exercise {
+  id: string;
+  name: string;
+  tagline: string;
+  science: string;
+  phases: BreathPhase[];
+  color: string;
+  fillColor: string;    // rgba for SVG area fill
+  strokeColor: string;  // for the arc
+}
+
+const EXERCISES: Exercise[] = [
+  {
+    id: "coherence",
+    name: "Coherence",
+    tagline: "Heart-brain sync",
+    science: "5.5 breaths/min maximises heart rate variability — the gold standard for calm.",
+    phases: [
+      { label: "Inhale", duration: 5, expand: true },
+      { label: "Exhale", duration: 5, expand: false },
+    ],
+    color: "hsl(142, 65%, 48%)",
+    fillColor: "rgba(34,197,94,0.15)",
+    strokeColor: "hsl(142, 65%, 48%)",
+  },
+  {
+    id: "478",
+    name: "4-7-8",
+    tagline: "Fast anxiety relief",
+    science: "Extended hold triggers the vagal brake, dropping heart rate within 30 seconds.",
+    phases: [
+      { label: "Inhale", duration: 4, expand: true },
+      { label: "Hold",   duration: 7, expand: true },
+      { label: "Exhale", duration: 8, expand: false },
+    ],
+    color: "hsl(250, 85%, 65%)",
+    fillColor: "rgba(99,102,241,0.15)",
+    strokeColor: "hsl(250, 85%, 65%)",
+  },
+  {
+    id: "box",
+    name: "Box",
+    tagline: "Steady focus",
+    science: "Equal-ratio breathing resets the autonomic nervous system. Used by Navy SEALs under fire.",
+    phases: [
+      { label: "Inhale", duration: 4, expand: true },
+      { label: "Hold",   duration: 4, expand: true },
+      { label: "Exhale", duration: 4, expand: false },
+      { label: "Hold",   duration: 4, expand: false },
+    ],
+    color: "hsl(210, 85%, 60%)",
+    fillColor: "rgba(59,130,246,0.15)",
+    strokeColor: "hsl(210, 85%, 60%)",
+  },
+  {
+    id: "deep",
+    name: "Deep Relax",
+    tagline: "Activates rest mode",
+    science: "Extended exhale activates the parasympathetic system — the body's built-in off-switch.",
+    phases: [
+      { label: "Inhale", duration: 4, expand: true },
+      { label: "Hold",   duration: 2, expand: true },
+      { label: "Exhale", duration: 8, expand: false },
+    ],
+    color: "hsl(270, 70%, 65%)",
+    fillColor: "rgba(168,85,247,0.15)",
+    strokeColor: "hsl(270, 70%, 65%)",
+  },
+];
+
+// ─── Timing helper ────────────────────────────────────────────────────────────
+
+function getBreathState(elapsedMs: number, phases: BreathPhase[]) {
+  const cycleDurationMs = phases.reduce((s, p) => s + p.duration * 1000, 0);
+  const cycleElapsed = ((elapsedMs % cycleDurationMs) + cycleDurationMs) % cycleDurationMs;
+  let acc = 0;
+  for (let i = 0; i < phases.length; i++) {
+    const phaseDurationMs = phases[i].duration * 1000;
+    if (cycleElapsed < acc + phaseDurationMs) {
+      return { phaseIdx: i, phaseProgress: (cycleElapsed - acc) / phaseDurationMs };
+    }
+    acc += phaseDurationMs;
+  }
+  return { phaseIdx: 0, phaseProgress: 0 };
+}
+
+// ─── Chart helpers ────────────────────────────────────────────────────────────
+
+const CHART_W = 600;
+const CHART_H = 100;
+const MAX_READINGS = 90; // ~2 min at 1.5s intervals
+
+interface Reading { t: number; stress: number; }
+
+function buildPaths(readings: Reading[]) {
+  if (readings.length < 2) return { line: "", area: "" };
+  const pts = readings.map((r, i) => ({
+    x: (i / (readings.length - 1)) * CHART_W,
+    y: CHART_H - (r.stress / 100) * CHART_H,
+  }));
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const area = line + ` L ${CHART_W} ${CHART_H} L 0 ${CHART_H} Z`;
+  return { line, area };
+}
+
+// ─── Phase guidance text ──────────────────────────────────────────────────────
+
+function guidanceText(label: string): string {
+  if (label === "Inhale") return "Breathe in slowly through your nose…";
+  if (label === "Exhale") return "Let it all go — out through your mouth…";
+  return "Hold gently. Stay still.";
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+type SessionPhase = "idle" | "active" | "done";
+
+export default function Biofeedback() {
+  const { latestFrame, state: deviceState } = useDevice();
+  const isStreaming = deviceState === "streaming";
+
+  const [sessionPhase, setSessionPhase] = useState<SessionPhase>("idle");
+  const [exercise, setExercise] = useState<Exercise>(EXERCISES[0]);
+  const [readings, setReadings] = useState<Reading[]>([]);
+  const [breathPhaseIdx, setBreathPhaseIdx] = useState(0);
+  const [breathPhaseProgress, setBreathPhaseProgress] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [startStress, setStartStress] = useState<number | null>(null);
+
+  const sessionStartRef = useRef<number>(0);
+  const elapsedSecRef = useRef(0);
+
+  // ── Track latest stress via ref so intervals don't go stale ──────────────
+  const latestStressRef = useRef<number | null>(null);
+  useEffect(() => {
+    const s =
+      latestFrame?.analysis?.emotions?.stress_index ??
+      latestFrame?.analysis?.stress?.stress_index ??
+      null;
+    if (s != null) latestStressRef.current = s * 100;
+  }, [latestFrame]);
+
+  // ── Get current stress (real or simulated) ────────────────────────────────
+  const getStress = () => {
+    if (isStreaming && latestStressRef.current != null) return latestStressRef.current;
+    // Simulation: starts 55-65, drifts down over session
+    const progress = elapsedSecRef.current / 180;
+    const base = 60 - 30 * Math.min(progress * 1.3, 1);
+    return Math.max(8, Math.min(92, base + (Math.random() - 0.5) * 9));
+  };
+
+  // ── Breathing animation (50ms, smooth) ────────────────────────────────────
+  useEffect(() => {
+    if (sessionPhase !== "active") return;
+    const id = setInterval(() => {
+      const ms = Date.now() - sessionStartRef.current;
+      const { phaseIdx, phaseProgress } = getBreathState(ms, exercise.phases);
+      setBreathPhaseIdx(phaseIdx);
+      setBreathPhaseProgress(phaseProgress);
+    }, 50);
+    return () => clearInterval(id);
+  }, [sessionPhase, exercise]);
+
+  // ── Session clock + reading collector (1.5s) ──────────────────────────────
+  useEffect(() => {
+    if (sessionPhase !== "active") return;
+    const id = setInterval(() => {
+      elapsedSecRef.current += 1.5;
+      setElapsed(Math.round(elapsedSecRef.current));
+      const stress = getStress();
+      setReadings(prev => [...prev, { t: elapsedSecRef.current, stress }].slice(-MAX_READINGS));
+    }, 1500);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionPhase, isStreaming]);
+
+  // ── Start / stop ──────────────────────────────────────────────────────────
+  const handleStart = () => {
+    sessionStartRef.current = Date.now();
+    elapsedSecRef.current = 0;
+    setReadings([]);
+    setElapsed(0);
+    setBreathPhaseIdx(0);
+    setBreathPhaseProgress(0);
+    setStartStress(getStress());
+    setSessionPhase("active");
+  };
+
+  const handleStop = () => setSessionPhase("done");
+
+  const handleReset = () => {
+    setSessionPhase("idle");
+    setReadings([]);
+    setStartStress(null);
+    setElapsed(0);
+  };
+
+  // ── Derived display values ────────────────────────────────────────────────
+  const currentPhase = exercise.phases[breathPhaseIdx];
+
+  const expansion = useMemo(() => {
+    if (!currentPhase) return 0;
+    if (currentPhase.label === "Inhale") return breathPhaseProgress;
+    if (currentPhase.label === "Exhale") return 1 - breathPhaseProgress;
+    return currentPhase.expand ? 1 : 0; // Hold
+  }, [currentPhase, breathPhaseProgress]);
+
+  const phaseCountdown = currentPhase
+    ? Math.max(1, Math.ceil(currentPhase.duration * (1 - breathPhaseProgress)))
+    : 0;
+
+  const currentStress = readings.length > 0 ? readings[readings.length - 1].stress : null;
+  const stressDelta =
+    startStress != null && currentStress != null && readings.length > 3
+      ? Math.round(currentStress - startStress)
+      : null;
+
+  const { line: stressLine, area: stressArea } = buildPaths(readings);
+
+  // Circle geometry
+  const MIN_R = 32;
+  const MAX_R = 70;
+  const RING_R = 84;
+  const circleR = MIN_R + (MAX_R - MIN_R) * expansion;
+  const ringCircumference = 2 * Math.PI * RING_R;
+  const ringOffset = ringCircumference * (1 - breathPhaseProgress);
+
+  const formatTime = (s: number) =>
+    `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  return (
+    <main className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Wind className="h-6 w-6 text-primary" />
+          <div>
+            <h2 className="text-xl font-semibold">Breathing Biofeedback</h2>
+            <p className="text-xs text-muted-foreground">
+              Watch your stress respond in real time as you breathe
+            </p>
+          </div>
+        </div>
+        {sessionPhase === "active" && (
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-mono text-foreground/50">{formatTime(elapsed)}</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleStop}
+              className="border border-destructive/30 text-destructive hover:bg-destructive/10"
+            >
+              <Square className="h-3 w-3 mr-1" />
+              Stop
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* No-device banner */}
+      {!isStreaming && sessionPhase === "idle" && (
+        <div className="flex items-center gap-3 p-3 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning">
+          <Radio className="h-4 w-4 shrink-0" />
+          Connect your Muse 2 to see your real brain response. Showing simulation without it.
+        </div>
+      )}
+
+      {/* ── IDLE ── exercise picker ── */}
+      {sessionPhase === "idle" && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {EXERCISES.map(ex => {
+              const active = exercise.id === ex.id;
+              return (
+                <button
+                  key={ex.id}
+                  onClick={() => setExercise(ex)}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    active
+                      ? "border-primary/50 bg-primary/8"
+                      : "border-border/30 hover:border-border/60 bg-card/30"
+                  }`}
+                >
+                  <div className="w-3 h-3 rounded-full mb-2.5" style={{ background: ex.color }} />
+                  <p className="text-sm font-semibold">{ex.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{ex.tagline}</p>
+                  <p className="text-[10px] text-muted-foreground/50 mt-2 font-mono">
+                    {ex.phases.map(p => p.duration).join("–")} sec
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected exercise detail card */}
+          <Card className="glass-card p-6 rounded-xl">
+            <div className="flex flex-col md:flex-row md:items-center gap-6">
+              <div className="flex-1 space-y-3">
+                <div>
+                  <h3 className="font-semibold text-base">{exercise.name} Breathing</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{exercise.science}</p>
+                </div>
+                <div className="flex gap-4">
+                  {exercise.phases.map((p, i) => (
+                    <div key={i} className="text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{p.label}</p>
+                      <p className="text-xl font-mono font-bold mt-0.5" style={{ color: exercise.color }}>
+                        {p.duration}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">sec</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <Button
+                onClick={handleStart}
+                className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 px-10 h-11 shrink-0"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Start Session
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── ACTIVE ── breathing + chart ── */}
+      {sessionPhase === "active" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Breathing circle */}
+          <Card className="glass-card p-6 rounded-xl flex flex-col items-center gap-4">
+            <svg width="224" height="224" viewBox="0 0 224 224">
+              <defs>
+                <radialGradient id="breath-fill" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor={exercise.color} stopOpacity="0.3" />
+                  <stop offset="100%" stopColor={exercise.color} stopOpacity="0.05" />
+                </radialGradient>
+              </defs>
+              {/* outer guide ring */}
+              <circle cx="112" cy="112" r={MAX_R + 14} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+              {/* expanding fill blob */}
+              <circle
+                cx="112" cy="112" r={circleR}
+                fill="url(#breath-fill)"
+                style={{ transition: "r 0.08s linear" }}
+              />
+              {/* expanding border */}
+              <circle
+                cx="112" cy="112" r={circleR}
+                fill="none"
+                stroke={exercise.color}
+                strokeWidth="1.5"
+                opacity="0.5"
+                style={{ transition: "r 0.08s linear" }}
+              />
+              {/* progress arc */}
+              <circle
+                cx="112" cy="112" r={RING_R}
+                fill="none"
+                stroke={exercise.color}
+                strokeWidth="7"
+                strokeDasharray={ringCircumference}
+                strokeDashoffset={ringOffset}
+                strokeLinecap="round"
+                transform="rotate(-90 112 112)"
+                style={{ transition: "stroke-dashoffset 0.08s linear" }}
+              />
+              {/* phase label */}
+              <text
+                x="112" y="106"
+                textAnchor="middle"
+                fill="white"
+                fontSize="15"
+                fontFamily="system-ui, sans-serif"
+                fontWeight="500"
+              >
+                {currentPhase?.label}
+              </text>
+              {/* countdown */}
+              <text
+                x="112" y="134"
+                textAnchor="middle"
+                fontSize="34"
+                fontFamily="ui-monospace, monospace"
+                fontWeight="700"
+                fill={exercise.color}
+              >
+                {phaseCountdown}
+              </text>
+            </svg>
+
+            {/* Phase breadcrumbs */}
+            <div className="flex items-center gap-3">
+              {exercise.phases.map((p, i) => (
+                <span
+                  key={i}
+                  className="text-xs px-2 py-0.5 rounded transition-all"
+                  style={
+                    i === breathPhaseIdx
+                      ? { color: exercise.color, fontWeight: 600 }
+                      : { color: "rgba(255,255,255,0.25)" }
+                  }
+                >
+                  {p.label}
+                </span>
+              ))}
+            </div>
+
+            {/* Guidance text */}
+            <p className="text-xs text-muted-foreground text-center max-w-[200px]">
+              {guidanceText(currentPhase?.label ?? "Inhale")}
+            </p>
+          </Card>
+
+          {/* Live stress chart */}
+          <Card className="glass-card p-6 rounded-xl flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium">Live Stress Response</h3>
+              <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+                {startStress != null && (
+                  <span>Start <span className="text-foreground">{Math.round(startStress)}</span></span>
+                )}
+                {currentStress != null && (
+                  <span>Now <span className="text-foreground">{Math.round(currentStress)}</span></span>
+                )}
+                {stressDelta !== null && (
+                  <span
+                    className="flex items-center gap-0.5"
+                    style={{ color: stressDelta < 0 ? "hsl(142,65%,48%)" : "hsl(0,70%,60%)" }}
+                  >
+                    {stressDelta < 0
+                      ? <TrendingDown className="h-3 w-3" />
+                      : stressDelta > 0
+                        ? <TrendingUp className="h-3 w-3" />
+                        : <Minus className="h-3 w-3" />}
+                    {Math.abs(stressDelta)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* SVG chart */}
+            <div className="flex-1 relative min-h-[140px]">
+              {readings.length < 3 ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                  <div className="w-6 h-6 rounded-full border-2 border-primary/40 border-t-primary animate-spin" />
+                  <p className="text-xs text-muted-foreground animate-pulse">Collecting data…</p>
+                </div>
+              ) : (
+                <svg
+                  viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+                  preserveAspectRatio="none"
+                  className="w-full h-full"
+                >
+                  <defs>
+                    <linearGradient id="stress-area-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(0,70%,60%)" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="hsl(0,70%,60%)" stopOpacity="0.02" />
+                    </linearGradient>
+                  </defs>
+                  {/* grid lines */}
+                  <line x1="0" y1={CHART_H * 0.5} x2={CHART_W} y2={CHART_H * 0.5}
+                    stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4 4" />
+                  <line x1="0" y1={CHART_H} x2={CHART_W} y2={CHART_H}
+                    stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+                  {/* area fill */}
+                  <path d={stressArea} fill="url(#stress-area-grad)" />
+                  {/* stress line */}
+                  <path d={stressLine} fill="none" stroke="hsl(0,70%,60%)" strokeWidth="2.5" strokeLinejoin="round" />
+                  {/* latest dot */}
+                  {(() => {
+                    const last = readings[readings.length - 1];
+                    const x = CHART_W;
+                    const y = CHART_H - (last.stress / 100) * CHART_H;
+                    return (
+                      <>
+                        <circle cx={x} cy={y} r="5" fill="hsl(0,70%,60%)" />
+                        <circle cx={x} cy={y} r="9" fill="none" stroke="hsl(0,70%,60%)" strokeWidth="1" opacity="0.4" />
+                      </>
+                    );
+                  })()}
+                </svg>
+              )}
+            </div>
+
+            {/* Y labels */}
+            <div className="flex justify-between text-[10px] text-muted-foreground/40 mt-2">
+              <span>calm</span>
+              <span>Stress level (0–100)</span>
+              <span>tense</span>
+            </div>
+
+            {/* Session progress */}
+            {elapsed > 0 && (
+              <div className="mt-4 pt-4 border-t border-border/20 flex items-center justify-between text-xs text-muted-foreground">
+                <span>{formatTime(elapsed)} elapsed</span>
+                {!isStreaming && (
+                  <span className="opacity-50">⚡ simulation mode</span>
+                )}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* ── DONE ── summary ── */}
+      {sessionPhase === "done" && (
+        <div className="max-w-lg mx-auto space-y-4">
+          <Card className="glass-card p-8 rounded-xl text-center space-y-6">
+            {/* Icon */}
+            <div
+              className="w-16 h-16 rounded-full mx-auto flex items-center justify-center"
+              style={{ background: exercise.fillColor, border: `1px solid ${exercise.color}40` }}
+            >
+              <Wind className="h-8 w-8" style={{ color: exercise.color }} />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-semibold">Session complete</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {exercise.name} · {formatTime(elapsed)}
+              </p>
+            </div>
+
+            {/* Before / After */}
+            {startStress != null && currentStress != null && readings.length > 5 && (
+              <div className="grid grid-cols-3 gap-4 py-4 border-y border-border/20">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Before</p>
+                  <p className="text-3xl font-mono font-bold">{Math.round(startStress)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">After</p>
+                  <p className="text-3xl font-mono font-bold">{Math.round(currentStress)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Change</p>
+                  <p
+                    className="text-3xl font-mono font-bold flex items-center justify-center gap-1"
+                    style={{ color: (stressDelta ?? 0) < 0 ? "hsl(142,65%,48%)" : "hsl(0,70%,60%)" }}
+                  >
+                    {(stressDelta ?? 0) < 0
+                      ? <TrendingDown className="h-6 w-6" />
+                      : <TrendingUp className="h-6 w-6" />}
+                    {Math.abs(stressDelta ?? 0)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Mini replay chart */}
+            {readings.length >= 5 && (
+              <div className="h-16">
+                <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" className="w-full h-full">
+                  <defs>
+                    <linearGradient id="done-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(0,70%,60%)" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="hsl(0,70%,60%)" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+                  <path d={stressArea} fill="url(#done-grad)" />
+                  <path d={stressLine} fill="none" stroke="hsl(0,70%,60%)" strokeWidth="2.5" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+
+            {/* Interpretation */}
+            {stressDelta !== null && (
+              <p className="text-sm text-muted-foreground">
+                {stressDelta <= -10
+                  ? "Strong response — your nervous system shifted noticeably."
+                  : stressDelta <= -4
+                    ? "Mild shift — consistent practice amplifies the effect."
+                    : stressDelta < 4
+                      ? "Steady state — the exercise kept you stable."
+                      : "Stress rose slightly — try a slower exhale next time."}
+              </p>
+            )}
+
+            <div className="flex gap-3 justify-center">
+              <Button
+                onClick={handleReset}
+                variant="ghost"
+                className="border border-border/30"
+              >
+                Change exercise
+              </Button>
+              <Button
+                onClick={handleStart}
+                className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Go again
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+    </main>
+  );
+}

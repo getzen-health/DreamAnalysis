@@ -20,6 +20,7 @@ import Neurofeedback from "@/pages/neurofeedback";
 import AICompanionPage from "@/pages/ai-companion";
 import Insights from "@/pages/insights";
 import InnerEnergy from "@/pages/inner-energy";
+import Biofeedback from "@/pages/biofeedback";
 import SessionHistory from "@/pages/session-history";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
@@ -61,6 +62,9 @@ function AppRoutes() {
       </Route>
       <Route path="/inner-energy">
         <AppLayout><InnerEnergy /></AppLayout>
+      </Route>
+      <Route path="/biofeedback">
+        <AppLayout><Biofeedback /></AppLayout>
       </Route>
       <Route path="/sessions">
         <AppLayout><SessionHistory /></AppLayout>
