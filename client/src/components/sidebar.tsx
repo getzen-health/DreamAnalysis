@@ -10,6 +10,11 @@ import {
   Clock,
   Settings,
   Menu,
+  Network,
+  BarChart3,
+  Lightbulb,
+  Sparkles,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -35,12 +40,22 @@ const sections: NavSection[] = [
       { path: "/", label: "Dashboard", icon: Brain },
       { path: "/emotions", label: "Emotions", icon: Heart },
       { path: "/brain-monitor", label: "Brain Monitor", icon: Activity },
+      { path: "/brain-connectivity", label: "Connectivity", icon: Network },
     ],
   },
   {
     title: "Dreams",
     items: [
       { path: "/dreams", label: "Dreams", icon: Moon },
+      { path: "/dream-patterns", label: "Dream Patterns", icon: BookOpen },
+    ],
+  },
+  {
+    title: "Wellness",
+    items: [
+      { path: "/inner-energy", label: "Inner Energy", icon: Sparkles },
+      { path: "/health-analytics", label: "Health Analytics", icon: BarChart3 },
+      { path: "/insights", label: "Insights", icon: Lightbulb },
     ],
   },
   {
