@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EEG Science Explainer — Neural Dream Workshop</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --blue: #58a6ff; --green: #3fb950; --orange: #f0883e;
+    --purple: #d2a8ff; --red: #ff7b72; --yellow: #e3b341;
+    --cyan: #79c0ff; --teal: #56d364;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.7; }
+  header { background: linear-gradient(135deg, #1e2a3a 0%, #0d1117 100%); border-bottom: 1px solid var(--border); padding: 3rem 2rem; text-align: center; }
+  header h1 { font-size: 2.4rem; font-weight: 700; color: var(--blue); margin-bottom: 0.5rem; }
+  header p { color: var(--muted); font-size: 1.1rem; }
+  nav { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0.8rem 2rem; position: sticky; top: 0; z-index: 100; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+  nav a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+  nav a:hover { color: var(--blue); }
+  main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  section { margin-bottom: 4rem; }
+  h2 { font-size: 1.8rem; color: var(--blue); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+  h3 { font-size: 1.25rem; color: var(--purple); margin: 1.5rem 0 0.75rem; }
+  h4 { font-size: 1rem; color: var(--yellow); margin: 1rem 0 0.5rem; }
+  p { margin-bottom: 0.9rem; }
+  code { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 0.15em 0.45em; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.88em; color: var(--orange); }
+  pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; overflow-x: auto; margin: 1rem 0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.88em; line-height: 1.6; }
+  pre code { background: none; border: none; padding: 0; color: var(--text); }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; margin: 1rem 0; }
+  .card-highlight { border-color: var(--blue); }
+  .card-warn { border-color: var(--orange); }
+  .card-danger { border-color: var(--red); }
+  .card-success { border-color: var(--green); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1rem 0; }
+  .band-card { background: var(--bg3); border-radius: 8px; padding: 1rem 1.2rem; border-left: 4px solid; }
+  .delta { border-color: #6e76ff; }
+  .theta { border-color: #3fb950; }
+  .alpha { border-color: #58a6ff; }
+  .beta { border-color: #f0883e; }
+  .gamma { border-color: #ff7b72; }
+  .band-freq { font-size: 0.85rem; color: var(--muted); font-family: monospace; }
+  .band-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.3rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th { background: var(--bg3); color: var(--blue); padding: 0.7rem 1rem; text-align: left; border: 1px solid var(--border); font-weight: 600; }
+  td { padding: 0.65rem 1rem; border: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .formula-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem 1.5rem; margin: 1rem 0; font-family: monospace; font-size: 0.95rem; line-height: 2; }
+  .formula-box .label { color: var(--muted); font-size: 0.82rem; display: block; margin-bottom: 0.3rem; }
+  .formula-eq { color: var(--cyan); font-size: 1.05rem; }
+  .formula-note { color: var(--muted); font-size: 0.82rem; display: block; margin-top: 0.3rem; }
+  .diagram { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; font-family: monospace; font-size: 0.88rem; line-height: 1.8; white-space: pre; overflow-x: auto; }
+  .tag { display: inline-block; padding: 0.2em 0.6em; border-radius: 20px; font-size: 0.78rem; font-weight: 600; margin: 0.2em; }
+  .tag-blue { background: rgba(88,166,255,0.15); color: var(--blue); }
+  .tag-green { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag-orange { background: rgba(240,136,62,0.15); color: var(--orange); }
+  .tag-red { background: rgba(255,123,114,0.15); color: var(--red); }
+  .tag-purple { background: rgba(210,168,255,0.15); color: var(--purple); }
+  .badge-acc { font-size: 0.85rem; padding: 0.2em 0.7em; border-radius: 20px; font-weight: 700; }
+  .acc-high { background: rgba(63,185,80,0.2); color: var(--green); }
+  .acc-med { background: rgba(227,179,65,0.2); color: var(--yellow); }
+  .acc-low { background: rgba(255,123,114,0.2); color: var(--red); }
+  .fix-before { background: rgba(255,123,114,0.08); border-left: 3px solid var(--red); }
+  .fix-after { background: rgba(63,185,80,0.08); border-left: 3px solid var(--green); }
+  .pipeline-step { display: flex; align-items: flex-start; gap: 1rem; margin: 0.8rem 0; }
+  .step-num { background: var(--blue); color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0; margin-top: 2px; }
+  .circumplex { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 2rem; text-align: center; position: relative; margin: 1rem 0; font-family: monospace; font-size: 0.85rem; line-height: 2; }
+  .callout { border-left: 4px solid; padding: 0.8rem 1.2rem; border-radius: 0 6px 6px 0; margin: 1rem 0; }
+  .callout-blue { border-color: var(--blue); background: rgba(88,166,255,0.06); }
+  .callout-orange { border-color: var(--orange); background: rgba(240,136,62,0.06); }
+  .callout-red { border-color: var(--red); background: rgba(255,123,114,0.06); }
+  .callout-green { border-color: var(--green); background: rgba(63,185,80,0.06); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>EEG Science Explainer</h1>
+  <p>Neural Dream Workshop — How brainwaves, emotions, and machine learning connect</p>
+</header>
+
+<nav>
+  <a href="#waves">Brain Waves</a>
+  <a href="#muse2">Muse 2 Hardware</a>
+  <a href="#pipeline">Signal Pipeline</a>
+  <a href="#faa">FAA &amp; Valence</a>
+  <a href="#circumplex">Emotion Model</a>
+  <a href="#formulas">All Formulas</a>
+  <a href="#models">16 ML Models</a>
+  <a href="#accuracy">Accuracy Reality</a>
+  <a href="#fixes">Bug Fixes</a>
+  <a href="#future">Future Work</a>
+</nav>
+
+<main>
+
+<!-- ═══════════════ SECTION 1: Brain Waves ═══════════════ -->
+<section id="waves">
+  <h2>1. Brain Wave Bands</h2>
+  <p>Your brain produces electrical oscillations at different frequencies. Different mental states produce different dominant frequencies. EEG measures these oscillations via electrodes on your scalp.</p>
+
+  <div class="grid">
+    <div class="band-card delta">
+      <div class="band-name">Delta (δ)</div>
+      <div class="band-freq">0.5 – 4 Hz</div>
+      <p style="margin-top:0.5rem; font-size:0.9rem; color:var(--muted)">Deep unconscious sleep (N3 stage). Highest amplitude waves. Virtually absent during wakefulness. High delta = deep sleep / unconscious processing.</p>
+      <div style="margin-top:0.5rem"><span class="tag tag-blue">Deep sleep</span><span class="tag tag-blue">N3 stage</span></div>
+    </div>
+    <div class="band-card theta">
+      <div class="band-name">Theta (θ)</div>
+      <div class="band-freq">4 – 8 Hz</div>
+      <p style="margin-top:0.5rem; font-size:0.9rem; color:var(--muted)">Drowsiness, light sleep, creativity, deep meditation. Frontal midline theta increases with memory encoding and working memory load. REM sleep shows theta bursts.</p>
+      <div style="margin-top:0.5rem"><span class="tag tag-green">Creativity</span><span class="tag tag-green">Memory</span><span class="tag tag-green">Meditation</span></div>
+    </div>
+    <div class="band-card alpha">
+      <div class="band-name">Alpha (α)</div>
+      <div class="band-freq">8 – 12 Hz</div>
+      <p style="margin-top:0.5rem; font-size:0.9rem; color:var(--muted)">The "idle" rhythm. Strongest when eyes are closed, mind is relaxed, not actively processing. Suppressed (desynchronized) when you engage in a task. Alpha asymmetry between left and right hemispheres encodes emotional valence — this is the FAA signal.</p>
+      <div style="margin-top:0.5rem"><span class="tag tag-blue">Relaxation</span><span class="tag tag-blue">FAA valence</span><span class="tag tag-blue">Idle state</span></div>
+    </div>
+    <div class="band-card beta">
+      <div class="band-name">Beta (β)</div>
+      <div class="band-freq">12 – 30 Hz</div>
+      <p style="margin-top:0.5rem; font-size:0.9rem; color:var(--muted)">Active thinking, concentration, anxiety, stress. Low-beta (12–20 Hz) = task focus. High-beta (20–30 Hz) = anxiety, worry, fight-or-flight. Beta increases when alpha suppresses (inverse relationship).</p>
+      <div style="margin-top:0.5rem"><span class="tag tag-orange">Focus</span><span class="tag tag-orange">Anxiety</span><span class="tag tag-orange">Stress</span></div>
+    </div>
+    <div class="band-card gamma">
+      <div class="band-name">Gamma (γ)</div>
+      <div class="band-freq">30 – 100 Hz</div>
+      <p style="margin-top:0.5rem; font-size:0.9rem; color:var(--muted)"><strong style="color:var(--red)">⚠ Mostly EMG artifact on Muse 2!</strong> In research settings with gel electrodes: high-level cognition, binding of sensory information, lucid dreaming, advanced meditation. On Muse 2's dry electrodes at AF7/AF8, gamma is primarily frontalis muscle noise from jaw clenching, forehead tension.</p>
+      <div style="margin-top:0.5rem"><span class="tag tag-red">⚠ EMG artifact</span><span class="tag tag-purple">Meditation (rare)</span></div>
+    </div>
+  </div>
+
+  <div class="callout callout-orange">
+    <strong>The Gamma Problem on Muse 2:</strong> The frontalis muscle sits directly beneath the AF7 and AF8 electrodes. Any jaw clenching, eyebrow raising, or forehead tensing generates broadband muscle noise at 20–100 Hz. This is physically indistinguishable from neural gamma using consumer dry electrodes. This is why gamma has been removed from arousal, stress, and focus formulas.
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 2: Muse 2 Hardware ═══════════════ -->
+<section id="muse2">
+  <h2>2. Muse 2 Hardware</h2>
+  <div class="card">
+    <h3 style="margin-top:0">Electrode Positions</h3>
+    <div class="diagram">
+  Head (top-down view):
+
+       FRONT
+    ___________
+   /  AF7  AF8  \       AF7 = ch0 = Left frontal
+  |  [L]   [R]  |      AF8 = ch1 = Right frontal
+  |             |
+  |  TP9  TP10  |      TP9  = ch2 = Left temporal
+   \_[L]___[R]_/       TP10 = ch3 = Right temporal
+       BACK
+
+  Sampling rate: 256 Hz
+  Signal: µV (microvolts)
+  Data array shape: (4, n_samples)
+    </div>
+
+    <div class="grid" style="margin-top:1rem">
+      <div class="card" style="padding:1rem">
+        <h4>AF7 (ch0) — Left Frontal</h4>
+        <p style="font-size:0.9rem; color:var(--muted)">Left hemisphere approach motivation. Alpha here vs. AF8 determines FAA (emotional valence). Also picks up eye blink artifacts and frontalis EMG.</p>
+      </div>
+      <div class="card" style="padding:1rem">
+        <h4>AF8 (ch1) — Right Frontal</h4>
+        <p style="font-size:0.9rem; color:var(--muted)">Right hemisphere withdrawal motivation. Greater right-frontal alpha (relative to AF7) = negative valence. Same EMG contamination risk as AF7.</p>
+      </div>
+      <div class="card" style="padding:1rem">
+        <h4>TP9 (ch2) — Left Temporal</h4>
+        <p style="font-size:0.9rem; color:var(--muted)">Left temporal lobe — language, memory. Less EMG-contaminated than frontal channels. Useful for temporal coherence measures.</p>
+      </div>
+      <div class="card" style="padding:1rem">
+        <h4>TP10 (ch3) — Right Temporal</h4>
+        <p style="font-size:0.9rem; color:var(--muted)">Right temporal lobe — prosody, spatial processing. TP9 vs TP10 asymmetry gives temporal FAA which corroborates frontal FAA.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Muse 2 vs Research-Grade EEG</h3>
+  <table>
+    <tr><th>Feature</th><th>Muse 2</th><th>Research Grade (e.g. BrainAmp)</th></tr>
+    <tr><td>Channels</td><td>4</td><td>32–256</td></tr>
+    <tr><td>Electrode type</td><td>Dry (no gel)</td><td>Wet gel electrodes</td></tr>
+    <tr><td>Impedance</td><td>~500kΩ (uncontrolled)</td><td>&lt;5kΩ (controlled)</td></tr>
+    <tr><td>SNR</td><td>Low (~10 dB)</td><td>High (~30 dB)</td></tr>
+    <tr><td>Gamma reliability</td><td>Poor (mostly EMG)</td><td>Good (isolated chamber)</td></tr>
+    <tr><td>Price</td><td>~$250</td><td>$5,000–$30,000</td></tr>
+    <tr><td>Emotion accuracy</td><td>55–70%</td><td>80–97%</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════ SECTION 3: Signal Pipeline ═══════════════ -->
+<section id="pipeline">
+  <h2>3. Signal Processing Pipeline</h2>
+  <p>Raw EEG from Muse 2 goes through this chain before any ML model sees it:</p>
+
+  <div class="pipeline-step">
+    <div class="step-num">1</div>
+    <div>
+      <strong>Raw Signal In</strong> — <code>(4, n_samples)</code> float32 array at 256 Hz, values in µV.
+      <br>Typically noisy, contains 50/60 Hz powerline interference, drift, artifacts.
+    </div>
+  </div>
+  <div class="pipeline-step">
+    <div class="step-num">2</div>
+    <div>
+      <strong>Butterworth Bandpass Filter</strong> — <code>1–50 Hz, order=5, filtfilt (zero-phase)</code>
+      <br>Removes DC drift (below 1 Hz) and high-frequency noise above 50 Hz. Zero-phase means no temporal distortion.
+    </div>
+  </div>
+  <div class="pipeline-step">
+    <div class="step-num">3</div>
+    <div>
+      <strong>Notch Filters</strong> — <code>50 Hz + 60 Hz</code>
+      <br>Removes powerline interference (50 Hz in Europe/Asia, 60 Hz in Americas).
+    </div>
+  </div>
+  <div class="pipeline-step">
+    <div class="step-num">4</div>
+    <div>
+      <strong>Welch PSD</strong> — Power Spectral Density via Welch's method.
+      <br>Computes how much power exists at each frequency. Far more stable than raw FFT.
+      Computed once per epoch and shared to all sub-extractors.
+    </div>
+  </div>
+  <div class="pipeline-step">
+    <div class="step-num">5</div>
+    <div>
+      <strong>Band Power Extraction</strong> — Integrates PSD under each band (delta/theta/alpha/beta/gamma).
+      <br>Also computes log-domain powers (better statistical normality for ML).
+    </div>
+  </div>
+  <div class="pipeline-step">
+    <div class="step-num">6</div>
+    <div>
+      <strong>Feature Vector (17 features)</strong>: band powers, log powers, ratios (α/β, θ/β, α/θ), Hjorth parameters (activity, mobility, complexity), spectral entropy, differential entropy per band.
+    </div>
+  </div>
+  <div class="pipeline-step">
+    <div class="step-num">7</div>
+    <div>
+      <strong>FAA Computation</strong> — Frontal Alpha Asymmetry across AF7 and AF8.
+      <br>Called separately and blended into valence signal.
+    </div>
+  </div>
+  <div class="pipeline-step">
+    <div class="step-num">8</div>
+    <div>
+      <strong>ML Inference</strong> — Feature vector fed to the appropriate model (heuristic, ONNX, sklearn, multichannel).
+    </div>
+  </div>
+
+  <h3>Code Location</h3>
+  <pre><code>ml/processing/eeg_processor.py   ← All signal processing functions
+  preprocess(signal, fs)           → bandpass + notch filters
+  extract_band_powers(signal, fs)  → delta/theta/alpha/beta/gamma
+  extract_features(signal, fs)     → all 17 features
+  compute_frontal_asymmetry(signals, fs)  → FAA
+
+ml/models/emotion_classifier.py  ← Uses above functions
+  predict(eeg, fs)                 → runs full inference chain</code></pre>
+
+  <h3>Hjorth Parameters (Bonus Features)</h3>
+  <div class="formula-box">
+    <span class="label">Hjorth Activity — signal variance (power estimate)</span>
+    <span class="formula-eq">Activity = Var(x)</span>
+    <span class="label" style="margin-top:0.8rem">Hjorth Mobility — normalized standard deviation of first derivative</span>
+    <span class="formula-eq">Mobility = sqrt(Var(x') / Var(x))</span>
+    <span class="label" style="margin-top:0.8rem">Hjorth Complexity — ratio of signal's complexity to pure sine wave</span>
+    <span class="formula-eq">Complexity = Mobility(x') / Mobility(x)</span>
+    <span class="formula-note">High complexity = irregular signal (artifact, muscle). Low complexity = rhythmic (alpha, sleep spindles).</span>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 4: FAA ═══════════════ -->
+<section id="faa">
+  <h2>4. Frontal Alpha Asymmetry (FAA)</h2>
+  <p>FAA is the most scientifically validated EEG marker for emotional valence. Established by Richard Davidson at UW-Madison (1992) and replicated hundreds of times.</p>
+
+  <div class="card card-highlight">
+    <h3 style="margin-top:0">The Core Principle</h3>
+    <p>Left frontal regions are associated with <strong>approach motivation</strong> (positive affect, wanting, engagement). Right frontal regions are associated with <strong>withdrawal motivation</strong> (negative affect, avoidance, depression).</p>
+    <p>Alpha is inversely related to activation — more alpha = less activity. So:</p>
+    <ul style="margin: 0.5rem 0 0.5rem 1.5rem; line-height:2">
+      <li><strong>More left-frontal alpha (AF7 ↑)</strong> = left hemisphere less active = more withdrawal = <span style="color:var(--red)">negative valence</span></li>
+      <li><strong>More right-frontal alpha (AF8 ↑)</strong> = right hemisphere less active = less withdrawal = <span style="color:var(--green)">positive valence</span></li>
+    </ul>
+    <p>Therefore: FAA = log(right_alpha) − log(left_alpha). Positive = positive affect.</p>
+  </div>
+
+  <div class="formula-box">
+    <span class="label">Frontal Alpha Asymmetry (Davidson, 1992)</span>
+    <span class="formula-eq">FAA = ln(AF8_alpha) − ln(AF7_alpha)</span>
+    <br>
+    <span class="label">Map to valence signal (−1 to +1)</span>
+    <span class="formula-eq">asymmetry_valence = clip( tanh(FAA × 2.0), −1, +1 )</span>
+    <br>
+    <span class="formula-note">FAA &gt; 0 → positive valence (happy, calm, approach state)</span>
+    <span class="formula-note">FAA &lt; 0 → negative valence (sad, anxious, withdrawal state)</span>
+    <span class="formula-note">tanh(x × 2.0) gives smooth S-curve: small FAA → small valence shift; large FAA → near ±1</span>
+  </div>
+
+  <h3>Concrete Example</h3>
+  <div class="card">
+    <p>Scenario: You're feeling anxious and worried about a deadline.</p>
+    <ul style="margin: 0.5rem 0 0.5rem 1.5rem; line-height:2">
+      <li>Right frontal cortex activates (withdrawal/avoidance motivation) → AF8 alpha <strong>suppresses</strong></li>
+      <li>AF8_alpha = 0.3 µV², AF7_alpha = 0.6 µV²</li>
+      <li>FAA = ln(0.3) − ln(0.6) = −1.2 − (−0.5) = <strong>−0.7</strong></li>
+      <li>asymmetry_valence = clip(tanh(−0.7 × 2.0), −1, 1) = tanh(−1.4) ≈ <strong>−0.885</strong></li>
+      <li>Result: <span style="color:var(--red)">Strong negative valence</span> → system reports sad/fearful state ✓</li>
+    </ul>
+  </div>
+  <div class="card" style="margin-top:0.5rem">
+    <p>Scenario: You just solved a hard problem and feel satisfied.</p>
+    <ul style="margin: 0.5rem 0 0.5rem 1.5rem; line-height:2">
+      <li>Left frontal cortex activates → AF7 alpha <strong>suppresses</strong></li>
+      <li>AF7_alpha = 0.2 µV², AF8_alpha = 0.5 µV²</li>
+      <li>FAA = ln(0.5) − ln(0.2) = −0.69 − (−1.61) = <strong>+0.92</strong></li>
+      <li>asymmetry_valence = clip(tanh(0.92 × 2.0), −1, 1) = tanh(1.84) ≈ <strong>+0.951</strong></li>
+      <li>Result: <span style="color:var(--green)">Strong positive valence</span> → system reports happy state ✓</li>
+    </ul>
+  </div>
+
+  <div class="callout callout-red">
+    <strong>Critical Bug That Was Fixed:</strong> The old <code>predict()</code> function was passing only <code>eeg[0]</code> (AF7 alone) to <code>_predict_features()</code>, discarding AF8/TP9/TP10. FAA was computed as <code>log(AF7) − log(AF7) = 0</code> always. Every single emotion reading had zero FAA contribution. <strong>Fixed in commit 270d27e.</strong>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 5: Valence-Arousal Model ═══════════════ -->
+<section id="circumplex">
+  <h2>5. Russell's Circumplex Model of Emotion</h2>
+  <p>All emotions live in a 2D space defined by Valence (positive/negative feeling) and Arousal (energetic/calm). This model, proposed by James Russell (1980), is the most widely used framework for EEG-based emotion recognition.</p>
+
+  <div class="circumplex">
+<span style="color:var(--muted)">                    HIGH AROUSAL (energetic)</span>
+<span style="color:var(--orange)">           Angry    Excited    Enthusiastic</span>
+<span style="color:var(--text)">               ↖        ↑        ↗</span>
+<span style="color:var(--red)">NEGATIVE ──────────────────────────────── POSITIVE</span>
+<span style="color:var(--text)">               ↙        ↓        ↘</span>
+<span style="color:var(--blue)">           Sad/Dep    Tired    Content/Calm</span>
+<span style="color:var(--muted)">                    LOW AROUSAL (calm)</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h4>Valence (X-axis)</h4>
+      <p>How positive or negative the feeling is. −1 = most negative (deep sadness/fear), +1 = most positive (joy/love).</p>
+      <p><strong>Best EEG predictor:</strong> FAA (frontal alpha asymmetry)</p>
+      <p><strong>Accuracy:</strong> ~60–70% (difficult)</p>
+    </div>
+    <div class="card">
+      <h4>Arousal (Y-axis)</h4>
+      <p>How energized or calm. 0 = completely calm/asleep, 1 = maximally alert/activated.</p>
+      <p><strong>Best EEG predictor:</strong> β/(α+β) ratio</p>
+      <p><strong>Accuracy:</strong> ~70–85% (easier)</p>
+    </div>
+  </div>
+
+  <h3>Emotion → Quadrant Mapping</h3>
+  <table>
+    <tr><th>Emotion</th><th>Valence</th><th>Arousal</th><th>EEG Signature</th></tr>
+    <tr><td><span style="color:var(--yellow)">Happy</span></td><td>+0.5 to +1.0</td><td>+0.4 to +0.8</td><td>High FAA, moderate beta, alpha present</td></tr>
+    <tr><td><span style="color:var(--blue)">Sad</span></td><td>−0.1 to −0.8</td><td>0.1 to 0.4</td><td>Negative FAA, low beta, theta↑</td></tr>
+    <tr><td><span style="color:var(--red)">Angry</span></td><td>−0.3 to −0.9</td><td>0.5 to 1.0</td><td>Negative FAA, high beta, high-beta dominant</td></tr>
+    <tr><td><span style="color:var(--purple)">Fear</span></td><td>−0.4 to −1.0</td><td>0.6 to 1.0</td><td>Very negative FAA, high beta asymmetry</td></tr>
+    <tr><td><span style="color:var(--cyan)">Surprise</span></td><td>variable</td><td>0.7 to 1.0</td><td>High arousal, alpha suppression</td></tr>
+    <tr><td><span style="color:var(--muted)">Neutral</span></td><td>±0.1</td><td>0.2 to 0.5</td><td>Balanced alpha, moderate beta</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════ SECTION 6: All Formulas ═══════════════ -->
+<section id="formulas">
+  <h2>6. All Formulas Used in the System</h2>
+  <p>These are the exact formulas in <code>ml/models/emotion_classifier.py</code> after the Feb 2026 fixes.</p>
+
+  <h3>Band Power Normalization</h3>
+  <div class="formula-box">
+    <span class="label">Relative band powers (each band as fraction of total)</span>
+    <span class="formula-eq">total = delta_raw + theta_raw + alpha_raw + beta_raw + gamma_raw</span>
+    <span class="formula-eq">alpha = alpha_raw / total   (and similarly for each band)</span>
+    <span class="formula-note">This normalization makes values comparable across people and sessions.</span>
+  </div>
+
+  <h3>Valence Formula</h3>
+  <div class="formula-box">
+    <span class="label">Step 1: Alpha/Beta Ratio valence component</span>
+    <span class="formula-eq">valence_abr = tanh( (α/β − 0.7) × 2.0 )</span>
+    <span class="formula-note">α/β ratio &gt; 0.7 → positive; &lt; 0.7 → negative. tanh gives smooth −1 to +1 output.</span>
+
+    <span class="label" style="margin-top:1rem">Step 2: FAA component (when 2+ channels available)</span>
+    <span class="formula-eq">faa_valence = tanh( FAA × 2.0 )   where FAA = ln(AF8_alpha) − ln(AF7_alpha)</span>
+
+    <span class="label" style="margin-top:1rem">Step 3: Blend (50/50 when multichannel)</span>
+    <span class="formula-eq">valence = clip(0.50 × valence_abr + 0.50 × faa_valence, −1, +1)</span>
+    <span class="formula-note">Single-channel fallback: valence = clip(0.65×tanh((α/β−0.7)×2) + 0.35×tanh((α−0.15)×4), −1, +1)</span>
+  </div>
+
+  <h3>Arousal Formula</h3>
+  <div class="formula-box">
+    <span class="label">Three-component arousal (gamma REMOVED — was EMG noise)</span>
+    <span class="formula-eq">arousal = clip(</span>
+    <span class="formula-eq">  0.45 × β/(β+α)                      ← beta dominance</span>
+    <span class="formula-eq">  + 0.30 × (1 − α/(α+β+θ))           ← inverse alpha fraction</span>
+    <span class="formula-eq">  + 0.25 × (1 − δ/(δ+β)),            ← inverse delta (awake proxy)</span>
+    <span class="formula-eq">0, 1)</span>
+    <span class="formula-note">Delta inclusion: deep relaxation/sleep has high delta; adding inverse delta suppresses arousal when sleeping.</span>
+  </div>
+
+  <h3>Stress Index</h3>
+  <div class="formula-box">
+    <span class="label">Stress from high-beta, beta asymmetry, theta/alpha ratio</span>
+    <span class="formula-eq">stress = clip(</span>
+    <span class="formula-eq">  0.45 × high_beta/(β+α)             ← high-beta (anxiety band) dominance</span>
+    <span class="formula-eq">  + 0.30 × (θ/α) × 0.3               ← theta/alpha ratio (stress marker)</span>
+    <span class="formula-eq">  + 0.25 × high_beta_frac,           ← fraction of beta that is high-beta</span>
+    <span class="formula-eq">0, 1)</span>
+  </div>
+
+  <h3>Focus Index</h3>
+  <div class="formula-box">
+    <span class="label">Focus from beta/alpha ratio and alpha suppression</span>
+    <span class="formula-eq">focus = clip(</span>
+    <span class="formula-eq">  0.45 × β/(α+β)                     ← beta dominance</span>
+    <span class="formula-eq">  + 0.40 × (1 − α/(α+β))             ← alpha suppression</span>
+    <span class="formula-eq">  + 0.15 × (1 − θ_β_ratio × 0.2),   ← low theta (not drowsy)</span>
+    <span class="formula-eq">0, 1)</span>
+  </div>
+
+  <h3>Emotion Probabilities</h3>
+  <div class="formula-box">
+    <span class="label">Happy probability (valence+, moderate arousal, alpha present)</span>
+    <span class="formula-eq">p_happy = 0.45×max(0, valence) + 0.30×max(0, arousal−0.3) + 0.25×min(1, α/β×0.8)</span>
+
+    <span class="label" style="margin-top:0.8rem">Sad probability (negative valence, low arousal, high theta) — threshold −0.10 not −0.25</span>
+    <span class="formula-eq">p_sad = 0.50×max(0, −valence−0.10) + 0.30×max(0, 0.35−arousal) + 0.20×max(0, θ/β−2.0)×0.4</span>
+
+    <span class="label" style="margin-top:0.8rem">Angry probability (negative valence, high arousal, high beta)</span>
+    <span class="formula-eq">p_angry = 0.40×max(0, −valence−0.1) + 0.30×max(0, arousal−0.45) + 0.25×min(1, β/α−1.3) + 0.05×min(1, γ×2.5)</span>
+
+    <span class="label" style="margin-top:0.8rem">Fear (more extreme than angry — very high arousal + very negative valence)</span>
+    <span class="formula-eq">p_fear = 0.45×max(0, −valence−0.15) + 0.35×max(0, arousal−0.5) + 0.20×min(1, β/α−1.5)</span>
+
+    <span class="label" style="margin-top:0.8rem">Surprise (high arousal regardless of valence)</span>
+    <span class="formula-eq">p_surprise = 0.70×max(0, arousal−0.6) + 0.30×max(0, 1−α_power×3)</span>
+  </div>
+
+  <h3>EMA Smoothing (Anti-flicker)</h3>
+  <div class="formula-box">
+    <span class="label">Exponential Moving Average — applied after each prediction</span>
+    <span class="formula-eq">output_t = α_ema × raw_t + (1 − α_ema) × output_(t-1)</span>
+    <span class="formula-eq">α_ema = 0.35  (responds in ~3 frames to a step change)</span>
+    <span class="formula-note">Without EMA: emotion label flickers every frame. With EMA: smooth, stable readings.</span>
+  </div>
+
+  <h3>Softmax Temperature Scaling</h3>
+  <div class="formula-box">
+    <span class="label">Applied to probability vector to sharpen predictions</span>
+    <span class="formula-eq">p_i = exp(logit_i / T) / sum(exp(logit_j / T))</span>
+    <span class="formula-eq">T = 2.5   (temperature parameter)</span>
+    <span class="formula-note">T &gt; 1 = softer distribution (less confident). T &lt; 1 = sharper (more winner-takes-all). T=2.5 smooths out overconfident raw scores.</span>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 7: 16 ML Models ═══════════════ -->
+<section id="models">
+  <h2>7. The 16 Machine Learning Models</h2>
+
+  <div class="callout callout-blue">
+    <strong>Model Loading Chain (for all models):</strong>
+    <code>_find_model("name")</code> checks: ONNX → pkl → pt → feature-based heuristics.
+    Only use a saved model if cross-validation accuracy ≥ 60% (too low = worse than heuristics).
+  </div>
+
+  <h3>Emotion Classifier</h3>
+  <div class="card card-highlight">
+    <p><strong>File:</strong> <code>ml/models/emotion_classifier.py</code> &nbsp; <strong>The most complex model</strong></p>
+    <p><strong>Output:</strong> 6 emotions (happy/sad/angry/fear/surprise/neutral) + valence + arousal + stress/focus/relaxation/anger indices + FAA values</p>
+    <p><strong>Trained on:</strong> DEAP dataset (32-ch gel electrodes, 32 subjects)</p>
+    <p><strong>CV Accuracy:</strong> <span class="badge-acc acc-low">51.3% — disabled</span> Falls back to feature-based heuristics for all live Muse 2 use.</p>
+    <p><strong>Live path:</strong> <code>_predict_features()</code> — hand-crafted formulas using band powers, FAA, ratios</p>
+  </div>
+
+  <h3>Sleep Staging</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/sleep_staging.py</code></p>
+    <p><strong>Output:</strong> Wake, N1, N2, N3 (deep sleep), REM</p>
+    <p><strong>CV Accuracy:</strong> <span class="badge-acc acc-high">92.98%</span> — reliable</p>
+    <p><strong>Key signals:</strong> Delta dominates N3 (slow-wave sleep). Theta bursts in REM. Alpha spindles in N1/N2 transitions. Sleep spindles (11–16 Hz) and K-complexes mark N2.</p>
+    <p><strong>Trained on:</strong> 27,464 samples — ISRUC/SHHS datasets</p>
+  </div>
+
+  <h3>Dream Detector</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/dream_detector.py</code></p>
+    <p><strong>Output:</strong> Binary (dreaming / not dreaming)</p>
+    <p><strong>CV Accuracy:</strong> <span class="badge-acc acc-high">97.20%</span></p>
+    <p><strong>Key signals:</strong> REM sleep theta oscillations + rapid eye movements detected as artifacts at frontal electrodes. Dreams occur primarily in REM.</p>
+  </div>
+
+  <h3>Flow State Detector</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/flow_state_detector.py</code></p>
+    <p><strong>Output:</strong> Flow score 0–1 + 4 levels (none/approaching/flow/deep)</p>
+    <p><strong>CV Accuracy:</strong> <span class="badge-acc acc-med">62.86%</span> — marginal, use as rough guide</p>
+    <p><strong>Key signals:</strong> "In the zone" = moderate alpha + moderate beta (not too anxious, not too relaxed). Alpha/theta coherence increases. Frontal midline theta for deep flow.</p>
+    <p><strong>Scientific basis:</strong> Csikszentmihalyi's flow theory (1990). EEG correlates: Ulrich et al. (2014).</p>
+  </div>
+
+  <h3>Creativity Detector</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/creativity_detector.py</code></p>
+    <p><strong>Output:</strong> Creativity score + phase (incubation/insight/consolidation)</p>
+    <p><strong>CV Accuracy:</strong> <span class="badge-acc acc-med">99.18%</span> <span style="color:var(--orange)">⚠ Likely overfit — only 850 samples</span></p>
+    <p><strong>Key signals:</strong> Alpha increases during incubation (mind wandering, letting ideas form). Theta during creative ideation. Brief gamma burst at moment of insight (Kounios &amp; Beeman, 2014 — the "Aha!" moment).</p>
+  </div>
+
+  <h3>Drowsiness Detector</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/drowsiness_detector.py</code></p>
+    <p><strong>Output:</strong> Drowsiness level (alert/drowsy/very drowsy)</p>
+    <p><strong>Key signals:</strong> Theta power increase at frontal sites. Alpha slowing (frequency drops from 10 Hz toward 8 Hz). Eye closure artifacts. Delta emergence.</p>
+    <p><strong>Scientific basis:</strong> PERCLOS metric + EEG (Lal &amp; Craig, 2002).</p>
+  </div>
+
+  <h3>Cognitive Load Estimator</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/cognitive_load_estimator.py</code></p>
+    <p><strong>Output:</strong> Load level (low/medium/high) + workload score 0–1</p>
+    <p><strong>Key signals:</strong> Frontal theta increases with working memory load (n-back task research). Parietal alpha suppresses with visual cognitive load. Theta-gamma coupling (Lisman &amp; Jensen, 2013).</p>
+  </div>
+
+  <h3>Attention Classifier</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/attention_classifier.py</code></p>
+    <p><strong>Output:</strong> Attention level (unfocused/focused/hyper-focused)</p>
+    <p><strong>Key signals:</strong> Beta/theta ratio → high = focused attention. Alpha suppression during task engagement. P300 event-related potential (if single-trial detection).</p>
+  </div>
+
+  <h3>Stress Detector (dedicated)</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/stress_detector.py</code></p>
+    <p><strong>Output:</strong> 4 levels (relaxed/mild/moderate/high) + stress score</p>
+    <p><strong>Key signals:</strong> High-beta (20–30 Hz) increases. Right &gt; left frontal alpha (Davidson asymmetry). Theta/alpha ratio changes. Hjorth complexity increases (signal becomes more irregular).</p>
+    <p><strong>Auto-calibration:</strong> Collects first N readings as personal baseline. Adjusts thresholds per-user.</p>
+    <p><strong>Scientific basis:</strong> Al-Shargie et al. (2016), Giannakakis et al. (2019).</p>
+  </div>
+
+  <h3>Lucid Dream Detector</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/lucid_dream_detector.py</code></p>
+    <p><strong>Output:</strong> Lucidity score + lucidity state</p>
+    <p><strong>Key signals:</strong> Gamma bursts (40 Hz) during REM sleep. Self-awareness during dreaming correlates with gamma power. Advanced meditators more likely to become lucid.</p>
+    <p><strong>Scientific basis:</strong> Voss et al. (2009) — first controlled lucid dream EEG study. Note: gamma at AF7/AF8 is mostly EMG on Muse 2, so this model is least reliable.</p>
+  </div>
+
+  <h3>Meditation Classifier</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/meditation_classifier.py</code></p>
+    <p><strong>Output:</strong> 5 depths (surface/light/moderate/deep/transcendent)</p>
+    <p><strong>Key signals by depth:</strong></p>
+    <table>
+      <tr><th>Depth</th><th>EEG Signature</th><th>Tradition</th></tr>
+      <tr><td>Surface</td><td>Closed eyes, alpha present</td><td>Basic relaxation</td></tr>
+      <tr><td>Light</td><td>Theta↑, alpha stabilizes</td><td>Shamatha (focused attention)</td></tr>
+      <tr><td>Moderate</td><td>Sustained theta/alpha, beta↓</td><td>Vipassana (open monitoring)</td></tr>
+      <tr><td>Deep</td><td>Theta dominant, beta minimal</td><td>Dzogchen (non-dual)</td></tr>
+      <tr><td>Transcendent</td><td>Gamma bursts, theta-gamma coupling</td><td>Advanced (Lutz et al. 2004)</td></tr>
+    </table>
+    <p style="margin-top:0.5rem; color:var(--muted); font-size:0.9rem">Advanced meditators show 25× more gamma than novices (Lutz et al., 2004). Note: Muse 2 gamma reliability is low.</p>
+  </div>
+
+  <h3>Anomaly Detector</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/anomaly_detector.py</code></p>
+    <p><strong>Algorithm:</strong> Isolation Forest (unsupervised)</p>
+    <p><strong>Output:</strong> Anomaly score + flag (normal/anomalous)</p>
+    <p><strong>Use:</strong> Flags statistically unusual EEG — hardware disconnection, extreme artifacts, unusual brain states.</p>
+  </div>
+
+  <h3>Artifact Classifier</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/artifact_classifier.py</code></p>
+    <p><strong>Output:</strong> Artifact type (eye_blink / muscle / electrode_pop / clean)</p>
+    <p><strong>Eye blink:</strong> Large amplitude delta spike at frontal electrodes (AF7/AF8). Duration ~150–300 ms.</p>
+    <p><strong>Muscle:</strong> Broadband high-frequency noise across channels. Waveform has irregular, high-frequency texture.</p>
+    <p><strong>Electrode pop:</strong> Sudden large spike followed by ringing, one channel only.</p>
+  </div>
+
+  <h3>Denoising Autoencoder</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/denoising_autoencoder.py</code> — PyTorch</p>
+    <p><strong>Architecture:</strong> 1D convolutional encoder-decoder. Input: noisy EEG epoch. Output: reconstructed clean EEG.</p>
+    <p><strong>Use:</strong> Pre-processing step to reduce artifact impact before band power extraction.</p>
+  </div>
+
+  <h3>Online Learner</h3>
+  <div class="card">
+    <p><strong>File:</strong> <code>ml/models/online_learner.py</code></p>
+    <p><strong>Purpose:</strong> Adapts model weights to individual users over time. Collects labeled data from user feedback and updates the underlying classifier.</p>
+    <p><strong>Status:</strong> Partially integrated — needs wiring into the live inference path. High priority for future work.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 8: Accuracy Reality ═══════════════ -->
+<section id="accuracy">
+  <h2>8. Accuracy Reality Check</h2>
+
+  <div class="callout callout-orange">
+    <strong>Domain Gap:</strong> Models trained on DEAP (32-channel gel electrodes, research lab) suffer a ~30 percentage-point accuracy penalty when used on Muse 2 (4-channel dry electrodes, home/office). This is why the DEAP emotion model (51.3%) falls below the 60% threshold and is disabled.
+  </div>
+
+  <table>
+    <tr><th>Model</th><th>CV Accuracy</th><th>Status</th><th>Notes</th></tr>
+    <tr><td>Emotion (DEAP)</td><td class="badge-acc acc-low" style="display:table-cell">51.3%</td><td>Disabled</td><td>Below 60% threshold, feature-based heuristics used instead</td></tr>
+    <tr><td>Sleep Staging</td><td><span class="badge-acc acc-high">92.98%</span></td><td>Active</td><td>ISRUC/SHHS datasets, 27,464 samples</td></tr>
+    <tr><td>Dream Detector</td><td><span class="badge-acc acc-high">97.20%</span></td><td>Active</td><td>Binary, well-defined classes</td></tr>
+    <tr><td>Flow State</td><td><span class="badge-acc acc-med">62.86%</span></td><td>Active</td><td>Marginal — use as rough guide</td></tr>
+    <tr><td>Creativity</td><td><span class="badge-acc acc-med">99.18%</span></td><td>Active</td><td>⚠ Likely overfit (850 samples total, ~212/class)</td></tr>
+    <tr><td>Memory Encoding</td><td><span class="badge-acc acc-med">99.18%</span></td><td>Active</td><td>⚠ Same caution as creativity</td></tr>
+  </table>
+
+  <h3>Expected Real-World Performance on Live Muse 2</h3>
+  <div class="grid">
+    <div class="card">
+      <h4>Arousal Detection</h4>
+      <p style="font-size:1.4rem; font-weight:700; color:var(--green)">70–80%</p>
+      <p style="color:var(--muted); font-size:0.9rem">Beta/alpha ratio is a robust arousal marker. Relatively reliable on Muse 2.</p>
+    </div>
+    <div class="card">
+      <h4>Valence Detection</h4>
+      <p style="font-size:1.4rem; font-weight:700; color:var(--yellow)">60–70%</p>
+      <p style="color:var(--muted); font-size:0.9rem">FAA is validated but noisier with dry electrodes. Much better than before FAA fix.</p>
+    </div>
+    <div class="card">
+      <h4>Specific Emotions</h4>
+      <p style="font-size:1.4rem; font-weight:700; color:var(--orange)">55–65%</p>
+      <p style="color:var(--muted); font-size:0.9rem">6-class classification with limited channels. Treat as "most likely" not "certain".</p>
+    </div>
+    <div class="card">
+      <h4>Sleep Stages</h4>
+      <p style="font-size:1.4rem; font-weight:700; color:var(--green)">~85% practical</p>
+      <p style="color:var(--muted); font-size:0.9rem">Sleep is more about slow oscillations detectable even with 4 channels.</p>
+    </div>
+  </div>
+
+  <h3>Why Cross-Subject EEG is Hard</h3>
+  <ul style="margin: 0.5rem 0 0.5rem 1.5rem; line-height:2.2">
+    <li><strong>Within-subject accuracy:</strong> ~90.97% (same person, same day)</li>
+    <li><strong>Cross-subject accuracy:</strong> ~64.82% (different person) — <span style="color:var(--red)">26 point drop</span></li>
+    <li>Each person's brain has different anatomy → slightly different electrode positions over different cortical regions</li>
+    <li>Individual differences in alpha frequency (8–12 Hz, varies ±1.5 Hz per person)</li>
+    <li>Solution: baseline normalization (+15–29% accuracy in literature)</li>
+  </ul>
+</section>
+
+<!-- ═══════════════ SECTION 9: Bug Fixes ═══════════════ -->
+<section id="fixes">
+  <h2>9. Bug Fixes (Feb 2026 — Commit 270d27e)</h2>
+
+  <div class="card card-success">
+    <h3 style="margin-top:0; color:var(--green)">Fix 1: Multichannel Data Was Being Discarded</h3>
+    <p><strong>Impact: CRITICAL.</strong> This caused FAA to always be zero.</p>
+    <pre class="fix-before"><code># BEFORE — only AF7 (ch0) passed to inference
+return self._predict_features(eeg if eeg.ndim == 1 else eeg[0], fs)</code></pre>
+    <pre class="fix-after"><code># AFTER — full multichannel array passed
+return self._predict_features(eeg, fs)
+
+# Inside _predict_features():
+channels = eeg if eeg.ndim == 2 else None
+signal = eeg[0] if eeg.ndim == 2 else eeg   # AF7 for single-ch band powers
+processed = preprocess(signal, fs)</code></pre>
+  </div>
+
+  <div class="card card-success">
+    <h3 style="margin-top:0; color:var(--green)">Fix 2: Gamma EMG Contamination Removed</h3>
+    <p><strong>Impact: HIGH.</strong> Jaw clenching was falsely reported as high arousal, stress, anger, focus.</p>
+    <pre class="fix-before"><code># BEFORE — gamma included as neural signal
+arousal_raw = 0.35*β/(β+α) + 0.30*(1-α/(α+β+θ)) + 0.35*γ
+stress_index = 0.40*high_β + 0.35*θ/α + 0.25*γ</code></pre>
+    <pre class="fix-after"><code># AFTER — gamma removed, delta added as sleep/relaxation inverse
+arousal_raw = 0.45*β/(β+α) + 0.30*(1-α/(α+β+θ)) + 0.25*(1-δ/(δ+β))
+stress_index = 0.45*high_β/(β+α) + 0.30*(θ/α)*0.3 + 0.25*high_β_frac</code></pre>
+  </div>
+
+  <div class="card card-success">
+    <h3 style="margin-top:0; color:var(--green)">Fix 3: Sad Never Triggered (Threshold Too High)</h3>
+    <p><strong>Impact: MEDIUM.</strong> At neutral resting state (valence≈0), sad was essentially impossible.</p>
+    <pre class="fix-before"><code># BEFORE — required valence &lt; -0.25 before any sad probability
+p_sad = 0.50 * max(0, -valence - 0.25) + ...</code></pre>
+    <pre class="fix-after"><code># AFTER — triggers as soon as valence goes slightly negative
+p_sad = 0.50 * max(0, -valence - 0.10) + ...</code></pre>
+  </div>
+
+  <div class="card card-success">
+    <h3 style="margin-top:0; color:var(--green)">Fix 4: Duplicate Arousal Computation in _predict_onnx</h3>
+    <p><strong>Impact: MEDIUM.</strong> Lines 509 and 512 both computed arousal identically — second silently overwrote first.</p>
+    <p>Fixed: removed both instances, replaced with single corrected computation using new formula.</p>
+  </div>
+
+  <div class="card card-success">
+    <h3 style="margin-top:0; color:var(--green)">Fix 5: Single-Term Valence in ONNX/Sklearn Paths</h3>
+    <pre class="fix-before"><code># BEFORE — one term
+valence = tanh((alpha/beta - 0.7) * 2.0)</code></pre>
+    <pre class="fix-after"><code># AFTER — two terms: ratio + absolute alpha level
+valence = 0.65*tanh((alpha/beta - 0.7)*2.0) + 0.35*tanh((alpha - 0.15)*4)</code></pre>
+    <p>The second term catches cases where α/β ratio is high but absolute alpha is low (stressed state).</p>
+  </div>
+</section>
+
+<!-- ═══════════════ SECTION 10: Future Work ═══════════════ -->
+<section id="future">
+  <h2>10. Future Work (Priority Order)</h2>
+
+  <div class="card card-warn">
+    <h3 style="margin-top:0">Priority 1: Baseline Calibration Protocol</h3>
+    <p><strong>Expected improvement: +15–29% accuracy</strong> (published in multiple papers)</p>
+    <p>At session start, record 2 minutes of resting-state EEG (eyes closed, relaxed). Compute personal baseline band powers. Normalize all subsequent readings against this baseline.</p>
+    <pre><code>baseline_alpha = mean(alpha_power_over_2min)
+normalized_alpha = current_alpha / baseline_alpha
+# Now comparable across people and sessions</code></pre>
+    <p>This eliminates individual differences in absolute power levels — the biggest source of cross-subject error.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Priority 2: Longer Epoch Windows</h3>
+    <p>Current: 1-second windows. Problem: Welch PSD at 256 Hz needs &gt;4 seconds for stable spectral estimates at 1 Hz frequency resolution.</p>
+    <p>Fix: Use 4-second sliding window with 50% overlap (2-second step). This gives stable PSD with 0.25 Hz frequency resolution.</p>
+    <pre><code># Welch PSD frequency resolution = fs / n_samples
+# 1 sec: 256 samples → 1 Hz resolution (too coarse to distinguish alpha from theta)
+# 4 sec: 1024 samples → 0.25 Hz resolution (accurately separates 8-12 Hz alpha)</code></pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Priority 3: Personal Calibration via Online Learner</h3>
+    <p>After 5+ sessions, compute per-user alpha frequency peak (individual alpha frequency, IAF). Adjust band boundaries relative to IAF. The Online Learner (<code>ml/models/online_learner.py</code>) is ready — needs integration into live inference path in <code>ml/api/routes.py</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Priority 4: Collect Muse 2-Specific Training Data</h3>
+    <p>The DEAP model trained on 32-ch gel electrodes degrades massively on 4-ch dry electrodes (domain gap). Collecting 30+ minutes of labeled EEG from Muse 2 with ground-truth emotion labels (video-induced, self-report) would allow retraining a model native to the hardware.</p>
+    <p>Use <code>/api/collect-training-data</code> endpoint which is already implemented.</p>
+  </div>
+
+  <div class="callout callout-blue">
+    <strong>Quick Wins That Are Already Coded:</strong>
+    The EMA smoothing, auto-calibration in StressDetector, and confidence/reliability endpoints in the API already exist. The main gaps are baseline normalization and epoch length — both achievable without new ML training.
+  </div>
+</section>
+
+</main>
+
+<footer style="background:var(--bg2); border-top:1px solid var(--border); padding:2rem; text-align:center; color:var(--muted); font-size:0.9rem; margin-top:4rem;">
+  <p>Neural Dream Workshop — EEG Science Reference</p>
+  <p style="margin-top:0.3rem">Key papers: Davidson (1992), Russell (1980), Lutz et al. (2004), Voss et al. (2009), Kounios &amp; Beeman (2014), Lisman &amp; Jensen (2013)</p>
+  <p style="margin-top:0.3rem">Fixes committed: <code>270d27e</code> (Feb 2026) | Docs updated: <code>2ada747</code></p>
+</footer>
+
+</body>
+</html>
