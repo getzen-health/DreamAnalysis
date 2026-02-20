@@ -618,6 +618,132 @@ FAA is used in this system, but be aware of these issues:
 
 ---
 
+## Real-World Accuracy & Failure Modes (Research Agent Survey, Feb 2026)
+
+From 25 peer-reviewed papers on real-world consumer EEG deployment. Critical for understanding why live emotion readings may appear wrong.
+
+### Honest Accuracy Expectations for Muse 2
+
+| Condition | Binary valence/arousal |
+|-----------|----------------------|
+| No calibration, naive deployment | **~50% (chance level)** |
+| With baseline correction + artifact rejection | **65-75%** |
+| + personalization (5 min labeled data) | **75-85%** |
+| Lab-controlled, within-subject (NOT real-world) | 90-93% |
+
+**Published Muse-specific numbers**: Frontal alpha asymmetry from 2 frontal channels → **75-76% valence accuracy** (IEEE, controlled lab). Multi-electrode combination (AF8+TP9+TP10) → **88.05% average** but within-subject only. Cross-day repeatability: **low reliability** (Muse validation study, ResearchGate).
+
+**DEAP→SEED cross-dataset transfer**: 65.84% (trained on DEAP, tested on SEED). Reverse: 58.99%. Real-world Muse gap is considerably worse than this.
+
+### Accuracy Impact Per Problem (Fixable vs. Hardware-Limited)
+
+| Problem | Accuracy Impact | Fixable? |
+|---------|----------------|---------|
+| No baseline normalization | **-15 to -29 pts** | Yes — record 2-3 min resting state |
+| Cross-subject model on new person | **-26 pts** | Partially — 5 min fine-tuning |
+| Wrong epoch length (1 sec) | **-10 to -20 pts** | Yes — use 4-8 sec windows |
+| Jaw clench / blink artifacts | Corrupts affected epochs entirely | Yes — artifact rejection |
+| Missing notch filter | Degrades beta features | Yes — add to preprocessing |
+| Wrong reference electrode | Distorts spatial patterns | Partially |
+| Non-stationarity / session drift | Degrades over time | Partially — online normalization |
+| Domain gap (DEAP/SEED → real world) | **-25 to -35 pts** | Partially — personalization |
+| 4 electrodes vs 32 | **-5 to -15 pts** | No (hardware limit) |
+| Self-report label noise in training | Sets ceiling at ~75-85% | No |
+
+### Epoch Length — Critical Numbers (2024 Paper)
+
+Valence recognition accuracy by epoch length:
+- **1 second**: Very noisy (too few cycles of theta/alpha for stable Welch PSD)
+- **5 seconds**: Best for within-subject analysis
+- **8 seconds**: Best for valence (73.34% accuracy peak)
+- **10 seconds**: Best for between-subject analysis
+
+**Physics reason**: Theta (4-8 Hz) needs 2-3 cycles minimum → minimum 375-750ms just for frequency resolution. At 1 second, variance is extremely high. **Recommendation**: 4-second sliding window with 50% overlap (2-second hop). Apply exponential moving average (EMA) with 3-5 second decay constant to the output emotion labels to reduce noise.
+
+### Artifact Rejection Thresholds (Reject the Entire Epoch)
+
+```python
+# Flag and reject any epoch where:
+amplitude_exceeded = np.any(np.abs(epoch) > 100)           # µV — blink/movement
+muscle_artifact = (high_freq_power > rolling_mean + 2*std)  # 25-40 Hz z-score
+impulsive_artifact = (kurtosis(epoch) > 10)                 # impulsive spikes
+
+if amplitude_exceeded or muscle_artifact or impulsive_artifact:
+    skip_epoch()   # do NOT classify, update rolling stats only
+```
+
+**Jaw clenching EMG extends into alpha/beta bands**: Not just gamma. Jaw artifact has significant power down to 8 Hz (alpha band), directly corrupting your primary emotion signal. Even subtle facial expressions activate frontalis under AF7/AF8.
+
+### Reference Electrode Caveat
+
+**Average reference is INVALID for Muse 2's 4 channels.** Average reference requires 64-128 evenly distributed electrodes to be mathematically valid. With 4 frontal/temporal electrodes, it distorts all spatial information.
+
+**Better option for Muse**: Treat TP9/TP10 as linked mastoid reference. Note: TP9/TP10 are themselves near the temporalis muscle and may carry emotion-related signals, which contaminates the reference. There is no perfect reference with 4-channel Muse.
+
+### Baseline Normalization Formula (Must Implement)
+
+```python
+# Record 2 min eyes-closed + 1 min eyes-open resting state.
+# Compute baseline_mean and baseline_std per feature.
+# During live classification:
+corrected_feature = (task_power - baseline_mean) / baseline_std
+
+# Why: skull thickness, hair, headset fit cause 30-50% amplitude variation
+# across individuals. Without this, cross-person classification is chance level.
+```
+
+**Re-record baseline at every session** — it drifts significantly across days.
+
+### Non-Stationarity: Why Output Drifts Over Time
+
+Even without emotional state changes, EEG features drift because:
+- **Alpha peak frequency** drops continuously with time-on-task (NeuroImage, 2019)
+- **Cortical adaptation**: EEG response to repeated stimuli weakens over time (habituation)
+- **Cross-day variability**: Cross-day accuracy degrades significantly for the same person
+
+**Fix**: Online running normalization — update feature mean/std continuously using last 5-10 minutes of clean data. Partially corrects within-session drift without full model retrain.
+
+### Self-Report Label Noise — Accuracy Ceiling
+
+DEAP/SEED use post-hoc self-assessment (SAM scale). Sources of label error:
+1. Temporal mismatch: rated after clip ends, not during
+2. Alexithymia: ~10% of people cannot reliably report their emotions
+3. Normative vs individual labels: a horror clip labeled "fearful" may feel "exciting" to some
+
+**Result**: Training labels have ~15-25% base error rate → effective accuracy ceiling of ~75-85% even with perfect signal quality. This is irreducible without real-time physiological ground truth.
+
+### Minimum Viable Session Protocol for Meaningful Output
+
+```
+1. [2 min]  Electrode settling — do not record. Wait for impedance to stabilize.
+2. [3 min]  Eyes-closed resting baseline recording.
+             Instruct: breathe normally, minimize jaw tension.
+3. [2 min]  Eyes-open resting baseline (fixation cross).
+4. [5 min]  (Recommended) Personalization calibration:
+             Show 3-4 clearly valenced clips, record labeled EEG.
+             Fine-tune normalization parameters for this user.
+Total: ~12 minutes before usable emotion data
+```
+
+**Without this protocol**: output is noise with confidence intervals spanning the entire label space.
+
+### Validated Preprocessing Pipeline (Minimum Viable)
+
+```
+1. High-pass filter: 1 Hz (zero-phase / filtfilt — remove DC drift)
+2. Notch filter: 50 or 60 Hz (DFT spectrum interpolation, not IIR notch)
+3. Low-pass filter: 45 Hz
+4. Artifact detection: reject epochs > ±100 µV or kurtosis > 10
+5. Band-power extraction: theta, alpha, beta, FAA (4-8 sec epochs)
+6. Baseline normalization: (feature - baseline_mean) / baseline_std
+7. Epoch length: 4-sec sliding window, 50% overlap (2-sec hop)
+8. Output smoothing: EMA with 3-5 sec decay constant on emotion labels
+```
+
+Current system gaps vs this pipeline: epochs are 1 sec (too short), no baseline normalization, IIR notch filter (causes phase distortion), no epoch rejection, no output EMA smoothing.
+
+---
+
 ## Session History & Major Changes
 
 | Date | Commit | Change |
