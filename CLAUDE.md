@@ -515,6 +515,88 @@ differential_entropy(signal, fs)             # Per-band differential entropy
 
 ---
 
+## 2024-2025 Research Findings (For Future Improvements)
+
+From research agent survey of 2024-2025 literature.
+
+### Why DEAP Models Fail in Real-World Deployment (10 Reasons)
+
+1. Only 32 subjects — deep models massively overfit
+2. Class imbalance (high arousal 4:1 over low arousal)
+3. Lab-only controlled stimuli (music videos)
+4. 32-channel gel EEG — channels like Pz/Oz/T7/T8 don't exist in Muse
+5. Gel electrode SNR ≠ dry electrode SNR
+6. EOG artifacts pre-removed in DEAP; raw Muse 2 has them
+7. Music-only stimuli don't generalize to other emotion induction contexts
+8. Single session per subject (no day-to-day variability)
+9. Self-report labels reflect recalled affect, not instantaneous emotion
+10. Western/young/student population (Queen Mary University London)
+
+**Result**: 98% DEAP subject-dependent → 60-70% on unseen subjects in real world.
+
+### Better Datasets to Train On (Priority Order for Muse 2)
+
+| Dataset | Subjects | Channels | Device | Download | Why Use |
+|---------|---------|---------|--------|---------|---------|
+| DREAMER | 23 | 14 | Emotiv EPOC (consumer!) | Free, Zenodo | Most similar to Muse 2 hardware |
+| FACED (2023) | 123 | 32 | Research grade | Free, Synapse account | Largest, 9-class fine-grained labels |
+| SEED-V | 20 | 62 | Research grade | Free, sign license | 5 emotions, multimodal |
+| EAV (2024) | 42 | 30 | Research grade | Free, GitHub | Conversational emotion, 5 classes |
+
+**DREAMER download**: https://zenodo.org/records/546113 (no registration needed)
+
+### Better Feature Set for 4-Channel Muse 2
+
+Current system uses: raw band powers (17 features/channel) — reasonable but not optimal.
+
+**Recommended 31-feature compact vector** (from 2024 literature):
+```
+5 DE (Differential Entropy) × 4 channels  = 20 features
+5 DASM (DE_AF8 - DE_AF7 per band)          =  5 features
+5 RASM (DE_AF8 / DE_AF7 per band)          =  5 features
+1 FAA  (ln(AF8_alpha) - ln(AF7_alpha))     =  1 feature
+Total: 31 features
+```
+
+**DASM and RASM** extend FAA to ALL frequency bands, not just alpha. They are **not currently implemented** in `eeg_processor.py`. These are the most impactful missing features.
+
+**PubMed 2024 finding on Muse**: TP10 electrode alone achieved 91.42% accuracy. AF8+TP9+TP10 combination reached 88.05% average across participants.
+
+### Best Architectures for 4-Channel Consumer EEG
+
+| Model | Why Good for Muse | Expected Acc |
+|-------|-----------------|-------------|
+| **TSception** | Asymmetry-aware spatial convolutions, works with few channels | 85-92% |
+| EEGNet | Compact (~few thousand params), edge-deployable | 79-85% |
+| 1D-CNN + LSTM | Good temporal modeling, simple to implement | 80-87% |
+| LightGBM on DE features | Interpretable, proven, fast inference | 80-88% |
+
+**TSception** is specifically designed for left/right hemisphere asymmetry (like FAA), making it ideal for Muse 2's AF7/AF8 setup.
+
+### Realistic Accuracy Targets for Muse 2
+
+- Binary valence/arousal, cross-subject: **75-85%**
+- After 5-10 min per-user fine-tuning: **85-92%**
+- Do NOT compare against DEAP subject-dependent numbers (98%+) — meaningless for deployment
+
+### Recommended Training Strategy
+
+```
+1. Pre-train on FACED (123 subjects, diverse) OR SEED (large, pre-computed DE)
+2. Domain-adapt on DREAMER (14-ch Emotiv → closest to 4-ch consumer)
+3. Fine-tune on 5-10 min of labeled user data (few-shot)
+```
+
+### Foundation Model Option (NeurIPS 2024)
+
+**EEGPT** — 10M parameter transformer pre-trained on large mixed EEG corpus.
+- Fine-tuned with linear probing on downstream tasks
+- State-of-the-art on many benchmarks
+- Code: https://github.com/BINE022/EEGPT
+- This is the "GPT moment" for EEG — expected to become dominant paradigm
+
+---
+
 ## Session History & Major Changes
 
 | Date | Commit | Change |
