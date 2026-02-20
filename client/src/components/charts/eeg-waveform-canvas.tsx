@@ -48,12 +48,36 @@ export function EEGWaveformCanvas({
   const writePos = useRef(0);           // next write index (shared across channels)
   const rafId    = useRef<number>(0);
 
-  // ── Ingest new samples from WebSocket frame ──────────────────
+  // ── Ingest new samples — listen to unthrottled CustomEvent ──────
+  // The WebSocket hook throttles React state to 1.5s for UI readability,
+  // but dispatches a raw "eeg-signals" CustomEvent on every frame (4Hz).
+  // Listening here keeps the circular buffer full so the canvas shows
+  // continuous waveforms instead of flat lines between UI updates.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const sigs = (e as CustomEvent<number[][]>).detail;
+      if (!Array.isArray(sigs)) return;
+      const buf  = bufRef.current;
+      const wpos = writePos.current;
+      for (let ch = 0; ch < Math.min(sigs.length, 4); ch++) {
+        const chunk = sigs[ch];
+        if (!Array.isArray(chunk)) continue;
+        for (let i = 0; i < chunk.length; i++) {
+          buf[ch][(wpos + i) % bufLen] = chunk[i];
+        }
+      }
+      writePos.current = (wpos + (sigs[0] ?? []).length) % bufLen;
+    };
+    window.addEventListener("eeg-signals", handler);
+    return () => window.removeEventListener("eeg-signals", handler);
+  }, [bufLen]);
+
+  // Fallback: also ingest from the (throttled) React prop so the canvas
+  // still works if someone passes signals directly without the hook.
   useEffect(() => {
     if (!signals || !Array.isArray(signals)) return;
     const buf   = bufRef.current;
     let   wpos  = writePos.current;
-
     for (let ch = 0; ch < Math.min(signals.length, 4); ch++) {
       const chunk = signals[ch];
       if (!Array.isArray(chunk)) continue;
@@ -61,9 +85,7 @@ export function EEGWaveformCanvas({
         buf[ch][(wpos + i) % bufLen] = chunk[i];
       }
     }
-    // Advance write pointer by the length of channel 0
-    const advance = (signals[0] ?? []).length;
-    writePos.current = (wpos + advance) % bufLen;
+    writePos.current = (wpos + (signals[0] ?? []).length) % bufLen;
   }, [signals, bufLen]);
 
   // ── Draw loop (requestAnimationFrame at ~30fps) ───────────────

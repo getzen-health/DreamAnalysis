@@ -745,10 +745,13 @@ export default function Dashboard() {
             <h3 className="text-sm font-medium">Brain-Health Insights</h3>
           </div>
 
-          {!healthInsights || healthInsights.length === 0 ? (
+          {!healthInsights || healthInsights.length === 0 || healthInsights[0]?.insight_type === "info" ? (
             <div className="py-6 flex flex-col items-center text-sm text-muted-foreground gap-2">
               <Brain className="h-8 w-8 text-muted-foreground/40" />
               <p>Insights appear after a few days of data</p>
+              <p className="text-xs text-muted-foreground/60 text-center px-4">
+                Complete a few EEG sessions and sync health data to unlock brain-health correlations.
+              </p>
             </div>
           ) : (
             <div className="space-y-3">

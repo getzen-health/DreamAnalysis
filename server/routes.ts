@@ -2,7 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import OpenAI from "openai";
-import { insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema, insertUserSettingsSchema } from "@shared/schema";
+import { insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema, insertUserSettingsSchema, insertEmotionReadingSchema } from "@shared/schema";
+import { db } from "./db";
+import { emotionReadings } from "@shared/schema";
+import { eq, gte, lte, avg, and } from "drizzle-orm";
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -244,6 +247,196 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(csvContent);
     } catch (error) {
       res.status(500).json({ message: "Failed to export data" });
+    }
+  });
+
+  // ── Brain history endpoints ────────────────────────────────────────
+
+  // GET /api/brain/history/:userId?days=1  — time-range emotion history (cap 2000 rows)
+  app.get("/api/brain/history/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const days = Math.min(Math.max(parseInt((req.query.days as string) || "1", 10), 1), 30);
+      const fromTs = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const readings = await storage.getEmotionReadings(userId, 2000, fromTs);
+      // Return oldest-first for chart rendering
+      res.json(readings.reverse());
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch emotion history" });
+    }
+  });
+
+  // GET /api/brain/today-totals/:userId — avg stress/focus/emotion since midnight
+  app.get("/api/brain/today-totals/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const midnight = new Date();
+      midnight.setHours(0, 0, 0, 0);
+
+      const readings = await storage.getEmotionReadings(userId, 2000, midnight);
+      if (readings.length === 0) {
+        return res.json({ userId, count: 0, avgStress: null, avgFocus: null, avgHappiness: null, avgEnergy: null, dominantEmotion: null });
+      }
+
+      const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+      const emotionCounts: Record<string, number> = {};
+      readings.forEach(r => {
+        emotionCounts[r.dominantEmotion] = (emotionCounts[r.dominantEmotion] || 0) + 1;
+      });
+      const dominantEmotion = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+      res.json({
+        userId,
+        count: readings.length,
+        avgStress: avg(readings.map(r => r.stress)),
+        avgFocus: avg(readings.map(r => r.focus)),
+        avgHappiness: avg(readings.map(r => r.happiness)),
+        avgEnergy: avg(readings.map(r => r.energy)),
+        avgValence: avg(readings.filter(r => r.valence != null).map(r => r.valence!)),
+        avgArousal: avg(readings.filter(r => r.arousal != null).map(r => r.arousal!)),
+        dominantEmotion,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch today totals" });
+    }
+  });
+
+  // GET /api/brain/at-this-time-yesterday/:userId — ±30 min window same time yesterday
+  app.get("/api/brain/at-this-time-yesterday/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const windowMs = 30 * 60 * 1000; // ±30 min
+      const fromTs = new Date(now - oneDayMs - windowMs);
+      const toTs = new Date(now - oneDayMs + windowMs);
+
+      const readings = await storage.getEmotionReadings(userId, 200, fromTs, toTs);
+      if (readings.length === 0) {
+        return res.json({ userId, count: 0, avgStress: null, avgFocus: null, avgHappiness: null });
+      }
+
+      const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+      res.json({
+        userId,
+        count: readings.length,
+        windowStart: fromTs.toISOString(),
+        windowEnd: toTs.toISOString(),
+        avgStress: avg(readings.map(r => r.stress)),
+        avgFocus: avg(readings.map(r => r.focus)),
+        avgHappiness: avg(readings.map(r => r.happiness)),
+        avgEnergy: avg(readings.map(r => r.energy)),
+        avgValence: avg(readings.filter(r => r.valence != null).map(r => r.valence!)),
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch yesterday comparison" });
+    }
+  });
+
+  // POST /api/emotion-readings/batch — bulk insert from ML backend on session stop
+  app.post("/api/emotion-readings/batch", async (req, res) => {
+    try {
+      const { readings } = req.body;
+      if (!Array.isArray(readings) || readings.length === 0) {
+        return res.status(400).json({ message: "readings array is required" });
+      }
+      if (readings.length > 5000) {
+        return res.status(400).json({ message: "Too many readings (max 5000 per batch)" });
+      }
+
+      const parsed = readings.map((r: unknown) => insertEmotionReadingSchema.parse(r));
+      const inserted = await storage.batchCreateEmotionReadings(parsed);
+      res.json({ inserted: inserted.length });
+    } catch (error) {
+      res.status(400).json({ message: "Invalid emotion readings data" });
+    }
+  });
+
+  // POST /api/datadog/webhook — Datadog monitor webhook receiver + auto-remediation
+  app.post("/api/datadog/webhook", async (req, res) => {
+    try {
+      const payload = req.body as Record<string, unknown>;
+      const alertType = (payload.alert_type as string) || "";
+      const monitorId = String(payload.id ?? "");
+      const monitorName = String(payload.monitor_name ?? payload.title ?? "");
+
+      // Log the webhook event
+      console.log(`[datadog-webhook] ${alertType} — ${monitorName} (${monitorId})`);
+
+      let remediationAction: string | null = null;
+      let remediationStatus = "skipped";
+      let remediationDetail: string | null = null;
+
+      // Auto-remediation: model inference errors → trigger model reload
+      if (alertType === "trigger" && monitorName.toLowerCase().includes("model_inference_error")) {
+        remediationAction = "POST /api/models/reload";
+        try {
+          const ML_API_URL = process.env.ML_API_URL || "http://localhost:8000";
+          const reloadRes = await fetch(`${ML_API_URL}/api/models/reload`, { method: "POST" });
+          remediationStatus = reloadRes.ok ? "success" : "failed";
+          remediationDetail = `HTTP ${reloadRes.status}`;
+        } catch (err) {
+          remediationStatus = "failed";
+          remediationDetail = String(err);
+        }
+      }
+
+      // Persist audit log if DB available
+      if (process.env.DATABASE_URL) {
+        try {
+          const { datadogErrorLog } = await import("@shared/schema");
+          await db.insert(datadogErrorLog).values({
+            monitorId,
+            monitorName,
+            alertType,
+            errorType: (payload.error_type as string) ?? null,
+            payload,
+            remediationAction,
+            remediationStatus,
+            remediationDetail,
+          });
+        } catch {
+          // Non-fatal: DB log failure shouldn't break webhook response
+        }
+      }
+
+      res.json({ received: true, remediationAction, remediationStatus });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to process Datadog webhook" });
+    }
+  });
+
+  // ── ML backend proxy: /api/ml/* → http://localhost:8000/* ────────
+  // Forwards all /api/ml/... requests to the FastAPI ML service so
+  // browser-side code (e.g. ContinuousBrainTimeline) can use relative
+  // URLs instead of hard-coding port 8000.
+  app.all("/api/ml/*", async (req, res) => {
+    const ML_API_URL = process.env.ML_API_URL || "http://localhost:8000";
+    const mlPath = req.path.replace(/^\/api\/ml/, "");
+    const queryStr = new URLSearchParams(
+      req.query as Record<string, string>
+    ).toString();
+    const targetUrl = `${ML_API_URL}${mlPath}${queryStr ? `?${queryStr}` : ""}`;
+
+    try {
+      const hasBody = req.method !== "GET" && req.method !== "HEAD";
+      const mlRes = await fetch(targetUrl, {
+        method: req.method,
+        headers: { "Content-Type": "application/json" },
+        body: hasBody ? JSON.stringify(req.body) : undefined,
+      });
+
+      const contentType = mlRes.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await mlRes.json();
+        return res.status(mlRes.status).json(data);
+      }
+      const text = await mlRes.text();
+      return res.status(mlRes.status).type(contentType || "text/plain").send(text);
+    } catch (error) {
+      return res
+        .status(503)
+        .json({ message: "ML backend unavailable", error: String(error) });
     }
   });
 

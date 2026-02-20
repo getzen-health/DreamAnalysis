@@ -37,7 +37,7 @@ interface EEGStreamFrame {
       probabilities: Record<string, number>;
     };
     emotions?: {
-      emotion: string;
+      emotion: string | null;  // null while buffering the first 30s
       confidence: number;
       valence: number;
       arousal: number;
@@ -46,6 +46,10 @@ interface EEGStreamFrame {
       relaxation_index: number;
       probabilities?: Record<string, number>;
       band_powers?: Record<string, number>;
+      // 30-second window metadata
+      ready?: boolean;         // true once first 30s window is complete
+      buffered_sec?: number;   // seconds of EEG buffered so far
+      window_sec?: number;     // target window length (30)
     };
     dream_detection?: {
       is_dreaming: boolean;
@@ -211,6 +215,14 @@ function useDeviceInternal(): UseDeviceReturn {
       try {
         const frame: EEGStreamFrame = JSON.parse(event.data);
         const now = Date.now();
+
+        // Dispatch raw signals immediately (unthrottled) so EEGWaveformCanvas
+        // can fill its circular buffer at full 4Hz without waiting for UI throttle.
+        if (frame.signals) {
+          window.dispatchEvent(
+            new CustomEvent("eeg-signals", { detail: frame.signals })
+          );
+        }
 
         // Throttle UI updates to every FRAME_THROTTLE_MS so humans can read values
         if (now - lastFrameTimeRef.current >= FRAME_THROTTLE_MS) {
