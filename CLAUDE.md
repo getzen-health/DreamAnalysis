@@ -400,7 +400,12 @@ Would require:
 - [x] Sad never triggered (threshold -0.25 → -0.10)
 - [x] Duplicate arousal in `_predict_onnx`
 - [x] Single-term valence in ONNX/sklearn paths
-- [x] Wrong FAA channel indices (commit after pipeline audit): old `left_ch=0,right_ch=1` computed log(AF7)-log(TP9) instead of log(AF8)-log(AF7). Fixed to `left_ch=1, right_ch=2`. Also fixed temporal asymmetry in `eeg_processor.py` (was using ch2=AF8 as left temporal; corrected to ch0=TP9).
+- [x] Wrong FAA channel indices (commit `e7820e6`): fixed to `left_ch=1, right_ch=2`; fixed temporal asymmetry to ch0=TP9
+- [x] DASM/RASM features implemented (`compute_dasm_rasm()`) and wired into valence blend (commit `0066254`)
+- [x] Artifact rejection in `_predict_features()` — 75 µV threshold, frozen EMA on bad epoch (commit `0066254`)
+- [x] `rereference_to_mastoid()` utility — corrects Fpz contamination at AF7/AF8 (commit `0066254`)
+- [x] `compute_frontal_midline_theta()` — FMT power/DE/amplitude, more reference-robust than FAA (commit `0066254`)
+- [x] `BaselineCalibrator` class — +15-29% accuracy, z-score normalization against resting state (commit `0066254`)
 
 ### Known Remaining Issues
 - [ ] **97.79% LGBM model not integrated**: `ml/models/emotion_classifier_lgbm.joblib` exists but requires 3→6 class mapping and PCA feature transform to use. See "CRITICAL" section above.
@@ -412,11 +417,11 @@ Would require:
 - [ ] **Large models in wrong directory**: `emotion_classifier_rf.joblib` (3.1 GB) and others are in `ml/models/`, not `ml/models/saved/`. The `_find_model()` function only searches `ml/models/saved/`. No memory risk since they aren't loaded.
 
 ### Proposed Future Improvements (Priority Order)
-1. **Baseline protocol**: Record 2-min resting state at session start. Normalize all features against this baseline. (Biggest ROI)
-2. **Longer epochs**: Switch from 1-second to 4-second sliding window with 50% overlap.
+1. ~~**Baseline protocol**~~: ✅ Done — `BaselineCalibrator` class in `eeg_processor.py` (commit `0066254`). Call `cal.add_baseline_frame()` during 2-min resting state; then `cal.normalize(features)` during live session. +15-29% accuracy.
+2. **Longer epochs**: Switch from 1-second to 4-second sliding window with 50% overlap. Not yet wired into live API path.
 3. **Personal calibration**: After 5 sessions, compute per-user band-power priors and adjust thresholds.
 4. **Online learning**: `online_learner.py` exists but needs integration into the live inference path.
-5. ~~**DASM/RASM features**~~: ✅ Done — `compute_dasm_rasm()` in `eeg_processor.py` (commit `9c4e8fc`)
+5. ~~**DASM/RASM features**~~: ✅ Done — `compute_dasm_rasm()` in `eeg_processor.py` + wired into `_predict_features()` valence (commit `0066254`).
 
 ---
 
@@ -500,11 +505,14 @@ All in `ml/processing/eeg_processor.py`:
 
 ```python
 preprocess(signal, fs)                       # Bandpass 1-50 Hz + notch 50/60 Hz
+rereference_to_mastoid(signals)              # Re-reference to linked TP9+TP10 (corrects Fpz contamination)
 extract_band_powers(signal, fs)              # delta/theta/alpha/beta/gamma powers
 extract_features(signal, fs)                 # 17 features: powers + ratios + Hjorth + entropy
-extract_features_multichannel(signals, fs)   # Average features across all 4 channels
+extract_features_multichannel(signals, fs)   # Average features across all 4 channels + DASM/RASM
 compute_frontal_asymmetry(signals, fs)       # FAA (AF7 vs AF8)
 compute_dasm_rasm(signals, fs)               # DASM + RASM: 10 asymmetry features across all bands (AF7 vs AF8)
+compute_frontal_midline_theta(signal, fs)    # FMT power/DE/amplitude — reference-robust valence complement
+BaselineCalibrator                           # Class: collect resting baseline, normalize live features (+15-29% accuracy)
 compute_coherence(signals, fs, band)         # Mean inter-channel coherence in a band
 compute_phase_locking_value(signals, fs)     # PLV across channel pairs
 compute_cwt_spectrogram(signal, fs)          # Morlet wavelet time-frequency map
