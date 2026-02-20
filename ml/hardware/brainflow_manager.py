@@ -5,6 +5,7 @@ Gracefully degrades if brainflow is not installed.
 """
 
 import threading
+import numpy as np
 from typing import Dict, List, Optional, Callable
 
 try:
@@ -207,7 +208,15 @@ class BrainFlowManager:
             eeg_channels = BoardShim.get_eeg_channels(self._board_id)
             timestamp_channel = BoardShim.get_timestamp_channel(self._board_id)
 
-            signals = data[eeg_channels].tolist()
+            signals_np = data[eeg_channels]  # shape: (n_channels, n_samples)
+
+            # Apply mastoid re-reference for Muse devices (ch0=TP9, ch3=TP10 are mastoids)
+            is_muse = self.current_device_type and self.current_device_type.startswith("muse_")
+            if is_muse and signals_np.shape[0] >= 4:
+                from processing.eeg_processor import rereference_to_mastoid
+                signals_np = rereference_to_mastoid(signals_np, left_mastoid_ch=0, right_mastoid_ch=3)
+
+            signals = signals_np.tolist()
             timestamps = data[timestamp_channel].tolist() if timestamp_channel < data.shape[0] else []
 
             return {
