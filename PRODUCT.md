@@ -217,8 +217,9 @@ Every demo requires running `uvicorn` locally. Not a product.
 - [ ] Show confidence on emotion label ("likely relaxed — 68%")
 
 ### Phase 1 — Create the aha moment (2–3 weeks)
-- [ ] Real-time biofeedback screen during breathing exercise
-      (user watches stress line drop live while breathing)
+- [x] Real-time biofeedback screen during breathing exercise
+      (/biofeedback — 4 exercises, expanding circle, live stress chart,
+      before/after comparison, works with or without Muse)
 - [ ] Baseline calibration screen (2-min eyes-closed session at start)
 - [ ] Device pairing flow with signal quality check
 

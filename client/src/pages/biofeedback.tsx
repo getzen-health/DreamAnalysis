@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+// PRODUCT.md: Phase 1 — The aha moment. User watches stress drop live during breathing.
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
