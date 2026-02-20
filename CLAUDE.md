@@ -406,22 +406,29 @@ Would require:
 - [x] `rereference_to_mastoid()` utility — corrects Fpz contamination at AF7/AF8 (commit `0066254`)
 - [x] `compute_frontal_midline_theta()` — FMT power/DE/amplitude, more reference-robust than FAA (commit `0066254`)
 - [x] `BaselineCalibrator` class — +15-29% accuracy, z-score normalization against resting state (commit `0066254`)
+- [x] **Mastoid re-reference wired into live BrainFlow stream** — `brainflow_manager.get_current_data()` now applies `rereference_to_mastoid()` for all Muse devices before data reaches the classifier (commit `c675edd`)
+- [x] **4-second sliding epoch buffer in `/analyze-eeg`** — `_EpochBuffer` accumulates frames into 4-sec windows (50% overlap, 2-sec hop); response includes `epoch_ready` flag (commit `19e74d7`)
+- [x] **BaselineCalibrator exposed via API** — three endpoints: `POST /calibration/baseline/add-frame`, `GET /calibration/baseline/status`, `POST /calibration/baseline/reset` (commit `87e0c56`)
+- [x] **FMT added to emotion output** — `compute_frontal_midline_theta()` called on AF7 channel and returned as `frontal_midline_theta` key in all `_predict_features()` return paths (commit `378af43`)
 
 ### Known Remaining Issues
 - [ ] **97.79% LGBM model not integrated**: `ml/models/emotion_classifier_lgbm.joblib` exists but requires 3→6 class mapping and PCA feature transform to use. See "CRITICAL" section above.
-- [ ] **No baseline calibration**: Emotion readings are absolute, not relative to the user's resting state. A 2-minute resting-state recording at session start would dramatically improve accuracy (published: +15-29% improvement).
-- [ ] **1-second epoch too short**: Welch PSD needs 4-8 seconds for stable spectral estimates. Training was done on 4–10 second windows. Short epochs = noisy predictions. Consider 4-second sliding window with 50% overlap.
+- [x] ~~**No baseline calibration**~~: ✅ Fixed — `BaselineCalibrator` API endpoints added (commit `87e0c56`). Call `POST /calibration/baseline/add-frame` once per second during 2-min resting state; `is_ready=true` after 30 frames.
+- [x] ~~**1-second epoch too short**~~: ✅ Fixed — 4-second sliding window buffer added to `/analyze-eeg` (commit `19e74d7`). `epoch_ready=false` in response until 4 seconds buffered.
 - [ ] **No personalization**: The feature-based heuristics use population-average thresholds. Individual users have very different baselines (within-subject vs cross-subject gap: 26 points).
 - [ ] **EMG at TP9/TP10**: Temporal channels are also near muscles. Artifact rejection/ICA would help.
 - [ ] **Creativity/Memory models likely overfit**: 850 samples × 4 classes → ~212 per class is too few for reliable generalization.
 - [ ] **Large models in wrong directory**: `emotion_classifier_rf.joblib` (3.1 GB) and others are in `ml/models/`, not `ml/models/saved/`. The `_find_model()` function only searches `ml/models/saved/`. No memory risk since they aren't loaded.
 
 ### Proposed Future Improvements (Priority Order)
-1. ~~**Baseline protocol**~~: ✅ Done — `BaselineCalibrator` class in `eeg_processor.py` (commit `0066254`). Call `cal.add_baseline_frame()` during 2-min resting state; then `cal.normalize(features)` during live session. +15-29% accuracy.
-2. **Longer epochs**: Switch from 1-second to 4-second sliding window with 50% overlap. Not yet wired into live API path.
-3. **Personal calibration**: After 5 sessions, compute per-user band-power priors and adjust thresholds.
-4. **Online learning**: `online_learner.py` exists but needs integration into the live inference path.
-5. ~~**DASM/RASM features**~~: ✅ Done — `compute_dasm_rasm()` in `eeg_processor.py` + wired into `_predict_features()` valence (commit `0066254`).
+1. ~~**Baseline protocol**~~: ✅ Done — `BaselineCalibrator` class in `eeg_processor.py` (commit `0066254`) + API endpoints (commit `87e0c56`). Call `add-frame` during 2-min resting state; normalize features before classification. +15-29% accuracy.
+2. ~~**Longer epochs**~~: ✅ Done — 4-second sliding window buffer in `/analyze-eeg` (commit `19e74d7`). Slides every 2 sec (50% overlap). Response includes `epoch_ready` flag.
+3. ~~**Mastoid re-reference in live stream**~~: ✅ Done — `brainflow_manager.get_current_data()` now applies mastoid re-referencing for all Muse devices (commit `c675edd`).
+4. ~~**FMT in emotion output**~~: ✅ Done — `frontal_midline_theta` key added to all `_predict_features()` return paths (commit `378af43`).
+5. **Personal calibration**: After 5 sessions, compute per-user band-power priors and adjust thresholds.
+6. **Online learning**: `online_learner.py` exists but needs integration into the live inference path.
+7. ~~**DASM/RASM features**~~: ✅ Done — `compute_dasm_rasm()` in `eeg_processor.py` + wired into `_predict_features()` valence (commit `0066254`).
+8. **DREAMER dataset + retrain**: Download from Zenodo (free, no registration). Feature pipeline is now ready (DASM/RASM + FMT + mastoid reref all in place). Expected to close the domain gap vs DEAP.
 
 ---
 
