@@ -8,6 +8,11 @@ function getMLApiUrl(): string {
   } catch { /* SSR / private browsing fallback */ }
   return ML_API_URL_DEFAULT;
 }
+
+/** Extra headers needed when routing through ngrok (bypasses browser interstitial). */
+function ngrokHeaders(): Record<string, string> {
+  return getMLApiUrl().includes("ngrok") ? { "ngrok-skip-browser-warning": "true" } : {};
+}
 const EXPRESS_URL = import.meta.env.VITE_EXPRESS_URL || "";
 
 // ─── Express API helpers ─────────────────────────────────────────────────
@@ -291,6 +296,7 @@ async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...ngrokHeaders(),
       ...options?.headers,
     },
   });
@@ -301,7 +307,10 @@ async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
 }
 
 async function mlFetchRaw(endpoint: string, options?: RequestInit): Promise<string> {
-  const response = await fetch(`${getMLApiUrl()}/api${endpoint}`, options);
+  const response = await fetch(`${getMLApiUrl()}/api${endpoint}`, {
+    ...options,
+    headers: { ...ngrokHeaders(), ...((options?.headers as Record<string, string>) ?? {}) },
+  });
   if (!response.ok) {
     throw new Error(`ML API error: ${response.status} ${response.statusText}`);
   }
@@ -598,7 +607,9 @@ export function getWebSocketUrl(): string {
   const url = getMLApiUrl();
   const wsProtocol = url.startsWith("https") ? "wss" : "ws";
   const host = url.replace(/^https?:\/\//, "");
-  return `${wsProtocol}://${host}/ws/eeg-stream`;
+  const base = `${wsProtocol}://${host}/ws/eeg-stream`;
+  // ngrok requires this query param to skip the browser-warning interstitial
+  return url.includes("ngrok") ? `${base}?ngrok-skip-browser-warning=true` : base;
 }
 
 // ─── Health Integration ─────────────────────────────────────────────────
