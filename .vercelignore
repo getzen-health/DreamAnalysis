@@ -13,6 +13,20 @@ attached_assets
 # ML backend — deployed separately to Render
 ml/
 
+# Individual API function files — replaced by api/[...path].ts catch-all
+# (Vercel Hobby plan limit: 12 serverless functions; we had 21)
+api/auth/
+api/dreams/
+api/dream-analysis/
+api/ai-chat/
+api/emotions/
+api/health-metrics/
+api/settings/
+api/export/
+api/insights/
+api/notifications/
+api/analyze-mood.ts
+
 # Python artifacts
 **/__pycache__/
 **/*.pyc
