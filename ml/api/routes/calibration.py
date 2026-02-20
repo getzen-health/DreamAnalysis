@@ -1,9 +1,10 @@
 """Personal model calibration and feedback endpoints (Phase 9)."""
 
+import threading
 import numpy as np
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import Dict, List
 
 from ._shared import (
     _get_personal_model,
@@ -14,13 +15,22 @@ from processing.eeg_processor import BaselineCalibrator
 
 router = APIRouter()
 
-# Module-level BaselineCalibrator singleton (one per server instance)
-_baseline_cal = BaselineCalibrator()
+# Per-user BaselineCalibrator instances, keyed by user_id
+_baseline_cals: Dict[str, BaselineCalibrator] = {}
+_baseline_cals_lock = threading.Lock()
+
+def _get_baseline_cal(user_id: str) -> BaselineCalibrator:
+    """Return the per-user BaselineCalibrator, creating it on first use."""
+    with _baseline_cals_lock:
+        if user_id not in _baseline_cals:
+            _baseline_cals[user_id] = BaselineCalibrator()
+        return _baseline_cals[user_id]
 
 
 class BaselineFrameRequest(BaseModel):
     signals: List[List[float]]   # shape: (n_channels, n_samples)
     fs: float = 256.0
+    user_id: str = "default"
 
 
 @router.post("/calibration/start")
@@ -86,8 +96,9 @@ async def baseline_add_frame(request: BaselineFrameRequest):
         signals = np.array(request.signals)
         if signals.ndim == 1:
             signals = signals.reshape(1, -1)
-        _baseline_cal.add_baseline_frame(signals, request.fs)
-        status = _baseline_cal.to_dict()
+        cal = _get_baseline_cal(request.user_id)
+        cal.add_baseline_frame(signals, request.fs)
+        status = cal.to_dict()
         ready = status["is_ready"]
         return {
             "status": "ok",
@@ -104,9 +115,9 @@ async def baseline_add_frame(request: BaselineFrameRequest):
 
 
 @router.get("/calibration/baseline/status")
-async def baseline_status():
+async def baseline_status(user_id: str = "default"):
     """Return current baseline calibrator status."""
-    status = _baseline_cal.to_dict()
+    status = _get_baseline_cal(user_id).to_dict()
     return {
         "n_frames": status["n_frames"],
         "ready": status["is_ready"],
@@ -115,7 +126,7 @@ async def baseline_status():
 
 
 @router.post("/calibration/baseline/reset")
-async def baseline_reset():
+async def baseline_reset(user_id: str = "default"):
     """Clear all collected baseline frames and start over."""
-    _baseline_cal.reset()
+    _get_baseline_cal(user_id).reset()
     return {"status": "reset", "message": "Baseline calibrator cleared. Collect a fresh 2-min resting baseline."}

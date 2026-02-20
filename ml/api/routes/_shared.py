@@ -162,6 +162,7 @@ def _get_personal_model(user_id: str):
 class EEGInput(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
     fs: float = Field(default=256.0, description="Sampling frequency in Hz")
+    user_id: str = Field(default="default", description="User identifier for per-user state isolation")
 
 
 class SimulateRequest(BaseModel):

@@ -1,6 +1,7 @@
 """Core EEG analysis endpoints: /analyze-eeg, /simulate-eeg."""
 
 import threading
+from typing import Dict
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
@@ -73,7 +74,15 @@ class _EpochBuffer:
         return buf_copy, epoch_ready
 
 
-_epoch_buffer = _EpochBuffer()
+_epoch_buffers: Dict[str, _EpochBuffer] = {}
+_epoch_buffers_lock = threading.Lock()
+
+def _get_epoch_buffer(user_id: str) -> _EpochBuffer:
+    """Return the per-user epoch buffer, creating it on first use."""
+    with _epoch_buffers_lock:
+        if user_id not in _epoch_buffers:
+            _epoch_buffers[user_id] = _EpochBuffer()
+        return _epoch_buffers[user_id]
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -86,10 +95,11 @@ async def analyze_eeg(input_data: EEGInput):
             signals = signals.reshape(1, -1)
 
         fs = input_data.fs
+        user_id = input_data.user_id
         n_channels = signals.shape[0]
 
-        # Accumulate into epoch buffer; use 4-second window when available
-        signals, epoch_ready = _epoch_buffer.push_and_get(signals, fs)
+        # Accumulate into per-user epoch buffer; use 4-second window when available
+        signals, epoch_ready = _get_epoch_buffer(user_id).push_and_get(signals, fs)
         n_channels = signals.shape[0]   # re-read after buffer update
 
         if n_channels > 1:
@@ -171,7 +181,7 @@ async def analyze_eeg(input_data: EEGInput):
         # Personal model blending
         personal = None
         try:
-            pm = _get_personal_model("default")
+            pm = _get_personal_model(user_id)
             if pm:
                 personal = pm.predict(features)
         except Exception:
