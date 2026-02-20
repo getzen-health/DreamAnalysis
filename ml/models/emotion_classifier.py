@@ -13,8 +13,12 @@ from typing import Dict, Optional
 from collections import deque
 from processing.eeg_processor import (
     extract_band_powers, differential_entropy, extract_features, preprocess,
-    compute_frontal_asymmetry, compute_theta_gamma_coupling,
+    compute_frontal_asymmetry, compute_theta_gamma_coupling, compute_dasm_rasm,
 )
+
+# Amplitude threshold above which an epoch is flagged as artifact-contaminated.
+# From Krigolson (2021): 75 µV catches most blinks (100-200 µV) and EMG bursts.
+_ARTIFACT_THRESHOLD_UV = 75.0
 
 EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"]
 
@@ -262,6 +266,39 @@ class EmotionClassifier:
           discriminator in angry vs fearful distinction.
         - Delta (0.5-4 Hz): deep sleep, regeneration
         """
+        # ── Artifact rejection ───────────────────────────────────
+        # Reject epochs with extreme amplitude (eye blinks: 100-200 µV, EMG bursts).
+        # Return the last EMA-smoothed state rather than a noisy artifact-driven result.
+        max_amp = float(np.max(np.abs(eeg)))
+        if max_amp > _ARTIFACT_THRESHOLD_UV:
+            if self._ema_probs is not None:
+                smoothed = self._ema_probs / (self._ema_probs.sum() + 1e-10)
+                emotion_idx = int(np.argmax(smoothed))
+                top_conf = float(smoothed[emotion_idx])
+                emotion_label = EMOTIONS[emotion_idx] if top_conf >= 0.25 else "neutral"
+                result = {e: float(smoothed[i]) for i, e in enumerate(EMOTIONS)}
+                # Return frozen EMA state — do not update with artifact epoch
+                return {
+                    "emotion": emotion_label, "emotion_index": emotion_idx,
+                    "confidence": top_conf, "probabilities": result,
+                    "valence": 0.0, "arousal": 0.5,
+                    "stress_index": 0.5, "focus_index": 0.5,
+                    "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
+                    "band_powers": {}, "differential_entropy": {},
+                    "dasm_rasm": {}, "artifact_detected": True,
+                }
+            # No prior EMA — return neutral with artifact flag
+            neutral = {e: 1.0 / 6 for e in EMOTIONS}
+            return {
+                "emotion": "neutral", "emotion_index": 5,
+                "confidence": 1.0 / 6, "probabilities": neutral,
+                "valence": 0.0, "arousal": 0.5,
+                "stress_index": 0.5, "focus_index": 0.5,
+                "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
+                "band_powers": {}, "differential_entropy": {},
+                "dasm_rasm": {}, "artifact_detected": True,
+            }
+
         # ── Multichannel support ─────────────────────────────────
         # Keep original channels array for FAA; use channel 0 (AF7) for band powers.
         channels = eeg if eeg.ndim == 2 else None
@@ -312,6 +349,24 @@ class EmotionClassifier:
             asym = compute_frontal_asymmetry(channels, fs, left_ch=1, right_ch=2)
             faa_valence = asym.get("asymmetry_valence", 0.0)
 
+        # ── DASM Alpha (DE-based asymmetry complement to FAA) ────
+        # DASM_alpha = DE(AF8_alpha) - DE(AF7_alpha). Same directional meaning as FAA
+        # but computed from differential entropy rather than raw log-power. Adds an
+        # independent estimate of hemispheric alpha asymmetry for valence blending.
+        # DASM_beta used to refine stress: right-dominant beta elevation = withdrawal stress.
+        dasm_rasm: Dict = {}
+        dasm_alpha_valence = 0.0
+        dasm_beta_stress = 0.0
+        if channels is not None and channels.shape[0] >= 3:
+            dasm_rasm = compute_dasm_rasm(channels, fs, left_ch=1, right_ch=2)
+            dasm_alpha_valence = float(
+                np.clip(np.tanh(dasm_rasm.get("dasm_alpha", 0.0)), -1, 1)
+            )
+            # Positive dasm_beta = right-dominant beta = slight withdrawal/stress signal
+            dasm_beta_stress = float(
+                np.clip(np.tanh(dasm_rasm.get("dasm_beta", 0.0) * 0.5), 0, 1)
+            )
+
         # ── Valence (pleasantness) ──────────────────────────────
         # Alpha/beta ratio (ABR) as secondary valence signal.
         # Reference ratio 0.7: eyes-open resting naturally has beta > alpha (ratio ~0.5-0.8).
@@ -320,9 +375,15 @@ class EmotionClassifier:
             0.65 * np.tanh((alpha_beta_ratio - 0.7) * 2.0)
             + 0.35 * np.tanh((alpha - 0.15) * 4)
         )
-        if channels is not None and channels.shape[0] >= 2:
-            # 50% FAA + 50% ABR when multichannel available.
-            # FAA provides left/right asymmetry (primary); ABR provides overall spectral context.
+        if channels is not None and channels.shape[0] >= 3 and dasm_rasm:
+            # 3-signal blend: ABR + FAA + DASM_alpha (all three available).
+            # DASM_alpha provides an independent DE-based asymmetry estimate.
+            valence = float(np.clip(
+                0.40 * valence_abr + 0.35 * faa_valence + 0.25 * dasm_alpha_valence,
+                -1, 1
+            ))
+        elif channels is not None and channels.shape[0] >= 2:
+            # 2-signal blend: ABR + FAA
             valence = float(np.clip(0.50 * valence_abr + 0.50 * faa_valence, -1, 1))
         else:
             valence = float(np.clip(valence_abr, -1, 1))
@@ -424,12 +485,14 @@ class EmotionClassifier:
         emotion_idx = int(np.argmax(smoothed))
 
         # ── Mental state indices (0-1 scale) ────────────────────
-        # Stress: high beta/alpha ratio + low alpha + high-beta elevation.
+        # Stress: high beta/alpha ratio + low alpha + high-beta + optional DASM beta.
+        # DASM beta (10% weight): right-dominant beta correlates with withdrawal stress.
         # Gamma excluded — EMG noise at AF7/AF8 inflates stress artificially (jaw clenching).
         stress_index = float(np.clip(
-            0.45 * min(1, beta_alpha_ratio * 0.3)
-            + 0.30 * max(0, 1 - alpha * 2.5)
-            + 0.25 * min(1, high_beta * 4),        # high-beta is the real stress marker
+            0.40 * min(1, beta_alpha_ratio * 0.3)
+            + 0.25 * max(0, 1 - alpha * 2.5)
+            + 0.25 * min(1, high_beta * 4)         # high-beta is the real stress marker
+            + 0.10 * dasm_beta_stress,              # right-dominant beta = withdrawal stress
             0, 1
         ))
 
@@ -494,6 +557,8 @@ class EmotionClassifier:
             "fear_index": fear_index,
             "band_powers": bands,
             "differential_entropy": de,
+            "dasm_rasm": dasm_rasm,
+            "artifact_detected": False,
         }
 
     # ────────────────────────────────────────────────────────────────

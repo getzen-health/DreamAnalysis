@@ -56,6 +56,34 @@ def notch_filter(data: np.ndarray, freq: float, fs: float, Q: float = 30.0) -> n
     return scipy_signal.filtfilt(b, a, data, axis=-1)
 
 
+def rereference_to_mastoid(
+    signals: np.ndarray,
+    left_mastoid_ch: int = 0,   # TP9
+    right_mastoid_ch: int = 3,  # TP10
+) -> np.ndarray:
+    """Re-reference EEG to linked mastoid average (TP9 + TP10).
+
+    Corrects the Muse 2 Fpz reference contamination that artificially suppresses
+    AF7/AF8 amplitude. After re-referencing, FAA and DASM values become more
+    accurate and comparable to the published FAA literature.
+
+    BrainFlow Muse 2 defaults: left_mastoid_ch=0 (TP9), right_mastoid_ch=3 (TP10).
+    Call BEFORE computing FAA or DASM/RASM.
+
+    Args:
+        signals: 2D array (n_channels, n_samples).
+        left_mastoid_ch: Index of left mastoid channel (TP9 = 0 for Muse 2).
+        right_mastoid_ch: Index of right mastoid channel (TP10 = 3 for Muse 2).
+
+    Returns:
+        Re-referenced signals (same shape). Mastoid channels become ~0.
+    """
+    if signals.ndim != 2 or signals.shape[0] <= max(left_mastoid_ch, right_mastoid_ch):
+        return signals
+    mastoid_ref = (signals[left_mastoid_ch] + signals[right_mastoid_ch]) / 2.0
+    return signals - mastoid_ref[np.newaxis, :]
+
+
 def preprocess(raw_eeg: np.ndarray, fs: float = 256.0) -> np.ndarray:
     """Full preprocessing pipeline: bandpass 1-50Hz + notch 50/60Hz."""
     filtered = bandpass_filter(raw_eeg, 1.0, 50.0, fs)
@@ -437,6 +465,55 @@ def compute_dasm_rasm(
     return result
 
 
+def compute_frontal_midline_theta(
+    eeg: np.ndarray, fs: float = 256.0
+) -> Dict[str, float]:
+    """Compute Frontal Midline Theta (FMT) power and amplitude features.
+
+    FMT sources from Anterior Cingulate Cortex (ACC) + medial PFC. Increases with:
+      - Cognitive load / working memory demand (linear with n-back difficulty)
+      - Positive emotional experience and relaxation from anxiety
+      - Internalized attention and meditation depth
+
+    Key advantage over FAA: FMT uses absolute power, not hemispheric asymmetry,
+    making it less sensitive to reference electrode choice and more robust for
+    real-time 4-channel systems like Muse 2.
+
+    FP1/FP2 theta asymmetry (not computed here) can discriminate anger vs. fear.
+    For single-channel use, compute on AF7 (ch1) or AF8 (ch2).
+
+    Args:
+        eeg: 1D EEG signal (single channel, preferably AF7 or AF8).
+        fs: Sampling frequency (Hz).
+
+    Returns:
+        fmt_power:     Raw theta band variance (µV²) — absolute power estimate.
+        fmt_de:        Differential entropy of theta band.
+        fmt_amplitude: Mean instantaneous amplitude via Hilbert envelope.
+        fmt_relative:  Theta as a fraction of total band power (0–1).
+    """
+    theta_filtered = bandpass_filter(eeg, 4.0, 8.0, fs)
+
+    var = float(np.var(theta_filtered))
+    de = float(0.5 * np.log(2 * np.pi * np.e * max(var, 1e-10)))
+
+    try:
+        from scipy.signal import hilbert as _hilbert
+        amplitude = float(np.mean(np.abs(_hilbert(theta_filtered))))
+    except Exception:
+        amplitude = float(np.sqrt(max(var, 0)))
+
+    psd_cache = _compute_psd(eeg, fs)
+    theta_relative = extract_band_powers(eeg, fs, psd_cache=psd_cache).get("theta", 0.0)
+
+    return {
+        "fmt_power": var,
+        "fmt_de": de,
+        "fmt_amplitude": amplitude,
+        "fmt_relative": float(theta_relative),
+    }
+
+
 def compute_theta_gamma_coupling(
     eeg: np.ndarray, fs: float = 256.0
 ) -> float:
@@ -748,3 +825,123 @@ def detect_k_complexes(
             })
 
     return k_complexes
+
+
+# ── Baseline Calibration ──────────────────────────────────────────────────────
+
+
+class BaselineCalibrator:
+    """Resting-state baseline normalization for within-session EEG features.
+
+    Records a 2–3 minute resting baseline at session start, then normalizes
+    all subsequent live features against it:
+
+        corrected = (feature - baseline_mean) / baseline_std
+
+    This corrects for inter-individual differences in skull thickness, hair,
+    electrode fit, and session-to-session drift in absolute power levels.
+
+    Published accuracy improvement: +15–29% over no baseline correction.
+    (A Novel Baseline Removal Paradigm for Subject-Independent Features, PMC9854727)
+
+    Usage:
+        cal = BaselineCalibrator()
+        # During 2-min eyes-closed resting state (call once per incoming epoch):
+        for epoch in resting_epochs:
+            cal.add_baseline_frame(epoch_4ch, fs=256.0)
+        # During live session:
+        if cal.is_ready:
+            norm_features = cal.normalize(live_features)
+    """
+
+    _MIN_BASELINE_FRAMES = 30  # ~30 seconds at 1 fps; enough for stable mean/std
+
+    def __init__(self):
+        self._frames: List[Dict[str, float]] = []
+        self._mean: Dict[str, float] = {}
+        self._std: Dict[str, float] = {}
+        self._ready = False
+
+    @property
+    def is_ready(self) -> bool:
+        """True once enough baseline frames have been collected and stats computed."""
+        return self._ready
+
+    @property
+    def n_frames(self) -> int:
+        return len(self._frames)
+
+    def add_baseline_frame(self, signals: np.ndarray, fs: float = 256.0) -> bool:
+        """Add one resting-state EEG epoch to the baseline buffer.
+
+        Automatically computes statistics when _MIN_BASELINE_FRAMES are collected.
+
+        Args:
+            signals: 1D (single channel) or 2D (n_channels, n_samples) EEG array.
+            fs: Sampling frequency.
+
+        Returns:
+            True if calibration is now ready (just crossed the threshold).
+        """
+        if signals.ndim == 2:
+            features = extract_features_multichannel(signals, fs)
+        else:
+            features = extract_features(preprocess(signals, fs), fs)
+
+        self._frames.append(features)
+
+        if len(self._frames) >= self._MIN_BASELINE_FRAMES and not self._ready:
+            self._compute_statistics()
+            return True
+        return False
+
+    def _compute_statistics(self) -> None:
+        """Compute per-feature mean and std across all baseline frames."""
+        keys = self._frames[0].keys()
+        for k in keys:
+            vals = [f[k] for f in self._frames if k in f]
+            self._mean[k] = float(np.mean(vals))
+            self._std[k] = float(np.std(vals))
+        self._ready = True
+
+    def normalize(self, features: Dict[str, float]) -> Dict[str, float]:
+        """Z-score normalize a feature dict against the resting-state baseline.
+
+        Features with near-zero baseline variance (constant at rest) are set to 0
+        to avoid division issues.
+
+        Returns features unchanged if calibration is not yet ready.
+        """
+        if not self._ready:
+            return features
+        out = {}
+        for k, v in features.items():
+            std = self._std.get(k, 0.0)
+            mean = self._mean.get(k, v)
+            out[k] = float((v - mean) / std) if std > 1e-8 else 0.0
+        return out
+
+    def reset(self) -> None:
+        """Clear all baseline data (call at the start of each new session)."""
+        self._frames.clear()
+        self._mean.clear()
+        self._std.clear()
+        self._ready = False
+
+    def to_dict(self) -> Dict:
+        """Serialize calibration state for storage/persistence."""
+        return {
+            "n_frames": len(self._frames),
+            "is_ready": self._ready,
+            "mean": self._mean,
+            "std": self._std,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "BaselineCalibrator":
+        """Restore a previously saved calibrator (e.g., from session JSON)."""
+        cal = cls()
+        cal._mean = data.get("mean", {})
+        cal._std = data.get("std", {})
+        cal._ready = bool(data.get("is_ready", False))
+        return cal
