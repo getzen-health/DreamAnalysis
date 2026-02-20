@@ -285,11 +285,18 @@ function useDeviceInternal(): UseDeviceReturn {
       setState("connected");
       const status = await getDeviceStatus();
       setDeviceStatus(status);
+      // Auto-start streaming immediately — no extra button click needed
+      await startDeviceStream();
+      setState("streaming");
+      isStreamingRef.current = true;
+      reconnectRef.current = 0;
+      openWebSocket();
+      startSession("general").catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Connection failed");
       setState("disconnected");
     }
-  }, []);
+  }, [openWebSocket]);
 
   const disconnect = useCallback(async () => {
     isStreamingRef.current = false;
