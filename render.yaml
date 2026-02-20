@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: neural-dream-ml
+    env: docker
+    dockerfilePath: ml/Dockerfile
+    dockerContext: .   # build context = repo root (same as .dockerignore)
+    plan: free         # 512 MB RAM, shared CPU, sleeps after 15 min idle
+    region: oregon     # us-west (closest to Vercel's default region)
+
+    # Render will route external traffic to this internal port
+    # Must match what uvicorn listens on (${PORT:-8000} → Render sets PORT=10000)
+    healthCheckPath: /health
+
+    envVars:
+      # Set this to your Vercel frontend URL after first deploy
+      - key: CORS_ORIGINS
+        value: http://localhost:5000,http://localhost:3000,http://localhost:5173
+      - key: ML_LOG_LEVEL
+        value: INFO
+      # Prevents Python from writing .pyc files (saves disk on free tier)
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
