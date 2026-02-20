@@ -443,6 +443,50 @@ export async function exportSession(sessionId: string, format: string = "csv"): 
   return mlFetchRaw(`/sessions/${sessionId}/export?format=${format}`);
 }
 
+// ─── Baseline Calibration (resting-state normalisation) ─────────────────
+
+export interface BaselineFrameResult {
+  status: string;
+  n_frames: number;
+  ready: boolean;
+  message: string;
+}
+
+export interface BaselineStatusResult {
+  n_frames: number;
+  ready: boolean;
+  n_features: number;
+}
+
+/** Send one second of raw EEG to the baseline calibrator. */
+export async function addBaselineFrame(
+  signals: number[][],
+  userId: string = "default",
+  fs: number = 256
+): Promise<BaselineFrameResult> {
+  return mlFetch<BaselineFrameResult>("/calibration/baseline/add-frame", {
+    method: "POST",
+    body: JSON.stringify({ signals, fs, user_id: userId }),
+  });
+}
+
+export async function getBaselineStatus(
+  userId: string = "default"
+): Promise<BaselineStatusResult> {
+  return mlFetch<BaselineStatusResult>(
+    `/calibration/baseline/status?user_id=${encodeURIComponent(userId)}`
+  );
+}
+
+export async function resetBaselineCalibration(
+  userId: string = "default"
+): Promise<{ status: string; message: string }> {
+  return mlFetch("/calibration/baseline/reset", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
+
 // ─── Calibration & Personal Models (Phase 9) ────────────────────────────
 
 export async function startCalibration(): Promise<{

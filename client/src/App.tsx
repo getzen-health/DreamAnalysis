@@ -23,6 +23,7 @@ import InnerEnergy from "@/pages/inner-energy";
 import Biofeedback from "@/pages/biofeedback";
 import SessionHistory from "@/pages/session-history";
 import SettingsPage from "@/pages/settings";
+import CalibrationPage from "@/pages/calibration";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -71,6 +72,9 @@ function AppRoutes() {
       </Route>
       <Route path="/settings">
         <AppLayout><SettingsPage /></AppLayout>
+      </Route>
+      <Route path="/calibration">
+        <AppLayout><CalibrationPage /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

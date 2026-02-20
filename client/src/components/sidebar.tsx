@@ -16,6 +16,7 @@ import {
   Sparkles,
   BookOpen,
   Wind,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -63,6 +64,7 @@ const sections: NavSection[] = [
   {
     title: "Tools",
     items: [
+      { path: "/calibration",  label: "Calibrate",     icon: SlidersHorizontal },
       { path: "/neurofeedback", label: "Neurofeedback", icon: Headphones },
       { path: "/ai-companion", label: "AI Companion", icon: MessageSquare },
       { path: "/sessions", label: "Sessions", icon: Clock },
