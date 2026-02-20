@@ -192,8 +192,8 @@ export default function DreamPatterns() {
 
   const TOOLTIP_STYLE = {
     cursor: { stroke: "hsl(220, 12%, 55%)", strokeWidth: 1, strokeDasharray: "4 4" },
-    contentStyle: { background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 10, fontSize: 11 },
-    labelStyle: { color: "hsl(220, 12%, 65%)", marginBottom: 4, fontSize: 10 },
+    contentStyle: { background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 },
+    labelStyle: { color: "var(--muted-foreground)", marginBottom: 4, fontSize: 10 },
     itemStyle: { padding: "1px 0" },
   };
 
@@ -346,8 +346,8 @@ export default function DreamPatterns() {
                     <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} width={32} />
                     <Tooltip
                       cursor={{ fill: "hsl(262, 45%, 65%)", opacity: 0.1 }}
-                      contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 10, fontSize: 11 }}
-                      labelStyle={{ color: "hsl(220, 12%, 65%)", marginBottom: 4, fontSize: 10 }}
+                      contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
+                      labelStyle={{ color: "var(--muted-foreground)", marginBottom: 4, fontSize: 10 }}
                       itemStyle={{ padding: "1px 0" }}
                       formatter={(value: number) => [`${value}%`, "Dream Intensity"]}
                     />
@@ -468,8 +468,8 @@ export default function DreamPatterns() {
                     <YAxis hide domain={[0, 100]} />
                     <Tooltip
                       cursor={{ stroke: "hsl(220, 12%, 55%)", strokeWidth: 1, strokeDasharray: "4 4" }}
-                      contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 10, fontSize: 11 }}
-                      labelStyle={{ color: "hsl(220, 12%, 65%)", marginBottom: 4, fontSize: 10 }}
+                      contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
+                      labelStyle={{ color: "var(--muted-foreground)", marginBottom: 4, fontSize: 10 }}
                       itemStyle={{ padding: "1px 0" }}
                       formatter={(value: number) => [`${value}%`]}
                     />

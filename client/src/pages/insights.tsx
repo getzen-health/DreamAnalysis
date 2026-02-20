@@ -206,7 +206,7 @@ export default function Insights() {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 22%)" opacity={0.6} />
                   <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220, 12%, 52%)" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 10, fill: "hsl(220, 12%, 52%)" }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "hsl(38, 20%, 92%)" }} />
+                  <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "var(--popover-foreground)" }} />
                   <Line type="monotone" dataKey="theta" stroke="hsl(195, 100%, 50%)" strokeWidth={2.5} dot={false} name="Theta" />
                   <Line type="monotone" dataKey="alpha" stroke="hsl(152, 60%, 48%)" strokeWidth={2.5} dot={false} name="Alpha" />
                   <Line type="monotone" dataKey="beta" stroke="hsl(38, 85%, 58%)" strokeWidth={2.5} dot={false} name="Beta" />

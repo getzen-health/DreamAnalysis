@@ -87,11 +87,12 @@ export class OpenAIService {
   /**
    * Send a chat message to the AI companion
    */
-  static async sendChatMessage(message: string, userId: string): Promise<ChatResponse> {
+  static async sendChatMessage(message: string, userId: string, history?: ChatResponse[]): Promise<ChatResponse> {
     try {
       const response = await apiRequest("POST", "/api/ai-chat", {
         message,
-        userId
+        userId,
+        history: history?.map((h) => ({ message: h.message, isUser: h.isUser })) ?? [],
       });
       
       const result = await response.json();

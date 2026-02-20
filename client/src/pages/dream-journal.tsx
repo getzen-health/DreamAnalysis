@@ -378,12 +378,12 @@ export default function DreamDetection() {
                       <YAxis hide domain={[0, 100]} />
                       <Tooltip
                         contentStyle={{
-                          background: "hsl(220, 22%, 9%)",
-                          border: "1px solid hsl(220, 18%, 20%)",
+                          background: "var(--popover)",
+                          border: "1px solid var(--border)",
                           borderRadius: 8,
                           fontSize: 12,
                         }}
-                        labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                        labelStyle={{ color: "var(--popover-foreground)" }}
                       />
                       <Area type="monotone" dataKey="rem" stroke="hsl(152, 60%, 48%)" fill="url(#remGrad)" strokeWidth={2} dot={false} name="REM Activity %" />
                       <Area type="monotone" dataKey="dreamProb" stroke="hsl(262, 45%, 65%)" fill="url(#dreamProbGrad)" strokeWidth={1.5} dot={false} name="Dream Prob %" strokeDasharray="4 4" />
@@ -521,8 +521,8 @@ export default function DreamDetection() {
                     tickLine={false}
                   />
                   <Tooltip
-                    contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                    labelStyle={{ color: "var(--popover-foreground)" }}
                     formatter={(value: number) => [STAGE_NAMES[value] || "Unknown", "Stage"]}
                   />
                   <Area type="stepAfter" dataKey="stage" stroke="hsl(262, 45%, 65%)" fill="url(#hypnoGrad)" strokeWidth={2} />
@@ -550,8 +550,8 @@ export default function DreamDetection() {
                     <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
                     <YAxis hide />
                     <Tooltip
-                      contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
-                      labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                      contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: "var(--popover-foreground)" }}
                     />
                     <Bar dataKey="avgIntensity" fill="hsl(262, 45%, 65%)" radius={[4, 4, 0, 0]} name="Intensity %" />
                   </BarChart>
@@ -582,8 +582,8 @@ export default function DreamDetection() {
                     <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, 100]} hide />
                     <Tooltip
-                      contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
-                      labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                      contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: "var(--popover-foreground)" }}
                     />
                     <Area type="monotone" dataKey="remMinutes" stroke="hsl(152, 60%, 48%)" fill="url(#remPatternGrad)" strokeWidth={2} dot={false} name="REM %" />
                   </AreaChart>
@@ -605,8 +605,8 @@ export default function DreamDetection() {
                   <XAxis dataKey="cycle" tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 10, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: "hsl(38, 20%, 92%)" }}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                    labelStyle={{ color: "var(--popover-foreground)" }}
                   />
                   <Line type="monotone" dataKey="intensity" stroke="hsl(38, 85%, 58%)" strokeWidth={2} dot={{ r: 4, fill: "hsl(38, 85%, 58%)" }} name="Intensity %" />
                   <Line type="monotone" dataKey="lucidity" stroke="hsl(200, 70%, 55%)" strokeWidth={2} dot={{ r: 4, fill: "hsl(200, 70%, 55%)" }} name="Lucidity %" />

@@ -76,6 +76,9 @@ Frontend talks to Express for CRUD + AI, and directly to FastAPI for ML inferenc
 4. **Dual charting libs** — Recharts (main) + Chart.js (legacy pages). Prefer Recharts for new work.
 5. **Large model files** — `emotion_classifier_rf.joblib` is 3.1GB. Gitignored.
 6. **No frontend tests** — No Vitest/Jest configured yet.
+7. **Always import React explicitly** — Use `import React, { ... } from "react"` in every page/component that uses `React.ReactNode` or other `React.*` type references.
+8. **All lucide-react icons must be imported** — Before using any icon (e.g. `Clock`, `Smile`, `Brain`), ensure it is listed in the `import { ... } from "lucide-react"` block at the top of the file. Missing imports cause runtime "X is not defined" crashes.
+9. **Time-series default window is always "today"** — Any chart, timeline, or data range selector that offers multiple time windows (today / yesterday / week / month / year) must default to `"today"`. Never default to a longer range.
 
 ## Testing
 

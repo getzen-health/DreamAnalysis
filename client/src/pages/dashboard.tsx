@@ -643,7 +643,7 @@ export default function Dashboard() {
                   <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={24} />
                   <Tooltip
                     cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
-                    contentStyle={{ background: "hsl(220,22%,9%)", border: "1px solid hsl(220,18%,20%)", borderRadius: 10, fontSize: 11 }}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
                     formatter={(value: number) => [`${value}%`]}
                   />
                   <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(152,60%,48%)" strokeWidth={2} dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(152,60%,48%)" }} />

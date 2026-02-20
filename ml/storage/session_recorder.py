@@ -45,7 +45,7 @@ def _post_emotion_batch(frames: List[Dict], user_id: str, session_id: str) -> in
                 "userId": user_id,
                 "sessionId": session_id,
                 "stress": float(emotions.get("stress_index", 0)),
-                "happiness": float(1 - emotions.get("stress_index", 0)),
+                "happiness": float((emotions["valence"] + 1) / 2) if emotions.get("valence") is not None else 0.5,
                 "focus": float(emotions.get("focus_index", 0)),
                 "energy": float(emotions.get("arousal", 0)),
                 "dominantEmotion": str(emotions.get("emotion", "unknown")),

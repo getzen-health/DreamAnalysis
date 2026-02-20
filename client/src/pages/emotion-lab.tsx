@@ -544,7 +544,7 @@ export default function EmotionLab() {
               <XAxis dataKey={timelineDataKey} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} />
               <Tooltip
-                contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 11 }}
+                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
                 formatter={(v: number) => [`${v}%`]}
               />
               <Line type="monotone" dataKey="focus_index"      name="Focus"  stroke="hsl(200, 70%, 55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />

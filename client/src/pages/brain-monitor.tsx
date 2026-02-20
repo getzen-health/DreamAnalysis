@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { SpectrogramChart } from "@/components/charts/spectrogram-chart";
@@ -23,6 +23,8 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Clock,
+  Smile,
 } from "lucide-react";
 import { useInference } from "@/hooks/use-inference";
 import { useDevice } from "@/hooks/use-device";
@@ -107,7 +109,9 @@ export default function BrainMonitor() {
       userId: CURRENT_USER_ID,
       sessionId: null,
       stress: analysis.emotions.stress_index ?? 0,
-      happiness: 1 - (analysis.emotions.stress_index ?? 0),
+      happiness: analysis.emotions.valence != null
+        ? Math.max(0, Math.min(1, (analysis.emotions.valence + 1) / 2))
+        : 0.5,
       focus: analysis.emotions.focus_index ?? 0,
       energy: analysis.emotions.arousal ?? 0,
       dominantEmotion: analysis.emotions.emotion ?? "unknown",
@@ -296,7 +300,7 @@ export default function BrainMonitor() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <TodayCard label="Avg Stress" value={todayTotals.avgStress} yesterday={yesterdayData?.avgStress} color="text-rose-400" />
           <TodayCard label="Avg Focus" value={todayTotals.avgFocus} yesterday={yesterdayData?.avgFocus} color="text-cyan-400" />
-          <TodayCard label="Avg Happiness" value={todayTotals.avgHappiness} yesterday={yesterdayData?.avgHappiness} color="text-amber-400" />
+          <TodayCard label="Avg Mood" value={todayTotals.avgHappiness} yesterday={yesterdayData?.avgHappiness} color="text-amber-400" />
           <TodayCard label="Avg Energy" value={todayTotals.avgEnergy} yesterday={yesterdayData?.avgEnergy} color="text-green-400" />
         </div>
       )}
@@ -345,13 +349,14 @@ export default function BrainMonitor() {
               <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220,15%,50%)" }} interval="preserveStartEnd" />
               <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220,15%,50%)" }} />
               <Tooltip
-                contentStyle={{ background: "hsl(220,22%,10%)", border: "1px solid hsl(220,22%,20%)", borderRadius: 8, fontSize: 11 }}
+                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11, color: "var(--popover-foreground)" }}
+                labelStyle={{ color: "var(--muted-foreground)", fontSize: 10 }}
                 formatter={(v: number) => `${v}%`}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Area type="monotone" dataKey="stress" stroke="hsl(340,70%,55%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} name="Stress" />
               <Area type="monotone" dataKey="focus" stroke="hsl(200,70%,55%)" fill="url(#focusGrad)" strokeWidth={1.5} dot={false} name="Focus" />
-              <Area type="monotone" dataKey="happiness" stroke="hsl(38,85%,58%)" fill="url(#happinessGrad)" strokeWidth={1.5} dot={false} name="Happiness" />
+              <Area type="monotone" dataKey="happiness" stroke="hsl(38,85%,58%)" fill="url(#happinessGrad)" strokeWidth={1.5} dot={false} name="Mood" />
             </AreaChart>
           </ResponsiveContainer>
         ) : (

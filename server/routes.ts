@@ -104,7 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/ai-chat", async (req, res) => {
     try {
-      const { message, userId } = req.body;
+      const { message, userId, history } = req.body;
 
       if (!message || typeof message !== "string") {
         return res.status(400).json({ message: "message is required" });
@@ -122,20 +122,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get recent health metrics for context
       const recentMetrics = await storage.getHealthMetrics(userId, 5);
-      const healthContext = recentMetrics.length > 0 ? 
-        `Recent health data: Heart rate ${recentMetrics[0].heartRate}, Stress level ${recentMetrics[0].stressLevel}, Sleep quality ${recentMetrics[0].sleepQuality}` : 
+      const healthContext = recentMetrics.length > 0 ?
+        `Recent health data: Heart rate ${recentMetrics[0].heartRate}, Stress level ${recentMetrics[0].stressLevel}, Sleep quality ${recentMetrics[0].sleepQuality}` :
         "";
 
       // Generate AI response
       if (!openai) return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
+
+      // Build conversation history for context (last 20 messages)
+      const historyMessages = Array.isArray(history)
+        ? (history as Array<{ message: string; isUser: boolean }>)
+            .slice(-20)
+            .map((h) => ({
+              role: (h.isUser ? "user" : "assistant") as "user" | "assistant",
+              content: h.message,
+            }))
+        : [];
+
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const response = await openai.chat.completions.create({
         model: "gpt-5",
         messages: [
           {
             role: "system",
-            content: `You are an AI wellness companion for a Brain-Computer Interface system. You help users with mood analysis, stress relief, and wellness guidance. ${healthContext} Be supportive, insightful, and provide actionable advice. Keep responses concise but meaningful.`
+            content: `You are an AI wellness companion for a Brain-Computer Interface system. You help users with mood analysis, stress relief, meditation, focus, sleep, and general wellness guidance. ${healthContext} Be warm, supportive, and provide actionable advice. You can engage in general conversation too. Keep responses clear and helpful.`
           },
+          ...historyMessages,
           {
             role: "user",
             content: message
@@ -144,7 +156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const aiResponse = response.choices[0].message.content || "I'm here to help you with your wellness journey.";
-      
+
       // Store AI response
       const aiChat = await storage.createAiChat({
         userId,
