@@ -1,5 +1,4 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { SpectrogramChart } from "@/components/charts/spectrogram-chart";
 import { NeuralNetwork } from "@/components/neural-network";
@@ -20,48 +19,16 @@ import {
   Lightbulb,
   Battery,
   Shield,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Clock,
   Smile,
 } from "lucide-react";
 import { useInference } from "@/hooks/use-inference";
 import { useDevice } from "@/hooks/use-device";
 import {
   analyzeWavelet,
-  getEmotionHistory,
-  getTodayTotals,
-  getAtThisTimeYesterday,
   type WaveletResult,
   type AnomalyResult,
-  type StoredEmotionReading,
-  type TodayTotals,
-  type YesterdayComparison,
 } from "@/lib/ml-api";
 import { MoodMusicPlayer } from "@/components/mood-music-player";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-
-// ── History window options ─────────────────────────────────────────
-type HistoryWindow = "today" | "yesterday" | "week";
-
-const HISTORY_DAYS: Record<HistoryWindow, number> = {
-  today: 1,
-  yesterday: 2, // fetch 2 days, then filter to yesterday
-  week: 7,
-};
-
-// ── User ID (placeholder — replace with real auth context) ─────────
-const CURRENT_USER_ID = "default";
 
 export default function BrainMonitor() {
   const { isLocal, latencyMs, isReady } = useInference();
@@ -72,84 +39,9 @@ export default function BrainMonitor() {
   const [wavelet, setWavelet] = useState<WaveletResult | null>(null);
   const [anomaly] = useState<AnomalyResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [historyWindow, setHistoryWindow] = useState<HistoryWindow>("today");
   const waveletTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Live frames accumulated during streaming for chart merge
-  const liveFramesRef = useRef<StoredEmotionReading[]>([]);
-
-  // ── DB history query ─────────────────────────────────────────────
-  const { data: dbHistory = [] } = useQuery<StoredEmotionReading[]>({
-    queryKey: ["emotion-history", CURRENT_USER_ID, historyWindow],
-    queryFn: () => getEmotionHistory(CURRENT_USER_ID, HISTORY_DAYS[historyWindow]),
-    refetchInterval: 60_000, // refresh every minute
-    staleTime: 30_000,
-  });
-
-  const { data: todayTotals } = useQuery<TodayTotals>({
-    queryKey: ["today-totals", CURRENT_USER_ID],
-    queryFn: () => getTodayTotals(CURRENT_USER_ID),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  });
-
-  const { data: yesterdayData } = useQuery<YesterdayComparison>({
-    queryKey: ["yesterday-comparison", CURRENT_USER_ID],
-    queryFn: () => getAtThisTimeYesterday(CURRENT_USER_ID),
-    staleTime: 5 * 60_000,
-  });
-
-  // ── Accumulate live frames into liveFramesRef ────────────────────
   const analysis = latestFrame?.analysis;
-  useEffect(() => {
-    if (!isStreaming || !analysis?.emotions) return;
-    const now = new Date().toISOString();
-    liveFramesRef.current.push({
-      id: `live-${Date.now()}`,
-      userId: CURRENT_USER_ID,
-      sessionId: null,
-      stress: analysis.emotions.stress_index ?? 0,
-      happiness: analysis.emotions.valence != null
-        ? Math.max(0, Math.min(1, (analysis.emotions.valence + 1) / 2))
-        : 0.5,
-      focus: analysis.emotions.focus_index ?? 0,
-      energy: analysis.emotions.arousal ?? 0,
-      dominantEmotion: analysis.emotions.emotion ?? "unknown",
-      valence: analysis.emotions.valence ?? null,
-      arousal: analysis.emotions.arousal ?? null,
-      timestamp: now,
-    });
-    // Cap live buffer at 500 frames (~8 min at 1fps)
-    if (liveFramesRef.current.length > 500) {
-      liveFramesRef.current = liveFramesRef.current.slice(-500);
-    }
-
-  }, [latestFrame?.timestamp]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Merged timeline: DB history + live frames (deduplicated by ts) ─
-  const mergedTimeline = useMemo(() => {
-    const liveFrames = liveFramesRef.current;
-    const dbIds = new Set(dbHistory.map(r => r.id));
-    const uniqueLive = liveFrames.filter(f => !dbIds.has(f.id));
-    const combined = [...dbHistory, ...uniqueLive];
-    combined.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return combined;
-  }, [dbHistory, isStreaming]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Chart data — downsample to max 300 points for performance ────
-  const chartData = useMemo(() => {
-    if (mergedTimeline.length === 0) return [];
-    const step = Math.max(1, Math.floor(mergedTimeline.length / 300));
-    return mergedTimeline
-      .filter((_, i) => i % step === 0)
-      .map(r => ({
-        time: new Date(r.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        stress: Math.round(r.stress * 100),
-        focus: Math.round(r.focus * 100),
-        happiness: Math.round(r.happiness * 100),
-        energy: Math.round(r.energy * 100),
-      }));
-  }, [mergedTimeline]);
 
   // ── Wavelet analysis every 2s ───────────────────────────────────
   useEffect(() => {
@@ -294,78 +186,6 @@ export default function BrainMonitor() {
         emotion={stableAnalysis?.emotions?.emotion ?? undefined}
         isStreaming={isStreaming}
       />
-
-      {/* ── Today's Totals (from DB) ──────────────────────────────────── */}
-      {todayTotals && todayTotals.count > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <TodayCard label="Avg Stress" value={todayTotals.avgStress} yesterday={yesterdayData?.avgStress} color="text-rose-400" />
-          <TodayCard label="Avg Focus" value={todayTotals.avgFocus} yesterday={yesterdayData?.avgFocus} color="text-cyan-400" />
-          <TodayCard label="Avg Mood" value={todayTotals.avgHappiness} yesterday={yesterdayData?.avgHappiness} color="text-amber-400" />
-          <TodayCard label="Avg Energy" value={todayTotals.avgEnergy} yesterday={yesterdayData?.avgEnergy} color="text-green-400" />
-        </div>
-      )}
-
-      {/* ── Historical Emotion Timeline Chart ─────────────────────────── */}
-      <Card className="glass-card p-6 rounded-xl hover-glow">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-primary" />
-            <h3 className="text-lg font-semibold">Emotion Timeline</h3>
-            <span className="text-xs text-muted-foreground font-mono">
-              {mergedTimeline.length} readings
-            </span>
-          </div>
-          {/* Window toggle */}
-          <div className="flex rounded-lg border border-border/30 overflow-hidden text-xs font-mono">
-            {(["today", "yesterday", "week"] as HistoryWindow[]).map(w => (
-              <button
-                key={w}
-                onClick={() => setHistoryWindow(w)}
-                className={`px-3 py-1.5 capitalize transition-colors ${historyWindow === w ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {w}
-              </button>
-            ))}
-          </div>
-        </div>
-        {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-              <defs>
-                <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(340,70%,55%)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(340,70%,55%)" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="focusGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(200,70%,55%)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(200,70%,55%)" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="happinessGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(38,85%,58%)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(38,85%,58%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,22%,16%)" />
-              <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220,15%,50%)" }} interval="preserveStartEnd" />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "hsl(220,15%,50%)" }} />
-              <Tooltip
-                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11, color: "var(--popover-foreground)" }}
-                labelStyle={{ color: "var(--muted-foreground)", fontSize: 10 }}
-                formatter={(v: number) => `${v}%`}
-              />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Area type="monotone" dataKey="stress" stroke="hsl(340,70%,55%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} name="Stress" />
-              <Area type="monotone" dataKey="focus" stroke="hsl(200,70%,55%)" fill="url(#focusGrad)" strokeWidth={1.5} dot={false} name="Focus" />
-              <Area type="monotone" dataKey="happiness" stroke="hsl(38,85%,58%)" fill="url(#happinessGrad)" strokeWidth={1.5} dot={false} name="Mood" />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg gap-2">
-            <Brain className="h-8 w-8 opacity-30" />
-            No historical data yet — start a recording session to see your emotion timeline
-          </div>
-        )}
-      </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* EEG Brain Waves */}
@@ -598,37 +418,6 @@ export default function BrainMonitor() {
         )}
       </Card>
     </main>
-  );
-}
-
-/* ── Today Card with yesterday comparison ──────────────────────────── */
-
-function TodayCard({
-  label,
-  value,
-  yesterday,
-  color,
-}: {
-  label: string;
-  value: number | null;
-  yesterday?: number | null;
-  color: string;
-}) {
-  const pct = value != null ? Math.round(value * 100) : null;
-  const yPct = yesterday != null ? Math.round(yesterday * 100) : null;
-  const diff = pct != null && yPct != null ? pct - yPct : null;
-
-  return (
-    <Card className="glass-card p-4 rounded-xl">
-      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${color}`}>{pct != null ? `${pct}%` : "—"}</p>
-      {diff != null && (
-        <div className={`flex items-center gap-1 text-[10px] mt-1 ${diff > 0 ? "text-rose-400" : diff < 0 ? "text-green-400" : "text-muted-foreground"}`}>
-          {diff > 0 ? <TrendingUp className="h-3 w-3" /> : diff < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-          <span>{diff > 0 ? "+" : ""}{diff}% vs yesterday</span>
-        </div>
-      )}
-    </Card>
   );
 }
 

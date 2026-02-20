@@ -4,24 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { ScoreCircle } from "@/components/score-circle";
 import {
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
-  CartesianGrid,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from "recharts";
-import {
   Heart,
   Brain,
   Activity,
   AlertCircle,
   ArrowRight,
   Moon,
-  Headphones,
   MessageSquare,
   Sparkles,
   Radio,
@@ -29,23 +17,13 @@ import {
   Eye,
   Cpu,
   MemoryStick,
-  TrendingUp,
+  Wind,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import {
   getHealthInsights,
-  listSessions,
   type HealthInsight,
-  type SessionSummary,
 } from "@/lib/ml-api";
-import { ChartTooltip } from "@/components/chart-tooltip";
-
-/* ---------- types ---------- */
-interface MoodPoint {
-  time: string;
-  mood: number;
-  stress: number;
-}
 
 /* ---------- helpers ---------- */
 const EMOTION_LABELS: Record<string, string> = {
@@ -121,18 +99,10 @@ const QUICK_ACTIONS = [
   { href: "/brain-monitor", icon: Activity, label: "Brain Monitor", color: "hsl(200, 70%, 55%)" },
   { href: "/dreams", icon: Moon, label: "Dream Journal", color: "hsl(262, 45%, 65%)" },
   { href: "/ai-companion", icon: MessageSquare, label: "AI Companion", color: "hsl(152, 60%, 48%)" },
-  { href: "/neurofeedback", icon: Headphones, label: "Neurofeedback", color: "hsl(38, 85%, 58%)" },
+  { href: "/biofeedback", icon: Wind, label: "Breathe", color: "hsl(38, 85%, 58%)" },
 ];
 
 const USER_ID = "default";
-
-const PERIOD_TABS = [
-  { label: "Today", days: 1 },
-  { label: "Week", days: 7 },
-  { label: "Month", days: 30 },
-  { label: "3 Months", days: 90 },
-  { label: "Year", days: 365 },
-];
 
 /* Metric card config */
 const HEALTH_METRICS = [
@@ -158,66 +128,6 @@ function scoreColor(score: number): string {
   if (score > 70) return "hsl(152, 60%, 48%)";
   if (score >= 40) return "hsl(38, 85%, 58%)";
   return "hsl(4, 72%, 55%)";
-}
-
-/* Build time-series chart data from sessions with the right X-axis granularity */
-type ChartPoint = { date: string; focus: number; stress: number; flow: number; creativity: number; ts: number };
-
-function avg(arr: number[]) {
-  return arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
-}
-
-function buildChartData(sessions: SessionSummary[], days: number): ChartPoint[] {
-  const map: Record<string, { focus: number[]; stress: number[]; flow: number[]; creativity: number[]; ts: number }> = {};
-
-  for (const s of sessions) {
-    if (s.summary?.avg_focus == null) continue;
-    const d = new Date((s.start_time ?? 0) * 1000);
-    let key: string;
-    let ts: number;
-
-    if (days <= 1) {
-      // Today: group by hour
-      key = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      ts = d.getTime();
-    } else if (days <= 7) {
-      // Week: group by day
-      key = d.toLocaleDateString("en-US", { weekday: "short" });
-      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    } else if (days <= 30) {
-      // Month: group by day
-      key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    } else if (days <= 90) {
-      // 3 Months: group by week starting day
-      const dayOfWeek = d.getDay();
-      const weekStart = new Date(d);
-      weekStart.setDate(d.getDate() - dayOfWeek);
-      key = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      ts = weekStart.getTime();
-    } else {
-      // Year: group by month
-      key = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-      ts = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-    }
-
-    if (!map[key]) map[key] = { focus: [], stress: [], flow: [], creativity: [], ts };
-    map[key].focus.push((s.summary.avg_focus ?? 0) * 100);
-    map[key].stress.push((s.summary.avg_stress ?? 0) * 100);
-    map[key].flow.push((s.summary.avg_flow ?? 0) * 100);
-    map[key].creativity.push((s.summary.avg_creativity ?? 0) * 100);
-  }
-
-  return Object.entries(map)
-    .sort((a, b) => a[1].ts - b[1].ts)
-    .map(([date, data]) => ({
-      date,
-      ts: data.ts,
-      focus: avg(data.focus),
-      stress: avg(data.stress),
-      flow: avg(data.flow),
-      creativity: avg(data.creativity),
-    }));
 }
 
 /* ========== Component ========== */
@@ -278,47 +188,6 @@ export default function Dashboard() {
   };
 
 
-  // Today time-series — sample every 30s for the mental health chart
-  const [todayTimeline, setTodayTimeline] = useState<
-    Array<{ time: string; focus: number; stress: number; flow: number; creativity: number }>
-  >([]);
-  const lastTimelineSampleRef = useRef(0);
-  const TIMELINE_INTERVAL_MS = 3_000; // one data point every 3 seconds
-
-  // Mood timeline — accumulate from live frames (for the fine-grained Mood Timeline chart)
-  const [moodHistory, setMoodHistory] = useState<MoodPoint[]>([]);
-
-  useEffect(() => {
-    if (!isStreaming || !emotions) return;
-    const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-
-    // Mood history: every frame (throttled by FRAME_THROTTLE_MS in useDevice)
-    setMoodHistory((prev) => [
-      ...prev.slice(-30),
-      {
-        time: now,
-        mood: Math.round(relaxationIndex * 0.5 + (100 - stressIndex) * 0.3 + focusIndex * 0.2),
-        stress: Math.round(stressIndex),
-      },
-    ]);
-
-    // Today timeline: only every 30s
-    const ts = Date.now();
-    if (ts - lastTimelineSampleRef.current >= TIMELINE_INTERVAL_MS) {
-      lastTimelineSampleRef.current = ts;
-      setTodayTimeline((prev) => [
-        ...prev.slice(-600), // keep last 30 min at 3s intervals = 600 points max
-        {
-          time: now,
-          focus: Math.round(focusIndex),
-          stress: Math.round(stressIndex),
-          flow: Math.round(flowScore),
-          creativity: Math.round(creativityScore),
-        },
-      ]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestFrame?.timestamp]);
 
 
   // Shift alert from emotion_shift
@@ -379,66 +248,13 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
-  // --- Session data queries ---
-  const [trendDays, setTrendDays] = useState(1); // default to Today
-
-  const { data: allSessions = [] } = useQuery<SessionSummary[]>({
-    queryKey: ["sessions"],
-    queryFn: () => listSessions(),
-    retry: false,
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 60_000,
-  });
-
+  // --- Health insights query ---
   const { data: healthInsights } = useQuery<HealthInsight[]>({
     queryKey: ["health", "insights", USER_ID],
     queryFn: () => getHealthInsights(USER_ID),
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
-
-  // Filter sessions by selected period
-  const periodSessions = allSessions.filter(
-    (s) => (s.start_time ?? 0) >= Date.now() / 1000 - trendDays * 86400
-  );
-
-  // Build time-series chart data with correct granularity per period
-  const sessionTrendData = buildChartData(periodSessions, trendDays);
-
-  // Peak focus hour
-  const peakFocusHour = (() => {
-    const map: Record<number, { sum: number; count: number }> = {};
-    for (const s of periodSessions) {
-      const val = s.summary?.avg_focus;
-      if (val == null) continue;
-      const h = new Date((s.start_time ?? 0) * 1000).getHours();
-      if (!map[h]) map[h] = { sum: 0, count: 0 };
-      map[h].sum += val;
-      map[h].count += 1;
-    }
-    const entries = Object.entries(map);
-    if (!entries.length) return null;
-    const best = entries.reduce((a, b) =>
-      a[1].sum / a[1].count > b[1].sum / b[1].count ? a : b
-    );
-    const h = Number(best[0]);
-    const fmt = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
-    return { label: fmt, value: Math.round((best[1].sum / best[1].count) * 100) };
-  })();
-
-  // Dominant emotion
-  const dominantEmotion = (() => {
-    const counts: Record<string, number> = {};
-    for (const s of periodSessions) {
-      const e = s.summary?.dominant_emotion;
-      if (e) counts[e] = (counts[e] ?? 0) + 1;
-    }
-    const entries = Object.entries(counts);
-    if (!entries.length) return null;
-    return entries.sort((a, b) => b[1] - a[1])[0][0];
-  })();
-
-  /* Sparkline renderer */
 
   return (
     <main className="p-6 space-y-6 max-w-6xl">
@@ -584,93 +400,7 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* 6. Mental Health Trend */}
-      <Card className="glass-card p-5 hover-glow">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium">Mental Health & Emotional Analysis</h3>
-            {trendDays === 1 && isStreaming && (
-              <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
-            )}
-          </div>
-          <div className="flex gap-1 flex-wrap">
-            {PERIOD_TABS.map((tab) => (
-              <button
-                key={tab.days}
-                onClick={() => setTrendDays(tab.days)}
-                className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                  trendDays === tab.days
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {(() => {
-          const isLiveToday = trendDays === 1 && isStreaming;
-          const baseData = isLiveToday ? todayTimeline : sessionTrendData;
-          const dataKey = isLiveToday ? "time" : "date";
-
-          const liveNow = isLiveToday
-            ? { time: "Now", focus: Math.round(focusIndex), stress: Math.round(stressIndex), flow: Math.round(flowScore), creativity: Math.round(creativityScore) }
-            : null;
-          const fullData = liveNow ? [...baseData, liveNow] : baseData;
-          const chartData = isLiveToday ? fullData.slice(-120) : fullData;
-          const hasData = chartData.length >= 1;
-          const showDots = chartData.length <= 3;
-
-          if (!hasData) {
-            return (
-              <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-                <Brain className="h-8 w-8 text-muted-foreground/40" />
-                <p>{trendDays === 1 ? "No sessions recorded today yet" : "No sessions in this period"}</p>
-                <p className="text-xs text-muted-foreground/60">Connect your Muse 2 to start recording</p>
-              </div>
-            );
-          }
-
-          return (
-            <>
-              <ResponsiveContainer width="100%" height={192}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
-                  <XAxis dataKey={dataKey} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={24} />
-                  <Tooltip
-                    cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
-                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
-                    formatter={(value: number) => [`${value}%`]}
-                  />
-                  <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(152,60%,48%)" strokeWidth={2} dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(152,60%,48%)" }} />
-                  <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} strokeDasharray="4 3" dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(38,85%,58%)" }} />
-                  <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(200,70%,55%)" strokeWidth={1.5} dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(200,70%,55%)" }} />
-                  <Line type="monotone" dataKey="creativity" name="Creativity" stroke="hsl(262,45%,65%)" strokeWidth={1.5} dot={showDots ? { r: 3 } : false} isAnimationActive={false} activeDot={{ r: 4, fill: "hsl(262,45%,65%)" }} />
-                </LineChart>
-              </ResponsiveContainer>
-              <div className="flex gap-4 mt-2 flex-wrap">
-                {[
-                  { label: "Focus",      color: "hsl(152,60%,48%)" },
-                  { label: "Stress",     color: "hsl(38,85%,58%)",  dashed: true },
-                  { label: "Flow",       color: "hsl(200,70%,55%)" },
-                  { label: "Creativity", color: "hsl(262,45%,65%)" },
-                ].map((l) => (
-                  <div key={l.label} className="flex items-center gap-1.5">
-                    <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
-                    <span className="text-[10px] text-muted-foreground">{l.label}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          );
-        })()}
-      </Card>
-
-      {/* 7. AI Insight + Brain-Health Insights (side by side) */}
+      {/* 6. AI Insight + Brain-Health Insights (side by side) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* AI Insight */}
         <div className="ai-insight-card">
@@ -750,52 +480,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* 8. Mood Timeline */}
-      <Card className="glass-card p-5 hover-glow">
-        <div className="flex items-center gap-2 mb-4">
-          <Heart className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-medium">Mood Timeline</h3>
-          {isStreaming && (
-            <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
-          )}
-        </div>
-        <div className="h-40">
-          {moodHistory.length < 2 ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              {isStreaming ? "Collecting data..." : "Connect device to see timeline"}
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={moodHistory.slice(-20)}>
-                <defs>
-                  <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="hsl(152, 60%, 48%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="hsl(38, 85%, 58%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="time" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide domain={[0, 100]} />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                />
-                <Area type="monotone" dataKey="mood" stroke="hsl(152, 60%, 48%)" fill="url(#moodGrad)" strokeWidth={2} dot={false} />
-                <Area type="monotone" dataKey="stress" stroke="hsl(38, 85%, 58%)" fill="url(#stressGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </Card>
-
-      {/* 10. Quick Actions (4 items) */}
+      {/* 7. Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
         {QUICK_ACTIONS.map((action) => {
           const Icon = action.icon;

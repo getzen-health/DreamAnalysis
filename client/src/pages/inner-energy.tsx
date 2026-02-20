@@ -8,6 +8,8 @@ import { useDevice } from "@/hooks/use-device";
 interface ChakraState {
   name: string;
   sanskrit: string;
+  meaning: string;
+  wave: string;
   activation: number;
   color: string;
 }
@@ -23,13 +25,13 @@ const CHAKRA_COLORS: Record<string, string> = {
 };
 
 const CHAKRA_INFO = [
-  { key: "root", name: "Root", sanskrit: "Muladhara" },
-  { key: "sacral", name: "Sacral", sanskrit: "Svadhisthana" },
-  { key: "solar_plexus", name: "Solar Plexus", sanskrit: "Manipura" },
-  { key: "heart", name: "Heart", sanskrit: "Anahata" },
-  { key: "throat", name: "Throat", sanskrit: "Vishuddha" },
-  { key: "third_eye", name: "Third Eye", sanskrit: "Ajna" },
-  { key: "crown", name: "Crown", sanskrit: "Sahasrara" },
+  { key: "root",        name: "Root",         sanskrit: "Muladhara",     meaning: "Grounded & secure",       wave: "Delta waves · deep sleep rhythm" },
+  { key: "sacral",      name: "Sacral",        sanskrit: "Svadhisthana",  meaning: "Creative & emotional",    wave: "Theta waves · dreamy / imaginative" },
+  { key: "solar_plexus",name: "Solar Plexus",  sanskrit: "Manipura",      meaning: "Confident & focused",     wave: "Alpha + Theta · calm alertness" },
+  { key: "heart",       name: "Heart",         sanskrit: "Anahata",       meaning: "Calm & compassionate",    wave: "Alpha waves · relaxed awareness" },
+  { key: "throat",      name: "Throat",        sanskrit: "Vishuddha",     meaning: "Alert & expressive",      wave: "Beta waves · active thinking" },
+  { key: "third_eye",   name: "Third Eye",     sanskrit: "Ajna",          meaning: "Insight & intuition",     wave: "High-beta · heightened focus" },
+  { key: "crown",       name: "Crown",         sanskrit: "Sahasrara",     meaning: "Deep awareness",          wave: "Gamma waves · peak consciousness" },
 ];
 
 function getGuidance(dominant: string, meditationDepth: string): string {
@@ -80,6 +82,8 @@ export default function InnerEnergy() {
     return CHAKRA_INFO.map((c, i) => ({
       name: c.name,
       sanskrit: c.sanskrit,
+      meaning: c.meaning,
+      wave: c.wave,
       activation: isStreaming ? activations[i] : 0,
       color: CHAKRA_COLORS[c.key],
     }));
@@ -126,6 +130,16 @@ export default function InnerEnergy() {
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">
+      {/* Page header */}
+      <div>
+        <h1 className="text-xl font-semibold mb-1">Inner Energy</h1>
+        <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+          Your brainwaves are mapped to traditional energy centres (chakras). Different brainwave frequencies correspond to different mental states —
+          slow waves (delta/theta) reflect deep rest and creativity; fast waves (beta/gamma) reflect active thinking and alertness.
+          This is a mindfulness-inspired view of your live EEG data, not a medical reading.
+        </p>
+      </div>
+
       {/* Connection Banner */}
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
@@ -159,12 +173,13 @@ export default function InnerEnergy() {
           <Badge variant="secondary" className="text-xs mt-2">
             {isStreaming ? meditationStage : "—"}
           </Badge>
+          <p className="text-[10px] text-muted-foreground mt-1 text-center">How calm & inward your mind is right now</p>
         </div>
 
         <div className="score-card p-5 flex flex-col items-center hover-glow">
           <ScoreCircle
             value={consciousnessPercent}
-            label="Consciousness"
+            label="Awareness"
             gradientId="grad-consciousness"
             colorFrom="hsl(262, 45%, 65%)"
             colorTo="hsl(320, 55%, 60%)"
@@ -173,19 +188,20 @@ export default function InnerEnergy() {
           <Badge variant="secondary" className="text-xs mt-2">
             {isStreaming ? consciousnessName : "—"}
           </Badge>
+          <p className="text-[10px] text-muted-foreground mt-1 text-center">How present & aware you feel (attention + flow + calm)</p>
         </div>
 
         <div className="score-card p-5 flex flex-col items-center hover-glow">
           <ScoreCircle
             value={thirdEyeActivation}
-            label="Third Eye"
+            label="Clarity"
             gradientId="grad-thirdeye"
             colorFrom="hsl(240, 55%, 60%)"
             colorTo="hsl(280, 50%, 60%)"
             size="md"
           />
-          <p className="text-[10px] text-muted-foreground mt-2">
-            Gamma + high-beta prefrontal
+          <p className="text-[10px] text-muted-foreground mt-2 text-center">
+            Intuition & insight — from fast brainwaves in the forehead region
           </p>
         </div>
       </div>
@@ -199,21 +215,22 @@ export default function InnerEnergy() {
             <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
           )}
         </h3>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[...chakras].reverse().map((chakra) => (
-            <div key={chakra.name} className="flex items-center gap-3">
+            <div key={chakra.name} className="flex items-start gap-3">
               <div
-                className="w-3 h-3 rounded-full shrink-0"
+                className="w-3 h-3 rounded-full shrink-0 mt-1.5"
                 style={{
                   backgroundColor: chakra.color,
                   boxShadow: `0 0 6px ${chakra.color}66`,
                 }}
               />
-              <div className="w-24 shrink-0">
+              <div className="w-28 shrink-0">
                 <div className="text-sm font-medium">{chakra.name}</div>
-                <div className="text-[10px] text-muted-foreground">{chakra.sanskrit}</div>
+                <div className="text-[10px] text-muted-foreground/60">{chakra.sanskrit}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{chakra.meaning}</div>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 pt-1">
                 <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-1000"
@@ -223,8 +240,9 @@ export default function InnerEnergy() {
                     }}
                   />
                 </div>
+                <div className="text-[9px] text-muted-foreground/50 mt-0.5">{chakra.wave}</div>
               </div>
-              <span className="text-xs font-mono text-muted-foreground w-8 text-right">
+              <span className="text-xs font-mono text-muted-foreground w-8 text-right pt-1">
                 {chakra.activation}
               </span>
             </div>
@@ -232,7 +250,8 @@ export default function InnerEnergy() {
         </div>
         {isStreaming && (
           <div className="mt-4 pt-3 border-t border-border/30 text-sm text-muted-foreground">
-            Dominant: <span className="text-foreground font-medium">{dominantChakra.name}</span>
+            Most active: <span className="text-foreground font-medium">{dominantChakra.name}</span>
+            <span className="text-muted-foreground/60 text-xs ml-2">— {dominantChakra.meaning}</span>
           </div>
         )}
       </Card>

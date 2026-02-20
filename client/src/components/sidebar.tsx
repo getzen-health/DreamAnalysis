@@ -5,12 +5,10 @@ import {
   Heart,
   Activity,
   Moon,
-  Headphones,
   MessageSquare,
   Clock,
   Settings,
   Menu,
-  Network,
   BarChart3,
   Lightbulb,
   Sparkles,
@@ -42,7 +40,6 @@ const sections: NavSection[] = [
       { path: "/", label: "Dashboard", icon: Brain },
       { path: "/emotions", label: "Emotions", icon: Heart },
       { path: "/brain-monitor", label: "Brain Monitor", icon: Activity },
-      { path: "/brain-connectivity", label: "Connectivity", icon: Network },
     ],
   },
   {
@@ -65,7 +62,6 @@ const sections: NavSection[] = [
     title: "Tools",
     items: [
       { path: "/calibration",  label: "Calibrate",     icon: SlidersHorizontal },
-      { path: "/neurofeedback", label: "Neurofeedback", icon: Headphones },
       { path: "/ai-companion", label: "AI Companion", icon: MessageSquare },
       { path: "/sessions", label: "Sessions", icon: Clock },
     ],
