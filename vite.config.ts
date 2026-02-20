@@ -27,6 +27,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // cache-bust: 2026-02-20
   },
   server: {
     fs: {
