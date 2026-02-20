@@ -271,8 +271,16 @@ function useDeviceInternal(): UseDeviceReturn {
       setBrainflowAvailable(result.brainflow_available);
       setError(null);
     } catch {
-      setError("Failed to connect to ML service");
-      setDevices([]);
+      // Backend unreachable — show static Muse device list so the user can
+      // still attempt a connection (will fail fast with a clear error if truly
+      // unreachable, but works once the ngrok URL is set in Settings).
+      setError("unreachable");
+      setBrainflowAvailable(false);
+      setDevices([
+        { type: "muse_2",      name: "Muse 2",             channels: 4,  sample_rate: 256, available: true },
+        { type: "muse_s",      name: "Muse S",             channels: 4,  sample_rate: 256, available: true },
+        { type: "synthetic",   name: "Synthetic (demo)",   channels: 16, sample_rate: 256, available: true },
+      ]);
     }
   }, []);
 

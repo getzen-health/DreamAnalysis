@@ -7,8 +7,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Wifi, WifiOff, Radio, Activity } from "lucide-react";
+import { Wifi, WifiOff, Radio, Activity, Settings } from "lucide-react";
 import { type DeviceState, type UseDeviceReturn } from "@/hooks/use-device";
+import { Link } from "wouter";
 
 interface DeviceConnectionProps {
   open: boolean;
@@ -74,7 +75,20 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
             <StatusBadge state={state} />
           </div>
 
-          {!brainflowAvailable && (
+          {error === "unreachable" && (
+            <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm text-warning space-y-1.5">
+              <p className="font-medium">ML backend not reachable</p>
+              <p className="text-xs text-muted-foreground">
+                The app can't connect to your local ML server. If you're using the hosted app, expose
+                your local backend with <strong>ngrok</strong> and paste the URL in{" "}
+                <Link href="/settings" onClick={() => onOpenChange(false)}
+                  className="underline text-primary">
+                  Settings → ML Backend
+                </Link>.
+              </p>
+            </div>
+          )}
+          {!brainflowAvailable && error !== "unreachable" && (
             <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm text-warning">
               BrainFlow not installed on ML server. Only simulation mode available.
             </div>
