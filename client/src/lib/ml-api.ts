@@ -1,4 +1,71 @@
 const ML_API_URL = import.meta.env.VITE_ML_API_URL || "http://localhost:8000";
+const EXPRESS_URL = import.meta.env.VITE_EXPRESS_URL || "";
+
+// ─── Express API helpers ─────────────────────────────────────────────────
+
+async function expressFetch<T>(path: string): Promise<T> {
+  const response = await fetch(`${EXPRESS_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`Express API error: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+}
+
+// ─── Brain history types ─────────────────────────────────────────────────
+
+export interface StoredEmotionReading {
+  id: string;
+  userId: string | null;
+  sessionId: string | null;
+  stress: number;
+  happiness: number;
+  focus: number;
+  energy: number;
+  dominantEmotion: string;
+  valence: number | null;
+  arousal: number | null;
+  timestamp: string;
+}
+
+export interface TodayTotals {
+  userId: string;
+  count: number;
+  avgStress: number | null;
+  avgFocus: number | null;
+  avgHappiness: number | null;
+  avgEnergy: number | null;
+  avgValence: number | null;
+  avgArousal: number | null;
+  dominantEmotion: string | null;
+}
+
+export interface YesterdayComparison {
+  userId: string;
+  count: number;
+  windowStart: string;
+  windowEnd: string;
+  avgStress: number | null;
+  avgFocus: number | null;
+  avgHappiness: number | null;
+  avgEnergy: number | null;
+  avgValence: number | null;
+}
+
+// ─── Brain history fetch functions ──────────────────────────────────────
+
+export async function getEmotionHistory(userId: string, days: number = 1): Promise<StoredEmotionReading[]> {
+  return expressFetch<StoredEmotionReading[]>(`/api/brain/history/${encodeURIComponent(userId)}?days=${days}`);
+}
+
+export async function getTodayTotals(userId: string): Promise<TodayTotals> {
+  return expressFetch<TodayTotals>(`/api/brain/today-totals/${encodeURIComponent(userId)}`);
+}
+
+export async function getAtThisTimeYesterday(userId: string): Promise<YesterdayComparison> {
+  return expressFetch<YesterdayComparison>(`/api/brain/at-this-time-yesterday/${encodeURIComponent(userId)}`);
+}
 
 interface CrossChannelMetrics {
   n_channels: number;

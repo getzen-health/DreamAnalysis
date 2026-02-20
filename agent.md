@@ -61,6 +61,13 @@ Frontend talks to Express for CRUD + AI, and directly to FastAPI for ML inferenc
 
 - Do NOT add `Co-Authored-By` lines to commit messages.
 
+## Data Rules (Non-Negotiable)
+
+- **Never use hardcoded, mock, placeholder, or fake data** in any chart, component, page, or hook. All displayed values must come from real device sessions, live EEG streaming, or actual API responses.
+- **No seed data** — do not populate `ml/sessions/`, the database, or any state with demo/test records.
+- **Empty state only** — if there is no real data for a time period, show the empty state UI (message + icon). Do not invent data to fill the chart.
+- **Simulation ≠ fake data** — EEG simulator output from `POST /simulate-eeg` is acceptable as a data *source* when the user explicitly enables simulation mode, but must never be injected silently.
+
 ## Common Pitfalls
 
 1. **routes.py is 2K lines** — Don't add endpoints randomly. Check the category sections.

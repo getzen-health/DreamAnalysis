@@ -8,13 +8,65 @@ and JSON for metadata/analysis timelines.
 import json
 import uuid
 import time
+import logging
+import os
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional
 
+logger = logging.getLogger(__name__)
 
 SESSIONS_DIR = Path(__file__).parent.parent / "sessions"
 SESSIONS_DIR.mkdir(exist_ok=True)
+
+# Batch flush every N frames during active recording (≈1 min at 1 fps)
+_BATCH_FLUSH_INTERVAL = 60
+
+# Express backend URL for persisting emotion readings
+_EXPRESS_URL = os.environ.get("EXPRESS_URL", "http://localhost:5000")
+
+
+def _post_emotion_batch(frames: List[Dict], user_id: str, session_id: str) -> int:
+    """POST analysis_timeline frames to the Express batch endpoint.
+
+    Returns number of records inserted, or 0 on failure.
+    """
+    if not frames:
+        return 0
+    try:
+        import urllib.request
+        readings = []
+        for frame in frames:
+            emotions = frame.get("emotions") or {}
+            if not emotions:
+                continue
+            flow = frame.get("flow_state") or {}
+            readings.append({
+                "userId": user_id,
+                "sessionId": session_id,
+                "stress": float(emotions.get("stress_index", 0)),
+                "happiness": float(1 - emotions.get("stress_index", 0)),
+                "focus": float(emotions.get("focus_index", 0)),
+                "energy": float(emotions.get("arousal", 0)),
+                "dominantEmotion": str(emotions.get("emotion", "unknown")),
+                "valence": float(emotions.get("valence", 0)) if emotions.get("valence") is not None else None,
+                "arousal": float(emotions.get("arousal", 0)) if emotions.get("arousal") is not None else None,
+            })
+        if not readings:
+            return 0
+        body = json.dumps({"readings": readings}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{_EXPRESS_URL}/api/emotion-readings/batch",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            return result.get("inserted", 0)
+    except Exception as exc:
+        logger.warning(f"[session_recorder] batch persist failed: {exc}")
+        return 0
 
 
 class SessionRecorder:
@@ -26,6 +78,7 @@ class SessionRecorder:
         self.signal_buffer: List[np.ndarray] = []
         self.analysis_timeline: List[Dict] = []
         self.start_time: Optional[float] = None
+        self._unflushed_frames: List[Dict] = []  # pending frames not yet POSTed
 
     def start_recording(
         self, user_id: str = "default", session_type: str = "general", metadata: Optional[Dict] = None
@@ -40,6 +93,7 @@ class SessionRecorder:
         self.start_time = time.time()
         self.signal_buffer = []
         self.analysis_timeline = []
+        self._unflushed_frames = []
 
         self.session_meta = {
             "session_id": session_id,
@@ -68,10 +122,16 @@ class SessionRecorder:
         self.signal_buffer.append(signals)
 
         if analysis:
-            self.analysis_timeline.append({
-                "time_offset": time.time() - self.start_time,
-                **analysis,
-            })
+            entry = {"time_offset": time.time() - self.start_time, **analysis}
+            self.analysis_timeline.append(entry)
+            self._unflushed_frames.append(entry)
+
+            # Batch-flush every _BATCH_FLUSH_INTERVAL frames so partial sessions are persisted
+            if len(self._unflushed_frames) >= _BATCH_FLUSH_INTERVAL:
+                user_id = (self.session_meta or {}).get("user_id", "default")
+                session_id = self.active_session or "unknown"
+                _post_emotion_batch(self._unflushed_frames, user_id, session_id)
+                self._unflushed_frames = []
 
     def stop_recording(self) -> Dict:
         """Finalize and save the current recording.
@@ -91,9 +151,22 @@ class SessionRecorder:
         else:
             all_signals = np.array([[]])
 
-        # Save signals as compressed numpy
+        # Save signals — local file always written as fallback
         signal_path = SESSIONS_DIR / f"{session_id}.npz"
         np.savez_compressed(str(signal_path), signals=all_signals)
+
+        # Upload to R2 (no-op when credentials not set)
+        user_id = self.session_meta.get("user_id", "default")
+        signal_r2_key: str | None = None
+        try:
+            from storage.r2_client import r2
+            if r2.available:
+                r2_key = r2.session_key(user_id, session_id)
+                with open(signal_path, "rb") as f:
+                    if r2.upload_bytes(f.read(), r2_key):
+                        signal_r2_key = r2_key
+        except Exception:
+            pass
 
         # Compute summary
         summary = {
@@ -135,6 +208,28 @@ class SessionRecorder:
         with open(meta_path, "w") as f:
             json.dump(self.session_meta, f, indent=2, default=str)
 
+        # Persist metadata to PostgreSQL (no-op when DATABASE_URL not set)
+        try:
+            from storage.pg_session_store import upsert_session
+            upsert_session(
+                session_id=session_id,
+                user_id=self.session_meta.get("user_id", "default"),
+                session_type=self.session_meta.get("session_type", "general"),
+                start_time=self.session_meta.get("start_time"),
+                end_time=self.session_meta.get("end_time"),
+                status="completed",
+                summary=summary,
+                signal_r2_key=signal_r2_key,
+            )
+        except Exception:
+            pass
+
+        # POST any remaining unflushed frames + full timeline to Express
+        # (unflushed_frames contains only frames not yet sent during recording)
+        flush_user = self.session_meta.get("user_id", "default")
+        if self._unflushed_frames:
+            _post_emotion_batch(self._unflushed_frames, flush_user, session_id)
+
         # Reset state
         result = {**self.session_meta}
         self.active_session = None
@@ -142,6 +237,7 @@ class SessionRecorder:
         self.signal_buffer = []
         self.analysis_timeline = []
         self.start_time = None
+        self._unflushed_frames = []
 
         return result
 
@@ -202,9 +298,18 @@ class SessionRecorder:
 
     @staticmethod
     def delete_session(session_id: str) -> bool:
-        """Delete a session's files."""
+        """Delete a session's local files, R2 object, and PostgreSQL row."""
         meta_path = SESSIONS_DIR / f"{session_id}.json"
         signal_path = SESSIONS_DIR / f"{session_id}.npz"
+
+        # Read user_id from local JSON before deleting
+        user_id = "default"
+        try:
+            if meta_path.exists():
+                with open(meta_path) as f:
+                    user_id = json.load(f).get("user_id", "default")
+        except Exception:
+            pass
 
         deleted = False
         if meta_path.exists():
@@ -213,6 +318,21 @@ class SessionRecorder:
         if signal_path.exists():
             signal_path.unlink()
             deleted = True
+
+        # Remove from R2
+        try:
+            from storage.r2_client import r2
+            if r2.available:
+                r2.delete(r2.session_key(user_id, session_id))
+        except Exception:
+            pass
+
+        # Remove from PostgreSQL
+        try:
+            from storage.pg_session_store import delete_session as pg_delete
+            pg_delete(session_id)
+        except Exception:
+            pass
 
         return deleted
 

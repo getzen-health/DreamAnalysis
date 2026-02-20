@@ -199,7 +199,40 @@ def train(simulated: bool = False, data_dir: str = "data/deap", output_dir: str 
     print(f"Training set: {X_train.shape[0]} samples")
     print(f"Test set: {X_test.shape[0]} samples")
 
-    # Compute class weights to handle imbalanced data
+    # ── SMOTE oversampling for minority classes ──────────────────────────────
+    # fearful (index 3) and focused (index 5) are severely underrepresented.
+    # SMOTE synthesizes new samples in feature space rather than just duplicating,
+    # which produces a more robust decision boundary for these emotions.
+    # We target each class to reach at least 50% of the majority class count.
+    from collections import Counter
+    class_counts_train = Counter(y_train)
+    print(f"Class distribution before SMOTE: {dict(sorted(class_counts_train.items()))}")
+
+    majority_count = max(class_counts_train.values())
+    smote_target = max(int(majority_count * 0.50), 300)  # at least 50% of majority or 300
+
+    sampling_strategy = {
+        cls: max(count, smote_target)
+        for cls, count in class_counts_train.items()
+        if count < smote_target
+    }
+
+    if sampling_strategy:
+        try:
+            from imblearn.over_sampling import SMOTE
+            k_neighbors = min(5, min(class_counts_train[c] for c in sampling_strategy) - 1)
+            k_neighbors = max(k_neighbors, 1)
+            smote = SMOTE(sampling_strategy=sampling_strategy, k_neighbors=k_neighbors, random_state=42)
+            X_train, y_train = smote.fit_resample(X_train, y_train)
+            print(f"Class distribution after SMOTE:  {dict(sorted(Counter(y_train).items()))}")
+        except ImportError:
+            print("imbalanced-learn not installed — skipping SMOTE (pip install imbalanced-learn)")
+        except Exception as e:
+            print(f"SMOTE failed ({e}), continuing without oversampling")
+    else:
+        print("Classes sufficiently balanced, SMOTE not needed")
+
+    # Compute class weights to handle any remaining imbalance
     from sklearn.utils.class_weight import compute_sample_weight
     from sklearn.ensemble import RandomForestClassifier
 

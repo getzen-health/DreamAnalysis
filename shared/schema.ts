@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, jsonb, timestamp, real, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, jsonb, timestamp, real, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -53,11 +53,13 @@ export const dreamSymbols = pgTable("dream_symbols", {
   lastSeen: timestamp("last_seen").defaultNow().notNull(),
 }, (table) => [
   index("dream_symbols_user_idx").on(table.userId),
+  uniqueIndex("dream_symbols_user_symbol_uidx").on(table.userId, table.symbol),
 ]);
 
 export const emotionReadings = pgTable("emotion_readings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  sessionId: varchar("session_id"), // FK to eeg_sessions.session_id (no constraint to avoid forward-ref)
   stress: real("stress").notNull(),
   happiness: real("happiness").notNull(),
   focus: real("focus").notNull(),
@@ -91,12 +93,77 @@ export const userSettings = pgTable("user_settings", {
   animationsEnabled: boolean("animations_enabled").default(true),
 });
 
+export const eegSessions = pgTable("eeg_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().unique(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  sessionType: text("session_type").default("general"),
+  status: text("status").default("recording"), // 'recording' | 'completed'
+  startTime: real("start_time"),               // unix epoch float
+  endTime: real("end_time"),
+  summary: jsonb("summary"),                    // duration, avg_focus, avg_stress, etc.
+  signalR2Key: text("signal_r2_key"),           // e.g. users/{userId}/{sessionId}.npz
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("eeg_sessions_user_ts_idx").on(table.userId, table.startTime),
+]);
+
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   endpoint: text("endpoint").notNull(),
   keys: jsonb("keys").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ── New tables added by Phase 2 ────────────────────────────────────────────
+
+// Raw brain readings synced from Python timescale_writer
+export const brainReadings = pgTable("brain_readings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  sessionId: varchar("session_id"),
+  stress: real("stress"),
+  focus: real("focus"),
+  relaxation: real("relaxation"),
+  flow: real("flow"),
+  creativity: real("creativity"),
+  valence: real("valence"),
+  arousal: real("arousal"),
+  dominantEmotion: text("dominant_emotion"),
+  bandPowers: jsonb("band_powers"), // { delta, theta, alpha, beta, gamma }
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+}, (table) => [
+  index("brain_readings_user_ts_idx").on(table.userId, table.timestamp),
+]);
+
+// Apple Health / Google Fit persistent samples
+export const healthSamples = pgTable("health_samples", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  source: text("source").notNull(), // 'apple_health' | 'google_fit' | 'health_connect'
+  metric: text("metric").notNull(), // 'heart_rate' | 'hrv' | 'steps' | 'sleep_duration' | etc.
+  value: real("value").notNull(),
+  unit: text("unit"),
+  metadata: jsonb("metadata"),
+  recordedAt: timestamp("recorded_at").notNull(),
+  ingestedAt: timestamp("ingested_at").defaultNow().notNull(),
+}, (table) => [
+  index("health_samples_user_metric_ts_idx").on(table.userId, table.metric, table.recordedAt),
+]);
+
+// Datadog auto-remediation audit trail
+export const datadogErrorLog = pgTable("datadog_error_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  monitorId: text("monitor_id"),
+  monitorName: text("monitor_name"),
+  alertType: text("alert_type"), // 'trigger' | 'recover'
+  errorType: text("error_type"),
+  payload: jsonb("payload"),
+  remediationAction: text("remediation_action"),
+  remediationStatus: text("remediation_status"), // 'success' | 'failed' | 'skipped'
+  remediationDetail: text("remediation_detail"),
+  receivedAt: timestamp("received_at").defaultNow().notNull(),
 });
 
 // Insert schemas
@@ -149,3 +216,26 @@ export type AiChat = typeof aiChats.$inferSelect;
 export type InsertAiChat = z.infer<typeof insertAiChatSchema>;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
+
+export const insertEegSessionSchema = createInsertSchema(eegSessions).omit({
+  id: true,
+  createdAt: true,
+});
+export type EegSession = typeof eegSessions.$inferSelect;
+export type InsertEegSession = z.infer<typeof insertEegSessionSchema>;
+
+export const insertBrainReadingSchema = createInsertSchema(brainReadings).omit({
+  id: true,
+  timestamp: true,
+});
+export type BrainReading = typeof brainReadings.$inferSelect;
+export type InsertBrainReading = z.infer<typeof insertBrainReadingSchema>;
+
+export const insertHealthSampleSchema = createInsertSchema(healthSamples).omit({
+  id: true,
+  ingestedAt: true,
+});
+export type HealthSample = typeof healthSamples.$inferSelect;
+export type InsertHealthSample = z.infer<typeof insertHealthSampleSchema>;
+
+export type DatadogErrorLog = typeof datadogErrorLog.$inferSelect;

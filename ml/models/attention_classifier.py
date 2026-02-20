@@ -84,6 +84,7 @@ class AttentionClassifier:
         theta = bands.get("theta", 0)
         delta = bands.get("delta", 0)
         gamma = bands.get("gamma", 0)
+        low_beta = bands.get("low_beta", 0)   # 12-20 Hz: working memory and attention
 
         base_beta = self.baseline_beta or 0.2
         base_theta = self.baseline_theta or 0.15
@@ -92,16 +93,20 @@ class AttentionClassifier:
 
         # 1. Theta/Beta Ratio (ADHD gold standard, lower = better attention)
         theta_beta_ratio = theta / (beta + 1e-10)
-        # Clinical threshold: TBR > 4.5 indicates attention deficit
-        tbr_score = float(np.clip(1.0 - np.tanh(theta_beta_ratio / 3.0), 0, 1))
+        # Log-transform TBR for better linearity (TBR typically spans 0.5-8+)
+        tbr_log = float(np.log1p(theta_beta_ratio))
+        # Clinical threshold: TBR > 4.5 = attention deficit, ~log(5.5)≈1.7
+        tbr_score = float(np.clip(1.0 - np.tanh(tbr_log / 1.5), 0, 1))
 
-        # 2. Beta Engagement (sustained attention marker)
-        beta_increase = beta / (base_beta + 1e-10)
-        beta_engagement = float(np.clip(np.tanh(beta_increase - 0.5), 0, 1))
+        # 2. Low-Beta Engagement (12-20 Hz: working memory and attentional control)
+        # Using low_beta specifically is more accurate than broad beta for attention
+        low_beta_increase = low_beta / max(base_beta * 0.6, 1e-10)  # low_beta ≈ 60% of beta
+        beta_engagement = float(np.clip(np.tanh(low_beta_increase - 0.5), 0, 1))
 
-        # 3. Alpha Idle (high alpha = mind-wandering / default mode)
-        alpha_idle = float(np.clip(np.tanh(alpha * 4 - 0.5), 0, 1))
-        alpha_focus_penalty = 1.0 - alpha_idle
+        # 3. Alpha Idle penalty (high alpha = mind-wandering / default mode)
+        # Moderated: alpha can also indicate relaxed readiness, so penalty is softer
+        alpha_idle = float(np.clip(np.tanh(alpha * 3 - 0.3), 0, 1))
+        alpha_focus_penalty = 1.0 - 0.8 * alpha_idle  # softer than (1 - alpha_idle)
 
         # 4. Spectral Concentration (focused = narrow-band beta, not broadband)
         # Low spectral entropy = concentrated in fewer bands = focused
@@ -112,27 +117,34 @@ class AttentionClassifier:
         signal_stability = float(np.clip(1.0 - np.tanh(mobility * 2), 0, 1))
 
         # 6. Gamma Presence (active cortical processing)
-        gamma_processing = float(np.clip(np.tanh(gamma * 15), 0, 1))
+        # Fixed saturation: gamma is typically 0.03-0.15 on Muse 2
+        # ×15 saturated to 1.0 even for resting gamma. ×5 gives useful 0.15-0.75 range.
+        gamma_processing = float(np.clip(np.tanh(gamma * 5), 0, 1))
+
+        # 7. Delta Penalty (high delta = drowsiness / deep fatigue; incompatible with attention)
+        # A high-delta EEG is almost certainly not focused — apply a downward pressure
+        delta_penalty = float(np.clip(delta * 3, 0, 0.4))  # cap penalty at 0.4
 
         # === Overall Attention Score ===
         attention_score = float(np.clip(
             0.25 * tbr_score +
             0.20 * beta_engagement +
-            0.20 * alpha_focus_penalty +
-            0.15 * spectral_focus +
+            0.18 * alpha_focus_penalty +
+            0.13 * spectral_focus +
             0.10 * signal_stability +
-            0.10 * gamma_processing,
+            0.09 * gamma_processing -
+            0.05 * delta_penalty,
             0, 1
         ))
 
-        # Track history for stability metric
+        # Track history for stability metric — extended to 40 for more reliable variance
         self._attention_history.append(attention_score)
-        if len(self._attention_history) > 30:
-            self._attention_history = self._attention_history[-30:]
+        if len(self._attention_history) > 40:
+            self._attention_history = self._attention_history[-40:]
 
-        # Attention stability (low variance = sustained)
+        # Attention stability (low variance = sustained; use last 15 for responsiveness)
         if len(self._attention_history) >= 5:
-            attention_stability = float(1.0 - min(1.0, np.std(self._attention_history[-10:]) * 5))
+            attention_stability = float(1.0 - min(1.0, np.std(self._attention_history[-15:]) * 5))
         else:
             attention_stability = 0.5
 
@@ -167,6 +179,7 @@ class AttentionClassifier:
                 "spectral_focus": round(spectral_focus, 3),
                 "signal_stability": round(signal_stability, 3),
                 "gamma_processing": round(gamma_processing, 3),
+                "delta_penalty": round(delta_penalty, 3),
             },
             "band_powers": bands,
         }

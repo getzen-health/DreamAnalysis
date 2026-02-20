@@ -20,6 +20,7 @@ moabb>=1.1.0
 kaggle>=1.6.0
 kagglehub>=0.3.0
 lightgbm>=4.0.0
+imbalanced-learn>=0.12.0
 h5py>=3.0.0
 pandas>=2.0.0
 boto3>=1.34.0

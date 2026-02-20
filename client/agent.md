@@ -52,3 +52,9 @@ Two separate API backends:
 - **Recharts** — preferred for new charts
 - **Chart.js** — used in some existing pages
 - Chart components live in `components/charts/`
+
+## Data Rules (Non-Negotiable)
+
+- **Never hardcode, mock, or seed fake data** into any chart, component, or hook.
+- All chart values must come from live `useDevice()` frames or real API responses (`useQuery`).
+- If no real data exists for a time period, render the empty state (message + icon). Never fill it with placeholder values.

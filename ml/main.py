@@ -45,7 +45,7 @@ app = FastAPI(
 # CORS — restrict to known origins in production, allow all in development
 _allowed_origins = os.environ.get(
     "CORS_ORIGINS",
-    "http://localhost:5000,http://localhost:3000,http://localhost:5173",
+    "http://localhost:5000,http://localhost:3000,http://localhost:3030,http://localhost:5173",
 ).split(",")
 
 app.add_middleware(
@@ -77,10 +77,20 @@ async def _auto_train_loop():
     while True:
         try:
             from training.auto_retrainer import retrain_personal_model
+            from monitoring.datadog_reporter import report_metric, report_error
             result = await asyncio.to_thread(retrain_personal_model)
             logger.info(f"[auto-retrain] {result}")
+            # Report accuracy metric to Datadog
+            if isinstance(result, dict) and "accuracy" in result:
+                report_metric("neural_dream.retrain.accuracy", float(result["accuracy"]))
+                report_metric("neural_dream.retrain.success", 1.0, metric_type="count")
         except Exception as exc:
             logger.warning(f"[auto-retrain] error: {exc}")
+            try:
+                from monitoring.datadog_reporter import report_error
+                report_error("auto_retrain_failed", f"Personal model retraining failed: {exc}", exc=exc)
+            except Exception:
+                pass
         await asyncio.sleep(_RETRAIN_INTERVAL_SEC)
 
 

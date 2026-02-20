@@ -20,7 +20,8 @@ Reference: Al-Shargie et al. (2016), Giannakakis et al. (2019)
 import numpy as np
 from typing import Dict, Optional
 from processing.eeg_processor import (
-    extract_band_powers, extract_features, preprocess, compute_hjorth_parameters
+    extract_band_powers, extract_features, preprocess, compute_hjorth_parameters,
+    compute_theta_gamma_coupling,
 )
 
 STRESS_LEVELS = ["relaxed", "mild", "moderate", "high"]
@@ -83,11 +84,14 @@ class StressDetector:
         theta = bands.get("theta", 0)
         delta = bands.get("delta", 0)
         gamma = bands.get("gamma", 0)
+        high_beta = bands.get("high_beta", 0)  # 20-30 Hz: primary anxiety marker
 
-        # Auto-calibration: collect first 7 readings to compute personal baseline
+        # Auto-calibration: collect first 30 readings (~7-8 seconds at 4 Hz) for a
+        # stable personal baseline. 30 readings vs 7 reduces outlier influence by ~2×
+        # and ensures the baseline isn't set during an initial stress spike.
         if not self._is_calibrated and self.baseline_alpha is None:
             self._calibration_buffer.append({"alpha": alpha, "beta": beta})
-            if len(self._calibration_buffer) >= 7:
+            if len(self._calibration_buffer) >= 30:
                 self.baseline_alpha = float(np.median([b["alpha"] for b in self._calibration_buffer]))
                 self.baseline_beta = float(np.median([b["beta"] for b in self._calibration_buffer]))
                 self._is_calibrated = True
@@ -117,45 +121,59 @@ class StressDetector:
         # Linear mapping: 0.0 when gamma >= 0.05 (healthy), 1.0 only when gamma = 0
         gamma_suppression = float(np.clip((0.05 - gamma) / 0.05, 0, 1))
 
-        # 6. Signal Irregularity (Hjorth complexity increases under stress)
+        # 6. High-Beta Elevation (20-30 Hz: strongest single-feature anxiety marker)
+        # Distinct from total-beta anxiety_activation — captures spectral distribution shift
+        high_beta_stress = float(np.clip(np.tanh(high_beta * 8 - 0.4), 0, 1))
+
+        # 7. Signal Irregularity (Hjorth complexity increases under stress)
         complexity = hjorth.get("complexity", 1.0) if isinstance(hjorth, dict) else 1.0
         activity = hjorth.get("activity", 0.01) if isinstance(hjorth, dict) else 0.01
         # Centered at normal complexity 1.5; only positive above that
         neural_irregularity = float(np.clip((complexity - 1.5) / 1.5, 0, 1))
 
-        # 7. Cortisol Proxy (sustained beta + suppressed alpha over time)
+        # 8. Cortisol Proxy (sustained beta + suppressed alpha over time)
         cortisol_proxy = float(np.clip(
             0.5 * anxiety_activation + 0.5 * alpha_suppression, 0, 1
         ))
 
-        # 8. Autonomic Index (sympathetic vs parasympathetic proxy)
+        # 9. Autonomic Index (sympathetic vs parasympathetic proxy)
         # High beta + low alpha + elevated theta = sympathetic dominance
         autonomic_index = float(np.clip(
             0.4 * arousal_index + 0.3 * alpha_suppression + 0.3 * theta_stress,
             0, 1
         ))
 
-        # === Overall Stress Index ===
-        stress_index = float(np.clip(
-            0.25 * anxiety_activation +
-            0.20 * alpha_suppression +
-            0.20 * arousal_index +
-            0.10 * theta_stress +
-            0.10 * gamma_suppression +
-            0.15 * neural_irregularity,
-            0, 1
-        ))
+        # === Overall Stress Index (7 components) ===
+        # high_beta_stress replaces part of neural_irregularity weight (more specific)
+        stress_index_raw = float(
+            0.22 * anxiety_activation +
+            0.18 * alpha_suppression +
+            0.18 * arousal_index +
+            0.18 * high_beta_stress +      # new: high-beta explicit component
+            0.08 * theta_stress +
+            0.08 * gamma_suppression +
+            0.08 * neural_irregularity
+        )
+        stress_index = float(np.clip(stress_index_raw, 0, 1))
 
-        # Track history
-        self._stress_history.append(stress_index)
+        # Track history with EMA for smoother trend signal
+        if self._stress_history:
+            ema_stress = 0.25 * stress_index + 0.75 * self._stress_history[-1]
+        else:
+            ema_stress = stress_index
+        self._stress_history.append(ema_stress)
         if len(self._stress_history) > 60:
             self._stress_history = self._stress_history[-60:]
 
-        # Stress trend
+        # Stress trend: Pearson correlation over last 20 readings
+        # (positive = rising, negative = falling)
         if len(self._stress_history) >= 10:
-            recent = np.mean(self._stress_history[-5:])
-            older = np.mean(self._stress_history[-10:-5])
-            stress_trend = float(np.clip(recent - older, -0.5, 0.5))
+            window = self._stress_history[-20:]
+            x = np.arange(len(window), dtype=float)
+            if x.std() > 0 and np.std(window) > 0:
+                stress_trend = float(np.clip(np.corrcoef(x, window)[0, 1], -1, 1))
+            else:
+                stress_trend = 0.0
         else:
             stress_trend = 0.0
 
@@ -188,6 +206,7 @@ class StressDetector:
                 "anxiety_activation": round(anxiety_activation, 3),
                 "alpha_suppression": round(alpha_suppression, 3),
                 "arousal_index": round(arousal_index, 3),
+                "high_beta_stress": round(high_beta_stress, 3),
                 "theta_stress": round(theta_stress, 3),
                 "gamma_suppression": round(gamma_suppression, 3),
                 "neural_irregularity": round(neural_irregularity, 3),

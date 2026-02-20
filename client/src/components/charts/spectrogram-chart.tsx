@@ -10,13 +10,27 @@ interface SpectrogramChartProps {
   };
 }
 
-// Viridis-style color scale
-function viridisColor(t: number): string {
+// Improved viridis color map: dark purple → teal → yellow
+function viridisColor(t: number): [number, number, number] {
   t = Math.max(0, Math.min(1, t));
-  const r = Math.round(68 + t * (253 - 68));
-  const g = Math.round(1 + t * (231 - 1));
-  const b = Math.round(84 + t * (37 - 84));
-  return `rgb(${r},${g},${b})`;
+  // Keyframes at t=0, 0.25, 0.5, 0.75, 1.0
+  const stops: [number, number, number][] = [
+    [68,   1,  84],   // 0.00 dark purple
+    [59,  82, 139],   // 0.25 deep blue
+    [33, 145, 140],   // 0.50 teal
+    [94, 201,  98],   // 0.75 green
+    [253, 231,  37],  // 1.00 yellow
+  ];
+  const n = stops.length - 1;
+  const i = Math.min(Math.floor(t * n), n - 1);
+  const f = t * n - i;
+  const a = stops[i];
+  const b = stops[i + 1];
+  return [
+    Math.round(a[0] + f * (b[0] - a[0])),
+    Math.round(a[1] + f * (b[1] - a[1])),
+    Math.round(a[2] + f * (b[2] - a[2])),
+  ];
 }
 
 export function SpectrogramChart({
@@ -25,132 +39,146 @@ export function SpectrogramChart({
   times,
   events,
 }: SpectrogramChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !coefficients.length || !times.length) return;
+    const container = containerRef.current;
+    if (!canvas || !container || !coefficients.length || !times.length) return;
+
+    // Match canvas resolution to container + device pixel ratio (sharp on retina)
+    const dpr = window.devicePixelRatio || 1;
+    const displayW = container.clientWidth || 600;
+    const displayH = 200;
+    canvas.width  = displayW * dpr;
+    canvas.height = displayH * dpr;
+    canvas.style.width  = `${displayW}px`;
+    canvas.style.height = `${displayH}px`;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    ctx.scale(dpr, dpr);
 
     const nFreqs = coefficients.length;
     const nTimes = coefficients[0]?.length || 0;
     if (nTimes === 0) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
-    const margin = { top: 10, right: 40, bottom: 30, left: 45 };
-    const plotW = width - margin.left - margin.right;
-    const plotH = height - margin.top - margin.bottom;
+    const margin = { top: 8, right: 50, bottom: 28, left: 42 };
+    const plotW = displayW - margin.left - margin.right;
+    const plotH = displayH - margin.top - margin.bottom;
 
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, displayW, displayH);
 
-    // Find power range for normalization
-    let minPower = Infinity;
-    let maxPower = -Infinity;
-    for (let f = 0; f < nFreqs; f++) {
-      for (let t = 0; t < nTimes; t++) {
-        const v = coefficients[f][t];
-        if (v < minPower) minPower = v;
-        if (v > maxPower) maxPower = v;
+    // Find power range with percentile clipping for better contrast
+    const allVals: number[] = [];
+    for (let f = 0; f < nFreqs; f++)
+      for (let t = 0; t < nTimes; t++)
+        allVals.push(coefficients[f][t]);
+    allVals.sort((a, b) => a - b);
+    const lo = allVals[Math.floor(allVals.length * 0.02)] ?? 0;
+    const hi = allVals[Math.floor(allVals.length * 0.98)] ?? 1;
+    const range = hi - lo || 1;
+
+    // Use ImageData for fast pixel-level rendering
+    const imgData = ctx.createImageData(plotW, plotH);
+    const data = imgData.data;
+
+    for (let py = 0; py < plotH; py++) {
+      // Map pixel row → frequency index (y flipped: low freq at bottom)
+      const fIdx = Math.floor(((plotH - 1 - py) / plotH) * nFreqs);
+      const fi = Math.min(fIdx, nFreqs - 1);
+      for (let px = 0; px < plotW; px++) {
+        const tIdx = Math.floor((px / plotW) * nTimes);
+        const ti = Math.min(tIdx, nTimes - 1);
+        const norm = Math.max(0, Math.min(1, (coefficients[fi][ti] - lo) / range));
+        const [r, g, b] = viridisColor(norm);
+        const i4 = (py * plotW + px) * 4;
+        data[i4]     = r;
+        data[i4 + 1] = g;
+        data[i4 + 2] = b;
+        data[i4 + 3] = 255;
       }
     }
-    const range = maxPower - minPower || 1;
-
-    // Draw spectrogram heatmap
-    const cellW = plotW / nTimes;
-    const cellH = plotH / nFreqs;
-
-    for (let f = 0; f < nFreqs; f++) {
-      for (let t = 0; t < nTimes; t++) {
-        const norm = (coefficients[f][t] - minPower) / range;
-        ctx.fillStyle = viridisColor(norm);
-        // Flip y-axis so low frequencies at bottom
-        const x = margin.left + t * cellW;
-        const y = margin.top + (nFreqs - 1 - f) * cellH;
-        ctx.fillRect(x, y, Math.ceil(cellW), Math.ceil(cellH));
-      }
-    }
+    ctx.putImageData(imgData, margin.left, margin.top);
 
     // Draw event markers
-    if (events) {
+    if (events && times.length > 1) {
       const timeRange = times[times.length - 1] - times[0];
-      const timeToX = (t: number) =>
-        margin.left + ((t - times[0]) / timeRange) * plotW;
+      if (timeRange > 0) {
+        const timeToX = (t: number) =>
+          margin.left + ((t - times[0]) / timeRange) * plotW;
 
-      // Sleep spindles (cyan markers)
-      if (events.sleep_spindles) {
-        ctx.strokeStyle = "rgba(0, 255, 255, 0.9)";
-        ctx.lineWidth = 2;
-        for (const sp of events.sleep_spindles) {
-          const x1 = timeToX(sp.start);
-          const x2 = timeToX(sp.end);
-          const y = margin.top + plotH * 0.3; // ~13Hz region
-          ctx.beginPath();
-          ctx.moveTo(x1, y - 4);
-          ctx.lineTo(x1, y + 4);
-          ctx.moveTo(x1, y);
-          ctx.lineTo(x2, y);
-          ctx.moveTo(x2, y - 4);
-          ctx.lineTo(x2, y + 4);
-          ctx.stroke();
+        if (events.sleep_spindles?.length) {
+          ctx.strokeStyle = "rgba(0,255,255,0.9)";
+          ctx.lineWidth = 1.5;
+          for (const sp of events.sleep_spindles) {
+            const x1 = timeToX(sp.start);
+            const x2 = timeToX(sp.end);
+            const y = margin.top + plotH * 0.28;
+            ctx.beginPath();
+            ctx.moveTo(x1, y - 5); ctx.lineTo(x1, y + 5);
+            ctx.moveTo(x1, y); ctx.lineTo(x2, y);
+            ctx.moveTo(x2, y - 5); ctx.lineTo(x2, y + 5);
+            ctx.stroke();
+          }
         }
-      }
 
-      // K-complexes (magenta markers)
-      if (events.k_complexes) {
-        ctx.fillStyle = "rgba(255, 0, 255, 0.9)";
-        for (const kc of events.k_complexes) {
-          const x = timeToX(kc.time);
-          const y = margin.top + plotH * 0.9; // Low frequency region
-          ctx.beginPath();
-          ctx.arc(x, y, 4, 0, 2 * Math.PI);
-          ctx.fill();
+        if (events.k_complexes?.length) {
+          ctx.fillStyle = "rgba(255,0,255,0.9)";
+          for (const kc of events.k_complexes) {
+            const x = timeToX(kc.time);
+            const y = margin.top + plotH * 0.88;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, 2 * Math.PI);
+            ctx.fill();
+          }
         }
       }
     }
 
-    // Axes labels
-    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-    ctx.font = "10px monospace";
-
-    // Y-axis (frequency)
+    // Y-axis — frequency labels
+    ctx.fillStyle = "rgba(200,200,220,0.85)";
+    ctx.font = `${10}px monospace`;
     ctx.textAlign = "right";
-    const freqStep = Math.max(1, Math.floor(nFreqs / 5));
-    for (let f = 0; f < nFreqs; f += freqStep) {
-      const y = margin.top + (nFreqs - 1 - f) * cellH + cellH / 2;
-      ctx.fillText(`${frequencies[f]}Hz`, margin.left - 4, y + 3);
+    const nLabels = 5;
+    for (let i = 0; i <= nLabels; i++) {
+      const fIdx = Math.round((i / nLabels) * (nFreqs - 1));
+      const y = margin.top + (1 - i / nLabels) * plotH;
+      ctx.fillText(`${Math.round(frequencies[fIdx] ?? 0)}Hz`, margin.left - 4, y + 3);
     }
 
-    // X-axis (time)
+    // X-axis — time labels
     ctx.textAlign = "center";
-    const timeStep = Math.max(1, Math.floor(nTimes / 6));
-    for (let t = 0; t < nTimes; t += timeStep) {
-      const x = margin.left + t * cellW + cellW / 2;
-      ctx.fillText(`${times[t].toFixed(1)}s`, x, height - 5);
+    const nTimeLabels = Math.min(6, nTimes);
+    for (let i = 0; i <= nTimeLabels; i++) {
+      const tIdx = Math.round((i / nTimeLabels) * (nTimes - 1));
+      const x = margin.left + (i / nTimeLabels) * plotW;
+      ctx.fillText(`${(times[tIdx] ?? 0).toFixed(1)}s`, x, displayH - 6);
     }
 
     // Color bar
-    const barW = 12;
-    const barH = plotH;
-    const barX = width - margin.right + 8;
-    for (let i = 0; i < barH; i++) {
-      const norm = 1 - i / barH;
-      ctx.fillStyle = viridisColor(norm);
+    ctx.textAlign = "right";
+    const barX = displayW - margin.right + 10;
+    const barW = 10;
+    for (let i = 0; i < plotH; i++) {
+      const norm = 1 - i / plotH;
+      const [r, g, b] = viridisColor(norm);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fillRect(barX, margin.top + i, barW, 1);
     }
+    // Color bar labels
+    ctx.fillStyle = "rgba(200,200,220,0.75)";
+    ctx.font = "9px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("max", barX + barW + 2, margin.top + 8);
+    ctx.fillText("min", barX + barW + 2, margin.top + plotH);
+
   }, [coefficients, frequencies, times, events]);
 
   return (
-    <div className="spectrogram-container">
-      <canvas
-        ref={canvasRef}
-        width={600}
-        height={200}
-        className="w-full h-48 rounded"
-        data-testid="chart-spectrogram"
-      />
+    <div ref={containerRef} className="w-full" style={{ height: 200 }}>
+      <canvas ref={canvasRef} className="rounded" />
     </div>
   );
 }

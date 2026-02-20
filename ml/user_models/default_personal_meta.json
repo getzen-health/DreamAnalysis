@@ -1,0 +1,40 @@
+{
+  "classes": [
+    "angry",
+    "focused",
+    "happy",
+    "neutral",
+    "sad"
+  ],
+  "feature_names": [
+    "delta",
+    "theta",
+    "alpha",
+    "beta",
+    "gamma",
+    "stress_index",
+    "focus_index",
+    "relaxation_index",
+    "valence",
+    "arousal",
+    "f_band_power_delta",
+    "f_band_power_theta",
+    "f_band_power_alpha",
+    "f_band_power_beta",
+    "f_band_power_gamma",
+    "f_hjorth_activity",
+    "f_hjorth_mobility",
+    "f_hjorth_complexity",
+    "f_spectral_entropy",
+    "f_de_delta",
+    "f_de_theta",
+    "f_de_alpha",
+    "f_de_beta",
+    "f_de_gamma",
+    "f_alpha_beta_ratio",
+    "f_theta_beta_ratio",
+    "f_alpha_theta_ratio"
+  ],
+  "n_samples": 7934,
+  "train_accuracy": 0.8891
+}
