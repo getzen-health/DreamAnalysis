@@ -587,6 +587,27 @@ Total: 31 features
 3. Fine-tune on 5-10 min of labeled user data (few-shot)
 ```
 
+### FAA Caveats — It's More Controversial Than Textbooks Suggest
+
+FAA is used in this system, but be aware of these issues:
+
+1. **AF7/AF8 ≠ F3/F4**: Most FAA research uses F3/F4. Muse uses AF7 (≈F7, more lateral/inferior) and AF8 (≈F8). This introduces systematic positional error — the electrodes aren't at the "classic" FAA positions.
+
+2. **Multiverse analysis across 5 studies**: Found NO reliable relationship between FAA (at F3/F4) and depressive disorders (eLife, 2021). FAA measures approach/withdrawal motivation, NOT pure positive/negative valence. Anger (approach + negative) also shows left FAA — contradicting the valence theory.
+
+3. **Muse-specific validation study** (220 adults): Robust linear regression found NO association between well-being and FAA as measured at AF7/AF8.
+
+4. **TP9/TP10 are MORE RELIABLE than AF7/AF8** across sessions: AF7/AF8 signal quality drops significantly across test-retest sessions due to dry electrode contact variability at the forehead.
+
+**Conclusion**: FAA is still the best available valence signal for frontal EEG, but treat FAA-derived valence with appropriate skepticism. The system correctly blends FAA 50% with alpha/beta ratio 50% (rather than relying on FAA alone).
+
+### 4-Channel Specific Limitations
+
+- **ICA doesn't work with 4 channels** — mathematically requires n_channels > n_artifacts. The artifact removal code that calls ICA will degrade or fail silently on Muse 2.
+- **Feature selection mandatory** — with 4 channels and typical session sizes (<500 samples), extracting 17+ features causes overfitting. Target 10-20 features max.
+- **30-second epochs outperform shorter windows** for Muse — the 2024 paper found 30-second segments most effective. Current 1-second live windows are far too short.
+- **No public Muse-specific emotion dataset exists** — all public datasets use either research-grade (32+ ch) or 14-ch Emotiv (DREAMER, AMIGOS). Muse has fundamentally different electrode placement.
+
 ### Foundation Model Option (NeurIPS 2024)
 
 **EEGPT** — 10M parameter transformer pre-trained on large mixed EEG corpus.
