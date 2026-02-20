@@ -9,3 +9,11 @@ node_modules
 replit.md
 dream-analysis-*.png
 attached_assets
+
+# ML backend — deployed separately to Render
+ml/
+
+# Python artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
