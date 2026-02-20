@@ -515,6 +515,145 @@ differential_entropy(signal, fs)             # Per-band differential entropy
 
 ---
 
+## Muse 2 Hardware & BrainFlow Reference
+
+From deep hardware + BrainFlow research. Read before touching `ml/hardware/brainflow_manager.py`.
+
+### Hardware Specs
+
+| Spec | Value | Notes |
+|------|-------|-------|
+| Sampling rate | 256 Hz | All 4 channels simultaneous |
+| ADC resolution | **12-bit** | vs. 24-bit ADS1299 in research-grade EEG |
+| LSB resolution | ~0.41 µV/bit | Estimated from 0–1682 µV raw range |
+| Chip | PIC24 + OPA4374 opamp | No ADS1299 — explains 24-bit vs 12-bit gap |
+| Reference electrode | **Fpz (forehead center)** | Critically close to AF7/AF8 — see below |
+| AF7/AF8 material | Silver-coated flat ink | Higher impedance variability than gel |
+| TP9/TP10 material | Conductive silicone rubber | More stable contact, but near temporalis muscle |
+| Effective bandwidth | 0.5–50 Hz (hardware limited) | No hardware notch filter |
+| Bluetooth lag | ~40 ms (±20 ms) | Consistent across validation studies |
+| Additional sensors (Muse 2 only) | PPG, accelerometer (3-axis), gyroscope (3-axis) | Accessible via BrainFlow ANCILLARY preset |
+
+### Critical Hardware Limitations
+
+**TP9/TP10 temporal channels fail frequently**: A 2024 validation study (PMC11679099, Badolato et al.) found temporal site signals were entirely non-physiological in 17/N recordings — even when all quality indicators showed green. **Do not trust TP9/TP10 data for emotion-relevant signals without verifying signal quality independently.**
+
+**Muse vs. research-grade alpha-band correlation**: Only r=0.46–0.47 — and these are the EMG-contaminated high-beta/gamma bands. True alpha-band correlation is not reported as significant, meaning Muse's frontal EEG does not reliably track the same alpha as research-grade systems at AF7/AF8.
+
+**Broadband power elevation**: Muse records significantly higher broadband power than research-grade EEG across ALL frequency bands. Absolute power values from Muse cannot be compared to DEAP/SEED values — **baseline normalization is mandatory** before any cross-session or cross-device ML.
+
+**No impedance measurement API**: Unlike research-grade systems, there is no impedance meter. The HSI (Horseshoe Indicator: 1=Good, 2=Medium, 4=Bad) is unreliable — studies found non-physiological signals with all-green indicators.
+
+### BrainFlow Board IDs
+
+```python
+MUSE_2_BOARD = 38       # Native Bluetooth (SimpleBLE) — standard
+MUSE_2_BLED_BOARD = ?   # Requires Silicon Labs BLED112 USB dongle (more stable)
+```
+
+**BLED112 USB dongle** significantly reduces packet dropout vs native OS Bluetooth. In noisy RF environments, native BT dropout rate can be 1–5%.
+
+### BrainFlow Version Requirements
+
+| Issue | Affected Versions | Fix |
+|-------|------------------|-----|
+| macOS BLE scanning failure | macOS 12.0–12.2 | Upgrade to macOS 12.3+ |
+| Windows 11 + Python 3.9 deadlock | Python 3.9.6 | Use Python 3.10.5+ |
+| Linux/macOS connection failures | BrainFlow < 4.9.3 | Upgrade to 4.9.3+ |
+| Firmware mismatch (write_request vs write_command) | After Muse FW updates | Check FW version before session |
+
+### Recommended BrainFlow Preprocessing Chain
+
+```python
+from brainflow.data_filter import DataFilter, FilterTypes, NoiseTypes, DetrendOperations
+
+# ORDER MATTERS: detrend → notch → bandpass → (optional wavelet denoising)
+
+# Step 1: Remove DC offset and linear drift
+DataFilter.detrend(eeg_channel, DetrendOperations.CONSTANT.value)
+
+# Step 2: Notch filter FIRST (before bandpass)
+DataFilter.remove_environmental_noise(eeg_channel, 256, NoiseTypes.SIXTY.value)  # NA
+# DataFilter.remove_environmental_noise(eeg_channel, 256, NoiseTypes.FIFTY.value)  # EU
+
+# Step 3: Bandpass
+DataFilter.perform_bandpass(
+    eeg_channel, 256,
+    start_freq=1.0,    # high-pass: preserves delta/theta (critical for emotion)
+    stop_freq=45.0,    # low-pass: cuts EMG, safely below Nyquist (128 Hz)
+    order=4,
+    filter_type=FilterTypes.BUTTERWORTH_ZERO_PHASE.value,  # zero-phase = no phase distortion
+    ripple=0
+)
+```
+
+**Current `eeg_processor.py` uses SciPy (filtfilt + butter)** — equivalent to BrainFlow's BUTTERWORTH_ZERO_PHASE. Both are zero-phase and correct. BrainFlow's API is preferred if processing in `brainflow_manager.py` before data enters Python.
+
+**Key filter rules**:
+- Never set high-pass above 2 Hz for emotion work — delta (1-4 Hz) and theta (4-8 Hz) are attenuated
+- Low-pass at 45 Hz (not 50 Hz) — safety margin below Nyquist and avoids 50 Hz line noise fundamental
+- Order 4 Butterworth is community standard; higher order increases ringing at cutoffs
+- Always zero-phase (filtfilt / BUTTERWORTH_ZERO_PHASE) — causal filters distort phase relationships
+
+### The Fpz Reference Problem in Detail
+
+Fpz sits between AF7 and AF8. Referencing to it causes near-cancellation of the frontal EEG signal:
+
+```
+AF7_measured = AF7_true - Fpz_ref  ≈ AF7_true - (AF7_true + AF8_true)/2
+             = (AF7_true - AF8_true) / 2   ← attenuated, asymmetry-amplified
+```
+
+This means: (1) absolute power is suppressed, (2) FAA computation may look artificially symmetric or anti-phasic.
+
+**Fix**: Re-reference offline — average TP9 and TP10 as linked mastoid, subtract from AF7/AF8:
+```python
+mastoid_ref = (TP9 + TP10) / 2
+AF7_reref = AF7 - mastoid_ref
+AF8_reref = AF8 - mastoid_ref
+FAA = np.log(alpha_power(AF8_reref)) - np.log(alpha_power(AF7_reref))
+```
+
+**Check**: Look in `brainflow_manager.py` to confirm what reference BrainFlow applies to Muse 2 data before it reaches Python. If BrainFlow delivers Fpz-referenced data, re-referencing must be added to the preprocessing pipeline.
+
+### Enabling 5th EEG Channel and PPG
+
+```python
+board.config_board("p50")  # Enables 5th EEG channel + PPG ANCILLARY preset simultaneously
+```
+
+Note: Cannot enable 5th channel without also enabling PPG — increases Bluetooth traffic, potentially increasing dropout.
+
+### Artifact Rejection Thresholds (Paper-Validated)
+
+```python
+# From Krigolson 2021 (most used Muse preprocessing paper):
+AMPLITUDE_THRESHOLD = 75  # µV — reject epoch if any channel exceeds this
+GRADIENT_THRESHOLD = 10   # µV/ms — reject if consecutive samples change > 10 µV/ms
+
+# Conservative (less rejection, more noise):
+AMPLITUDE_THRESHOLD = 100  # µV — used in some other studies
+
+# Discard first 60-120 seconds of every session (electrode settling / DC offset stabilization)
+SETTLING_TIME_SECONDS = 120
+```
+
+### BrainFlow Channel Index Reference
+
+```python
+# For MUSE_2_BOARD (board_id=38):
+eeg_channels = BoardShim.get_eeg_channels(BoardIds.MUSE_2_BOARD.value)
+# Returns indices for: [TP9, AF7, AF8, TP10]  → [ch0, ch1, ch2, ch3]
+
+# Confirmed correct channel order (from brainflow_manager.py):
+# ch0 = TP9   (left temporal)
+# ch1 = AF7   (left frontal)   ← FAA left channel
+# ch2 = AF8   (right frontal)  ← FAA right channel
+# ch3 = TP10  (right temporal)
+```
+
+---
+
 ## 2024-2025 Research Findings (For Future Improvements)
 
 From research agent survey of 2024-2025 literature.
