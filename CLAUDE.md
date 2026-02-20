@@ -350,15 +350,35 @@ else:
 
 ## Model Accuracy Reality Check
 
-| Model | Training CV Accuracy | Notes |
-|-------|---------------------|-------|
-| Emotion (DEAP) | 51.3% | Below 60% threshold → disabled, falls back to feature-based |
-| Emotion (DEAP ONNX) | ~51% | Same dataset, similar accuracy |
-| Sleep Staging | 92.98% | Trained on ISRUC/SHHS; reliable |
-| Dream Detector | 97.20% | Reliable |
-| Flow State | 62.86% | Marginal; use as rough guide |
-| Creativity | 99.18% | Likely overfit (850 samples) |
-| Memory Encoding | 99.18% | Likely overfit (850 samples) |
+| Model | File | CV Accuracy | Notes |
+|-------|------|------------|-------|
+| Emotion LGBM (mega-trained) | `models/emotion_classifier_lgbm.joblib` (109 MB) | **97.79%** | 3-class, PCA-88-dim features — NOT loaded by current code |
+| Emotion MLP (PyTorch) | `models/emotion_classifier_mlp.pt` (2.5 MB) | **93.11%** | 3-class, PCA-88-dim features — NOT loaded by current code |
+| Emotion XGBoost | `models/emotion_classifier_xgb.joblib` (54 MB) | ~88% | 3-class, PCA-88-dim features — NOT loaded |
+| Emotion (DEAP pkl) | `models/saved/emotion_classifier_model.pkl` | 51.3% | Below 60% threshold → disabled |
+| Emotion (ONNX) | `models/saved/emotion_classifier_model.onnx` | ~51% | Below 60% threshold → disabled |
+| Sleep Staging | `models/saved/sleep_staging_model.pkl` | 92.98% | Active, reliable |
+| Dream Detector | `models/saved/dream_detector_model.pkl` | 97.20% | Active, reliable |
+| Flow State | `models/saved/flow_state_model.pkl` | 62.86% | Active, marginal |
+| Creativity | `models/saved/creativity_model.pkl` | 99.18% | Likely overfit (850 samples) |
+
+### CRITICAL: Why the 97.79% LGBM Model Is NOT Used
+
+The high-accuracy models (`emotion_classifier_lgbm.joblib`, `emotion_classifier_mlp.pt`) are in `ml/models/` but **are not loaded by `emotion_classifier.py`** because:
+
+1. **Wrong output class count**: These models output 3 classes (positive/neutral/negative), but `emotion_classifier.py` expects 6 classes (happy/sad/angry/fearful/relaxed/focused)
+2. **Wrong feature format**: These models need **88-dim PCA-aligned features** (80 PCA components + 8 one-hot dataset indicators), not the 17 raw band-power features the system currently extracts
+3. **Wrong filename**: `_find_model("emotion_classifier_model")` looks for files named `emotion_classifier_model.*`, not `emotion_classifier_lgbm.*`
+
+### How to Enable the 97.79% Model (Future Work)
+
+Would require:
+1. Add a feature transformation step: raw 17 features → load saved PCA transform → 80-dim vector + dataset one-hot
+2. Add a 3→6 class expansion or change system to 3-class output
+3. Add the model path to `_find_model()` discovery chain
+4. Add a benchmark JSON for it at `benchmarks/` so accuracy threshold check passes
+
+**Datasets used by 97.79% LGBM**: GAMEEMO, EEG-ER, SEED, Brainwave, Muse-Mental, Muse-Subconscious, SEED-IV, STEW (123,234 samples total). Note: SEED achieves 100% accuracy on its own (likely pre-extracted features + within-dataset perfect separability) — this inflates the combined accuracy.
 
 **Why emotion accuracy is low on Muse 2**:
 - **Domain gap**: DEAP dataset uses 32-channel gel electrodes. Muse 2 has 4-channel dry electrodes. ~30 point accuracy penalty.
@@ -383,11 +403,13 @@ else:
 - [x] Wrong FAA channel indices (commit after pipeline audit): old `left_ch=0,right_ch=1` computed log(AF7)-log(TP9) instead of log(AF8)-log(AF7). Fixed to `left_ch=1, right_ch=2`. Also fixed temporal asymmetry in `eeg_processor.py` (was using ch2=AF8 as left temporal; corrected to ch0=TP9).
 
 ### Known Remaining Issues
+- [ ] **97.79% LGBM model not integrated**: `ml/models/emotion_classifier_lgbm.joblib` exists but requires 3→6 class mapping and PCA feature transform to use. See "CRITICAL" section above.
 - [ ] **No baseline calibration**: Emotion readings are absolute, not relative to the user's resting state. A 2-minute resting-state recording at session start would dramatically improve accuracy (published: +15-29% improvement).
-- [ ] **1-second epoch too short**: Welch PSD needs 4-8 seconds for stable spectral estimates. Short epochs = noisy predictions. Consider 4-second sliding window with 50% overlap.
+- [ ] **1-second epoch too short**: Welch PSD needs 4-8 seconds for stable spectral estimates. Training was done on 4–10 second windows. Short epochs = noisy predictions. Consider 4-second sliding window with 50% overlap.
 - [ ] **No personalization**: The feature-based heuristics use population-average thresholds. Individual users have very different baselines (within-subject vs cross-subject gap: 26 points).
 - [ ] **EMG at TP9/TP10**: Temporal channels are also near muscles. Artifact rejection/ICA would help.
 - [ ] **Creativity/Memory models likely overfit**: 850 samples × 4 classes → ~212 per class is too few for reliable generalization.
+- [ ] **Large models in wrong directory**: `emotion_classifier_rf.joblib` (3.1 GB) and others are in `ml/models/`, not `ml/models/saved/`. The `_find_model()` function only searches `ml/models/saved/`. No memory risk since they aren't loaded.
 
 ### Proposed Future Improvements (Priority Order)
 1. **Baseline protocol**: Record 2-min resting state at session start. Normalize all features against this baseline. (Biggest ROI)
