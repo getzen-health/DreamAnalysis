@@ -42,6 +42,7 @@ class EmotionClassifier:
         self.sklearn_model = None
         self.feature_names = None
         self.scaler = None
+        self.multichannel_model = False  # True when loaded pkl was trained with multichannel features
         self.model_type = "feature-based"
         self._benchmark_accuracy = 0.0
 
@@ -74,6 +75,7 @@ class EmotionClassifier:
             self.sklearn_model = data["model"]
             self.feature_names = data["feature_names"]
             self.scaler = data.get("scaler")
+            self.multichannel_model = bool(data.get("multichannel", False))
             self.model_type = "sklearn-deap"
             self._benchmark_accuracy = bench
         except Exception:
@@ -100,6 +102,7 @@ class EmotionClassifier:
                 self.sklearn_model = data["model"]
                 self.feature_names = data["feature_names"]
                 self.scaler = data.get("scaler")
+                self.multichannel_model = bool(data.get("multichannel", False))
                 self.model_type = "sklearn"
             except Exception:
                 pass
@@ -134,6 +137,10 @@ class EmotionClassifier:
         if self.onnx_session is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
             return self._predict_onnx(eeg if eeg.ndim == 1 else eeg[0], fs)
         if self.sklearn_model is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
+            # Multichannel sklearn models (trained with DASM/RASM/FAA features) need the
+            # full (n_channels, n_samples) array; single-channel models need eeg[0].
+            if self.multichannel_model and eeg.ndim == 2:
+                return self._predict_sklearn(eeg, fs)
             return self._predict_sklearn(eeg if eeg.ndim == 1 else eeg[0], fs)
         return self._predict_features(eeg, fs)  # pass full multichannel array for FAA
 
@@ -665,16 +672,39 @@ class EmotionClassifier:
     # ────────────────────────────────────────────────────────────────
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
-        """Sklearn model inference using extracted features."""
-        processed = preprocess(eeg, fs)
-        bands = extract_band_powers(processed, fs)
-        features = extract_features(processed, fs)
-        de = differential_entropy(processed, fs)
+        """Sklearn model inference using extracted features.
 
-        try:
-            feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
-        except KeyError:
-            return self._predict_features(eeg, fs)
+        Supports both:
+          - Legacy single-channel 17-feature models (self.multichannel_model = False)
+          - Multichannel 41-feature models trained with DASM/RASM/FAA features (multichannel = True)
+        """
+        from processing.eeg_processor import extract_features_multichannel as _mc_feats
+
+        # ── Feature extraction ────────────────────────────────────
+        if self.multichannel_model and eeg.ndim == 2:
+            # Multichannel model: extract full 41-feature vector, apply stored scaler
+            mc_dict = _mc_feats(eeg, fs)
+            feature_vector = np.array(list(mc_dict.values()), dtype=np.float32).reshape(1, -1)
+            if self.scaler is not None:
+                feature_vector = self.scaler.transform(feature_vector)
+            # Band powers from first channel (AF7) for downstream indices
+            signal_for_bands = eeg[1] if eeg.shape[0] > 1 else eeg[0]
+        else:
+            signal_for_bands = eeg if eeg.ndim == 1 else eeg
+            processed = preprocess(signal_for_bands, fs)
+            features = extract_features(processed, fs)
+            try:
+                feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+            except KeyError:
+                return self._predict_features(eeg, fs)
+            if self.scaler is not None:
+                feature_vector = self.scaler.transform(feature_vector)
+            signal_for_bands = processed
+
+        processed = preprocess(signal_for_bands if signal_for_bands.ndim == 1
+                                else signal_for_bands[0], fs)
+        bands = extract_band_powers(processed, fs)
+        de = differential_entropy(processed, fs)
         probs = self.sklearn_model.predict_proba(feature_vector)[0]
         emotion_idx = int(np.argmax(probs))
 
