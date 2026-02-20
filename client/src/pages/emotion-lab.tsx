@@ -6,9 +6,10 @@ import { Progress } from "@/components/ui/progress";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock } from "lucide-react";
+import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock, AlertTriangle } from "lucide-react";
 import { EmotionWheel } from "@/components/emotion-wheel";
 import { BrainBands } from "@/components/brain-bands";
+import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { useDevice } from "@/hooks/use-device";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 
@@ -183,6 +184,15 @@ export default function EmotionLab() {
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
 
+  // Signal quality — gate readings if headset is poorly seated
+  const rawQuality = latestFrame?.quality as Record<string, unknown> | undefined;
+  const sqi = rawQuality
+    ? ((rawQuality.sqi as number) ?? (rawQuality.quality_score as number) ?? 0) * 100
+    : null;
+  const artifacts = (rawQuality?.artifacts_detected as string[]) ?? [];
+  const signalPoor = sqi !== null && sqi < 60;   // warn
+  const signalBlocked = sqi !== null && sqi < 40; // block readings
+
   const [periodDays, setPeriodDays] = useState(1);
   const isLiveToday = periodDays === 1;
 
@@ -302,6 +312,29 @@ export default function EmotionLab() {
         </div>
       )}
 
+      {/* Signal quality gate — shown when streaming with poor contact */}
+      {isStreaming && signalBlocked && (
+        <div className="p-4 rounded-xl border border-destructive/40 bg-destructive/8 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-destructive">Signal too poor to measure</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              SQI {sqi?.toFixed(0)}% — adjust the headset and press each electrode firmly against your skin. Readings will resume when signal improves.
+            </p>
+          </div>
+          <SignalQualityBadge sqi={sqi ?? 0} artifacts={artifacts} compact />
+        </div>
+      )}
+      {isStreaming && signalPoor && !signalBlocked && (
+        <div className="p-3 rounded-xl border border-warning/30 bg-warning/5 flex items-center gap-3">
+          <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+          <p className="text-xs text-warning flex-1">
+            Fair signal quality (SQI {sqi?.toFixed(0)}%) — readings may be inaccurate. Check headset fit.
+          </p>
+          <SignalQualityBadge sqi={sqi ?? 0} artifacts={artifacts} compact />
+        </div>
+      )}
+
       {/* Top Row — always live */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Emotion Wheel */}
@@ -314,7 +347,15 @@ export default function EmotionLab() {
             )}
           </h3>
 
-          {!emotionReady && emotions ? (
+          {signalBlocked ? (
+            <div className="flex flex-col items-center justify-center h-48 gap-3">
+              <AlertTriangle className="h-8 w-8 text-destructive" />
+              <p className="text-sm text-destructive font-medium">Signal blocked</p>
+              <p className="text-xs text-muted-foreground text-center px-4">
+                Adjust headset and press each electrode firmly against your skin.
+              </p>
+            </div>
+          ) : !emotionReady && emotions ? (
             <div className="flex flex-col items-center justify-center h-48 gap-3">
               <div className="text-4xl animate-pulse">🧠</div>
               <p className="text-sm text-muted-foreground">Buffering EEG data…</p>

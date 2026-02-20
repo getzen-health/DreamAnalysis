@@ -164,8 +164,9 @@ Retention mechanics          ██░░░░░░░░  20%
   No daily pull. No streaks. No personal records.
   No predictions. No weekly summary.
 
-Infrastructure               ████░░░░░░  40%
-  Frontend on Vercel. ML backend not deployed.
+Infrastructure               ██████░░░░  60%
+  Frontend on Vercel (dream-analysis.vercel.app).
+  ML backend on Render free tier (neural-dream-ml.onrender.com). ✅
   Per-user isolation: fixed. No monitoring. No auth enforcement.
 ```
 
@@ -208,13 +209,13 @@ Every demo requires running `uvicorn` locally. Not a product.
 ## The Build Order That Actually Matters
 
 ### Phase 0 — Make it not embarrassing (1–2 weeks)
-- [ ] Deploy ML backend to Railway or Fly.io
+- [x] Deploy ML backend to Render (neural-dream-ml.onrender.com)
 - [x] Fix per-user state isolation (epoch buffer + baseline cal now per-user dicts)
 - [x] Restore all hidden pages: Inner Energy/Chakra, Brain Connectivity, Dream Patterns,
       Health Analytics, Insights — all back in routing and sidebar
-- [ ] Show signal quality / HSI before first reading
-- [ ] Show "calibrating…" until `epoch_ready: true`
-- [ ] Show confidence on emotion label ("likely relaxed — 68%")
+- [x] Show signal quality / HSI before first reading (SQI banners in emotion-lab, blocked <40%, warned 40-60%)
+- [x] Show "calibrating…" until `epoch_ready: true` (buffering progress bar + blocks on emotionReady)
+- [x] Show confidence on emotion label ("likely relaxed — 68%") (confidence badge in emotion wheel card)
 
 ### Phase 1 — Create the aha moment (2–3 weeks)
 - [x] Real-time biofeedback screen during breathing exercise
