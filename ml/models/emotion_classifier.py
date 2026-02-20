@@ -130,7 +130,7 @@ class EmotionClassifier:
             return self._predict_onnx(eeg if eeg.ndim == 1 else eeg[0], fs)
         if self.sklearn_model is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
             return self._predict_sklearn(eeg if eeg.ndim == 1 else eeg[0], fs)
-        return self._predict_features(eeg if eeg.ndim == 1 else eeg[0], fs)
+        return self._predict_features(eeg, fs)  # pass full multichannel array for FAA
 
     # ────────────────────────────────────────────────────────────────
     # Multichannel DEAP-trained model (primary for Muse 2)
@@ -182,6 +182,7 @@ class EmotionClassifier:
         gamma     = gamma_raw     / total_power
         high_beta = high_beta_raw / total_power
         low_beta  = low_beta_raw  / total_power
+        delta     = delta_raw     / total_power
 
         alpha_beta_ratio = alpha / max(beta, 1e-10)
         beta_alpha_ratio = beta / max(alpha, 1e-10)
@@ -199,7 +200,13 @@ class EmotionClassifier:
         # would constantly subtract from valence, falsely pushing toward negative.
         valence_abr = float(np.tanh((alpha_beta_ratio - 0.8) * 1.5) * 0.6)
         valence = float(np.clip(0.60 * valence_abr + 0.40 * asym_valence, -1, 1))
-        arousal = float(np.clip(beta / max(beta + alpha, 1e-10) + gamma * 0.5, 0, 1))
+        # Arousal without gamma: frontal gamma at AF7/AF8 is frontalis EMG, not neural.
+        arousal = float(np.clip(
+            0.45 * beta / max(beta + alpha, 1e-10)
+            + 0.30 * (1.0 - alpha / max(alpha + beta + theta, 1e-10))
+            + 0.25 * (1.0 - delta / max(delta + beta, 1e-10)),
+            0, 1
+        ))
 
         stress_index = float(np.clip(
             0.40 * min(1, beta_alpha_ratio * 0.3) + 0.25 * max(0, 1 - alpha * 2.5)
@@ -240,16 +247,27 @@ class EmotionClassifier:
     def _predict_features(self, eeg: np.ndarray, fs: float) -> Dict:
         """Neuroscience-backed emotion classification from band powers.
 
-        Uses established EEG-emotion correlates:
+        Accepts 1D (single channel) or 2D (n_channels, n_samples) input.
+        When multichannel Muse 2 data is provided (AF7=ch0, AF8=ch1), computes
+        Frontal Alpha Asymmetry (FAA) per Davidson (1992) to improve valence accuracy.
+
+        EEG-emotion correlates used:
         - Alpha (8-12 Hz): inversely related to cortical arousal; dominant in relaxation
         - Low-beta (12-20 Hz): active cognition, focus, motor planning
         - High-beta (20-30 Hz): anxiety, stress, fear — strongest differentiator for fearful
         - Beta (12-30 Hz): active thinking, concentration, anxiety when excessive
         - Theta (4-8 Hz): drowsiness, meditation, creative states
-        - Gamma (30+ Hz): complex cognition; more prominent in anger than fear
+        - Gamma (30+ Hz): EXCLUDED from Muse 2 arousal/stress/valence — dominated by
+          frontalis EMG artifact at AF7/AF8 sites (not neural). Only used as minimal
+          discriminator in angry vs fearful distinction.
         - Delta (0.5-4 Hz): deep sleep, regeneration
         """
-        processed = preprocess(eeg, fs)
+        # ── Multichannel support ─────────────────────────────────
+        # Keep original channels array for FAA; use channel 0 (AF7) for band powers.
+        channels = eeg if eeg.ndim == 2 else None
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         de = differential_entropy(processed, fs)
 
@@ -282,27 +300,40 @@ class EmotionClassifier:
         # Store snapshot for temporal analysis
         self._history.append(bands)
 
+        # ── Frontal Alpha Asymmetry (FAA) ────────────────────────
+        # FAA = ln(R_alpha) - ln(L_alpha) → positive = approach motivation / positive affect.
+        # Davidson (1992). Primary valence biomarker when Muse 2 multichannel data available.
+        # Note: FAA reflects approach motivation (left-lateralized), not pure positive valence —
+        # anger (approach + negative valence) also shows left FAA. Blend with ABR for robustness.
+        faa_valence = 0.0
+        if channels is not None and channels.shape[0] >= 2:
+            asym = compute_frontal_asymmetry(channels, fs, left_ch=0, right_ch=1)
+            faa_valence = asym.get("asymmetry_valence", 0.0)
+
         # ── Valence (pleasantness) ──────────────────────────────
-        # Higher alpha relative to beta → positive valence.
-        # Reference ratio 0.7: eyes-open resting naturally has beta > alpha (ratio ~0.5-0.8)
-        # so we treat that as neutral, not negative.
-        # Theta is NOT a valence signal — high theta means drowsy/meditative (neutral),
-        # not sad. Removing theta from valence prevents "drowsy = fearful" misclassification.
+        # Alpha/beta ratio (ABR) as secondary valence signal.
+        # Reference ratio 0.7: eyes-open resting naturally has beta > alpha (ratio ~0.5-0.8).
         alpha_beta_ratio = alpha / max(beta, 1e-10)
         valence_abr = (
-            0.65 * np.tanh((alpha_beta_ratio - 0.7) * 2.0)  # 0.7 = neutral eyes-open resting
-            + 0.35 * np.tanh((alpha - 0.15) * 4)            # absolute alpha boost
+            0.65 * np.tanh((alpha_beta_ratio - 0.7) * 2.0)
+            + 0.35 * np.tanh((alpha - 0.15) * 4)
         )
-        valence = float(np.clip(valence_abr, -1, 1))
+        if channels is not None and channels.shape[0] >= 2:
+            # 50% FAA + 50% ABR when multichannel available.
+            # FAA provides left/right asymmetry (primary); ABR provides overall spectral context.
+            valence = float(np.clip(0.50 * valence_abr + 0.50 * faa_valence, -1, 1))
+        else:
+            valence = float(np.clip(valence_abr, -1, 1))
 
         # ── Arousal (activation level) ──────────────────────────
-        # Beta + gamma indicate cortical activation
-        # Alpha + delta indicate cortical deactivation
+        # Beta indicates cortical activation; alpha + delta indicate deactivation.
+        # Gamma EXCLUDED: at Muse 2 frontal sites (AF7/AF8), 30-100 Hz is dominated
+        # by frontalis EMG artifact, not neural gamma. Including it artificially
+        # inflates arousal whenever the user tenses their forehead or jaw.
         arousal_raw = (
-            0.40 * beta / max(beta + alpha, 1e-10)    # beta proportion
-            + 0.25 * gamma / max(gamma + theta, 1e-10) # gamma proportion
-            + 0.20 * (1.0 - alpha / max(alpha + beta + theta, 1e-10))  # inverse alpha
-            + 0.15 * (1.0 - delta / max(delta + beta, 1e-10))         # inverse delta
+            0.45 * beta / max(beta + alpha, 1e-10)                     # beta proportion (primary)
+            + 0.30 * (1.0 - alpha / max(alpha + beta + theta, 1e-10))  # inverse alpha
+            + 0.25 * (1.0 - delta / max(delta + beta, 1e-10))          # inverse delta
         )
         arousal = float(np.clip(arousal_raw, 0, 1))
 
@@ -314,36 +345,32 @@ class EmotionClassifier:
         beta_alpha_ratio = beta / max(alpha, 1e-10)
 
         # Happy: positive valence, moderate-high arousal, good alpha.
-        # Reduced gamma weight — gamma is noisy on consumer EEG (Muse 2) and
-        # contributes more to angry/focused than to happy.
+        # Gamma removed — predominantly frontalis EMG at Muse 2 AF7/AF8 sites.
         probs[0] = (
-            0.40 * max(0, valence)                     # primary: positive valence
-            + 0.25 * max(0, arousal - 0.3)             # moderate-high arousal
+            0.45 * max(0, valence)                     # primary: positive valence (includes FAA)
+            + 0.30 * max(0, arousal - 0.3)             # moderate-high arousal
             + 0.25 * min(1, alpha_beta_ratio * 0.8)    # alpha > beta (calm-positive)
-            + 0.10 * min(1, gamma * 2.0)               # soft gamma bonus (reduced, noisy)
         )
 
-        # Sad: clearly negative valence + low arousal.
-        # Theta only contributes when VERY dominant (ratio > 2.0) AND valence is negative
-        # — prevents drowsy/meditative theta from being mis-classified as sad.
-        # Raised threshold from -0.1 → -0.25: valence must be unambiguously negative
-        # (normal resting/relaxed states can sit around -0.05 to +0.15).
+        # Sad: negative valence + low arousal.
+        # Threshold lowered from -0.25 → -0.10: with FAA now blended into valence,
+        # negative states register earlier. Resting FAA ≈ 0 keeps neutral at ~0;
+        # genuinely sad states show negative FAA pushing valence clearly below -0.10.
         probs[1] = (
-            0.50 * max(0, -valence - 0.25)                 # needs unambiguously negative valence
+            0.50 * max(0, -valence - 0.10)                  # needs negative valence
             + 0.30 * max(0, 0.35 - arousal)                 # must be truly low arousal
             + 0.20 * max(0, theta_beta_ratio - 2.0) * 0.4  # only VERY high theta/beta
         )
 
-        # Angry: negative valence + elevated arousal + beta dominance + gamma spike.
-        # Key differentiator from fearful: anger = fight/approach (more gamma, more
-        # overt activation). Lowered arousal and beta/alpha thresholds so moderate
-        # anger is detected, not just extreme rage.
-        # Reduced gamma weight (noisy on Muse 2) but still the best angry/fear splitter.
+        # Angry: negative valence + elevated arousal + beta dominance.
+        # Key differentiator from fearful: anger = fight/approach motivation.
+        # Gamma weight drastically reduced — EMG at Muse 2 frontal sites creates
+        # false anger spikes whenever the user clenches jaw or tenses forehead.
         probs[2] = (
-            0.35 * max(0, -valence - 0.1)                       # negative valence (primary)
-            + 0.25 * max(0, arousal - 0.45)                     # elevated arousal (lowered: 0.55→0.45)
-            + 0.25 * min(1, max(0, beta_alpha_ratio - 1.3))     # beta dominance (lowered: 1.5→1.3)
-            + 0.15 * min(1, gamma * 2.5)                        # gamma spike (angry > fearful in gamma)
+            0.40 * max(0, -valence - 0.1)                       # negative valence (primary)
+            + 0.30 * max(0, arousal - 0.45)                     # elevated arousal
+            + 0.25 * min(1, max(0, beta_alpha_ratio - 1.3))     # beta dominance
+            + 0.05 * min(1, gamma * 2.5)                        # minimal gamma (noisy)
         )
 
         # Fearful/Anxious: negative valence + elevated arousal + beta dominance.
@@ -395,21 +422,21 @@ class EmotionClassifier:
         emotion_idx = int(np.argmax(smoothed))
 
         # ── Mental state indices (0-1 scale) ────────────────────
-        # Stress: high beta/alpha ratio + low alpha + high-beta elevation
+        # Stress: high beta/alpha ratio + low alpha + high-beta elevation.
+        # Gamma excluded — EMG noise at AF7/AF8 inflates stress artificially (jaw clenching).
         stress_index = float(np.clip(
-            0.40 * min(1, beta_alpha_ratio * 0.3)
-            + 0.25 * max(0, 1 - alpha * 2.5)
-            + 0.20 * min(1, high_beta * 4)        # high-beta elevates stress index
-            + 0.15 * min(1, gamma * 2),
+            0.45 * min(1, beta_alpha_ratio * 0.3)
+            + 0.30 * max(0, 1 - alpha * 2.5)
+            + 0.25 * min(1, high_beta * 4),        # high-beta is the real stress marker
             0, 1
         ))
 
-        # Focus: strong beta (especially low-beta), low theta/beta, moderate arousal
+        # Focus: strong beta (especially low-beta), low theta/beta, moderate arousal.
+        # Gamma excluded — EMG noise at AF7/AF8 produces false focus spikes.
         focus_index = float(np.clip(
-            0.40 * min(1, beta * 3.5)
-            + 0.35 * max(0, 1 - theta_beta_ratio * 0.40)
-            + 0.15 * min(1, low_beta * 5)         # low-beta is the attentional band
-            + 0.10 * min(1, gamma * 2),
+            0.45 * min(1, beta * 3.5)
+            + 0.40 * max(0, 1 - theta_beta_ratio * 0.40)
+            + 0.15 * min(1, low_beta * 5),         # low-beta is the primary attentional band
             0, 1
         ))
 
@@ -421,13 +448,13 @@ class EmotionClassifier:
             0, 1
         ))
 
-        # Anger: high beta/alpha + gamma spike + suppressed alpha.
-        # Reduced over-reliance on gamma (noisy on Muse 2); added high-beta contribution.
+        # Anger: high beta/alpha + suppressed alpha + high-beta elevation.
+        # Gamma weight minimized — EMG at Muse 2 frontal sites creates false anger.
         anger_index = float(np.clip(
-            0.35 * min(1, max(0, beta_alpha_ratio - 1.0) * 0.5)
-            + 0.25 * min(1, gamma * 3)
-            + 0.25 * max(0, 1 - alpha * 5)
-            + 0.15 * min(1, high_beta * 3),       # high-beta also elevates in angry states
+            0.40 * min(1, max(0, beta_alpha_ratio - 1.0) * 0.5)
+            + 0.30 * max(0, 1 - alpha * 5)
+            + 0.20 * min(1, high_beta * 3)
+            + 0.10 * min(1, gamma * 3),            # minimal weight (EMG noise)
             0, 1
         ))
 
@@ -504,12 +531,21 @@ class EmotionClassifier:
         high_beta = high_beta_raw / total_power
         low_beta  = low_beta_raw  / total_power
 
+        delta     = delta_raw     / total_power
         beta_alpha_ratio = beta / max(alpha, 1e-10)
         theta_beta_ratio = theta / max(beta, 1e-10)
-        arousal = float(np.clip(beta / max(beta + alpha, 1e-10) + gamma * 0.5, 0, 1))
 
-        valence = float(np.tanh((alpha / max(beta, 1e-10) - 0.7) * 2.0))
-        arousal = float(np.clip(beta / max(beta + alpha, 1e-10) + gamma * 0.5, 0, 1))
+        valence = float(np.clip(
+            0.65 * np.tanh((alpha / max(beta, 1e-10) - 0.7) * 2.0)
+            + 0.35 * np.tanh((alpha - 0.15) * 4),
+            -1, 1
+        ))
+        arousal = float(np.clip(
+            0.45 * beta / max(beta + alpha, 1e-10)
+            + 0.30 * (1.0 - alpha / max(alpha + beta + theta, 1e-10))
+            + 0.25 * (1.0 - delta / max(delta + beta, 1e-10)),
+            0, 1
+        ))
 
         stress_index = float(np.clip(
             0.40 * min(1, beta_alpha_ratio * 0.3) + 0.25 * max(0, 1 - alpha * 2.5)
@@ -579,11 +615,21 @@ class EmotionClassifier:
         high_beta = high_beta_raw / total_power
         low_beta  = low_beta_raw  / total_power
 
+        delta     = delta_raw     / total_power
         beta_alpha_ratio = beta / max(alpha, 1e-10)
         theta_beta_ratio = theta / max(beta, 1e-10)
 
-        valence = float(np.tanh((alpha / max(beta, 1e-10) - 0.7) * 2.0))
-        arousal = float(np.clip(beta / max(beta + alpha, 1e-10) + gamma * 0.5, 0, 1))
+        valence = float(np.clip(
+            0.65 * np.tanh((alpha / max(beta, 1e-10) - 0.7) * 2.0)
+            + 0.35 * np.tanh((alpha - 0.15) * 4),
+            -1, 1
+        ))
+        arousal = float(np.clip(
+            0.45 * beta / max(beta + alpha, 1e-10)
+            + 0.30 * (1.0 - alpha / max(alpha + beta + theta, 1e-10))
+            + 0.25 * (1.0 - delta / max(delta + beta, 1e-10)),
+            0, 1
+        ))
 
         stress_index = float(np.clip(
             0.40 * min(1, beta_alpha_ratio * 0.3) + 0.25 * max(0, 1 - alpha * 2.5)
