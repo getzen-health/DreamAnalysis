@@ -416,6 +416,7 @@ Would require:
 2. **Longer epochs**: Switch from 1-second to 4-second sliding window with 50% overlap.
 3. **Personal calibration**: After 5 sessions, compute per-user band-power priors and adjust thresholds.
 4. **Online learning**: `online_learner.py` exists but needs integration into the live inference path.
+5. ~~**DASM/RASM features**~~: ✅ Done — `compute_dasm_rasm()` in `eeg_processor.py` (commit `9c4e8fc`)
 
 ---
 
@@ -503,6 +504,7 @@ extract_band_powers(signal, fs)              # delta/theta/alpha/beta/gamma powe
 extract_features(signal, fs)                 # 17 features: powers + ratios + Hjorth + entropy
 extract_features_multichannel(signals, fs)   # Average features across all 4 channels
 compute_frontal_asymmetry(signals, fs)       # FAA (AF7 vs AF8)
+compute_dasm_rasm(signals, fs)               # DASM + RASM: 10 asymmetry features across all bands (AF7 vs AF8)
 compute_coherence(signals, fs, band)         # Mean inter-channel coherence in a band
 compute_phase_locking_value(signals, fs)     # PLV across channel pairs
 compute_cwt_spectrogram(signal, fs)          # Morlet wavelet time-frequency map
@@ -697,7 +699,7 @@ Current system uses: raw band powers (17 features/channel) — reasonable but no
 Total: 31 features
 ```
 
-**DASM and RASM** extend FAA to ALL frequency bands, not just alpha. They are **not currently implemented** in `eeg_processor.py`. These are the most impactful missing features.
+**DASM and RASM** extend FAA to ALL frequency bands, not just alpha. ✅ **Implemented in commit `9c4e8fc`** via `compute_dasm_rasm()` in `eeg_processor.py`. Automatically included in `extract_features_multichannel()` output (total features: 31 → 41).
 
 **PubMed 2024 finding on Muse**: TP10 electrode alone achieved 91.42% accuracy. AF8+TP9+TP10 combination reached 88.05% average across participants.
 
