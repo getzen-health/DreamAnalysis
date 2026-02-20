@@ -1,0 +1,34 @@
+# ── Not needed for ML backend ──────────────────────────────────────────────
+client/
+server/
+shared/
+docs/
+attached_assets/
+node_modules/
+.git/
+*.md
+
+# ── Large training datasets (18 GB) ────────────────────────────────────────
+ml/data/
+
+# ── Oversized model files not needed for inference ─────────────────────────
+# models/saved/ (123 MB) IS included — only the big root-level joblibs are excluded
+ml/models/emotion_classifier_rf.joblib
+ml/models/emotion_classifier_lgbm.joblib
+ml/models/emotion_classifier_xgb.joblib
+ml/models/emotion_classifier_mlp.pt
+
+# ── User-specific training data ────────────────────────────────────────────
+ml/user_models/
+
+# ── Python / build cache ───────────────────────────────────────────────────
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+
+# ── Local dev / secrets ────────────────────────────────────────────────────
+.env
+.env.*
+**/.DS_Store
