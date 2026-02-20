@@ -369,6 +369,74 @@ def compute_frontal_asymmetry(
     }
 
 
+# Frequency bands used for DASM/RASM (5 core emotion bands, SJTU BCMI Lab convention)
+_DASM_RASM_BANDS = ["delta", "theta", "alpha", "beta", "gamma"]
+
+
+def compute_dasm_rasm(
+    signals: np.ndarray, fs: float = 256.0,
+    left_ch: int = 1, right_ch: int = 2
+) -> Dict[str, float]:
+    """Compute DASM and RASM inter-hemispheric asymmetry features across all bands.
+
+    DASM (Differential Asymmetry): DE(right_ch) - DE(left_ch) per frequency band.
+    RASM (Rational Asymmetry):     var(right_ch) / var(left_ch) per frequency band.
+
+    Extends FAA from alpha-only to ALL five frequency bands. Introduced by the
+    SJTU BCMI Lab (Zheng & Lu, 2015, SEED dataset). In the recommended 31-feature
+    compact vector for Muse 2:
+        5 DE × 4 channels  = 20 features
+        5 DASM             =  5 features  ← this function
+        5 RASM             =  5 features  ← this function
+        1 FAA              =  1 feature   ← compute_frontal_asymmetry()
+        Total: 31 features
+
+    BrainFlow Muse 2 channel order:
+        ch0 = TP9  (left temporal)
+        ch1 = AF7  (left frontal)   ← left_ch default
+        ch2 = AF8  (right frontal)  ← right_ch default
+        ch3 = TP10 (right temporal)
+
+    Args:
+        signals: 2D array (n_channels, n_samples).
+        fs: Sampling frequency (Hz).
+        left_ch: Left-frontal channel index (AF7 = ch1 for Muse 2).
+        right_ch: Right-frontal channel index (AF8 = ch2 for Muse 2).
+
+    Returns:
+        Dict with 10 keys:
+            dasm_{band}  — DE(right) - DE(left) — signed; positive = right-dominant
+            rasm_{band}  — var(right) / var(left) — ratio; 1.0 = symmetric
+        Returns empty dict if signals lack required channels.
+    """
+    if signals.ndim < 2 or signals.shape[0] <= max(left_ch, right_ch):
+        return {}
+
+    left_signal = preprocess(signals[left_ch], fs)
+    right_signal = preprocess(signals[right_ch], fs)
+
+    de_left = differential_entropy(left_signal, fs)
+    de_right = differential_entropy(right_signal, fs)
+
+    result = {}
+    for band in _DASM_RASM_BANDS:
+        low, high = BANDS[band]
+
+        # DASM: difference of differential entropies (signed asymmetry).
+        # Positive → right-frontal more active → approach motivation / positive valence.
+        result[f"dasm_{band}"] = float(de_right.get(band, 0.0) - de_left.get(band, 0.0))
+
+        # RASM: variance ratio (always positive; avoids DE sign ambiguity at very low power).
+        # Computed from raw band variance rather than DE to be numerically stable.
+        left_band = bandpass_filter(left_signal, low, high, fs)
+        right_band = bandpass_filter(right_signal, low, high, fs)
+        var_l = float(np.var(left_band))
+        var_r = float(np.var(right_band))
+        result[f"rasm_{band}"] = var_r / max(var_l, 1e-12)
+
+    return result
+
+
 def compute_theta_gamma_coupling(
     eeg: np.ndarray, fs: float = 256.0
 ) -> float:
@@ -444,6 +512,13 @@ def extract_features_multichannel(
             avg_features[key] = float(
                 np.mean([f[key] for f in all_features])
             )
+
+        # DASM/RASM: inter-hemispheric asymmetry across all bands.
+        # Requires AF7 (ch1) and AF8 (ch2) — the standard Muse 2 layout.
+        if n_channels >= 3:
+            dasm_rasm = compute_dasm_rasm(signals, fs, left_ch=1, right_ch=2)
+            avg_features.update(dasm_rasm)
+
         return avg_features
 
     return all_features[0]
