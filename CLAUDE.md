@@ -95,10 +95,14 @@ This section documents the neuroscience, formulas, and architecture decisions fo
 
 ```
 Muse 2 has 4 EEG channels + 2 reference (ear clips):
-  ch0 = AF7  — Left frontal  (key for FAA)
-  ch1 = AF8  — Right frontal (key for FAA)
-  ch2 = TP9  — Left temporal
+  BrainFlow delivery order (board_id 22/38):
+  ch0 = TP9  — Left temporal
+  ch1 = AF7  — Left frontal  (key for FAA — LEFT channel)
+  ch2 = AF8  — Right frontal (key for FAA — RIGHT channel)
   ch3 = TP10 — Right temporal
+
+  ⚠ The old comment "AF7=ch0, AF8=ch1" in eeg_processor.py was WRONG.
+  BrainFlow's eeg_names for Muse 2 = ["TP9", "AF7", "AF8", "TP10"].
 
 Sampling rate: 256 Hz
 Data type: float32, microvolts (µV)
@@ -331,7 +335,8 @@ valence = 0.65 * tanh((alpha/beta - 0.7) * 2.0) + 0.35 * tanh((alpha - 0.15) * 4
 ```python
 faa_valence = 0.0
 if channels is not None and channels.shape[0] >= 2:
-    asym = compute_frontal_asymmetry(channels, fs, left_ch=0, right_ch=1)
+    # BrainFlow Muse 2: ch0=TP9, ch1=AF7, ch2=AF8, ch3=TP10
+    asym = compute_frontal_asymmetry(channels, fs, left_ch=1, right_ch=2)
     faa_valence = asym.get("asymmetry_valence", 0.0)
 
 # Valence: 50% alpha/beta ratio + 50% FAA (when multichannel)
@@ -375,6 +380,7 @@ else:
 - [x] Sad never triggered (threshold -0.25 → -0.10)
 - [x] Duplicate arousal in `_predict_onnx`
 - [x] Single-term valence in ONNX/sklearn paths
+- [x] Wrong FAA channel indices (commit after pipeline audit): old `left_ch=0,right_ch=1` computed log(AF7)-log(TP9) instead of log(AF8)-log(AF7). Fixed to `left_ch=1, right_ch=2`. Also fixed temporal asymmetry in `eeg_processor.py` (was using ch2=AF8 as left temporal; corrected to ch0=TP9).
 
 ### Known Remaining Issues
 - [ ] **No baseline calibration**: Emotion readings are absolute, not relative to the user's resting state. A 2-minute resting-state recording at session start would dramatically improve accuracy (published: +15-29% improvement).

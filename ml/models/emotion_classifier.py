@@ -307,7 +307,9 @@ class EmotionClassifier:
         # anger (approach + negative valence) also shows left FAA. Blend with ABR for robustness.
         faa_valence = 0.0
         if channels is not None and channels.shape[0] >= 2:
-            asym = compute_frontal_asymmetry(channels, fs, left_ch=0, right_ch=1)
+            # BrainFlow Muse 2 channel order: ch0=TP9, ch1=AF7, ch2=AF8, ch3=TP10
+            # FAA requires ch1 (AF7, left frontal) and ch2 (AF8, right frontal).
+            asym = compute_frontal_asymmetry(channels, fs, left_ch=1, right_ch=2)
             faa_valence = asym.get("asymmetry_valence", 0.0)
 
         # ── Valence (pleasantness) ──────────────────────────────

@@ -317,14 +317,21 @@ def compute_frontal_asymmetry(
     Positive FAA → approach motivation, positive affect (Davidson, 1992)
     Negative FAA → withdrawal motivation, negative affect / depression risk
 
-    For Muse 2: AF7=left-frontal (ch0), AF8=right-frontal (ch1)
-                TP9=left-temporal (ch2), TP10=right-temporal (ch3)
+    BrainFlow Muse 2 channel order (board_id 22/38):
+        ch0 = TP9  (left temporal)
+        ch1 = AF7  (left frontal)   ← left_ch default should be 1
+        ch2 = AF8  (right frontal)  ← right_ch default should be 2
+        ch3 = TP10 (right temporal)
+
+    Callers must pass left_ch=1, right_ch=2 for Muse 2 data.
+    The function defaults (0, 1) are kept for backwards compatibility with
+    single-channel or reordered data — callers are responsible for correct indices.
 
     Args:
         signals: 2D array (n_channels, n_samples)
         fs: Sampling frequency
-        left_ch: Index of left-hemisphere channel
-        right_ch: Index of right-hemisphere channel
+        left_ch: Index of left-frontal channel (AF7 = 1 for Muse 2)
+        right_ch: Index of right-frontal channel (AF8 = 2 for Muse 2)
 
     Returns:
         Dict with 'frontal_asymmetry', 'temporal_asymmetry', 'asymmetry_valence'
@@ -346,8 +353,9 @@ def compute_frontal_asymmetry(
     # Temporal asymmetry (TP9 vs TP10) if 4 channels available
     temporal_asymmetry = 0.0
     if n_channels >= 4:
-        r_temporal = _alpha_power(3)
-        l_temporal = _alpha_power(2)
+        # For Muse 2: ch0=TP9 (left temporal), ch3=TP10 (right temporal)
+        r_temporal = _alpha_power(3)   # TP10 right temporal
+        l_temporal = _alpha_power(0)   # TP9  left temporal (was ch2=AF8, incorrect)
         temporal_asymmetry = float(np.log(r_temporal) - np.log(l_temporal))
 
     # Map asymmetry to valence signal (-1 to 1)

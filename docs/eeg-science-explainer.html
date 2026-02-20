@@ -149,11 +149,14 @@
 
        FRONT
     ___________
-   /  AF7  AF8  \       AF7 = ch0 = Left frontal
-  |  [L]   [R]  |      AF8 = ch1 = Right frontal
+   /  AF7  AF8  \       AF7 = ch1 = Left frontal  (FAA: left_ch=1)
+  |  [L]   [R]  |      AF8 = ch2 = Right frontal (FAA: right_ch=2)
   |             |
-  |  TP9  TP10  |      TP9  = ch2 = Left temporal
+  |  TP9  TP10  |      TP9  = ch0 = Left temporal  ← BrainFlow ch0!
    \_[L]___[R]_/       TP10 = ch3 = Right temporal
+
+  BrainFlow delivery order: [TP9, AF7, AF8, TP10] = [ch0, ch1, ch2, ch3]
+  ⚠ Common mistake: assuming ch0=AF7. It is actually ch0=TP9.
        BACK
 
   Sampling rate: 256 Hz
