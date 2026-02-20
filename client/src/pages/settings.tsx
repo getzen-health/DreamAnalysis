@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info } from "lucide-react";
+import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 const USER_ID = "default";
 import { useToast } from "@/hooks/use-toast";
@@ -191,6 +191,9 @@ export default function SettingsPage() {
 
   return (
     <main className="p-4 md:p-6 space-y-6">
+      {/* ML Backend URL */}
+      <MLBackendCard />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Health Connections */}
         <Card className="glass-card p-6 rounded-xl">
@@ -474,6 +477,105 @@ export default function SettingsPage() {
       <ExportBrainDataCard userId={userId} />
 
     </main>
+  );
+}
+
+/* ── ML Backend URL Card ─────────────────────────────────────── */
+
+function MLBackendCard() {
+  const { toast } = useToast();
+  const [url, setUrl] = useState(() => {
+    try { return localStorage.getItem("ml_backend_url") || ""; } catch { return ""; }
+  });
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<"ok" | "fail" | null>(null);
+
+  function save() {
+    try {
+      const trimmed = url.trim().replace(/\/$/, "");
+      if (trimmed) {
+        localStorage.setItem("ml_backend_url", trimmed);
+      } else {
+        localStorage.removeItem("ml_backend_url");
+      }
+      toast({ title: "Saved", description: "ML backend URL updated. Reconnect your device." });
+      setTestResult(null);
+    } catch {
+      toast({ title: "Error", description: "Could not save to localStorage.", variant: "destructive" });
+    }
+  }
+
+  async function testConnection() {
+    const target = url.trim().replace(/\/$/, "") || "http://localhost:8000";
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`${target}/health`, { signal: AbortSignal.timeout(5000) });
+      setTestResult(res.ok ? "ok" : "fail");
+    } catch {
+      setTestResult("fail");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <Card className="glass-card p-6 rounded-xl">
+      <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+        <Server className="h-4 w-4 text-primary" />
+        ML Backend
+      </h3>
+      <p className="text-sm text-muted-foreground mb-4">
+        The ML backend runs locally on your machine to read EEG from your Muse headset.
+        When using the hosted app (Vercel), you need to expose your local backend via{" "}
+        <strong>ngrok</strong> so the browser can reach it.
+      </p>
+
+      {/* ngrok instructions */}
+      <div className="mb-4 p-4 rounded-xl bg-muted/40 border border-border/40 text-sm space-y-2">
+        <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Quick setup</p>
+        <ol className="space-y-1.5 text-sm text-muted-foreground list-none">
+          {[
+            <>Install ngrok: <code className="text-xs bg-muted px-1 rounded">brew install ngrok</code> (or download from ngrok.com)</>,
+            <>Start your ML backend: <code className="text-xs bg-muted px-1 rounded">cd ~/NeuralDreamWorkshop/ml && uvicorn main:app --port 8000</code></>,
+            <>Expose it: <code className="text-xs bg-muted px-1 rounded">ngrok http 8000</code></>,
+            <>Copy the <code className="text-xs bg-muted px-1 rounded">https://xxxx.ngrok-free.app</code> URL and paste it below</>,
+          ].map((step, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="flex gap-2">
+        <Input
+          value={url}
+          onChange={(e) => { setUrl(e.target.value); setTestResult(null); }}
+          placeholder="https://xxxx.ngrok-free.app  (leave blank for localhost:8000)"
+          className="flex-1 font-mono text-sm"
+        />
+        <Button variant="outline" onClick={testConnection} disabled={testing}>
+          {testing ? "Testing…" : "Test"}
+        </Button>
+        <Button onClick={save}>Save</Button>
+      </div>
+
+      {testResult === "ok" && (
+        <p className="text-xs text-success mt-2 flex items-center gap-1">
+          <CheckCircle2 className="h-3 w-3" /> Backend reachable — save and reconnect your device.
+        </p>
+      )}
+      {testResult === "fail" && (
+        <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+          <XCircle className="h-3 w-3" /> Could not reach backend. Check the URL and that the server is running.
+        </p>
+      )}
+      <p className="text-[11px] text-muted-foreground mt-3">
+        Current: <span className="font-mono">{url.trim() || "http://localhost:8000 (default)"}</span>
+      </p>
+    </Card>
   );
 }
 

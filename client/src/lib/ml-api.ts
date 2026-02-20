@@ -1,4 +1,13 @@
-const ML_API_URL = import.meta.env.VITE_ML_API_URL || "http://localhost:8000";
+const ML_API_URL_DEFAULT = import.meta.env.VITE_ML_API_URL || "http://localhost:8000";
+
+/** Reads the ML backend URL from localStorage so the user can override it in Settings. */
+function getMLApiUrl(): string {
+  try {
+    const stored = localStorage.getItem("ml_backend_url");
+    if (stored?.trim()) return stored.trim().replace(/\/$/, "");
+  } catch { /* SSR / private browsing fallback */ }
+  return ML_API_URL_DEFAULT;
+}
 const EXPRESS_URL = import.meta.env.VITE_EXPRESS_URL || "";
 
 // ─── Express API helpers ─────────────────────────────────────────────────
@@ -278,7 +287,7 @@ interface CalibrationStatus {
 }
 
 async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${ML_API_URL}/api${endpoint}`, {
+  const response = await fetch(`${getMLApiUrl()}/api${endpoint}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -292,7 +301,7 @@ async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
 }
 
 async function mlFetchRaw(endpoint: string, options?: RequestInit): Promise<string> {
-  const response = await fetch(`${ML_API_URL}/api${endpoint}`, options);
+  const response = await fetch(`${getMLApiUrl()}/api${endpoint}`, options);
   if (!response.ok) {
     throw new Error(`ML API error: ${response.status} ${response.statusText}`);
   }
@@ -586,8 +595,9 @@ export async function stopDeviceStream(): Promise<Record<string, string>> {
 }
 
 export function getWebSocketUrl(): string {
-  const wsProtocol = ML_API_URL.startsWith("https") ? "wss" : "ws";
-  const host = ML_API_URL.replace(/^https?:\/\//, "");
+  const url = getMLApiUrl();
+  const wsProtocol = url.startsWith("https") ? "wss" : "ws";
+  const host = url.replace(/^https?:\/\//, "");
   return `${wsProtocol}://${host}/ws/eeg-stream`;
 }
 
