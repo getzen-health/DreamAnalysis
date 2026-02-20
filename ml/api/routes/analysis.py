@@ -1,5 +1,6 @@
 """Core EEG analysis endpoints: /analyze-eeg, /simulate-eeg."""
 
+import threading
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
@@ -23,6 +24,59 @@ from ._shared import (
 router = APIRouter()
 
 
+# ─── 4-second epoch buffer (sliding window, 50% overlap) ─────────────────────
+# Research consensus: 4-8 sec epochs are needed for stable Welch PSD estimates.
+# Below 4 seconds, theta/alpha power estimates have high variance.
+# Buffer accumulates frames and exposes the last 4 seconds on each call.
+_EPOCH_SECONDS = 4          # seconds of EEG to accumulate before classifying
+_EPOCH_HOP_SECONDS = 2      # slide by 2 seconds (50% overlap)
+_DEFAULT_FS = 256
+
+class _EpochBuffer:
+    """Thread-safe ring buffer that accumulates EEG frames.
+
+    When fewer than _EPOCH_SECONDS of data has been collected, the buffer
+    returns whatever is available so the API still responds (degraded accuracy,
+    flagged with epoch_ready=False).  Once full, it slides by _EPOCH_HOP_SECONDS.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._buf: np.ndarray | None = None   # (n_channels, n_accumulated)
+        self._n_channels: int = 0
+
+    def push_and_get(self, signals: np.ndarray, fs: float) -> tuple[np.ndarray, bool]:
+        """Add new samples and return the best epoch available.
+
+        Returns:
+            (epoch, epoch_ready) where epoch_ready=True means >= 4 seconds.
+        """
+        epoch_samples = int(_EPOCH_SECONDS * fs)
+        hop_samples = int(_EPOCH_HOP_SECONDS * fs)
+        n_channels = signals.shape[0]
+
+        with self._lock:
+            # Reset buffer if channel count changed
+            if self._buf is None or self._n_channels != n_channels:
+                self._buf = signals.copy()
+                self._n_channels = n_channels
+            else:
+                self._buf = np.concatenate([self._buf, signals], axis=1)
+
+            # Trim buffer to maximum needed size (4 seconds)
+            if self._buf.shape[1] > epoch_samples:
+                self._buf = self._buf[:, -epoch_samples:]
+
+            buf_copy = self._buf.copy()
+
+        epoch_ready = buf_copy.shape[1] >= epoch_samples
+        return buf_copy, epoch_ready
+
+
+_epoch_buffer = _EpochBuffer()
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 @router.post("/analyze-eeg", response_model=AnalysisResponse)
 async def analyze_eeg(input_data: EEGInput):
     """Run all 3 models on EEG input with multi-channel support."""
@@ -33,6 +87,10 @@ async def analyze_eeg(input_data: EEGInput):
 
         fs = input_data.fs
         n_channels = signals.shape[0]
+
+        # Accumulate into epoch buffer; use 4-second window when available
+        signals, epoch_ready = _epoch_buffer.push_and_get(signals, fs)
+        n_channels = signals.shape[0]   # re-read after buffer update
 
         if n_channels > 1:
             extract_features_multichannel(signals, fs, method="average")
@@ -129,6 +187,7 @@ async def analyze_eeg(input_data: EEGInput):
             signal_quality=signal_quality,
             anomaly=anomaly,
             personal=personal,
+            epoch_ready=epoch_ready,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

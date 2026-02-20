@@ -181,6 +181,7 @@ class AnalysisResponse(BaseModel):
     signal_quality: Optional[Dict] = None
     anomaly: Optional[Dict] = None
     personal: Optional[Dict] = None
+    epoch_ready: bool = False  # True when >= 4 sec buffered; accuracy is degraded below this
 
 
 class DeviceConnectRequest(BaseModel):
