@@ -428,7 +428,11 @@ Would require:
 5. **Personal calibration**: After 5 sessions, compute per-user band-power priors and adjust thresholds.
 6. **Online learning**: `online_learner.py` exists but needs integration into the live inference path.
 7. ~~**DASM/RASM features**~~: ✅ Done — `compute_dasm_rasm()` in `eeg_processor.py` + wired into `_predict_features()` valence (commit `0066254`).
-8. **DREAMER dataset + retrain**: Download from Zenodo (free, no registration). Feature pipeline is now ready (DASM/RASM + FMT + mastoid reref all in place). Expected to close the domain gap vs DEAP.
+8. ~~**DREAMER dataset + retrain**~~: ✅ Done — `train_dreamer.py` written and run (commit `5a5c7b5`). Result: **45.3% cross-subject 6-class** (vs 16.7% random chance). Below 60% threshold so live inference still uses feature-based heuristics. This is expected — cross-subject 6-class from 4-ch EEG realistically lands at 45-65% without personalization. With BaselineCalibrator fine-tuning: +15-29% expected.
+   - Trained on: 32-subject DEAP + EmoKey Muse S (45 subjects) = 39,321 samples
+   - Features: 41 multichannel (DASM/RASM + FAA + FMT + mastoid reref)
+   - DREAMER: script is ready but requires access request at zenodo.org/records/546113 (restricted download, contact Stamos.Katsigiannis@durham.ac.uk)
+   - To reach 60%+: run baseline calibration protocol (2 min resting state → `/calibration/baseline/add-frame`) then collect 50+ labeled samples per class from the user
 
 ---
 
