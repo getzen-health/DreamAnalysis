@@ -1,4 +1,6 @@
-const ML_API_URL_DEFAULT = import.meta.env.VITE_ML_API_URL || "http://localhost:8000";
+const ML_API_URL_DEFAULT =
+  import.meta.env.VITE_ML_API_URL ||
+  "https://brendan-postanesthetic-soliloquisingly.ngrok-free.dev";
 
 /** Reads the ML backend URL from localStorage so the user can override it in Settings. */
 function getMLApiUrl(): string {
