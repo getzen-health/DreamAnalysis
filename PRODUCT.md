@@ -143,10 +143,10 @@ Core ML / Signal pipeline    ████████░░  80%
   Missing: personalization. Without baseline calibration the model
   is 45% accurate — barely above chance for 6 classes.
 
-Backend API                  ████████░░  80%
+Backend API                  █████████░  90%
   76 endpoints. Complete signal pipeline. WebSocket exists.
-  Missing: per-user state isolation (crashes under 2+ users).
-           prod deployment (ML backend is still local-only).
+  Per-user state isolation fixed (epoch buffer + baseline cal now per-user).
+  Missing: prod deployment (ML backend is still local-only).
 
 Frontend                     █████░░░░░  50%
   17 pages exist. Pages show numbers.
@@ -166,7 +166,7 @@ Retention mechanics          ██░░░░░░░░  20%
 
 Infrastructure               ████░░░░░░  40%
   Frontend on Vercel. ML backend not deployed.
-  No per-user isolation. No monitoring. No auth enforcement.
+  Per-user isolation: fixed. No monitoring. No auth enforcement.
 ```
 
 **The gap is not technical. The gap is narrative.**
@@ -179,10 +179,10 @@ That loop is the entire product.
 
 ## What Is Broken Right Now (Do Not Ship Without Fixing)
 
-### 1. Per-user state isolation
-`_EpochBuffer`, `BaselineCalibrator`, EMA smoothing — all module-level
-singletons. User A's brain state bleeds into User B's readings.
-Will silently produce wrong results the moment two users connect.
+### ~~1. Per-user state isolation~~ ✅ Fixed
+~~`_EpochBuffer`, `BaselineCalibrator`, EMA smoothing — all module-level
+singletons. User A's brain state bleeds into User B's readings.~~
+Fixed: both are now per-user dicts keyed by `user_id`. Thread-safe lazy init.
 
 ### 2. Baseline calibration has no UX
 The API (`/calibration/baseline/add-frame`) is built and tested.
@@ -209,7 +209,9 @@ Every demo requires running `uvicorn` locally. Not a product.
 
 ### Phase 0 — Make it not embarrassing (1–2 weeks)
 - [ ] Deploy ML backend to Railway or Fly.io
-- [ ] Fix per-user state isolation
+- [x] Fix per-user state isolation (epoch buffer + baseline cal now per-user dicts)
+- [x] Restore all hidden pages: Inner Energy/Chakra, Brain Connectivity, Dream Patterns,
+      Health Analytics, Insights — all back in routing and sidebar
 - [ ] Show signal quality / HSI before first reading
 - [ ] Show "calibrating…" until `epoch_ready: true`
 - [ ] Show confidence on emotion label ("likely relaxed — 68%")
