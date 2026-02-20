@@ -587,19 +587,117 @@ Total: 31 features
 3. Fine-tune on 5-10 min of labeled user data (few-shot)
 ```
 
-### FAA Caveats — It's More Controversial Than Textbooks Suggest
+### FAA Deep Dive — What the Research Actually Shows (2021-2025)
 
-FAA is used in this system, but be aware of these issues:
+From deep research across 30 papers. Read before modifying FAA-related code.
 
-1. **AF7/AF8 ≠ F3/F4**: Most FAA research uses F3/F4. Muse uses AF7 (≈F7, more lateral/inferior) and AF8 (≈F8). This introduces systematic positional error — the electrodes aren't at the "classic" FAA positions.
+#### Three FAA Formulas (All Used in Literature)
 
-2. **Multiverse analysis across 5 studies**: Found NO reliable relationship between FAA (at F3/F4) and depressive disorders (eLife, 2021). FAA measures approach/withdrawal motivation, NOT pure positive/negative valence. Anger (approach + negative) also shows left FAA — contradicting the valence theory.
+```python
+# 1. Canonical (most common — recommended)
+FAA_ln = ln(F4_alpha) - ln(F3_alpha)        # log-transform FIRST, then subtract
 
-3. **Muse-specific validation study** (220 adults): Robust linear regression found NO association between well-being and FAA as measured at AF7/AF8.
+# 2. Ratio-normalized
+FAA_ratio = (F4 - F3) / (F3 + F4)
 
-4. **TP9/TP10 are MORE RELIABLE than AF7/AF8** across sessions: AF7/AF8 signal quality drops significantly across test-retest sessions due to dry electrode contact variability at the forehead.
+# 3. Raw difference (not recommended — no log normalization)
+FAA_diff = F4 - F3
+```
 
-**Conclusion**: FAA is still the best available valence signal for frontal EEG, but treat FAA-derived valence with appropriate skepticism. The system correctly blends FAA 50% with alpha/beta ratio 50% (rather than relying on FAA alone).
+Positive FAA = more right-frontal alpha = more left-frontal activation = approach motivation / positive affect. Current system uses formula #1 (correct).
+
+**For Muse 2**: Replace F3/F4 with AF7/AF8. The system correctly uses `ln(AF8_alpha) - ln(AF7_alpha)`.
+
+#### FAA Measures Approach Motivation, NOT Pure Valence
+
+**Critical theoretical revision (Harmon-Jones et al.)**: FAA indexes approach/withdrawal motivation direction, not valence. Anger — negative valence but approach-motivated — produces LEFT frontal activation (same as happiness). This breaks the simple "FAA = positive/negative" mapping. The system using FAA as a valence proxy is a reasonable approximation but not theoretically clean.
+
+Approach emotions (left FAA): happiness, excitement, anger
+Withdrawal emotions (right FAA): fear, sadness, disgust, depression
+
+#### The FAA Reliability Problem — Numbers
+
+| Reliability Measure | Value |
+|--------------------|-|
+| Test-retest (3 weeks) | r = 0.53-0.66 |
+| Test-retest (3 months) | r = 0.61 |
+| Frontolateral sites (F7/F8) | r = 0.63-0.73 |
+| Frontomedial sites (F3/F4) | r = 0.30-0.45 |
+| Variance that is stable trait | 60% |
+| Variance that is state/noise | 40% |
+
+**Even in ideal conditions, 40% of what you measure on any day is noise.** This is why session-to-session FAA readings jump around even without emotional state change.
+
+#### Minimum Epochs for Reliable FAA
+
+**100 artifact-free epochs (1-3 minutes minimum)** — from updated Coan & Allen primer (2019).
+
+This means: **a 1-2 second window FAA is essentially noise.** Epoch-to-epoch FAA values show near-zero reliability. To get a stable FAA estimate, you must average across 100 artifact-free epochs. The current system computes FAA per-frame — treat these values as directional indicators only, never absolute truth.
+
+#### Resting-State vs Task-Evoked FAA
+
+| Type | Variance from individual differences | Use Case |
+|------|-------------------------------------|---------|
+| Resting-state FAA | **16%** | Depression biomarker research |
+| Task-evoked (anger induction) | **72%** | State detection |
+| Task-evoked (fear) | **88%** | State detection |
+| Task-evoked (sadness) | **91%** | State detection |
+| Task-evoked (happiness) | **41%** | State detection |
+
+Task-evoked FAA during emotional stimuli is far more sensitive than resting-state. The "Capability Model" predicts EEG asymmetry during emotional challenge is a more powerful indicator than resting activity. For real-time monitoring without known stimulus timing, task-evoked advantage cannot be used.
+
+#### The Muse Fpz Reference Problem (Critical)
+
+**Muse 2 default reference is near Fpz** (forehead midline) — **not mastoid**. Fpz is ~2-3 cm from AF7/AF8. Referencing to a nearby electrode subtracts spatially correlated neural signal → **artificially low amplitude at AF7/AF8 under default settings**.
+
+**Fix**: Re-reference AF7/AF8 to linked TP9/TP10 (mastoid-equivalent). This is the "mastoid-ref montage" from Cannard et al. (2021) and is required for meaningful FAA values. The BrainFlow API likely delivers data already referenced — check `brainflow_manager.py` to confirm which reference is applied before signal reaches Python.
+
+**Additional problem**: CSD transformation (best way to remove volume conduction) requires 16-32 channels minimum — impossible with 4-channel Muse.
+
+#### DEAP Valence Accuracy Reality Check (FAA-Based)
+
+| Method | Valence Accuracy | Notes |
+|--------|-----------------|-------|
+| SVM + standard features (incl. FAA) | **55-57%** | Cross-subject, binary |
+| Best traditional ML | **63-67%** | Cross-subject, binary |
+| Random Forest | ~67% | Cross-subject |
+| DEAP deep learning (published) | 85-98% | WITHIN-subject only — not generalizable |
+| Cross-subject realistic | **57-72%** | What you get in real deployment |
+
+Chance level for binary classification = 50%. The best cross-subject FAA-based valence classifiers achieve only 13-17 points above chance.
+
+**Why arousal is always ~10 points better than valence**: Arousal has large, bilateral, consistent neural correlates (alpha ERD, beta increase). Valence requires detecting small hemispheric asymmetry differences — an order of magnitude harder.
+
+#### Alpha Subband: 8-13 Hz vs High Alpha (11-13 Hz)
+
+Standard: 8-13 Hz (use this for FAA — confirmed by Cannard 2021, Zhang 2023 finding IAF adds no benefit).
+
+High alpha (11-13 Hz) shows greater specificity for emotional states than low alpha (8-10 Hz) per 2025 Scientific Reports paper. Could be worth extracting separately as an additional feature, but adds complexity.
+
+#### FAA Caveats Summary
+
+1. **AF7/AF8 ≠ F3/F4**: Most FAA research uses dlPFC sites (F3/F4). Muse uses prefrontal/orbital sites (AF7/AF8). Different anatomy, non-directly-comparable to canonical FAA literature.
+
+2. **Multiverse analysis eLife 2021**: 270 analytical pipelines across 5 datasets → only 4.8% significant results (chance level). 8/13 significant results were in the *wrong direction*. FAA-depression relationship is "negligible."
+
+3. **Muse-specific validation study** (220 adults): No association between well-being and FAA at AF7/AF8.
+
+4. **TP9/TP10 more reliable than AF7/AF8** across sessions: forehead dry electrode contact degrades more across days.
+
+5. **Approach motivation ≠ positive valence**: Anger also produces left FAA.
+
+**Conclusion**: FAA is still the best available frontal valence signal, but treat as directional indicator only. The system's 50% FAA + 50% alpha/beta blending is the right approach. Do not weight FAA more than 50% without personalized calibration.
+
+#### Alternative Valence Features Beyond FAA
+
+**Frontal Midline Theta (FMT)** — more robust than FAA for real-time systems:
+- Source: Anterior cingulate cortex (ACC) + medial prefrontal cortex (mPFC)
+- Pleasant stimuli → higher theta in left hemisphere
+- FP1/FP2 theta asymmetry discriminates anger vs. fear
+- Less sensitive to reference electrode choice than FAA
+- **Not yet implemented** in `eeg_processor.py`
+
+**Prefrontal theta asymmetry**: Significant theta asymmetry in prefrontal/frontal/temporal regions correlates with emotion regulation difficulties (2024 study). Complements FAA.
 
 ### 4-Channel Specific Limitations
 
