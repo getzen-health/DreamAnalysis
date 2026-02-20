@@ -2,13 +2,25 @@
 
 import numpy as np
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import List
 
 from ._shared import (
     _get_personal_model,
     CalibrationSubmitRequest, PersonalFeedbackRequest,
+    EEGInput,
 )
+from processing.eeg_processor import BaselineCalibrator
 
 router = APIRouter()
+
+# Module-level BaselineCalibrator singleton (one per server instance)
+_baseline_cal = BaselineCalibrator()
+
+
+class BaselineFrameRequest(BaseModel):
+    signals: List[List[float]]   # shape: (n_channels, n_samples)
+    fs: float = 256.0
 
 
 @router.post("/calibration/start")
@@ -53,3 +65,57 @@ async def calibration_status(user_id: str = "default"):
     if pm is None:
         return {"calibrated": False, "n_samples": 0, "personal_accuracy": 0.0, "classes": []}
     return pm.get_calibration_status()
+
+
+# ─── Baseline calibration endpoints ─────────────────────────────────────────
+# Used during the 2-3 minute resting-state recording at session start.
+# Call add-frame repeatedly (e.g. every second) while user sits still.
+# Once 30+ frames are collected the baseline is ready; call normalize on
+# each feature dict before passing to the emotion classifier.
+
+@router.post("/calibration/baseline/add-frame")
+async def baseline_add_frame(request: BaselineFrameRequest):
+    """Add a resting-state EEG frame to the baseline calibrator.
+
+    Send ~1 second of EEG at a time (256 samples at 256 Hz).
+    Collect 2 minutes of eyes-closed data for best results.
+
+    Returns the current baseline status.
+    """
+    try:
+        signals = np.array(request.signals)
+        if signals.ndim == 1:
+            signals = signals.reshape(1, -1)
+        _baseline_cal.add_baseline_frame(signals, request.fs)
+        status = _baseline_cal.to_dict()
+        ready = status["is_ready"]
+        return {
+            "status": "ok",
+            "n_frames": status["n_frames"],
+            "ready": ready,
+            "message": (
+                "Baseline ready — normalize features before classification."
+                if ready
+                else f"Collecting baseline… {status['n_frames']}/{BaselineCalibrator._MIN_BASELINE_FRAMES} frames."
+            ),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/calibration/baseline/status")
+async def baseline_status():
+    """Return current baseline calibrator status."""
+    status = _baseline_cal.to_dict()
+    return {
+        "n_frames": status["n_frames"],
+        "ready": status["is_ready"],
+        "n_features": len(status.get("mean", {})),
+    }
+
+
+@router.post("/calibration/baseline/reset")
+async def baseline_reset():
+    """Clear all collected baseline frames and start over."""
+    _baseline_cal.reset()
+    return {"status": "reset", "message": "Baseline calibrator cleared. Collect a fresh 2-min resting baseline."}
