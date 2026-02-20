@@ -5,9 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ScatterChart, Scatter, ZAxis,
 } from "recharts";
-import { Brain, Heart, Activity, TrendingUp, Zap, Radio } from "lucide-react";
+import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock } from "lucide-react";
 import { EmotionWheel } from "@/components/emotion-wheel";
 import { BrainBands } from "@/components/brain-bands";
 import { useDevice } from "@/hooks/use-device";
@@ -468,111 +467,218 @@ export default function EmotionLab() {
         </div>
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Emotion Timeline Chart */}
-        <Card className="glass-card p-6">
-          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            Emotion Timeline
-            {isLiveToday && isStreaming && (
-              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
-            )}
-          </h3>
-          {!hasTimelineData ? (
-            <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-              <Activity className="h-8 w-8 opacity-30" />
-              <p>{isLiveToday ? (isStreaming ? "Collecting data…" : "Connect device to see live data") : "No sessions in this period"}</p>
+      {/* Live Circumplex + AI History (shown while streaming) */}
+      {isStreaming && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Beautiful Circumplex */}
+          <Card className="glass-card p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Smile className="h-4 w-4 text-pink-400" />
+              <h3 className="text-sm font-medium">Emotion Circumplex</h3>
+              <span className="text-[10px] font-mono text-primary animate-pulse ml-auto">● LIVE</span>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={timelineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.5} />
-                <XAxis dataKey={timelineDataKey} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} />
-                <Tooltip
-                  contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: number) => [`${v}%`]}
-                />
-                <Line type="monotone" dataKey="focus_index" name="Focus" stroke="hsl(200, 70%, 55%)" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="stress_index" name="Stress" stroke="hsl(38, 85%, 58%)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="relaxation_index" name="Relax" stroke="hsl(152, 60%, 48%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-          <div className="flex gap-4 mt-2">
-            {[
-              { label: "Focus",   color: "hsl(200,70%,55%)" },
-              { label: "Stress",  color: "hsl(38,85%,58%)",  dashed: true },
-              { label: "Relax",   color: "hsl(152,60%,48%)" },
-            ].map((l) => (
-              <div key={l.label} className="flex items-center gap-1.5">
-                <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
-                <span className="text-[10px] text-muted-foreground">{l.label}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
+            <ValenceArousalPlot
+              valence={currentEmotion.valence}
+              arousal={currentEmotion.arousal}
+              emotion={currentEmotion.emotion}
+              history={emotionHistory.slice(0, 24).map(h => ({ valence: h.valence, arousal: h.arousal, emotion: h.emotion }))}
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground mt-1 font-mono">
+              <span>Valence: {(currentEmotion.valence * 100).toFixed(0)}%</span>
+              <span>Arousal: {(currentEmotion.arousal * 100).toFixed(0)}%</span>
+              <span className="capitalize" style={{ color: EMOTION_COLORS[currentEmotion.emotion] ?? "inherit" }}>
+                {currentEmotion.emotion}
+              </span>
+            </div>
+          </Card>
 
-        {/* Valence-Arousal Space */}
-        <Card className="glass-card p-6">
-          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-warning" />
-            Valence-Arousal Space
-            {!isLiveToday && (
-              <span className="ml-auto text-[10px] text-muted-foreground">{periodSessions.length} sessions</span>
+          {/* AI Emotion History */}
+          <Card className="glass-card p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="h-4 w-4 text-cyan-400" />
+              <h3 className="text-sm font-medium">AI Emotion History</h3>
+              <span className="text-xs text-muted-foreground ml-auto">{emotionHistory.length} readings</span>
+            </div>
+            {emotionHistory.length === 0 ? (
+              <div className="h-48 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
+                Waiting for emotion data…
+              </div>
+            ) : (
+              <div className="space-y-1 max-h-[260px] overflow-y-auto pr-1">
+                {emotionHistory.slice().reverse().map((e, i) => (
+                  <div key={i} className="flex items-center gap-3 text-xs py-1.5 border-b border-border/10 last:border-0">
+                    <span className="font-mono text-muted-foreground w-16 shrink-0">{e.time}</span>
+                    <EmotionDot emotion={e.emotion} />
+                    <span className="capitalize font-medium w-16">{e.emotion}</span>
+                    <div className="flex-1 flex gap-2 text-[10px] text-muted-foreground">
+                      <span>V:{(e.valence * 100).toFixed(0)}%</span>
+                      <span>A:{(e.arousal * 100).toFixed(0)}%</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{(e.confidence * 100).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
             )}
-          </h3>
-          {!hasVaData ? (
-            <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
-              {isLiveToday
-                ? isStreaming ? "Collecting data..." : "Connect device to see V-A plot"
-                : "No sessions in this period"}
-            </div>
-          ) : (
-            <>
-            <ResponsiveContainer width="100%" height={220}>
-              <ScatterChart>
-                <defs>
-                  <radialGradient id="vaGlow" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="hsl(152, 60%, 55%)" stopOpacity={0.9} />
-                    <stop offset="70%" stopColor="hsl(200, 70%, 55%)" stopOpacity={0.6} />
-                    <stop offset="100%" stopColor="hsl(262, 45%, 65%)" stopOpacity={0.3} />
-                  </radialGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 22%)" opacity={0.6} />
-                <XAxis type="number" dataKey="valence" domain={[-1, 1]} name="Valence" tick={{ fontSize: 10, fill: "hsl(220, 12%, 55%)" }} axisLine={{ stroke: "hsl(220, 18%, 25%)" }} tickLine={false} />
-                <YAxis type="number" dataKey="arousal" domain={[0, 1]} name="Arousal" tick={{ fontSize: 10, fill: "hsl(220, 12%, 55%)" }} axisLine={{ stroke: "hsl(220, 18%, 25%)" }} tickLine={false} />
-                <ZAxis type="number" dataKey="size" range={[40, 200]} />
-                <Tooltip
-                  contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 12, color: "hsl(38, 20%, 92%)" }}
-                  labelStyle={{ color: "hsl(38, 20%, 92%)" }}
-                  itemStyle={{ color: "hsl(220, 12%, 75%)" }}
-                  content={({ payload }) => {
-                    if (!payload?.length) return null;
-                    const d = payload[0]?.payload as { valence?: number; arousal?: number; emotion?: string };
-                    return (
-                      <div style={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, padding: "8px 12px", fontSize: 11 }}>
-                        {d.emotion && <p style={{ color: "hsl(38, 85%, 65%)", fontWeight: 600, marginBottom: 4, textTransform: "capitalize" }}>{d.emotion}</p>}
-                        <p style={{ color: "hsl(220, 12%, 75%)" }}>Valence: {d.valence?.toFixed(2)}</p>
-                        <p style={{ color: "hsl(220, 12%, 75%)" }}>Arousal: {d.arousal?.toFixed(2)}</p>
-                      </div>
-                    );
-                  }}
-                />
-                <Scatter data={vaData} fill="url(#vaGlow)" stroke="hsl(152, 60%, 55%)" strokeWidth={1} fillOpacity={0.85} />
-              </ScatterChart>
-            </ResponsiveContainer>
-            <div className="grid grid-cols-3 text-[10px] text-muted-foreground mt-1 px-2">
-              <span>← Negative mood</span>
-              <span className="text-center font-medium">Valence (X)</span>
-              <span className="text-right">Positive mood →</span>
-            </div>
-            <div className="text-[10px] text-muted-foreground text-center mt-0.5">Arousal (Y): low = calm · high = activated</div>
-            </>
+          </Card>
+        </div>
+      )}
+
+      {/* Emotion Timeline — always visible */}
+      <Card className="glass-card p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium">Emotion Timeline</h3>
+          {isLiveToday && isStreaming && (
+            <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
           )}
-        </Card>
-      </div>
+        </div>
+        {!hasTimelineData ? (
+          <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+            <Activity className="h-8 w-8 opacity-30" />
+            <p>{isLiveToday ? (isStreaming ? "Collecting data…" : "Connect device to see live data") : "No sessions in this period"}</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={timelineData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.5} />
+              <XAxis dataKey={timelineDataKey} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} />
+              <Tooltip
+                contentStyle={{ background: "hsl(220, 22%, 9%)", border: "1px solid hsl(220, 18%, 20%)", borderRadius: 8, fontSize: 11 }}
+                formatter={(v: number) => [`${v}%`]}
+              />
+              <Line type="monotone" dataKey="focus_index"      name="Focus"  stroke="hsl(200, 70%, 55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="stress_index"     name="Stress" stroke="hsl(38, 85%, 58%)"  strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="relaxation_index" name="Relax"  stroke="hsl(152, 60%, 48%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+        <div className="flex gap-4 mt-2">
+          {[
+            { label: "Focus",  color: "hsl(200,70%,55%)" },
+            { label: "Stress", color: "hsl(38,85%,58%)", dashed: true },
+            { label: "Relax",  color: "hsl(152,60%,48%)" },
+          ].map((l) => (
+            <div key={l.label} className="flex items-center gap-1.5">
+              <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
+              <span className="text-[10px] text-muted-foreground">{l.label}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
     </main>
+  );
+}
+
+/* ── Shared emotion colors ─────────────────────────────────────── */
+const EMOTION_COLORS: Record<string, string> = {
+  happy:   "hsl(48,90%,58%)",
+  excited: "hsl(28,90%,58%)",
+  focused: "hsl(200,80%,58%)",
+  relaxed: "hsl(152,70%,50%)",
+  calm:    "hsl(165,65%,48%)",
+  angry:   "hsl(5,80%,55%)",
+  fearful: "hsl(270,60%,60%)",
+  sad:     "hsl(210,70%,55%)",
+  neutral: "hsl(220,18%,55%)",
+};
+
+const EMOTION_ANCHORS = [
+  { name: "Happy",   v:  0.72, a: 0.70, color: EMOTION_COLORS.happy   },
+  { name: "Excited", v:  0.48, a: 0.90, color: EMOTION_COLORS.excited  },
+  { name: "Focused", v:  0.20, a: 0.65, color: EMOTION_COLORS.focused  },
+  { name: "Relaxed", v:  0.68, a: 0.20, color: EMOTION_COLORS.relaxed  },
+  { name: "Calm",    v:  0.38, a: 0.08, color: EMOTION_COLORS.calm     },
+  { name: "Angry",   v: -0.68, a: 0.80, color: EMOTION_COLORS.angry    },
+  { name: "Fearful", v: -0.40, a: 0.72, color: EMOTION_COLORS.fearful  },
+  { name: "Sad",     v: -0.65, a: 0.18, color: EMOTION_COLORS.sad      },
+];
+
+/* ── Valence/Arousal Circumplex ────────────────────────────────── */
+function ValenceArousalPlot({
+  valence, arousal, emotion = "neutral", history,
+}: {
+  valence: number; arousal: number; emotion?: string;
+  history: Array<{ valence: number; arousal: number; emotion: string }>;
+}) {
+  const SIZE = 300, CX = SIZE / 2, CY = SIZE / 2, R = SIZE / 2 - 32;
+  const toXY = (v: number, a: number) => ({ x: CX + v * R, y: CY - (a * 2 - 1) * R });
+  const dot      = toXY(valence, arousal);
+  const dotColor = EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral;
+  const trail    = [...history].reverse();
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: "block" }}>
+      <defs>
+        <clipPath id="el-va-clip"><circle cx={CX} cy={CY} r={R} /></clipPath>
+        <filter id="el-va-glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="5" result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <radialGradient id="el-va-vignette" cx="50%" cy="50%" r="50%">
+          <stop offset="60%" stopColor="transparent" stopOpacity="0" />
+          <stop offset="100%" stopColor="hsl(220,22%,4%)" stopOpacity="0.55" />
+        </radialGradient>
+      </defs>
+      <circle cx={CX} cy={CY} r={R} fill="hsl(220,24%,6%)" />
+      <g clipPath="url(#el-va-clip)">
+        <rect x={CX}     y={CY-R} width={R} height={R} fill="hsl(42,90%,54%)"  opacity={0.13} />
+        <rect x={CX-R}   y={CY-R} width={R} height={R} fill="hsl(0,80%,54%)"   opacity={0.12} />
+        <rect x={CX}     y={CY}   width={R} height={R} fill="hsl(152,68%,44%)" opacity={0.12} />
+        <rect x={CX-R}   y={CY}   width={R} height={R} fill="hsl(215,70%,54%)" opacity={0.10} />
+      </g>
+      <circle cx={CX} cy={CY} r={R*0.33} fill="none" stroke="hsl(220,20%,16%)" strokeWidth={0.7} strokeDasharray="3 5" />
+      <circle cx={CX} cy={CY} r={R*0.67} fill="none" stroke="hsl(220,20%,16%)" strokeWidth={0.7} strokeDasharray="3 5" />
+      <circle cx={CX} cy={CY} r={R}       fill="none" stroke="hsl(220,20%,20%)" strokeWidth={1.4} />
+      <circle cx={CX} cy={CY} r={R} fill="url(#el-va-vignette)" />
+      <line x1={CX-R+2} y1={CY} x2={CX+R-2} y2={CY} stroke="hsl(220,20%,24%)" strokeWidth={0.9} />
+      <line x1={CX} y1={CY+R-2} x2={CX} y2={CY-R+2} stroke="hsl(220,20%,24%)" strokeWidth={0.9} />
+      <polygon points={`${CX+R-1},${CY} ${CX+R-7},${CY-3} ${CX+R-7},${CY+3}`}  fill="hsl(220,20%,30%)" />
+      <polygon points={`${CX},${CY-R+1} ${CX-3},${CY-R+7} ${CX+3},${CY-R+7}`} fill="hsl(220,20%,30%)" />
+      <text x={CX+R-10} y={CY-7}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="end"   fontFamily="monospace">+VALENCE</text>
+      <text x={CX-R+10} y={CY-7}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start" fontFamily="monospace">−VALENCE</text>
+      <text x={CX+5}    y={CY-R+14} fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start" fontFamily="monospace">HIGH AROUSAL</text>
+      <text x={CX+5}    y={CY+R-6}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start" fontFamily="monospace">LOW AROUSAL</text>
+      <text x={CX+R*0.60} y={CY-R*0.80} fontSize={9.5} fill="hsl(42,88%,60%)"  textAnchor="middle" fontWeight="700" letterSpacing="0.6">HAPPY</text>
+      <text x={CX+R*0.60} y={CY-R*0.66} fontSize={7}   fill="hsl(42,70%,44%)"  textAnchor="middle">Excited · Joyful</text>
+      <text x={CX-R*0.60} y={CY-R*0.80} fontSize={9.5} fill="hsl(0,80%,58%)"   textAnchor="middle" fontWeight="700" letterSpacing="0.6">STRESSED</text>
+      <text x={CX-R*0.60} y={CY-R*0.66} fontSize={7}   fill="hsl(0,65%,44%)"   textAnchor="middle">Angry · Fearful</text>
+      <text x={CX+R*0.60} y={CY+R*0.68} fontSize={9.5} fill="hsl(152,65%,50%)" textAnchor="middle" fontWeight="700" letterSpacing="0.6">RELAXED</text>
+      <text x={CX+R*0.60} y={CY+R*0.82} fontSize={7}   fill="hsl(152,52%,38%)" textAnchor="middle">Calm · Serene</text>
+      <text x={CX-R*0.60} y={CY+R*0.68} fontSize={9.5} fill="hsl(210,70%,58%)" textAnchor="middle" fontWeight="700" letterSpacing="0.6">SAD</text>
+      <text x={CX-R*0.60} y={CY+R*0.82} fontSize={7}   fill="hsl(210,55%,44%)" textAnchor="middle">Depressed · Bored</text>
+      <text x={CX+R*0.24} y={CY-R*0.28} fontSize={7.5} fill="hsl(200,70%,52%)" textAnchor="middle" opacity={0.75}>Focused</text>
+      {EMOTION_ANCHORS.map(({ name, v, a, color }) => {
+        const p = toXY(v, a);
+        return <g key={name}><circle cx={p.x} cy={p.y} r={3.5} fill={color} opacity={0.28} /><circle cx={p.x} cy={p.y} r={2} fill={color} opacity={0.55} /></g>;
+      })}
+      {trail.length > 1 && (
+        <polyline clipPath="url(#el-va-clip)"
+          points={trail.map(h => { const p = toXY(h.valence, h.arousal); return `${p.x},${p.y}`; }).join(" ")}
+          fill="none" stroke={dotColor} strokeWidth={1.5} strokeOpacity={0.28} strokeLinecap="round" strokeLinejoin="round" />
+      )}
+      {history.map((h, i) => {
+        const p = toXY(h.valence, h.arousal);
+        const ratio = 1 - i / Math.max(history.length - 1, 1);
+        const col = EMOTION_COLORS[h.emotion] ?? EMOTION_COLORS.neutral;
+        return <circle key={i} cx={p.x} cy={p.y} r={1.8 + ratio * 2.2} fill={col} opacity={0.12 + ratio * 0.50} clipPath="url(#el-va-clip)" />;
+      })}
+      <circle cx={dot.x} cy={dot.y} r={12} fill="none" stroke={dotColor} strokeWidth={1.5} opacity={0.0}>
+        <animate attributeName="r"       values="10;20;10" dur="2.6s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.35;0;0.35" dur="2.6s" repeatCount="indefinite" />
+      </circle>
+      <circle cx={dot.x} cy={dot.y} r={9}  fill={dotColor} opacity={0.18} />
+      <circle cx={dot.x} cy={dot.y} r={6}  fill={dotColor} opacity={0.9} filter="url(#el-va-glow)" />
+      <circle cx={dot.x} cy={dot.y} r={6}  fill={dotColor} />
+      <circle cx={dot.x} cy={dot.y} r={2}  fill="white" opacity={0.92} />
+    </svg>
+  );
+}
+
+/* ── Emotion Dot ───────────────────────────────────────────────── */
+function EmotionDot({ emotion }: { emotion: string }) {
+  return (
+    <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+      style={{ background: EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral }} />
   );
 }

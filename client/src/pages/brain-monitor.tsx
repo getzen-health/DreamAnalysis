@@ -17,11 +17,9 @@ import {
   Zap,
   Eye,
   Gauge,
-  Smile,
   Lightbulb,
   Battery,
   Shield,
-  Clock,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -78,15 +76,6 @@ export default function BrainMonitor() {
   // Live frames accumulated during streaming for chart merge
   const liveFramesRef = useRef<StoredEmotionReading[]>([]);
 
-  // Emotion history for the recent-readings panel (last 30 entries)
-  const [emotionHistory, setEmotionHistory] = useState<Array<{
-    emotion: string;
-    valence: number;
-    arousal: number;
-    confidence: number;
-    ts: string;
-  }>>([]);
-
   // ── DB history query ─────────────────────────────────────────────
   const { data: dbHistory = [] } = useQuery<StoredEmotionReading[]>({
     queryKey: ["emotion-history", CURRENT_USER_ID, historyWindow],
@@ -131,19 +120,6 @@ export default function BrainMonitor() {
       liveFramesRef.current = liveFramesRef.current.slice(-500);
     }
 
-    // Also push to emotion history panel (keep last 30)
-    if (analysis.emotions.emotion) {
-      setEmotionHistory(prev => {
-        const entry = {
-          emotion: analysis.emotions!.emotion ?? "unknown",
-          valence: analysis.emotions!.valence ?? 0,
-          arousal: analysis.emotions!.arousal ?? 0,
-          confidence: analysis.emotions!.confidence ?? 0,
-          ts: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-        };
-        return [entry, ...prev].slice(0, 30);
-      });
-    }
   }, [latestFrame?.timestamp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Merged timeline: DB history + live frames (deduplicated by ts) ─
@@ -522,60 +498,6 @@ export default function BrainMonitor() {
         </div>
       )}
 
-      {/* ── Valence/Arousal Circumplex + Emotion History ──────────────── */}
-      {isStreaming && stableAnalysis?.emotions && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Valence/Arousal 2D Space */}
-          <Card className="glass-card p-6 rounded-xl hover-glow">
-            <div className="flex items-center gap-2 mb-4">
-              <Smile className="h-4 w-4 text-pink-400" />
-              <h3 className="text-lg font-semibold">Emotion Circumplex</h3>
-              <span className="text-xs text-muted-foreground ml-auto">Valence × Arousal</span>
-            </div>
-            <ValenceArousalPlot
-              valence={stableAnalysis.emotions.valence ?? 0}
-              arousal={stableAnalysis.emotions.arousal ?? 0}
-              emotion={stableAnalysis.emotions.emotion ?? "neutral"}
-              history={emotionHistory.slice(0, 24).map(h => ({ valence: h.valence, arousal: h.arousal, emotion: h.emotion }))}
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground mt-2 font-mono">
-              <span>Valence: {((stableAnalysis.emotions.valence ?? 0) * 100).toFixed(0)}%</span>
-              <span>Arousal: {((stableAnalysis.emotions.arousal ?? 0) * 100).toFixed(0)}%</span>
-              <span className="capitalize text-pink-400">{stableAnalysis.emotions.emotion ?? "—"}</span>
-            </div>
-          </Card>
-
-          {/* Emotion History List */}
-          <Card className="glass-card p-6 rounded-xl hover-glow">
-            <div className="flex items-center gap-2 mb-4">
-              <Clock className="h-4 w-4 text-cyan-400" />
-              <h3 className="text-lg font-semibold">AI Emotion History</h3>
-              <span className="text-xs text-muted-foreground ml-auto">{emotionHistory.length} readings</span>
-            </div>
-            {emotionHistory.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
-                Waiting for emotion data…
-              </div>
-            ) : (
-              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                {emotionHistory.map((e, i) => (
-                  <div key={i} className="flex items-center gap-3 text-xs py-1.5 border-b border-border/10 last:border-0">
-                    <span className="font-mono text-muted-foreground w-16 shrink-0">{e.ts}</span>
-                    <EmotionDot emotion={e.emotion} />
-                    <span className="capitalize font-medium w-16">{e.emotion}</span>
-                    <div className="flex-1 flex gap-2 text-[10px] text-muted-foreground">
-                      <span>V:{(e.valence * 100).toFixed(0)}%</span>
-                      <span>A:{(e.arousal * 100).toFixed(0)}%</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0">{(e.confidence * 100).toFixed(0)}% conf</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
-
       {/* Band Powers Bar */}
       {isStreaming && analysis?.band_powers && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
@@ -750,215 +672,6 @@ function ModelCard({
       )}
       {extra}
     </Card>
-  );
-}
-
-/* ── Valence/Arousal 2D Circumplex ───────────────────────────────── */
-
-const EMOTION_COLORS: Record<string, string> = {
-  happy:   "hsl(48,90%,58%)",
-  excited: "hsl(28,90%,58%)",
-  focused: "hsl(200,80%,58%)",
-  relaxed: "hsl(152,70%,50%)",
-  calm:    "hsl(165,65%,48%)",
-  angry:   "hsl(5,80%,55%)",
-  fearful: "hsl(270,60%,60%)",
-  sad:     "hsl(210,70%,55%)",
-  neutral: "hsl(220,18%,55%)",
-};
-
-// Standard positions of each emotion on the Russell circumplex
-const EMOTION_ANCHORS = [
-  { name: "Happy",   v:  0.72, a: 0.70, color: EMOTION_COLORS.happy   },
-  { name: "Excited", v:  0.48, a: 0.90, color: EMOTION_COLORS.excited  },
-  { name: "Focused", v:  0.20, a: 0.65, color: EMOTION_COLORS.focused  },
-  { name: "Relaxed", v:  0.68, a: 0.20, color: EMOTION_COLORS.relaxed  },
-  { name: "Calm",    v:  0.38, a: 0.08, color: EMOTION_COLORS.calm     },
-  { name: "Angry",   v: -0.68, a: 0.80, color: EMOTION_COLORS.angry    },
-  { name: "Fearful", v: -0.40, a: 0.72, color: EMOTION_COLORS.fearful  },
-  { name: "Sad",     v: -0.65, a: 0.18, color: EMOTION_COLORS.sad      },
-];
-
-function ValenceArousalPlot({
-  valence,
-  arousal,
-  emotion = "neutral",
-  history,
-}: {
-  valence: number;   // -1 to +1
-  arousal: number;   // 0 to +1
-  emotion?: string;
-  history: Array<{ valence: number; arousal: number; emotion: string }>;
-}) {
-  const SIZE = 300;
-  const CX = SIZE / 2;
-  const CY = SIZE / 2;
-  const R  = SIZE / 2 - 32;
-
-  // Map (valence -1..1, arousal 0..1) → SVG pixel coords
-  const toXY = (v: number, a: number) => ({
-    x: CX + v * R,
-    y: CY - (a * 2 - 1) * R,
-  });
-
-  const dot      = toXY(valence, arousal);
-  const dotColor = EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral;
-  // history[0] = most recent — reverse for polyline (oldest→newest)
-  const trail    = [...history].reverse();
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: "block" }}>
-      <defs>
-        {/* Clip everything to the circle */}
-        <clipPath id="va-clip">
-          <circle cx={CX} cy={CY} r={R} />
-        </clipPath>
-
-        {/* Glow for current dot */}
-        <filter id="va-glow" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-
-        {/* Radial vignette for depth */}
-        <radialGradient id="va-vignette" cx="50%" cy="50%" r="50%">
-          <stop offset="60%" stopColor="transparent" stopOpacity="0" />
-          <stop offset="100%" stopColor="hsl(220,22%,4%)" stopOpacity="0.55" />
-        </radialGradient>
-      </defs>
-
-      {/* ── Base circle ── */}
-      <circle cx={CX} cy={CY} r={R} fill="hsl(220,24%,6%)" />
-
-      {/* ── Quadrant colour fills (clipped) ── */}
-      <g clipPath="url(#va-clip)" opacity="1">
-        {/* Top-right  → Happy / Excited  → warm yellow */}
-        <rect x={CX}     y={CY - R} width={R} height={R} fill="hsl(42,90%,54%)"  opacity={0.13} />
-        {/* Top-left   → Angry / Fearful  → red */}
-        <rect x={CX - R} y={CY - R} width={R} height={R} fill="hsl(0,80%,54%)"   opacity={0.12} />
-        {/* Bottom-right → Relaxed / Calm → green */}
-        <rect x={CX}     y={CY}     width={R} height={R} fill="hsl(152,68%,44%)" opacity={0.12} />
-        {/* Bottom-left  → Sad / Bored    → blue */}
-        <rect x={CX - R} y={CY}     width={R} height={R} fill="hsl(215,70%,54%)" opacity={0.10} />
-      </g>
-
-      {/* ── Concentric rings ── */}
-      <circle cx={CX} cy={CY} r={R * 0.33} fill="none" stroke="hsl(220,20%,16%)" strokeWidth={0.7} strokeDasharray="3 5" />
-      <circle cx={CX} cy={CY} r={R * 0.67} fill="none" stroke="hsl(220,20%,16%)" strokeWidth={0.7} strokeDasharray="3 5" />
-      <circle cx={CX} cy={CY} r={R}         fill="none" stroke="hsl(220,20%,20%)" strokeWidth={1.4} />
-
-      {/* ── Vignette overlay ── */}
-      <circle cx={CX} cy={CY} r={R} fill="url(#va-vignette)" />
-
-      {/* ── Axis lines ── */}
-      <line x1={CX - R + 2} y1={CY} x2={CX + R - 2} y2={CY} stroke="hsl(220,20%,24%)" strokeWidth={0.9} />
-      <line x1={CX} y1={CY + R - 2} x2={CX} y2={CY - R + 2} stroke="hsl(220,20%,24%)" strokeWidth={0.9} />
-
-      {/* ── Axis arrow tips ── */}
-      <polygon points={`${CX+R-1},${CY} ${CX+R-7},${CY-3} ${CX+R-7},${CY+3}`}  fill="hsl(220,20%,30%)" />
-      <polygon points={`${CX},${CY-R+1} ${CX-3},${CY-R+7} ${CX+3},${CY-R+7}`} fill="hsl(220,20%,30%)" />
-
-      {/* ── Axis labels ── */}
-      <text x={CX + R - 10} y={CY - 7}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="end"    fontFamily="monospace">+VALENCE</text>
-      <text x={CX - R + 10} y={CY - 7}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start"  fontFamily="monospace">−VALENCE</text>
-      <text x={CX + 5}      y={CY-R+14} fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start"  fontFamily="monospace">HIGH AROUSAL</text>
-      <text x={CX + 5}      y={CY+R-6}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start"  fontFamily="monospace">LOW AROUSAL</text>
-
-      {/* ── Quadrant corner labels ── */}
-      {/* Top-right */}
-      <text x={CX+R*0.60} y={CY-R*0.80} fontSize={9.5} fill="hsl(42,88%,60%)"  textAnchor="middle" fontWeight="700" letterSpacing="0.6">HAPPY</text>
-      <text x={CX+R*0.60} y={CY-R*0.66} fontSize={7}   fill="hsl(42,70%,44%)"  textAnchor="middle">Excited · Joyful</text>
-      {/* Top-left */}
-      <text x={CX-R*0.60} y={CY-R*0.80} fontSize={9.5} fill="hsl(0,80%,58%)"   textAnchor="middle" fontWeight="700" letterSpacing="0.6">STRESSED</text>
-      <text x={CX-R*0.60} y={CY-R*0.66} fontSize={7}   fill="hsl(0,65%,44%)"   textAnchor="middle">Angry · Fearful</text>
-      {/* Bottom-right */}
-      <text x={CX+R*0.60} y={CY+R*0.68} fontSize={9.5} fill="hsl(152,65%,50%)" textAnchor="middle" fontWeight="700" letterSpacing="0.6">RELAXED</text>
-      <text x={CX+R*0.60} y={CY+R*0.82} fontSize={7}   fill="hsl(152,52%,38%)" textAnchor="middle">Calm · Serene</text>
-      {/* Bottom-left */}
-      <text x={CX-R*0.60} y={CY+R*0.68} fontSize={9.5} fill="hsl(210,70%,58%)" textAnchor="middle" fontWeight="700" letterSpacing="0.6">SAD</text>
-      <text x={CX-R*0.60} y={CY+R*0.82} fontSize={7}   fill="hsl(210,55%,44%)" textAnchor="middle">Depressed · Bored</text>
-      {/* Center-right: Focused */}
-      <text x={CX+R*0.24} y={CY-R*0.28} fontSize={7.5} fill="hsl(200,70%,52%)" textAnchor="middle" opacity={0.75}>Focused</text>
-
-      {/* ── Emotion anchor dots (standard circumplex positions) ── */}
-      {EMOTION_ANCHORS.map(({ name, v, a, color }) => {
-        const p = toXY(v, a);
-        return (
-          <g key={name}>
-            <circle cx={p.x} cy={p.y} r={3.5} fill={color} opacity={0.28} />
-            <circle cx={p.x} cy={p.y} r={2}   fill={color} opacity={0.55} />
-          </g>
-        );
-      })}
-
-      {/* ── History trail polyline (oldest→newest) ── */}
-      {trail.length > 1 && (
-        <polyline
-          clipPath="url(#va-clip)"
-          points={trail.map(h => { const p = toXY(h.valence, h.arousal); return `${p.x},${p.y}`; }).join(" ")}
-          fill="none"
-          stroke={dotColor}
-          strokeWidth={1.5}
-          strokeOpacity={0.28}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
-
-      {/* ── History dots (newest = history[0] = most visible) ── */}
-      {history.map((h, i) => {
-        const p     = toXY(h.valence, h.arousal);
-        const ratio = 1 - i / Math.max(history.length - 1, 1); // 1=newest, 0=oldest
-        const col   = EMOTION_COLORS[h.emotion] ?? EMOTION_COLORS.neutral;
-        return (
-          <circle
-            key={i}
-            cx={p.x} cy={p.y}
-            r={1.8 + ratio * 2.2}
-            fill={col}
-            opacity={0.12 + ratio * 0.50}
-            clipPath="url(#va-clip)"
-          />
-        );
-      })}
-
-      {/* ── Current position ── */}
-      {/* Outer pulsing ring */}
-      <circle cx={dot.x} cy={dot.y} r={12} fill="none" stroke={dotColor} strokeWidth={1.5} opacity={0.0}>
-        <animate attributeName="r"       values="10;20;10" dur="2.6s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0.35;0;0.35" dur="2.6s" repeatCount="indefinite" />
-      </circle>
-      {/* Soft glow halo */}
-      <circle cx={dot.x} cy={dot.y} r={9}  fill={dotColor} opacity={0.18} />
-      {/* Main dot with glow filter */}
-      <circle cx={dot.x} cy={dot.y} r={6}  fill={dotColor} opacity={0.9} filter="url(#va-glow)" />
-      <circle cx={dot.x} cy={dot.y} r={6}  fill={dotColor} />
-      {/* White center pinpoint */}
-      <circle cx={dot.x} cy={dot.y} r={2}  fill="white" opacity={0.92} />
-    </svg>
-  );
-}
-
-/* ── Emotion Dot Color ───────────────────────────────────────────── */
-
-function EmotionDot({ emotion }: { emotion: string }) {
-  const colors: Record<string, string> = {
-    happy:   "hsl(38,85%,58%)",
-    sad:     "hsl(210,60%,55%)",
-    angry:   "hsl(340,70%,55%)",
-    fearful: "hsl(262,45%,65%)",
-    relaxed: "hsl(152,60%,48%)",
-    focused: "hsl(200,70%,55%)",
-    neutral: "hsl(220,15%,50%)",
-  };
-  return (
-    <span
-      className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
-      style={{ background: colors[emotion] ?? colors.neutral }}
-    />
   );
 }
 
