@@ -14,7 +14,6 @@ import EmotionLab from "@/pages/emotion-lab";
 import BrainMonitor from "@/pages/brain-monitor";
 import BrainConnectivity from "@/pages/brain-connectivity";
 import DreamJournal from "@/pages/dream-journal";
-import DreamPatterns from "@/pages/dream-patterns";
 import HealthAnalytics from "@/pages/health-analytics";
 import Neurofeedback from "@/pages/neurofeedback";
 import AICompanionPage from "@/pages/ai-companion";
@@ -46,9 +45,7 @@ function AppRoutes() {
       <Route path="/dreams">
         <AppLayout><DreamJournal /></AppLayout>
       </Route>
-      <Route path="/dream-patterns">
-        <AppLayout><DreamPatterns /></AppLayout>
-      </Route>
+
       <Route path="/health-analytics">
         <AppLayout><HealthAnalytics /></AppLayout>
       </Route>

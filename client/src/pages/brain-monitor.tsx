@@ -1,25 +1,15 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { SpectrogramChart } from "@/components/charts/spectrogram-chart";
-import { NeuralNetwork } from "@/components/neural-network";
 import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
 import { SessionControls } from "@/components/session-controls";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Activity,
   Radio,
-  Moon,
-  Heart,
   Brain,
   Zap,
-  Eye,
-  Gauge,
-  Lightbulb,
-  Battery,
-  Shield,
-  Smile,
 } from "lucide-react";
 import { useInference } from "@/hooks/use-inference";
 import { useDevice } from "@/hooks/use-device";
@@ -262,66 +252,83 @@ export default function BrainMonitor() {
           )}
         </div>
 
-        {/* Neural Network Graph */}
-        <div className="glass-card p-6 rounded-xl hover-glow neural-glow">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold">Brain Regions</h3>
-            <Activity className="text-accent" />
+        {/* Brain State Now */}
+        <div className="glass-card p-6 rounded-xl hover-glow">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Brain State Now</h3>
+            <Brain className="text-primary" />
           </div>
-          {isStreaming ? (
-            <NeuralNetwork />
-          ) : (
+          {isStreaming && stableAnalysis ? (() => {
+            const narrative = getBrainStateNarrative(stableAnalysis);
+            return (
+              <div className="space-y-4">
+                <div>
+                  <p className={`text-xl font-bold ${narrative.color}`}>{narrative.headline}</p>
+                  <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{narrative.story}</p>
+                </div>
+                {/* 4 key stats */}
+                <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/30">
+                  {[
+                    { label: "Sleep", value: stableAnalysis.sleep_staging?.stage ?? "Wake", sub: `${Math.round((stableAnalysis.sleep_staging?.confidence ?? 0) * 100)}% conf` },
+                    { label: "Emotion", value: stableAnalysis.emotions?.emotion ?? "—", sub: `V:${((stableAnalysis.emotions?.valence ?? 0) * 100).toFixed(0)}%` },
+                    { label: "Stress", value: stableAnalysis.stress?.level ?? "—", sub: `${Math.round((stableAnalysis.stress?.stress_index ?? 0) * 100)}%` },
+                    { label: "Flow", value: stableAnalysis.flow_state?.in_flow ? "In Flow" : "Normal", sub: `${Math.round((stableAnalysis.flow_state?.flow_score ?? 0) * 100)}%` },
+                  ].map(({ label, value, sub }) => (
+                    <div key={label} className="bg-muted/20 rounded-lg p-3">
+                      <p className="text-[10px] text-muted-foreground">{label}</p>
+                      <p className="text-sm font-semibold capitalize">{value}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{sub}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Rest of models — compact 3-col grid */}
+                <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-[11px]">
+                  {[
+                    { label: "Attention", value: stableAnalysis.attention?.state },
+                    { label: "Creativity", value: stableAnalysis.creativity?.state },
+                    { label: "Memory", value: stableAnalysis.memory_encoding?.state },
+                    { label: "Meditation", value: stableAnalysis.meditation?.depth },
+                    { label: "Dream", value: stableAnalysis.dream_detection?.is_dreaming ? "Dreaming" : "Awake" },
+                    { label: "Drowsy", value: stableAnalysis.drowsiness?.state },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex flex-col gap-0.5">
+                      <span className="text-muted-foreground text-[10px]">{label}</span>
+                      <span className="font-medium capitalize text-foreground/80">{value ?? "—"}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Cognitive load + emotion probabilities */}
+                {stableAnalysis.cognitive_load && (
+                  <div className="text-[11px] text-muted-foreground pt-2 border-t border-border/20">
+                    Cognitive load: <span className="font-medium text-foreground/80 capitalize">{stableAnalysis.cognitive_load.level}</span>
+                    {stableAnalysis.emotions?.probabilities && (
+                      <div className="mt-2 space-y-1">
+                        {Object.entries(stableAnalysis.emotions.probabilities as Record<string, number>)
+                          .sort((a, b) => b[1] - a[1])
+                          .slice(0, 3)
+                          .map(([emo, prob]) => (
+                            <div key={emo} className="flex items-center gap-2">
+                              <span className="w-14 capitalize">{emo}</span>
+                              <div className="flex-1 h-1 rounded-full overflow-hidden bg-muted/40">
+                                <div className="h-full rounded-full" style={{ width: `${Math.round(prob * 100)}%`, background: "hsl(340,70%,55%)" }} />
+                              </div>
+                              <span className="w-6 text-right font-mono">{Math.round(prob * 100)}%</span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })() : (
             <div className="h-80 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
-              Connect device to see brain region activity
+              Connect device to see your brain state
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Live 12-Model Analysis Panel (throttled to 5s) ────────────── */}
-      {isStreaming && stableAnalysis && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <ModelCard icon={<Moon className="h-4 w-4" />} title="Sleep Stage" value={stableAnalysis.sleep_staging?.stage ?? "—"} score={stableAnalysis.sleep_staging?.confidence} color="text-blue-400" />
-          <ModelCard icon={<Smile className="h-4 w-4" />} title="Emotion" value={stableAnalysis.emotions?.emotion ?? "—"} score={stableAnalysis.emotions?.confidence} color="text-pink-400"
-            extra={stableAnalysis.emotions ? (
-              <div className="mt-2 space-y-1.5">
-                <div className="grid grid-cols-3 gap-1 text-[10px] text-muted-foreground">
-                  <span>V:{(stableAnalysis.emotions.valence * 100).toFixed(0)}%</span>
-                  <span>A:{(stableAnalysis.emotions.arousal * 100).toFixed(0)}%</span>
-                  <span>S:{(stableAnalysis.emotions.stress_index * 100).toFixed(0)}%</span>
-                </div>
-                {stableAnalysis.emotions.probabilities && (
-                  <div className="space-y-0.5">
-                    {Object.entries(stableAnalysis.emotions.probabilities as Record<string, number>)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([emo, prob]) => (
-                        <div key={emo} className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-muted-foreground w-12 capitalize shrink-0">{emo}</span>
-                          <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "hsl(220,22%,12%)" }}>
-                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.round(prob * 100)}%`, background: "hsl(340,70%,55%)" }} />
-                          </div>
-                          <span className="text-[9px] text-muted-foreground w-6 text-right">{Math.round(prob * 100)}%</span>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            ) : null} />
-          <ModelCard icon={<Moon className="h-4 w-4" />} title="Dream" value={stableAnalysis.dream_detection?.is_dreaming ? "Dreaming" : "Awake"} score={stableAnalysis.dream_detection?.probability} color="text-purple-400"
-            extra={stableAnalysis.dream_detection ? (<div className="text-[10px] text-muted-foreground mt-1">REM: {(stableAnalysis.dream_detection.rem_likelihood * 100).toFixed(0)}% | Lucidity: {(stableAnalysis.dream_detection.lucidity_estimate * 100).toFixed(0)}%</div>) : null} />
-          <ModelCard icon={<Zap className="h-4 w-4" />} title="Flow State" value={stableAnalysis.flow_state?.in_flow ? "In Flow" : "Normal"} score={stableAnalysis.flow_state?.flow_score} color="text-green-400" />
-          <ModelCard icon={<Lightbulb className="h-4 w-4" />} title="Creativity" value={stableAnalysis.creativity?.state ?? "—"} score={stableAnalysis.creativity?.creativity_score} color="text-amber-400" />
-          <ModelCard icon={<Brain className="h-4 w-4" />} title="Memory" value={stableAnalysis.memory_encoding?.state ?? "—"} score={stableAnalysis.memory_encoding?.encoding_score} color="text-cyan-400" />
-          <ModelCard icon={<Eye className="h-4 w-4" />} title="Attention" value={stableAnalysis.attention?.state ?? "—"} score={stableAnalysis.attention?.attention_score} color="text-emerald-400" />
-          <ModelCard icon={<Battery className="h-4 w-4" />} title="Drowsiness" value={stableAnalysis.drowsiness?.state ?? "—"} score={stableAnalysis.drowsiness?.drowsiness_index} color="text-orange-400" />
-          <ModelCard icon={<Gauge className="h-4 w-4" />} title="Cognitive Load" value={stableAnalysis.cognitive_load?.level ?? "—"} score={stableAnalysis.cognitive_load?.load_index} color="text-red-400" />
-          <ModelCard icon={<Shield className="h-4 w-4" />} title="Stress" value={stableAnalysis.stress?.level ?? "—"} score={stableAnalysis.stress?.stress_index} color="text-rose-400" />
-          <ModelCard icon={<Heart className="h-4 w-4" />} title="Meditation" value={stableAnalysis.meditation?.depth ?? "—"} score={stableAnalysis.meditation?.meditation_score} color="text-violet-400" />
-          {stableAnalysis.lucid_dream && (
-            <ModelCard icon={<Moon className="h-4 w-4" />} title="Lucid Dream" value={stableAnalysis.lucid_dream.state} score={stableAnalysis.lucid_dream.lucidity_score} color="text-fuchsia-400" />
-          )}
-        </div>
-      )}
 
       {/* Band Powers Bar */}
       {isStreaming && analysis?.band_powers && (
@@ -421,52 +428,39 @@ export default function BrainMonitor() {
   );
 }
 
-/* ── Helper: Model Card Component ────────────────────────────────── */
+/* ── Helper: Brain State Narrative ───────────────────────────────── */
 
-function ModelCard({
-  icon,
-  title,
-  value,
-  score,
-  color,
-  extra,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  value: string;
-  score?: number;
-  color: string;
-  extra?: React.ReactNode;
-}) {
-  const pct = score != null ? Math.round(score * 100) : null;
+function getBrainStateNarrative(analysis: Record<string, unknown>): { headline: string; story: string; color: string } {
+  const stress   = (analysis.stress   as { stress_index?: number })?.stress_index   ?? 0;
+  const flow     = (analysis.flow_state as { flow_score?: number })?.flow_score     ?? 0;
+  const sleep    = (analysis.sleep_staging as { stage?: string })?.stage             ?? "wake";
+  const meditation = (analysis.meditation as { meditation_score?: number })?.meditation_score ?? 0;
+  const creativity = (analysis.creativity  as { creativity_score?: number })?.creativity_score ?? 0;
+  const attention  = (analysis.attention   as { attention_score?: number })?.attention_score   ?? 0;
+  const drowsiness = (analysis.drowsiness  as { drowsiness_index?: number })?.drowsiness_index ?? 0;
 
-  return (
-    <Card className="glass-card p-4 rounded-xl hover-glow">
-      <div className="flex items-center gap-2 mb-2">
-        <span className={color}>{icon}</span>
-        <span className="text-xs text-muted-foreground font-medium">{title}</span>
-      </div>
-      <p className={`text-lg font-semibold capitalize ${color}`}>{value}</p>
-      {pct != null && (
-        <div className="mt-2">
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-            <span>Confidence</span>
-            <span>{pct}%</span>
-          </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(220,22%,12%)" }}>
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${pct}%`,
-                background: `linear-gradient(90deg, hsl(152,60%,48%), hsl(38,85%,58%))`,
-              }}
-            />
-          </div>
-        </div>
-      )}
-      {extra}
-    </Card>
-  );
+  if (sleep && sleep !== "wake" && sleep !== "Wake" && sleep !== "—") {
+    return { headline: `${sleep} Sleep`, story: `Your brain is in ${sleep} sleep. Delta waves dominate, signaling deep restorative rest. Models continue running passively.`, color: "text-blue-400" };
+  }
+  if (flow > 0.7) {
+    return { headline: "Flow State", story: "Alpha and theta are balanced with engaged beta — you're in the zone. Focus is sharp without anxiety. Don't break the session.", color: "text-green-400" };
+  }
+  if (stress > 0.7) {
+    return { headline: "Elevated Stress", story: "High-beta activity is dominant, signaling mental tension. Try 4-7-8 breathing or step away briefly. Your nervous system needs a reset.", color: "text-rose-400" };
+  }
+  if (meditation > 0.7) {
+    return { headline: "Meditative State", story: "Alpha waves are dominant and theta is rising — your mind is calm and inward. Excellent state for creative insight or visualization.", color: "text-violet-400" };
+  }
+  if (creativity > 0.7) {
+    return { headline: "Creative Flow", story: "Theta and alpha are elevated — the hallmark of divergent thinking and creative incubation. Great time to brainstorm or explore new ideas.", color: "text-amber-400" };
+  }
+  if (drowsiness > 0.7) {
+    return { headline: "Getting Drowsy", story: "Theta is climbing and alpha is slowing down — your brain is shifting toward sleep onset. Take a break or try a short walk.", color: "text-orange-400" };
+  }
+  if (attention > 0.7) {
+    return { headline: "Sharp & Focused", story: "Beta activity is high with suppressed alpha — classic active cognitive engagement. Your brain is fully online and problem-solving.", color: "text-emerald-400" };
+  }
+  return { headline: "Balanced Resting", story: "A balanced mix of alpha and beta signals a calm yet alert baseline state — the optimal foundation for learning or light work.", color: "text-primary" };
 }
 
 /* ── Helper: band color ──────────────────────────────────────────── */

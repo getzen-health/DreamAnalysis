@@ -11,8 +11,9 @@ from scipy import signal as scipy_signal
 from scipy.stats import entropy
 from typing import Dict, List
 
-# Numpy 2.x renamed np.trapz to np.trapezoid
-_trapezoid = getattr(np, 'trapezoid', np.trapz)
+# NumPy 2.0 renamed np.trapz → np.trapezoid; 1.x only has np.trapz
+# Use the safe two-step lookup to avoid AttributeError on either version
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 
 
 # EEG frequency band definitions (Hz)

@@ -15,126 +15,269 @@ import {
   PolarRadiusAxis,
   Radar,
 } from "recharts";
-import { Sparkles, Brain, Moon, Heart, Lightbulb, Bed, Radio } from "lucide-react";
+import {
+  Sparkles,
+  Brain,
+  Moon,
+  Heart,
+  Lightbulb,
+  Bed,
+  Radio,
+  Zap,
+  Wind,
+  Target,
+  ArrowRight,
+  Activity,
+} from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 
-/* ---------- types ---------- */
 interface BandHistoryPoint {
   time: string;
-  theta: number;
-  alpha: number;
-  beta: number;
-  delta: number;
-  gamma: number;
+  calm: number;   // alpha %
+  alert: number;  // beta %
+  creative: number; // theta %
 }
 
-/* ========== Component ========== */
+function getBrainStateNarrative(
+  attention: Record<string, unknown> | undefined,
+  emotions: Record<string, unknown> | undefined,
+  stress: Record<string, unknown> | undefined,
+  flowState: Record<string, unknown> | undefined,
+  creativity: Record<string, unknown> | undefined,
+  meditation: Record<string, unknown> | undefined,
+  bandPowers: Record<string, number>
+): { headline: string; story: string; state: "peak" | "relaxed" | "stressed" | "creative" | "balanced" } {
+  const focusScore = ((attention?.attention_score as number) ?? 0) * 100;
+  const stressIndex = ((stress?.stress_index as number) ?? (emotions?.stress_index as number) ?? 0) * 100;
+  const relaxIndex = ((emotions?.relaxation_index as number) ?? 0) * 100;
+  const flowScore = ((flowState?.flow_score as number) ?? 0) * 100;
+  const creativityScore = ((creativity?.creativity_score as number) ?? 0) * 100;
+  const meditationScore = ((meditation?.meditation_score as number) ?? 0) * 100;
+
+  const alpha = (bandPowers.alpha ?? 0) * 100;
+  const beta = (bandPowers.beta ?? 0) * 100;
+  const theta = (bandPowers.theta ?? 0) * 100;
+
+  if (flowScore > 60 && focusScore > 60 && stressIndex < 40) {
+    return {
+      headline: "You're in a flow state",
+      story: `Your brain is firing on all cylinders right now. High focus (${Math.round(focusScore)}%), low stress (${Math.round(stressIndex)}%), and that rare combination of engaged beta activity with calm alpha underneath — this is the neuroscience of being "in the zone." Protect this moment: silence your phone, close unnecessary tabs, and stay with what you're doing. Flow states typically last 90–120 minutes before the brain needs recovery.`,
+      state: "peak",
+    };
+  }
+  if (meditationScore > 60 || (alpha > 25 && stressIndex < 30)) {
+    return {
+      headline: "Your brain is deeply calm",
+      story: `Strong alpha waves (${Math.round(alpha)}%) dominate your current EEG, indicating your brain has shifted into a restful but aware state. Your prefrontal cortex is quiet, stress markers are low (${Math.round(stressIndex)}%), and your parasympathetic nervous system is active. This is the ideal state for reflection, reading, or creative incubation — let ideas arrive rather than chasing them.`,
+      state: "relaxed",
+    };
+  }
+  if (creativityScore > 55 || theta > 20) {
+    return {
+      headline: "You're in a creative state",
+      story: `Elevated theta activity (${Math.round(theta)}%) with moderate alpha suggests your brain is in a semi-relaxed, deeply creative mode. This pattern typically appears during moments of insight, daydreaming, and creative problem-solving. The prefrontal cortex is relaxed enough to let associations flow freely. If you have a creative challenge, now is the time to work on it.`,
+      state: "creative",
+    };
+  }
+  if (stressIndex > 55) {
+    return {
+      headline: "Your brain is working hard",
+      story: `High-beta activity (${Math.round(beta)}%) and elevated stress index (${Math.round(stressIndex)}%) indicate your nervous system is in an activated state. This isn't necessarily bad — it means your brain is engaged and alert. But sustained high-beta without recovery depletes the prefrontal cortex. Consider a 5-minute breathing pause to lower cortisol before continuing. Your relaxation score of ${Math.round(relaxIndex)}% tells you how much recovery capacity you have left.`,
+      state: "stressed",
+    };
+  }
+  return {
+    headline: "Your brain is in a balanced state",
+    story: `Your EEG shows a healthy distribution across all frequency bands — alpha (${Math.round(alpha)}% calm), beta (${Math.round(beta)}% alert), theta (${Math.round(theta)}% creative). No single state dominates, which often means your brain is in a receptive, learning-friendly mode. This is a good time for general tasks, social interaction, or taking in new information.`,
+    state: "balanced",
+  };
+}
+
+function getRecommendedActions(
+  stressIndex: number,
+  focusScore: number,
+  creativityScore: number,
+  flowScore: number
+): { icon: typeof Target; label: string; description: string }[] {
+  const actions: { icon: typeof Target; label: string; description: string }[] = [];
+
+  if (stressIndex > 50) {
+    actions.push({
+      icon: Wind,
+      label: "4-7-8 Breathing",
+      description: "2 minutes of this breathing pattern will reduce cortisol within one cycle.",
+    });
+  }
+  if (flowScore > 60) {
+    actions.push({
+      icon: Target,
+      label: "Deep Work Session",
+      description: "You're in flow — start a 25-min Pomodoro on your most important task.",
+    });
+  }
+  if (focusScore < 40) {
+    actions.push({
+      icon: Activity,
+      label: "Movement Break",
+      description: "5 minutes of walking increases prefrontal blood flow and sharpens attention.",
+    });
+  }
+  if (creativityScore > 50) {
+    actions.push({
+      icon: Lightbulb,
+      label: "Brainstorm Now",
+      description: "Your theta-dominant state is ideal for creative thinking — capture ideas freely.",
+    });
+  }
+  if (actions.length < 2) {
+    actions.push({
+      icon: Brain,
+      label: "Log This Session",
+      description: "Recording how you feel right now helps calibrate your personal brain baseline.",
+    });
+    actions.push({
+      icon: Moon,
+      label: "Plan Tomorrow",
+      description: "Writing a 3-item tomorrow list offloads from prefrontal cortex — better sleep.",
+    });
+  }
+  return actions.slice(0, 3);
+}
+
 export default function Insights() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
 
-  const bandPowers = analysis?.band_powers ?? {};
-  const emotions = analysis?.emotions;
-  const dreamDetection = analysis?.dream_detection;
-  const sleepStaging = analysis?.sleep_staging;
-  const flowState = analysis?.flow_state;
-  const creativity = analysis?.creativity;
-  const attention = analysis?.attention;
-  const stress = analysis?.stress;
-  const meditation = analysis?.meditation;
-  const memoryEncoding = analysis?.memory_encoding;
+  const bandPowers = (analysis?.band_powers as Record<string, number>) ?? {};
+  const emotions = analysis?.emotions as Record<string, unknown> | undefined;
+  const dreamDetection = analysis?.dream_detection as Record<string, unknown> | undefined;
+  const sleepStaging = analysis?.sleep_staging as Record<string, unknown> | undefined;
+  const flowState = analysis?.flow_state as Record<string, unknown> | undefined;
+  const creativity = analysis?.creativity as Record<string, unknown> | undefined;
+  const attention = analysis?.attention as Record<string, unknown> | undefined;
+  const stress = analysis?.stress as Record<string, unknown> | undefined;
+  const meditation = analysis?.meditation as Record<string, unknown> | undefined;
+  const memoryEncoding = analysis?.memory_encoding as Record<string, unknown> | undefined;
 
-  // Accumulate band power history
+  // Rolling band power history (calm/alert/creative in % of total)
   const [bandHistory, setBandHistory] = useState<BandHistoryPoint[]>([]);
 
   useEffect(() => {
     if (!isStreaming || !bandPowers.alpha) return;
-    const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const total =
+      (bandPowers.delta ?? 0) +
+      (bandPowers.theta ?? 0) +
+      (bandPowers.alpha ?? 0) +
+      (bandPowers.beta ?? 0) +
+      (bandPowers.gamma ?? 0) +
+      0.001;
+    const now = new Date().toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
     setBandHistory((prev) => [
-      ...prev.slice(-30),
+      ...prev.slice(-40),
       {
         time: now,
-        theta: Math.round((bandPowers.theta ?? 0) * 100),
-        alpha: Math.round((bandPowers.alpha ?? 0) * 100),
-        beta: Math.round((bandPowers.beta ?? 0) * 100),
-        delta: Math.round((bandPowers.delta ?? 0) * 100),
-        gamma: Math.round((bandPowers.gamma ?? 0) * 100),
+        calm: Math.round(Math.min(60, (bandPowers.alpha / total) * 100)),
+        alert: Math.round(Math.min(60, (bandPowers.beta / total) * 100)),
+        creative: Math.round(Math.min(60, (bandPowers.theta / total) * 100)),
       },
     ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
-  // Live brain profile radar — throttled to 8s
+  // Brain profile radar — throttled to 8s
   const [radarData, setRadarData] = useState<{ subject: string; value: number }[]>([]);
   const radarTimerRef = useRef(0);
-  const RADAR_THROTTLE = 8_000;
 
   useEffect(() => {
-    if (!isStreaming) { setRadarData([]); return; }
+    if (!isStreaming) {
+      setRadarData([]);
+      return;
+    }
     const now = Date.now();
-    if (now - radarTimerRef.current < RADAR_THROTTLE && radarData.length > 0) return;
+    if (now - radarTimerRef.current < 8_000 && radarData.length > 0) return;
     radarTimerRef.current = now;
     setRadarData([
-      { subject: "Focus", value: Math.round((attention?.attention_score ?? 0) * 100) },
-      { subject: "Creativity", value: Math.round((creativity?.creativity_score ?? 0) * 100) },
-      { subject: "Relaxation", value: Math.round((emotions?.relaxation_index ?? 0) * 100) },
-      { subject: "Memory", value: Math.round((memoryEncoding?.encoding_score ?? 0) * 100) },
-      { subject: "Flow", value: Math.round((flowState?.flow_score ?? 0) * 100) },
-      { subject: "Meditation", value: Math.round((meditation?.meditation_score ?? 0) * 100) },
+      { subject: "Focus", value: Math.round(((attention?.attention_score as number) ?? 0) * 100) },
+      { subject: "Creative", value: Math.round(((creativity?.creativity_score as number) ?? 0) * 100) },
+      { subject: "Calm", value: Math.round(((emotions?.relaxation_index as number) ?? 0) * 100) },
+      { subject: "Memory", value: Math.round(((memoryEncoding?.encoding_score as number) ?? 0) * 100) },
+      { subject: "Flow", value: Math.round(((flowState?.flow_score as number) ?? 0) * 100) },
+      { subject: "Meditate", value: Math.round(((meditation?.meditation_score as number) ?? 0) * 100) },
     ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
-  // Generate dynamic insights from live data — throttled to 12s
-  type InsightItem = { icon: typeof Lightbulb; title: string; description: string; type: "success" | "primary" | "secondary" | "warning" };
-  const [weeklyInsights, setWeeklyInsights] = useState<InsightItem[]>([]);
+  // Dynamic insights — throttled to 12s
+  type InsightItem = {
+    icon: typeof Lightbulb;
+    title: string;
+    description: string;
+    type: "success" | "primary" | "secondary" | "warning";
+  };
+  const [liveInsights, setLiveInsights] = useState<InsightItem[]>([]);
   const insightTimerRef = useRef(0);
-  const INSIGHT_THROTTLE = 12_000;
 
   useEffect(() => {
-    if (!isStreaming) { setWeeklyInsights([]); return; }
+    if (!isStreaming) {
+      setLiveInsights([]);
+      return;
+    }
     const now = Date.now();
-    if (now - insightTimerRef.current < INSIGHT_THROTTLE && weeklyInsights.length > 0) return;
+    if (now - insightTimerRef.current < 12_000 && liveInsights.length > 0) return;
     insightTimerRef.current = now;
 
-    const insights: InsightItem[] = [];
-    const focusScore = (attention?.attention_score ?? 0) * 100;
-    const creativityScore = (creativity?.creativity_score ?? 0) * 100;
-    const stressIndex = (stress?.stress_index ?? emotions?.stress_index ?? 0) * 100;
-    const relaxIndex = (emotions?.relaxation_index ?? 0) * 100;
-    const flowScore = (flowState?.flow_score ?? 0) * 100;
-    const dreamProb = (dreamDetection?.probability ?? 0) * 100;
-    const meditationScore = (meditation?.meditation_score ?? 0) * 100;
+    const items: InsightItem[] = [];
+    const focusScore = ((attention?.attention_score as number) ?? 0) * 100;
+    const creativityScore = ((creativity?.creativity_score as number) ?? 0) * 100;
+    const stressIndex = ((stress?.stress_index as number) ?? (emotions?.stress_index as number) ?? 0) * 100;
+    const relaxIndex = ((emotions?.relaxation_index as number) ?? 0) * 100;
+    const flowScore = ((flowState?.flow_score as number) ?? 0) * 100;
+    const dreamProb = ((dreamDetection?.probability as number) ?? 0) * 100;
+    const meditationScore = ((meditation?.meditation_score as number) ?? 0) * 100;
 
-    if (focusScore > 60) {
-      insights.push({ icon: Brain, title: "High Focus State Detected", description: `Your attention score is ${Math.round(focusScore)}%. Prefrontal beta activity indicates strong concentration. This is ideal for analytical tasks and deep work.`, type: "primary" });
-    } else if (focusScore < 30) {
-      insights.push({ icon: Brain, title: "Low Focus — Consider a Break", description: `Attention score at ${Math.round(focusScore)}%. Your brain may benefit from a short break or change of activity to restore focus.`, type: "warning" });
-    }
-    if (creativityScore > 50) {
-      insights.push({ icon: Lightbulb, title: "Creative State Active", description: `Creativity at ${Math.round(creativityScore)}%. Your theta-alpha ratio suggests heightened divergent thinking. Great time for brainstorming or creative work.`, type: "success" });
-    }
-    if (stressIndex > 50) {
-      insights.push({ icon: Heart, title: "Elevated Stress Detected", description: `Stress index at ${Math.round(stressIndex)}% while relaxation is ${Math.round(relaxIndex)}%. Consider a breathing exercise — deep breaths can shift your neural balance within minutes.`, type: "warning" });
-    } else if (relaxIndex > 60) {
-      insights.push({ icon: Heart, title: "Calm & Balanced", description: `Relaxation at ${Math.round(relaxIndex)}% with low stress (${Math.round(stressIndex)}%). Your autonomic nervous system is in a parasympathetic state — great for recovery.`, type: "success" });
-    }
-    if (flowScore > 60) {
-      insights.push({ icon: Sparkles, title: "Flow State Achieved", description: `Flow score at ${Math.round(flowScore)}%. You're in the zone — high focus with moderate arousal and low stress. Protect this state by minimizing interruptions.`, type: "success" });
-    }
-    if (dreamProb > 40) {
-      insights.push({ icon: Moon, title: "Dream-Like Brain Patterns", description: `Dream probability at ${Math.round(dreamProb)}%. Your theta-dominant pattern resembles REM-like activity. This may indicate a hypnagogic state.`, type: "secondary" });
-    }
-    if (meditationScore > 50) {
-      insights.push({ icon: Bed, title: "Deep Meditative State", description: `Meditation score at ${Math.round(meditationScore)}%. Strong alpha coherence with low beta. Your brain is in a restful yet aware state.`, type: "primary" });
-    }
-    if (insights.length === 0) {
-      insights.push({ icon: Brain, title: "Balanced Neural Activity", description: "All brain metrics are within normal ranges. Your neural patterns show a healthy balance of activity across frequency bands.", type: "primary" });
-    }
-    setWeeklyInsights(insights.slice(0, 4));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (focusScore > 60)
+      items.push({ icon: Brain, title: "High Focus Detected", description: `Attention at ${Math.round(focusScore)}%. Your prefrontal beta is elevated — ideal for deep, analytical work. This is the brain in executive mode.`, type: "primary" });
+    else if (focusScore < 30)
+      items.push({ icon: Brain, title: "Low Focus Right Now", description: `Attention at ${Math.round(focusScore)}%. Your prefrontal cortex may need stimulation — try standing up, cold water, or switching tasks briefly.`, type: "warning" });
+
+    if (creativityScore > 50)
+      items.push({ icon: Lightbulb, title: "Creative State Active", description: `Creativity at ${Math.round(creativityScore)}%. Elevated theta-alpha ratio signals your brain is in a diffuse, associative mode — the source of original ideas.`, type: "success" });
+
+    if (stressIndex > 50)
+      items.push({ icon: Heart, title: "Elevated Stress Markers", description: `Stress at ${Math.round(stressIndex)}%. High-beta frontal activity and reduced alpha suggest sympathetic nervous system activation. A 2-minute breathing exercise can shift this quickly.`, type: "warning" });
+    else if (relaxIndex > 60)
+      items.push({ icon: Heart, title: "Calm & Recovered", description: `Relaxation at ${Math.round(relaxIndex)}%. Low stress (${Math.round(stressIndex)}%) and strong alpha indicate your autonomic nervous system has found its baseline. Good time for reflection.`, type: "success" });
+
+    if (flowScore > 60)
+      items.push({ icon: Sparkles, title: "Flow State Active", description: `Flow at ${Math.round(flowScore)}%. High focus, moderate arousal, and low stress — the signature of peak performance. Minimize interruptions to sustain this.`, type: "success" });
+
+    if (dreamProb > 40)
+      items.push({ icon: Moon, title: "Hypnagogic-Like Patterns", description: `Dream probability at ${Math.round(dreamProb)}%. Theta-dominant patterns similar to REM are emerging — this may indicate a hypnagogic (pre-sleep) or deep meditative state.`, type: "secondary" });
+
+    if (meditationScore > 50)
+      items.push({ icon: Bed, title: "Deep Meditative State", description: `Meditation at ${Math.round(meditationScore)}%. Coherent alpha with quiet beta is the signature of restful awareness. Your brain is recovering and integrating.`, type: "primary" });
+
+    if (items.length === 0)
+      items.push({ icon: Brain, title: "Balanced Neural Activity", description: "All brain metrics are within typical resting ranges. No dominant state detected — your neural patterns show a healthy equilibrium across all frequency bands.", type: "primary" });
+
+    setLiveInsights(items.slice(0, 4));
   }, [latestFrame?.timestamp]);
+
+  // Narrative
+  const narrative = isStreaming
+    ? getBrainStateNarrative(attention, emotions, stress, flowState, creativity, meditation, bandPowers)
+    : null;
+
+  const stressIndex = ((stress?.stress_index as number) ?? (emotions?.stress_index as number) ?? 0) * 100;
+  const focusScore = ((attention?.attention_score as number) ?? 0) * 100;
+  const creativityScore = ((creativity?.creativity_score as number) ?? 0) * 100;
+  const flowScore = ((flowState?.flow_score as number) ?? 0) * 100;
+  const recommendedActions = isStreaming
+    ? getRecommendedActions(stressIndex, focusScore, creativityScore, flowScore)
+    : [];
 
   const colorMap = {
     success: "bg-success/10 border-success/30 text-success",
@@ -143,39 +286,91 @@ export default function Insights() {
     warning: "bg-warning/10 border-warning/30 text-warning",
   };
 
+  const stateColors: Record<string, string> = {
+    peak: "from-primary/20 to-success/10 border-primary/30",
+    relaxed: "from-success/20 to-primary/10 border-success/30",
+    creative: "from-secondary/20 to-primary/10 border-secondary/30",
+    stressed: "from-warning/20 to-destructive/10 border-warning/30",
+    balanced: "from-muted/20 to-primary/10 border-border/40",
+  };
+
   return (
     <main className="p-4 md:p-6 space-y-6">
-      {/* Connection Banner */}
+
+      {/* ── Connection Banner ── */}
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 from the sidebar to see live brain insights.
+          Connect your Muse 2 from the sidebar to unlock your live brain narrative.
         </div>
       )}
 
-      {/* AI Insights */}
-      {weeklyInsights.length > 0 && (
+      {/* ── Brain Narrative (live) ── */}
+      {narrative && (
+        <Card className={`glass-card p-6 rounded-xl bg-gradient-to-br ${stateColors[narrative.state]}`}>
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Right Now</p>
+              <h2 className="text-xl font-bold text-foreground">{narrative.headline}</h2>
+            </div>
+            <Badge variant="outline" className="border-primary/30 text-primary animate-pulse shrink-0 ml-4">
+              LIVE
+            </Badge>
+          </div>
+          <p className="text-sm text-foreground/75 leading-relaxed">{narrative.story}</p>
+        </Card>
+      )}
+
+      {/* ── Offline: What to expect ── */}
+      {!isStreaming && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-secondary" />
+          <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-secondary" />
+            What You'll See Here
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-muted-foreground">
+            {[
+              { icon: Brain, title: "Brain State Narrative", desc: "A plain-English story of what your brain is doing right now — not just numbers, but what they mean." },
+              { icon: Lightbulb, title: "AI-Generated Insights", desc: "Personalized observations about your focus, creativity, stress, and flow states as they evolve." },
+              { icon: Target, title: "Recommended Actions", desc: "3 specific things you can do right now based on your current brain state." },
+              { icon: Activity, title: "Band Wave Trends", desc: "A live chart showing how your calm, alert, and creative signals shift second by second." },
+            ].map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="flex gap-3">
+                <Icon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-foreground">{title}</p>
+                  <p className="text-xs mt-0.5">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── AI Insight Cards ── */}
+      {liveInsights.length > 0 && (
+        <Card className="glass-card p-6 rounded-xl hover-glow">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-secondary" />
               AI Brain Insights
             </h3>
-            {isStreaming && (
-              <Badge variant="outline" className="border-primary/30 text-primary animate-pulse">
-                LIVE
-              </Badge>
-            )}
+            <Badge variant="outline" className="border-primary/30 text-primary animate-pulse text-[10px]">
+              LIVE
+            </Badge>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {weeklyInsights.map((insight, i) => {
+            {liveInsights.map((insight, i) => {
               const Icon = insight.icon;
               return (
-                <div key={i} className={`flex items-start gap-3 p-4 rounded-lg border ${colorMap[insight.type]}`}>
-                  <Icon className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div
+                  key={i}
+                  className={`flex items-start gap-3 p-4 rounded-xl border ${colorMap[insight.type]}`}
+                >
+                  <Icon className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <div>
                     <h4 className="font-semibold text-sm mb-1">{insight.title}</h4>
-                    <p className="text-xs text-foreground/70">{insight.description}</p>
+                    <p className="text-xs text-foreground/70 leading-relaxed">{insight.description}</p>
                   </div>
                 </div>
               );
@@ -184,82 +379,166 @@ export default function Insights() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* EEG Band Powers Over Time */}
+      {/* ── Recommended Actions ── */}
+      {recommendedActions.length > 0 && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            Brain Wave Trends
-            {isStreaming && (
-              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
-            )}
+          <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+            <Target className="h-4 w-4 text-primary" />
+            Recommended Right Now
           </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {recommendedActions.map(({ icon: Icon, label, description }, i) => (
+              <div
+                key={i}
+                className="flex flex-col gap-2 p-4 rounded-xl border border-border/30 bg-card/30 hover:bg-card/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
+                    <Icon className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <span className="text-sm font-medium">{label}</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Charts Row ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Band Wave Trends — simplified: only 3 meaningful lines */}
+        <Card className="glass-card p-6 rounded-xl hover-glow">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Brain className="h-4 w-4 text-primary" />
+              Brain Wave Trends
+            </h3>
+            {isStreaming && (
+              <span className="text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            % of total EEG power per signal — calm (α), alert (β), creative (θ)
+          </p>
           {bandHistory.length < 2 ? (
-            <div className="h-[250px] flex items-center justify-center text-sm text-muted-foreground">
-              {isStreaming ? "Collecting EEG data..." : "Connect device to see brain wave trends"}
+            <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
+              {isStreaming ? "Collecting data…" : "Connect Muse 2 to see live trends"}
             </div>
           ) : (
-            <>
-              <p className="text-xs text-foreground/50 mb-4">EEG band power changes during this session</p>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={bandHistory}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 22%)" opacity={0.6} />
-                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220, 12%, 52%)" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "hsl(220, 12%, 52%)" }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "var(--popover-foreground)" }} />
-                  <Line type="monotone" dataKey="theta" stroke="hsl(195, 100%, 50%)" strokeWidth={2.5} dot={false} name="Theta" />
-                  <Line type="monotone" dataKey="alpha" stroke="hsl(152, 60%, 48%)" strokeWidth={2.5} dot={false} name="Alpha" />
-                  <Line type="monotone" dataKey="beta" stroke="hsl(38, 85%, 58%)" strokeWidth={2.5} dot={false} name="Beta" />
-                  <Line type="monotone" dataKey="delta" stroke="hsl(262, 45%, 65%)" strokeWidth={2.5} dot={false} name="Delta" />
-                </LineChart>
-              </ResponsiveContainer>
-            </>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={bandHistory}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,22%)" opacity={0.5} />
+                <XAxis dataKey="time" tick={{ fontSize: 9, fill: "hsl(220,12%,52%)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: "hsl(220,12%,52%)" }} axisLine={false} tickLine={false} domain={[0, 60]} />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
+                  labelStyle={{ color: "var(--popover-foreground)" }}
+                />
+                <Line type="monotone" dataKey="calm" stroke="hsl(152,60%,48%)" strokeWidth={2.5} dot={false} name="Calm (α)" />
+                <Line type="monotone" dataKey="alert" stroke="hsl(210,80%,60%)" strokeWidth={2.5} dot={false} name="Alert (β)" />
+                <Line type="monotone" dataKey="creative" stroke="hsl(262,60%,65%)" strokeWidth={2.5} dot={false} name="Creative (θ)" />
+              </LineChart>
+            </ResponsiveContainer>
           )}
+          {/* Legend */}
+          <div className="flex gap-4 mt-3 justify-center">
+            {[
+              { color: "hsl(152,60%,48%)", label: "Calm (α)" },
+              { color: "hsl(210,80%,60%)", label: "Alert (β)" },
+              { color: "hsl(262,60%,65%)", label: "Creative (θ)" },
+            ].map(({ color, label }) => (
+              <span key={label} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span className="w-3 h-0.5 rounded-full inline-block" style={{ background: color }} />
+                {label}
+              </span>
+            ))}
+          </div>
         </Card>
 
         {/* Brain Profile Radar */}
         <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-secondary" />
-            Brain Profile
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-secondary" />
+              Cognitive Profile
+            </h3>
             {isStreaming && (
-              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+              <span className="text-[10px] font-mono text-primary animate-pulse">LIVE</span>
             )}
-          </h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Snapshot of all cognitive dimensions — updated every 8 seconds
+          </p>
           {radarData.length === 0 ? (
-            <div className="h-[250px] flex items-center justify-center text-sm text-muted-foreground">
-              Connect device to see brain profile
+            <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
+              Connect Muse 2 to see your cognitive profile
             </div>
           ) : (
             <>
-              <p className="text-xs text-foreground/50 mb-4">Current cognitive capabilities</p>
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={220}>
                 <RadarChart data={radarData}>
-                  <PolarGrid stroke="hsl(220, 18%, 25%)" opacity={0.6} />
-                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "hsl(220, 12%, 60%)" }} />
-                  <PolarRadiusAxis tick={{ fontSize: 8, fill: "hsl(220, 12%, 45%)" }} domain={[0, 100]} />
-                  <Radar name="Current" dataKey="value" stroke="hsl(152, 60%, 48%)" fill="hsl(152, 60%, 48%)" fillOpacity={0.25} strokeWidth={2} />
+                  <PolarGrid stroke="hsl(220,18%,25%)" opacity={0.5} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: "hsl(220,12%,60%)" }} />
+                  <PolarRadiusAxis tick={{ fontSize: 7, fill: "hsl(220,12%,40%)" }} domain={[0, 100]} />
+                  <Radar
+                    name="Now"
+                    dataKey="value"
+                    stroke="hsl(152,60%,48%)"
+                    fill="hsl(152,60%,48%)"
+                    fillOpacity={0.2}
+                    strokeWidth={2}
+                  />
                 </RadarChart>
               </ResponsiveContainer>
+              {/* Score row */}
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {radarData.map((d) => (
+                  <div key={d.subject} className="text-center">
+                    <p className="text-[10px] text-muted-foreground">{d.subject}</p>
+                    <p className="text-sm font-mono font-semibold text-primary">{d.value}%</p>
+                  </div>
+                ))}
+              </div>
             </>
           )}
         </Card>
       </div>
 
-      {/* Live Metric Summary — uses same radar throttle so numbers stay stable */}
-      {isStreaming && radarData.length > 0 && (
+      {/* ── Sleep & Dream status ── */}
+      {isStreaming && (sleepStaging || dreamDetection) && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Heart className="h-5 w-5 text-success" />
-            Current Brain State Summary
+          <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+            <Moon className="h-4 w-4 text-secondary" />
+            Sleep & Dream Detection
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {radarData.map((m) => (
-              <div key={m.subject} className="text-center">
-                <p className="text-xs text-muted-foreground">{m.subject}</p>
-                <p className="text-xl font-mono font-bold text-primary">{m.value}%</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            {sleepStaging && (
+              <div className="p-4 rounded-xl border border-border/30 bg-card/30">
+                <p className="text-xs text-muted-foreground mb-1">Sleep Stage</p>
+                <p className="font-semibold capitalize">
+                  {String((sleepStaging as Record<string, unknown>).stage ?? "—")}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {String((sleepStaging as Record<string, unknown>).stage) === "wake"
+                    ? "Fully awake — normal waking EEG patterns detected."
+                    : "Drowsiness or sleep-onset patterns detected. Consider a short rest."}
+                </p>
               </div>
-            ))}
+            )}
+            {dreamDetection && (
+              <div className="p-4 rounded-xl border border-border/30 bg-card/30">
+                <p className="text-xs text-muted-foreground mb-1">Dream Probability</p>
+                <p className="font-semibold">
+                  {Math.round(((dreamDetection as Record<string, unknown>).probability as number ?? 0) * 100)}%
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {((dreamDetection as Record<string, unknown>).probability as number ?? 0) > 0.4
+                    ? "Theta-dominant patterns resemble REM-like activity — hypnagogic state possible."
+                    : "No dream-state patterns detected. Brain is in normal waking mode."}
+                </p>
+              </div>
+            )}
           </div>
         </Card>
       )}

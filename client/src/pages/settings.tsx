@@ -490,6 +490,26 @@ function MLBackendCard() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"ok" | "fail" | null>(null);
 
+  // Auto-fill URL from query string — set by ml/start.sh
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const mlBackend = params.get("ml_backend");
+      if (mlBackend) {
+        const trimmed = mlBackend.trim().replace(/\/$/, "");
+        setUrl(trimmed);
+        localStorage.setItem("ml_backend_url", trimmed);
+        // Remove the query param from the URL bar without a reload
+        const clean = window.location.pathname;
+        window.history.replaceState({}, "", clean);
+        toast({
+          title: "ML Backend URL saved",
+          description: `Auto-filled from startup script: ${trimmed}`,
+        });
+      }
+    } catch { /* no-op */ }
+  }, [toast]);
+
   function save() {
     try {
       const trimmed = url.trim().replace(/\/$/, "");

@@ -303,7 +303,16 @@ async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    throw new Error(`ML API error: ${response.status} ${response.statusText}`);
+    // Extract FastAPI error detail when available
+    try {
+      const body = await response.clone().json();
+      const detail = body?.detail;
+      if (typeof detail === "string") throw new Error(detail);
+      if (Array.isArray(detail)) throw new Error(detail.map((d: { msg?: string }) => d.msg).join("; "));
+    } catch (parseErr) {
+      if (parseErr instanceof Error && parseErr.message !== "") throw parseErr;
+    }
+    throw new Error(`Request failed (${response.status})`);
   }
   return response.json();
 }

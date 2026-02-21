@@ -6,6 +6,24 @@ main.py imports this as: from api.routes import router
 
 from fastapi import APIRouter
 
+# Re-export shared singletons so websocket.py can do `from api.routes import …`
+from ._shared import (
+    _get_device_manager,
+    _session_recorder,
+    sleep_model,
+    emotion_model,
+    dream_model,
+    flow_model,
+    creativity_model,
+    memory_model,
+    drowsiness_model,
+    cognitive_load_model,
+    attention_model,
+    stress_model,
+    lucid_dream_model,
+    meditation_model,
+)
+
 from .analysis import router as _analysis
 from .models_status import router as _models_status
 from .wavelet import router as _wavelet

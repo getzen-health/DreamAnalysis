@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChartTooltip } from "@/components/chart-tooltip";
 import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock, AlertTriangle } from "lucide-react";
 import { EmotionWheel } from "@/components/emotion-wheel";
-import { BrainBands } from "@/components/brain-bands";
 import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { useDevice } from "@/hooks/use-device";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
@@ -51,6 +49,14 @@ interface VAPoint {
   arousal: number;
   emotion: string;
   size: number;
+}
+
+/** Per-frame live band-power point (updates every ~1.5 s) */
+interface LivePoint {
+  time: string;
+  calm: number;    // alpha power % of total — higher = more relaxed
+  alert: number;   // beta power % of total  — higher = more active/focused
+  creative: number;// theta power % of total — higher = creative/drowsy
 }
 
 /* ---------- helpers ---------- */
@@ -243,7 +249,7 @@ export default function EmotionLab() {
         probabilities: {},
       };
 
-  // Accumulate live history (every frame)
+  // Accumulate live history (every frame) — used for V-A circumplex trail
   const [emotionHistory, setEmotionHistory] = useState<HistoryEntry[]>([]);
 
   useEffect(() => {
@@ -253,6 +259,22 @@ export default function EmotionLab() {
       ...prev.slice(-60),
       { ...currentEmotion, time: now },
     ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
+
+  // Per-frame live band-power timeline — changes every ~1.5 s regardless of emotion window
+  const [liveTimeline, setLiveTimeline] = useState<LivePoint[]>([]);
+  useEffect(() => {
+    if (!isStreaming || !analysis?.band_powers) return;
+    const bp = analysis.band_powers;
+    // band_powers values are already 0-1 fractions of total power
+    const total = (bp.delta ?? 0) + (bp.theta ?? 0) + (bp.alpha ?? 0) +
+                  (bp.beta ?? 0) + (bp.gamma ?? 0) + 0.001;
+    const calm     = Math.round(Math.min(100, (bp.alpha ?? 0) / total * 100));
+    const alert    = Math.round(Math.min(100, (bp.beta  ?? 0) / total * 100));
+    const creative = Math.round(Math.min(100, (bp.theta ?? 0) / total * 100));
+    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    setLiveTimeline((prev) => [...prev.slice(-80), { time: now, calm, alert, creative }]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
@@ -335,8 +357,8 @@ export default function EmotionLab() {
         </div>
       )}
 
-      {/* Top Row — always live */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Top Row — Emotion Wheel */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Emotion Wheel */}
         <Card className="glass-card p-6">
           <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
@@ -392,6 +414,12 @@ export default function EmotionLab() {
                     </div>
                     {/* Brain state description */}
                     <p className="text-[11px] text-muted-foreground leading-relaxed">{stateDesc}</p>
+                    {/* Compact stress/focus/relaxation chips */}
+                    <div className="flex gap-3 text-[10px] font-mono pt-1">
+                      <span className="text-warning">Stress {Math.round(currentEmotion.stress_index)}%</span>
+                      <span className="text-primary">Focus {Math.round(currentEmotion.focus_index)}%</span>
+                      <span className="text-success">Relax {Math.round(currentEmotion.relaxation_index)}%</span>
+                    </div>
                   </div>
                 );
               })()}
@@ -424,61 +452,57 @@ export default function EmotionLab() {
           )}
         </Card>
 
-        {/* Brain Bands */}
+        {/* Band Powers — compact version replacing BrainBands + Mental State */}
         <Card className="glass-card p-6">
           <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
             <Brain className="h-4 w-4 text-primary" />
-            Brain Waves
+            Brainwave Snapshot
             {isStreaming && (
               <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
             )}
           </h3>
-          <BrainBands bandPowers={currentEmotion.band_powers} />
-        </Card>
-
-        {/* Mental State */}
-        <Card className="glass-card p-6">
-          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
-            <Activity className="h-4 w-4 text-secondary" />
-            Mental State
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between mb-1 text-sm">
-                <span className="text-muted-foreground">Stress</span>
-                <span className="font-mono text-warning">{Math.round(currentEmotion.stress_index)}</span>
-              </div>
-              <Progress value={currentEmotion.stress_index} className="h-2" />
-            </div>
-            <div>
-              <div className="flex justify-between mb-1 text-sm">
-                <span className="text-muted-foreground">Focus</span>
-                <span className="font-mono text-primary">{Math.round(currentEmotion.focus_index)}</span>
-              </div>
-              <Progress value={currentEmotion.focus_index} className="h-2" />
-            </div>
-            <div>
-              <div className="flex justify-between mb-1 text-sm">
-                <span className="text-muted-foreground">Relaxation</span>
-                <span className="font-mono text-success">{Math.round(currentEmotion.relaxation_index)}</span>
-              </div>
-              <Progress value={currentEmotion.relaxation_index} className="h-2" />
-            </div>
-            <div className="pt-3 border-t border-border text-sm space-y-1">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Mood</span>
-                <span className={`text-xs font-medium ${currentEmotion.valence >= 0 ? "text-success" : "text-destructive"}`}>
-                  {getValenceLabel(currentEmotion.valence)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Activation</span>
-                <span className="text-xs font-medium text-secondary">
-                  {getArousalLabel(currentEmotion.arousal)}
-                </span>
+          {currentEmotion.band_powers ? (
+            <div className="space-y-3">
+              {(["delta","theta","alpha","beta","gamma"] as const).map((band) => {
+                const val = currentEmotion.band_powers?.[band] ?? 0;
+                const colors: Record<string, string> = {
+                  delta: "hsl(262,45%,65%)", theta: "hsl(200,70%,55%)",
+                  alpha: "hsl(152,60%,48%)", beta: "hsl(38,85%,58%)", gamma: "hsl(340,70%,55%)"
+                };
+                const labels: Record<string, string> = {
+                  delta: "Deep/Sleep", theta: "Creative/Meditative",
+                  alpha: "Calm/Relaxed", beta: "Alert/Focused", gamma: "Active/EMG"
+                };
+                return (
+                  <div key={band} className="space-y-1">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-muted-foreground capitalize">{band} <span className="text-foreground/40">— {labels[band]}</span></span>
+                      <span className="font-mono">{(val * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden bg-muted/30">
+                      <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(100, val * 100)}%`, background: colors[band] }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="pt-3 border-t border-border/30 grid grid-cols-2 gap-2 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Mood</span>
+                  <span className={currentEmotion.valence >= 0 ? "text-success" : "text-destructive"}>
+                    {getValenceLabel(currentEmotion.valence)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Activation</span>
+                  <span className="text-secondary">{getArousalLabel(currentEmotion.arousal)}</span>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="h-40 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
+              {isStreaming ? "Waiting for data…" : "Connect device to see brainwaves"}
+            </div>
+          )}
         </Card>
       </div>
 
@@ -564,42 +588,81 @@ export default function EmotionLab() {
         </div>
       )}
 
-      {/* Emotion Timeline — always visible */}
+      {/* Emotion Timeline */}
       <Card className="glass-card p-6">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-1">
           <TrendingUp className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-medium">Emotion Timeline</h3>
+          <h3 className="text-sm font-medium">
+            {isLiveToday && isStreaming ? "Brainwave Activity — Live" : "Session Trends"}
+          </h3>
           {isLiveToday && isStreaming && (
             <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
           )}
         </div>
-        {!hasTimelineData ? (
-          <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-            <Activity className="h-8 w-8 opacity-30" />
-            <p>{isLiveToday ? (isStreaming ? "Collecting data…" : "Connect device to see live data") : "No sessions in this period"}</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={timelineData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.5} />
-              <XAxis dataKey={timelineDataKey} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} />
-              <Tooltip
-                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
-                formatter={(v: number) => [`${v}%`]}
-              />
-              <Line type="monotone" dataKey="focus_index"      name="Focus"  stroke="hsl(200, 70%, 55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-              <Line type="monotone" dataKey="stress_index"     name="Stress" stroke="hsl(38, 85%, 58%)"  strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-              <Line type="monotone" dataKey="relaxation_index" name="Relax"  stroke="hsl(152, 60%, 48%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
+        {isLiveToday && isStreaming && (
+          <p className="text-[10px] text-muted-foreground mb-3">
+            % of total EEG power per band — updates every 1.5 s
+          </p>
         )}
-        <div className="flex gap-4 mt-2">
-          {[
+
+        {/* Live: per-frame band-power chart */}
+        {isLiveToday && isStreaming ? (
+          liveTimeline.length < 2 ? (
+            <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+              <Activity className="h-8 w-8 opacity-30" />
+              <p>Collecting live data…</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={liveTimeline}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.5} />
+                <XAxis dataKey="time" tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis domain={[0, 60]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} tickFormatter={(v) => `${v}%`} />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
+                  formatter={(v: number, name: string) => [`${v}%`, name]}
+                />
+                <Line type="monotone" dataKey="calm"     name="Calm (α)"     stroke="hsl(152,65%,50%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="alert"    name="Alert (β)"    stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )
+        ) : (
+          /* Historical: session-based focus/stress/relax */
+          !hasTimelineData ? (
+            <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+              <Activity className="h-8 w-8 opacity-30" />
+              <p>{isLiveToday ? "Connect device to see live data" : "No sessions in this period"}</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={timelineData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.5} />
+                <XAxis dataKey={timelineDataKey} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
+                  formatter={(v: number) => [`${v}%`]}
+                />
+                <Line type="monotone" dataKey="focus_index"      name="Focus"  stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="stress_index"     name="Stress" stroke="hsl(38,85%,58%)"  strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="relaxation_index" name="Relax"  stroke="hsl(152,60%,48%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )
+        )}
+
+        <div className="flex flex-wrap gap-4 mt-2">
+          {(isLiveToday && isStreaming ? [
+            { label: "Calm (α — alpha)",      color: "hsl(152,65%,50%)" },
+            { label: "Alert (β — beta)",       color: "hsl(200,70%,55%)" },
+            { label: "Creative (θ — theta)",   color: "hsl(270,65%,62%)", dashed: true },
+          ] : [
             { label: "Focus",  color: "hsl(200,70%,55%)" },
             { label: "Stress", color: "hsl(38,85%,58%)", dashed: true },
             { label: "Relax",  color: "hsl(152,60%,48%)" },
-          ].map((l) => (
+          ]).map((l) => (
             <div key={l.label} className="flex items-center gap-1.5">
               <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
               <span className="text-[10px] text-muted-foreground">{l.label}</span>

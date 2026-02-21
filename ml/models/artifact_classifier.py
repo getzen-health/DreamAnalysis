@@ -22,7 +22,7 @@ from typing import Dict, List, Optional
 from scipy import signal as scipy_signal
 
 # Numpy 2.x compat
-_trapezoid = getattr(np, "trapezoid", np.trapz)
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 
 ARTIFACT_CLASSES = {
     0: "clean",

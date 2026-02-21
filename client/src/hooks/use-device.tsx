@@ -144,6 +144,7 @@ interface UseDeviceReturn {
   latestFrame: EEGStreamFrame | null;
   error: string | null;
   brainflowAvailable: boolean;
+  devicesLoaded: boolean;
   refreshDevices: () => Promise<void>;
   connect: (deviceType: string, params?: Record<string, string>) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -187,6 +188,7 @@ function useDeviceInternal(): UseDeviceReturn {
   const [latestFrame, setLatestFrame] = useState<EEGStreamFrame | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [brainflowAvailable, setBrainflowAvailable] = useState(false);
+  const [devicesLoaded, setDevicesLoaded] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -281,6 +283,8 @@ function useDeviceInternal(): UseDeviceReturn {
         { type: "muse_s",      name: "Muse S",             channels: 4,  sample_rate: 256, available: true },
         { type: "synthetic",   name: "Synthetic (demo)",   channels: 16, sample_rate: 256, available: true },
       ]);
+    } finally {
+      setDevicesLoaded(true);
     }
   }, []);
 
@@ -381,16 +385,19 @@ function useDeviceInternal(): UseDeviceReturn {
   }, [state]);
 
   // On mount: check if backend device is still connected/streaming (survives refresh)
+  // and immediately set brainflowAvailable so the dialog doesn't flash "not installed"
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const status = await getDeviceStatus();
         if (cancelled) return;
+        // Always update brainflowAvailable — eliminates the false "not installed" banner
+        setBrainflowAvailable(status.brainflow_available ?? false);
+        setDevicesLoaded(true);
         if (status.streaming) {
           setDeviceStatus(status);
           setSelectedDevice(status.device_type);
-          setBrainflowAvailable(status.brainflow_available);
           setState("streaming");
           isStreamingRef.current = true;
           reconnectRef.current = 0;
@@ -399,11 +406,10 @@ function useDeviceInternal(): UseDeviceReturn {
         } else if (status.connected) {
           setDeviceStatus(status);
           setSelectedDevice(status.device_type);
-          setBrainflowAvailable(status.brainflow_available);
           setState("connected");
         }
       } catch {
-        // ML service not available
+        // ML service not available — refreshDevices will set proper state when dialog opens
       }
     })();
     return () => { cancelled = true; };
@@ -440,6 +446,7 @@ function useDeviceInternal(): UseDeviceReturn {
     latestFrame,
     error,
     brainflowAvailable,
+    devicesLoaded,
     refreshDevices,
     connect,
     disconnect,

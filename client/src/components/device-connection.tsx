@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Wifi, WifiOff, Radio, Activity, Settings } from "lucide-react";
+import { Wifi, WifiOff, Radio, Activity, Settings, Terminal } from "lucide-react";
 import { type DeviceState, type UseDeviceReturn } from "@/hooks/use-device";
 import { Link } from "wouter";
 
@@ -45,6 +45,7 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
     deviceStatus,
     error,
     brainflowAvailable,
+    devicesLoaded,
     refreshDevices,
     connect,
     disconnect,
@@ -75,26 +76,51 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
             <StatusBadge state={state} />
           </div>
 
-          {error === "unreachable" && (
-            <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm text-warning space-y-1.5">
-              <p className="font-medium">ML backend not reachable</p>
+          {/* ── Backend unreachable ── */}
+          {(error === "unreachable" || error === "Failed to fetch") && (
+            <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm space-y-2">
+              <p className="font-medium text-warning flex items-center gap-1.5">
+                <Terminal className="h-3.5 w-3.5 shrink-0" />
+                ML backend not reachable
+              </p>
               <p className="text-xs text-muted-foreground">
-                The app can't connect to your local ML server. If you're using the hosted app, expose
-                your local backend with <strong>ngrok</strong> and paste the URL in{" "}
-                <Link href="/settings" onClick={() => onOpenChange(false)}
-                  className="underline text-primary">
-                  Settings → ML Backend
-                </Link>.
+                Run this one command in your terminal — it starts everything and auto-fills Settings:
+              </p>
+              <code className="block text-[11px] bg-black/30 text-green-400 px-3 py-2 rounded font-mono">
+                cd ~/NeuralDreamWorkshop/ml &amp;&amp; ./start.sh
+              </code>
+              <p className="text-xs text-muted-foreground">
+                The script starts uvicorn + ngrok and opens{" "}
+                <Link href="/settings" onClick={() => onOpenChange(false)} className="underline text-primary">
+                  Settings
+                </Link>{" "}
+                with the URL already filled in. Then come back here and connect.
               </p>
             </div>
           )}
-          {!brainflowAvailable && error !== "unreachable" && (
-            <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm text-warning">
-              BrainFlow not installed on ML server. Only simulation mode available.
+
+          {/* ── BrainFlow not installed ── */}
+          {devicesLoaded && !brainflowAvailable && error !== "unreachable" && error !== "Failed to fetch" && (
+            <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm space-y-2">
+              <p className="font-medium text-warning flex items-center gap-1.5">
+                <Terminal className="h-3.5 w-3.5 shrink-0" />
+                BrainFlow not installed in backend
+              </p>
+              <p className="text-xs text-muted-foreground">
+                The ML server is reachable but BrainFlow is missing. Fix it with:
+              </p>
+              <code className="block text-[11px] bg-black/30 text-green-400 px-3 py-2 rounded font-mono">
+                cd ~/NeuralDreamWorkshop/ml &amp;&amp; ./start.sh
+              </code>
+              <p className="text-xs text-muted-foreground">
+                The startup script installs BrainFlow automatically. Until then, use{" "}
+                <strong>Synthetic (demo)</strong> mode below to test without a headset.
+              </p>
             </div>
           )}
 
-          {error && (
+          {/* ── Other errors ── */}
+          {error && error !== "unreachable" && error !== "Failed to fetch" && (
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
               {error}
             </div>

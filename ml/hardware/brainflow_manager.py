@@ -13,7 +13,9 @@ try:
     from brainflow.data_filter import DataFilter  # noqa: F401
 
     BRAINFLOW_AVAILABLE = True
-except ImportError:
+except Exception:
+    # Catches ImportError, ModuleNotFoundError, pkg_resources deprecation errors,
+    # and any other failure during brainflow import.
     BRAINFLOW_AVAILABLE = False
 
 # Device type to BrainFlow board ID mapping
@@ -162,13 +164,16 @@ class BrainFlowManager:
         self.eeg_channel_names = []
 
     def start_streaming(self, callback: Optional[Callable] = None):
-        """Start data streaming from the connected board.
+        """Start data streaming from the connected board.  Idempotent — safe to
+        call when already streaming.
 
         Args:
             callback: Optional function called with (signals, timestamp) at each read.
         """
         if not self.is_connected or self.board is None:
             raise RuntimeError("No device connected")
+        if self.is_streaming:
+            return  # already streaming — no-op
 
         self.board.start_stream()
         self.is_streaming = True

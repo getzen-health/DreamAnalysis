@@ -10,7 +10,7 @@ from scipy import signal as scipy_signal
 from typing import Dict, List, Tuple, Optional
 
 # Numpy 2.x renamed np.trapz to np.trapezoid
-_trapezoid = getattr(np, 'trapezoid', np.trapz)
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 
 
 def detect_eye_blinks(

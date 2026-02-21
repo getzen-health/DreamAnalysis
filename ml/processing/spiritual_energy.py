@@ -23,7 +23,7 @@ from processing.eeg_processor import (
 )
 
 # Numpy 2.x compat
-_trapezoid = getattr(np, "trapezoid", np.trapz)
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 
 
 # --- Chakra Definitions ---

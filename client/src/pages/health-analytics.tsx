@@ -46,6 +46,14 @@ interface HealthPoint {
   flow: number;
 }
 
+/** Per-frame live band-power point (updates every ~1.5 s) */
+interface LiveBandPoint {
+  time: string;
+  calm: number;    // alpha % of total
+  alert: number;   // beta % of total
+  creative: number;// theta % of total
+}
+
 interface SessionPoint {
   date: string;
   stress: number;
@@ -158,7 +166,7 @@ export default function HealthAnalytics() {
     refetchInterval: 60_000,
   });
 
-  // Accumulate live timeline (Today)
+  // Accumulate live timeline (Today) — 15-s emotion window for composite scores
   const [timeline, setTimeline] = useState<HealthPoint[]>([]);
 
   useEffect(() => {
@@ -168,6 +176,21 @@ export default function HealthAnalytics() {
       ...prev.slice(-60),
       { time: now, stress: stressIndex, focus: focusScore, relaxation: relaxScore, cogLoad: cogLoadIndex, flow: flowScore },
     ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestFrame?.timestamp]);
+
+  // Per-frame live band-power timeline (updates every ~1.5 s — no 15-s stale lag)
+  const [liveBands, setLiveBands] = useState<LiveBandPoint[]>([]);
+  useEffect(() => {
+    if (!isStreaming || !analysis?.band_powers) return;
+    const bp = analysis.band_powers;
+    const total = (bp.delta ?? 0) + (bp.theta ?? 0) + (bp.alpha ?? 0) +
+                  (bp.beta ?? 0) + (bp.gamma ?? 0) + 0.001;
+    const calm     = Math.round(Math.min(100, (bp.alpha ?? 0) / total * 100));
+    const alert    = Math.round(Math.min(100, (bp.beta  ?? 0) / total * 100));
+    const creative = Math.round(Math.min(100, (bp.theta ?? 0) / total * 100));
+    const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    setLiveBands((prev) => [...prev.slice(-80), { time: now, calm, alert, creative }]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
@@ -288,10 +311,49 @@ export default function HealthAnalytics() {
           </div>
         </div>
 
-        {!hasData ? (
+        {/* Live: per-frame band-power chart — changes every 1.5 s */}
+        {isLiveToday && isStreaming ? (
+          liveBands.length < 2 ? (
+            <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
+              <Brain className="h-8 w-8 opacity-30" />
+              <p>Collecting live data…</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-[10px] text-muted-foreground mb-2">% of total EEG power per band — updates every 1.5 s</p>
+              <ResponsiveContainer width="100%" height={192}>
+                <LineChart data={liveBands}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
+                  <XAxis dataKey="time" tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis domain={[0, 60]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
+                    formatter={(v: number, name: string) => [`${v}%`, name]}
+                  />
+                  <Line type="monotone" dataKey="calm"     name="Calm (α)"     stroke="hsl(152,65%,50%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="alert"    name="Alert (β)"    stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex gap-4 mt-2 flex-wrap">
+                {[
+                  { label: "Calm (α — alpha)",    color: "hsl(152,65%,50%)" },
+                  { label: "Alert (β — beta)",     color: "hsl(200,70%,55%)" },
+                  { label: "Creative (θ — theta)", color: "hsl(270,65%,62%)", dashed: true },
+                ].map((l) => (
+                  <div key={l.label} className="flex items-center gap-1.5">
+                    <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
+                    <span className="text-[10px] text-muted-foreground">{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )
+        ) : !hasData ? (
           <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
             <Brain className="h-8 w-8 opacity-30" />
-            <p>{isLiveToday ? (isStreaming ? "Collecting data…" : "Connect device to see trends") : "No sessions in this period"}</p>
+            <p>{isLiveToday ? "Connect device to see trends" : "No sessions in this period"}</p>
           </div>
         ) : (
           <>
