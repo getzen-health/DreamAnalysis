@@ -555,7 +555,7 @@ export function AICompanion({ userId }: AICompanionProps) {
 
           {isStreaming && analysis && (
             <div className="pt-3 mt-3 border-t border-border/30 space-y-2">
-              {(analysis.sleep_staging as Record<string, unknown> | undefined)?.stage && (
+              {!!(analysis.sleep_staging as Record<string, unknown> | undefined)?.stage && (
                 <StateChip
                   label="Sleep"
                   value={String(
@@ -564,14 +564,14 @@ export function AICompanion({ userId }: AICompanionProps) {
                   icon={Moon}
                 />
               )}
-              {(analysis.attention as Record<string, unknown> | undefined)?.state && (
+              {!!(analysis.attention as Record<string, unknown> | undefined)?.state && (
                 <StateChip
                   label="Attention"
                   value={String((analysis.attention as Record<string, unknown>).state)}
                   icon={Eye}
                 />
               )}
-              {(analysis.flow_state as Record<string, unknown> | undefined)?.in_flow && (
+              {!!(analysis.flow_state as Record<string, unknown> | undefined)?.in_flow && (
                 <StateChip label="Flow" value="In Flow" icon={Zap} />
               )}
             </div>

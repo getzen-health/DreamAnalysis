@@ -16,6 +16,8 @@ import {
   BookOpen,
   BarChart2,
   TrendingUp,
+  Trophy,
+  Flame,
 } from "lucide-react";
 import {
   AreaChart,
@@ -170,6 +172,22 @@ export default function DataHub() {
   const avgFocus = periodSessions.reduce((s, x) => s + (x.summary?.avg_focus ?? 0), 0) / n;
   const avgStress = periodSessions.reduce((s, x) => s + (x.summary?.avg_stress ?? 0), 0) / n;
   const avgFlow = periodSessions.reduce((s, x) => s + (x.summary?.avg_flow ?? 0), 0) / n;
+
+  /* — All-time personal records (across all sessions, not just filtered period) — */
+  const datafulSessions = allSessions.filter((s) => (s.summary?.n_frames ?? 0) > 0);
+  const allTimePeakFocus = datafulSessions.reduce(
+    (m, s) => Math.max(m, Math.round((s.summary?.avg_focus ?? 0) * 100)), 0);
+  const allTimePeakFlow = datafulSessions.reduce(
+    (m, s) => Math.max(m, Math.round((s.summary?.avg_flow ?? 0) * 100)), 0);
+  const allTimeLongest = datafulSessions.reduce(
+    (m, s) => Math.max(m, Math.round((s.summary?.duration_sec ?? 0) / 60)), 0);
+  const allTimeLowStress = datafulSessions.reduce(
+    (m, s) => Math.min(m, Math.round((s.summary?.avg_stress ?? 1) * 100)), 100);
+
+  /* — Current period vs all-time comparison — */
+  const periodPeakFocus = periodSessions.reduce(
+    (m, s) => Math.max(m, Math.round((s.summary?.avg_focus ?? 0) * 100)), 0);
+  const isNewFocusRecord = periodPeakFocus > 0 && periodPeakFocus >= allTimePeakFocus;
 
   /* — Emotion chart data — */
   const emotionChartData = emotions
@@ -357,6 +375,38 @@ export default function DataHub() {
             <Card className="glass-card p-10 text-center">
               <Brain className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No sessions in this period.</p>
+            </Card>
+          )}
+
+          {/* Personal Records banner */}
+          {datafulSessions.length >= 2 && (
+            <Card className="glass-card p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Trophy className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-semibold">Personal Records</h3>
+                {isNewFocusRecord && (
+                  <span className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400">
+                    <Flame className="h-3 w-3" />
+                    New record this period!
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Peak Focus", value: `${allTimePeakFocus}%`, color: "text-primary", bg: "bg-primary/10" },
+                  { label: "Best Flow", value: `${allTimePeakFlow}%`, color: "text-success", bg: "bg-success/10" },
+                  { label: "Longest", value: `${allTimeLongest}m`, color: "text-secondary", bg: "bg-secondary/10" },
+                  { label: "Calmest", value: `${allTimeLowStress}% stress`, color: "text-cyan-400", bg: "bg-cyan-500/10" },
+                ].map(({ label, value, color, bg }) => (
+                  <div key={label} className={`rounded-xl p-3 ${bg} text-center`}>
+                    <p className={`text-lg font-bold font-mono ${color}`}>{value}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground text-center mt-2">
+                All-time bests across {datafulSessions.length} sessions
+              </p>
             </Card>
           )}
 

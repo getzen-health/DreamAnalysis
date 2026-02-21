@@ -18,11 +18,16 @@ import {
   Cpu,
   MemoryStick,
   Wind,
+  TrendingUp,
+  Trophy,
+  Clock,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import {
   getHealthInsights,
+  listSessions,
   type HealthInsight,
+  type SessionSummary,
 } from "@/lib/ml-api";
 
 /* ---------- helpers ---------- */
@@ -94,6 +99,99 @@ const EMOTION_PRECURSORS: Record<string, { description: string; guidance: string
     guidance: "Pause and check in with yourself. What are you feeling right now?",
   },
 };
+
+/* Build a one-sentence insight from the most recent session with real data */
+function generateSessionInsight(
+  session: SessionSummary,
+  allSessions: SessionSummary[],
+): { text: string; metric: string; metricLabel: string; color: string } {
+  const s = session.summary;
+  const focus = Math.round((s?.avg_focus ?? 0) * 100);
+  const stress = Math.round((s?.avg_stress ?? 0) * 100);
+  const flow = Math.round((s?.avg_flow ?? 0) * 100);
+  const relaxation = Math.round((s?.avg_relaxation ?? 0) * 100);
+  const duration = Math.round((s?.duration_sec ?? 0) / 60);
+  const emotion = s?.dominant_emotion ?? "neutral";
+
+  // Compute 7-day average focus for comparison
+  const recent = allSessions
+    .filter((x) => (x.summary?.n_frames ?? 0) > 0)
+    .slice(-7);
+  const avgFocus7d =
+    recent.length > 1
+      ? Math.round(
+          (recent.slice(0, -1).reduce((a, x) => a + (x.summary?.avg_focus ?? 0), 0) /
+            (recent.length - 1)) *
+            100,
+        )
+      : 0;
+  const focusDelta = avgFocus7d > 0 ? focus - avgFocus7d : 0;
+
+  if (flow > 55) {
+    return {
+      text: `You hit a flow state for much of the ${duration}-min session.`,
+      metric: `${flow}%`,
+      metricLabel: "Flow",
+      color: "text-success",
+    };
+  }
+  if (focusDelta >= 15 && avgFocus7d > 0) {
+    return {
+      text: `Focus was ${Math.abs(focusDelta)}% higher than your recent average.`,
+      metric: `${focus}%`,
+      metricLabel: "Focus",
+      color: "text-primary",
+    };
+  }
+  if (focusDelta <= -15 && avgFocus7d > 0) {
+    return {
+      text: `Focus dipped ${Math.abs(focusDelta)}% below your recent average — worth a note.`,
+      metric: `${focus}%`,
+      metricLabel: "Focus",
+      color: "text-warning",
+    };
+  }
+  if (stress < 20 && focus > 50) {
+    return {
+      text: `Low stress with strong focus — your brain was in an optimal state.`,
+      metric: `${stress}%`,
+      metricLabel: "Stress",
+      color: "text-success",
+    };
+  }
+  if (stress > 65) {
+    return {
+      text: `Stress peaked at ${stress}%. A breathing session can help bring it down.`,
+      metric: `${stress}%`,
+      metricLabel: "Stress",
+      color: "text-destructive",
+    };
+  }
+  if (relaxation > 70) {
+    return {
+      text: `Deeply relaxed session (${relaxation}%). Great for recovery and memory consolidation.`,
+      metric: `${relaxation}%`,
+      metricLabel: "Relax",
+      color: "text-success",
+    };
+  }
+  return {
+    text: `Dominant state: ${emotion}. ${duration}m session — Focus ${focus}%, Stress ${stress}%.`,
+    metric: `${focus}%`,
+    metricLabel: "Focus",
+    color: "text-primary",
+  };
+}
+
+/* Format relative time for session label */
+function relativeDay(startTime: number): string {
+  const now = Date.now() / 1000;
+  const diffH = (now - startTime) / 3600;
+  if (diffH < 2) return "just now";
+  if (diffH < 24) return `${Math.round(diffH)}h ago`;
+  if (diffH < 48) return "yesterday";
+  return `${Math.round(diffH / 24)} days ago`;
+}
 
 const QUICK_ACTIONS = [
   { href: "/brain-monitor", icon: Activity, label: "Brain Monitor", color: "hsl(200, 70%, 55%)" },
@@ -256,6 +354,36 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // --- Sessions for Yesterday's Insight + Personal Records ---
+  const { data: allSessions = [] } = useQuery<SessionSummary[]>({
+    queryKey: ["sessions"],
+    queryFn: () => listSessions(),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const sessionsWithData = allSessions.filter((s) => (s.summary?.n_frames ?? 0) > 0);
+  const lastSession = sessionsWithData.length > 0
+    ? sessionsWithData[sessionsWithData.length - 1]
+    : null;
+  const lastInsight = lastSession
+    ? generateSessionInsight(lastSession, sessionsWithData)
+    : null;
+
+  // Personal records across all sessions
+  const peakFocus = sessionsWithData.reduce(
+    (m, s) => Math.max(m, Math.round((s.summary?.avg_focus ?? 0) * 100)),
+    0,
+  );
+  const peakFlow = sessionsWithData.reduce(
+    (m, s) => Math.max(m, Math.round((s.summary?.avg_flow ?? 0) * 100)),
+    0,
+  );
+  const longestSession = sessionsWithData.reduce(
+    (m, s) => Math.max(m, Math.round((s.summary?.duration_sec ?? 0) / 60)),
+    0,
+  );
+
   return (
     <main className="p-6 space-y-6 max-w-6xl">
       {/* 1. Connection Banner */}
@@ -305,7 +433,72 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 3. Score Circles — Mental Health + Wellness + Sleep + Brain */}
+      {/* 3. Yesterday's Insight + Personal Records */}
+      {(lastInsight || sessionsWithData.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Yesterday's Insight */}
+          {lastInsight && lastSession && (
+            <Card className="glass-card p-4 hover-glow">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center shrink-0">
+                  <TrendingUp className="h-4 w-4 text-secondary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Last Session Insight
+                    </p>
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 shrink-0">
+                      <Clock className="h-3 w-3" />
+                      {relativeDay(lastSession.start_time ?? 0)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground leading-snug mb-2">
+                    {lastInsight.text}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-muted ${lastInsight.color}`}>
+                      {lastInsight.metricLabel} {lastInsight.metric}
+                    </span>
+                    <Link href="/sessions" className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors">
+                      View sessions <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Personal Records */}
+          {sessionsWithData.length >= 2 && (
+            <Card className="glass-card p-4 hover-glow">
+              <div className="flex items-center gap-2 mb-3">
+                <Trophy className="h-4 w-4 text-amber-400" />
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Personal Records</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <p className="text-xl font-bold text-primary font-mono">{peakFocus}%</p>
+                  <p className="text-[10px] text-muted-foreground">Peak Focus</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-success font-mono">{peakFlow}%</p>
+                  <p className="text-[10px] text-muted-foreground">Best Flow</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-secondary font-mono">{longestSession}m</p>
+                  <p className="text-[10px] text-muted-foreground">Longest</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                Across {sessionsWithData.length} sessions
+              </p>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* 4. Score Circles — Mental Health + Wellness + Sleep + Brain */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
         <div className="score-card p-6 flex flex-col items-center hover-glow">
           <ScoreCircle
