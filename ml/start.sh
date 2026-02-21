@@ -198,27 +198,39 @@ fi
 # ── Done ─────────────────────────────────────────────────────────────────────
 ENCODED_URL=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$NGROK_URL'))")
 SETTINGS_LINK="https://dream-analysis.vercel.app/settings?ml_backend=${ENCODED_URL}"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo ""
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo -e "${GREEN}${BOLD}  ✅  ML Backend is LIVE${RESET}"
 echo ""
 echo -e "  ${BOLD}ngrok URL:${RESET}  ${CYAN}${NGROK_URL}${RESET}"
-echo ""
-echo -e "  ${BOLD}Option 1 — Auto-fill (click this link):${RESET}"
-echo -e "  ${CYAN}${SETTINGS_LINK}${RESET}"
-echo ""
-echo -e "  ${BOLD}Option 2 — Manual:${RESET}"
-echo "  Open Settings → ML Backend → paste the URL above → Save"
-echo ""
-echo -e "  ${YELLOW}Note: This URL changes every time you restart ngrok${RESET}"
-echo -e "  ${YELLOW}(unless you have a paid ngrok plan with a fixed domain)${RESET}"
 echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
 
-# Try to open the settings link in the browser automatically
-if command -v open &> /dev/null; then
-  echo "  Opening Settings page in browser..."
+# ── Auto-update Vercel + open Settings (runs in background) ──────────────────
+(
+  # 1. Update VITE_ML_API_URL in Vercel
+  if command -v vercel &>/dev/null; then
+    vercel env rm VITE_ML_API_URL production --yes 2>/dev/null || true
+    vercel env rm VITE_ML_API_URL preview   --yes 2>/dev/null || true
+    printf '%s' "$NGROK_URL" | vercel env add VITE_ML_API_URL production 2>/dev/null || true
+    printf '%s' "$NGROK_URL" | vercel env add VITE_ML_API_URL preview   2>/dev/null || true
+    # 2. Rebuild + deploy
+    cd "$PROJECT_DIR"
+    npx vercel --prod > /tmp/ndw_vercel.log 2>&1 \
+      && echo "[vercel] Deploy complete: $NGROK_URL" >> /tmp/ndw_vercel.log \
+      || echo "[vercel] Deploy failed — check /tmp/ndw_vercel.log" >&2
+  fi
+) &
+VERCEL_PID=$!
+
+echo "  Updating Vercel in background (PID $VERCEL_PID, ~60s)..."
+echo "  App will auto-reload with the new URL. Log: /tmp/ndw_vercel.log"
+echo ""
+
+# Open Settings with URL pre-filled (immediate fix for your browser)
+if command -v open &>/dev/null; then
   open "$SETTINGS_LINK" 2>/dev/null || true
 fi
 
@@ -231,6 +243,7 @@ cleanup() {
   echo "  Stopping backend and ngrok..."
   kill "$UVICORN_PID" 2>/dev/null || true
   kill "$NGROK_PID" 2>/dev/null || true
+  kill "$VERCEL_PID" 2>/dev/null || true
   pkill -f "uvicorn main:app" 2>/dev/null || true
   pkill -f "ngrok http 8000" 2>/dev/null || true
   echo -e "  ${GREEN}Stopped.${RESET}"
