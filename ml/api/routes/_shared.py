@@ -27,6 +27,24 @@ from processing.calibration import CalibrationRunner
 from processing.state_transitions import BrainStateEngine
 from processing.confidence_calibration import ConfidenceCalibrator
 
+# ─── Simulation & processing re-exports (used by route modules) ──────────────
+from simulation.eeg_simulator import STATE_PROFILES, simulate_eeg
+from processing.eeg_processor import (
+    extract_features,
+    extract_band_powers,
+    preprocess,
+    extract_features_multichannel,
+    compute_coherence,
+    compute_phase_locking_value,
+)
+from processing.artifact_detector import (
+    detect_eye_blinks,
+    detect_muscle_artifacts,
+    detect_electrode_pops,
+    compute_signal_quality_index,
+    auto_reject_epochs,
+)
+
 # ─── Paths ───────────────────────────────────────────────────────────────────
 MODEL_DIR = Path("models/saved")
 BENCHMARK_DIR = Path("benchmarks")

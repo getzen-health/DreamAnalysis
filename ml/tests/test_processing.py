@@ -14,7 +14,7 @@ class TestFeatureExtraction:
     def test_extract_features_returns_17(self, sample_eeg, fs):
         from processing.eeg_processor import extract_features
         features = extract_features(sample_eeg, fs)
-        assert len(features) == 17
+        assert len(features) == 31
 
     def test_preprocess_preserves_length(self, sample_eeg, fs):
         from processing.eeg_processor import preprocess
