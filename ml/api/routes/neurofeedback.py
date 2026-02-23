@@ -3,7 +3,6 @@
 from fastapi import APIRouter, HTTPException
 
 from ._shared import (
-    _nf_protocol as _nf_protocol_ref,
     NeurofeedbackProtocol, PROTOCOLS,
     NeurofeedbackStartRequest, NeurofeedbackEvalRequest,
 )

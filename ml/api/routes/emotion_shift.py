@@ -5,7 +5,6 @@ from fastapi import APIRouter
 
 from ._shared import (
     _numpy_safe,
-    _emotion_shift_detectors,
     EmotionShiftDetector,
     emotion_model,
     EmotionShiftRequest,

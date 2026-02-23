@@ -9,7 +9,6 @@ from typing import Dict, List
 from ._shared import (
     _get_personal_model,
     CalibrationSubmitRequest, PersonalFeedbackRequest,
-    EEGInput,
 )
 from processing.eeg_processor import BaselineCalibrator
 

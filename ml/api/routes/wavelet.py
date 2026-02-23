@@ -4,7 +4,6 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 
 from ._shared import (
-    _numpy_safe,
     EEGInput,
     preprocess,
     compute_cwt_spectrogram, compute_dwt_features,

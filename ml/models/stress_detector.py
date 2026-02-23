@@ -21,7 +21,6 @@ import numpy as np
 from typing import Dict, Optional
 from processing.eeg_processor import (
     extract_band_powers, extract_features, preprocess, compute_hjorth_parameters,
-    compute_theta_gamma_coupling,
 )
 
 STRESS_LEVELS = ["relaxed", "mild", "moderate", "high"]

@@ -1,12 +1,9 @@
 """Shared utilities, model singletons, and Pydantic schemas for all route modules."""
 
-import json
-import os as _os
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
-from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 # ─── ML Model imports ────────────────────────────────────────────────────────
@@ -23,52 +20,12 @@ from models.lucid_dream_detector import LucidDreamDetector
 from models.meditation_classifier import MeditationClassifier
 from models.anomaly_detector import AnomalyDetector
 from processing.emotion_shift_detector import EmotionShiftDetector
-from neurofeedback.protocol_engine import NeurofeedbackProtocol, PROTOCOLS
+from neurofeedback.protocol_engine import NeurofeedbackProtocol
 from storage.session_recorder import SessionRecorder
 from processing.signal_quality import SignalQualityChecker
-from processing.calibration import UserCalibration, CalibrationRunner, CALIBRATION_STEPS
+from processing.calibration import CalibrationRunner
 from processing.state_transitions import BrainStateEngine
-from processing.confidence_calibration import ConfidenceCalibrator, add_uncertainty_labels
-from processing.user_feedback import FeedbackCollector, PersonalizedPipeline
-from processing.eeg_processor import (
-    extract_features,
-    extract_band_powers,
-    preprocess,
-    extract_features_multichannel,
-    compute_coherence,
-    compute_phase_locking_value,
-    compute_cwt_spectrogram,
-    compute_dwt_features,
-    detect_sleep_spindles,
-    detect_k_complexes,
-)
-from processing.artifact_detector import (
-    detect_eye_blinks,
-    detect_muscle_artifacts,
-    detect_electrode_pops,
-    compute_signal_quality_index,
-    auto_reject_epochs,
-    ica_artifact_removal,
-)
-from processing.connectivity import (
-    compute_granger_causality,
-    compute_dtf,
-    compute_graph_metrics,
-)
-from processing.spiritual_energy import (
-    compute_chakra_activations,
-    compute_chakra_balance,
-    compute_meditation_depth,
-    compute_aura_energy,
-    compute_kundalini_flow,
-    compute_prana_balance,
-    compute_consciousness_level,
-    compute_third_eye_activation,
-    full_spiritual_analysis,
-    CHAKRAS,
-    CONSCIOUSNESS_LEVELS,
-)
-from simulation.eeg_simulator import simulate_eeg, STATE_PROFILES
+from processing.confidence_calibration import ConfidenceCalibrator
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 MODEL_DIR = Path("models/saved")

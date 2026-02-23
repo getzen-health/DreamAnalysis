@@ -13,7 +13,7 @@ from typing import Dict, Optional
 from collections import deque
 from processing.eeg_processor import (
     extract_band_powers, differential_entropy, extract_features, preprocess,
-    compute_frontal_asymmetry, compute_theta_gamma_coupling, compute_dasm_rasm,
+    compute_frontal_asymmetry, compute_dasm_rasm,
     compute_frontal_midline_theta,
 )
 

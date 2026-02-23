@@ -5,7 +5,6 @@ Gracefully degrades if brainflow is not installed.
 """
 
 import threading
-import numpy as np
 from typing import Dict, List, Optional, Callable
 
 try:

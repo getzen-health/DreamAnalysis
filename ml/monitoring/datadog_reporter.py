@@ -11,7 +11,7 @@ import os
 import time
 import traceback
 import urllib.request
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

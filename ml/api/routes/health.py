@@ -7,7 +7,6 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from ._shared import (
-    _numpy_safe,
     HealthDataPayload, BrainSessionPayload,
 )
 

@@ -1,7 +1,6 @@
 """Accuracy pipeline: signal quality, confidence, calibration protocol,
 state engine, user feedback, personalization, and /analyze-eeg-accurate."""
 
-from typing import Optional
 
 import numpy as np
 from fastapi import APIRouter, HTTPException
@@ -12,7 +11,7 @@ from ._shared import (
     creativity_model, memory_model,
     drowsiness_model, cognitive_load_model, attention_model,
     stress_model, lucid_dream_model, meditation_model,
-    _quality_checker, _state_engine, _confidence_cal, _calibration_runners,
+    _state_engine, _confidence_cal, _calibration_runners,
     SignalQualityChecker, UserCalibration, CalibrationRunner, CALIBRATION_STEPS,
     FeedbackCollector, PersonalizedPipeline,
     add_uncertainty_labels,

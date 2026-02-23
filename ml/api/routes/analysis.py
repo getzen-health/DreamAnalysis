@@ -6,7 +6,6 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 
 from ._shared import (
-    _numpy_safe,
     _get_personal_model,
     sleep_model, emotion_model, dream_model, flow_model,
     creativity_model, memory_model,
