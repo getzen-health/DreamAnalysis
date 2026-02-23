@@ -28,21 +28,21 @@ from processing.state_transitions import BrainStateEngine
 from processing.confidence_calibration import ConfidenceCalibrator
 
 # ─── Simulation & processing re-exports (used by route modules) ──────────────
-from simulation.eeg_simulator import STATE_PROFILES, simulate_eeg
+from simulation.eeg_simulator import STATE_PROFILES as STATE_PROFILES, simulate_eeg as simulate_eeg
 from processing.eeg_processor import (
-    extract_features,
-    extract_band_powers,
-    preprocess,
-    extract_features_multichannel,
-    compute_coherence,
-    compute_phase_locking_value,
+    extract_features as extract_features,
+    extract_band_powers as extract_band_powers,
+    preprocess as preprocess,
+    extract_features_multichannel as extract_features_multichannel,
+    compute_coherence as compute_coherence,
+    compute_phase_locking_value as compute_phase_locking_value,
 )
 from processing.artifact_detector import (
-    detect_eye_blinks,
-    detect_muscle_artifacts,
-    detect_electrode_pops,
-    compute_signal_quality_index,
-    auto_reject_epochs,
+    detect_eye_blinks as detect_eye_blinks,
+    detect_muscle_artifacts as detect_muscle_artifacts,
+    detect_electrode_pops as detect_electrode_pops,
+    compute_signal_quality_index as compute_signal_quality_index,
+    auto_reject_epochs as auto_reject_epochs,
 )
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
