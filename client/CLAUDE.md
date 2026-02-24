@@ -81,3 +81,7 @@ Pages (UI)
 | `use-mobile` | Responsive breakpoint detection |
 | `use-theme` | Light/dark theme toggle |
 | `use-toast` | Toast notification system |
+
+## Git Commit Rules
+
+- **NEVER add `Co-Authored-By: Claude` (or any Claude/AI co-author line) to commit messages.** Claude must not appear as a contributor in the git history.

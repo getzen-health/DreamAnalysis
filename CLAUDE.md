@@ -1012,3 +1012,7 @@ Current system gaps vs this pipeline: epochs are 1 sec (too short), no baseline 
 
 For the full scientific background, read `docs/COMPLETE_SCIENTIFIC_GUIDE.md` (40KB).
 For the interactive EEG science explainer with diagrams, open `docs/eeg-science-explainer.html` in a browser.
+
+## Git Commit Rules
+
+- **NEVER add `Co-Authored-By: Claude` (or any Claude/AI co-author line) to commit messages.** Claude must not appear as a contributor in the git history.

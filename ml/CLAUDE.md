@@ -110,3 +110,7 @@ Raw Datasets (DEAP, SEED, GAMEEMO, Muse, etc.)
 ```
 
 Key training scripts: `mega_trainer.py` (comprehensive, all algorithms), `train_emotion.py`, `train_sleep.py`, `train_dream.py`.
+
+## Git Commit Rules
+
+- **NEVER add `Co-Authored-By: Claude` (or any Claude/AI co-author line) to commit messages.** Claude must not appear as a contributor in the git history.
