@@ -141,6 +141,7 @@ Read this before starting any new feature. Be honest about where things are.
 Core ML / Signal pipeline    █████████░  90%
   Mastoid reref, DASM/RASM, FAA, FMT, 4-sec epochs, BaselineCalibrator all done.
   Food-Emotion module complete (6 states, 4 biomarkers, dietary guidance).
+  Cross-dataset LGBM now 69.25% CV (DEAP+DREAMER+GAMEEMO). Device-aware gamma masking done.
   Missing: personalization after 5 sessions, 97.79% LGBM integration.
 
 Backend API                  █████████░  90%
@@ -227,6 +228,7 @@ Build a pairing wizard: discover → connect → HSI check → "good to go".
       (/biofeedback — 4 exercises, expanding circle, live stress chart,
       before/after comparison, works with or without Muse)
 - [x] Food & Cravings page (/food — 6 EEG-based eating states, dietary guidance, simulation mode)
+- [x] DREAMER + GAMEEMO integration + device-aware gamma masking (69.25% CV)
 - [ ] **NEXT: Baseline calibration onboarding screen** — guided 2-min eyes-closed session
       before first reading. Biggest single accuracy improvement available (+15–29%).
       API already built (`/calibration/baseline/add-frame`). Just needs guided UI.

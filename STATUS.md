@@ -41,6 +41,9 @@
 - [x] `BaselineCalibrator` class + 3 API endpoints (per-user resting-state normalization, +15–29% accuracy)
 - [x] Mastoid re-reference wired into live BrainFlow stream
 - [x] FAA, DASM/RASM, FMT fully integrated into emotion classifier
+- [x] DREAMER dataset integrated (23 subjects, Emotiv EPOC 14-ch)
+- [x] GAMEEMO dataset integrated (28 subjects, 4 games, neutral class source)
+- [x] Device-aware gamma masking — Muse 2 zeros gamma features; research EEG uses all 85
 
 ### Infrastructure
 - [x] Vercel deployment config (frontend + Express)
@@ -60,7 +63,7 @@
 | Emotion Classifier | XGBoost | ~95% | DEAP + SEED + GAMEEMO | Within-subject — not loaded |
 | Emotion Classifier | MLP (PyTorch) | 93.11% | DEAP + SEED + GAMEEMO | Within-subject — not loaded |
 | Emotion Classifier | Feature heuristics | 65–75% | Live Muse 2 | **This is the live path** — FAA + DASM/RASM + FMT |
-| Emotion Classifier | GBM cross-subject | 45.3% | DEAP + EmoKeyMuseS | Formal cross-subject benchmark |
+| Emotion Classifier | GBM cross-subject | 69.25% CV (DEAP+DREAMER+GAMEEMO, 3-class, 85 features) | DEAP + DREAMER + GAMEEMO | Formal cross-subject benchmark |
 | Sleep Staging | Random Forest | 92.98% | ISRUC | Active, reliable |
 | Dream Detector | Gradient Boosting | 97.20% | — | Active, reliable |
 | Flow State | MLP | 62.86% | — | Active, marginal |
@@ -117,7 +120,7 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 - [ ] **IRB ethics approval** (4–8 weeks) — required for human subjects research
 - [ ] **Controlled pilot study** (4–6 weeks post-IRB) — 20–30 participants, food cue presentation protocol
 - [ ] **Cross-subject validation** — LOSO cross-validation, target >65% 6-class with calibration
-- [ ] **DREAMER dataset** — email stamos.katsigiannis@durham.ac.uk, retrain on 14-ch Emotiv (closest to Muse 2)
+- [x] **DREAMER dataset** — downloaded and integrated into cross-dataset training pipeline
 - [ ] **FACED dataset** — create Synapse.org account, 123 subjects, 9 emotions
 - [ ] **Write paper** — IEEE TAFFC or Frontiers in Neuroscience
 - [ ] **Open-source release** — GitHub tag, HuggingFace model weights, anonymized pilot data

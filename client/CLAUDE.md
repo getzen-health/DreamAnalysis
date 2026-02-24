@@ -82,6 +82,21 @@ Pages (UI)
 | `use-theme` | Light/dark theme toggle |
 | `use-toast` | Toast notification system |
 
+## Post-Task Checklist (MANDATORY after every completed task)
+
+After finishing any task, always do these in order — no exceptions:
+
+1. **Push to GitHub**: `git push`
+2. **Deploy to Vercel**: Vercel auto-deploys on push to `main`. If not auto-connected,
+   run `vercel --prod` from the project root.
+3. **Update `STATUS.md`**: Mark completed items [x], update model accuracies, add new
+   endpoints or pages built.
+4. **Update `PRODUCT.md`**: Update the "Honest Assessment" percentages and "What Is Broken"
+   section if anything was fixed.
+5. **Update benchmark dashboard** (`client/src/pages/formal-benchmarks-dashboard.tsx`):
+   Update model accuracy numbers, dataset statuses, and publishing-plan checkboxes to
+   reflect the latest results.
+
 ## Git Commit Rules
 
 - **NEVER add `Co-Authored-By: Claude` (or any Claude/AI co-author line) to commit messages.** Claude must not appear as a contributor in the git history.
