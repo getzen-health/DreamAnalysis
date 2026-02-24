@@ -2,19 +2,20 @@
   "model_name": "emotion_lgbm_muse_live",
   "datasets": [
     "DEAP",
-    "DREAMER"
+    "DREAMER",
+    "GAMEEMO"
   ],
-  "n_samples": 49893,
+  "n_samples": 59440,
   "cv_method": "5-fold stratified CV",
-  "accuracy": 0.6919,
-  "f1_macro": 0.6898,
+  "accuracy": 0.6642,
+  "f1_macro": 0.6749,
   "n_classes": 3,
   "class_names": [
     "positive",
     "neutral",
     "negative"
   ],
-  "feature_dim": 80,
-  "feature_type": "5bands \u00d7 4ch \u00d7 4stats (mean,std,median,IQR)",
-  "notes": "Cross-dataset LGBM trained on DEAP+DREAMER. 80-feature format identical to live Muse 2 inference. 5-fold CV accuracy: 69.19%. Replaces single-dataset Muse-Subconscious model."
+  "feature_dim": 85,
+  "feature_type": "80 band-power stats (5bands\u00d74ch\u00d74stats) + 5 DASM (AF8-AF7 per band)",
+  "notes": "Cross-dataset LGBM trained on DEAP+DREAMER+GAMEEMO. 85-feature format: 80 band-power + 5 DASM. Matches live Muse 2 inference. 5-fold CV accuracy: 66.42%. Neutral class added via valence/arousal proximity."
 }

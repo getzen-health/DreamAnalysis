@@ -163,18 +163,19 @@ class EmotionClassifier:
         return 0.0
 
     def _extract_muse_live_features(self, eeg: np.ndarray, fs: float) -> np.ndarray:
-        """Extract 80-feature vector for the Muse-native LightGBM model.
+        """Extract 85-feature vector for the Muse-native LightGBM model.
 
-        Feature layout (band-major, channel-minor, 4 stats each):
-            Delta_TP9[mean,std,med,iqr], Delta_AF7[...], Delta_AF8[...], Delta_TP10[...],
-            Theta_TP9[...], ..., Gamma_TP10[...]
-        Matches the Muse-Subconscious training format exactly.
+        Feature layout:
+            [0:80]  80 band-power stats: 5 bands × 4 channels × 4 stats (mean,std,med,iqr)
+                    Band-major order: Delta_TP9, Delta_AF7, Delta_AF8, Delta_TP10, Theta_TP9, ...
+            [80:85] 5 DASM features: mean(AF8_band) - mean(AF7_band) for each of 5 bands
+                    AF7=ch1 (left-frontal), AF8=ch2 (right-frontal)
+        Matches train_cross_dataset_lgbm.extract_features() exactly.
         """
         WIN_SW = 128   # 0.5-sec sub-window at 256 Hz
         HOP    = 64    # 50 % overlap → ~30 sub-windows per 4-sec epoch
 
         n_samples = eeg.shape[1]
-        # powers: list of (5 bands, 4 channels) arrays, one per sub-window
         powers: list = []
 
         for start in range(0, n_samples - WIN_SW + 1, HOP):
@@ -197,11 +198,12 @@ class EmotionClassifier:
             powers.append(np.array(sub_bands, dtype=np.float32).T)
 
         if len(powers) == 0:
-            return np.zeros(80, dtype=np.float32)
+            return np.zeros(85, dtype=np.float32)
 
         arr = np.array(powers, dtype=np.float32)  # (n_subwins, 5, 4)
 
         feat: list = []
+        # 80 band-power stats
         for band_idx in range(5):
             for ch_idx in range(4):
                 vals = arr[:, band_idx, ch_idx]
@@ -216,10 +218,20 @@ class EmotionClassifier:
                         float(np.percentile(vals, 75) - np.percentile(vals, 25)),
                     ])
 
-        return np.array(feat[:80], dtype=np.float32)
+        # 5 DASM features: mean(AF8_band) - mean(AF7_band) per band
+        # AF7=ch1 (left frontal), AF8=ch2 (right frontal)
+        for band_idx in range(5):
+            af8 = arr[:, band_idx, 2]; af8 = af8[np.isfinite(af8)]
+            af7 = arr[:, band_idx, 1]; af7 = af7[np.isfinite(af7)]
+            if len(af8) > 0 and len(af7) > 0:
+                feat.append(float(np.mean(af8)) - float(np.mean(af7)))
+            else:
+                feat.append(0.0)
+
+        return np.array(feat, dtype=np.float32)  # 85 features
 
     def _predict_lgbm_muse(self, eeg: np.ndarray, fs: float) -> Dict:
-        """Run Muse-native LightGBM inference (80 raw features, no PCA).
+        """Run Muse-native LightGBM inference (85 features: 80 band-power + 5 DASM, no PCA).
 
         Expands the 3-class LGBM output (positive/neutral/negative)
         to the 6-class EMOTIONS list using ancillary EEG features.

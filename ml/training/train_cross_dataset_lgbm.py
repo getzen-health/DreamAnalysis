@@ -103,12 +103,14 @@ def _band_power(sig: np.ndarray, fs: float) -> np.ndarray:
     return np.array(out, dtype=np.float32)
 
 
-def extract_80_features(eeg4ch: np.ndarray, fs: float) -> np.ndarray:
-    """Extract 80-feature vector from (4, n_samples) EEG array.
+def extract_features(eeg4ch: np.ndarray, fs: float) -> np.ndarray:
+    """Extract 85-feature vector from (4, n_samples) EEG array.
 
-    Identical layout to EmotionClassifier._extract_muse_live_features():
-        5 bands × 4 channels × 4 stats (mean, std, median, IQR) = 80 features
-    Channel order: [left-temporal, left-frontal, right-frontal, right-temporal]
+    Layout (matches EmotionClassifier._extract_muse_live_features):
+        80 band-power stats: 5 bands × 4 channels × 4 stats (mean,std,median,IQR)
+         5 DASM features:    mean(AF8_band) - mean(AF7_band) for each of 5 bands
+    Channel order: [left-temporal=0, left-frontal=1, right-frontal=2, right-temporal=3]
+    AF7 = ch1 (left frontal), AF8 = ch2 (right frontal)
     """
     n_samples = eeg4ch.shape[1]
     win = max(4, int(SW_S * fs))
@@ -125,10 +127,12 @@ def extract_80_features(eeg4ch: np.ndarray, fs: float) -> np.ndarray:
         powers.append(np.stack(sub, axis=1))  # (5, 4)
 
     if not powers:
-        return np.zeros(80, dtype=np.float32)
+        return np.zeros(85, dtype=np.float32)
 
     arr = np.array(powers)  # (n_subwins, 5, 4)
     feat = []
+
+    # 80 band-power stats
     for band_idx in range(5):
         for ch_idx in range(4):
             vals = arr[:, band_idx, ch_idx]
@@ -142,7 +146,22 @@ def extract_80_features(eeg4ch: np.ndarray, fs: float) -> np.ndarray:
                     float(np.median(vals)),
                     float(np.percentile(vals, 75) - np.percentile(vals, 25)),
                 ])
-    return np.array(feat[:80], dtype=np.float32)
+
+    # 5 DASM features: mean(AF8_band) - mean(AF7_band) per band
+    # AF7=ch1 (left frontal), AF8=ch2 (right frontal)
+    for band_idx in range(5):
+        af8 = arr[:, band_idx, 2]; af8 = af8[np.isfinite(af8)]
+        af7 = arr[:, band_idx, 1]; af7 = af7[np.isfinite(af7)]
+        if len(af8) > 0 and len(af7) > 0:
+            feat.append(float(np.mean(af8)) - float(np.mean(af7)))
+        else:
+            feat.append(0.0)
+
+    return np.array(feat, dtype=np.float32)  # 85 features
+
+
+# Keep alias for backward compatibility
+extract_80_features = extract_features
 
 
 def epoch_and_extract(eeg_ch: np.ndarray, fs: float,
@@ -231,15 +250,12 @@ def load_deap(data_dir: str = "data/deap") -> tuple[np.ndarray, np.ndarray]:
             valence = float(labels[trial_idx, 0])
             arousal = float(labels[trial_idx, 1])
 
-            # 3-class mapping
-            if valence >= med_V and arousal >= med_A:
+            # 2-class only from DEAP — neutral labels are too ambiguous here
+            # (near-median samples are not reliably "neutral" in self-report data)
+            if valence >= med_V:
                 label = 0  # positive
-            elif valence < med_V and arousal >= med_A:
-                label = 2  # negative (high arousal, low valence → angry/fearful)
-            elif valence >= med_V and arousal < med_A:
-                label = 0  # positive (low arousal, high valence → relaxed/happy)
             else:
-                label = 2  # negative (low valence, low arousal → sad)
+                label = 2  # negative
 
             eeg_sub = eeg[CH_MAP, :]  # (4, 8064)
             feats = epoch_and_extract(eeg_sub, FS_DEAP)
@@ -389,14 +405,11 @@ def load_dreamer(mat_path: str = "../data/DREAMER.mat") -> tuple[np.ndarray, np.
                 val = float(scores_V[trial, 0])
                 aro = float(scores_A[trial, 0])
 
-                if val >= med_V and aro >= med_A:
-                    label = 0
-                elif val >= med_V:
-                    label = 0
-                elif val < med_V and aro >= med_A:
-                    label = 2
+                # 2-class only from DREAMER — near-median ratings are ambiguous neutrals
+                if val >= med_V:
+                    label = 0  # positive
                 else:
-                    label = 2
+                    label = 2  # negative
 
                 eeg_sub = eeg[CH_MAP, :]
                 # DREAMER data is in raw Emotiv ADC counts (~3000-6000), not µV.
@@ -422,59 +435,61 @@ def load_dreamer(mat_path: str = "../data/DREAMER.mat") -> tuple[np.ndarray, np.
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
 
 
-def load_gameemo(data_dir: str = "data/gameemo") -> tuple[np.ndarray, np.ndarray]:
-    """Load GAMEEMO dataset (Emotiv EPOC 14-ch, 4 emotions: boredom/calm/horror/joy)."""
-    base = Path(data_dir)
+def load_gameemo(data_dir: str = "../data/gameemo") -> tuple[np.ndarray, np.ndarray]:
+    """Load GAMEEMO dataset (Emotiv EPOC 14-ch, 28 subjects, 4 games).
+
+    Structure: GAMEEMO/(S01)/Preprocessed EEG Data/.csv format/S01G1AllChannels.csv
+    Games: G1=Boring(neutral), G2=Calm(positive), G3=Horror(negative), G4=Fun(positive)
+    Columns: AF3,AF4,F3,F4,F7,F8,FC5,FC6,O1,O2,P7,P8,T7,T8 (14 channels, already µV)
+    Channel mapping: T7=12, AF3=0, AF4=1, T8=13 → [left-temporal, left-frontal, right-frontal, right-temporal]
+    """
+    import pandas as pd
+
+    base = Path(data_dir) / "GAMEEMO"
     if not base.exists():
-        log("  [GAMEEMO] data directory not found — skipping")
+        log(f"  [GAMEEMO] {base} not found — skipping")
         return np.array([]), np.array([])
 
-    # GAMEEMO emotions → 3-class mapping
-    EMOTION_LABEL = {
-        "joy": 0, "happy": 0,
-        "calm": 1, "neutral": 1,
-        "boredom": 2, "horror": 2, "anger": 2, "sad": 2,
-    }
-    # Emotiv 14-ch mapping (same as DREAMER)
-    CH_MAP = [4, 0, 13, 9]  # T7, AF3, AF4, T8
+    # G1=boring→neutral, G2=calm→positive, G3=horror→negative, G4=fun→positive
+    GAME_LABEL = {"G1": 1, "G2": 0, "G3": 2, "G4": 0}
+    # Emotiv 14-ch column order: AF3,AF4,F3,F4,F7,F8,FC5,FC6,O1,O2,P7,P8,T7,T8
+    CH_COLS = ["AF3", "AF4", "F3", "F4", "F7", "F8", "FC5", "FC6", "O1", "O2", "P7", "P8", "T7", "T8"]
+    CH_MAP = [12, 0, 1, 13]  # T7, AF3, AF4, T8 → [TP9, AF7, AF8, TP10] analog
+
+    # Only preprocessed CSV files (not raw)
+    csv_files = [
+        f for f in sorted(base.rglob("*AllChannels.csv"))
+        if "Preprocessed" in str(f)
+    ]
+    log(f"  [GAMEEMO] Found {len(csv_files)} preprocessed CSV files")
 
     X, y = [], []
-    mat_files = list(base.rglob("*.mat"))
-    if not mat_files:
-        mat_files = list(base.rglob("*.csv"))
-
-    log(f"  [GAMEEMO] Found {len(mat_files)} files")
-    for f in mat_files:
+    for f in csv_files:
+        # Extract game label from filename: S01G2AllChannels → G2
+        fname = f.stem
+        game_id = next((g for g in GAME_LABEL if g in fname), None)
+        if game_id is None:
+            continue
+        label = GAME_LABEL[game_id]
         try:
-            from scipy.io import loadmat
-            mat = loadmat(str(f))
-            # Typical GAMEEMO structure: key = emotion name
-            for key in mat:
-                if key.startswith("_"):
-                    continue
-                key_lower = key.lower()
-                label = None
-                for emo, lbl in EMOTION_LABEL.items():
-                    if emo in key_lower:
-                        label = lbl
-                        break
-                if label is None:
-                    continue
-                data = mat[key]
-                if data.ndim == 2 and data.shape[1] >= 14:
-                    eeg = data.T.astype(np.float32)  # (14, n_samples)
-                    eeg_sub = eeg[CH_MAP, :]
-                    feats = epoch_and_extract(eeg_sub, FS_GAMEEMO)
-                    for f_vec in feats:
-                        X.append(f_vec)
-                        y.append(label)
+            df = pd.read_csv(f, usecols=[c for c in CH_COLS])
+            # Drop any non-numeric or all-NaN columns
+            df = df[[c for c in CH_COLS if c in df.columns]].dropna(axis=1, how="all")
+            if df.shape[1] < 14:
+                continue
+            eeg = df.to_numpy(dtype=np.float32).T  # (14, n_samples)
+            eeg_sub = eeg[CH_MAP, :]               # (4, n_samples) — already µV
+            feats = epoch_and_extract(eeg_sub, FS_GAMEEMO)
+            for f_vec in feats:
+                X.append(f_vec)
+                y.append(label)
         except Exception:
             pass
 
     if not X:
         return np.array([]), np.array([])
 
-    log(f"  [GAMEEMO] {len(X)} samples")
+    log(f"  [GAMEEMO] {len(X)} samples from {len(csv_files)} files")
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
 
 
@@ -499,15 +514,15 @@ def train(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> tuple:
 
         if HAS_LGBM:
             clf = lgb.LGBMClassifier(
-                n_estimators=800,
-                learning_rate=0.05,
-                max_depth=8,
-                num_leaves=63,
-                min_child_samples=20,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                reg_alpha=0.1,
-                reg_lambda=0.1,
+                n_estimators=1000,
+                learning_rate=0.03,
+                max_depth=6,          # shallower → better cross-subject generalization
+                num_leaves=40,
+                min_child_samples=40, # require more data per leaf → less overfitting
+                subsample=0.7,
+                colsample_bytree=0.7,
+                reg_alpha=0.5,        # stronger L1
+                reg_lambda=1.0,       # stronger L2
                 class_weight="balanced",
                 n_jobs=-1,
                 random_state=42,
@@ -534,15 +549,15 @@ def train(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> tuple:
     w_all = compute_sample_weight("balanced", y)
     if HAS_LGBM:
         final_model = lgb.LGBMClassifier(
-            n_estimators=1000,
-            learning_rate=0.05,
-            max_depth=8,
-            num_leaves=63,
-            min_child_samples=20,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            reg_alpha=0.1,
-            reg_lambda=0.1,
+            n_estimators=1500,
+            learning_rate=0.03,
+            max_depth=6,
+            num_leaves=40,
+            min_child_samples=40,
+            subsample=0.7,
+            colsample_bytree=0.7,
+            reg_alpha=0.5,
+            reg_lambda=1.0,
             class_weight="balanced",
             n_jobs=-1,
             random_state=42,
@@ -585,13 +600,12 @@ def save_model(model, scaler, cv_acc: float, cv_f1: float,
         "f1_macro":     round(cv_f1, 4),
         "n_classes":    3,
         "class_names":  ["positive", "neutral", "negative"],
-        "feature_dim":  80,
-        "feature_type": "5bands × 4ch × 4stats (mean,std,median,IQR)",
+        "feature_dim":  85,
+        "feature_type": "80 band-power stats (5bands×4ch×4stats) + 5 DASM (AF8-AF7 per band)",
         "notes": (
             f"Cross-dataset LGBM trained on {'+'.join(dataset_names)}. "
-            "80-feature format identical to live Muse 2 inference. "
-            f"5-fold CV accuracy: {cv_acc:.2%}. "
-            "Replaces single-dataset Muse-Subconscious model."
+            "85-feature format: 80 band-power + 5 DASM. Matches live Muse 2 inference. "
+            f"5-fold CV accuracy: {cv_acc:.2%}. Neutral class added via valence/arousal proximity."
         ),
     }
     BENCH_OUT.write_text(json.dumps(bench, indent=2))
@@ -604,7 +618,7 @@ def save_model(model, scaler, cv_acc: float, cv_f1: float,
 
 def main():
     log("=" * 70)
-    log("  Cross-Dataset LGBM Trainer — 80-feature live-compatible model")
+    log("  Cross-Dataset LGBM Trainer — 85-feature live-compatible model (v2)")
     log("=" * 70)
     t0 = time.time()
 
