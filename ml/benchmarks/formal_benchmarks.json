@@ -1,0 +1,20 @@
+[
+  {
+    "name": "DEAP",
+    "accuracy_mean": 0.67890625,
+    "accuracy_std": 0.0211659643502251,
+    "f1_macro_mean": 0.3661185591609807,
+    "f1_macro_std": 0.02342278484772074,
+    "n_features": 31,
+    "n_samples": 1280
+  },
+  {
+    "name": "SEED",
+    "accuracy_mean": 0.9999410724808486,
+    "accuracy_std": 0.00011785503830288314,
+    "f1_macro_mean": 0.9999400452343071,
+    "f1_macro_std": 0.00011990953138574233,
+    "n_features": 23,
+    "n_samples": 50910
+  }
+]

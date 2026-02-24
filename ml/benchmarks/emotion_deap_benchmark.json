@@ -1,0 +1,8 @@
+{
+  "model_name": "emotion_deap_muse",
+  "dataset": "DEAP+EmoKeyMuseS",
+  "cv_method": "cross_subject_loso",
+  "accuracy": 0.453,
+  "f1_macro": 0.421,
+  "notes": "Cross-subject 6-class accuracy. Below 60% threshold — feature-based heuristics used instead. Within-subject accuracy ~90.97%."
+}
