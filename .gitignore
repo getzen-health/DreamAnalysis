@@ -27,6 +27,14 @@ ml/models/emotion_classifier_rf.joblib
 # Screenshots (moved to attached_assets/)
 dream-analysis-*.png
 
+# Runtime session files (user EEG session records — not source code)
+ml/sessions/
+ml/sessions/*.json
+
+# Temporary generated files
+CONVERSATION_SUMMARY.md
+benchmarks-dashboard.html
+
 # Replit
 .replit
 

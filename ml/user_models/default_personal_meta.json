@@ -1,9 +1,11 @@
 {
   "classes": [
     "angry",
+    "fearful",
     "focused",
     "happy",
     "neutral",
+    "relaxed",
     "sad"
   ],
   "feature_names": [
@@ -21,7 +23,16 @@
     "f_band_power_theta",
     "f_band_power_alpha",
     "f_band_power_beta",
+    "f_band_power_low_beta",
+    "f_band_power_high_beta",
     "f_band_power_gamma",
+    "f_log_bp_delta",
+    "f_log_bp_theta",
+    "f_log_bp_alpha",
+    "f_log_bp_beta",
+    "f_log_bp_low_beta",
+    "f_log_bp_high_beta",
+    "f_log_bp_gamma",
     "f_hjorth_activity",
     "f_hjorth_mobility",
     "f_hjorth_complexity",
@@ -30,11 +41,16 @@
     "f_de_theta",
     "f_de_alpha",
     "f_de_beta",
+    "f_de_low_beta",
+    "f_de_high_beta",
     "f_de_gamma",
     "f_alpha_beta_ratio",
     "f_theta_beta_ratio",
-    "f_alpha_theta_ratio"
+    "f_alpha_theta_ratio",
+    "f_delta_theta_ratio",
+    "f_high_beta_frac",
+    "f_theta_alpha_ratio"
   ],
-  "n_samples": 7934,
-  "train_accuracy": 0.8891
+  "n_samples": 337897,
+  "train_accuracy": 0.5785
 }
