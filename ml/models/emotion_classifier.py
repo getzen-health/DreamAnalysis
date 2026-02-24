@@ -400,6 +400,7 @@ class EmotionClassifier:
             "dasm_rasm":             dasm_rasm,
             "frontal_midline_theta": fmt,
             "artifact_detected":     artifact_detected,
+            "model_type":            "lgbm-muse",
         }
 
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
