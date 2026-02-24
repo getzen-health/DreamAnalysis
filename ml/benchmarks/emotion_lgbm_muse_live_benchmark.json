@@ -1,0 +1,14 @@
+{
+  "model_name": "emotion_lgbm_muse_live",
+  "dataset": "Muse-Subconscious",
+  "cv_method": "leave-one-subject-out (GroupKFold)",
+  "accuracy": 0.823,
+  "f1_macro": 0.6028,
+  "n_classes": 3,
+  "class_names": [
+    "positive",
+    "neutral",
+    "negative"
+  ],
+  "notes": "LOSO cross-subject accuracy 82.30%. 80-feature (4-stat \u00d7 5-band \u00d7 4-channel) LightGBM, no PCA \u2014 features reproducible from live Muse 2 EEG."
+}

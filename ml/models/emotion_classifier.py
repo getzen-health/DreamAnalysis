@@ -52,6 +52,11 @@ class EmotionClassifier:
         #                         than 0.30 while still suppressing rapid noise bursts
         self._history = deque(maxlen=10)  # recent band power snapshots
 
+        # Muse-native LightGBM (80 raw features, no PCA — highest priority)
+        self.lgbm_muse_model = None
+        self.lgbm_muse_scaler = None
+        self._lgbm_muse_benchmark = 0.0
+        self._try_load_lgbm_muse_model()
         # Try loading the DEAP-trained multichannel model first
         self._try_load_deap_model()
 
@@ -65,7 +70,7 @@ class EmotionClassifier:
         if not pkl_path.exists():
             return
 
-        bench = self._read_benchmark()
+        bench = self._read_deap_benchmark()
         if bench < _MIN_MODEL_ACCURACY:
             return
 
@@ -78,6 +83,28 @@ class EmotionClassifier:
             self.multichannel_model = bool(data.get("multichannel", False))
             self.model_type = "sklearn-deap"
             self._benchmark_accuracy = bench
+        except Exception:
+            pass
+
+    def _try_load_lgbm_muse_model(self) -> None:
+        """Load the Muse-native LightGBM model (80 raw features, no PCA)."""
+        import json
+        import joblib
+        from pathlib import Path
+        bench_path = Path("benchmarks/emotion_lgbm_muse_live_benchmark.json")
+        model_path = Path("models/saved/emotion_lgbm_muse_live.pkl")
+        if not bench_path.exists() or not model_path.exists():
+            return
+        try:
+            bench_data = json.loads(bench_path.read_text())
+            acc = float(bench_data.get("accuracy", 0.0))
+            if acc < _MIN_MODEL_ACCURACY:
+                return
+            payload = joblib.load(model_path)
+            self.lgbm_muse_model = payload["model"]
+            self.lgbm_muse_scaler = payload["scaler"]
+            self._lgbm_muse_benchmark = acc
+            print(f"[EmotionClassifier] Loaded Muse-native LightGBM (CV acc={acc:.4f})")
         except Exception:
             pass
 
@@ -121,6 +148,260 @@ class EmotionClassifier:
                 pass
         return 0.0
 
+    @staticmethod
+    def _read_deap_benchmark() -> float:
+        """Read the DEAP model benchmark accuracy (separate from the GBM classifier benchmark)."""
+        import json
+        from pathlib import Path
+        bench_path = Path("benchmarks/emotion_deap_benchmark.json")
+        if bench_path.exists():
+            try:
+                data = json.loads(bench_path.read_text())
+                return float(data.get("accuracy", 0))
+            except Exception:
+                pass
+        return 0.0
+
+    def _extract_muse_live_features(self, eeg: np.ndarray, fs: float) -> np.ndarray:
+        """Extract 80-feature vector for the Muse-native LightGBM model.
+
+        Feature layout (band-major, channel-minor, 4 stats each):
+            Delta_TP9[mean,std,med,iqr], Delta_AF7[...], Delta_AF8[...], Delta_TP10[...],
+            Theta_TP9[...], ..., Gamma_TP10[...]
+        Matches the Muse-Subconscious training format exactly.
+        """
+        WIN_SW = 128   # 0.5-sec sub-window at 256 Hz
+        HOP    = 64    # 50 % overlap → ~30 sub-windows per 4-sec epoch
+
+        n_samples = eeg.shape[1]
+        # powers: list of (5 bands, 4 channels) arrays, one per sub-window
+        powers: list = []
+
+        for start in range(0, n_samples - WIN_SW + 1, HOP):
+            end = start + WIN_SW
+            sub_bands = []
+            for ch in range(4):  # TP9=0, AF7=1, AF8=2, TP10=3
+                try:
+                    proc = preprocess(eeg[ch, start:end], fs)
+                    bp   = extract_band_powers(proc, fs)
+                    sub_bands.append([
+                        bp.get("delta", 0.0),
+                        bp.get("theta", 0.0),
+                        bp.get("alpha", 0.0),
+                        bp.get("beta",  0.0),
+                        bp.get("gamma", 0.0),
+                    ])
+                except Exception:
+                    sub_bands.append([0.0] * 5)
+            # sub_bands: (4 channels, 5 bands) → transpose to (5 bands, 4 channels)
+            powers.append(np.array(sub_bands, dtype=np.float32).T)
+
+        if len(powers) == 0:
+            return np.zeros(80, dtype=np.float32)
+
+        arr = np.array(powers, dtype=np.float32)  # (n_subwins, 5, 4)
+
+        feat: list = []
+        for band_idx in range(5):
+            for ch_idx in range(4):
+                vals = arr[:, band_idx, ch_idx]
+                vals = vals[np.isfinite(vals)]
+                if len(vals) < 2:
+                    feat.extend([0.0, 0.0, 0.0, 0.0])
+                else:
+                    feat.extend([
+                        float(np.mean(vals)),
+                        float(np.std(vals)),
+                        float(np.median(vals)),
+                        float(np.percentile(vals, 75) - np.percentile(vals, 25)),
+                    ])
+
+        return np.array(feat[:80], dtype=np.float32)
+
+    def _predict_lgbm_muse(self, eeg: np.ndarray, fs: float) -> Dict:
+        """Run Muse-native LightGBM inference (80 raw features, no PCA).
+
+        Expands the 3-class LGBM output (positive/neutral/negative)
+        to the 6-class EMOTIONS list using ancillary EEG features.
+        """
+        # Artifact rejection — freeze EMA on bad epoch
+        if np.any(np.abs(eeg) > _ARTIFACT_THRESHOLD_UV):
+            if self._ema_probs is None:
+                self._ema_probs = np.ones(6, dtype=np.float32) / 6
+            return self._build_muse_result(
+                int(np.argmax(self._ema_probs)), self._ema_probs,
+                eeg, fs, artifact_detected=True
+            )
+
+        # Feature extraction + scale
+        feat = self._extract_muse_live_features(eeg, fs)
+        feat_scaled = self.lgbm_muse_scaler.transform(feat.reshape(1, -1))
+
+        # LGBM predict → (positive=0, neutral=1, negative=2) probabilities
+        proba3 = self.lgbm_muse_model.predict_proba(feat_scaled)[0]
+        p_pos, p_neu, p_neg = float(proba3[0]), float(proba3[1]), float(proba3[2])
+
+        # Ancillary features for 3→6 expansion
+        try:
+            proc_af7 = preprocess(eeg[1], fs)
+            proc_af8 = preprocess(eeg[2], fs)
+            bp7  = extract_band_powers(proc_af7, fs)
+            bp8  = extract_band_powers(proc_af8, fs)
+            a7   = max(bp7.get("alpha", 1e-6), 1e-6)
+            a8   = max(bp8.get("alpha", 1e-6), 1e-6)
+            alpha = (a7 + a8) / 2
+            beta  = (max(bp7.get("beta",  1e-6), 1e-6)
+                     + max(bp8.get("beta",  1e-6), 1e-6)) / 2
+            theta = (max(bp7.get("theta", 1e-6), 1e-6)
+                     + max(bp8.get("theta", 1e-6), 1e-6)) / 2
+            delta = (max(bp7.get("delta", 1e-6), 1e-6)
+                     + max(bp8.get("delta", 1e-6), 1e-6)) / 2
+            faa   = float(np.log(a8) - np.log(a7))
+        except Exception:
+            alpha = beta = theta = delta = 0.1
+            faa = 0.0
+
+        beta_alpha = beta / max(alpha, 1e-6)
+        arousal = float(np.clip(
+            0.45 * beta  / max(beta + alpha, 1e-6)
+            + 0.30 * (1 - alpha / max(alpha + beta + theta, 1e-6))
+            + 0.25 * (1 - delta / max(delta + beta, 1e-6)),
+            0, 1))
+        faa_val = float(np.clip(np.tanh(faa * 2.0), -1, 1))
+
+        # 3→6 class expansion
+        probs6 = np.zeros(6, dtype=np.float32)
+        # positive → happy (0) or relaxed (4)
+        if arousal > 0.5:
+            probs6[0] += p_pos
+        else:
+            probs6[4] += p_pos
+        # neutral → focused (5) or relaxed (4)
+        if beta_alpha > 1.2:
+            probs6[5] += p_neu
+        else:
+            probs6[4] += p_neu
+        # negative → sad (1), angry (2), fearful (3)
+        if faa_val < -0.2 and arousal < 0.5:
+            probs6[1] += p_neg   # sad
+        elif faa_val < 0.0 and arousal > 0.5:
+            probs6[2] += p_neg   # angry
+        elif arousal > 0.55:
+            probs6[3] += p_neg   # fearful
+        else:
+            probs6[1] += p_neg   # default → sad
+
+        total = probs6.sum()
+        if total > 0:
+            probs6 /= total
+
+        # EMA smoothing
+        if self._ema_probs is None:
+            self._ema_probs = probs6.copy()
+        else:
+            self._ema_probs = (self._ema_alpha * probs6
+                               + (1 - self._ema_alpha) * self._ema_probs)
+
+        smoothed = self._ema_probs
+        emotion_idx = int(np.argmax(smoothed))
+        return self._build_muse_result(emotion_idx, smoothed, eeg, fs, artifact_detected=False)
+
+    def _build_muse_result(self, emotion_idx: int, smoothed: np.ndarray,
+                           eeg: np.ndarray, fs: float,
+                           artifact_detected: bool) -> Dict:
+        """Build the standard 15-key return dict for the Muse-native LGBM path."""
+        try:
+            proc  = preprocess(eeg[1], fs)   # AF7
+            bp    = extract_band_powers(proc, fs)
+            de    = differential_entropy(proc, fs)
+            alpha     = max(bp.get("alpha",    1e-6), 1e-6)
+            beta      = max(bp.get("beta",     1e-6), 1e-6)
+            theta     = max(bp.get("theta",    1e-6), 1e-6)
+            delta     = max(bp.get("delta",    1e-6), 1e-6)
+            high_beta = max(bp.get("high_beta",1e-6), 1e-6)
+            low_beta  = max(bp.get("low_beta", 1e-6), 1e-6)
+            gamma     = max(bp.get("gamma",    1e-6), 1e-6)
+            bands = {k: float(v) for k, v in bp.items()
+                     if k in ("delta","theta","alpha","beta","low_beta","high_beta","gamma")}
+        except Exception:
+            alpha = beta = theta = delta = high_beta = low_beta = gamma = 0.1
+            bands = {}
+            de = {}
+
+        try:
+            dasm_rasm = compute_dasm_rasm(eeg, fs, left_ch=1, right_ch=2)
+        except Exception:
+            dasm_rasm = {}
+        try:
+            fmt = compute_frontal_midline_theta(eeg[1], fs)
+        except Exception:
+            fmt = {}
+        try:
+            asym = compute_frontal_asymmetry(eeg, fs, left_ch=1, right_ch=2)
+            faa_valence = float(asym.get("asymmetry_valence", 0.0))
+        except Exception:
+            faa_valence = 0.0
+
+        beta_alpha = beta / max(alpha, 1e-6)
+        dasm_alpha_val = float(dasm_rasm.get("dasm_alpha", 0.0)) * 0.5
+        valence_abr = float(np.clip(
+            0.65 * np.tanh((alpha / beta - 0.7) * 2.0)
+            + 0.35 * np.tanh((alpha - 0.15) * 4), -1, 1))
+        valence = float(np.clip(
+            0.40 * valence_abr + 0.35 * faa_valence + 0.25 * dasm_alpha_val, -1, 1))
+        arousal = float(np.clip(
+            0.45 * beta  / max(beta + alpha, 1e-6)
+            + 0.30 * (1 - alpha / max(alpha + beta + theta, 1e-6))
+            + 0.25 * (1 - delta / max(delta + beta, 1e-6)),
+            0, 1))
+
+        dasm_beta_stress = float(dasm_rasm.get("dasm_beta", 0.0)) * 0.5
+        theta_beta_ratio = theta / max(beta, 1e-6)
+        stress_index = float(np.clip(
+            0.40 * min(1, beta_alpha * 0.3)
+            + 0.25 * max(0, 1 - alpha * 2.5)
+            + 0.25 * min(1, high_beta * 4)
+            + 0.10 * dasm_beta_stress, 0, 1))
+        focus_index = float(np.clip(
+            0.45 * min(1, beta * 3.5)
+            + 0.40 * max(0, 1 - theta_beta_ratio * 0.40)
+            + 0.15 * min(1, low_beta * 5), 0, 1))
+        relaxation_index = float(np.clip(
+            0.50 * min(1, alpha * 2.5)
+            + 0.30 * max(0, 1 - beta_alpha * 0.3)
+            + 0.20 * min(1, theta * 1.5), 0, 1))
+        anger_index = float(np.clip(
+            0.40 * min(1, max(0, beta_alpha - 1.0) * 0.5)
+            + 0.30 * max(0, 1 - alpha * 5)
+            + 0.20 * min(1, high_beta * 3)
+            + 0.10 * min(1, gamma * 3), 0, 1))
+        fear_index = float(np.clip(
+            0.35 * min(1, max(0, beta_alpha - 1.5) * 0.6)
+            + 0.30 * min(1, high_beta * 5)
+            + 0.25 * max(0, 1 - alpha * 5)
+            + 0.10 * max(0, arousal - 0.45), 0, 1))
+
+        top_conf    = float(np.max(smoothed))
+        emotion_lbl = EMOTIONS[emotion_idx]
+        return {
+            "emotion":               emotion_lbl,
+            "emotion_index":         emotion_idx,
+            "confidence":            top_conf,
+            "probabilities":         {EMOTIONS[i]: float(p) for i, p in enumerate(smoothed)},
+            "valence":               valence,
+            "arousal":               arousal,
+            "stress_index":          stress_index,
+            "focus_index":           focus_index,
+            "relaxation_index":      relaxation_index,
+            "anger_index":           anger_index,
+            "fear_index":            fear_index,
+            "band_powers":           bands,
+            "differential_entropy":  de,
+            "dasm_rasm":             dasm_rasm,
+            "frontal_midline_theta": fmt,
+            "artifact_detected":     artifact_detected,
+        }
+
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
         """Classify emotion from EEG signal.
 
@@ -128,6 +409,10 @@ class EmotionClassifier:
             eeg: 1D (single channel) or 2D (n_channels, n_samples) array.
             fs: Sampling frequency.
         """
+        # Muse-native LightGBM — highest priority (80 raw features, no PCA)
+        if (self.lgbm_muse_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
+                and self._lgbm_muse_benchmark >= _MIN_MODEL_ACCURACY):
+            return self._predict_lgbm_muse(eeg, fs)
         # Multichannel DEAP model (requires exactly 4 Muse 2 channels: AF7, AF8, TP9, TP10)
         # Gated on accuracy — DEAP model at ~51% has severe class-imbalance bias toward "sad"
         # (11,165 sad samples vs 1,769 focused), so skip it unless it meets the 60% threshold.
