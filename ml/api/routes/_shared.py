@@ -18,6 +18,7 @@ from models.attention_classifier import AttentionClassifier
 from models.stress_detector import StressDetector
 from models.lucid_dream_detector import LucidDreamDetector
 from models.meditation_classifier import MeditationClassifier
+from models.food_emotion_predictor import FoodEmotionPredictor
 from models.anomaly_detector import AnomalyDetector
 from processing.emotion_shift_detector import EmotionShiftDetector
 from neurofeedback.protocol_engine import NeurofeedbackProtocol
@@ -94,6 +95,7 @@ attention_model = AttentionClassifier(model_path=_find_model("attention_model"))
 stress_model = StressDetector(model_path=_find_model("stress_model"))
 lucid_dream_model = LucidDreamDetector(model_path=_find_model("lucid_dream_model"))
 meditation_model = MeditationClassifier(model_path=_find_model("meditation_model"))
+food_emotion_model = FoodEmotionPredictor(model_path=_find_model("food_emotion_model"))
 
 # ─── Shared state ────────────────────────────────────────────────────────────
 _emotion_shift_detectors: Dict[str, EmotionShiftDetector] = {}

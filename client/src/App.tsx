@@ -23,6 +23,8 @@ import Biofeedback from "@/pages/biofeedback";
 import SessionHistory from "@/pages/session-history";
 import SettingsPage from "@/pages/settings";
 import CalibrationPage from "@/pages/calibration";
+import FormalBenchmarksDashboard from "@/pages/formal-benchmarks-dashboard";
+import FoodEmotion from "@/pages/food-emotion";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -72,6 +74,12 @@ function AppRoutes() {
       </Route>
       <Route path="/calibration">
         <AppLayout><CalibrationPage /></AppLayout>
+      </Route>
+      <Route path="/benchmarks">
+        <AppLayout><FormalBenchmarksDashboard /></AppLayout>
+      </Route>
+      <Route path="/food">
+        <AppLayout><FoodEmotion /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

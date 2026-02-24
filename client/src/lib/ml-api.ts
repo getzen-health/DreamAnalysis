@@ -749,6 +749,64 @@ export async function exportToHealthKit(
   return mlFetch("/health/export-to-healthkit/" + userId, { method: "POST" });
 }
 
+// ---------------------------------------------------------------------------
+// Food Emotion
+// ---------------------------------------------------------------------------
+
+interface FoodEmotionComponents {
+  faa: number;
+  high_beta: number;
+  prefrontal_theta: number;
+  delta: number;
+}
+
+interface FoodRecommendations {
+  avoid: string[];
+  prefer: string[];
+  strategy: string;
+  mindfulness_tip: string;
+}
+
+export interface FoodEmotionResult {
+  food_state: string;
+  confidence: number;
+  state_probabilities: Record<string, number>;
+  recommendations: FoodRecommendations;
+  components: FoodEmotionComponents;
+  band_powers: Record<string, number>;
+  faa: number;
+  is_calibrated: boolean;
+  calibration_progress: number;
+}
+
+export async function predictFoodEmotion(
+  eegData?: number[]
+): Promise<FoodEmotionResult> {
+  return mlFetch<FoodEmotionResult>("/predict-food-emotion", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ eeg_data: eegData ?? null }),
+  });
+}
+
+export async function calibrateFoodEmotion(
+  eegData?: number[]
+): Promise<{ calibrated: boolean }> {
+  return mlFetch<{ calibrated: boolean }>("/food-emotion/calibrate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ eeg_data: eegData ?? null }),
+  });
+}
+
+export async function getFoodRecommendations(
+  foodState: string
+): Promise<FoodRecommendations> {
+  return mlFetch<FoodRecommendations>(
+    `/food-emotion/recommendations/${encodeURIComponent(foodState)}`
+  );
+}
+
 export type {
   EEGAnalysisResult,
   SimulationResult,
