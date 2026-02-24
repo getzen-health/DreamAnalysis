@@ -28,6 +28,23 @@ EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"]
 # (11 165 sad samples vs 1 769 focused) — below this threshold we use feature-based.
 _MIN_MODEL_ACCURACY = 0.60
 
+# ── Device-aware gamma masking ────────────────────────────────────────────────
+# Gamma (30-50 Hz) is dominated by EMG (muscle artifact) on consumer dry-electrode
+# EEG devices.  When one of these devices is active, gamma features are zeroed
+# before the LGBM prediction so the model relies on alpha/beta/theta instead.
+# Research-grade EEG (gel electrodes, controlled lab) uses gamma normally.
+
+# Gamma feature indices in the 85-feature vector
+# band-major layout: delta(0-15), theta(16-31), alpha(32-47), beta(48-63), gamma(64-79)
+# DASM: delta(80) theta(81) alpha(82) beta(83) gamma(84)
+_GAMMA_FEAT_IDX: list[int] = list(range(64, 80)) + [84]  # 17 features
+
+# Consumer dry-electrode devices — gamma is EMG, not neural signal
+_CONSUMER_EEG_DEVICES: frozenset[str] = frozenset({
+    "muse_2", "muse_2_bled", "muse_s", "muse_s_bled",
+    "muse_2016", "muse_2016_bled", "muse",
+})
+
 
 class EmotionClassifier:
     """EEG-based emotion classifier with ONNX/sklearn/feature-based inference.
@@ -52,6 +69,9 @@ class EmotionClassifier:
         #                         than 0.30 while still suppressing rapid noise bursts
         self._history = deque(maxlen=10)  # recent band power snapshots
 
+        # Device-aware gamma masking — set via set_device_type() on connect/disconnect
+        self.device_type: Optional[str] = None
+
         # Muse-native LightGBM (80 raw features, no PCA — highest priority)
         self.lgbm_muse_model = None
         self.lgbm_muse_scaler = None
@@ -62,6 +82,24 @@ class EmotionClassifier:
 
         if model_path and self.model_type == "feature-based":
             self._load_model(model_path)
+
+    # ── Device-aware gamma masking ─────────────────────────────────────────────
+
+    def set_device_type(self, device_type: Optional[str]) -> None:
+        """Notify the classifier which EEG device is connected.
+
+        Call this whenever a device connects or disconnects.  When a consumer
+        dry-electrode device (Muse 2, Muse S, …) is active, gamma features are
+        zeroed before LGBM inference because gamma is EMG on those devices.
+        """
+        self.device_type = device_type
+
+    @property
+    def _is_consumer_device(self) -> bool:
+        """True when the active device records EMG-contaminated gamma."""
+        if self.device_type is None:
+            return False
+        return self.device_type.lower() in _CONSUMER_EEG_DEVICES
 
     def _try_load_deap_model(self):
         """Try loading the DEAP-trained Muse 2 model (best accuracy)."""
@@ -247,6 +285,9 @@ class EmotionClassifier:
 
         # Feature extraction + scale
         feat = self._extract_muse_live_features(eeg, fs)
+        # Zero gamma features for consumer dry-electrode devices (gamma = EMG)
+        if self._is_consumer_device:
+            feat[_GAMMA_FEAT_IDX] = 0.0
         feat_scaled = self.lgbm_muse_scaler.transform(feat.reshape(1, -1))
 
         # LGBM predict → (positive=0, neutral=1, negative=2) probabilities

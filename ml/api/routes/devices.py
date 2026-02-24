@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ._shared import _get_device_manager, DeviceConnectRequest
+from ._shared import _get_device_manager, DeviceConnectRequest, emotion_model
 
 router = APIRouter()
 
@@ -32,7 +32,11 @@ async def connect_device(request: DeviceConnectRequest):
     if manager is None:
         raise HTTPException(status_code=503, detail="BrainFlow not available")
     try:
-        return manager.connect(request.device_type, request.params or {})
+        result = manager.connect(request.device_type, request.params or {})
+        # Inform the emotion classifier which device is now active so it can
+        # apply device-aware gamma masking (zero gamma for consumer EEG devices).
+        emotion_model.set_device_type(request.device_type)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -45,6 +49,8 @@ async def disconnect_device():
         raise HTTPException(status_code=503, detail="BrainFlow not available")
     try:
         manager.disconnect()
+        # Clear device type so classifier reverts to no-masking (full 85 features)
+        emotion_model.set_device_type(None)
         return {"status": "disconnected"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

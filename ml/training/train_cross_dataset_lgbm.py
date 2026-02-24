@@ -80,6 +80,19 @@ SW_S   = 0.5   # 0.5-sec sub-windows for feature aggregation
 # 75 µV artifact threshold (Kriegolson 2021)
 ARTIFACT_UV = 75.0
 
+# Gamma feature indices in the 85-feature vector
+# Layout: 5bands × 4ch × 4stats = 80 features, then 5 DASM
+# Gamma band = band_idx 4: positions 64–79  (16 features)
+# DASM_gamma  = index 84                    (1 feature)
+GAMMA_FEAT_IDX: list[int] = list(range(64, 80)) + [84]  # 17 gamma-related features
+
+# Consumer dry-electrode devices where gamma is dominated by EMG artifact.
+# When one of these devices is connected, gamma features are zeroed at inference.
+CONSUMER_EEG_DEVICES: frozenset[str] = frozenset({
+    "muse_2", "muse_2_bled", "muse_s", "muse_s_bled",
+    "muse_2016", "muse_2016_bled", "muse",
+})
+
 def log(msg):
     ts = time.strftime("%H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)
@@ -494,11 +507,38 @@ def load_gameemo(data_dir: str = "../data/gameemo") -> tuple[np.ndarray, np.ndar
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Gamma dropout augmentation
+# ──────────────────────────────────────────────────────────────────────────────
+
+def augment_gamma_dropout(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Add gamma-zeroed copies of every training sample.
+
+    This teaches the model to classify emotion correctly both when gamma is
+    present (research-grade EEG) and when it is absent (consumer Muse 2, where
+    gamma is zeroed at inference to avoid EMG contamination).
+
+    Result: doubles the dataset — original samples + identical copies with
+    all 17 gamma features (indices 64-79 and 84) set to zero.
+    """
+    X_no_gamma = X.copy()
+    X_no_gamma[:, GAMMA_FEAT_IDX] = 0.0
+    X_aug = np.vstack([X, X_no_gamma])
+    y_aug = np.concatenate([y, y])
+    return X_aug, y_aug
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Training
 # ──────────────────────────────────────────────────────────────────────────────
 
 def train(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> tuple:
     """Train LightGBM with 5-fold CV. Returns (model, scaler, cv_accuracy, cv_f1)."""
+    # Gamma dropout: double the dataset with gamma-zeroed copies.
+    # Enables device-aware inference without retraining.
+    log("\n[AUG] Applying gamma dropout — doubling dataset with gamma-zeroed copies")
+    X, y = augment_gamma_dropout(X, y)
+    log(f"[AUG] Dataset: {len(X)//2} → {len(X)} samples after augmentation")
+
     log(f"\n[TRAINING] {len(X)} samples, {X.shape[1]} features, {len(np.unique(y))} classes")
 
     scaler = StandardScaler()

@@ -7,8 +7,8 @@
   ],
   "n_samples": 59440,
   "cv_method": "5-fold stratified CV",
-  "accuracy": 0.6642,
-  "f1_macro": 0.6749,
+  "accuracy": 0.6925,
+  "f1_macro": 0.6868,
   "n_classes": 3,
   "class_names": [
     "positive",
@@ -17,5 +17,5 @@
   ],
   "feature_dim": 85,
   "feature_type": "80 band-power stats (5bands\u00d74ch\u00d74stats) + 5 DASM (AF8-AF7 per band)",
-  "notes": "Cross-dataset LGBM trained on DEAP+DREAMER+GAMEEMO. 85-feature format: 80 band-power + 5 DASM. Matches live Muse 2 inference. 5-fold CV accuracy: 66.42%. Neutral class added via valence/arousal proximity."
+  "notes": "Cross-dataset LGBM trained on DEAP+DREAMER+GAMEEMO. 85-feature format: 80 band-power + 5 DASM. Matches live Muse 2 inference. 5-fold CV accuracy: 69.25%. Neutral class added via valence/arousal proximity."
 }
