@@ -25,6 +25,7 @@ import SettingsPage from "@/pages/settings";
 import CalibrationPage from "@/pages/calibration";
 import FormalBenchmarksDashboard from "@/pages/formal-benchmarks-dashboard";
 import FoodEmotion from "@/pages/food-emotion";
+import DeviceSetup from "@/pages/device-setup";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -80,6 +81,9 @@ function AppRoutes() {
       </Route>
       <Route path="/food">
         <AppLayout><FoodEmotion /></AppLayout>
+      </Route>
+      <Route path="/device-setup">
+        <AppLayout><DeviceSetup /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

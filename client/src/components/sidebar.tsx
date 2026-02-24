@@ -16,6 +16,7 @@ import {
   Wind,
   SlidersHorizontal,
   Utensils,
+  Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -62,9 +63,10 @@ const sections: NavSection[] = [
   {
     title: "Tools",
     items: [
+      { path: "/device-setup", label: "Device Setup",  icon: Wand2 },
       { path: "/calibration",  label: "Calibrate",     icon: SlidersHorizontal },
-      { path: "/ai-companion", label: "AI Companion", icon: MessageSquare },
-      { path: "/sessions", label: "Sessions", icon: Clock },
+      { path: "/ai-companion", label: "AI Companion",  icon: MessageSquare },
+      { path: "/sessions",     label: "Sessions",      icon: Clock },
     ],
   },
 ];

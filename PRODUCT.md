@@ -138,33 +138,32 @@ The user who has gone around it five times will never leave.
 Read this before starting any new feature. Be honest about where things are.
 
 ```
-Core ML / Signal pipeline    ████████░░  80%
-  Good science. Mastoid reref, DASM/RASM, FAA, 4-sec epochs all done.
-  Missing: personalization. Without baseline calibration the model
-  is 45% accurate — barely above chance for 6 classes.
+Core ML / Signal pipeline    █████████░  90%
+  Mastoid reref, DASM/RASM, FAA, FMT, 4-sec epochs, BaselineCalibrator all done.
+  Food-Emotion module complete (6 states, 4 biomarkers, dietary guidance).
+  Missing: personalization after 5 sessions, 97.79% LGBM integration.
 
 Backend API                  █████████░  90%
-  76 endpoints. Complete signal pipeline. WebSocket exists.
-  Per-user state isolation fixed (epoch buffer + baseline cal now per-user).
-  Missing: prod deployment (ML backend is still local-only).
+  79 endpoints. 18 modular route files (routes.py split done). WebSocket exists.
+  Per-user state isolation fixed. Food-emotion + simulation support added.
+  Prod deployment: Render free tier (neural-dream-ml.onrender.com). ✅
 
-Frontend                     █████░░░░░  50%
-  17 pages exist. Pages show numbers.
-  Missing: the narrative. Numbers without story are not a product.
-           Device pairing UX. Baseline calibration UX.
-           The intervention biofeedback screen.
-           Daily brain report screen.
+Frontend                     ██████░░░░  60%
+  19 pages exist. Biofeedback screen built and working.
+  Food & Cravings page built. Benchmarks Dashboard built.
+  Missing: device pairing UX, baseline calibration onboarding screen,
+           daily brain report, session insights narrative.
 
-Product thinking             ███░░░░░░░  30%
-  The loop (measure → insight → action → result) does not exist yet.
-  No reason to open the app tomorrow morning.
-  No "aha moment" in onboarding.
+Product thinking             ████░░░░░░  40%
+  Biofeedback screen creates the "aha moment" (live stress drop during breathing).
+  Missing: the full loop — session history → insight card → action → result.
+  No reason to open tomorrow morning yet.
 
 Retention mechanics          ██░░░░░░░░  20%
   No daily pull. No streaks. No personal records.
   No predictions. No weekly summary.
 
-Infrastructure               ██████░░░░  60%
+Infrastructure               ███████░░░  70%
   Frontend on Vercel (dream-analysis.vercel.app).
   ML backend on Render free tier (neural-dream-ml.onrender.com). ✅
   Per-user isolation: fixed. No monitoring. No auth enforcement.
@@ -187,28 +186,34 @@ Fixed: both are now per-user dicts keyed by `user_id`. Thread-safe lazy init.
 
 ### 2. Baseline calibration has no UX
 The API (`/calibration/baseline/add-frame`) is built and tested.
-There is zero UI for it. This is the single biggest accuracy improvement
-available (+15–29%) and nobody can access it.
-**Every session should start with a 2-min eyes-closed baseline screen.**
+The `/calibration` page exists but there is no guided 2-min onboarding screen
+that walks a new user through the eyes-closed resting baseline.
+**This is the #1 remaining accuracy improvement (+15–29%). Build this next.**
 
-### 3. Signal quality is not visible
-The headset might be seated wrong. The app shows emotion readings anyway.
-Users will blame the product when the problem is electrode contact.
-Show HSI indicators loudly before any reading is displayed.
+### ~~3. Signal quality is not visible~~ ✅ Fixed
+~~The headset might be seated wrong. The app shows emotion readings anyway.~~
+Fixed: SQI banners show in emotion-lab. Readings blocked below 40% SQI.
+HSI status visible before any reading is displayed.
 
-### 4. `epoch_ready` flag is ignored
-The API returns `epoch_ready: false` for the first 4 seconds of every
-session. The frontend ignores this and shows numbers immediately.
-Show "calibrating…" until the buffer is full.
+### ~~4. `epoch_ready` flag is ignored~~ ✅ Fixed
+~~The API returns `epoch_ready: false` for the first 4 seconds.~~
+Fixed: buffering progress bar shown; emotion predictions blocked until
+`epoch_ready: true`.
 
-### 5. ML backend is not deployed
-Every demo requires running `uvicorn` locally. Not a product.
+### ~~5. ML backend is not deployed~~ ✅ Fixed
+~~Every demo requires running `uvicorn` locally.~~
+Fixed: deployed to Render free tier (neural-dream-ml.onrender.com).
+
+### 6. Device pairing UX missing
+No guided flow to connect Muse 2. User must know to go to Settings and
+connect manually. No signal quality check before first session starts.
+Build a pairing wizard: discover → connect → HSI check → "good to go".
 
 ---
 
 ## The Build Order That Actually Matters
 
-### Phase 0 — Make it not embarrassing (1–2 weeks)
+### Phase 0 — Make it not embarrassing ✅ COMPLETE
 - [x] Deploy ML backend to Render (neural-dream-ml.onrender.com)
 - [x] Fix per-user state isolation (epoch buffer + baseline cal now per-user dicts)
 - [x] Restore all hidden pages: Inner Energy/Chakra, Brain Connectivity, Dream Patterns,
@@ -217,12 +222,15 @@ Every demo requires running `uvicorn` locally. Not a product.
 - [x] Show "calibrating…" until `epoch_ready: true` (buffering progress bar + blocks on emotionReady)
 - [x] Show confidence on emotion label ("likely relaxed — 68%") (confidence badge in emotion wheel card)
 
-### Phase 1 — Create the aha moment (2–3 weeks)
+### Phase 1 — Create the aha moment 🔄 IN PROGRESS
 - [x] Real-time biofeedback screen during breathing exercise
       (/biofeedback — 4 exercises, expanding circle, live stress chart,
       before/after comparison, works with or without Muse)
-- [ ] Baseline calibration screen (2-min eyes-closed session at start)
-- [ ] Device pairing flow with signal quality check
+- [x] Food & Cravings page (/food — 6 EEG-based eating states, dietary guidance, simulation mode)
+- [ ] **NEXT: Baseline calibration onboarding screen** — guided 2-min eyes-closed session
+      before first reading. Biggest single accuracy improvement available (+15–29%).
+      API already built (`/calibration/baseline/add-frame`). Just needs guided UI.
+- [ ] Device pairing wizard — discover → connect → HSI quality check → "ready"
 
 ### Phase 2 — Create a reason to come back (3–4 weeks)
 - [ ] Session history with timeline view

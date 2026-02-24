@@ -111,8 +111,15 @@ export default function FoodEmotion() {
         <div className="p-2 rounded-lg bg-amber-500/10">
           <Utensils className="h-6 w-6 text-amber-500" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">Food &amp; Cravings</h1>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Food &amp; Cravings</h1>
+            {data?.simulation_mode && (
+              <Badge variant="outline" className="text-xs border-yellow-500/40 text-yellow-400 bg-yellow-500/10">
+                Simulation Mode
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground text-sm">
             EEG-based appetite and eating-state analysis
           </p>

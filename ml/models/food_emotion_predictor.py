@@ -269,10 +269,10 @@ class FoodEmotionPredictor:
             "state_probabilities": state_probs,
             "recommendations": _RECOMMENDATIONS[best_state],
             "components": {
-                "faa_score": float(self._faa_ema),
-                "high_beta_score": float(self._high_beta_ema),
-                "theta_score": float(self._theta_ema),
-                "delta_score": float(self._delta_ema),
+                "faa": float(self._faa_ema),
+                "high_beta": float(self._high_beta_ema),
+                "prefrontal_theta": float(self._theta_ema),
+                "delta": float(self._delta_ema),
             },
             "band_powers": {
                 "delta": float(biomarkers["delta_power"]),
@@ -282,7 +282,7 @@ class FoodEmotionPredictor:
             },
             "faa": float(biomarkers["faa"]),
             "is_calibrated": self._is_calibrated,
-            "calibration_progress": min(len(self._calibration_buffer), 30),
+            "calibration_progress": 1.0 if self._is_calibrated else min(len(self._calibration_buffer), 30) / 30.0,
             "model_type": "feature-based",
         }
 

@@ -777,25 +777,32 @@ export interface FoodEmotionResult {
   faa: number;
   is_calibrated: boolean;
   calibration_progress: number;
+  simulation_mode?: boolean;
 }
 
 export async function predictFoodEmotion(
-  eegData?: number[]
+  eegData?: number[][]
 ): Promise<FoodEmotionResult> {
+  const body = eegData
+    ? { signals: eegData, fs: 256.0 }
+    : { simulate: true, state: "rest", fs: 256.0 };
   return mlFetch<FoodEmotionResult>("/predict-food-emotion", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ eeg_data: eegData ?? null }),
+    body: JSON.stringify(body),
   });
 }
 
 export async function calibrateFoodEmotion(
-  eegData?: number[]
-): Promise<{ calibrated: boolean }> {
-  return mlFetch<{ calibrated: boolean }>("/food-emotion/calibrate", {
+  eegData?: number[][]
+): Promise<{ calibrated: boolean; simulation_mode?: boolean }> {
+  const body = eegData
+    ? { signals: eegData, fs: 256.0 }
+    : { simulate: true, state: "rest", fs: 256.0 };
+  return mlFetch<{ calibrated: boolean; simulation_mode?: boolean }>("/food-emotion/calibrate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ eeg_data: eegData ?? null }),
+    body: JSON.stringify(body),
   });
 }
 

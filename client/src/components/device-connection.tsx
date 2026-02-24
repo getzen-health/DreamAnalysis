@@ -7,9 +7,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Wifi, WifiOff, Radio, Activity, Settings, Terminal } from "lucide-react";
+import { Wifi, WifiOff, Radio, Activity, Settings, Terminal, Wand2 } from "lucide-react";
 import { type DeviceState, type UseDeviceReturn } from "@/hooks/use-device";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 interface DeviceConnectionProps {
   open: boolean;
@@ -38,6 +38,7 @@ function StatusBadge({ state }: { state: DeviceState }) {
 }
 
 export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectionProps) {
+  const [, navigate] = useLocation();
   const {
     state,
     devices,
@@ -168,6 +169,17 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
                 ))
               )}
             </div>
+          )}
+
+          {/* Guided setup wizard link (disconnected only) */}
+          {state === "disconnected" && (
+            <button
+              onClick={() => { onOpenChange(false); navigate("/device-setup"); }}
+              className="w-full flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors py-1"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              First time? Use the guided setup wizard →
+            </button>
           )}
 
           {/* Actions */}

@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { ChartTooltip } from "@/components/chart-tooltip";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock, AlertTriangle } from "lucide-react";
+import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock, AlertTriangle, SlidersHorizontal, X } from "lucide-react";
 import { EmotionWheel } from "@/components/emotion-wheel";
 import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { useDevice } from "@/hooks/use-device";
-import { listSessions, type SessionSummary } from "@/lib/ml-api";
+import { listSessions, getBaselineStatus, type SessionSummary } from "@/lib/ml-api";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -186,6 +188,7 @@ function buildEmotionChartData(sessions: SessionSummary[], days: number): Sessio
 
 /* ========== Component ========== */
 export default function EmotionLab() {
+  const [, navigate] = useLocation();
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
@@ -201,6 +204,18 @@ export default function EmotionLab() {
 
   const [periodDays, setPeriodDays] = useState(1);
   const isLiveToday = periodDays === 1;
+
+  // Calibration banner — check once on mount, dismissable per session
+  const [calBannerDismissed, setCalBannerDismissed] = useState(
+    () => sessionStorage.getItem("cal-banner-dismissed") === "1"
+  );
+  const { data: calStatus } = useQuery({
+    queryKey: ["baseline-status"],
+    queryFn: () => getBaselineStatus("default"),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const showCalBanner = !calBannerDismissed && calStatus != null && !calStatus.ready;
 
   // Emotion window history — last 5 thirty-second results
   const [emotionWindowHistory, setEmotionWindowHistory] = useState<
@@ -331,6 +346,34 @@ export default function EmotionLab() {
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
           Connect your Muse 2 from the sidebar to see live emotion data.
+        </div>
+      )}
+
+      {/* Calibration banner — shown when baseline not yet collected */}
+      {showCalBanner && (
+        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/8 flex items-center gap-3">
+          <SlidersHorizontal className="h-4 w-4 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200 flex-1">
+            <strong>Calibrate first</strong> for up to +29% emotion accuracy — takes 2 minutes and works without a headset.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate("/calibration")}
+            className="border-amber-500/40 text-amber-300 hover:bg-amber-500/15 text-xs h-7 shrink-0"
+          >
+            Calibrate →
+          </Button>
+          <button
+            onClick={() => {
+              setCalBannerDismissed(true);
+              sessionStorage.setItem("cal-banner-dismissed", "1");
+            }}
+            className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
