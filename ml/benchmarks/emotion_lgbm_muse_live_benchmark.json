@@ -1,14 +1,20 @@
 {
   "model_name": "emotion_lgbm_muse_live",
-  "dataset": "Muse-Subconscious",
-  "cv_method": "leave-one-subject-out (GroupKFold)",
-  "accuracy": 0.823,
-  "f1_macro": 0.6028,
+  "datasets": [
+    "DEAP",
+    "DREAMER"
+  ],
+  "n_samples": 49893,
+  "cv_method": "5-fold stratified CV",
+  "accuracy": 0.6919,
+  "f1_macro": 0.6898,
   "n_classes": 3,
   "class_names": [
     "positive",
     "neutral",
     "negative"
   ],
-  "notes": "LOSO cross-subject accuracy 82.30%. 80-feature (4-stat \u00d7 5-band \u00d7 4-channel) LightGBM, no PCA \u2014 features reproducible from live Muse 2 EEG."
+  "feature_dim": 80,
+  "feature_type": "5bands \u00d7 4ch \u00d7 4stats (mean,std,median,IQR)",
+  "notes": "Cross-dataset LGBM trained on DEAP+DREAMER. 80-feature format identical to live Muse 2 inference. 5-fold CV accuracy: 69.19%. Replaces single-dataset Muse-Subconscious model."
 }

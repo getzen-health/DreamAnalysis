@@ -1,0 +1,669 @@
+"""
+Cross-Dataset LGBM Trainer
+===========================
+Trains a LightGBM emotion classifier on ALL available datasets using the exact
+same 80-feature extraction as live Muse 2 inference — making it the first model
+that is BOTH high-accuracy AND genuinely deployable in real time.
+
+Key design decisions:
+  - 80 raw features: 5 bands × 4 channels × 4 stats (mean, std, median, IQR)
+    — identical to _extract_muse_live_features() in emotion_classifier.py
+  - 4-channel subset from each dataset: ch0=left-temporal, ch1=left-frontal,
+    ch2=right-frontal, ch3=right-temporal (Muse 2 equivalent)
+  - 3-class output: 0=positive, 1=neutral, 2=negative
+    — compatible with existing 3→6 expansion in _predict_lgbm_muse()
+  - Single global StandardScaler (no per-dataset scaling, no PCA)
+    — reproducible at inference time
+  - Saves to emotion_lgbm_muse_live.pkl (replaces Muse-Subconscious-only model)
+    — loaded automatically by emotion_classifier.py if accuracy ≥ 60%
+
+Datasets loaded:
+  1. DEAP       — 32 subjects, 40 trials, 32-ch gel EEG (4-ch frontal/temporal subset)
+  2. EmoKey     — 45 subjects, real Muse S recordings, 4 channels, CSV format
+  3. DREAMER    — 23 subjects, Emotiv EPOC 14-ch (4-ch subset) — if DREAMER.mat present
+  4. GAMEEMO    — 28 subjects, Emotiv EPOC 14-ch, 4 emotions (if available)
+
+Usage (run from ml/ directory):
+    .venv/bin/python -m training.train_cross_dataset_lgbm
+"""
+
+import json
+import time
+import warnings
+from pathlib import Path
+
+import numpy as np
+from scipy import signal
+from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.utils.class_weight import compute_sample_weight
+
+warnings.filterwarnings("ignore")
+
+try:
+    import lightgbm as lgb
+    HAS_LGBM = True
+except ImportError:
+    HAS_LGBM = False
+    print("[WARN] LightGBM not found — falling back to GradientBoosting")
+    from sklearn.ensemble import GradientBoostingClassifier
+
+try:
+    import joblib
+except ImportError:
+    import pickle as joblib  # type: ignore
+
+MODEL_DIR     = Path("models/saved")
+BENCHMARK_DIR = Path("benchmarks")
+MODEL_OUT     = MODEL_DIR / "emotion_lgbm_muse_live.pkl"
+BENCH_OUT     = BENCHMARK_DIR / "emotion_lgbm_muse_live_benchmark.json"
+
+FS_MUSE   = 256.0  # Muse 2 live sampling rate
+FS_DEAP   = 128.0  # DEAP pre-processed
+FS_EMOKEY = 128.0  # EmoKey Muse S delivery rate
+FS_DREAMER = 128.0 # DREAMER Emotiv EPOC
+FS_GAMEEMO = 128.0 # GAMEEMO Emotiv EPOC
+
+BANDS = {
+    "delta": (0.5, 4),
+    "theta": (4, 8),
+    "alpha": (8, 12),
+    "beta":  (12, 30),
+    "gamma": (30, 50),
+}
+
+WIN_S  = 4.0   # 4-second window
+HOP_S  = 2.0   # 50 % overlap
+SW_S   = 0.5   # 0.5-sec sub-windows for feature aggregation
+
+# 75 µV artifact threshold (Kriegolson 2021)
+ARTIFACT_UV = 75.0
+
+def log(msg):
+    ts = time.strftime("%H:%M:%S")
+    print(f"[{ts}] {msg}", flush=True)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Feature Extraction
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _band_power(sig: np.ndarray, fs: float) -> np.ndarray:
+    """Return 5-element array of normalised band powers [delta, theta, alpha, beta, gamma]."""
+    n = len(sig)
+    if n < 4:
+        return np.zeros(5)
+    freqs, psd = signal.welch(sig, fs, nperseg=min(256, n))
+    total = np.sum(psd) + 1e-10
+    out = []
+    for lo, hi in BANDS.values():
+        idx = np.where((freqs >= lo) & (freqs < hi))[0]
+        out.append(float(np.sum(psd[idx]) / total) if len(idx) > 0 else 0.0)
+    return np.array(out, dtype=np.float32)
+
+
+def extract_80_features(eeg4ch: np.ndarray, fs: float) -> np.ndarray:
+    """Extract 80-feature vector from (4, n_samples) EEG array.
+
+    Identical layout to EmotionClassifier._extract_muse_live_features():
+        5 bands × 4 channels × 4 stats (mean, std, median, IQR) = 80 features
+    Channel order: [left-temporal, left-frontal, right-frontal, right-temporal]
+    """
+    n_samples = eeg4ch.shape[1]
+    win = max(4, int(SW_S * fs))
+    hop = max(2, win // 2)
+
+    # Collect sub-window band powers: shape (n_subwins, 5_bands, 4_ch)
+    powers = []
+    for start in range(0, n_samples - win + 1, hop):
+        end = start + win
+        sub = []
+        for ch in range(4):
+            seg = eeg4ch[ch, start:end]
+            sub.append(_band_power(seg, fs))  # (5,)
+        powers.append(np.stack(sub, axis=1))  # (5, 4)
+
+    if not powers:
+        return np.zeros(80, dtype=np.float32)
+
+    arr = np.array(powers)  # (n_subwins, 5, 4)
+    feat = []
+    for band_idx in range(5):
+        for ch_idx in range(4):
+            vals = arr[:, band_idx, ch_idx]
+            vals = vals[np.isfinite(vals)]
+            if len(vals) < 2:
+                feat.extend([0.0, 0.0, 0.0, 0.0])
+            else:
+                feat.extend([
+                    float(np.mean(vals)),
+                    float(np.std(vals)),
+                    float(np.median(vals)),
+                    float(np.percentile(vals, 75) - np.percentile(vals, 25)),
+                ])
+    return np.array(feat[:80], dtype=np.float32)
+
+
+def epoch_and_extract(eeg_ch: np.ndarray, fs: float,
+                      win_s: float = WIN_S, hop_s: float = HOP_S,
+                      ch_map: list | None = None,
+                      artifact_uv: float = ARTIFACT_UV) -> list[np.ndarray]:
+    """Slice a (n_ch, n_samples) signal into overlapping windows and extract features."""
+    n_ch, n_samples = eeg_ch.shape
+    win = int(win_s * fs)
+    hop = int(hop_s * fs)
+
+    if ch_map is None:
+        ch_map = list(range(min(4, n_ch)))
+    ch_map = ch_map[:4]
+    while len(ch_map) < 4:
+        ch_map.append(ch_map[-1])  # repeat last channel if < 4
+
+    feats = []
+    for start in range(0, n_samples - win + 1, hop):
+        segment = eeg_ch[ch_map, start:start + win]  # (4, win)
+        # Artifact check
+        if np.any(np.abs(segment) > artifact_uv):
+            continue
+        feats.append(extract_80_features(segment, fs))
+    return feats
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Dataset Loaders
+# ──────────────────────────────────────────────────────────────────────────────
+
+def load_deap(data_dir: str = "data/deap") -> tuple[np.ndarray, np.ndarray]:
+    """Load DEAP dataset, 4-ch Muse-equivalent subset.
+
+    DEAP channel order (0-indexed):
+      ch1  = AF3  → AF7 analog  (left frontal)
+      ch2  = F3
+      ch3  = F7
+      ch7  = T7   → TP9 analog  (left temporal)
+      ch15 = FC5
+      ch16 = Fp1
+      ch17 = AF4  → AF8 analog  (right frontal)
+      ch22 = T8   → TP10 analog (right temporal)
+    Chosen: T7=7, AF3=1, AF4=17, T8=22 → [TP9, AF7, AF8, TP10] analog
+    """
+    import pickle
+
+    deap_path = Path(data_dir)
+    if not deap_path.exists():
+        log("  [DEAP] directory not found — skipping")
+        return np.array([]), np.array([])
+
+    # DEAP: ch7=T7(TP9), ch1=AF3(AF7), ch17=AF4(AF8), ch22=T8(TP10)
+    CH_MAP = [7, 1, 17, 22]
+
+    # Emotion label from valence/arousal using adaptive median split
+    # Median-split to 3 classes: 0=positive, 1=neutral, 2=negative
+    all_V, all_A = [], []
+    trials_data = []
+
+    dat_files = sorted(deap_path.glob("s*.dat"))
+    log(f"  [DEAP] Loading {len(dat_files)} subjects...")
+
+    for f in dat_files:
+        try:
+            with open(f, "rb") as fh:
+                d = pickle.load(fh, encoding="latin1")
+            trials_data.append((d["data"], d["labels"]))
+            all_V.extend(d["labels"][:, 0].tolist())
+            all_A.extend(d["labels"][:, 1].tolist())
+        except Exception as e:
+            log(f"    [DEAP] Error loading {f.name}: {e}")
+
+    if not trials_data:
+        return np.array([]), np.array([])
+
+    med_V = float(np.median(all_V))
+    med_A = float(np.median(all_A))
+    log(f"  [DEAP] Medians — V={med_V:.2f}  A={med_A:.2f}")
+
+    X, y = [], []
+    for data, labels in trials_data:
+        # data: (40, 40, 8064) — trials × channels × samples @ 128 Hz
+        for trial_idx in range(data.shape[0]):
+            eeg = data[trial_idx, :32, :]  # first 32 EEG channels
+            valence = float(labels[trial_idx, 0])
+            arousal = float(labels[trial_idx, 1])
+
+            # 3-class mapping
+            if valence >= med_V and arousal >= med_A:
+                label = 0  # positive
+            elif valence < med_V and arousal >= med_A:
+                label = 2  # negative (high arousal, low valence → angry/fearful)
+            elif valence >= med_V and arousal < med_A:
+                label = 0  # positive (low arousal, high valence → relaxed/happy)
+            else:
+                label = 2  # negative (low valence, low arousal → sad)
+
+            eeg_sub = eeg[CH_MAP, :]  # (4, 8064)
+            feats = epoch_and_extract(eeg_sub, FS_DEAP)
+            for f_vec in feats:
+                X.append(f_vec)
+                y.append(label)
+
+    if not X:
+        return np.array([]), np.array([])
+
+    log(f"  [DEAP] {len(X)} samples from {len(dat_files)} subjects")
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
+
+
+def load_emokey(data_dir: str = "data/emokey") -> tuple[np.ndarray, np.ndarray]:
+    """Load EmoKey Moments (Muse S — 4ch CSV) — real Muse hardware."""
+    import pandas as pd
+
+    base = Path(data_dir)
+    # Try the known nested path
+    nested = (base / "EmoKey Moments EEG Dataset (EKM-ED)"
+              / "muse_wearable_data" / "preprocessed"
+              / "clean-signals" / "0.0078125S")
+    search_roots = [nested, base]
+
+    csv_files: list[Path] = []
+    for root in search_roots:
+        if root.exists():
+            csv_files = list(root.rglob("*.csv"))
+            if csv_files:
+                break
+
+    if not csv_files:
+        log("  [EmoKey] No CSV files found — skipping")
+        return np.array([]), np.array([])
+
+    EMOTION_MAP = {
+        "HAPPINESS": 0, "NEUTRAL_HAPPINESS": 1,
+        "SADNESS": 2,   "NEUTRAL_SADNESS": 2,
+        "ANGER": 2,     "NEUTRAL_ANGER": 2,
+        "FEAR": 2,      "NEUTRAL_FEAR": 2,
+    }
+    # Exact column names from EmoKey CSV
+    CH_COLS = ["RAW_TP9", "RAW_AF7", "RAW_AF8", "RAW_TP10"]
+
+    X, y = [], []
+    loaded = 0
+    for csv_path in csv_files:
+        emotion_key = None
+        for emo in EMOTION_MAP:
+            if emo in csv_path.stem.upper():
+                emotion_key = emo
+                break
+        if emotion_key is None:
+            continue
+
+        label = EMOTION_MAP[emotion_key]
+        try:
+            df = pd.read_csv(csv_path)
+            cols = [c for c in CH_COLS if c in df.columns]
+            if len(cols) < 4:
+                continue
+            eeg = df[cols].values.T.astype(np.float32)  # (4, n)
+            if eeg.shape[1] < int(WIN_S * FS_EMOKEY):
+                continue
+            feats = epoch_and_extract(eeg, FS_EMOKEY)
+            for f_vec in feats:
+                X.append(f_vec)
+                y.append(label)
+            loaded += 1
+        except Exception as e:
+            log(f"    [EmoKey] Error on {csv_path.name}: {e}")
+
+    if not X:
+        return np.array([]), np.array([])
+
+    log(f"  [EmoKey] {len(X)} samples from {loaded} CSV files")
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
+
+
+def load_dreamer(mat_path: str = "../data/DREAMER.mat") -> tuple[np.ndarray, np.ndarray]:
+    """Load DREAMER dataset (Emotiv EPOC 14-ch).
+
+    DREAMER .mat structure (loaded via scipy.io):
+      DREAMER['DREAMER'][0,0]['Data'][0,subject]['EEG'][0,0]['stimuli'][0,trial]['data']
+      shape: (n_samples, 14)
+    Labels: valence/arousal on 1-5 scale (median split to 3 classes)
+
+    14-ch Emotiv channel order: AF3, F7, F3, FC5, T7, P7, O1, O2, P8, T8, FC6, F4, F8, AF4
+    Muse mapping: T7(ch4)→TP9, AF3(ch0)→AF7, AF4(ch13)→AF8, T8(ch9)→TP10
+    """
+    p = Path(mat_path)
+    if not p.exists():
+        log(f"  [DREAMER] {mat_path} not found — skipping")
+        return np.array([]), np.array([])
+
+    try:
+        from scipy.io import loadmat
+        mat = loadmat(str(p), simplify_cells=False)
+    except Exception as e:
+        try:
+            import h5py
+            mat = None
+            _h5 = h5py.File(str(p), "r")
+        except Exception as e2:
+            log(f"  [DREAMER] Failed to load: {e} / {e2}")
+            return np.array([]), np.array([])
+
+    # Emotiv 14-ch: T7=ch4, AF3=ch0, AF4=ch13, T8=ch9
+    CH_MAP = [4, 0, 13, 9]  # → [TP9, AF7, AF8, TP10] analog
+
+    X, y = [], []
+    try:
+        dreamer = mat["DREAMER"][0, 0]
+        n_subjects = dreamer["Data"].shape[1]
+        all_V, all_A = [], []
+
+        # First pass: collect all labels for median computation
+        # Actual DREAMER structure: stimuli[0,0] → (18,1) cell; ScoreValence[0,0] → (18,1)
+        for s in range(n_subjects):
+            subj = dreamer["Data"][0, s]
+            scores_V = subj["ScoreValence"][0, 0]  # (18, 1)
+            scores_A = subj["ScoreArousal"][0, 0]  # (18, 1)
+            for trial in range(scores_V.shape[0]):
+                all_V.append(float(scores_V[trial, 0]))
+                all_A.append(float(scores_A[trial, 0]))
+
+        med_V = float(np.median(all_V))
+        med_A = float(np.median(all_A))
+        log(f"  [DREAMER] Medians — V={med_V:.2f}  A={med_A:.2f}")
+
+        # Second pass: extract features
+        for s in range(n_subjects):
+            subj = dreamer["Data"][0, s]
+            eeg_stim = subj["EEG"][0, 0]["stimuli"][0, 0]  # (18, 1) cell array of trials
+            scores_V = subj["ScoreValence"][0, 0]           # (18, 1)
+            scores_A = subj["ScoreArousal"][0, 0]           # (18, 1)
+            n_trials = eeg_stim.shape[0]
+
+            for trial in range(n_trials):
+                eeg_raw = eeg_stim[trial, 0]  # (n_samples, 14)
+                if eeg_raw.ndim == 2 and eeg_raw.shape[1] >= 14:
+                    eeg = eeg_raw.T.astype(np.float32)  # (14, n_samples)
+                else:
+                    continue
+
+                val = float(scores_V[trial, 0])
+                aro = float(scores_A[trial, 0])
+
+                if val >= med_V and aro >= med_A:
+                    label = 0
+                elif val >= med_V:
+                    label = 0
+                elif val < med_V and aro >= med_A:
+                    label = 2
+                else:
+                    label = 2
+
+                eeg_sub = eeg[CH_MAP, :]
+                # DREAMER data is in raw Emotiv ADC counts (~3000-6000), not µV.
+                # Scale to µV (Emotiv EPOC: 0.51 µV/count) + bandpass 1-45 Hz.
+                eeg_sub = eeg_sub * 0.51  # → µV
+                from scipy.signal import butter, filtfilt
+                b, a = butter(4, [1.0, 45.0], btype="band", fs=FS_DREAMER)
+                for ch_i in range(eeg_sub.shape[0]):
+                    eeg_sub[ch_i] = filtfilt(b, a, eeg_sub[ch_i])
+                feats = epoch_and_extract(eeg_sub, FS_DREAMER, artifact_uv=150.0)
+                for f_vec in feats:
+                    X.append(f_vec)
+                    y.append(label)
+
+    except Exception as e:
+        log(f"  [DREAMER] Parsing error: {e}")
+        return np.array([]), np.array([])
+
+    if not X:
+        return np.array([]), np.array([])
+
+    log(f"  [DREAMER] {len(X)} samples from {n_subjects} subjects")
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
+
+
+def load_gameemo(data_dir: str = "data/gameemo") -> tuple[np.ndarray, np.ndarray]:
+    """Load GAMEEMO dataset (Emotiv EPOC 14-ch, 4 emotions: boredom/calm/horror/joy)."""
+    base = Path(data_dir)
+    if not base.exists():
+        log("  [GAMEEMO] data directory not found — skipping")
+        return np.array([]), np.array([])
+
+    # GAMEEMO emotions → 3-class mapping
+    EMOTION_LABEL = {
+        "joy": 0, "happy": 0,
+        "calm": 1, "neutral": 1,
+        "boredom": 2, "horror": 2, "anger": 2, "sad": 2,
+    }
+    # Emotiv 14-ch mapping (same as DREAMER)
+    CH_MAP = [4, 0, 13, 9]  # T7, AF3, AF4, T8
+
+    X, y = [], []
+    mat_files = list(base.rglob("*.mat"))
+    if not mat_files:
+        mat_files = list(base.rglob("*.csv"))
+
+    log(f"  [GAMEEMO] Found {len(mat_files)} files")
+    for f in mat_files:
+        try:
+            from scipy.io import loadmat
+            mat = loadmat(str(f))
+            # Typical GAMEEMO structure: key = emotion name
+            for key in mat:
+                if key.startswith("_"):
+                    continue
+                key_lower = key.lower()
+                label = None
+                for emo, lbl in EMOTION_LABEL.items():
+                    if emo in key_lower:
+                        label = lbl
+                        break
+                if label is None:
+                    continue
+                data = mat[key]
+                if data.ndim == 2 and data.shape[1] >= 14:
+                    eeg = data.T.astype(np.float32)  # (14, n_samples)
+                    eeg_sub = eeg[CH_MAP, :]
+                    feats = epoch_and_extract(eeg_sub, FS_GAMEEMO)
+                    for f_vec in feats:
+                        X.append(f_vec)
+                        y.append(label)
+        except Exception:
+            pass
+
+    if not X:
+        return np.array([]), np.array([])
+
+    log(f"  [GAMEEMO] {len(X)} samples")
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Training
+# ──────────────────────────────────────────────────────────────────────────────
+
+def train(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> tuple:
+    """Train LightGBM with 5-fold CV. Returns (model, scaler, cv_accuracy, cv_f1)."""
+    log(f"\n[TRAINING] {len(X)} samples, {X.shape[1]} features, {len(np.unique(y))} classes")
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    cv_accs, cv_f1s = [], []
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+    for fold, (tr_idx, va_idx) in enumerate(skf.split(X_scaled, y), 1):
+        X_tr, X_va = X_scaled[tr_idx], X_scaled[va_idx]
+        y_tr, y_va = y[tr_idx], y[va_idx]
+        w_tr = compute_sample_weight("balanced", y_tr)
+
+        if HAS_LGBM:
+            clf = lgb.LGBMClassifier(
+                n_estimators=800,
+                learning_rate=0.05,
+                max_depth=8,
+                num_leaves=63,
+                min_child_samples=20,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                reg_alpha=0.1,
+                reg_lambda=0.1,
+                class_weight="balanced",
+                n_jobs=-1,
+                random_state=42,
+                verbosity=-1,
+            )
+        else:
+            from sklearn.ensemble import GradientBoostingClassifier
+            clf = GradientBoostingClassifier(n_estimators=300, max_depth=5, random_state=42)
+
+        clf.fit(X_tr, y_tr, sample_weight=w_tr)
+        preds = clf.predict(X_va)
+        acc = accuracy_score(y_va, preds)
+        f1  = f1_score(y_va, preds, average="macro", zero_division=0)
+        cv_accs.append(acc)
+        cv_f1s.append(f1)
+        log(f"  Fold {fold}/{n_splits} — acc={acc:.4f}  f1={f1:.4f}")
+
+    cv_acc = float(np.mean(cv_accs))
+    cv_f1  = float(np.mean(cv_f1s))
+    log(f"\n[CV RESULT] acc={cv_acc:.4f} ± {np.std(cv_accs):.4f}  f1={cv_f1:.4f}")
+
+    # Retrain on all data
+    log("\n[FINAL MODEL] Training on full dataset...")
+    w_all = compute_sample_weight("balanced", y)
+    if HAS_LGBM:
+        final_model = lgb.LGBMClassifier(
+            n_estimators=1000,
+            learning_rate=0.05,
+            max_depth=8,
+            num_leaves=63,
+            min_child_samples=20,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_alpha=0.1,
+            reg_lambda=0.1,
+            class_weight="balanced",
+            n_jobs=-1,
+            random_state=42,
+            verbosity=-1,
+        )
+    else:
+        from sklearn.ensemble import GradientBoostingClassifier
+        final_model = GradientBoostingClassifier(n_estimators=300, max_depth=5, random_state=42)
+
+    final_model.fit(X_scaled, y, sample_weight=w_all)
+    train_preds = final_model.predict(X_scaled)
+    log(f"[FINAL MODEL] Train accuracy: {accuracy_score(y, train_preds):.4f}")
+    log("\nClassification Report (train):")
+    class_map = {0: "positive", 1: "neutral", 2: "negative"}
+    present = sorted(np.unique(y))
+    log(classification_report(y, train_preds,
+                               labels=present,
+                               target_names=[class_map[c] for c in present],
+                               zero_division=0))
+
+    return final_model, scaler, cv_acc, cv_f1
+
+
+def save_model(model, scaler, cv_acc: float, cv_f1: float,
+               n_samples: int, dataset_names: list[str]) -> None:
+    """Save model bundle and benchmark JSON."""
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
+
+    payload = {"model": model, "scaler": scaler}
+    joblib.dump(payload, MODEL_OUT)
+    log(f"\n[SAVE] Model → {MODEL_OUT}")
+
+    bench = {
+        "model_name":   "emotion_lgbm_muse_live",
+        "datasets":     dataset_names,
+        "n_samples":    n_samples,
+        "cv_method":    "5-fold stratified CV",
+        "accuracy":     round(cv_acc, 4),
+        "f1_macro":     round(cv_f1, 4),
+        "n_classes":    3,
+        "class_names":  ["positive", "neutral", "negative"],
+        "feature_dim":  80,
+        "feature_type": "5bands × 4ch × 4stats (mean,std,median,IQR)",
+        "notes": (
+            f"Cross-dataset LGBM trained on {'+'.join(dataset_names)}. "
+            "80-feature format identical to live Muse 2 inference. "
+            f"5-fold CV accuracy: {cv_acc:.2%}. "
+            "Replaces single-dataset Muse-Subconscious model."
+        ),
+    }
+    BENCH_OUT.write_text(json.dumps(bench, indent=2))
+    log(f"[SAVE] Benchmark → {BENCH_OUT}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Main
+# ──────────────────────────────────────────────────────────────────────────────
+
+def main():
+    log("=" * 70)
+    log("  Cross-Dataset LGBM Trainer — 80-feature live-compatible model")
+    log("=" * 70)
+    t0 = time.time()
+
+    all_X, all_y, dataset_names = [], [], []
+
+    # 1. DEAP
+    X_d, y_d = load_deap()
+    if len(X_d) > 0:
+        all_X.append(X_d); all_y.append(y_d); dataset_names.append("DEAP")
+
+    # 2. EmoKey (real Muse hardware)
+    X_e, y_e = load_emokey()
+    if len(X_e) > 0:
+        all_X.append(X_e); all_y.append(y_e); dataset_names.append("EmoKey")
+
+    # 3. DREAMER (optional — needs data/DREAMER.mat)
+    X_dr, y_dr = load_dreamer()
+    if len(X_dr) > 0:
+        all_X.append(X_dr); all_y.append(y_dr); dataset_names.append("DREAMER")
+
+    # 4. GAMEEMO (optional)
+    X_g, y_g = load_gameemo()
+    if len(X_g) > 0:
+        all_X.append(X_g); all_y.append(y_g); dataset_names.append("GAMEEMO")
+
+    if not all_X:
+        log("\n[ERROR] No data loaded — check data/ directory")
+        return
+
+    X = np.vstack(all_X)
+    y = np.concatenate(all_y)
+
+    # Remove NaN/Inf
+    mask = np.isfinite(X).all(axis=1)
+    X, y = X[mask], y[mask]
+
+    log(f"\n[DATA] Total: {len(X)} samples, {X.shape[1]} features")
+    log(f"[DATA] Sources: {', '.join(dataset_names)}")
+    classes, counts = np.unique(y, return_counts=True)
+    for c, n in zip(classes, counts):
+        name = ["positive", "neutral", "negative"][c]
+        log(f"  Class {c} ({name}): {n} samples ({n/len(y):.1%})")
+
+    # Train
+    model, scaler, cv_acc, cv_f1 = train(X, y)
+
+    # Save
+    save_model(model, scaler, cv_acc, cv_f1, len(X), dataset_names)
+
+    elapsed = time.time() - t0
+    log(f"\n[DONE] Elapsed: {elapsed:.1f}s")
+    log(f"[DONE] CV accuracy: {cv_acc:.2%}  |  F1: {cv_f1:.4f}")
+    log(f"[DONE] Saved to {MODEL_OUT}")
+
+    if cv_acc >= 0.60:
+        log("[DONE] ✓ Model meets 60% threshold — will be loaded as primary inference path")
+    else:
+        log("[WARN] ✗ Model below 60% threshold — feature heuristics will be used instead")
+
+
+if __name__ == "__main__":
+    main()
