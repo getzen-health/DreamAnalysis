@@ -20,7 +20,7 @@ import json
 import time
 from pathlib import Path
 from collections import Counter
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, LeaveOneGroupOut
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.utils.class_weight import compute_sample_weight
@@ -56,12 +56,13 @@ def load_deap_features(fs=128.0):
     dat_files = sorted(deap_path.glob("s*.dat"))
     if not dat_files:
         log("  DEAP: No .dat files found, skipping")
-        return None, None
+        return None, None, None
 
     FRONTAL_CH = [0, 1, 2, 3, 4, 5, 16, 17, 18, 19]
-    X_list, y_list = [], []
+    X_list, y_list, groups = [], [], []
 
     for dat_file in dat_files:
+        subject_id = dat_file.stem
         with open(dat_file, "rb") as f:
             data = pickle.load(f, encoding="latin1")
         eeg = data["data"][:, :32, 384:]  # skip 3s baseline
@@ -76,8 +77,9 @@ def load_deap_features(fs=128.0):
             v, a = labels[trial_idx, 0], labels[trial_idx, 1]
             emo_6 = _circumplex_to_emotion(v, a)
             y_list.append(map_6class_to_3class(emo_6))
+            groups.append(subject_id)
 
-    return np.array(X_list), np.array(y_list)
+    return np.array(X_list), np.array(y_list), np.array(groups)
 
 
 # ====================================================================
@@ -219,6 +221,7 @@ def load_seed_features():
 
     data = np.load(seed_path / "DatasetCaricatoNoImage.npz")["arr_0"]  # (50910, 5, 62)
     labels = np.load(seed_path / "LabelsNoImage.npz")["arr_0"]  # (50910,)
+    subjects = np.load(seed_path / "SubjectsNoImage.npz")["arr_0"]  # (50910,)
 
     # Extract summary features from the 5×62 DE matrix
     n = len(data)
@@ -261,7 +264,7 @@ def load_seed_features():
         feats_list.append(row)
 
     X = np.array(feats_list)
-    return X, labels
+    return X, labels, subjects
 
 
 # ====================================================================
@@ -306,32 +309,67 @@ def load_dens_features(fs=250.0):
     dens_path = Path("data/dens")
     if not dens_path.exists():
         log("  DENS: Data directory not found, skipping")
-        return None, None
+        return None, None, None
 
     try:
         from training.data_loaders import load_dens
-        X_raw, y_raw = load_dens(str(dens_path))
+        X_raw, y_raw, _ = load_dens(str(dens_path))
         if X_raw is not None and len(X_raw) > 0:
             # y_raw is already 6-class, map to 3
             y_3 = np.array([map_6class_to_3class(int(label)) for label in y_raw])
-            return X_raw, y_3
+            return X_raw, y_3, None
     except Exception as e:
         log(f"  DENS: Error loading: {e}")
 
-    return None, None
+    return None, None, None
+
+
+# ====================================================================
+# DATASET 7: FACED
+# ====================================================================
+def load_faced_features(fs=256.0):
+    """Load FACED data and extract features."""
+    faced_path = Path("data/faced")
+    if not faced_path.exists():
+        log("  FACED: Data directory not found, skipping")
+        return None, None, None
+
+    try:
+        from training.data_loaders import load_faced
+        result = load_faced(data_dir=str(faced_path), target_fs=fs, return_groups=True)
+        if len(result) == 3:
+            X_raw, y_raw, groups = result
+        else:
+            X_raw, y_raw = result
+            groups = None
+        if X_raw is not None and len(X_raw) > 0:
+            y_3 = np.array([map_6class_to_3class(int(label)) for label in y_raw])
+            return X_raw, y_3, groups
+    except Exception as e:
+        log(f"  FACED: Error loading: {e}")
+
+    return None, None, None
 
 
 # ====================================================================
 # EVALUATION
 # ====================================================================
-def evaluate_model(X, y, name, n_splits=5):
-    """5-fold CV with GBM, return results dict."""
+def evaluate_model(X, y, name, n_splits=5, groups=None):
+    """CV with GBM/RF. Uses LOSO if groups provided."""
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    use_groups = groups is not None and len(groups) == len(y) and len(np.unique(groups)) >= 2
+    if use_groups:
+        cv = LeaveOneGroupOut()
+        split_iter = cv.split(X_scaled, y, groups=groups)
+        cv_label = f"LOSO ({len(np.unique(groups))} subjects)"
+    else:
+        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        split_iter = skf.split(X_scaled, y)
+        cv_label = f"Stratified {n_splits}-fold"
 
     accs, f1s = [], []
-    for fold, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
+    for fold, (train_idx, test_idx) in enumerate(split_iter):
         X_tr, X_te = X_scaled[train_idx], X_scaled[test_idx]
         y_tr, y_te = y[train_idx], y[test_idx]
         weights = compute_sample_weight("balanced", y_tr)
@@ -367,6 +405,7 @@ def evaluate_model(X, y, name, n_splits=5):
         "f1_macro_std": float(np.std(f1s)),
         "n_features": int(X.shape[1]),
         "n_samples": int(X.shape[0]),
+        "cv": cv_label,
     }
 
 
@@ -383,55 +422,63 @@ if __name__ == "__main__":
     datasets_loaded = {}
 
     # --- Load all raw EEG datasets ---
-    log("\n[1/6] Loading DEAP...")
+    log("\n[1/7] Loading DEAP...")
     t = time.time()
-    X_deap, y_deap = load_deap_features()
+    X_deap, y_deap, g_deap = load_deap_features()
     if X_deap is not None:
         log(f"  DEAP: {X_deap.shape[0]} samples, {X_deap.shape[1]} features ({time.time()-t:.1f}s)")
         log(f"  Labels: {dict(Counter(y_deap))}")
-        datasets_loaded["DEAP"] = (X_deap, y_deap)
+        datasets_loaded["DEAP"] = (X_deap, y_deap, g_deap)
 
-    log("\n[2/6] Loading GAMEEMO...")
+    log("\n[2/7] Loading GAMEEMO...")
     t = time.time()
     X_gameemo, y_gameemo = load_gameemo_features()
     if X_gameemo is not None:
         log(f"  GAMEEMO: {X_gameemo.shape[0]} samples, {X_gameemo.shape[1]} features ({time.time()-t:.1f}s)")
         log(f"  Labels: {dict(Counter(y_gameemo))}")
-        datasets_loaded["GAMEEMO"] = (X_gameemo, y_gameemo)
+        datasets_loaded["GAMEEMO"] = (X_gameemo, y_gameemo, None)
 
-    log("\n[3/6] Loading EEG Emotion Recognition...")
+    log("\n[3/7] Loading EEG Emotion Recognition...")
     t = time.time()
     X_eer, y_eer = load_eeg_emotion_recognition_features()
     if X_eer is not None:
         log(f"  EEG-ER: {X_eer.shape[0]} samples, {X_eer.shape[1]} features ({time.time()-t:.1f}s)")
         log(f"  Labels: {dict(Counter(y_eer))}")
-        datasets_loaded["EEG-ER"] = (X_eer, y_eer)
+        datasets_loaded["EEG-ER"] = (X_eer, y_eer, None)
 
-    log("\n[4/6] Loading DENS...")
+    log("\n[4/7] Loading DENS...")
     t = time.time()
-    X_dens, y_dens = load_dens_features()
+    X_dens, y_dens, g_dens = load_dens_features()
     if X_dens is not None:
         log(f"  DENS: {X_dens.shape[0]} samples, {X_dens.shape[1]} features ({time.time()-t:.1f}s)")
         log(f"  Labels: {dict(Counter(y_dens))}")
-        datasets_loaded["DENS"] = (X_dens, y_dens)
+        datasets_loaded["DENS"] = (X_dens, y_dens, g_dens)
 
-    log("\n[5/6] Loading SEED...")
+    log("\n[5/7] Loading SEED...")
     t = time.time()
-    X_seed, y_seed = load_seed_features()
+    X_seed, y_seed, g_seed = load_seed_features()
     if X_seed is not None:
         log(f"  SEED: {X_seed.shape[0]} samples, {X_seed.shape[1]} features ({time.time()-t:.1f}s)")
         log(f"  Labels: {dict(Counter(y_seed))}")
-        datasets_loaded["SEED"] = (X_seed, y_seed)
+        datasets_loaded["SEED"] = (X_seed, y_seed, g_seed)
 
-    log("\n[6/6] Loading Brainwave Emotions...")
+    log("\n[6/7] Loading Brainwave Emotions...")
     t = time.time()
     X_bw, y_bw = load_brainwave_emotions()
     if X_bw is not None:
         log(f"  Brainwave: {X_bw.shape[0]} samples, {X_bw.shape[1]} features ({time.time()-t:.1f}s)")
         log(f"  Labels: {dict(Counter(y_bw))}")
-        datasets_loaded["Brainwave"] = (X_bw, y_bw)
+        datasets_loaded["Brainwave"] = (X_bw, y_bw, None)
 
-    total_samples = sum(X.shape[0] for X, y in datasets_loaded.values())
+    log("\n[7/7] Loading FACED...")
+    t = time.time()
+    X_faced, y_faced, g_faced = load_faced_features()
+    if X_faced is not None:
+        log(f"  FACED: {X_faced.shape[0]} samples, {X_faced.shape[1]} features ({time.time()-t:.1f}s)")
+        log(f"  Labels: {dict(Counter(y_faced))}")
+        datasets_loaded["FACED"] = (X_faced, y_faced, g_faced)
+
+    total_samples = sum(X.shape[0] for X, y, _ in datasets_loaded.values())
     log(f"\n>>> Total datasets loaded: {len(datasets_loaded)}, Total samples: {total_samples}")
 
     # --- Evaluate individual datasets ---
@@ -439,12 +486,12 @@ if __name__ == "__main__":
     log("  INDIVIDUAL DATASET RESULTS")
     log("=" * 72)
 
-    for ds_name, (X, y) in datasets_loaded.items():
+    for ds_name, (X, y, groups) in datasets_loaded.items():
         if len(X) < 50:
             log(f"\n{ds_name}: Too few samples ({len(X)}), skipping evaluation")
             continue
         log(f"\n--- {ds_name} ({X.shape[0]} samples, {X.shape[1]} features) ---")
-        r = evaluate_model(X, y, ds_name)
+        r = evaluate_model(X, y, ds_name, groups=groups)
         all_results.append(r)
         log(f"  >> Accuracy: {r['accuracy_mean']:.4f} +/- {r['accuracy_std']:.4f}")
         log(f"  >> F1 Macro: {r['f1_macro_mean']:.4f} +/- {r['f1_macro_std']:.4f}")
@@ -454,7 +501,7 @@ if __name__ == "__main__":
     raw_parts_X, raw_parts_y = [], []
     for ds in raw_eeg_datasets:
         if ds in datasets_loaded:
-            X, y = datasets_loaded[ds]
+            X, y, _ = datasets_loaded[ds]
             if X.shape[1] == 17:  # same feature space
                 raw_parts_X.append(X)
                 raw_parts_y.append(y)
@@ -493,4 +540,23 @@ if __name__ == "__main__":
     with open(out_path, "w") as f:
         json.dump(all_results, f, indent=2)
     log(f"\nResults saved to {out_path}")
+    formal_targets = ["DEAP", "SEED", "FACED"]
+    formal_results = [r for r in all_results if r["name"] in formal_targets]
+    if formal_results:
+        formal_json = Path("benchmarks/formal_benchmarks.json")
+        with open(formal_json, "w") as f:
+            json.dump(formal_results, f, indent=2)
+        formal_md = Path("benchmarks/formal_benchmarks.md")
+        lines = [
+            "| Dataset | Accuracy (mean±std) | F1 Macro (mean±std) | Samples | Features |",
+            "|---|---|---|---|---|",
+        ]
+        for r in sorted(formal_results, key=lambda x: -x["f1_macro_mean"]):
+            lines.append(
+                f"| {r['name']} | {r['accuracy_mean']:.4f}±{r['accuracy_std']:.4f} | "
+                f"{r['f1_macro_mean']:.4f}±{r['f1_macro_std']:.4f} | {r['n_samples']} | {r['n_features']} |"
+            )
+        formal_md.write_text("\n".join(lines))
+        log(f"Formal benchmark table saved to {formal_md}")
+
     log(f"Total time: {time.time()-t_start:.1f}s")

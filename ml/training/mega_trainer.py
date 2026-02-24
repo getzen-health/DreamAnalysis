@@ -16,7 +16,7 @@ from scipy import signal
 from scipy.stats import skew, kurtosis
 from sklearn.ensemble import (GradientBoostingClassifier, RandomForestClassifier,
                                ExtraTreesClassifier)
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, LeaveOneGroupOut
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -144,9 +144,10 @@ def load_deap_enhanced():
     log("  Loading DEAP...")
     import pickle
     deap_dir = Path('/Users/sravyalu/NeuralDreamWorkshop/ml/data/deap')
-    X, y = [], []
+    X, y, groups = [], [], []
 
     for dat in sorted(deap_dir.glob('s*.dat')):
+        subject_id = dat.stem
         with open(dat, 'rb') as f:
             d = pickle.load(f, encoding='latin1')
         data = d['data']    # (40, 40, 8064) - 40 trials, 40 channels, 8064 samples
@@ -165,8 +166,9 @@ def load_deap_enhanced():
                 y.append(2)  # negative
             else:
                 y.append(1)  # neutral
+            groups.append(subject_id)
 
-    return np.array(X), np.array(y), "DEAP"
+    return np.array(X), np.array(y), "DEAP", np.array(groups)
 
 
 def load_gameemo_enhanced():
@@ -179,13 +181,14 @@ def load_gameemo_enhanced():
     WIN = 30 * SFREQ  # 30 seconds
     STEP = 15 * SFREQ  # 50% overlap
 
-    X, y = [], []
+    X, y, groups = [], [], []
     # Find all preprocessed CSV files (not Raw)
     csv_files = [f for f in base.rglob('*AllChannels.csv') if 'Raw' not in f.name]
     log(f"    Found {len(csv_files)} preprocessed CSV files")
 
     for f in csv_files:
         fname = f.name
+        subject_id = f.parent.name or f.stem
         game = None
         for g in GAME_LABELS:
             if g in fname:
@@ -209,10 +212,11 @@ def load_gameemo_enhanced():
                 feat = extract_multichannel(segment, SFREQ)
                 X.append(feat)
                 y.append(label)
+                groups.append(subject_id)
         except Exception:
             continue
 
-    return np.array(X), np.array(y), "GAMEEMO"
+    return np.array(X), np.array(y), "GAMEEMO", np.array(groups)
 
 
 def load_eeg_er_enhanced():
@@ -225,11 +229,12 @@ def load_eeg_er_enhanced():
     WIN = 30 * SFREQ
     STEP = 15 * SFREQ
 
-    X, y = [], []
+    X, y, groups = [], [], []
     csv_files = sorted(base.rglob('*AllChannels.csv'))
     log(f"    Found {len(csv_files)} CSV files")
 
     for csv_file in csv_files:
+        subject_id = csv_file.parent.name or csv_file.stem
         fname = csv_file.name
         game = None
         for g in ["G1", "G2", "G3", "G4"]:
@@ -252,10 +257,11 @@ def load_eeg_er_enhanced():
                 feat = extract_multichannel(segment, SFREQ)
                 X.append(feat)
                 y.append(label)
+                groups.append(subject_id)
         except Exception:
             continue
 
-    return np.array(X), np.array(y), "EEG-ER"
+    return np.array(X), np.array(y), "EEG-ER", np.array(groups)
 
 
 def load_dens():
@@ -265,7 +271,7 @@ def load_dens():
     mne.set_log_level('ERROR')
 
     dens_dir = Path('/Users/sravyalu/NeuralDreamWorkshop/ml/data/dens')
-    X, y = [], []
+    X, y, groups = [], [], []
 
     for subj_dir in sorted(dens_dir.iterdir()):
         if not subj_dir.is_dir() or not subj_dir.name.startswith('sub-'):
@@ -304,12 +310,13 @@ def load_dens():
                     y.append(1)
                 else:
                     y.append(2)
+                groups.append(subj_dir.name)
         except Exception:
             continue
 
     if len(X) == 0:
-        return np.array([]), np.array([]), "DENS"
-    return np.array(X), np.array(y), "DENS"
+        return np.array([]), np.array([]), "DENS", None
+    return np.array(X), np.array(y), "DENS", np.array(groups)
 
 
 def load_seed_enhanced():
@@ -322,7 +329,7 @@ def load_seed_enhanced():
         return np.array([]), np.array([]), "SEED"
 
     # SEED has 3 separate files: Dataset, Labels, Subjects
-    features_raw, labels = None, None
+    features_raw, labels, subjects = None, None, None
     for f in npz_files:
         data = np.load(f, allow_pickle=True)
         arr = data['arr_0'] if 'arr_0' in data else data[list(data.keys())[0]]
@@ -331,10 +338,12 @@ def load_seed_enhanced():
         elif arr.ndim == 1 and arr.dtype in [np.int64, np.int32, np.float64]:
             if labels is None or 'label' in f.name.lower():
                 labels = arr
+            if subjects is None and 'subject' in f.name.lower():
+                subjects = arr
 
     if features_raw is None or labels is None:
         log("    Could not find features/labels in SEED npz files")
-        return np.array([]), np.array([]), "SEED"
+        return np.array([]), np.array([]), "SEED", None
 
     # Map SEED labels: 0=negative→2, 1=neutral→1, 2=positive→0
     # (Kaggle version uses 0,1,2 instead of original -1,0,1)
@@ -382,7 +391,11 @@ def load_seed_enhanced():
 
         X.append(feat[:43])
 
-    return np.array(X), y, "SEED"
+    groups = None
+    if subjects is not None and len(subjects) == len(y):
+        groups = np.array(subjects)
+
+    return np.array(X), y, "SEED", groups
 
 
 def load_brainwave_emotions():
@@ -392,7 +405,7 @@ def load_brainwave_emotions():
     csv_files = list(base.rglob('*.csv'))
 
     if not csv_files:
-        return np.array([]), np.array([]), "Brainwave"
+        return np.array([]), np.array([]), "Brainwave", None
 
     df = pd.read_csv(csv_files[0])
     label_col = df.columns[-1]
@@ -422,7 +435,7 @@ def load_brainwave_emotions():
     var_explained = sum(pca.explained_variance_ratio_) * 100
     log(f"    PCA: {X_raw.shape[1]} → {n_components} ({var_explained:.1f}% var)")
 
-    return X, y, "Brainwave"
+    return X, y, "Brainwave", None
 
 
 def load_muse_mental_state():
@@ -431,7 +444,7 @@ def load_muse_mental_state():
     csv_path = Path('/Users/sravyalu/.cache/kagglehub/datasets/birdy654/eeg-brainwave-dataset-mental-state/versions/2/mental-state.csv')
 
     if not csv_path.exists():
-        return np.array([]), np.array([]), "Muse-Mental"
+        return np.array([]), np.array([]), "Muse-Mental", None
 
     df = pd.read_csv(csv_path)
     label_col = 'Label'
@@ -454,7 +467,7 @@ def load_muse_mental_state():
     var_explained = sum(pca.explained_variance_ratio_) * 100
     log(f"    PCA: {X_raw.shape[1]} → {n_components} ({var_explained:.1f}% var)")
 
-    return X, y, "Muse-Mental"
+    return X, y, "Muse-Mental", None
 
 
 def load_muse2_motor_imagery():
@@ -470,11 +483,12 @@ def load_muse2_motor_imagery():
         'Gamma_TP9', 'Gamma_AF7', 'Gamma_AF8', 'Gamma_TP10',
     ]
 
-    X, y = [], []
+    X, y, groups = [], [], []
     WIN_SIZE = 256  # ~1 second windows at ~256 Hz Muse sampling
 
     csv_files = sorted(base.glob('*.csv'))
     for csv_file in csv_files[:15]:  # Use first 15 sessions
+        subject_id = csv_file.stem
         try:
             df = pd.read_csv(csv_file, low_memory=False)
 
@@ -539,13 +553,14 @@ def load_muse2_motor_imagery():
                     y.append(1)  # neutral/focused
                 else:
                     y.append(2)  # negative/stressed
+                groups.append(subject_id)
 
         except Exception as e:
             log(f"    Error: {csv_file.name}: {e}")
             continue
 
     if len(X) == 0:
-        return np.array([]), np.array([]), "Muse2-MI"
+        return np.array([]), np.array([]), "Muse2-MI", None
 
     X = np.array(X)
     y = np.array(y)
@@ -563,7 +578,7 @@ def load_muse2_motor_imagery():
         var_explained = sum(pca.explained_variance_ratio_) * 100
         log(f"    PCA: {X.shape[1]} → 80 ({var_explained:.1f}% var)")
 
-    return X, y, "Muse2-MI"
+    return X, y, "Muse2-MI", np.array(groups) if len(groups) == len(y) else None
 
 
 def load_confused_student():
@@ -572,7 +587,7 @@ def load_confused_student():
     csv_path = Path('/Users/sravyalu/.cache/kagglehub/datasets/wanghaohan/confused-eeg/versions/6/EEG_data.csv')
 
     if not csv_path.exists():
-        return np.array([]), np.array([]), "Confused-Student"
+        return np.array([]), np.array([]), "Confused-Student", None
 
     df = pd.read_csv(csv_path)
     # Features: Attention, Mediation, Delta, Theta, Alpha1, Alpha2, Beta1, Beta2, Gamma1, Gamma2
@@ -591,7 +606,7 @@ def load_confused_student():
     X_raw = X_raw[valid]
     y = y[valid]
 
-    return X_raw, y, "Confused-Student"
+    return X_raw, y, "Confused-Student", None
 
 
 def load_mental_attention():
@@ -600,7 +615,7 @@ def load_mental_attention():
     base = Path('/Users/sravyalu/.cache/kagglehub/datasets/inancigdem/eeg-data-for-mental-attention-state-detection/versions/1/EEG Data/EEG Data')
 
     if not base.exists():
-        return np.array([]), np.array([]), "Mental-Attention"
+        return np.array([]), np.array([]), "Mental-Attention", None
 
     from scipy.io import loadmat
 
@@ -608,11 +623,12 @@ def load_mental_attention():
     WIN = 4 * SFREQ  # 4 second windows
     STEP = 2 * SFREQ  # 50% overlap
 
-    X, y = [], []
+    X, y, groups = [], [], []
     mat_files = sorted(base.glob('*.mat'))
     log(f"    Found {len(mat_files)} recordings")
 
     for mat_file in mat_files:
+        subject_id = mat_file.stem
         try:
             mat = loadmat(str(mat_file))
             o = mat['o'][0, 0]
@@ -641,12 +657,13 @@ def load_mental_attention():
                 feat = extract_multichannel(segment, SFREQ)
                 X.append(feat)
                 y.append(label)
+                groups.append(subject_id)
         except Exception:
             continue
 
     if len(X) == 0:
-        return np.array([]), np.array([]), "Mental-Attention"
-    return np.array(X), np.array(y), "Mental-Attention"
+        return np.array([]), np.array([]), "Mental-Attention", None
+    return np.array(X), np.array(y), "Mental-Attention", np.array(groups)
 
 
 def load_muse_subconscious():
@@ -657,7 +674,7 @@ def load_muse_subconscious():
 
     if not zip_path.exists():
         log("    Not found, skipping")
-        return np.array([]), np.array([]), "Muse-Subconscious"
+        return np.array([]), np.array([]), "Muse-Subconscious", None
 
     import zipfile
 
@@ -665,7 +682,7 @@ def load_muse_subconscious():
     band_cols = [f'{band}_{ch}' for band in ['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']
                  for ch in ['TP9', 'AF7', 'AF8', 'TP10']]
 
-    X, y = [], []
+    X, y, groups = [], [], []
     n_subjects = 0
 
     with zipfile.ZipFile(zip_path, 'r') as zf:
@@ -674,6 +691,7 @@ def load_muse_subconscious():
 
         for csv_name in csv_files:
             try:
+                subject_id = Path(csv_name).stem
                 with zf.open(csv_name) as f:
                     df = pd.read_csv(f)
 
@@ -729,13 +747,14 @@ def load_muse_subconscious():
                                      np.percentile(col, 75) - np.percentile(col, 25)])
                     X.append(feat)
                     y.append(label)
+                    groups.append(subject_id)
 
                 n_subjects += 1
             except Exception:
                 continue
 
     if len(X) == 0:
-        return np.array([]), np.array([]), "Muse-Subconscious"
+        return np.array([]), np.array([]), "Muse-Subconscious", None
 
     X = np.array(X, dtype=np.float32)
     X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
@@ -751,7 +770,7 @@ def load_muse_subconscious():
         log(f"    PCA: {X.shape[1]} → {n_comp} ({var_explained:.1f}% var)")
 
     log(f"    Muse-Subconscious: {len(X)} samples, {X.shape[1]} features ({n_subjects} subjects)")
-    return X, np.array(y), "Muse-Subconscious"
+    return X, np.array(y), "Muse-Subconscious", np.array(groups) if len(groups) == len(y) else None
 
 
 def load_emokey_moments():
@@ -762,7 +781,7 @@ def load_emokey_moments():
 
     if not base.exists():
         log("    Not found, skipping")
-        return np.array([]), np.array([]), "EmoKey"
+        return np.array([]), np.array([]), "EmoKey", None
 
     # Emotion → 3-class mapping
     # HAPPINESS → positive(0), NEUTRAL_* → neutral(1), SADNESS/ANGER/FEAR → negative(2)
@@ -788,11 +807,12 @@ def load_emokey_moments():
     WIN = 4 * SFREQ  # 4-second windows
     STEP = 2 * SFREQ  # 50% overlap
 
-    X, y = [], []
+    X, y, groups = [], [], []
     subjects = sorted([d for d in base.iterdir() if d.is_dir()])
     log(f"    Found {len(subjects)} subjects")
 
     for subj_dir in subjects:
+        subject_id = subj_dir.name
         for csv_file in subj_dir.glob('*.csv'):
             emotion_name = csv_file.stem
             if emotion_name not in emotion_map:
@@ -830,11 +850,12 @@ def load_emokey_moments():
                         ])
                     X.append(feat)
                     y.append(label)
+                    groups.append(subject_id)
             except Exception:
                 continue
 
     if len(X) == 0:
-        return np.array([]), np.array([]), "EmoKey"
+        return np.array([]), np.array([]), "EmoKey", None
 
     X = np.array(X, dtype=np.float32)
     X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
@@ -850,7 +871,7 @@ def load_emokey_moments():
         log(f"    PCA: {X.shape[1]} → {n_comp} ({var_explained:.1f}% var)")
 
     log(f"    EmoKey: {len(X)} samples, {X.shape[1]} features")
-    return X, np.array(y), "EmoKey"
+    return X, np.array(y), "EmoKey", np.array(groups) if len(groups) == len(y) else None
 
 
 def load_seed_iv():
@@ -860,7 +881,7 @@ def load_seed_iv():
 
     if not base.exists():
         log("    Not found, skipping")
-        return np.array([]), np.array([]), "SEED-IV"
+        return np.array([]), np.array([]), "SEED-IV", None
 
     from scipy.io import loadmat
 
@@ -880,7 +901,7 @@ def load_seed_iv():
     left = list(range(0, 31))
     right = list(range(31, 62))
 
-    X, y = [], []
+    X, y, groups = [], [], []
     sessions = sorted([d for d in base.iterdir() if d.is_dir()])
     log(f"    Found {len(sessions)} sessions")
 
@@ -892,6 +913,7 @@ def load_seed_iv():
 
         mat_files = sorted(session_dir.glob('*.mat'))
         for mat_file in mat_files:
+            subject_id = f"{session_dir.name}:{mat_file.stem}"
             try:
                 mat = loadmat(str(mat_file))
                 # Extract de_LDS features (24 trials per file)
@@ -930,15 +952,16 @@ def load_seed_iv():
 
                         X.append(feat[:23])
                         y.append(mapped_label)
+                        groups.append(subject_id)
             except Exception:
                 continue
 
     if len(X) == 0:
-        return np.array([]), np.array([]), "SEED-IV"
+        return np.array([]), np.array([]), "SEED-IV", None
 
     X, y = np.array(X), np.array(y)
     log(f"    SEED-IV: {len(X)} samples, {X.shape[1]} features")
-    return X, y, "SEED-IV"
+    return X, y, "SEED-IV", np.array(groups)
 
 
 def load_dreamer():
@@ -952,14 +975,14 @@ def load_dreamer():
     mat_path = Path('/Users/sravyalu/NeuralDreamWorkshop/ml/data/DREAMER.mat')
     if not mat_path.exists():
         log("    DREAMER.mat not found, skipping")
-        return np.array([]), np.array([]), "DREAMER"
+        return np.array([]), np.array([]), "DREAMER", None
 
     SFREQ = 128
     WIN = 4 * SFREQ    # 4-second windows
     STEP = 2 * SFREQ   # 50% overlap (2-second step)
     N_CHANNELS = 14
 
-    X, y = [], []
+    X, y, groups = [], [], []
 
     try:
         with h5py.File(str(mat_path), 'r') as f:
@@ -1020,17 +1043,18 @@ def load_dreamer():
                         feat = extract_multichannel(segment, SFREQ)
                         X.append(feat)
                         y.append(label)
+                        groups.append(subj_idx)
 
     except Exception as e:
         log(f"    Error loading DREAMER: {e}")
-        return np.array([]), np.array([]), "DREAMER"
+        return np.array([]), np.array([]), "DREAMER", None
 
     if len(X) == 0:
-        return np.array([]), np.array([]), "DREAMER"
+        return np.array([]), np.array([]), "DREAMER", None
 
     X, y = np.array(X), np.array(y)
     log(f"    DREAMER: {len(X)} samples, {X.shape[1]} features")
-    return X, y, "DREAMER"
+    return X, y, "DREAMER", np.array(groups) if len(groups) == len(y) else None
 
 
 def load_stew():
@@ -1047,7 +1071,7 @@ def load_stew():
 
     if not dataset_path.exists():
         log("    STEW dataset not found, skipping")
-        return np.array([]), np.array([]), "STEW"
+        return np.array([]), np.array([]), "STEW", None
 
     SFREQ = 128
     WIN = 4 * SFREQ    # 4-second windows
@@ -1075,7 +1099,7 @@ def load_stew():
 
         if eeg_data is None or labels is None:
             log("    Could not find data/labels in STEW .mat files")
-            return np.array([]), np.array([]), "STEW"
+            return np.array([]), np.array([]), "STEW", None
 
         n_channels, n_samples, n_segments = eeg_data.shape
         log(f"    STEW shape: {eeg_data.shape}, {n_segments} segments, {n_channels} channels")
@@ -1097,14 +1121,14 @@ def load_stew():
 
     except Exception as e:
         log(f"    Error loading STEW: {e}")
-        return np.array([]), np.array([]), "STEW"
+        return np.array([]), np.array([]), "STEW", None
 
     if len(X) == 0:
-        return np.array([]), np.array([]), "STEW"
+        return np.array([]), np.array([]), "STEW", None
 
     X, y = np.array(X), np.array(y)
     log(f"    STEW: {len(X)} samples, {X.shape[1]} features")
-    return X, y, "STEW"
+    return X, y, "STEW", None
 
 
 # ─── NOISE AUGMENTATION ──────────────────────────────────────────────
@@ -1157,8 +1181,8 @@ def augment_dataset_features(X, y, n_augmented=2, difficulty='medium'):
 
 # ─── EVALUATION ──────────────────────────────────────────────────────
 
-def evaluate_models(X, y, dataset_name, n_features_target=None):
-    """Train and evaluate multiple models with 5-fold CV."""
+def evaluate_models(X, y, dataset_name, n_features_target=None, groups=None):
+    """Train and evaluate multiple models with CV (LOSO if subject groups provided)."""
     if len(X) == 0:
         log(f"  {dataset_name}: No data, skipping")
         return {}
@@ -1208,17 +1232,26 @@ def evaluate_models(X, y, dataset_name, n_features_target=None):
         }
 
     results = {}
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    use_groups = groups is not None and len(groups) == len(y) and len(np.unique(groups)) >= 2
+    if use_groups:
+        cv = LeaveOneGroupOut()
+        split_iter = cv.split(X_scaled, y, groups=groups)
+        cv_label = f"LOSO ({len(np.unique(groups))} subjects)"
+    else:
+        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        split_iter = skf.split(X_scaled, y)
+        cv_label = "Stratified 5-fold"
 
     log(f"\n--- {dataset_name} ({len(X)} samples, {X_scaled.shape[1]} features) ---")
     label_dist = {int(k): int(v) for k, v in zip(*np.unique(y, return_counts=True))}
     log(f"    Labels: {label_dist}")
+    log(f"    CV: {cv_label}")
 
     for model_name, model in models.items():
         accs, f1s = [], []
         t0 = time.time()
 
-        for fold, (train_idx, test_idx) in enumerate(skf.split(X_scaled, y)):
+        for fold, (train_idx, test_idx) in enumerate(split_iter):
             X_train, X_test = X_scaled[train_idx], X_scaled[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
 
@@ -1240,7 +1273,8 @@ def evaluate_models(X, y, dataset_name, n_features_target=None):
             'accuracy_std': float(acc_std),
             'f1': float(f1_mean),
             'f1_std': float(f1_std),
-            'time': float(elapsed)
+            'time': float(elapsed),
+            'cv': cv_label
         }
 
     return results
@@ -1250,7 +1284,11 @@ def combine_datasets(datasets, target_features=80):
     """Combine multiple datasets with different feature dimensions using PCA alignment."""
     all_X, all_y, names = [], [], []
 
-    for X, y, name in datasets:
+    for item in datasets:
+        if len(item) == 4:
+            X, y, name, _ = item
+        else:
+            X, y, name = item
         if len(X) == 0:
             continue
         if len(np.unique(y)) < 2:
@@ -1306,9 +1344,14 @@ def main():
     # 1. Raw EEG datasets (38-dim multichannel features)
     for loader in [load_deap_enhanced, load_gameemo_enhanced, load_eeg_er_enhanced, load_dens, load_dreamer, load_stew]:
         try:
-            X, y, name = loader()
+            result = loader()
+            if len(result) == 4:
+                X, y, name, groups = result
+            else:
+                X, y, name = result
+                groups = None
             if len(X) > 0:
-                datasets[name] = (X, y, name)
+                datasets[name] = (X, y, name, groups)
                 raw_eeg_datasets.append((X, y, name))
                 log(f"    {name}: {len(X)} samples, {X.shape[1]} features")
         except Exception as e:
@@ -1319,9 +1362,14 @@ def main():
                    load_muse2_motor_imagery, load_confused_student, load_mental_attention,
                    load_muse_subconscious, load_emokey_moments, load_seed_iv]:
         try:
-            X, y, name = loader()
+            result = loader()
+            if len(result) == 4:
+                X, y, name, groups = result
+            else:
+                X, y, name = result
+                groups = None
             if len(X) > 0:
-                datasets[name] = (X, y, name)
+                datasets[name] = (X, y, name, groups)
                 pre_extracted_datasets.append((X, y, name))
                 log(f"    {name}: {len(X)} samples, {X.shape[1]} features")
         except Exception as e:
@@ -1336,8 +1384,8 @@ def main():
     log("=" * 80)
 
     all_results = {}
-    for name, (X, y, _) in datasets.items():
-        results = evaluate_models(X, y, name)
+    for name, (X, y, _, groups) in datasets.items():
+        results = evaluate_models(X, y, name, groups=groups)
         if results:
             best_model = max(results, key=lambda m: results[m]['f1'])
             all_results[name] = {
@@ -1402,7 +1450,7 @@ def main():
     log("  COMBINED: ALL EXCEPT SEED (balanced dataset sizes)")
     log("=" * 80)
 
-    no_seed = [(X, y, n) for X, y, n in all_data if 'SEED' not in n]
+    no_seed = [(X, y, n) for X, y, n, _ in all_data if 'SEED' not in n]
     X_noseed, y_noseed, noseed_name = combine_datasets(no_seed, target_features=80)
 
     if len(X_noseed) > 0:
@@ -1420,7 +1468,7 @@ def main():
             }
 
     # ─── COMBINED: MUSE-ONLY DEVICES ──────────────────────────────
-    muse_datasets = [(X, y, n) for X, y, n in all_data if any(k in n for k in ['Brainwave', 'Muse'])]
+    muse_datasets = [(X, y, n) for X, y, n, _ in all_data if any(k in n for k in ['Brainwave', 'Muse'])]
     if len(muse_datasets) > 1:
         log("\n" + "=" * 80)
         log("  COMBINED: MUSE DEVICES ONLY")

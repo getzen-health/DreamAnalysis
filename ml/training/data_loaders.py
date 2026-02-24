@@ -126,7 +126,7 @@ def load_dens(
     data_dir: str = "data/dens",
     target_fs: float = 256.0,
     epoch_sec: float = 10.0,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Load DENS dataset (OpenNeuro ds003751) — real 128-channel EEG with emotion labels.
 
     Dataset: 'Dataset on Emotion with Naturalistic Stimuli'
@@ -142,7 +142,8 @@ def load_dens(
         epoch_sec: Duration of each epoch to extract (seconds).
 
     Returns:
-        (X, y) where X is feature vectors and y is emotion labels 0-5.
+        (X, y, groups) where X is feature vectors, y is emotion labels 0-5,
+        and groups is an array of subject IDs (for LOSO cross-validation).
     """
     import mne
     import csv
@@ -155,7 +156,7 @@ def load_dens(
     if not subject_dirs:
         raise FileNotFoundError(f"No DENS subjects found in {data_dir}")
 
-    X_all, y_all = [], []
+    X_all, y_all, groups_all = [], [], []
 
     for subj_dir in subject_dirs:
         subj_id = subj_dir.name
@@ -258,6 +259,7 @@ def load_dens(
                     features = extract_features(preprocess(epoch_data, target_fs), target_fs)
                     X_all.append(list(features.values()))
                     y_all.append(emotion_label)
+                    groups_all.append(subj_id)
                     n_extracted += 1
 
                 pos += step_samples
@@ -267,7 +269,7 @@ def load_dens(
     if len(X_all) == 0:
         raise RuntimeError("No epochs extracted from DENS dataset.")
 
-    return np.array(X_all), np.array(y_all)
+    return np.array(X_all), np.array(y_all), np.array(groups_all)
 
 
 def load_deap_or_simulate(
@@ -294,21 +296,24 @@ def load_deap_or_simulate(
     if dens_path.exists() and list(dens_path.glob("sub-*")):
         try:
             print("  Found DENS dataset, loading real EEG data...")
-            return load_dens(data_dir="data/dens", target_fs=fs, epoch_sec=epoch_sec)
+            X, y, _ = load_dens(data_dir="data/dens", target_fs=fs, epoch_sec=epoch_sec)
+            return X, y
         except Exception as e:
             print(f"  DENS loading failed: {e}, trying DEAP...")
 
     # Try DEAP (local files or Kaggle auto-download)
     deap_path = Path(data_dir)
     if deap_path.exists() and list(deap_path.glob("s*.dat")):
-        return _load_deap_real(deap_path, fs)
+        X, y, _ = _load_deap_real(deap_path, fs)
+        return X, y
 
     # Try auto-downloading DEAP from Kaggle
     try:
         print("  Attempting DEAP download from Kaggle...")
         deap_path = download_deap_kaggle(target_dir=data_dir)
         if list(deap_path.glob("s*.dat")):
-            return _load_deap_real(deap_path, fs)
+            X, y, _ = _load_deap_real(deap_path, fs)
+            return X, y
     except Exception as e:
         print(f"  DEAP Kaggle download failed: {e}")
 
@@ -318,11 +323,16 @@ def load_deap_or_simulate(
 
 def _load_deap_real(
     data_dir: Path, fs: float = 128.0
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Load real DEAP .dat files and map to 6 emotions via circumplex model.
 
     DEAP preprocessed data is at 128 Hz with 3s baseline + 60s trial.
     Uses average of frontal EEG channels for better emotion discrimination.
+
+    Returns:
+        X: Feature matrix (n_epochs, n_features).
+        y: Emotion labels 0-5 (n_epochs,).
+        groups: Subject IDs per epoch (n_epochs,) — for LOSO cross-validation.
     """
     import pickle
 
@@ -330,10 +340,11 @@ def _load_deap_real(
     # Fp1=0, AF3=1, F3=2, F7=3, FC5=4, FC1=5, Fp2=16, AF4=17, F4=18, F8=19
     FRONTAL_CH = [0, 1, 2, 3, 4, 5, 16, 17, 18, 19]
 
-    X_all, y_all = [], []
+    X_all, y_all, groups_all = [], [], []
     dat_files = sorted(data_dir.glob("s*.dat"))
 
     for dat_file in dat_files:
+        subj_id = dat_file.stem  # e.g. "s01", "s02", ...
         with open(dat_file, "rb") as f:
             data = pickle.load(f, encoding="latin1")
 
@@ -356,8 +367,9 @@ def _load_deap_real(
             features = extract_features(preprocess(frontal_avg, fs), fs)
             X_all.append(list(features.values()))
             y_all.append(emotion_label)
+            groups_all.append(subj_id)
 
-    return np.array(X_all), np.array(y_all)
+    return np.array(X_all), np.array(y_all), np.array(groups_all)
 
 
 def _circumplex_to_emotion(valence: float, arousal: float) -> int:
@@ -1035,6 +1047,7 @@ def load_faced(
     data_dir: str = "data/faced",
     target_fs: float = 256.0,
     epoch_sec: float = 4.0,
+    return_groups: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Load FACED dataset for cross-subject emotion recognition.
 
@@ -1069,7 +1082,7 @@ def load_faced(
         "neutral": 5,                        # focused
     }
 
-    X_all, y_all = [], []
+    X_all, y_all, groups = [], [], []
 
     if npy_files:
         # Pre-processed numpy format
@@ -1110,9 +1123,9 @@ def load_faced(
 
             if labels is not None and eeg_data.ndim == 3:
                 # Shape: (n_trials, n_channels, n_samples)
-                for trial_idx in range(eeg_data.shape[0]):
-                    if trial_idx >= len(labels):
-                        break
+                    for trial_idx in range(eeg_data.shape[0]):
+                        if trial_idx >= len(labels):
+                            break
                     label = int(labels[trial_idx])
                     if label < 0 or label > 5:
                         continue
@@ -1125,11 +1138,13 @@ def load_faced(
                         trial_avg = trial
 
                     # Slide windows
-                    for pos in range(0, len(trial_avg) - n_samples_epoch, n_samples_epoch // 2):
-                        epoch = trial_avg[pos:pos + n_samples_epoch]
-                        features = extract_features(preprocess(epoch, target_fs), target_fs)
-                        X_all.append(list(features.values()))
-                        y_all.append(label)
+                        for pos in range(0, len(trial_avg) - n_samples_epoch, n_samples_epoch // 2):
+                            epoch = trial_avg[pos:pos + n_samples_epoch]
+                            features = extract_features(preprocess(epoch, target_fs), target_fs)
+                            X_all.append(list(features.values()))
+                            y_all.append(label)
+                            if return_groups:
+                                groups.append(mat_file.stem)
 
             print(f"  {mat_file.name}: {len(y_all)} epochs total")
 
@@ -1139,6 +1154,8 @@ def load_faced(
             "Download from: https://doi.org/10.7303/syn50614194"
         )
 
+    if return_groups:
+        return np.array(X_all), np.array(y_all), np.array(groups)
     return np.array(X_all), np.array(y_all)
 
 
