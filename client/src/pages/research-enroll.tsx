@@ -68,7 +68,7 @@ const CONSENT_SECTIONS = [
     id: "compensation",
     title: "5. Compensation",
     content:
-      "This study is unpaid. There is no monetary compensation for participation. At the end of the study, you will receive a personalized summary report of your EEG patterns, mood trends, and food–dream correlations collected over the 30 days.",
+      "This is a volunteer study. At the end of the study, you will receive a personalized summary report of your EEG patterns, mood trends, and food–dream correlations collected over the 30 days.",
   },
   {
     id: "privacy",
@@ -252,7 +252,7 @@ export default function ResearchEnroll() {
           <div className="grid grid-cols-1 gap-3">
             {[
               { icon: Calendar, label: "30 consecutive days", sub: "~25–35 min/day" },
-              { icon: DollarSign, label: "Unpaid volunteer study", sub: "Contribute to dream science" },
+              { icon: DollarSign, label: "Volunteer study", sub: "Contribute to dream science" },
               { icon: Brain, label: "Requires: Muse 2 EEG headset", sub: "Bring your own device" },
               { icon: Shield, label: "IRB-reviewed research", sub: "Pseudonymized data" },
             ].map(({ icon: Icon, label, sub }) => (

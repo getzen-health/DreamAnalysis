@@ -290,7 +290,7 @@ export default function ResearchHub() {
         <Card className="border-violet-500/30 bg-violet-500/5">
           <CardContent className="pt-5 space-y-3">
             {[
-              { emoji: "🔬", text: "Unpaid volunteer study — contribute to dream science" },
+              { emoji: "🔬", text: "Volunteer study — contribute to dream science" },
               { emoji: "📅", text: "30 days · ~25 min/day · all from home" },
               { emoji: "🧠", text: "Requires your own Muse 2 EEG headset" },
               { emoji: "🍽️", text: "Photo your meals — AI tracks food → mood → dreams" },
