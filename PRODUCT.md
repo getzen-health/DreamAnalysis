@@ -138,15 +138,18 @@ The user who has gone around it five times will never leave.
 Read this before starting any new feature. Be honest about where things are.
 
 ```
-Core ML / Signal pipeline    █████████░  90%
+Core ML / Signal pipeline    █████████░  92%
   Mastoid reref, DASM/RASM, FAA, FMT, 4-sec epochs, BaselineCalibrator all done.
   Food-Emotion module complete (6 states, 4 biomarkers, dietary guidance).
   Cross-dataset LGBM now 69.25% CV (DEAP+DREAMER+GAMEEMO). Device-aware gamma masking done.
+  PPO RL agent live: adaptive threshold on every /neurofeedback/evaluate call.
+    67% reward rate in flow zone (target 40–75%). 18 models total.
   Missing: personalization after 5 sessions, 97.79% LGBM integration.
 
-Backend API                  █████████░  90%
-  79 endpoints. 18 modular route files (routes.py split done). WebSocket exists.
+Backend API                  █████████░  92%
+  82 endpoints. 18 modular route files (routes.py split done). WebSocket exists.
   Per-user state isolation fixed. Food-emotion + simulation support added.
+  RL training endpoint runs in isolated subprocess (no GIL/OpenMP deadlock). ✅
   Prod deployment: Render free tier (neural-dream-ml.onrender.com). ✅
 
 Frontend                     ██████░░░░  60%
@@ -205,7 +208,15 @@ Fixed: buffering progress bar shown; emotion predictions blocked until
 ~~Every demo requires running `uvicorn` locally.~~
 Fixed: deployed to Render free tier (neural-dream-ml.onrender.com).
 
-### 6. Device pairing UX missing
+### ~~6. Neurofeedback uses a static, fixed difficulty threshold~~ ✅ Fixed
+~~The protocol threshold never changes. Too easy → boredom. Too hard → disengagement.
+Neither produces learning.~~
+Fixed: PPO RL agent fires on every `/neurofeedback/evaluate` call. Reads 8-dim
+session state (score history, reward rate, streak, band ratio, trend, volatility),
+samples action (easier / hold / harder), adjusts threshold ±0.05 immediately.
+67% live reward rate — in the target flow zone (40–75%). Model: `rl_nf_agent.pt`.
+
+### 7. Device pairing UX missing
 No guided flow to connect Muse 2. User must know to go to Settings and
 connect manually. No signal quality check before first session starts.
 Build a pairing wizard: discover → connect → HSI check → "good to go".
