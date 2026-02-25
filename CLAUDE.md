@@ -199,7 +199,7 @@ Raw Muse 2 EEG (256 Hz, 4 channels, µV)
 predict(eeg, fs=256)  ← receives (4, n_samples) array from Muse 2
     │
     ├── If mega_lgbm_model loaded AND benchmark ≥ 60%:   ← THIS IS THE LIVE PATH
-    │       → _predict_mega_lgbm()   (73.94% CV, 9 datasets)
+    │       → _predict_mega_lgbm()   (74.21% CV, 9 datasets, 163 534 samples)
     │
     ├── If DEAP ONNX model loaded AND accuracy ≥ 60%:
     │       → _predict_onnx()

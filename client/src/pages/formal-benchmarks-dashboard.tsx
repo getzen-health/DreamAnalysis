@@ -403,7 +403,7 @@ const datasets = [
     f1: 0.421,
     cvMethod: "Cross-subject LOSO",
     note: "Combined with DEAP for DREAMER training run. Actual Muse hardware — most realistic for our system",
-    caveat: "Best available Muse-specific data. 45.3% cross-subject is expected without personalization.",
+    caveat: "Best available Muse-specific data. Part of 9-dataset mega LGBM (74.21% CV cross-subject).",
     status: "loaded",
   },
   {
@@ -521,8 +521,8 @@ const differentiation = [
     dimension: "Accuracy (Honest)",
     published: "Published papers report within-subject 85–98% (best case). Cross-subject: 60–75%. Consumer hardware cross-subject: 45–65%.",
     thisWork:
-      "Cross-subject: 45.3% (DEAP, below 60% gate → feature heuristics used). Feature heuristics with calibration: 65–75%. This is HONEST and matches what real users experience, unlike inflated published numbers.",
-    advantage: false,
+      "Cross-subject: 74.21% CV (mega LGBM, 9 datasets, 163 534 samples — above 60% gate, active live path). Feature heuristics fallback with calibration: 65–75%. This is HONEST cross-subject accuracy, unlike inflated published numbers.",
+    advantage: true,
   },
   {
     dimension: "Calibration & Personalization",
@@ -638,7 +638,7 @@ const publishingPlan = [
     title: "✅ SEED-IV Dataset Integration — DONE",
     status: "done",
     detail:
-      "Downloaded SEED-IV via Kaggle (phhasian0710/seed-iv, ~14 GB). 15 subjects × 3 sessions = 45 .mat files. Pre-extracted DE features (62-ch, 4-sec windows). 4 Muse-equivalent channels selected: T7(23)→TP9, FP1(0)→AF7, FP2(2)→AF8, T8(31)→TP10. 4-class labels (neutral/sad/fear/happy) from ReadMe.txt, mapped to 3-class. WIN=4 chunks with HOP=2 → 17 490 samples. Added to mega-trainer alongside DEAP+DREAMER+GAMEEMO+DENS+FACED. New CV accuracy: 73.94% ± 0.23% (133 617 samples, 6 datasets).",
+      "Downloaded SEED-IV via Kaggle (phhasian0710/seed-iv, ~14 GB). 15 subjects × 3 sessions = 45 .mat files. Pre-extracted DE features (62-ch, 4-sec windows). 4 Muse-equivalent channels selected: T7(23)→TP9, FP1(0)→AF7, FP2(2)→AF8, T8(31)→TP10. 4-class labels (neutral/sad/fear/happy) from ReadMe.txt, mapped to 3-class. WIN=4 chunks with HOP=2 → 17 490 samples. Combined with EEG-ER + STEW + Muse-Sub → mega LGBM 74.21% CV ± 0.19% (163 534 samples, 9 datasets).",
     timeline: "Complete",
   },
   {

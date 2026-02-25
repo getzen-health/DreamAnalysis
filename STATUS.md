@@ -24,7 +24,7 @@
 - [x] 49 shadcn/ui components, 5 chart components, dark theme, responsive layout
 
 ### ML Backend (82 endpoints, 18 models)
-- [x] Emotion classifier (LightGBM, 97.79% on DEAP+SEED+GAMEEMO — within-subject)
+- [x] Emotion classifier (LightGBM mega, 74.21% CV on 9 datasets, 163 534 samples — cross-subject)
 - [x] Sleep staging, dream detection, flow state, creativity detection
 - [x] Drowsiness, cognitive load, attention, stress, meditation classifiers
 - [x] Lucid dream detection
@@ -83,7 +83,7 @@
 - [ ] **No frontend tests** — No Vitest or Jest configured. All 19 pages are untested
 - [ ] **Untested hardware integration** — BrainFlow Muse 2 connection not tested end-to-end
 - [ ] **Train remaining 15 models** — Only emotion classifier has formal training pipeline. Others use heuristic fallbacks
-- [ ] **97.79% LGBM model not integrated** — Exists in `ml/models/` but requires PCA transform + 3→6 class mapping to plug in
+- [x] ~~**97.79% LGBM model**~~ — Deleted (inflated score, per-dataset PCA + within-subject contamination). Replaced by mega LGBM 74.21% CV
 - [ ] **Baseline calibration has no frontend UX** — API (`/calibration/baseline/add-frame`) exists but there is no guided 2-min onboarding screen
 - [ ] **Device pairing UX missing** — No guided flow to connect Muse 2 with signal quality check before session starts
 - [ ] **Food-emotion module needs validation data** — 6 states are scientifically grounded but no pilot study has been run to measure real accuracy

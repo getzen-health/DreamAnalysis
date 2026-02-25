@@ -141,10 +141,10 @@ Read this before starting any new feature. Be honest about where things are.
 Core ML / Signal pipeline    █████████░  92%
   Mastoid reref, DASM/RASM, FAA, FMT, 4-sec epochs, BaselineCalibrator all done.
   Food-Emotion module complete (6 states, 4 biomarkers, dietary guidance).
-  Cross-dataset LGBM now 69.25% CV (DEAP+DREAMER+GAMEEMO). Device-aware gamma masking done.
+  Mega LGBM now 74.21% CV (9 datasets: DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub, 163 534 samples).
   PPO RL agent live: adaptive threshold on every /neurofeedback/evaluate call.
     67% reward rate in flow zone (target 40–75%). 18 models total.
-  Missing: personalization after 5 sessions, 97.79% LGBM integration.
+  Missing: personalization after 5 sessions.
 
 Backend API                  █████████░  92%
   82 endpoints. 18 modular route files (routes.py split done). WebSocket exists.

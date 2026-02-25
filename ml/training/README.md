@@ -6,7 +6,8 @@ Scripts for training ML models on EEG datasets. These run standalone — they ar
 
 | Script | What It Trains |
 |--------|---------------|
-| `mega_trainer.py` | Comprehensive trainer — all algorithms (LightGBM, XGBoost, MLP, RF) on all datasets. Produced the 97.79% emotion classifier |
+| `mega_trainer.py` | Legacy multi-algorithm trainer (LightGBM, XGBoost, MLP, RF). Superseded by `train_mega_lgbm_unified.py` |
+| `train_mega_lgbm_unified.py` | Active unified trainer — global PCA 85→80 + LightGBM on 9 datasets. Produces 74.21% CV (163 534 samples) |
 | `train_emotion.py` | Emotion classifier specifically |
 | `train_sleep.py` | Sleep staging model |
 | `train_dream.py` | Dream detector |

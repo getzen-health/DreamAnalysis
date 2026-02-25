@@ -6,7 +6,7 @@ Machine learning model classes for EEG signal classification.
 
 | Class | File | Task | Accuracy |
 |-------|------|------|----------|
-| `EmotionClassifier` | `emotion_classifier.py` | 6 emotions + valence/arousal | 97.79% (LightGBM) |
+| `EmotionClassifier` | `emotion_classifier.py` | 6 emotions + valence/arousal | 74.21% CV (mega LGBM, 9 datasets) |
 | `SleepStagingModel` | `sleep_staging.py` | Wake/N1/N2/N3/REM classification | — |
 | `DreamDetector` | `dream_detector.py` | Dreaming vs non-dreaming | — |
 | `FlowStateDetector` | `flow_state_detector.py` | Flow state score (0-1) | — |

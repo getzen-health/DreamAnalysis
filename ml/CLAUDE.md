@@ -9,7 +9,7 @@ The Python machine-learning service that powers all EEG analysis. Takes raw EEG 
 | FastAPI | REST API + WebSocket server |
 | uvicorn | ASGI server |
 | scikit-learn | Feature extraction, base classifiers |
-| LightGBM | Primary emotion classifier (97.79% accuracy) |
+| LightGBM | Primary emotion classifier (74.21% CV, 9 datasets) |
 | XGBoost | Alternative classifier |
 | PyTorch | Neural network models |
 | ONNX Runtime | Optimized model inference |
@@ -30,7 +30,7 @@ uvicorn main:app --reload --port 8000
 
 | Model | File | What It Does (Plain English) |
 |-------|------|------------------------------|
-| Emotion Classifier | `emotion_classifier.py` | Detects 6 emotions (happy, sad, angry, fear, surprise, neutral) + valence/arousal. LightGBM, 97.79% accuracy |
+| Emotion Classifier | `emotion_classifier.py` | Detects 6 emotions (happy, sad, angry, fear, surprise, neutral) + valence/arousal. LightGBM mega, 74.21% CV (9 datasets) |
 | Sleep Staging | `sleep_staging.py` | Classifies sleep into Wake, N1, N2, N3, REM stages |
 | Dream Detector | `dream_detector.py` | Detects when someone is dreaming during sleep |
 | Flow State Detector | `flow_state_detector.py` | Measures how "in the zone" you are (0-1 score) |

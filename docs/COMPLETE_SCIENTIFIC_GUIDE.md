@@ -85,7 +85,7 @@ The system runs 12 specialized models simultaneously on every chunk of EEG data.
 
 **File**: `emotion_classifier.py`
 **Output**: 6 emotions + valence + arousal + stress/focus/relaxation indices
-**Trained Model**: LightGBM, 97.79% cross-validation accuracy, trained on 123,234 samples from 8 datasets (GAMEEMO, EEG-ER, SEED, Brainwave, Muse-Mental, Muse-Subconscious, SEED-IV, STEW)
+**Trained Model**: LightGBM mega (global PCA 85→80), 74.21% CV cross-subject, trained on 163,534 samples from 9 datasets (DEAP, DREAMER, GAMEEMO, DENS, FACED, SEED-IV, EEG-ER, STEW, Muse-Sub)
 
 ### The 6 Emotions
 
@@ -903,9 +903,10 @@ The emotion classifier went through 6 iterations:
 | v2 | XGBoost (1000, cleaned data) | 88.22% |
 | v3 | LightGBM (1500, ultra-clean) | 94.23% |
 | v5 | LightGBM (dataset-aware features) | 94.43% |
-| v7 | LightGBM (premium, 8 datasets) | **97.79%** |
+| v7 | LightGBM (premium, 8 datasets) | 97.79% (inflated — within-subject + hardcoded CV, deleted) |
+| v8 | Mega LGBM (global PCA, 9 datasets) | **74.21% CV** (cross-subject, honest benchmark) |
 
-A compact ResidualMLP alternative achieves 93.11% accuracy at **41x smaller** model size (2.5 MB vs 100 MB).
+The v8 unified trainer uses a single global PCA fitted on all data — deployable with a single `.pkl` file.
 
 ---
 

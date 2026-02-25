@@ -184,7 +184,7 @@ graph TD
     FEAT --> SPECIAL
 
     subgraph TRAINED["Trained Model — LightGBM"]
-        EMO["Emotion Classifier<br/><b>97.79% accuracy</b><br/>6 emotions + valence/arousal<br/>Trained on 8 datasets"]
+        EMO["Emotion Classifier<br/><b>74.21% CV</b><br/>6 emotions + valence/arousal<br/>Trained on 9 datasets (163 534 samples)"]
     end
 
     subgraph SLEEP["Sleep & Dream Models — Feature-Based"]
