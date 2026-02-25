@@ -56,7 +56,7 @@ const CONSENT_SECTIONS = [
     id: "risks",
     title: "3. Potential Risks",
     content:
-      "Risks are minimal. Wearing the Muse 2 consumer EEG headset poses no known physical risk — it uses no electrical stimulation and produces no radiation. Reflecting on dreams or emotional experiences may occasionally feel mildly uncomfortable. You may skip or stop any entry at any time with no consequence to your compensation. If the morning mood check indicates you are experiencing distress, the app will display mental health resources.",
+      "Risks are minimal. Wearing the Muse 2 consumer EEG headset poses no known physical risk — it uses no electrical stimulation and produces no radiation. Reflecting on dreams or emotional experiences may occasionally feel mildly uncomfortable. You may skip or stop any entry at any time. If the morning mood check indicates you are experiencing distress, the app will display mental health resources.",
   },
   {
     id: "benefits",
@@ -68,7 +68,7 @@ const CONSENT_SECTIONS = [
     id: "compensation",
     title: "5. Compensation",
     content:
-      "You will receive $5 for each valid study day completed (defined as completing at least 2 of 3 daily touchpoints). Maximum compensation is $150 for all 30 days. A $25 bonus is available if you complete the optional overnight EEG on 10 or more nights (see Section 6 below). If you withdraw early, you will receive pro-rated compensation for all valid days already completed, paid within 14 days of withdrawal.",
+      "This study is unpaid. There is no monetary compensation for participation. At the end of the study, you will receive a personalized summary report of your EEG patterns, mood trends, and food–dream correlations collected over the 30 days.",
   },
   {
     id: "privacy",
@@ -80,7 +80,7 @@ const CONSENT_SECTIONS = [
     id: "voluntary",
     title: "7. Voluntary Participation and Withdrawal",
     content:
-      "Participation is entirely voluntary. You may withdraw at any time, for any reason, without penalty. To withdraw, use the 'Withdraw from Study' option on your research dashboard or email the researcher. Upon withdrawal, you will receive pro-rated compensation for valid days completed. Data collected before withdrawal will be retained for research unless you request deletion within 30 days of withdrawal — requests are honored within 7 days.",
+      "Participation is entirely voluntary. You may withdraw at any time, for any reason, without penalty. To withdraw, use the 'Withdraw from Study' option on your research dashboard or email the researcher. Data collected before withdrawal will be retained for research unless you request deletion within 30 days of withdrawal — requests are honored within 7 days.",
   },
   {
     id: "contact",
@@ -252,7 +252,7 @@ export default function ResearchEnroll() {
           <div className="grid grid-cols-1 gap-3">
             {[
               { icon: Calendar, label: "30 consecutive days", sub: "~25–35 min/day" },
-              { icon: DollarSign, label: "Up to $150 + $25 bonus", sub: "$5 per valid day" },
+              { icon: DollarSign, label: "Unpaid volunteer study", sub: "Contribute to dream science" },
               { icon: Brain, label: "Requires: Muse 2 EEG headset", sub: "Bring your own device" },
               { icon: Shield, label: "IRB-reviewed research", sub: "Pseudonymized data" },
             ].map(({ icon: Icon, label, sub }) => (
@@ -463,7 +463,7 @@ export default function ResearchEnroll() {
             <li>Wear the Muse 2 headset during sleep (same sensor, no extra equipment)</li>
             <li>No electrical stimulation — purely passive recording</li>
             <li>You may remove it at any time during the night</li>
-            <li>$25 bonus if you complete 10+ overnight sessions across the 30 days</li>
+            <li>Optional — you may remove the headset at any time during the night</li>
           </ul>
         </CardContent>
       </Card>
@@ -486,7 +486,7 @@ export default function ResearchEnroll() {
             <RadioGroupItem value="no" id="overnight-no" className="mt-0.5" />
             <Label htmlFor="overnight-no" className="cursor-pointer space-y-0.5">
               <div className="font-medium text-sm">No thanks — daytime sessions only</div>
-              <div className="text-xs text-muted-foreground">No bonus, but otherwise full participation</div>
+              <div className="text-xs text-muted-foreground">Daytime sessions only, full participation</div>
             </Label>
           </div>
         </RadioGroup>

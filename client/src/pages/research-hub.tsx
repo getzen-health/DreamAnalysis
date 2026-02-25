@@ -290,7 +290,7 @@ export default function ResearchHub() {
         <Card className="border-violet-500/30 bg-violet-500/5">
           <CardContent className="pt-5 space-y-3">
             {[
-              { emoji: "💰", text: "Up to $150 + $25 bonus — $5 per valid day" },
+              { emoji: "🔬", text: "Unpaid volunteer study — contribute to dream science" },
               { emoji: "📅", text: "30 days · ~25 min/day · all from home" },
               { emoji: "🧠", text: "Requires your own Muse 2 EEG headset" },
               { emoji: "🍽️", text: "Photo your meals — AI tracks food → mood → dreams" },
@@ -312,7 +312,7 @@ export default function ResearchHub() {
   }
 
   // ── Enrolled ────────────────────────────────────────────────────────────────
-  const { dayNumber, completedDays, targetDays, compensationEarned, todaySession, studyCode } = status;
+  const { dayNumber, completedDays, targetDays, todaySession, studyCode } = status;
   const progressPct = Math.round((completedDays / targetDays) * 100);
 
   const morningDone = todaySession?.morningCompleted ?? false;
@@ -336,7 +336,7 @@ export default function ResearchHub() {
               <Badge variant="outline" className="text-[10px]">{studyCode}</Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Day {dayNumber} of {targetDays} · ${compensationEarned} earned
+              Day {dayNumber} of {targetDays} · {completedDays} valid day{completedDays !== 1 ? "s" : ""} logged
             </p>
           </div>
           <div className="text-right">

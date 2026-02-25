@@ -122,7 +122,7 @@ export default function ResearchEvening() {
         <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto" />
         <h2 className="text-xl font-bold">Day complete {validDay ? "✓ Valid day!" : ""}</h2>
         {validDay && (
-          <p className="text-sm text-green-400 font-medium">+$5 earned · morning, daytime & evening all done</p>
+          <p className="text-sm text-green-400 font-medium">Valid day counted · morning, daytime & evening all done</p>
         )}
         <p className="text-sm text-muted-foreground">Good night. Fill in your dream journal tomorrow morning.</p>
         <Button variant="outline" onClick={() => navigate("/research")}>Back to Study Hub</Button>
