@@ -385,6 +385,132 @@ def load_gameemo() -> Tuple[np.ndarray, np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
+# EAV loader (raw EEG → 85-dim)
+# ---------------------------------------------------------------------------
+# EAV = EEG-Audio-Video Emotion Dataset (Lee et al., 2024, Scientific Data)
+# 42 subjects, 30-ch EEG at 500 Hz, 5 emotions, 200 trials/subject.
+#
+# ⚠  RESTRICTED ACCESS — fill out DUA form at:
+#    https://zenodo.org/records/10205702
+# Once approved, download EEG files and place them at:
+#    ml/data/eav/EAV/subject01/EEG/subject01_eeg.mat
+#    ml/data/eav/EAV/subject01/EEG/subject01_eeg_label.mat
+#    ... (repeat for subject02 … subject42)
+#
+# Mat file internals:
+#   subject##_eeg.mat       → key 'seg1' (fallback 'seg'),  shape (10000, 30, 200)
+#   subject##_eeg_label.mat → key 'label', one-hot (200, 5)
+#   Emotion columns: 0=anger, 1=disgust, 2=fear, 3=joy, 4=neutral
+#   3-class: anger/disgust/fear→negative, joy→positive, neutral→neutral
+
+_EAV_DIR = _ML_ROOT / "data" / "eav" / "EAV"
+_EAV_FS  = 500.0
+# EAV 30-ch layout (standard 10-20, BrainAmp): channel order from the paper.
+# Closest Muse equivalents (0-indexed in the 30-ch set):
+#   F7(4)→AF7,  F8(14)→AF8,  T7(20)→TP9,  T8(21)→TP10
+# Indices verified from standard 10-20 position lists for 30-ch montages.
+_EAV_CH = [4, 14, 20, 21]   # [AF7≈F7, AF8≈F8, TP9≈T7, TP10≈T8]
+# Reorder to Muse layout [TP9, AF7, AF8, TP10]
+_EAV_CH_MUSE = [20, 4, 14, 21]
+
+# 5-class → 3-class (column index in one-hot label matrix)
+_EAV_5TO3 = {3: 0, 4: 1, 0: 2, 1: 2, 2: 2}   # joy→pos, neutral→neu, rest→neg
+
+
+def load_eav() -> Tuple[np.ndarray, np.ndarray]:
+    """Load EAV raw EEG and convert to 85-dim feature vectors.
+
+    Skips silently if data directory is missing (dataset is restricted-access).
+    """
+    if not _EAV_DIR.exists():
+        log.warning(
+            "EAV: %s not found — skipping.\n"
+            "  Get access at https://zenodo.org/records/10205702 then place\n"
+            "  subject folders under ml/data/eav/EAV/",
+            _EAV_DIR,
+        )
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    subj_dirs = sorted(
+        d for d in _EAV_DIR.iterdir()
+        if d.is_dir() and d.name.lower().startswith("subject")
+    )
+    if not subj_dirs:
+        log.warning("EAV: no subject* dirs in %s — skipping", _EAV_DIR)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    Xs, ys = [], []
+    n_loaded = 0
+
+    for subj_dir in subj_dirs:
+        eeg_dir   = subj_dir / "EEG"
+        sid       = subj_dir.name          # e.g. "subject01"
+        eeg_file  = eeg_dir / f"{sid}_eeg.mat"
+        lab_file  = eeg_dir / f"{sid}_eeg_label.mat"
+        if not (eeg_file.exists() and lab_file.exists()):
+            continue
+
+        try:
+            eeg_mat = sio.loadmat(str(eeg_file),  struct_as_record=False, squeeze_me=True)
+            lab_mat = sio.loadmat(str(lab_file), struct_as_record=False, squeeze_me=True)
+
+            # EEG: key 'seg1' (shape 10000×30×200) or fallback 'seg'
+            raw = None
+            for key in ("seg1", "seg", "eeg", "data"):
+                if key in eeg_mat:
+                    raw = np.array(eeg_mat[key], dtype=np.float32)
+                    break
+            if raw is None:
+                continue
+
+            # Normalise to (n_trials, 30, 10000)
+            if raw.ndim == 3:
+                if raw.shape == (10000, 30, 200):
+                    raw = raw.transpose(2, 1, 0)     # (200, 30, 10000)
+                elif raw.shape == (200, 30, 10000):
+                    pass
+                elif raw.shape[1] == 30:
+                    raw = raw.transpose(0, 1, 2)     # already (trials, 30, time)
+                else:
+                    continue
+            else:
+                continue
+
+            # Labels: one-hot (200, 5) → argmax → 3-class
+            lbl = np.array(lab_mat["label"], dtype=np.float32)
+            if lbl.ndim == 2 and lbl.shape[1] == 5:
+                cls5 = np.argmax(lbl, axis=1)        # (200,) values 0-4
+            elif lbl.ndim == 1 and len(lbl) == 200:
+                cls5 = lbl.astype(np.int32)
+            else:
+                continue
+            labels3 = np.array([_EAV_5TO3[int(c)] for c in cls5], dtype=np.int32)
+
+            # Channel selection → (n_trials, 4, 10000)
+            if max(_EAV_CH_MUSE) >= raw.shape[1]:
+                continue
+            eeg4 = raw[:, _EAV_CH_MUSE, :]          # (200, 4, 10000)
+
+            # Extract 85-dim features per trial via sliding windows
+            for trial_idx in range(eeg4.shape[0]):
+                seg = eeg4[trial_idx]                # (4, 10000)
+                feats = _sliding_windows(seg, _EAV_FS, artifact_uv=200.0)
+                for f in feats:
+                    Xs.append(f)
+                    ys.append(int(labels3[trial_idx]))
+
+            n_loaded += 1
+        except Exception as exc:
+            log.debug("EAV %s error: %s", subj_dir.name, exc)
+            continue
+
+    if not Xs:
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+    log.info("EAV: %d subjects → %d samples", n_loaded, len(ys))
+    return np.array(Xs, np.float32), np.array(ys, np.int32)
+
+
+# ---------------------------------------------------------------------------
 # FACED loader (pre-extracted DE features → 85-dim)
 # ---------------------------------------------------------------------------
 
@@ -792,6 +918,13 @@ def main() -> None:
         all_X.append(X_fc); all_y.append(y_fc)
         datasets_used.append("FACED")
         log.info("FACED loaded: %d samples", len(y_fc))
+
+    log.info("── Loading EAV ──")
+    X_eav, y_eav = load_eav()
+    if X_eav.size > 0:
+        all_X.append(X_eav); all_y.append(y_eav)
+        datasets_used.append("EAV")
+        log.info("EAV loaded: %d samples", len(y_eav))
 
     if not all_X:
         log.error("No data loaded — check data directories.")
