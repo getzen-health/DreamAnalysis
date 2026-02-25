@@ -4,8 +4,8 @@
 **Version:** 1.0
 **Date:** February 25, 2026
 **IRB Protocol Number:** [TO BE ASSIGNED]
-**Principal Investigator:** [YOUR NAME], Independent Researcher
-**Contact:** [YOUR EMAIL] | [YOUR PHONE]
+**Principal Investigator:** Lakshmi Sravya Vedantham, Independent Researcher
+**Contact:** lakshmisravya.vedantham@gmail.com | [YOUR PHONE]
 
 ---
 
@@ -42,36 +42,36 @@ This study is conducted by an independent researcher, not affiliated with a univ
 If you agree to participate, here is what each session will involve:
 
 ### Overview
-- **2 sessions total**, approximately 7 days apart
-- **Each session lasts approximately 45–60 minutes**
+- **1 session total**
+- **Session lasts approximately 20–30 minutes**
+- Sessions are conducted in the **morning**, after you have had your morning meal
 - Sessions may be conducted **remotely (via video call)** or **in person** at a designated location
 
-### What happens in each session:
+### What happens in the session:
 
-**Step 1 — Consent and Setup (5 minutes)**
+**Step 1 — Consent and Setup (3 minutes)**
 You will put on the Muse 2 EEG headband (a lightweight headset that rests on your forehead and over your ears). The researcher will help you fit it properly. The app will display a signal quality indicator to confirm the headset is working.
 
-**Step 2 — Resting Baseline (5 minutes)**
+**Step 2 — Resting Baseline (4 minutes)**
 You will sit quietly with your eyes closed for 2 minutes, then look at a fixation cross on a screen for 2 minutes. You do not need to do anything special — just relax normally.
 
-**Step 3 — Questionnaire while EEG records (30 minutes)**
-While wearing the headset, the researcher will ask you questions about the past 24 hours, including:
-- How you felt emotionally throughout the day
-- What you ate and drank
-- Basic context: how much you slept, exercise, caffeine
+**Step 3 — Questionnaire while EEG records (13 minutes)**
+While wearing the headset, the researcher will ask you brief questions about:
+- How you are feeling emotionally **right now**
+- Your current focus and energy levels
+- What you ate for your **morning meal**
 
-You answer naturally in your own words. You are **not** asked to perform any tasks, watch videos, or feel any particular way. EEG records passively while you talk.
+There are no personal questions about your life, relationships, or history. You answer naturally. You are **not** asked to perform any tasks, watch videos, or feel any particular way. EEG records passively while you respond.
 
-**Step 4 — Emotion Rating Scales (7 minutes)**
+**For remote sessions:** The session is conducted via video call. We use only end-to-end encrypted video platforms (such as Zoom with E2E encryption enabled, or equivalent). The video call is **not recorded**. Your screen is not captured. Please join from a private location where you feel comfortable discussing personal topics.
+
+**Step 4 — Emotion Rating Scales (5 minutes)**
 You will complete two short, validated questionnaires about how you feel right now:
 - SAM (Self-Assessment Manikin): rate your current mood on simple pictographic scales — takes about 2 minutes
-- PANAS (Positive and Negative Affect Schedule): 20 descriptive words; rate how much each applies to you right now — takes about 5 minutes
+- PANAS (Positive and Negative Affect Schedule): 20 descriptive words; rate how much each applies to you right now — takes about 3 minutes
 
 **Step 5 — Debrief and Compensation (5 minutes)**
-The researcher will briefly explain what the study is measuring and answer any questions. You will receive your compensation.
-
-### Session 2 (7 days later)
-Identical to Session 1.
+The researcher will briefly explain what the study is measuring and answer any questions. You will receive your $25 compensation. The study is now complete.
 
 ---
 
@@ -127,9 +127,9 @@ The broader benefit is to science and society: if successful, this research coul
 
 ## WILL I BE PAID?
 
-Yes. You will receive **$25 per session** as a gift card (Amazon or equivalent), provided at the end of each session. If you choose to withdraw after completing Session 1 but before Session 2, you will keep the $25 from Session 1.
+Yes. You will receive **$25** as a gift card (Amazon or equivalent), provided at the end of the session.
 
-Compensation is not withheld for any reason other than not completing a session.
+Compensation is not withheld for any reason other than not completing the session. If you withdraw partway through, the researcher will discuss compensation with you on a case-by-case basis.
 
 ---
 
@@ -145,23 +145,27 @@ You may:
 
 **Withdrawing will have no negative consequences of any kind.** You will not be penalized or lose any benefits you are entitled to.
 
-If you withdraw **after** your data has been collected but **before** results are published, you may request that your data be deleted. After publication, individual data points cannot be removed from aggregated results, but no result can be traced back to you.
+If you withdraw **after** your data has been collected, you may request that your individual data be deleted, provided you make this request **within 60 days of your last session**. After that window, data will have been de-identified and merged into aggregated analyses, and it may no longer be possible to locate and remove individual records. After publication, aggregated results cannot be altered, but no result can be traced back to you individually.
+
+To request data deletion, contact the researcher at lakshmisravya.vedantham@gmail.com with the subject line "Data Deletion Request" and your session date. The researcher will delete your pseudonymized record within 14 business days and confirm deletion in writing.
 
 ---
 
 ## WHO CAN I CONTACT WITH QUESTIONS?
 
 **For questions about this study:**
-[YOUR NAME]
-[YOUR EMAIL]
+Lakshmi Sravya Vedantham
+lakshmisravya.vedantham@gmail.com
 [YOUR PHONE]
 
 **For concerns about your rights as a research participant:**
-Contact the IRB that approved this study:
+You may contact the IRB that approved this study directly and independently — you do not need to go through the researcher:
 [IRB NAME — e.g., WCG IRB / Advarra IRB]
 [IRB PHONE]
 [IRB EMAIL]
 [IRB WEBSITE]
+
+The IRB is an independent committee not affiliated with this study. You may contact them at any time without notifying the researcher.
 
 ---
 

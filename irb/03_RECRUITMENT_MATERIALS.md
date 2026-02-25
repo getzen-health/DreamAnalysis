@@ -23,7 +23,7 @@
 ║   🧠  BRAIN-WAVE STUDY — PAID RESEARCH PARTICIPANTS      ║
 ║              WANTED                                        ║
 ║                                                           ║
-║         EARN $50 FOR 2 SHORT SESSIONS                     ║
+║         EARN $25 FOR 1 SHORT SESSION (~20–30 min)         ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
 
@@ -34,21 +34,22 @@ patterns related to daily eating habits.
 ──────────────────────────────────────────────────────────
 
 WHAT'S INVOLVED:
-  • 2 sessions, 7 days apart
-  • ~45–60 minutes each
-  • Answer questions about your day (emotions + food)
+  • 1 session (~20–30 minutes, any time of day)
+  • Answer a few brief questions about how you feel
+    and what you had for breakfast
   • Wear a comfortable EEG headband (like headphones)
   • No medical procedures. No electrical stimulation.
+  • No personal questions.
 
 YOU QUALIFY IF YOU:
   ✓ Are 18–65 years old
   ✓ Are a fluent English speaker
   ✓ Have no epilepsy or seizure history
-  ✓ Are not currently taking anticonvulsants or
-    antipsychotic medications
+  ✓ Have no current neurological condition affecting
+    brain-wave signals (details in screening survey)
 
 COMPENSATION:
-  $25 gift card per session ($50 total)
+  $25 gift card (one session, done in 20–30 min)
 
 ──────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ INTERESTED? SCAN TO SIGN UP OR LEARN MORE:
 
     [QR CODE HERE — links to screening survey]
 
-      OR email: [YOUR EMAIL]
+      OR email: lakshmisravya.vedantham@gmail.com
       OR visit: [SCREENING SURVEY URL]
 
 ──────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ This research has been reviewed and approved by an
 independent IRB (Institutional Review Board).
 IRB Protocol #: [TO BE ASSIGNED]
 
-Questions? Contact [YOUR NAME] at [YOUR EMAIL]
+Questions? Contact Lakshmi Sravya Vedantham at lakshmisravya.vedantham@gmail.com
 ```
 
 ---
@@ -82,24 +83,24 @@ Questions? Contact [YOUR NAME] at [YOUR EMAIL]
 
 Hi neighbors! I'm conducting a research study on brain-wave patterns and daily eating habits and am looking for participants in [CITY/AREA].
 
-**What it is:** You wear a consumer EEG headband (like lightweight headphones — no wires, no needles) while answering questions about how your day went and what you ate. That's it.
+**What it is:** You wear a consumer EEG headband (like lightweight headphones — no wires, no needles) while answering a few brief questions about how you feel right now and what you had for breakfast. That's it. No personal questions.
 
 **What's involved:**
-- 2 sessions, ~45 minutes each, 7 days apart
+- 1 session, ~20–30 minutes (any time of day)
 - Can be done remotely via video call OR in person
-- Compensation: $25 gift card per session ($50 total)
+- Compensation: $25 gift card
 
 **You qualify if you:**
 - Are 18–65 years old
 - Speak English fluently
 - Have no history of epilepsy/seizures
-- Are not taking anticonvulsants or antipsychotic medications
+- Have no neurological conditions affecting brain-wave signals (details in the 2-minute screening survey)
 
 This study is independent research approved by an IRB (ethics review board).
 
 **Interested? Complete the 2-minute screening survey here:** [SCREENING SURVEY URL]
 
-Questions: [YOUR EMAIL]
+Questions: lakshmisravya.vedantham@gmail.com
 
 ---
 
@@ -108,21 +109,21 @@ Questions: [YOUR EMAIL]
 **[Study] Paid EEG Research — $50 for 2 Sessions — Brain Waves & Food/Emotion ($25/session)**
 
 **About the study:**
-I'm an independent researcher validating whether a consumer EEG headband (Muse 2) can detect emotional patterns related to daily eating habits. Basically: can a brain-wave reader tell if you stress-eat or eat mindfully?
+I'm an independent researcher exploring whether a consumer EEG headband (Muse 2) can detect emotional states related to morning eating habits. Basically: can a brain-wave reader reflect how you feel around the time you eat breakfast?
 
 **What you'd do:**
-- Wear a Muse 2 EEG headset (~like big headphones) during a 45-min session
-- Answer questions about your day: mood, food, sleep
+- Wear a Muse 2 EEG headset (~like big headphones) during a 20–30 min morning session
+- Answer a few brief questions about how you feel right now and what you ate this morning (no personal questions)
 - Fill out two short validated mood questionnaires (SAM + PANAS)
-- 2 sessions total, 7 days apart — remote or in person
+- 1 session only — remote or in person
 
-**Compensation:** $25 Amazon gift card per session ($50 total)
+**Compensation:** $25 Amazon gift card
 
 **Requirements:**
 - 18–65 years old
 - Fluent in English
 - No history of epilepsy/seizures
-- Not taking anticonvulsants or antipsychotics
+- No neurological conditions or medications that significantly affect brain-wave signals (2-min screening survey will confirm eligibility)
 
 **Not required:** any EEG experience, neuroscience knowledge, or special equipment (headset is provided).
 
@@ -142,12 +143,12 @@ AMA if you have questions!
 
 Paid research study seeking healthy adults ages 18–65.
 
-This study looks at whether a consumer-grade brain-wave headset can detect emotional states related to daily eating habits.
+This study explores whether a consumer-grade brain-wave headset can detect emotional states related to morning eating habits.
 
 WHAT'S INVOLVED:
-- 2 sessions, approximately 45 minutes each, 7 days apart
+- 1 morning session, approximately 20–30 minutes
 - Wear a lightweight EEG headset (consumer device, no needles, no electricity)
-- Answer structured questions about your mood and food intake
+- Answer a few brief questions about your current mood and morning meal (no personal questions)
 - Complete 2 short mood rating questionnaires
 - Remote (video call) or in-person options available
 
@@ -155,15 +156,15 @@ ELIGIBILITY:
 - Age 18–65
 - English fluent
 - No epilepsy or seizure history
-- Not taking anticonvulsants, antipsychotics, or benzodiazepines
+- No neurological conditions or medications that significantly affect brain-wave signals (screening survey will confirm eligibility)
 
-COMPENSATION: $25 gift card per completed session ($50 total)
+COMPENSATION: $25 gift card upon session completion
 
 HOW TO SIGN UP: Complete the 2-minute online screening survey at: [URL]
 
 This is independent research approved by an independent IRB (ethics review board). IRB Protocol #: [TBD].
 
-Contact: [YOUR EMAIL]
+Contact: lakshmisravya.vedantham@gmail.com
 
 ---
 
@@ -184,15 +185,15 @@ I am writing to invite members of your community to participate in a paid resear
 **What the study is about:** This research examines whether a consumer-grade EEG headband (a brain-wave reading device similar to consumer headphones) can detect emotional patterns related to daily eating habits. Participants talk about their day while wearing the headset — no tasks, no stimuli, just a natural conversation about mood and food.
 
 **What participation involves:**
-- Two sessions, approximately 45–60 minutes each, 7 days apart
+- One morning session, approximately 20–30 minutes
 - Wear a Muse 2 EEG headband during the session (passive, no electrical stimulation)
-- Complete a structured questionnaire about the past 24 hours (emotions + food)
+- Answer a few brief questions about how you feel right now and what you had for breakfast — no personal questions
 - Rate your current mood on two validated scales (SAM and PANAS)
 - Available as remote (video call) or in-person sessions
 
-**Compensation:** $25 gift card per session ($50 total)
+**Compensation:** $25 gift card upon session completion
 
-**Eligibility:** Adults 18–65 who are fluent English speakers, with no history of epilepsy/seizures, and not currently taking anticonvulsants, antipsychotics, or benzodiazepines.
+**Eligibility:** Adults 18–65 who are fluent English speakers, with no history of epilepsy/seizures, and no neurological conditions or medications that significantly affect brain-wave signals (a 2-minute screening survey will confirm eligibility).
 
 **This study has been reviewed and approved by [IRB NAME], IRB Protocol #[TBD].**
 
@@ -200,12 +201,12 @@ To learn more or sign up, please complete our brief 2-minute screening survey at
 **[SCREENING SURVEY URL]**
 
 If you have questions before completing the survey, please contact me at:
-[YOUR NAME] — [YOUR EMAIL] — [YOUR PHONE]
+Lakshmi Sravya Vedantham — lakshmisravya.vedantham@gmail.com — [YOUR PHONE]
 
 Thank you for your time. Please feel free to forward this to anyone who may be interested.
 
 Sincerely,
-[YOUR NAME]
+Lakshmi Sravya Vedantham
 Independent Researcher
 
 ---
@@ -240,7 +241,8 @@ Thank you for your interest in our research study! This quick survey helps us de
 
 4. Have you ever been diagnosed with any of the following? (Select all that apply)
    - Parkinson's disease *(→ Ineligible)*
-   - Traumatic brain injury (TBI) *(→ Flag for review)*
+   - Traumatic brain injury (TBI) with ongoing neurological symptoms *(→ Ineligible)*
+   - Traumatic brain injury (TBI) — resolved, more than 2 years ago, no ongoing symptoms *(→ Flag for PI verbal screening)*
    - Dementia or Alzheimer's disease *(→ Ineligible)*
    - Schizophrenia or another psychotic disorder *(→ Ineligible)*
    - None of the above ✓
@@ -249,6 +251,7 @@ Thank you for your interest in our research study! This quick survey helps us de
    - Anticonvulsants (e.g., Keppra, Lamictal, Depakote) *(→ Ineligible)*
    - Antipsychotics (e.g., Seroquel, Risperdal, Abilify) *(→ Ineligible)*
    - Benzodiazepines (e.g., Xanax, Valium, Klonopin) *(→ Ineligible)*
+   - Stimulant medications for ADHD (e.g., Adderall, Ritalin, Vyvanse, Concerta) *(→ Ineligible)*
    - None of the above ✓
    - Other (I'm not sure) *(→ Flag for follow-up)*
 
@@ -256,16 +259,11 @@ Thank you for your interest in our research study! This quick survey helps us de
    - No ✓
    - Yes *(→ Flag for review)*
 
-7. Are you currently pregnant?
-   - No ✓
-   - Yes *(→ Ineligible)*
-   - Prefer not to say *(→ Follow up verbally)*
-
-8. Have you participated in another EEG research study in the past 30 days?
+7. Have you participated in another EEG research study in the past 30 days?
    - No ✓
    - Yes *(→ Flag for review — may still be eligible depending on other study)*
 
-9. Are you able to sit still and wear a headband on your forehead for approximately 45 minutes?
+8. Are you able to sit still and wear a headband on your forehead for approximately 20–30 minutes?
    - Yes ✓
    - No *(→ Ineligible)*
 
@@ -328,11 +326,11 @@ Thank you for signing up for our research study! Your first session is scheduled
 - If remote: a computer or tablet with a working camera and microphone.
 
 **Questions or need to reschedule?**
-Contact me anytime: [YOUR EMAIL] | [YOUR PHONE]
+Contact me anytime: lakshmisravya.vedantham@gmail.com | [YOUR PHONE]
 
 Looking forward to meeting you!
 
-[YOUR NAME]
+Lakshmi Sravya Vedantham
 Independent Researcher
 
 ---

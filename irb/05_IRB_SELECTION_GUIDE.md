@@ -37,7 +37,7 @@ Your study qualifies for **Expedited Review**, not Full Board Review. This is im
 - Consumer device (Muse 2) is commercially available, CE/FCC cleared
 - Questions about daily life, not trauma, abuse, or stigmatizing topics
 - No deception
-- No vulnerable populations (children, prisoners, pregnant women excluded)
+- No vulnerable populations requiring additional regulatory protections: children (under 18 excluded), prisoners (not targeted), and pregnant women (excluded, removing the need for 45 CFR 46 Subpart B protections). Note: pregnant women are a defined vulnerable population under federal regulations; their exclusion means Subpart B does not apply, but this should be stated explicitly in your IRB application.
 
 ---
 
@@ -112,7 +112,7 @@ Your study qualifies for **Expedited Review**, not Full Board Review. This is im
 
 ## 4. COST BREAKDOWN (REALISTIC ESTIMATE)
 
-For a minimal-risk, expedited-review study like yours with N=50 participants:
+For a minimal-risk, expedited-review pilot study like yours with N=20–30 participants:
 
 | Item | Estimated Cost |
 |------|---------------|
@@ -167,7 +167,7 @@ Email your top 2–3 IRB choices with this brief message:
 >
 > Dear IRB Team,
 >
-> I am an independent researcher seeking expedited IRB review for a minimal-risk behavioral study involving consumer EEG (Muse 2 headband) and questionnaire data from N=50 healthy adults in the United States. The study involves no medical procedures, no electrical stimulation, and no vulnerable populations. We anticipate this qualifies for expedited review under 45 CFR 46.110, Categories 6 and 7.
+> I am an independent researcher seeking expedited IRB review for a minimal-risk behavioral pilot study involving consumer EEG (Muse 2 headband) and brief questionnaire data from N=20–30 healthy adults in the United States. The study involves a single morning session of approximately 20–30 minutes, no medical procedures, no electrical stimulation, no sensitive personal questions, and no vulnerable populations. We anticipate this qualifies for expedited review under 45 CFR 46.110, Categories 6 and 7.
 >
 > Could you please provide a fee schedule or project quote, and confirm you accept applications from independent (non-institutional) researchers?
 >
@@ -257,7 +257,7 @@ Before the expiration date on your approval letter, submit a continuing review r
 - **Website:** https://www.citiprogram.org
 - **Cost:** Free for independent researchers (basic course)
 - **Time:** 6–8 hours (can be done over multiple sittings)
-- **Certificate validity:** Most IRBs accept certificates up to 3 years old; some require annual refresher
+- **Certificate validity:** Most IRBs accept certificates up to 3 years old; some commercial IRBs require more recent training (within 1–2 years). **Confirm the specific validity period with your chosen IRB before submitting** — do not assume 3 years applies universally.
 
 **Required courses for this study:**
 1. Social/Behavioral Research Investigators (Basic Course) — REQUIRED

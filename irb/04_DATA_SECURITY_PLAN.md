@@ -4,7 +4,7 @@
 **Version:** 1.0
 **Date:** February 25, 2026
 **IRB Protocol Number:** [TO BE ASSIGNED]
-**Principal Investigator:** [YOUR NAME]
+**Principal Investigator:** Lakshmi Sravya Vedantham
 
 ---
 
@@ -39,8 +39,9 @@ All data handling follows:
 - **Raw EEG voltage traces** — NOT stored. The NeuralDreamWorkshop application processes signal in real-time and stores only pre-computed 85-dimensional feature vectors per 4-second epoch.
 - **Audio recordings of sessions** — NOT made.
 - **Video recordings of sessions** — NOT made.
-- **IP addresses or device identifiers** — NOT logged.
+- **IP addresses or device identifiers** — NOT logged by the research application. Note: Standard web server access logs may briefly capture IP addresses as part of HTTPS handshaking; these logs are purged on a rolling 7-day cycle and are never associated with participant study IDs or research data.
 - **Photographs or biometric images** — NOT collected.
+- **Personal identifiers embedded in free-text responses** — The structured questionnaire may elicit free-text responses that incidentally contain names of people or places. The researcher will review and redact any such identifiers during data entry before storage in the research database. Participants are instructed during the session not to include names of specific individuals in their responses.
 
 ---
 
@@ -104,10 +105,11 @@ Participant → [Session] → NeuralDreamWorkshop App
 
 **System:** Neon PostgreSQL (https://neon.tech)
 - **Certification:** SOC 2 Type II certified
+- **Data residency:** Confirm that the selected Neon region stores data exclusively within the United States (e.g., AWS us-east-1 or us-west-2) prior to study initiation. Document the confirmed region in the study records.
 - **Encryption at rest:** AES-256 (managed by Neon)
 - **Encryption in transit:** TLS 1.3
 - **Access control:** Single service account with minimum-necessary permissions
-- **Authentication:** Strong password + IP allowlisting (only the PI's known IPs can connect)
+- **Authentication:** Strong password + IP allowlisting (only the PI's known IPs can connect). When the PI operates from a new IP address (e.g., travel), the allowlist will be temporarily updated and reverted upon return, or a VPN with a fixed egress IP will be used.
 - **Backups:** Automated daily backups, retained for 30 days, encrypted
 
 **Database schema:** See Appendix A for table definitions.
@@ -216,7 +218,10 @@ Document all aspects of the incident, assessment, notifications, and remediation
 | Paper consent forms | 7 years from study completion | Cross-cut shredding |
 | Screening survey responses | 30 days after enrollment decision | Permanent deletion from platform |
 
-**"Secure deletion"** means overwriting the file with zeros or using a dedicated secure-erase tool (macOS Secure Empty Trash equivalent, or `shred` on Linux), not just moving it to the recycle bin.
+**"Secure deletion"** means using a platform-appropriate secure-erase method — not simply moving to the recycle bin:
+- **macOS (APFS filesystem):** Use `rm -P` for HFS+ volumes, or for APFS (which uses copy-on-write and makes traditional overwrite ineffective), store sensitive files in an encrypted disk image (`.dmg`) and delete the entire encrypted container. Full-disk FileVault encryption provides equivalent protection for APFS volumes.
+- **Linux:** Use `shred -u` to overwrite and remove the file.
+- **Database records:** Use the database provider's secure delete API or issue a `DELETE` SQL statement followed by `VACUUM` to remove dead tuples from PostgreSQL storage pages.
 
 **7 years** is the standard retention period recommended by most IRBs and FDA regulations for human subjects research records.
 
@@ -243,10 +248,10 @@ The study protocol notes that de-identified EEG feature data may be shared publi
 TABLE eeg_sessions (
     id              SERIAL PRIMARY KEY,
     study_id        CHAR(6) NOT NULL,     -- e.g., "NX4T82"
-    session_num     INTEGER NOT NULL,      -- 1 or 2
     session_date    DATE NOT NULL,         -- date only, no timestamp
     duration_min    FLOAT,
     sqI_mean        FLOAT                  -- signal quality index
+    -- Single session per participant; session_num removed
 );
 
 TABLE eeg_epochs (
