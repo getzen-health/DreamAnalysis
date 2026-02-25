@@ -1,11 +1,11 @@
 import React from "react";
 
 // ─── Neural Dream Workshop — Comprehensive Research Dashboard ──────────────
-// Covers all 16 ML models, 8 EEG datasets, food-emotion module, publishing
+// Covers all 18 ML models, 8 EEG datasets, food-emotion module, publishing
 // roadmap, research differentiation, and architecture overview.
 // ──────────────────────────────────────────────────────────────────────────
 
-// ── 1. All 16 Models ─────────────────────────────────────────────────────
+// ── 1. All 18 Models ─────────────────────────────────────────────────────
 
 const models = [
   {
@@ -483,7 +483,7 @@ const differentiation = [
     published:
       "Most papers focus on 1–2 models: typically emotion classification ± sleep staging. Multi-model BCI systems are academic prototypes, rarely integrated.",
     thisWork:
-      "17 models running in parallel: emotion, sleep (5 stages), dream detection, flow, creativity, memory, drowsiness, cognitive load, attention, stress, lucid dream, meditation, anomaly, artifact, denoising, online learner, food-emotion. All connected through a single FastAPI (79 endpoints, 19-page React frontend).",
+      "18 models running in parallel: emotion, sleep (5 stages), dream detection, flow, creativity, memory, drowsiness, cognitive load, attention, stress, lucid dream, meditation, anomaly, artifact, denoising, online learner, food-emotion, and a PPO RL agent for adaptive neurofeedback difficulty. All connected through a single FastAPI (82 endpoints, 19-page React frontend).",
     advantage: true,
   },
   {
@@ -642,8 +642,8 @@ const pipeline = [
   { layer: "Hardware", description: "Muse 2 Headband", detail: "4 dry EEG channels: TP9, AF7, AF8, TP10. 256 Hz sampling. PPG + accelerometer. BrainFlow board_id=38 (native BT)." },
   { layer: "BrainFlow", description: "Hardware Abstraction", detail: "brainflow_manager.py handles connect/stream/disconnect. Applies mastoid re-reference (TP9+TP10 average) before data reaches Python. 4-sec epoch buffer with 2-sec slide." },
   { layer: "Signal Processing", description: "EEG Preprocessing", detail: "Butterworth bandpass 1–50 Hz → notch 50+60 Hz → artifact rejection (>75 µV) → band-power extraction (Welch PSD) → FAA + DASM/RASM + FMT → z-score normalisation (BaselineCalibrator)." },
-  { layer: "ML Models", description: "17 Parallel Classifiers", detail: "All models receive the same 17–41 feature vector. Each returns structured JSON with class probabilities. EMA smoothing (α=0.35) applied to emotion probabilities to prevent frame-to-frame flicker." },
-  { layer: "FastAPI", description: "76 REST + WebSocket Endpoints", detail: "api/routes.py — 2000 lines. Endpoints grouped by: EEG analysis, neurofeedback, sessions, calibration, connectivity, devices, datasets, health, signal quality, spiritual, denoising, food-emotion." },
+  { layer: "ML Models", description: "18 Parallel Classifiers", detail: "All models receive the same 17–41 feature vector. Each returns structured JSON with class probabilities. EMA smoothing (α=0.35) applied to emotion probabilities. PPO RL agent fires on every /neurofeedback/evaluate call — adjusts difficulty threshold ±0.05 via learned policy (67% live reward rate, flow-zone target 40–75%)." },
+  { layer: "FastAPI", description: "82 REST + WebSocket Endpoints", detail: "18 modular route files under api/routes/. Endpoints grouped by: EEG analysis, neurofeedback (+ RL train/status), sessions, calibration, connectivity, devices, datasets, health, signal quality, spiritual, denoising, food-emotion." },
   { layer: "Express + PostgreSQL", description: "App Layer + Database", detail: "server/routes.ts handles: auth, dream analysis (GPT-5), AI chat, health data export, Apple Health sync. 7 database tables: users, health, dreams, emotions, chats, settings, push_subscriptions." },
   { layer: "React Frontend", description: "19-Page Web App", detail: "Real-time EEG visualisation, dream journal, emotion timeline, neurofeedback training, brain connectivity map, health analytics, AI companion, meditation tracker, food-emotion dashboard, 5-step guided device pairing wizard (/device-setup), baseline calibration onboarding with simulation mode (/calibration)." },
 ];
@@ -727,15 +727,15 @@ export default function FormalBenchmarksDashboard() {
             Full System Overview
           </h1>
           <p className="mt-5 max-w-3xl text-lg text-white/65">
-            17 ML models, 8 EEG datasets, 79 API endpoints, and one novel food-emotion
+            18 ML models, 8 EEG datasets, 82 API endpoints, and one novel food-emotion
             biomarker system — all running on a $250 Muse 2 headband.
           </p>
 
           {/* Key stats row */}
           <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             {[
-              { label: "ML Models", value: "17" },
-              { label: "API Endpoints", value: "79" },
+              { label: "ML Models", value: "18" },
+              { label: "API Endpoints", value: "82" },
               { label: "EEG Datasets", value: "8" },
               { label: "Web Pages", value: "19" },
               { label: "Training Samples", value: "123K+" },
@@ -752,11 +752,11 @@ export default function FormalBenchmarksDashboard() {
 
       <div className="mx-auto max-w-7xl px-6 py-14 space-y-20">
 
-        {/* ── Section 1: All 17 Models ── */}
+        {/* ── Section 1: All 18 Models ── */}
         <section>
           <SectionHeader
             tag="Section 1 · Models"
-            title="All 17 ML Models"
+            title="All 18 ML Models"
             sub="Every model, its algorithm, live accuracy, the signals it reads, and how it differs from published work."
           />
 

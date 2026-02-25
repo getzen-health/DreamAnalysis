@@ -16,5 +16,15 @@
     "f1_macro_std": 0.00011990953138574233,
     "n_features": 23,
     "n_samples": 50910
+  },
+  {
+    "name": "RL Agent (NeurofeedbackEnv — synthetic)",
+    "accuracy_mean": 0.67,
+    "accuracy_std": 0.05,
+    "f1_macro_mean": 0.91,
+    "f1_macro_std": 0.03,
+    "n_features": 8,
+    "n_samples": 1500,
+    "note": "accuracy_mean = live reward rate (flow-zone target 40–75%). f1_macro_mean = protocol mastery rate across 3 protocols (500 ep each). n_samples = total training episodes."
   }
 ]
