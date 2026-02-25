@@ -21,7 +21,7 @@ from models.meditation_classifier import MeditationClassifier
 from models.food_emotion_predictor import FoodEmotionPredictor
 from models.anomaly_detector import AnomalyDetector
 from processing.emotion_shift_detector import EmotionShiftDetector
-from neurofeedback.protocol_engine import NeurofeedbackProtocol
+from neurofeedback.protocol_engine import NeurofeedbackProtocol, PROTOCOLS as PROTOCOLS
 from storage.session_recorder import SessionRecorder
 from processing.signal_quality import SignalQualityChecker
 from processing.calibration import CalibrationRunner
@@ -37,6 +37,10 @@ from processing.eeg_processor import (
     extract_features_multichannel as extract_features_multichannel,
     compute_coherence as compute_coherence,
     compute_phase_locking_value as compute_phase_locking_value,
+    compute_cwt_spectrogram as compute_cwt_spectrogram,
+    compute_dwt_features as compute_dwt_features,
+    detect_sleep_spindles as detect_sleep_spindles,
+    detect_k_complexes as detect_k_complexes,
 )
 from processing.artifact_detector import (
     detect_eye_blinks as detect_eye_blinks,
@@ -44,7 +48,39 @@ from processing.artifact_detector import (
     detect_electrode_pops as detect_electrode_pops,
     compute_signal_quality_index as compute_signal_quality_index,
     auto_reject_epochs as auto_reject_epochs,
+    ica_artifact_removal as ica_artifact_removal,
 )
+from processing.connectivity import (
+    compute_granger_causality as compute_granger_causality,
+    compute_dtf as compute_dtf,
+    compute_graph_metrics as compute_graph_metrics,
+)
+from processing.spiritual_energy import (
+    compute_chakra_activations as compute_chakra_activations,
+    compute_chakra_balance as compute_chakra_balance,
+    compute_meditation_depth as compute_meditation_depth,
+    compute_aura_energy as compute_aura_energy,
+    compute_kundalini_flow as compute_kundalini_flow,
+    compute_prana_balance as compute_prana_balance,
+    compute_consciousness_level as compute_consciousness_level,
+    compute_third_eye_activation as compute_third_eye_activation,
+    full_spiritual_analysis as full_spiritual_analysis,
+    CHAKRAS as CHAKRAS,
+    CONSCIOUSNESS_LEVELS as CONSCIOUSNESS_LEVELS,
+)
+from processing.emotion_shift_detector import EmotionShiftDetector as EmotionShiftDetector
+from models.anomaly_detector import AnomalyDetector as AnomalyDetector
+from processing.calibration import (
+    UserCalibration as UserCalibration,
+    CalibrationRunner as CalibrationRunner,
+    CALIBRATION_STEPS as CALIBRATION_STEPS,
+)
+from processing.signal_quality import SignalQualityChecker as SignalQualityChecker
+from processing.user_feedback import (
+    FeedbackCollector as FeedbackCollector,
+    PersonalizedPipeline as PersonalizedPipeline,
+)
+from processing.confidence_calibration import add_uncertainty_labels as add_uncertainty_labels
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 MODEL_DIR = Path("models/saved")

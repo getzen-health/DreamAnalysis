@@ -35,6 +35,18 @@ def _load_rl_agent():
         pass
 
 
+def _reload_rl_agent():
+    """Force-reload the RL agent from disk (called after training completes)."""
+    global _rl_agent
+    try:
+        from neurofeedback.adaptive_agent import PPOAgent
+        agent = PPOAgent()
+        if _RL_AGENT_PATH.exists() and agent.load(str(_RL_AGENT_PATH)):
+            _rl_agent = agent
+    except Exception:
+        pass
+
+
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class RLTrainRequest(BaseModel):
@@ -139,10 +151,17 @@ async def rl_status():
 
 @router.post("/neurofeedback/rl/train")
 async def rl_train(request: RLTrainRequest):
-    """Trigger offline RL training in a background thread.
+    """Trigger RL training in an isolated subprocess.
 
-    Runs NeurofeedbackEnv + PPO update loop, saves model, returns summary.
+    Runs train_rl_agent.py as a child process to avoid GIL/OpenMP contention
+    with the live PyTorch inference running in the event loop.  The event loop
+    remains responsive while training proceeds.
+
+    Returns the same {trained, episodes_run, model_path} payload on success,
+    or raises HTTP 500 on training failure.
     """
+    import sys
+
     from neurofeedback.protocol_engine import PROTOCOLS as _PROTOCOLS
 
     valid_types = list(_PROTOCOLS.keys()) + ["all"]
@@ -152,47 +171,45 @@ async def rl_train(request: RLTrainRequest):
             detail=f"protocol_type must be one of {valid_types}",
         )
 
-    def _run_training():
-        from neurofeedback.rl_environment import NeurofeedbackEnv
-        from neurofeedback.adaptive_agent import PPOAgent, Rollout
+    train_script = (
+        Path(__file__).resolve().parent.parent.parent
+        / "neurofeedback"
+        / "train_rl_agent.py"
+    )
+    ml_root = Path(__file__).resolve().parent.parent.parent
 
-        if request.protocol_type == "all":
-            protocols = ["alpha_up", "smr_up", "theta_beta_ratio"]
-        else:
-            protocols = [request.protocol_type]
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable,
+        str(train_script),
+        "--protocol", request.protocol_type,
+        "--episodes", str(request.episodes),
+        "--out", str(_RL_AGENT_PATH),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=str(ml_root),
+    )
 
-        agent = PPOAgent()
-        episodes_run = 0
+    _stdout, stderr = await proc.communicate()
 
-        for proto in protocols:
-            env = NeurofeedbackEnv(protocol_type=proto)
-            for _ in range(request.episodes):
-                obs = env.reset()
-                rollout = Rollout()
-                done = False
+    if proc.returncode != 0:
+        err_tail = stderr.decode(errors="replace")[-600:] if stderr else "unknown error"
+        raise HTTPException(
+            status_code=500,
+            detail=f"RL training subprocess failed (exit {proc.returncode}): {err_tail}",
+        )
 
-                while not done:
-                    action, log_prob = agent.act(obs)
-                    value = agent.value(obs)
-                    next_obs, reward, done, _ = env.step(action)
-                    rollout.add(obs, action, log_prob, reward, done, value)
-                    obs = next_obs
+    # Reload the freshly-trained agent into the module singleton
+    _reload_rl_agent()
 
-                last_obs = None if done else obs
-                agent.update(rollout, last_obs=last_obs)
-                episodes_run += 1
-
-        agent.save(str(_RL_AGENT_PATH))
-        return agent, episodes_run
-
-    agent, episodes_run = await asyncio.to_thread(_run_training)
-
-    # Refresh global singleton
-    global _rl_agent
-    _rl_agent = agent
+    protocols = (
+        ["alpha_up", "smr_up", "theta_beta_ratio"]
+        if request.protocol_type == "all"
+        else [request.protocol_type]
+    )
+    episodes_run = len(protocols) * request.episodes
 
     return {
-        "trained": agent.is_trained,
+        "trained": _rl_agent is not None and _rl_agent.is_trained,
         "episodes_run": episodes_run,
         "model_path": str(_RL_AGENT_PATH),
     }
