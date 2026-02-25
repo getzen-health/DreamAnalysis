@@ -6,11 +6,11 @@ import {
   insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
   insertUserSettingsSchema, insertEmotionReadingSchema,
   studyParticipants, studySessions, studyMorningEntries,
-  studyDaytimeEntries, studyEveningEntries,
+  studyDaytimeEntries, studyEveningEntries, foodLogs,
 } from "@shared/schema";
 import { db } from "./db";
 import { emotionReadings } from "@shared/schema";
-import { eq, gte, lt, and, asc, sql } from "drizzle-orm";
+import { eq, gte, lt, and, asc, desc, sql } from "drizzle-orm";
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -756,6 +756,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to process withdrawal" });
+    }
+  });
+
+  // ── Food photo log ─────────────────────────────────────────────────────────
+
+  // POST /api/food/analyze — analyze a meal photo with GPT-5 vision, store the log
+  app.post("/api/food/analyze", async (req, res) => {
+    try {
+      const { userId, imageBase64, mealType, moodBefore, notes } = req.body;
+      if (!userId) return res.status(400).json({ message: "userId required" });
+      if (!imageBase64) return res.status(400).json({ message: "imageBase64 required" });
+      if (!openai) return res.status(503).json({ message: "OpenAI not configured" });
+
+      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Analyze this food photo. Return ONLY valid JSON (no markdown fences) with this exact shape:
+{
+  "foodItems": [{"name":"...","portion":"...","calories":0,"carbs_g":0,"protein_g":0,"fat_g":0}],
+  "totalCalories": 0,
+  "dominantMacro": "carbs|protein|fat|balanced",
+  "glycemicImpact": "low|medium|high",
+  "moodImpact": "2-sentence prediction: how this meal typically affects mood/energy 2-4 hours later",
+  "dreamRelevance": "2-sentence note: how this nutrition may affect tonight's sleep depth or dream vividness",
+  "summary": "One plain-English sentence describing what was eaten"
+}`,
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" },
+            },
+          ],
+        }],
+        max_tokens: 700,
+      });
+
+      const raw = response.choices[0].message.content ?? "{}";
+      let analysis: Record<string, unknown>;
+      try {
+        analysis = JSON.parse(raw);
+      } catch {
+        // GPT sometimes wraps in markdown despite instructions — strip fences
+        const stripped = raw.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+        analysis = JSON.parse(stripped);
+      }
+
+      const [log] = await db.insert(foodLogs).values({
+        userId,
+        mealType: mealType ?? "snack",
+        foodItems: analysis.foodItems as object[],
+        totalCalories: typeof analysis.totalCalories === "number" ? analysis.totalCalories : null,
+        dominantMacro: typeof analysis.dominantMacro === "string" ? analysis.dominantMacro : null,
+        glycemicImpact: typeof analysis.glycemicImpact === "string" ? analysis.glycemicImpact : null,
+        aiMoodImpact: typeof analysis.moodImpact === "string" ? analysis.moodImpact : null,
+        aiDreamRelevance: typeof analysis.dreamRelevance === "string" ? analysis.dreamRelevance : null,
+        summary: typeof analysis.summary === "string" ? analysis.summary : null,
+        moodBefore: moodBefore ?? null,
+        notes: notes ?? null,
+      }).returning();
+
+      res.json({ ...analysis, id: log.id, loggedAt: log.loggedAt });
+    } catch (error) {
+      console.error("Food analyze error:", error);
+      res.status(500).json({ message: "Food analysis failed" });
+    }
+  });
+
+  // GET /api/food/logs/:userId — recent food logs (last 20)
+  app.get("/api/food/logs/:userId", async (req, res) => {
+    try {
+      const logs = await db.select().from(foodLogs)
+        .where(eq(foodLogs.userId, req.params.userId))
+        .orderBy(desc(foodLogs.loggedAt))
+        .limit(20);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch food logs" });
+    }
+  });
+
+  // GET /api/research/correlation/:userId — last 7 days with food + EEG mood + dream data joined
+  app.get("/api/research/correlation/:userId", async (req, res) => {
+    try {
+      const userId = req.params.userId;
+
+      const [participant] = await db.select().from(studyParticipants)
+        .where(and(eq(studyParticipants.userId, userId), eq(studyParticipants.status, "active")))
+        .limit(1);
+
+      if (!participant) return res.json([]);
+
+      const sessions = await db.select().from(studySessions)
+        .where(eq(studySessions.participantId, participant.id))
+        .orderBy(desc(studySessions.dayNumber))
+        .limit(7);
+
+      const results = await Promise.all(sessions.map(async (session) => {
+        const dayStart = new Date(session.sessionDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        const [morning] = await db.select().from(studyMorningEntries)
+          .where(eq(studyMorningEntries.sessionId, session.id)).limit(1);
+
+        const [daytime] = await db.select().from(studyDaytimeEntries)
+          .where(eq(studyDaytimeEntries.sessionId, session.id)).limit(1);
+
+        const foods = await db.select().from(foodLogs)
+          .where(and(
+            eq(foodLogs.userId, userId),
+            gte(foodLogs.loggedAt, dayStart),
+            lt(foodLogs.loggedAt, dayEnd),
+          ))
+          .orderBy(asc(foodLogs.loggedAt));
+
+        return {
+          dayNumber: session.dayNumber,
+          sessionDate: session.sessionDate,
+          validDay: session.validDay,
+          morning: morning ? {
+            dreamValence: morning.dreamValence,
+            noRecall: morning.noRecall,
+            nightmareFlag: morning.nightmareFlag,
+            dreamSnippet: morning.dreamText
+              ? morning.dreamText.slice(0, 120) + (morning.dreamText.length > 120 ? "…" : "")
+              : null,
+            welfareScore: morning.currentMoodRating,
+          } : null,
+          daytime: daytime ? {
+            samValence: daytime.samValence,
+            samStress: daytime.samStress,
+            faa: daytime.faa,
+          } : null,
+          foods: foods.map(f => ({
+            id: f.id,
+            summary: f.summary,
+            mealType: f.mealType,
+            totalCalories: f.totalCalories,
+            dominantMacro: f.dominantMacro,
+            glycemicImpact: f.glycemicImpact,
+            aiMoodImpact: f.aiMoodImpact,
+            aiDreamRelevance: f.aiDreamRelevance,
+            loggedAt: f.loggedAt,
+          })),
+        };
+      }));
+
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch correlation data" });
     }
   });
 

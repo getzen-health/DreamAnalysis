@@ -18,6 +18,7 @@ import {
   Utensils,
   Wand2,
   FlaskConical,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -65,6 +66,7 @@ const sections: NavSection[] = [
     title: "Research",
     items: [
       { path: "/research", label: "Research Study", icon: FlaskConical },
+      { path: "/food-log", label: "Food Log", icon: Camera },
     ],
   },
   {

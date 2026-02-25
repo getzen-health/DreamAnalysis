@@ -390,3 +390,27 @@ export type HealthSample = typeof healthSamples.$inferSelect;
 export type InsertHealthSample = z.infer<typeof insertHealthSampleSchema>;
 
 export type DatadogErrorLog = typeof datadogErrorLog.$inferSelect;
+
+// ── Food photo log ──────────────────────────────────────────────────────────
+
+export const foodLogs = pgTable("food_logs", {
+  id:               varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId:           varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  loggedAt:         timestamp("logged_at").defaultNow(),
+  mealType:         text("meal_type"),              // "breakfast"|"lunch"|"dinner"|"snack"
+  foodItems:        jsonb("food_items"),            // [{name, portion, calories, carbs_g, protein_g, fat_g}]
+  totalCalories:    integer("total_calories"),
+  dominantMacro:    text("dominant_macro"),         // "carbs"|"protein"|"fat"|"balanced"
+  glycemicImpact:   text("glycemic_impact"),        // "low"|"medium"|"high"
+  aiMoodImpact:     text("ai_mood_impact"),         // GPT prediction of mood effect
+  aiDreamRelevance: text("ai_dream_relevance"),     // GPT prediction of sleep/dream effect
+  summary:          text("summary"),               // one-sentence description
+  moodBefore:       integer("mood_before"),         // 1-9 optional user rating
+  notes:            text("notes"),
+}, (table) => [
+  index("food_logs_user_ts_idx").on(table.userId, table.loggedAt),
+]);
+
+export const insertFoodLogSchema = createInsertSchema(foodLogs).omit({ id: true, loggedAt: true });
+export type FoodLog = typeof foodLogs.$inferSelect;
+export type InsertFoodLog = z.infer<typeof insertFoodLogSchema>;

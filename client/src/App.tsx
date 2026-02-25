@@ -28,6 +28,8 @@ import FoodEmotion from "@/pages/food-emotion";
 import DeviceSetup from "@/pages/device-setup";
 import ResearchEnroll from "@/pages/research-enroll";
 import ResearchMorning from "@/pages/research-morning";
+import ResearchHub from "@/pages/research-hub";
+import FoodLog from "@/pages/food-log";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -92,6 +94,12 @@ function AppRoutes() {
       </Route>
       <Route path="/research/morning">
         <AppLayout><ResearchMorning /></AppLayout>
+      </Route>
+      <Route path="/research">
+        <AppLayout><ResearchHub /></AppLayout>
+      </Route>
+      <Route path="/food-log">
+        <AppLayout><FoodLog /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>
