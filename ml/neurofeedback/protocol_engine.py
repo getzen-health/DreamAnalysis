@@ -212,6 +212,47 @@ class NeurofeedbackProtocol:
             "total_evaluations": self.total_evaluations,
         }
 
+    def get_rl_state(self, band_powers: Dict[str, float]) -> Dict:
+        """Build the RL state dict used by PPOAgent.build_obs().
+
+        Called by the route *after* evaluate(), so history already includes
+        the latest step.
+
+        Returns:
+            Dict with keys: avg_score, reward_rate, streak, total_evaluations,
+            threshold, band_ratio, trend, volatility.
+        """
+        recent = list(self.history)[-10:] if self.history else []
+        scores = [h["score"] for h in recent]
+
+        avg_score = float(np.mean(scores)) if scores else 0.0
+        reward_rate = float(sum(1 for h in recent if h["reward"]) / max(len(recent), 1))
+
+        # Linear slope of last-10 scores, normalised by 10
+        if len(scores) >= 2:
+            x = np.arange(len(scores), dtype=float)
+            trend = float(np.polyfit(x, scores, 1)[0] / 10.0)
+        else:
+            trend = 0.0
+
+        volatility = float(np.std(scores) / 100.0) if len(scores) >= 2 else 0.0
+
+        # band_ratio: target band value relative to baseline
+        target_value = self._extract_target_value(band_powers)
+        baseline = self.baseline or self.threshold
+        band_ratio = float(target_value / max(baseline, 1e-10))
+
+        return {
+            "avg_score": avg_score,
+            "reward_rate": reward_rate,
+            "streak": self.streak,
+            "total_evaluations": self.total_evaluations,
+            "threshold": self.threshold,
+            "band_ratio": band_ratio,
+            "trend": trend,
+            "volatility": volatility,
+        }
+
     def _extract_target_value(
         self, band_powers: Dict[str, float], channel_powers: Optional[List[Dict]] = None
     ) -> float:
