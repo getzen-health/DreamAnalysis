@@ -1,135 +1,283 @@
 # INFORMED CONSENT FORM
-## Consumer-Grade EEG as a Biomarker for Emotional State and Daily Eating Behavior: A Validation Study
+## The Emotional Day-Night Cycle: Daytime EEG Emotion, Eating Behavior, and Dream Content
 
-**Version:** 1.0
+**Version:** 2.0
 **Date:** February 25, 2026
 **IRB Protocol Number:** [TO BE ASSIGNED]
 **Principal Investigator:** Lakshmi Sravya Vedantham, Independent Researcher
-**Contact:** lakshmisravya.vedantham@gmail.com | [YOUR PHONE]
+**Contact:** lakshmisravya.vedantham@gmail.com
 
 ---
 
-> **Instructions for Researcher:** Read this form aloud with the participant. Allow time for questions after each section. Do not rush. The participant must sign before any study procedures begin, including EEG headset fitting.
+> **Instructions for Researcher:** Read this form aloud with the participant during
+> the onboarding session. Allow time for questions after each section. The
+> participant must sign before any study procedures begin. Pay particular attention
+> to the dream journal section — make sure the participant understands their data
+> will include sensitive personal content and that they have the right to skip any
+> dream entry at any time.
 
 ---
 
 ## INTRODUCTION
 
-You are being asked to take part in a research study. Before you decide whether to participate, please read this form carefully. It explains the study and what your participation would involve. Participation is completely voluntary. You may stop at any time without any penalty.
+You are being asked to take part in a 30-day research study. Before you decide
+whether to participate, please read this form carefully. It explains the study and
+what your participation would involve. Participation is completely voluntary. You
+may stop at any time without any penalty.
 
-**Please ask questions if anything is unclear.** The researcher will be happy to explain anything before you sign.
+**Please ask questions if anything is unclear.** There is no rush.
 
 ---
 
 ## WHY IS THIS STUDY BEING DONE?
 
-We are studying whether a consumer-grade EEG headband (a brain-wave reading device worn on the forehead) can detect emotional states and patterns related to daily eating habits.
+We are studying the connection between how you feel during the day and what you
+dream about at night — and whether a consumer brain-wave headset can detect this
+connection objectively.
 
-Most emotion research using EEG has been done in laboratories with expensive research equipment that people can't use at home. This study tests whether a simple, affordable headset — the Muse 2, which you can buy at a consumer electronics store — can provide useful information about how emotions connect to eating behavior.
+Scientists have long observed that the emotions people experience during the day
+tend to show up in their dreams that night. This is called the **Continuity
+Hypothesis of Dreaming**, and it has been studied for decades. But almost all
+existing research has been done in expensive sleep laboratories — not in people's
+real homes, and not using wearable consumer devices.
 
-**The goal is to develop better, more accessible tools for wellness research.**
+This study uses the **Muse 2 EEG headband** (a consumer brain-wave headset you
+can buy at a store) to measure brain activity during the day, and a smartphone
+app to record your dreams each morning. We also ask about eating habits, because
+research suggests that *how* you eat (stressed vs. mindful, hungry vs. emotional)
+may affect how you sleep and dream.
+
+**The goal:** Test whether a consumer EEG device worn at home for 30 days can
+detect the link between daily emotions, eating patterns, and dream content —
+and whether it can predict nights when you are more likely to have a nightmare.
 
 ---
 
 ## WHO IS CONDUCTING THIS STUDY?
 
-This study is conducted by an independent researcher, not affiliated with a university or hospital. The study has been reviewed and approved by an independent IRB (Institutional Review Board), which is an independent committee that protects the rights and welfare of research participants.
+This study is conducted by an independent researcher, not affiliated with a
+university or hospital. The study has been reviewed and approved by an independent
+IRB (Institutional Review Board) — an independent ethics committee that protects
+the rights and wellbeing of research participants.
 
 ---
 
 ## WHAT WILL HAPPEN IF I PARTICIPATE?
 
-If you agree to participate, here is what each session will involve:
-
 ### Overview
-- **1 session total**
-- **Session lasts approximately 20–30 minutes**
-- Sessions are conducted in the **morning**, after you have had your morning meal
-- Sessions may be conducted **remotely (via video call)** or **in person** at a designated location
 
-### What happens in the session:
+- **Duration:** 30 consecutive days
+- **Daily time commitment:** approximately 25–35 minutes per day, spread across
+  three brief touchpoints (morning, daytime, evening)
+- **All data collection is self-administered** via the NeuralDreamWorkshop app
+  on your phone — no daily check-ins with the researcher required
+- **One onboarding session** (~60 min) at the start to learn the app and device
+- **One offboarding session** (~20 min) at the end for debrief and final payment
+- Sessions are conducted **remotely (video call)** or **in person**
 
-**Step 1 — Consent and Setup (3 minutes)**
-You will put on the Muse 2 EEG headband (a lightweight headset that rests on your forehead and over your ears). The researcher will help you fit it properly. The app will display a signal quality indicator to confirm the headset is working.
+---
 
-**Step 2 — Resting Baseline (4 minutes)**
-You will sit quietly with your eyes closed for 2 minutes, then look at a fixation cross on a screen for 2 minutes. You do not need to do anything special — just relax normally.
+### The Three Daily Touchpoints
 
-**Step 3 — Questionnaire while EEG records (13 minutes)**
-While wearing the headset, the researcher will ask you brief questions about:
-- How you are feeling emotionally **right now**
-- Your current focus and energy levels
-- What you ate for your **morning meal**
+**MORNING — 5–10 minutes, within 30 minutes of waking**
 
-There are no personal questions about your life, relationships, or history. You answer naturally. You are **not** asked to perform any tasks, watch videos, or feel any particular way. EEG records passively while you respond.
+The most important data collection of the day. Before you check your phone,
+get out of bed, or talk to anyone:
 
-**For remote sessions:** The session is conducted via video call. We use only end-to-end encrypted video platforms (such as Zoom with E2E encryption enabled, or equivalent). The video call is **not recorded**. Your screen is not captured. Please join from a private location where you feel comfortable discussing personal topics.
+- Open the app and write down any dream you remember (even just a fragment or
+  feeling — "no recall" is also a valid and useful response)
+- Rate the emotional tone of the dream: Was it positive, negative, or neutral?
+- Flag whether it was a nightmare (yes / no / unsure)
+- Rate how well you slept (1–9 scale)
 
-**Step 4 — Emotion Rating Scales (5 minutes)**
-You will complete two short, validated questionnaires about how you feel right now:
-- SAM (Self-Assessment Manikin): rate your current mood on simple pictographic scales — takes about 2 minutes
-- PANAS (Positive and Negative Affect Schedule): 20 descriptive words; rate how much each applies to you right now — takes about 3 minutes
+**Why immediately on waking:** Dream memories fade within minutes. The app will
+be set up on your nightstand screen before you sleep so you can open it immediately.
 
-**Step 5 — Debrief and Compensation (5 minutes)**
-The researcher will briefly explain what the study is measuring and answer any questions. You will receive your $25 compensation. The study is now complete.
+---
+
+**DAYTIME — 15–20 minutes, between 9 AM and 1 PM**
+
+At a consistent time each morning that you choose during onboarding:
+
+- Put on the Muse 2 headset and run a 10-minute EEG session via the app
+  (2 min eyes closed, 2 min eyes open with a fixation cross — no tasks, just sit)
+- Rate how you feel right now: mood, energy, stress (simple 1–9 scales)
+- Answer 10 brief mood-descriptor questions (standard validated scale)
+- Note your sleep hours and caffeine intake so far
+
+The headset records your brain-wave activity passively while you sit quietly.
+You do not need to feel or think anything in particular.
+
+---
+
+**EVENING — 8–10 minutes, within 2 hours of going to sleep**
+
+- Rate your overall mood for the day (1–9 scales)
+- Describe the most emotionally significant thing that happened today
+  (briefly — one sentence — and rate its intensity)
+- Answer a few questions about what you ate today:
+  Were you physically hungry, emotionally driven, or eating out of habit?
+  Was eating today mindful, rushed, or emotional?
+- Note exercise, alcohol, and any medications taken today
+
+---
+
+### Optional: Wearing the EEG Headset During Sleep
+
+You are invited — but **not required** — to wear the Muse 2 headband during sleep.
+If you choose to do this, the app will attempt to detect your sleep stages and
+the periods when you are most likely dreaming (REM sleep). This provides an
+additional layer of scientific data connecting your brain activity to your dreams.
+
+**This is completely optional.** Not wearing the device during sleep does not
+affect your eligibility, your compensation, or the scientific value of your
+daytime data. Many participants find sleeping with the headset comfortable; others
+do not. You decide each night. There is no minimum number of nights required.
+
+You will initial separately at the end of this form to indicate whether you
+consent to this optional component.
+
+---
+
+### Onboarding Session (~60 min)
+
+Before Day 1, you will have a video call (or in-person session) with the researcher:
+- Review this consent form and ask any questions
+- Learn how to use the app (morning, daytime, evening flows)
+- Practice a full daytime EEG session live with the researcher present
+- Practice a dream journal entry
+- Receive the EEG headset (mailed in advance or handed over in person)
+- Set your preferred daily reminder times
+
+### Offboarding Session (~20 min)
+
+After Day 30, you will have a brief video call:
+- Final EEG session
+- Short conversation about your experience over the 30 days
+- The researcher explains what the study was measuring
+- Return the headset (if loaned) and receive your final payment
 
 ---
 
 ## WHAT DATA WILL BE COLLECTED?
 
-| What We Collect | How It's Stored |
-|-----------------|-----------------|
-| EEG brain-wave measurements (processed numbers, NOT raw recordings) | Encrypted database, pseudonymized |
-| Your answers to the questionnaire | Secure encrypted form, pseudonymized |
-| SAM and PANAS scores (numbers only) | Encrypted database, pseudonymized |
-| Basic demographics: age, sex, sleep/exercise/caffeine that day | Encrypted database, pseudonymized |
+| What We Collect | Sensitive? | How It's Stored |
+|---|---|---|
+| EEG brain-wave features (85 processed numbers per 4 sec) | No | Encrypted database, pseudonymized |
+| Daily dream journal entries (free text) | **Yes — personal** | Encrypted database, pseudonymized |
+| Dream affect ratings (1–9 numbers) | No | Encrypted database, pseudonymized |
+| Nightmare flags (yes/no) | Mildly | Encrypted database, pseudonymized |
+| SAM + PANAS mood ratings (numbers only) | No | Encrypted database, pseudonymized |
+| Evening questionnaire: food, emotion, stress (text + ratings) | Mildly | Encrypted database, pseudonymized |
+| Sleep hours, caffeine, exercise, alcohol (numbers) | No | Encrypted database, pseudonymized |
+| Optional overnight EEG features (if you opt in) | No | Encrypted database, pseudonymized |
 
 **Important — what we do NOT store:**
-- Raw EEG voltage recordings are NOT saved. The headset generates processed numerical summaries (85 numbers per 4-second period) — similar to how a step counter saves "10,000 steps" rather than recording every muscle movement.
-- We do NOT record audio or video of the session.
-- Identifying information (your name, address) is NOT stored in the research data files.
+- **Raw EEG voltage** is NOT saved. Only processed numerical summaries (85 numbers
+  per 4-second window) — like a step counter saving "10,000 steps" rather than
+  recording every muscle movement.
+- **Audio or video** of sessions is NOT recorded.
+- **Your name, address, or contact information** is NOT stored in the research
+  data files. All data is stored under a random code only.
+
+**About your dream journal:** Dream content is the most personal data in this
+study. Your dream journal entries are stored under your pseudonymous code only.
+The researcher may read entries only for data quality checks (e.g., to verify the
+app is working correctly). Dreams are never shared externally in identifiable form.
+The AI module in the app reads your dream text to extract its emotional tone (a
+number between -1 and +1) — only this number is used in the analysis. Your raw
+dream text is retained securely and destroyed after 7 years.
 
 ---
 
 ## HOW IS MY PRIVACY PROTECTED?
 
-**Pseudonymization:** You will be assigned a random code (e.g., "NX4T82"). All your data is stored under this code, not your name. The link between your name and your code is kept in a separate password-protected file that only the researcher can access.
+**Pseudonymization:** At enrollment you are assigned a random 6-character code
+(e.g., "NX4T82"). Every data entry — EEG, dream journals, questionnaires — is
+stored under this code, never your name. The link between your name and code is
+kept in a separate encrypted file accessible only to the researcher.
 
-**Encryption:** All digital data is stored in an encrypted database. Your device (if used) communicates over encrypted connections.
+**Encryption:** All data is stored in an encrypted, SOC 2-certified database.
+Communications between the app and the database use TLS encryption.
 
-**No sharing of identifiable data:** Your individual data will never be shared with anyone in a form that could identify you.
+**No identifiable sharing:** Your individual data will never be shared with anyone
+in a form that could identify you. When results are published, only group-level
+statistics (averages, correlations across all participants) are reported.
 
-**Future data sharing:** De-identified data (no names, no codes, just numbers) may be shared publicly as a scientific dataset in the future, to help other researchers. This is standard practice in science. It would be impossible for anyone to identify you from these numbers.
+**Future open dataset:** De-identified data (numbers only, no codes, no text) may
+be shared publicly as a scientific dataset in the future to support other researchers.
+Dream journal text will NOT be included in any public dataset — only the numerical
+emotional valence scores extracted from it.
 
 ---
 
 ## WHAT ARE THE RISKS OF PARTICIPATING?
 
 **Physical risks: Very low.**
-The Muse 2 headband is a commercially available consumer device. It uses passive dry electrodes — no electrical current is delivered to you. The most common discomfort is mild pressure from wearing the headset for 45 minutes, similar to wearing headphones. No adverse events from Muse 2 use have been reported in published research.
+The Muse 2 uses passive dry electrodes. No electrical current is delivered to you.
+The most common discomfort is mild pressure from the headset during the daytime
+session. Wearing it during sleep is optional and can be removed at any time during
+the night with no consequence.
 
-**Psychological risks: Very low.**
-The questionnaire asks about daily emotions, including stress or difficult moments. While this is unlikely to be distressing, if you find any question uncomfortable, you may skip it or stop the session at any time. A list of free and low-cost mental health resources in your area will be provided to you.
+**Psychological risks: Low to moderate** — higher than a single-session study
+because of the nature of daily dream journaling over 30 days.
 
-**Privacy risks: Low** (see privacy protections above).
+Keeping a dream journal for a month means you will engage with your dream life
+more closely than usual. Occasionally this may include:
 
-**There are no medical, physical, or electrical stimulation risks in this study.**
+- Disturbing or unpleasant dream content that you would normally forget quickly
+- Increased awareness of nightmare frequency, which may itself feel unsettling
+- Mild discomfort from tracking your own daily stress and emotional patterns over
+  time — some people find this self-insight valuable; others find it uncomfortable
+
+**What the app does to help:**
+- Each morning, after you submit your dream rating, the app asks: *"How are you
+  feeling right now?"* If you rate yourself 2 or below (out of 9), the app gently
+  offers mental health resources and the option to contact the researcher.
+- If you rate yourself 2 or below on three consecutive mornings, the app prompts
+  you to optionally reach out for support.
+- You may skip any dream entry at any time — "I don't want to record this one" is
+  always an option with no consequence.
+- A full list of free mental health resources is on the last page of this form.
+
+**Privacy risks: Low** (see privacy protections above). Dream journals are the
+most sensitive data; specific protections are described in the data section above.
+
+**There are no medical procedures, blood draws, or electrical stimulation in this study.**
 
 ---
 
 ## WHAT ARE THE BENEFITS OF PARTICIPATING?
 
-There are no guaranteed personal benefits to participating in this study. You may find it interesting to reflect on your emotional patterns and eating habits.
+There are no guaranteed personal benefits. Many participants in similar diary-style
+studies report finding daily emotion and dream tracking personally insightful —
+but this is not guaranteed and is not the purpose of the research.
 
-The broader benefit is to science and society: if successful, this research could help develop better, more accessible tools for understanding the connection between emotional states and eating behavior, with applications in wellness technology and stress-eating interventions.
+**Societal benefits:** This study could produce the first naturalistic, wearable
+evidence that daytime brain activity predicts dream content — advancing fundamental
+dream science and potentially enabling consumer tools for nightmare prevention in
+people with anxiety, PTSD, and sleep disorders.
 
 ---
 
 ## WILL I BE PAID?
 
-Yes. You will receive **$25** as a gift card (Amazon or equivalent), provided at the end of the session.
+Yes. You receive **$5 per valid day completed** (a day counts if you complete at
+least 2 of the 3 daily touchpoints: morning + daytime + evening). Payment is made
+as a gift card at the end of the study or at the time of withdrawal.
 
-Compensation is not withheld for any reason other than not completing the session. If you withdraw partway through, the researcher will discuss compensation with you on a case-by-case basis.
+| Days Completed | Payment |
+|---|---|
+| All 30 days | $150 |
+| 25 days | $125 |
+| 15 days | $75 |
+| Fewer than 15 days | $5 × days completed |
+
+**Bonus:** If you complete 28 or more days AND wear the overnight EEG on at least
+10 nights, you receive an additional $25 gift card bonus.
+
+Compensation is based on completion only — not on data quality or specific results.
+If you withdraw early, you receive payment for the days you completed.
 
 ---
 
@@ -137,35 +285,40 @@ Compensation is not withheld for any reason other than not completing the sessio
 
 **Yes. Participation is completely voluntary.**
 
-You may:
-- Decline to answer any specific question without any consequence
-- Skip any questionnaire item
-- Stop the session at any time
-- Withdraw from the study entirely at any time
+At any point during the 30 days, you may:
+- Skip any individual question, dream entry, or questionnaire item with no consequence
+- Skip an entire day with no penalty (it simply does not count toward compensation)
+- Pause the study temporarily and resume later (discuss with researcher)
+- Withdraw completely at any time — you receive payment for all days completed
 
-**Withdrawing will have no negative consequences of any kind.** You will not be penalized or lose any benefits you are entitled to.
+**Withdrawing has no negative consequences of any kind.**
 
-If you withdraw **after** your data has been collected, you may request that your individual data be deleted, provided you make this request **within 60 days of your last session**. After that window, data will have been de-identified and merged into aggregated analyses, and it may no longer be possible to locate and remove individual records. After publication, aggregated results cannot be altered, but no result can be traced back to you individually.
-
-To request data deletion, contact the researcher at lakshmisravya.vedantham@gmail.com with the subject line "Data Deletion Request" and your session date. The researcher will delete your pseudonymized record within 14 business days and confirm deletion in writing.
+**Data deletion:** If you withdraw, you may request deletion of your data within
+60 days of your last completed day. Send a "Data Deletion Request" to
+lakshmisravya.vedantham@gmail.com with your enrollment date. The researcher will
+delete your pseudonymized record within 14 business days and confirm in writing.
+After 60 days, data may have been incorporated into aggregated analyses and
+individual records may no longer be separable — but no result can ever be traced
+back to you personally.
 
 ---
 
 ## WHO CAN I CONTACT WITH QUESTIONS?
 
-**For questions about this study:**
+**For questions about this study at any point during the 30 days:**
 Lakshmi Sravya Vedantham
 lakshmisravya.vedantham@gmail.com
-[YOUR PHONE]
 
-**For concerns about your rights as a research participant:**
-You may contact the IRB that approved this study directly and independently — you do not need to go through the researcher:
+*The researcher is available by email throughout the study. Typical response time
+is within 24 hours on weekdays.*
+
+**For concerns about your rights as a research participant** (independent of the researcher):
 [IRB NAME — e.g., WCG IRB / Advarra IRB]
-[IRB PHONE]
 [IRB EMAIL]
+[IRB PHONE]
 [IRB WEBSITE]
 
-The IRB is an independent committee not affiliated with this study. You may contact them at any time without notifying the researcher.
+You may contact the IRB at any time without notifying the researcher first.
 
 ---
 
@@ -173,21 +326,44 @@ The IRB is an independent committee not affiliated with this study. You may cont
 
 Please read each statement below and initial to confirm you understand and agree:
 
-**______** I have read this consent form (or had it read to me) and understand what this study involves.
+**______** I have read this consent form (or had it read to me) and understand
+what 30 days of participation involves.
 
-**______** I understand that my participation is voluntary and I can stop at any time without penalty.
+**______** I understand that participation is voluntary and I can stop at any time
+without penalty, and that I will be compensated for days already completed.
 
-**______** I understand what data will be collected and how it will be protected.
+**______** I understand that dream journal entries are personal and sensitive data,
+stored under a pseudonymous code and never shared in identifiable form.
 
-**______** I understand that raw EEG recordings are not stored — only processed numerical summaries.
+**______** I understand that the AI module reads my dream text only to extract a
+numerical emotional tone score, and that my raw dream text will not be published
+or shared publicly.
 
-**______** I understand that de-identified data may be shared publicly as a scientific dataset in the future.
+**______** I understand that raw EEG voltage recordings are not stored — only
+processed numerical summaries.
+
+**______** I understand that de-identified numerical data (not dream text) may be
+shared publicly as a scientific dataset in the future.
+
+**______** I understand I can skip any dream entry, question, or entire day without
+penalty, and that the app will provide mental health resources if I am distressed.
 
 **______** I have had all my questions answered and have had enough time to decide.
 
 **______** I am 18 years of age or older.
 
-**______** I agree to participate in this study.
+**______** I agree to participate in this 30-day study.
+
+---
+
+**Optional overnight EEG consent (initial ONE):**
+
+**______** I consent to wearing the Muse 2 headset during sleep on nights I choose,
+for the optional sleep/dream-detection component. I understand this is not required
+and I can choose which nights to wear it.
+
+**______** I do NOT wish to participate in the optional overnight EEG component.
+I understand this does not affect my eligibility or compensation.
 
 ---
 
@@ -201,22 +377,22 @@ Please read each statement below and initial to confirm you understand and agree
 
 ---
 
-*A copy of this signed consent form will be given to you.*
-*Please keep it for your records.*
+*You will receive a copy of this signed consent form by email.*
+*Please keep it — it contains the researcher's contact information and your rights.*
 
 ---
 
 ## APPENDIX: FREE MENTAL HEALTH RESOURCES
 
-If you experience any distress during or after the session, here are free or low-cost resources:
+Available to you any time during or after the study. You do not need to be in
+crisis to use these.
 
 | Resource | Contact |
-|----------|---------|
+|---|---|
 | **Crisis Text Line** | Text HOME to 741741 |
 | **SAMHSA National Helpline** | 1-800-662-4357 (free, confidential, 24/7) |
-| **National Alliance on Mental Illness (NAMI) Helpline** | 1-800-950-6264 |
+| **NAMI Helpline** | 1-800-950-6264 |
 | **988 Suicide & Crisis Lifeline** | Call or text 988 |
 | **Psychology Today Therapist Finder** | psychologytoday.com/us/therapists |
-| **Open Path Collective** (low-cost therapy) | openpathcollective.org |
-
-*You do not need to be in crisis to use these resources.*
+| **Open Path Collective** (low-cost therapy, $30–$80/session) | openpathcollective.org |
+| **Nightmare disorder information** | sleepeducation.org/sleep-disorders/nightmares |
