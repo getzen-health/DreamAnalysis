@@ -1,11 +1,11 @@
 # STUDY PROTOCOL
 ## Consumer-Grade EEG as a Biomarker for Emotional State and Daily Eating Behavior: A Validation Study
 
-**Version:** 1.1
+**Version:** 1.2
 **Date:** February 25, 2026
 **IRB Submission Type:** Expedited Review (45 CFR 46.110, Categories 6 & 7)
 **Principal Investigator:** Lakshmi Sravya Vedantham, Independent Researcher
-**Contact:** lakshmisravya.vedantham@gmail.com | [YOUR PHONE]
+**Contact:** lakshmisravya.vedantham@gmail.com
 
 ---
 
@@ -148,7 +148,7 @@ linked to the physiological experience of the person they feed.
 
 | Phase | Question | Design |
 |-------|----------|--------|
-| Phase 1 (this study) | Can consumer EEG detect emotional state in the eater? | N=50 observational |
+| Phase 1 (this study) | Can consumer EEG detect emotional state in the eater? | N=20–30 pilot observational |
 | Phase 2 | Does the cook's emotional state during preparation affect the eater's physiological response? | Controlled, blinded, same dish — two emotional conditions for cook |
 | Phase 3 | Can we detect the full grower → cook → server → eater transfer chain simultaneously? | Multi-person EEG, naturalistic restaurant/home setting |
 | Phase 4 | Can real-time emotional state feedback to cooks and servers improve eater wellbeing outcomes? | Intervention study with neurofeedback |
@@ -156,8 +156,8 @@ linked to the physiological experience of the person they feed.
 ### 1.3 Specific Aims
 
 **Aim 1:** Validate the accuracy of consumer-grade EEG (Muse 2) emotion classification
-against participants' own self-reported emotional states collected via a structured
-end-of-day questionnaire.
+against participants' own self-reported current emotional states collected via a brief
+structured questionnaire administered during the session.
 
 **Aim 2:** Examine whether EEG-derived biomarkers (FAA, theta, high-beta, delta)
 correlate with self-reported food consumption patterns and predicted eating states
@@ -172,12 +172,14 @@ We hypothesize that:
 (H1) EEG-derived emotion classifications will show significant agreement with
 self-reported emotional states (target: >65% cross-subject accuracy, Cohen's κ > 0.40).
 
-(H2) EEG biomarker patterns measured immediately before or during meals will
-significantly differ from patterns measured at least two hours after a meal, consistent
-with hunger vs. satiety states.
+(H2) EEG biomarker patterns will differ significantly across participants who report
+different eating motivations (emotional eating vs. physical hunger vs. habit), with
+emotional eating associated with higher FAA negativity and higher high-beta power
+relative to physical hunger.
 
-(H3) Personalized baseline calibration (+15–29% accuracy expected) will significantly
-improve individual-level classification compared to population-average thresholds.
+(H3) Personalized resting-state baseline calibration will produce higher EEG emotion
+classification accuracy compared to population-average thresholds, consistent with
+published calibration effect estimates of +15–29%.
 
 ---
 
@@ -224,7 +226,7 @@ events, relationships, or sensitive personal history are collected.
 
 **Section C — Basic Context (Covariates, anonymized):**
 - Hours of sleep last night (numeric — single question, no follow-up)
-- Caffeine intake this morning (none / 1 cup / 2+ cups)
+- Caffeine intake today so far (none / 1 cup / 2+ cups)
 - Any medication currently taken that may affect alertness or brain activity (yes/no only — no medication names collected)
 
 ### 2.3 EEG Recording
@@ -273,7 +275,7 @@ findings will be used to inform the design of a larger follow-up study.
 - Age 18–65 years
 - Fluent English speaker (for questionnaire comprehension)
 - No current diagnosis of a neurological condition known to substantially alter EEG signal (see exclusion criteria for specific conditions)
-- Willing and able to wear EEG headset for approximately 45 minutes
+- Willing and able to wear EEG headset for approximately 20–30 minutes
 - Owns or has access to a smartphone or computer (for remote sessions, if applicable)
 - Able to provide informed consent
 
@@ -284,7 +286,6 @@ findings will be used to inform the design of a larger follow-up study.
 - Active diagnosis of a psychotic disorder (e.g., schizophrenia) — EEG signals may be atypical
 - Current use of medications with known strong EEG effects (benzodiazepines, antipsychotics, anticonvulsants, or stimulant medications such as methylphenidate or amphetamine-based ADHD medications) — these significantly alter band powers and would confound results. Note: SSRIs and SNRIs (antidepressants) are permitted but will be recorded as a covariate, as their EEG effects at therapeutic doses are modest compared to the above classes.
 - Scalp conditions, open wounds, or skin conditions on the forehead or temporal region that would prevent safe headset use
-- Pregnancy (excluded because known hormonal fluctuations during pregnancy — particularly estrogen and progesterone — significantly alter EEG band powers including alpha and theta, which would confound the primary study outcomes)
 - Active traumatic brain injury (TBI) affecting cognitive or neurological function. Participants with a remote, resolved TBI (>2 years prior, with no ongoing neurological sequelae) may be enrolled at PI discretion after verbal screening.
 - Participation in another EEG research study in the past 30 days
 
@@ -295,7 +296,7 @@ Participants will be recruited via:
 - Online postings (Nextdoor, Craigslist, local Facebook groups, Reddit r/[local city])
 - Word-of-mouth referrals from enrolled participants
 
-Enrollment will be first-come, first-served until N = 50 is reached.
+Enrollment will be first-come, first-served until the target of N = 20–30 is reached.
 
 ---
 
@@ -305,10 +306,10 @@ Enrollment will be first-come, first-served until N = 50 is reached.
 
 Interested individuals will complete a brief online screening survey (REDCap or Google
 Forms) covering inclusion/exclusion criteria. Eligible candidates will be contacted
-within 3 business days to schedule their first session.
+within 3 business days to schedule their session.
 
 **Remote session headset provision:** For remote participants, a Muse 2 headset will be
-mailed to the participant in advance and returned by mail after Session 2. Each headset
+mailed to the participant in advance and returned by mail after the session. Each headset
 will be sanitized with isopropyl alcohol wipes between participants per manufacturer
 guidelines. Alternatively, participants who own a Muse 2 may use their own device
 (confirmed during screening). The loan/return process and any deposit requirements will
@@ -370,14 +371,17 @@ dry electrodes with no electrical current delivered to the participant. The most
 common discomfort reported is mild scalp pressure from the headset frame. No adverse
 events related to Muse 2 use have been reported in peer-reviewed literature.
 
-**Psychological risks:** The questionnaire asks about daily emotional experiences
-including stress and anxiety. While unlikely to cause distress, some participants may
-find reflection on a difficult day mildly uncomfortable. Participants will be reminded
-they may skip any question. A referral list for free/low-cost mental health resources
-will be provided to all participants.
+**Psychological risks:** Very low. The questionnaire asks only about current emotional
+state (mood, energy, focus, anxiety level) and a brief description of the most recent
+meal. No questions about personal life events, relationships, trauma, or sensitive
+personal history are included. If any participant finds a question uncomfortable,
+they may skip it without consequence. A referral list for free/low-cost mental health
+resources will be provided to all participants as a standard precaution.
 
-**Privacy risks:** The study collects EEG data and personal daily experiences including
-food habits. These are sensitive data. See Section 7 (Data Security) for protections.
+**Privacy risks:** Low. The study collects EEG feature data (not raw recordings),
+current mood ratings, and a brief description of the participant's most recent meal.
+No names, addresses, or sensitive personal history are stored in research data files.
+All data is pseudonymized. See Section 7 (Data Security) for full protections.
 
 **Classification accuracy risks:** Participants will not be given real-time emotion
 feedback during the session to avoid influencing questionnaire responses.
@@ -388,7 +392,7 @@ feedback during the session to avoid influencing questionnaire responses.
 Some participants may find reflecting on their emotional and dietary patterns personally
 informative.
 
-**Societal benefits:** This study will be the first to validate consumer-grade EEG as
+**Societal benefits:** This study contributes to the emerging validation of consumer-grade EEG as
 a biomarker for naturalistic eating behavior, with potential applications in:
 - Personalized nutrition and wellness technology
 - Stress-eating intervention apps
@@ -480,6 +484,12 @@ project.
   state and self-reported eating motivation.
 - **Regression:** Hierarchical linear regression with FAA, theta, high-beta as
   predictors of SAM and PANAS scores; controlling for sleep and caffeine.
+
+### Tertiary Analysis (Aim 3 — Calibration Effect)
+
+- **Within-session comparison:** Classification accuracy using population-average
+  thresholds vs. individual resting-state baseline-normalized features (computed from
+  the 4-minute baseline collected at the start of each session). Effect size: Cohen's d.
 
 ### Missing Data
 

@@ -1,7 +1,7 @@
 # IRB SELECTION GUIDE FOR INDEPENDENT RESEARCHERS (USA)
 ## Consumer-Grade EEG as a Biomarker for Emotional State and Daily Eating Behavior
 
-**Version:** 1.0
+**Version:** 1.2
 **Date:** February 25, 2026
 **Purpose:** Help an independent researcher (no institutional affiliation) choose, apply to, and work with a commercial IRB in the United States.
 
@@ -37,7 +37,7 @@ Your study qualifies for **Expedited Review**, not Full Board Review. This is im
 - Consumer device (Muse 2) is commercially available, CE/FCC cleared
 - Questions about daily life, not trauma, abuse, or stigmatizing topics
 - No deception
-- No vulnerable populations requiring additional regulatory protections: children (under 18 excluded), prisoners (not targeted), and pregnant women (excluded, removing the need for 45 CFR 46 Subpart B protections). Note: pregnant women are a defined vulnerable population under federal regulations; their exclusion means Subpart B does not apply, but this should be stated explicitly in your IRB application.
+- No special vulnerable populations targeted: children (under 18 excluded), prisoners (not targeted). Pregnant women are not excluded — the study presents no known risk to them (passive consumer device, no electrical stimulation, non-invasive questionnaire). Your IRB application should explicitly note this and confirm that Subpart B of 45 CFR 46 has been considered; most IRBs will agree it does not impose additional requirements given the minimal-risk nature of this study.
 
 ---
 
@@ -167,14 +167,13 @@ Email your top 2–3 IRB choices with this brief message:
 >
 > Dear IRB Team,
 >
-> I am an independent researcher seeking expedited IRB review for a minimal-risk behavioral pilot study involving consumer EEG (Muse 2 headband) and brief questionnaire data from N=20–30 healthy adults in the United States. The study involves a single morning session of approximately 20–30 minutes, no medical procedures, no electrical stimulation, no sensitive personal questions, and no vulnerable populations. We anticipate this qualifies for expedited review under 45 CFR 46.110, Categories 6 and 7.
+> I am an independent researcher seeking expedited IRB review for a minimal-risk behavioral pilot study involving consumer EEG (Muse 2 headband) and brief questionnaire data from N=20–30 healthy adults in the United States. The study involves a single session of approximately 20–30 minutes (any time of day), no medical procedures, no electrical stimulation, no sensitive personal questions, and no vulnerable populations. We anticipate this qualifies for expedited review under 45 CFR 46.110, Categories 6 and 7.
 >
 > Could you please provide a fee schedule or project quote, and confirm you accept applications from independent (non-institutional) researchers?
 >
 > Thank you,
-> [YOUR NAME]
-> [YOUR EMAIL]
-> [YOUR PHONE]
+> Lakshmi Sravya Vedantham
+> lakshmisravya.vedantham@gmail.com
 
 ---
 
@@ -218,7 +217,6 @@ Pay the application fee (most IRBs accept credit card or ACH bank transfer).
 The reviewer may ask clarifying questions or request minor modifications. Respond promptly and thoroughly. For expedited review, queries usually arrive within 5–10 business days of submission.
 
 Common query topics for studies like yours:
-- Clarification on why pregnancy is excluded (provide the rationale from your protocol)
 - Request to add specific language to the consent form about data sharing
 - Clarification on whether audio/video is recorded during sessions
 - Request for the validated scales (SAM/PANAS) themselves as attachments
@@ -285,7 +283,7 @@ Before the expiration date on your approval letter, submit a continuing review r
 | IRB review and potential queries | Week 5–8 |
 | Receive approval letter | Week 6–10 |
 | Begin recruitment | Week 7–11 |
-| Complete data collection (50 participants × 2 sessions) | Month 3–5 |
+| Complete data collection (20–30 participants × 1 session) | Month 3–5 |
 | Data analysis and manuscript preparation | Month 5–7 |
 | Journal submission | Month 7–8 |
 
