@@ -4,13 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Camera,
   CheckCircle2,
@@ -20,6 +14,7 @@ import {
   Zap,
   TrendingUp,
   X,
+  PenLine,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +55,8 @@ interface FoodLog {
   foodItems: FoodItem[] | null;
 }
 
+type InputMode = "photo" | "text";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const GI_STYLE: Record<string, string> = {
@@ -75,6 +72,7 @@ const MACRO_COLOR: Record<string, string> = {
   balanced: "text-green-400",
 };
 
+const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
 const MEAL_ICONS: Record<string, string> = {
   breakfast: "🌅",
   lunch:     "☀️",
@@ -83,8 +81,7 @@ const MEAL_ICONS: Record<string, string> = {
 };
 
 function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDate(iso: string) {
@@ -95,6 +92,14 @@ function formatDate(iso: string) {
   if (d.toDateString() === today.toDateString()) return "Today";
   if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function autoMealType(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 10) return "breakfast";
+  if (h >= 11 && h < 15) return "lunch";
+  if (h >= 17 && h < 22) return "dinner";
+  return "snack";
 }
 
 // Resize image to max dimension and convert to base64
@@ -111,8 +116,7 @@ async function compressToBase64(file: File, maxPx = 800): Promise<string> {
       if (!ctx) return reject(new Error("No canvas context"));
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
-      const b64 = canvas.toDataURL("image/jpeg", 0.75).split(",")[1];
-      resolve(b64);
+      resolve(canvas.toDataURL("image/jpeg", 0.75).split(",")[1]);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
     img.src = url;
@@ -126,10 +130,16 @@ export default function FoodLog() {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [mealType, setMealType] = useState("snack");
+  const [inputMode, setInputMode] = useState<InputMode>("photo");
+  const [mealType, setMealType] = useState(autoMealType());
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<FoodAnalysis | null>(null);
+
+  // Photo mode state
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Text mode state
+  const [description, setDescription] = useState("");
 
   // History
   const { data: history } = useQuery<FoodLog[]>({
@@ -141,31 +151,15 @@ export default function FoodLog() {
     },
   });
 
-  // ── File selection ──────────────────────────────────────────────────────────
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Show preview
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    setAnalysis(null);
-
-    // Auto-detect meal type from time of day
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 10) setMealType("breakfast");
-    else if (hour >= 11 && hour < 15) setMealType("lunch");
-    else if (hour >= 17 && hour < 22) setMealType("dinner");
-    else setMealType("snack");
-
-    // Analyze immediately
+  // ── Shared submit logic ──────────────────────────────────────────────────────
+  async function submitAnalysis(payload: { imageBase64?: string; textDescription?: string }) {
     setIsAnalyzing(true);
+    setAnalysis(null);
     try {
-      const b64 = await compressToBase64(file);
       const res = await apiRequest("POST", "/api/food/analyze", {
         userId: USER_ID,
-        imageBase64: b64,
         mealType,
+        ...payload,
       });
       const data: FoodAnalysis = await res.json();
       setAnalysis(data);
@@ -173,16 +167,47 @@ export default function FoodLog() {
       qc.invalidateQueries({ queryKey: ["/api/research/correlation", USER_ID] });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Analysis failed";
-      toast({ title: "Could not analyze photo", description: msg, variant: "destructive" });
+      toast({ title: "Could not analyze meal", description: msg, variant: "destructive" });
     } finally {
       setIsAnalyzing(false);
     }
+  }
+
+  // ── Photo mode handlers ──────────────────────────────────────────────────────
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    setMealType(autoMealType());
+    const b64 = await compressToBase64(file);
+    await submitAnalysis({ imageBase64: b64 });
   };
 
-  const clearCapture = () => {
+  const clearPhoto = () => {
     setPreviewUrl(null);
     setAnalysis(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // ── Text mode handler ────────────────────────────────────────────────────────
+  const handleTextSubmit = async () => {
+    if (!description.trim()) return;
+    await submitAnalysis({ textDescription: description.trim() });
+  };
+
+  const clearText = () => {
+    setDescription("");
+    setAnalysis(null);
+  };
+
+  // ── Mode switch ──────────────────────────────────────────────────────────────
+  const switchMode = (mode: InputMode) => {
+    setInputMode(mode);
+    setAnalysis(null);
+    setPreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (mode === "text") setDescription("");
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -193,13 +218,57 @@ export default function FoodLog() {
         <Utensils className="w-6 h-6 text-amber-400" />
         <div>
           <h1 className="text-xl font-bold">Meal Log</h1>
-          <p className="text-xs text-muted-foreground">Photo your food · AI finds food → mood → dream patterns</p>
+          <p className="text-xs text-muted-foreground">Track what you eat · see how food shapes mood & dreams</p>
         </div>
+      </div>
+
+      {/* ── Input mode toggle ─────────────────────────────────────────────────── */}
+      <div className="flex rounded-lg border border-border/60 p-1 gap-1 bg-muted/20">
+        <button
+          onClick={() => switchMode("photo")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+            inputMode === "photo"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Camera className="w-4 h-4" />
+          Photo
+        </button>
+        <button
+          onClick={() => switchMode("text")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+            inputMode === "text"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <PenLine className="w-4 h-4" />
+          Describe
+        </button>
+      </div>
+
+      {/* ── Meal type chips ───────────────────────────────────────────────────── */}
+      <div className="flex gap-2">
+        {MEAL_TYPES.map(t => (
+          <button
+            key={t}
+            onClick={() => setMealType(t)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              mealType === t
+                ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
+                : "border-border/50 bg-muted/20 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {MEAL_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
       </div>
 
       {/* ── Capture card ─────────────────────────────────────────────────────── */}
       <Card>
         <CardContent className="pt-5 space-y-4">
+
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -210,65 +279,76 @@ export default function FoodLog() {
             onChange={handleFileChange}
           />
 
-          {!previewUrl ? (
-            /* Camera button */
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full h-36 rounded-xl border-2 border-dashed border-amber-500/30 hover:border-amber-500/60 bg-amber-500/5 hover:bg-amber-500/10 transition-all flex flex-col items-center justify-center gap-3 group"
-            >
-              <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Camera className="w-6 h-6 text-amber-400" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium">Photograph your meal</p>
-                <p className="text-xs text-muted-foreground">Tap to use camera or upload a photo</p>
-              </div>
-            </button>
-          ) : (
-            /* Preview + analysis state */
-            <div className="space-y-4">
-              <div className="relative rounded-xl overflow-hidden">
-                <img src={previewUrl} alt="Meal preview" className="w-full h-48 object-cover" />
-                <button
-                  onClick={clearCapture}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5 text-white" />
-                </button>
-                {isAnalyzing && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin text-white" />
-                    <span className="text-white text-sm font-medium">Analyzing…</span>
-                  </div>
+          {/* ── PHOTO MODE ─────────────────────────────────────────────────── */}
+          {inputMode === "photo" && (
+            !previewUrl ? (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-40 rounded-xl border-2 border-dashed border-amber-500/30 hover:border-amber-500/60 bg-amber-500/5 hover:bg-amber-500/10 transition-all flex flex-col items-center justify-center gap-3 group"
+              >
+                <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Camera className="w-6 h-6 text-amber-400" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium">Photograph your meal</p>
+                  <p className="text-xs text-muted-foreground">Tap to use camera or pick a photo</p>
+                </div>
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative rounded-xl overflow-hidden">
+                  <img src={previewUrl} alt="Meal preview" className="w-full h-48 object-cover" />
+                  <button
+                    onClick={clearPhoto}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5 text-white" />
+                  </button>
+                  {isAnalyzing && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                      <span className="text-white text-sm font-medium">Analyzing…</span>
+                    </div>
+                  )}
+                </div>
+                {!isAnalyzing && (
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
+                    <Camera className="w-3.5 h-3.5" />
+                    Retake photo
+                  </Button>
                 )}
               </div>
+            )
+          )}
 
-              {/* Meal type selector */}
-              {!isAnalyzing && (
-                <div className="flex items-center gap-3">
-                  <Select value={mealType} onValueChange={setMealType}>
-                    <SelectTrigger className="w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["breakfast", "lunch", "dinner", "snack"].map(t => (
-                        <SelectItem key={t} value={t}>
-                          {MEAL_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="gap-1.5"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    Retake
+          {/* ── TEXT MODE ──────────────────────────────────────────────────── */}
+          {inputMode === "text" && (
+            <div className="space-y-3">
+              <Textarea
+                placeholder={"Describe your meal…\ne.g. 2 scrambled eggs, one slice whole-wheat toast with butter, a glass of orange juice"}
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className="min-h-[100px] resize-none text-sm"
+                disabled={isAnalyzing}
+              />
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+                  onClick={handleTextSubmit}
+                  disabled={isAnalyzing || !description.trim()}
+                >
+                  {isAnalyzing ? (
+                    <><Loader2 className="w-4 h-4 animate-spin mr-2" />Analyzing…</>
+                  ) : (
+                    "Log meal"
+                  )}
+                </Button>
+                {(description || analysis) && !isAnalyzing && (
+                  <Button variant="outline" size="icon" onClick={clearText}>
+                    <X className="w-4 h-4" />
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
         </CardContent>
@@ -296,7 +376,7 @@ export default function FoodLog() {
 
             {/* Macro + GI badges */}
             <div className="flex gap-2 flex-wrap">
-              {analysis.dominantMacro && (
+              {analysis.glycemicImpact && (
                 <Badge variant="outline" className={`text-xs ${GI_STYLE[analysis.glycemicImpact] ?? ""}`}>
                   GI: {analysis.glycemicImpact}
                 </Badge>
@@ -324,9 +404,8 @@ export default function FoodLog() {
               </div>
             )}
 
-            {/* Divider */}
+            {/* Insights */}
             <div className="border-t border-border/40 pt-3 space-y-3">
-              {/* Mood impact */}
               <div className="flex items-start gap-2">
                 <Zap className="w-3.5 h-3.5 text-violet-400 shrink-0 mt-0.5" />
                 <div>
@@ -334,7 +413,6 @@ export default function FoodLog() {
                   <p className="text-xs text-muted-foreground leading-relaxed">{analysis.moodImpact}</p>
                 </div>
               </div>
-              {/* Dream relevance */}
               <div className="flex items-start gap-2">
                 <Moon className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
                 <div>
@@ -350,9 +428,7 @@ export default function FoodLog() {
       {/* ── History ───────────────────────────────────────────────────────────── */}
       {history && history.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Recent meals
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent meals</p>
           <div className="space-y-2">
             {history.map(log => (
               <div
@@ -366,7 +442,7 @@ export default function FoodLog() {
                   <p className="font-medium truncate">{log.summary ?? "Meal"}</p>
                   <p className="text-xs text-muted-foreground">
                     {formatDate(log.loggedAt)} · {formatTime(log.loggedAt)}
-                    {log.totalCalories && ` · ${log.totalCalories} cal`}
+                    {log.totalCalories ? ` · ${log.totalCalories} cal` : ""}
                     {log.dominantMacro && (
                       <span className={` · ${MACRO_COLOR[log.dominantMacro] ?? ""}`}>
                         {log.dominantMacro}
@@ -386,7 +462,7 @@ export default function FoodLog() {
       )}
 
       {/* Empty state */}
-      {(!history || history.length === 0) && !analysis && (
+      {(!history || history.length === 0) && !analysis && !isAnalyzing && (
         <div className="text-center py-8 space-y-2">
           <TrendingUp className="w-8 h-8 text-muted-foreground/30 mx-auto" />
           <p className="text-sm text-muted-foreground">

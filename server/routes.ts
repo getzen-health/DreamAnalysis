@@ -773,24 +773,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Food photo log ─────────────────────────────────────────────────────────
 
-  // POST /api/food/analyze — analyze a meal photo with GPT-5 vision, store the log
+  // POST /api/food/analyze — analyze a meal (photo OR text description) with GPT-5, store the log
   app.post("/api/food/analyze", async (req, res) => {
     try {
-      const { userId, imageBase64, mealType, moodBefore, notes } = req.body;
+      const { userId, imageBase64, textDescription, mealType, moodBefore, notes } = req.body;
       if (!userId) return res.status(400).json({ message: "userId required" });
-      if (!imageBase64) return res.status(400).json({ message: "imageBase64 required" });
+      if (!imageBase64 && !textDescription) return res.status(400).json({ message: "imageBase64 or textDescription required" });
       if (!openai) return res.status(503).json({ message: "OpenAI not configured" });
 
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-      const response = await openai.chat.completions.create({
-        model: "gpt-5",
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Analyze this food photo. Return ONLY valid JSON (no markdown fences) with this exact shape:
-{
+      const JSON_SCHEMA = `{
   "foodItems": [{"name":"...","portion":"...","calories":0,"carbs_g":0,"protein_g":0,"fat_g":0}],
   "totalCalories": 0,
   "dominantMacro": "carbs|protein|fat|balanced",
@@ -798,16 +789,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   "moodImpact": "2-sentence prediction: how this meal typically affects mood/energy 2-4 hours later",
   "dreamRelevance": "2-sentence note: how this nutrition may affect tonight's sleep depth or dream vividness",
   "summary": "One plain-English sentence describing what was eaten"
-}`,
-            },
-            {
-              type: "image_url",
-              image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" },
-            },
-          ],
-        }],
-        max_tokens: 700,
-      });
+}`;
+
+      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      let response;
+      if (imageBase64) {
+        // Vision path — analyze a photo
+        response = await openai.chat.completions.create({
+          model: "gpt-5",
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: `Analyze this food photo. Return ONLY valid JSON (no markdown fences) with this exact shape:\n${JSON_SCHEMA}` },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" } },
+            ],
+          }],
+          max_tokens: 700,
+        });
+      } else {
+        // Text path — analyze a written description
+        response = await openai.chat.completions.create({
+          model: "gpt-5",
+          messages: [{
+            role: "user",
+            content: `The user describes their ${mealType ?? "meal"}: "${textDescription}"\n\nEstimate nutrition and return ONLY valid JSON (no markdown fences) with this exact shape:\n${JSON_SCHEMA}`,
+          }],
+          max_tokens: 700,
+        });
+      }
 
       const raw = response.choices[0].message.content ?? "{}";
       let analysis: Record<string, unknown>;
