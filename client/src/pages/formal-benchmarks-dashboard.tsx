@@ -12,10 +12,10 @@ const models = [
     id: 1,
     name: "Emotion Classifier",
     file: "emotion_classifier.py",
-    algo: "Mega LGBM (global PCA 85→80, DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV) + Feature Heuristics",
-    liveAccuracy: "73.94% CV",
-    benchmarkAccuracy: "73.94% CV (DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV, 3-class, cross-subject)",
-    crossSubject: "73.94% CV (DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV, 3-class, global PCA 85→80)",
+    algo: "Mega LGBM (global PCA 85→80, 9 datasets: DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub) + Feature Heuristics",
+    liveAccuracy: "74.21% CV",
+    benchmarkAccuracy: "74.21% CV (9 datasets, 3-class, cross-subject, 163 534 samples)",
+    crossSubject: "74.21% CV (9 datasets, 3-class, global PCA 85→80)",
     classes: 6,
     classLabels: ["happy", "sad", "angry", "fear", "relaxed", "focused"],
     primarySignals: ["FAA (AF7/AF8 asymmetry)", "Beta/Alpha ratio", "High-Beta 20–30 Hz", "Theta/Beta ratio"],
@@ -432,7 +432,7 @@ const datasets = [
     accuracy: 0.88,
     f1: 0.85,
     cvMethod: "Leave-one-out",
-    note: "Used in mega-trainer (97.79% combined run). 3-class output (pos/neutral/neg)",
+    note: "Used in mega-trainer (unified global PCA pipeline). 3-class output (pos/neutral/neg)",
     caveat: "Research-grade data doesn't transfer cleanly to Muse 2",
     status: "loaded",
   },
@@ -477,7 +477,7 @@ const datasets = [
     accuracy: 0.7394,
     f1: 0,
     cvMethod: "5-fold stratified CV (mega-trainer)",
-    note: "Integrated. 15 subjects × 3 sessions = 45 files. Pre-extracted DE features (4-sec windows). 4 Muse-equivalent channels: T7(23)→TP9, FP1(0)→AF7, FP2(2)→AF8, T8(31)→TP10. 4-class → 3-class: neutral→1, sad/fear→2, happy→0. 17 490 samples. Mega LGBM with SEED-IV: 73.94% CV.",
+    note: "Integrated. 15 subjects × 3 sessions = 45 files. Pre-extracted DE features (4-sec windows). 4 Muse-equivalent channels: T7(23)→TP9, FP1(0)→AF7, FP2(2)→AF8, T8(31)→TP10. 4-class → 3-class: neutral→1, sad/fear→2, happy→0. 17 490 samples. Mega LGBM with 9 datasets: 74.21% CV.",
     caveat: "Research-grade 62-ch layout — 4 channels selected by 10-20 position. Pre-extracted DE (not raw EEG).",
     status: "loaded",
   },
@@ -542,7 +542,7 @@ const differentiation = [
     dimension: "Dataset Breadth",
     published: "Papers typically use 1–2 datasets. Rarely show cross-dataset transfer results.",
     thisWork:
-      "11 datasets: DEAP, SEED, GAMEEMO, EEG-ER, EmoKeyMuseS, Brainwave, DREAMER ✅, FACED ✅, DENS ✅, SEED-IV ✅ (73.94% CV — 133 617 samples, 6 active datasets). Cross-dataset transfer explicitly modeled. Training scripts for all.",
+      "12 datasets: DEAP, SEED, GAMEEMO, EEG-ER ✅, EmoKeyMuseS, Brainwave, DREAMER ✅, FACED ✅, DENS ✅, SEED-IV ✅, STEW ✅, Muse-Sub ✅ (74.21% CV — 163 534 samples, 9 active datasets). Cross-dataset transfer explicitly modeled. Training scripts for all.",
     advantage: true,
   },
 ];
@@ -1066,8 +1066,8 @@ export default function FormalBenchmarksDashboard() {
                 {[
                   { cond: "Published (within-subject, lab-grade)", binary: "85–98%", six: "75–90%", note: "Cheating — same person, same session" },
                   { cond: "Published cross-subject (lab-grade)", binary: "65–75%", six: "55–70%", note: "More honest, still ideal conditions" },
-                  { cond: "Mega LGBM (DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV, global PCA 85→80)", binary: "73.94% CV", six: "73.94% CV (3-class)", note: "✅ Active live path — 133 617 samples, 6 datasets, scaler+PCA+LGBM in single pkl" },
-                  { cond: "Muse 2, no calibration, our system", binary: "~50–55%", six: "73.94% CV (6-dataset global PCA)", note: "Cross-dataset cross-subject benchmark — mega LGBM active" },
+                  { cond: "Mega LGBM (9 datasets, global PCA 85→80)", binary: "74.21% CV", six: "74.21% CV (3-class)", note: "✅ Active live path — 163 534 samples, 9 datasets, scaler+PCA+LGBM in single pkl" },
+                  { cond: "Muse 2, no calibration, our system", binary: "~50–55%", six: "74.21% CV (9-dataset global PCA)", note: "Cross-dataset cross-subject benchmark — mega LGBM active" },
                   { cond: "DENS (128-ch EGI, 4-ch subset, valence labels)", binary: "79.55% CV", six: "79.55% CV (3-class)", note: "LGBM 80.46% test | 79.55% CV — best cross-subject result to date" },
                   { cond: "Muse 2, with BaselineCalibrator (2-min baseline)", binary: "65–75%", six: "60–70%", note: "+15–29 pts from calibration alone" },
                   { cond: "Muse 2, after 5 sessions (Online Learner)", binary: "75–82%", six: "68–76%", note: "Target after personalization" },
@@ -1084,15 +1084,13 @@ export default function FormalBenchmarksDashboard() {
             </table>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-sky-400/20 bg-sky-400/[0.04] p-4">
-            <p className="text-sm font-semibold text-sky-300">The 97.79% LGBM Model — Why It's Not Active</p>
+          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.04] p-4">
+            <p className="text-sm font-semibold text-emerald-300">Active Live Path: emotion_mega_lgbm.pkl</p>
             <p className="mt-2 text-sm text-white/65">
-              <code className="text-xs bg-white/10 px-1 rounded">emotion_classifier_lgbm.joblib</code> (109 MB) exists in{" "}
-              <code className="text-xs bg-white/10 px-1 rounded">ml/models/</code> but is not loaded because:
-              (1) It outputs 3 classes (pos/neutral/neg) but the system expects 6 classes.
-              (2) It needs 88-dim PCA features (80 PCA + 8 one-hot dataset indicators) — not the 17 raw band-power features currently extracted.
-              (3) The filename doesn't match the <code className="text-xs bg-white/10 px-1 rounded">_find_model("emotion_classifier_model")</code> discovery pattern.
-              To enable it: add PCA transform step, change to 3-class output, rename file.
+              <code className="text-xs bg-white/10 px-1 rounded">models/saved/emotion_mega_lgbm.pkl</code> is loaded automatically on startup.
+              Contains a single pipeline: <strong>StandardScaler → PCA (85→80) → LightGBM</strong>, trained on 9 datasets with a unified global feature space.
+              All transforms are saved together — inference is one <code className="text-xs bg-white/10 px-1 rounded">pkl.predict(feat_85dim)</code> call.
+              Previous inflated models (per-dataset PCA + one-hot indicators, hardcoded cv_accuracy) have been deleted.
             </p>
           </div>
         </section>
@@ -1160,11 +1158,12 @@ export default function FormalBenchmarksDashboard() {
               {
                 priority: "Critical", color: "red",
                 items: [
-                  "✅ Integrate deployable LGBM model (global PCA 85→80, scaler+PCA+LGBM in single pkl) — 73.94% CV on 6 datasets DONE",
+                  "✅ Integrate deployable LGBM model (global PCA 85→80, scaler+PCA+LGBM in single pkl) — 74.21% CV on 9 datasets DONE",
                   "Conduct IRB-approved food-emotion pilot study (n=20–30)",
                   "✅ Download DREAMER dataset + train Muse-comparable model — DONE",
                   "✅ Download FACED dataset (123 subjects, 9 classes) — DONE (63.31% CV)",
-                  "✅ Download SEED-IV dataset (15 subjects × 3 sessions, 62-ch) — DONE (73.94% CV combined)",
+                  "✅ Download SEED-IV dataset (15 subjects × 3 sessions, 62-ch) — DONE",
+                  "✅ Integrate EEG-ER + STEW + Muse-Subconscious datasets — DONE (74.21% CV on 9 datasets)",
                 ],
               },
               {

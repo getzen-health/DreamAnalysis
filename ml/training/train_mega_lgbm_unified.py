@@ -3,7 +3,7 @@ Mega LGBM Unified Cross-Dataset Trainer
 =========================================
 Trains a LightGBM emotion classifier on all available raw-EEG datasets
 using a SINGLE global PCA (80 components) + global StandardScaler.
-This makes the 97.79% LGBM approach actually deployable — all transforms
+Trains a single deployable model — all transforms
 are saved and reproducible at live inference time.
 
 Pipeline:
@@ -19,6 +19,9 @@ Datasets included:
   - DENS     (27/40 subjects, EGI 128-ch → 4-ch Muse equivalent)
   - FACED    (123 subjects, 32-ch, pre-extracted DE)
   - SEED-IV  (15 subjects × 3 sessions, 62-ch, pre-extracted DE, 4 emotions)
+  - EEG-ER   (100 recordings, Emotiv EPOC 14-ch, 128 Hz, 4 emotions)
+  - STEW     (45 segments, Emotiv EPOC 14-ch, 128 Hz, cognitive workload 3-class)
+  - Muse-Sub (40 recordings, Muse 4-ch band powers, subconscious decisions)
 
 Saves:
   models/saved/emotion_mega_lgbm.pkl          — {model, scaler, pca, metadata}
@@ -690,6 +693,233 @@ def load_seed_iv() -> Tuple[np.ndarray, np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
+# EEG-ER loader (Emotiv EPOC 14-ch, raw µV, 128 Hz → 85-dim)
+# ---------------------------------------------------------------------------
+
+_EEG_ER_BASE = Path('/Users/sravyalu/.cache/kagglehub/datasets/'
+                    'khan1803115/eeg-dataset-for-emotion-recognition/versions/1')
+_EEG_ER_FS = 128.0
+# Emotiv EPOC 14-ch order: AF3(0) F7(1) F3(2) FC5(3) T7(4) P7(5) O1(6)
+#                           O2(7)  P8(8) T8(9) FC6(10) F4(11) F8(12) AF4(13)
+# Muse-equivalent: [T7(4)→TP9, F7(1)→AF7, F8(12)→AF8, T8(9)→TP10]
+_EEG_ER_CH = [4, 1, 12, 9]
+# G1/G2 → negative(2), G3 → positive(0), G4 → neutral(1)
+_EEG_ER_GAME_LABEL = {"G1": 2, "G2": 2, "G3": 0, "G4": 1}
+
+
+def load_eeg_er() -> Tuple[np.ndarray, np.ndarray]:
+    """Load EEG-ER dataset (100 CSVs, Emotiv EPOC 14-ch, 128 Hz)."""
+    if not _EEG_ER_BASE.exists() or not _SCI_OK:
+        log.warning("EEG-ER: %s not found — skipping", _EEG_ER_BASE)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    import re
+    Xs, ys = [], []
+    csv_files = sorted(_EEG_ER_BASE.rglob("*AllChannels.csv"))
+    if not csv_files:
+        log.warning("EEG-ER: no *AllChannels.csv found in %s", _EEG_ER_BASE)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    for csv_path in csv_files:
+        m = re.search(r"G(\d)", csv_path.name)
+        if not m:
+            continue
+        game_key = f"G{m.group(1)}"
+        label = _EEG_ER_GAME_LABEL.get(game_key)
+        if label is None:
+            continue
+        try:
+            import pandas as _pd
+            df = _pd.read_csv(csv_path, skiprows=1, header=None)
+            df = df.apply(_pd.to_numeric, errors="coerce").dropna(axis=1, how="all")
+            if df.shape[1] < 14:
+                continue
+            data = df.iloc[:, :14].values.astype(np.float32).T  # (14, n_samples)
+            if max(_EEG_ER_CH) >= data.shape[0]:
+                continue
+            seg = data[_EEG_ER_CH, :]  # (4, n_samples)
+            feats = _sliding_windows(seg, _EEG_ER_FS)
+            for f in feats:
+                Xs.append(f); ys.append(label)
+        except Exception:
+            continue
+
+    if not Xs:
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+    log.info("EEG-ER: %d files → %d samples", len(csv_files), len(ys))
+    return np.array(Xs, np.float32), np.array(ys, np.int32)
+
+
+# ---------------------------------------------------------------------------
+# STEW loader (Emotiv EPOC 14-ch, .mat, 128 Hz → 85-dim)
+# ---------------------------------------------------------------------------
+
+_STEW_BASE = Path('/Users/sravyalu/.cache/kagglehub/datasets/'
+                  'mitulahirwal/mental-cognitive-workload-eeg-data-stew-dataset/versions/1')
+_STEW_FS = 128.0
+# Same Emotiv EPOC layout as EEG-ER
+_STEW_CH = [4, 1, 12, 9]  # [T7→TP9, F7→AF7, F8→AF8, T8→TP10]
+# Workload: 0=low→positive(0), 1=medium→neutral(1), 2=high→negative(2)
+_STEW_3CLASS = {0: 0, 1: 1, 2: 2}
+
+
+def load_stew() -> Tuple[np.ndarray, np.ndarray]:
+    """Load STEW workload dataset (14-ch Emotiv EPOC, 45 segments, 128 Hz).
+
+    dataset.mat: (14, 19200, 45) — channels × samples × segments
+    class_012.mat: (45,) with labels 0/1/2
+
+    Data is in raw Emotiv ADC counts (baseline ~4200 counts).
+    Linear-detrend per channel before sliding-window extraction.
+    """
+    dataset_path = _STEW_BASE / "dataset.mat"
+    labels_path  = _STEW_BASE / "class_012.mat"
+
+    if not dataset_path.exists() or not _SCI_OK:
+        log.warning("STEW: %s not found — skipping", _STEW_BASE)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    try:
+        dm = sio.loadmat(str(dataset_path))
+        lm = sio.loadmat(str(labels_path))
+        eeg_key = next(k for k in dm if not k.startswith("_"))
+        lbl_key = next(k for k in lm if not k.startswith("_"))
+        eeg_data = dm[eeg_key]          # (14, 19200, 45)
+        raw_labels = lm[lbl_key].flatten()  # (45,)
+    except Exception as e:
+        log.warning("STEW: failed to load .mat files: %s", e)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    from scipy.signal import detrend as _detrend
+    Xs, ys = [], []
+    n_channels, n_samples, n_segs = eeg_data.shape
+    for seg_idx in range(n_segs):
+        label = _STEW_3CLASS[int(raw_labels[seg_idx])]
+        seg = eeg_data[_STEW_CH, :, seg_idx].astype(np.float32)  # (4, n_samples)
+        # STEW raw ADC counts — linear-detrend each channel to remove DC + drift
+        seg = _detrend(seg, axis=1).astype(np.float32)
+        # Use relaxed artifact gate (2000 counts ≈ ~1 mV) to skip only gross outliers
+        feats = _sliding_windows(seg, _STEW_FS, artifact_uv=2000.0)
+        for f in feats:
+            Xs.append(f); ys.append(label)
+
+    if not Xs:
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+    log.info("STEW: %d segments → %d samples", n_segs, len(ys))
+    return np.array(Xs, np.float32), np.array(ys, np.int32)
+
+
+# ---------------------------------------------------------------------------
+# Muse-Subconscious loader (Muse band powers → 85-dim via 4-row windows)
+# ---------------------------------------------------------------------------
+
+_MUSE_SUB_ZIP = _ML_ROOT / "data" / "Muse_Subconscious.zip"
+# Band-power column names in order: 5 bands × 4 channels
+_MUSE_SUB_BANDS = ["Delta", "Theta", "Alpha", "Beta", "Gamma"]
+_MUSE_SUB_CHS   = ["TP9", "AF7", "AF8", "TP10"]
+_MUSE_SUB_COLS  = [f"{b}_{c}" for b in _MUSE_SUB_BANDS for c in _MUSE_SUB_CHS]
+# Mellow/Concentration → 3-class labels
+# High mellow (>0.6) → positive(0); High concentration (>0.6) → neutral(1); else → negative(2)
+
+
+def load_muse_subconscious() -> Tuple[np.ndarray, np.ndarray]:
+    """Load Muse Subconscious Decisions dataset (20 CSVs, 4-ch Muse band powers).
+
+    CSVs are at ~256 Hz (one row per EEG sample with pre-computed band powers).
+    Resample to 1 Hz by averaging per-second, then window at WIN=4 s, HOP=2 s.
+    Each 4-sec window → (4_ch, 4_time, 5_bands) → _faced_de_to_85dim() → 85-dim.
+    """
+    if not _MUSE_SUB_ZIP.exists():
+        log.warning("Muse-Subconscious: %s not found — skipping", _MUSE_SUB_ZIP)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    import zipfile
+    WIN, HOP = 4, 2   # seconds after resampling to 1 Hz
+    Xs, ys = [], []
+    n_files = 0
+
+    with zipfile.ZipFile(_MUSE_SUB_ZIP, "r") as zf:
+        # Skip macOS metadata entries (.__xxx files)
+        csv_names = [f for f in zf.namelist()
+                     if f.endswith(".csv") and "/Muse/" in f and "/._" not in f]
+        for csv_name in csv_names:
+            try:
+                import pandas as _pd
+                with zf.open(csv_name) as fh:
+                    df = _pd.read_csv(fh)
+
+                feat_cols = [c for c in _MUSE_SUB_COLS if c in df.columns]
+                if len(feat_cols) < 20:
+                    continue
+                if "Mellow" not in df.columns or "Concentration" not in df.columns:
+                    continue
+
+                # Parse timestamps and resample to 1 Hz (average per second)
+                df["_ts"] = _pd.to_datetime(df["TimeStamp"], errors="coerce")
+                df = df.dropna(subset=["_ts"])
+                if len(df) < WIN * 2:
+                    continue
+                df["_sec"] = df["_ts"].dt.floor("1s")
+
+                # Keep only good-signal rows (HeadBandOn=True or column absent)
+                if "HeadBandOn" in df.columns:
+                    df = df[df["HeadBandOn"].astype(str).str.lower()
+                            .isin(["true", "1", "yes", "1.0"])]
+                if len(df) < WIN * 2:
+                    continue
+
+                agg_cols = feat_cols + ["Mellow", "Concentration"]
+                resampled = (
+                    df.groupby("_sec")[agg_cols]
+                    .mean()
+                    .sort_index()
+                    .reset_index(drop=True)
+                )
+                # Apply numeric coercion and drop NaN rows
+                for col in agg_cols:
+                    resampled[col] = _pd.to_numeric(resampled[col], errors="coerce")
+                resampled = resampled.dropna(subset=feat_cols).reset_index(drop=True)
+
+                if len(resampled) < WIN:
+                    continue
+
+                data   = resampled[feat_cols].values.astype(np.float32)  # (n_sec, 20)
+                mellow = resampled["Mellow"].values
+                conc   = resampled["Concentration"].values
+
+                n_files += 1
+                for start in range(0, len(data) - WIN + 1, HOP):
+                    window = data[start:start+WIN]                  # (4, 20)
+                    w_mel = np.nanmean(mellow[start:start+WIN])
+                    w_con = np.nanmean(conc[start:start+WIN])
+                    if np.isnan(w_mel) and np.isnan(w_con):
+                        continue
+                    w_mel = 0.0 if np.isnan(w_mel) else w_mel
+                    w_con = 0.0 if np.isnan(w_con) else w_con
+
+                    if w_mel > 0.6:
+                        label = 0   # positive (mellow/relaxed)
+                    elif w_con > 0.6:
+                        label = 1   # neutral (focused/concentrated)
+                    else:
+                        label = 2   # negative (neither mellow nor focused)
+
+                    # Reshape (4_rows, 20_cols) → (4_ch, 4_time, 5_bands)
+                    arr = window.reshape(WIN, 5, 4).transpose(2, 0, 1)  # (4, 4, 5)
+                    if not np.all(np.isfinite(arr)):
+                        continue
+                    feat = _faced_de_to_85dim(arr)
+                    Xs.append(feat); ys.append(label)
+            except Exception:
+                continue
+
+    if not Xs:
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+    log.info("Muse-Subconscious: %d files → %d samples", n_files, len(ys))
+    return np.array(Xs, np.float32), np.array(ys, np.int32)
+
+
+# ---------------------------------------------------------------------------
 # DENS loader (raw EEG → 85-dim features)
 # ---------------------------------------------------------------------------
 
@@ -1012,6 +1242,27 @@ def main() -> None:
         all_X.append(X_sv); all_y.append(y_sv)
         datasets_used.append("SEED-IV")
         log.info("SEED-IV loaded: %d samples", len(y_sv))
+
+    log.info("── Loading EEG-ER ──")
+    X_er, y_er = load_eeg_er()
+    if X_er.size > 0:
+        all_X.append(X_er); all_y.append(y_er)
+        datasets_used.append("EEG-ER")
+        log.info("EEG-ER loaded: %d samples", len(y_er))
+
+    log.info("── Loading STEW ──")
+    X_st, y_st = load_stew()
+    if X_st.size > 0:
+        all_X.append(X_st); all_y.append(y_st)
+        datasets_used.append("STEW")
+        log.info("STEW loaded: %d samples", len(y_st))
+
+    log.info("── Loading Muse-Subconscious ──")
+    X_ms, y_ms = load_muse_subconscious()
+    if X_ms.size > 0:
+        all_X.append(X_ms); all_y.append(y_ms)
+        datasets_used.append("Muse-Sub")
+        log.info("Muse-Subconscious loaded: %d samples", len(y_ms))
 
     if not all_X:
         log.error("No data loaded — check data directories.")

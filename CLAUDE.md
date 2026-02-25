@@ -198,20 +198,20 @@ Raw Muse 2 EEG (256 Hz, 4 channels, µV)
 ```
 predict(eeg, fs=256)  ← receives (4, n_samples) array from Muse 2
     │
+    ├── If mega_lgbm_model loaded AND benchmark ≥ 60%:   ← THIS IS THE LIVE PATH
+    │       → _predict_mega_lgbm()   (73.94% CV, 9 datasets)
+    │
     ├── If DEAP ONNX model loaded AND accuracy ≥ 60%:
     │       → _predict_onnx()
     │
     ├── If DEAP sklearn model loaded AND accuracy ≥ 60%:
     │       → _predict_sklearn()
     │
-    ├── If Muse-trained model available:
-    │       → _predict_multichannel()
-    │
-    └── Else (DEFAULT for live Muse 2 — DEAP model is 51.3%, below threshold):
-            → _predict_features()   ← THIS IS THE LIVE PATH
+    └── Else fallback:
+            → _predict_features()   (feature-based heuristics)
 ```
 
-**DEAP model accuracy**: 51.3% — below the 60% threshold, so it falls back to `_predict_features()` (feature-based heuristics) for all live Muse 2 sessions. **The feature-based path is the production path.**
+**Active live path**: `_predict_mega_lgbm()` — loads `models/saved/emotion_mega_lgbm.pkl` which contains scaler+PCA+LGBM trained on 9 datasets with a single global PCA. 74.21% CV, passes the 60% threshold gate.
 
 ### Emotion Output Structure
 
@@ -352,33 +352,13 @@ else:
 
 | Model | File | CV Accuracy | Notes |
 |-------|------|------------|-------|
-| Emotion LGBM (mega-trained) | `models/emotion_classifier_lgbm.joblib` (109 MB) | **97.79%** | 3-class, PCA-88-dim features — NOT loaded by current code |
-| Emotion MLP (PyTorch) | `models/emotion_classifier_mlp.pt` (2.5 MB) | **93.11%** | 3-class, PCA-88-dim features — NOT loaded by current code |
-| Emotion XGBoost | `models/emotion_classifier_xgb.joblib` (54 MB) | ~88% | 3-class, PCA-88-dim features — NOT loaded |
+| Emotion mega LGBM | `models/saved/emotion_mega_lgbm.pkl` | **74.21% CV** | **Active live path** — single global scaler+PCA+LGBM, 9 datasets (163 534 samples) |
 | Emotion (DEAP pkl) | `models/saved/emotion_classifier_model.pkl` | 51.3% | Below 60% threshold → disabled |
 | Emotion (ONNX) | `models/saved/emotion_classifier_model.onnx` | ~51% | Below 60% threshold → disabled |
 | Sleep Staging | `models/saved/sleep_staging_model.pkl` | 92.98% | Active, reliable |
 | Dream Detector | `models/saved/dream_detector_model.pkl` | 97.20% | Active, reliable |
 | Flow State | `models/saved/flow_state_model.pkl` | 62.86% | Active, marginal |
 | Creativity | `models/saved/creativity_model.pkl` | 99.18% | Likely overfit (850 samples) |
-
-### CRITICAL: Why the 97.79% LGBM Model Is NOT Used
-
-The high-accuracy models (`emotion_classifier_lgbm.joblib`, `emotion_classifier_mlp.pt`) are in `ml/models/` but **are not loaded by `emotion_classifier.py`** because:
-
-1. **Wrong output class count**: These models output 3 classes (positive/neutral/negative), but `emotion_classifier.py` expects 6 classes (happy/sad/angry/fearful/relaxed/focused)
-2. **Wrong feature format**: These models need **88-dim PCA-aligned features** (80 PCA components + 8 one-hot dataset indicators), not the 17 raw band-power features the system currently extracts
-3. **Wrong filename**: `_find_model("emotion_classifier_model")` looks for files named `emotion_classifier_model.*`, not `emotion_classifier_lgbm.*`
-
-### How to Enable the 97.79% Model (Future Work)
-
-Would require:
-1. Add a feature transformation step: raw 17 features → load saved PCA transform → 80-dim vector + dataset one-hot
-2. Add a 3→6 class expansion or change system to 3-class output
-3. Add the model path to `_find_model()` discovery chain
-4. Add a benchmark JSON for it at `benchmarks/` so accuracy threshold check passes
-
-**Datasets used by 97.79% LGBM**: GAMEEMO, EEG-ER, SEED, Brainwave, Muse-Mental, Muse-Subconscious, SEED-IV, STEW (123,234 samples total). Note: SEED achieves 100% accuracy on its own (likely pre-extracted features + within-dataset perfect separability) — this inflates the combined accuracy.
 
 **Why emotion accuracy is low on Muse 2**:
 - **Domain gap**: DEAP dataset uses 32-channel gel electrodes. Muse 2 has 4-channel dry electrodes. ~30 point accuracy penalty.
@@ -412,13 +392,13 @@ Would require:
 - [x] **FMT added to emotion output** — `compute_frontal_midline_theta()` called on AF7 channel and returned as `frontal_midline_theta` key in all `_predict_features()` return paths (commit `378af43`)
 
 ### Known Remaining Issues
-- [ ] **97.79% LGBM model not integrated**: `ml/models/emotion_classifier_lgbm.joblib` exists but requires 3→6 class mapping and PCA feature transform to use. See "CRITICAL" section above.
+- [x] ~~**97.79% LGBM model not integrated**~~: Deleted — inflated score (per-dataset PCA + one-hot dataset indicators, 100% SEED within-subject contamination). Replaced by `emotion_mega_lgbm.pkl` (single global PCA, honest cross-subject CV, active live path).
 - [x] ~~**No baseline calibration**~~: ✅ Fixed — `BaselineCalibrator` API endpoints added (commit `87e0c56`). Call `POST /calibration/baseline/add-frame` once per second during 2-min resting state; `is_ready=true` after 30 frames.
 - [x] ~~**1-second epoch too short**~~: ✅ Fixed — 4-second sliding window buffer added to `/analyze-eeg` (commit `19e74d7`). `epoch_ready=false` in response until 4 seconds buffered.
 - [ ] **No personalization**: The feature-based heuristics use population-average thresholds. Individual users have very different baselines (within-subject vs cross-subject gap: 26 points).
 - [ ] **EMG at TP9/TP10**: Temporal channels are also near muscles. Artifact rejection/ICA would help.
 - [ ] **Creativity/Memory models likely overfit**: 850 samples × 4 classes → ~212 per class is too few for reliable generalization.
-- [ ] **Large models in wrong directory**: `emotion_classifier_rf.joblib` (3.1 GB) and others are in `ml/models/`, not `ml/models/saved/`. The `_find_model()` function only searches `ml/models/saved/`. No memory risk since they aren't loaded.
+- [ ] **No personalization per user**: Population-average thresholds in heuristics. Per-user fine-tuning after 5 sessions would improve accuracy significantly.
 
 ### Proposed Future Improvements (Priority Order)
 1. ~~**Baseline protocol**~~: ✅ Done — `BaselineCalibrator` class in `eeg_processor.py` (commit `0066254`) + API endpoints (commit `87e0c56`). Call `add-frame` during 2-min resting state; normalize features before classification. +15-29% accuracy.

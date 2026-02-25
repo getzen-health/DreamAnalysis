@@ -47,7 +47,11 @@
 - [x] Device-aware gamma masking — Muse 2 zeros gamma features; research EEG uses all 85
 - [x] FACED dataset integrated (123 subjects, 32-ch BrainProducts) — 63.31% CV (3-class, DE features)
 - [x] DENS dataset integrated (27/40 subjects, 128-ch EGI HydroCel, 4807 samples) — 79.55% CV (3-class, LightGBM)
-- [x] SEED-IV dataset integrated (15 subjects × 3 sessions, 62-ch, 17 490 samples) — mega LGBM now **73.94% CV** on 6 datasets, 133 617 samples
+- [x] SEED-IV dataset integrated (15 subjects × 3 sessions, 62-ch, 17 490 samples)
+- [x] EEG-ER dataset integrated (100 CSVs, Emotiv EPOC 14-ch, 8 612 samples) — 4 games → 3-class labels
+- [x] STEW dataset integrated (45 segments, Emotiv EPOC 14-ch, 3 171 samples) — cognitive workload → emotion proxy
+- [x] Muse-Subconscious dataset integrated (20 sessions, 4-ch Muse, 18 134 samples) — Mellow/Concentration labels
+- [x] mega LGBM now **74.21% CV** on 9 datasets, 163 534 samples
 
 ### Infrastructure
 - [x] Vercel deployment config (frontend + Express)
@@ -63,14 +67,10 @@
 
 | Model | Algorithm | Accuracy | Dataset | Notes |
 |-------|-----------|----------|---------|-------|
-| Emotion Classifier | LightGBM (mega) | 97.79% | DEAP + SEED + GAMEEMO | Within-subject — not loaded in live path |
-| Emotion Classifier | XGBoost | ~95% | DEAP + SEED + GAMEEMO | Within-subject — not loaded |
-| Emotion Classifier | MLP (PyTorch) | 93.11% | DEAP + SEED + GAMEEMO | Within-subject — not loaded |
-| Emotion Classifier | Feature heuristics | 65–75% | Live Muse 2 | **This is the live path** — FAA + DASM/RASM + FMT |
-| Emotion Classifier | LightGBM mega (global PCA) | **73.94% CV** (DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV, 3-class, 85 features) | DEAP + DREAMER + GAMEEMO + DENS + FACED + SEED-IV | **Active live path** — 133 617 samples, 6 datasets, scaler+PCA+LGBM in single pkl |
-| Emotion Classifier | GBM cross-subject | 69.25% CV (DEAP+DREAMER+GAMEEMO, 3-class, 85 features) | DEAP + DREAMER + GAMEEMO | Formal cross-subject benchmark |
-| Emotion Classifier (FACED) | LightGBM | 63.31% CV | FACED (123 subjects, 32-ch) | DE features, 3-class, 57 features |
-| Emotion Classifier (DENS) | LightGBM | 79.55% CV | DENS (27 subjects, 128-ch EGI) | Valence-based 3-class, 41 features |
+| Emotion Classifier | LightGBM mega (global PCA) | **74.21% CV** (9 datasets, 3-class, 85 features) | DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub | **Active live path** — 163 534 samples, scaler+PCA+LGBM in single pkl |
+| Emotion Classifier | MLP (PyTorch) | 93.11% CV | 8 datasets (within-subject split — inflated) | Deleted — per-dataset PCA + one-hot indicators, not deployable |
+| Emotion Classifier | Feature heuristics | 65–75% | Live Muse 2 | Fallback when mega LGBM not loaded — FAA + DASM/RASM + FMT |
+| Emotion Classifier (DENS standalone) | LightGBM | 79.55% CV | DENS (27 subjects, 128-ch EGI) | Valence-based 3-class, 41 features |
 | Sleep Staging | Random Forest | 92.98% | ISRUC | Active, reliable |
 | Dream Detector | Gradient Boosting | 97.20% | — | Active, reliable |
 | Flow State | MLP | 62.86% | — | Active, marginal |
