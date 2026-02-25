@@ -1,11 +1,11 @@
 {
   "dataset": "DENS",
   "n_subjects": 40,
-  "n_samples": 2826,
-  "classifier": "RandomForest",
-  "test_accuracy": 0.7475,
-  "cv_accuracy_mean": 0.7522,
-  "cv_accuracy_std": 0.0206,
+  "n_samples": 4807,
+  "classifier": "LightGBM",
+  "test_accuracy": 0.8046,
+  "cv_accuracy_mean": 0.7955,
+  "cv_accuracy_std": 0.015,
   "n_features": 41,
   "n_classes": 3,
   "classes": [

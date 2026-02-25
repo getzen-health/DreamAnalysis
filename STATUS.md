@@ -45,7 +45,7 @@
 - [x] GAMEEMO dataset integrated (28 subjects, 4 games, neutral class source)
 - [x] Device-aware gamma masking — Muse 2 zeros gamma features; research EEG uses all 85
 - [x] FACED dataset integrated (123 subjects, 32-ch BrainProducts) — 63.31% CV (3-class, DE features)
-- [x] DENS dataset integrated (9/40 subjects complete, 128-ch EGI HydroCel, 2826 samples) — 75.22% CV (3-class, RandomForest)
+- [x] DENS dataset integrated (27/40 subjects, 128-ch EGI HydroCel, 4807 samples) — 79.55% CV (3-class, LightGBM)
 
 ### Infrastructure
 - [x] Vercel deployment config (frontend + Express)
@@ -67,7 +67,7 @@
 | Emotion Classifier | Feature heuristics | 65–75% | Live Muse 2 | **This is the live path** — FAA + DASM/RASM + FMT |
 | Emotion Classifier | GBM cross-subject | 69.25% CV (DEAP+DREAMER+GAMEEMO, 3-class, 85 features) | DEAP + DREAMER + GAMEEMO | Formal cross-subject benchmark |
 | Emotion Classifier (FACED) | LightGBM | 63.31% CV | FACED (123 subjects, 32-ch) | DE features, 3-class, 57 features |
-| Emotion Classifier (DENS) | RandomForest | 75.22% CV | DENS (9 subjects, 128-ch EGI) | Valence-based 3-class, 41 features |
+| Emotion Classifier (DENS) | LightGBM | 79.55% CV | DENS (27 subjects, 128-ch EGI) | Valence-based 3-class, 41 features |
 | Sleep Staging | Random Forest | 92.98% | ISRUC | Active, reliable |
 | Dream Detector | Gradient Boosting | 97.20% | — | Active, reliable |
 | Flow State | MLP | 62.86% | — | Active, marginal |

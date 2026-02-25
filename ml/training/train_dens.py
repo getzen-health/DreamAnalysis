@@ -120,19 +120,24 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _load_fdt(fdt_path: Path, n_channels: int, n_samples: int) -> Optional[np.ndarray]:
-    """Read EEGLAB .fdt binary (float32, channel-major C order)."""
-    expected = n_channels * n_samples
+    """Read EEGLAB .fdt binary (float32, channel-major C order).
+
+    Handles partial FDT files (incomplete downloads) by loading only the
+    complete rows available: n_samp_actual = raw.size // n_channels.
+    """
     try:
         raw = np.fromfile(fdt_path, dtype=np.float32)
-        if raw.size != expected:
-            # Try Fortran order (older EEGLAB versions)
-            if raw.size == expected:
-                data = raw.reshape((n_channels, n_samples))
-            else:
-                log.debug("FDT size mismatch: got %d, expected %d", raw.size, expected)
-                return None
-        data = raw.reshape((n_channels, n_samples))
-        return data     # (132, n_samples) in µV
+        expected = n_channels * n_samples
+        if raw.size == expected:
+            return raw.reshape((n_channels, n_samples))
+        # Partial file — compute how many complete samples we have
+        n_samp_actual = raw.size // n_channels
+        if n_samp_actual < 1:
+            log.debug("FDT too small (%d floats, need %d channels per row)", raw.size, n_channels)
+            return None
+        pct = 100.0 * n_samp_actual / n_samples if n_samples > 0 else 0
+        log.debug("FDT partial: %d/%d samples (%.0f%%) — using available data", n_samp_actual, n_samples, pct)
+        return raw[: n_samp_actual * n_channels].reshape((n_channels, n_samp_actual))
     except Exception as exc:
         log.debug("FDT load failed: %s", exc)
         return None
@@ -259,10 +264,13 @@ def _process_subject(sub_dir: Path) -> Tuple[np.ndarray, np.ndarray]:
         log.debug("%s: only %d channels, need %d — skipping", sub_dir.name, n_ch, max_idx + 1)
         return np.array([]), np.array([])
 
-    # Load binary EEG
+    # Load binary EEG (may be partial)
     data = _load_fdt(fdt_path, n_ch, n_samp)
     if data is None:
         return np.array([]), np.array([])
+
+    # Use actual available samples (handles partial FDT files)
+    n_samp = data.shape[1]
 
     # Validate data range (should be ±500 µV for raw EEG)
     ch_sample = data[_CH_AF7, :1000]
