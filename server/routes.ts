@@ -2,14 +2,73 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import OpenAI from "openai";
-import { insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema, insertUserSettingsSchema, insertEmotionReadingSchema } from "@shared/schema";
+import {
+  insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
+  insertUserSettingsSchema, insertEmotionReadingSchema,
+  studyParticipants, studySessions, studyMorningEntries,
+  studyDaytimeEntries, studyEveningEntries,
+} from "@shared/schema";
 import { db } from "./db";
 import { emotionReadings } from "@shared/schema";
-import { eq, gte, lte, avg, and } from "drizzle-orm";
+import { eq, gte, lt, and, asc, sql } from "drizzle-orm";
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
+
+// ── Research module helpers ────────────────────────────────────────────────
+
+async function getActiveParticipant(userId: string) {
+  const [p] = await db.select().from(studyParticipants)
+    .where(and(
+      eq(studyParticipants.userId, userId),
+      eq(studyParticipants.status, "active")
+    )).limit(1);
+  return p ?? null;
+}
+
+async function getOrCreateTodaySession(participant: typeof studyParticipants.$inferSelect) {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+  const [existing] = await db.select().from(studySessions)
+    .where(and(
+      eq(studySessions.participantId, participant.id),
+      gte(studySessions.sessionDate, todayStart),
+      lt(studySessions.sessionDate, tomorrowStart)
+    )).limit(1);
+
+  if (existing) return existing;
+
+  // Count all sessions so far → day number (handles skipped/invalid days correctly)
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` })
+    .from(studySessions)
+    .where(eq(studySessions.participantId, participant.id));
+  const dayNumber = (n ?? 0) + 1;
+
+  const [created] = await db.insert(studySessions).values({
+    participantId: participant.id,
+    studyCode: participant.studyCode,
+    dayNumber,
+    sessionDate: todayStart,
+  }).returning();
+  return created;
+}
+
+async function checkAndMarkValidDay(sessionId: string): Promise<boolean> {
+  const [session] = await db.select().from(studySessions)
+    .where(eq(studySessions.id, sessionId));
+  if (!session) return false;
+  const done = [session.morningCompleted, session.daytimeCompleted, session.eveningCompleted]
+    .filter(Boolean).length;
+  const isValid = done >= 2;
+  if (isValid && !session.validDay) {
+    await db.update(studySessions).set({ validDay: true }).where(eq(studySessions.id, sessionId));
+  }
+  return isValid;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health metrics endpoints
@@ -449,6 +508,254 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res
         .status(503)
         .json({ message: "ML backend unavailable", error: String(error) });
+    }
+  });
+
+  // ── Research Enrollment Module ────────────────────────────────────────────
+
+  // POST /api/study/enroll — consent wizard final step
+  app.post("/api/study/enroll", async (req, res) => {
+    try {
+      const { userId, studyId, consentVersion, overnightEegConsent,
+              preferredMorningTime, preferredDaytimeTime, preferredEveningTime } = req.body;
+
+      if (!userId || !studyId || !consentVersion) {
+        return res.status(400).json({ message: "userId, studyId, and consentVersion are required" });
+      }
+
+      // Block duplicate enrollment
+      const already = await getActiveParticipant(userId);
+      if (already) {
+        return res.status(409).json({ message: "Already enrolled in an active study", studyCode: already.studyCode });
+      }
+
+      // Generate unique 6-char code (no O/0/I/1 — visually ambiguous)
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const makeCode = () =>
+        Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+
+      let studyCode = makeCode();
+      let collision = await db.select({ id: studyParticipants.id })
+        .from(studyParticipants).where(eq(studyParticipants.studyCode, studyCode)).limit(1);
+      while (collision.length > 0) {
+        studyCode = makeCode();
+        collision = await db.select({ id: studyParticipants.id })
+          .from(studyParticipants).where(eq(studyParticipants.studyCode, studyCode)).limit(1);
+      }
+
+      const [participant] = await db.insert(studyParticipants).values({
+        userId, studyId, studyCode, consentVersion,
+        consentSignedAt: new Date(),
+        overnightEegConsent: overnightEegConsent ?? false,
+        preferredMorningTime, preferredDaytimeTime, preferredEveningTime,
+      }).returning();
+
+      res.json({ studyCode: participant.studyCode, enrolledAt: participant.enrolledAt });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to enroll in study" });
+    }
+  });
+
+  // GET /api/study/status/:userId — enrollment state + today's session progress
+  app.get("/api/study/status/:userId", async (req, res) => {
+    try {
+      const participant = await getActiveParticipant(req.params.userId);
+      if (!participant) return res.json({ enrolled: false });
+
+      const today = await (async () => {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const tomorrowStart = new Date(todayStart);
+        tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+        const [s] = await db.select().from(studySessions)
+          .where(and(
+            eq(studySessions.participantId, participant.id),
+            gte(studySessions.sessionDate, todayStart),
+            lt(studySessions.sessionDate, tomorrowStart)
+          )).limit(1);
+        return s ?? null;
+      })();
+
+      res.json({
+        enrolled: true,
+        studyCode: participant.studyCode,
+        completedDays: participant.completedDays,
+        targetDays: participant.targetDays,
+        compensationEarned: (participant.completedDays ?? 0) * 5,
+        todaySession: today,
+        preferredTimes: {
+          morning: participant.preferredMorningTime,
+          daytime: participant.preferredDaytimeTime,
+          evening: participant.preferredEveningTime,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch study status" });
+    }
+  });
+
+  // POST /api/study/morning — dream journal + welfare check
+  app.post("/api/study/morning", async (req, res) => {
+    try {
+      const { userId, dreamText, noRecall, dreamValence, dreamArousal,
+              nightmareFlag, sleepQuality, sleepHours,
+              minutesFromWaking, currentMoodRating } = req.body;
+
+      const participant = await getActiveParticipant(userId);
+      if (!participant) return res.status(404).json({ message: "Not enrolled in an active study" });
+
+      const session = await getOrCreateTodaySession(participant);
+
+      if (session.morningCompleted) {
+        return res.status(409).json({ message: "Morning entry already submitted today" });
+      }
+
+      await db.insert(studyMorningEntries).values({
+        sessionId: session.id,
+        studyCode: participant.studyCode,
+        dreamText: noRecall ? null : (dreamText ?? null),
+        noRecall: noRecall ?? false,
+        dreamValence, dreamArousal, nightmareFlag,
+        sleepQuality, sleepHours, minutesFromWaking, currentMoodRating,
+      });
+
+      await db.update(studySessions)
+        .set({ morningCompleted: true })
+        .where(eq(studySessions.id, session.id));
+
+      await checkAndMarkValidDay(session.id);
+
+      // Welfare flag: if mood ≤ 2, prompt resources in response
+      const needsSupport = typeof currentMoodRating === "number" && currentMoodRating <= 2;
+
+      res.json({ success: true, dayNumber: session.dayNumber, needsSupport });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to submit morning entry" });
+    }
+  });
+
+  // POST /api/study/daytime — EEG session + PANAS + mood ratings
+  app.post("/api/study/daytime", async (req, res) => {
+    try {
+      const { userId, eegFeatures, faa, highBeta, fmt, sqiMean, eegDurationSec,
+              samValence, samArousal, samStress, panasItems,
+              sleepHoursReported, caffeineServings, significantEventYN } = req.body;
+
+      const participant = await getActiveParticipant(userId);
+      if (!participant) return res.status(404).json({ message: "Not enrolled in an active study" });
+
+      const session = await getOrCreateTodaySession(participant);
+
+      if (session.daytimeCompleted) {
+        return res.status(409).json({ message: "Daytime entry already submitted today" });
+      }
+
+      await db.insert(studyDaytimeEntries).values({
+        sessionId: session.id,
+        studyCode: participant.studyCode,
+        eegFeatures, faa, highBeta, fmt, sqiMean, eegDurationSec,
+        samValence, samArousal, samStress, panasItems,
+        sleepHoursReported, caffeineServings, significantEventYN,
+      });
+
+      await db.update(studySessions)
+        .set({ daytimeCompleted: true })
+        .where(eq(studySessions.id, session.id));
+
+      await checkAndMarkValidDay(session.id);
+
+      res.json({ success: true, dayNumber: session.dayNumber });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to submit daytime entry" });
+    }
+  });
+
+  // POST /api/study/evening — eating behavior + day summary
+  app.post("/api/study/evening", async (req, res) => {
+    try {
+      const { userId, dayValence, dayArousal, peakEmotionIntensity,
+              peakEmotionDirection, meals, emotionalEatingDay,
+              cravingsToday, cravingTypes, exerciseLevel, alcoholDrinks,
+              medicationsTaken, stressRightNow, readyForSleep } = req.body;
+
+      const participant = await getActiveParticipant(userId);
+      if (!participant) return res.status(404).json({ message: "Not enrolled in an active study" });
+
+      const session = await getOrCreateTodaySession(participant);
+
+      if (session.eveningCompleted) {
+        return res.status(409).json({ message: "Evening entry already submitted today" });
+      }
+
+      await db.insert(studyEveningEntries).values({
+        sessionId: session.id,
+        studyCode: participant.studyCode,
+        dayValence, dayArousal, peakEmotionIntensity, peakEmotionDirection,
+        meals, emotionalEatingDay, cravingsToday, cravingTypes,
+        exerciseLevel, alcoholDrinks, medicationsTaken, stressRightNow, readyForSleep,
+      });
+
+      await db.update(studySessions)
+        .set({ eveningCompleted: true })
+        .where(eq(studySessions.id, session.id));
+
+      const isValid = await checkAndMarkValidDay(session.id);
+
+      // Evening closes the day — increment completedDays when validDay is reached
+      if (isValid) {
+        await db.update(studyParticipants)
+          .set({ completedDays: sql`${studyParticipants.completedDays} + 1` })
+          .where(eq(studyParticipants.id, participant.id));
+      }
+
+      const finalDays = (participant.completedDays ?? 0) + (isValid ? 1 : 0);
+      res.json({
+        success: true,
+        validDay: isValid,
+        completedDays: finalDays,
+        compensationEarned: finalDays * 5,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to submit evening entry" });
+    }
+  });
+
+  // GET /api/study/history/:userId — all sessions for calendar view
+  app.get("/api/study/history/:userId", async (req, res) => {
+    try {
+      const participant = await getActiveParticipant(req.params.userId);
+      if (!participant) return res.json([]);
+
+      const sessions = await db.select().from(studySessions)
+        .where(eq(studySessions.participantId, participant.id))
+        .orderBy(asc(studySessions.dayNumber));
+
+      res.json(sessions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch study history" });
+    }
+  });
+
+  // POST /api/study/withdraw — participant exits the study
+  app.post("/api/study/withdraw", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ message: "userId is required" });
+
+      const participant = await getActiveParticipant(userId);
+      if (!participant) return res.status(404).json({ message: "No active study enrollment found" });
+
+      await db.update(studyParticipants)
+        .set({ status: "withdrawn", withdrawnAt: new Date() })
+        .where(eq(studyParticipants.id, participant.id));
+
+      res.json({
+        daysCompleted: participant.completedDays ?? 0,
+        compensationEarned: (participant.completedDays ?? 0) * 5,
+        message: "You have been withdrawn from the study. Thank you for participating. Your compensation will be processed within 5 business days.",
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to process withdrawal" });
     }
   });
 
