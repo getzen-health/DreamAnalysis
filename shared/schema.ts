@@ -166,6 +166,157 @@ export const datadogErrorLog = pgTable("datadog_error_log", {
   receivedAt: timestamp("received_at").defaultNow().notNull(),
 });
 
+// ── Research Enrollment Module (30-day longitudinal study) ─────────────────
+
+export const studyParticipants = pgTable("study_participants", {
+  id:                    varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId:                varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  studyId:               text("study_id").notNull(),              // "emotional-day-night-v1"
+  studyCode:             varchar("study_code", { length: 6 }).notNull().unique(), // "NX4T82"
+  enrolledAt:            timestamp("enrolled_at").defaultNow(),
+  consentVersion:        text("consent_version").notNull(),        // "2.0"
+  consentSignedAt:       timestamp("consent_signed_at").notNull(),
+  overnightEegConsent:   boolean("overnight_eeg_consent").default(false),
+  status:                text("status").default("active"),         // "active" | "completed" | "withdrawn"
+  targetDays:            integer("target_days").default(30),
+  completedDays:         integer("completed_days").default(0),
+  startDate:             timestamp("start_date").defaultNow(),
+  withdrawnAt:           timestamp("withdrawn_at"),
+  preferredMorningTime:  text("preferred_morning_time"),           // "07:00"
+  preferredDaytimeTime:  text("preferred_daytime_time"),           // "10:00"
+  preferredEveningTime:  text("preferred_evening_time"),           // "21:00"
+}, (table) => [
+  index("study_participants_user_idx").on(table.userId),
+  index("study_participants_code_idx").on(table.studyCode),
+]);
+
+export const studySessions = pgTable("study_sessions", {
+  id:                varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  participantId:     varchar("participant_id").notNull().references(() => studyParticipants.id, { onDelete: "cascade" }),
+  studyCode:         varchar("study_code", { length: 6 }).notNull(),
+  dayNumber:         integer("day_number").notNull(),               // 1–30
+  sessionDate:       timestamp("session_date").notNull(),           // stored as midnight UTC
+  morningCompleted:  boolean("morning_completed").default(false),
+  daytimeCompleted:  boolean("daytime_completed").default(false),
+  eveningCompleted:  boolean("evening_completed").default(false),
+  validDay:          boolean("valid_day").default(false),           // true if ≥ 2 of 3 completed
+  createdAt:         timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("study_session_day_uidx").on(table.participantId, table.dayNumber),
+  index("study_sessions_code_idx").on(table.studyCode),
+]);
+
+export const studyMorningEntries = pgTable("study_morning_entries", {
+  id:                    varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId:             varchar("session_id").notNull().references(() => studySessions.id, { onDelete: "cascade" }),
+  studyCode:             varchar("study_code", { length: 6 }).notNull(),
+  dreamText:             text("dream_text"),                        // null if noRecall or skipped
+  noRecall:              boolean("no_recall").default(false),
+  dreamValence:          integer("dream_valence"),                  // SAM 1–9
+  dreamArousal:          integer("dream_arousal"),                  // SAM 1–9
+  nightmareFlag:         text("nightmare_flag"),                    // "yes" | "no" | "unsure"
+  sleepQuality:          integer("sleep_quality"),                  // 1–9
+  sleepHours:            real("sleep_hours"),
+  minutesFromWaking:     integer("minutes_from_waking"),            // data quality metric
+  currentMoodRating:     integer("current_mood_rating"),            // welfare check 1–9
+  submittedAt:           timestamp("submitted_at").defaultNow(),
+}, (table) => [
+  index("study_morning_session_idx").on(table.sessionId),
+]);
+
+export const studyDaytimeEntries = pgTable("study_daytime_entries", {
+  id:                   varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId:            varchar("session_id").notNull().references(() => studySessions.id, { onDelete: "cascade" }),
+  studyCode:            varchar("study_code", { length: 6 }).notNull(),
+  eegFeatures:          jsonb("eeg_features"),                      // 85-dim feature vector
+  faa:                  real("faa"),                                // frontal alpha asymmetry
+  highBeta:             real("high_beta"),                          // stress/anxiety power
+  fmt:                  real("fmt"),                                // frontal midline theta
+  sqiMean:              real("sqi_mean"),                           // signal quality index
+  eegDurationSec:       integer("eeg_duration_sec"),
+  samValence:           integer("sam_valence"),                     // 1–9
+  samArousal:           integer("sam_arousal"),                     // 1–9
+  samStress:            integer("sam_stress"),                      // 1–9
+  panasItems:           jsonb("panas_items"),                       // {pa: number, na: number}
+  sleepHoursReported:   real("sleep_hours_reported"),
+  caffeineServings:     integer("caffeine_servings"),
+  significantEventYN:   boolean("significant_event_yn"),
+  submittedAt:          timestamp("submitted_at").defaultNow(),
+}, (table) => [
+  index("study_daytime_session_idx").on(table.sessionId),
+]);
+
+export const studyEveningEntries = pgTable("study_evening_entries", {
+  id:                    varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId:             varchar("session_id").notNull().references(() => studySessions.id, { onDelete: "cascade" }),
+  studyCode:             varchar("study_code", { length: 6 }).notNull(),
+  dayValence:            integer("day_valence"),                    // 1–9
+  dayArousal:            integer("day_arousal"),                    // 1–9
+  peakEmotionIntensity:  integer("peak_emotion_intensity"),         // 1–9
+  peakEmotionDirection:  text("peak_emotion_direction"),            // "positive" | "negative"
+  meals:                 jsonb("meals"),                            // [{description, motivation, fullness, mindfulness}]
+  emotionalEatingDay:    text("emotional_eating_day"),              // "yes" | "no" | "unsure"
+  cravingsToday:         boolean("cravings_today"),
+  cravingTypes:          jsonb("craving_types"),                    // ["sweet", "salty", ...]
+  exerciseLevel:         text("exercise_level"),                    // "none"|"light"|"moderate"|"vigorous"
+  alcoholDrinks:         integer("alcohol_drinks"),
+  medicationsTaken:      boolean("medications_taken"),
+  stressRightNow:        integer("stress_right_now"),               // 1–9
+  readyForSleep:         boolean("ready_for_sleep"),
+  submittedAt:           timestamp("submitted_at").defaultNow(),
+}, (table) => [
+  index("study_evening_session_idx").on(table.sessionId),
+]);
+
+// ── Insert schemas (research) ───────────────────────────────────────────────
+
+export const insertStudyParticipantSchema = createInsertSchema(studyParticipants).omit({
+  id: true,
+  enrolledAt: true,
+  completedDays: true,
+  startDate: true,
+  withdrawnAt: true,
+});
+
+export const insertStudySessionSchema = createInsertSchema(studySessions).omit({
+  id: true,
+  createdAt: true,
+  morningCompleted: true,
+  daytimeCompleted: true,
+  eveningCompleted: true,
+  validDay: true,
+});
+
+export const insertStudyMorningEntrySchema = createInsertSchema(studyMorningEntries).omit({
+  id: true,
+  submittedAt: true,
+});
+
+export const insertStudyDaytimeEntrySchema = createInsertSchema(studyDaytimeEntries).omit({
+  id: true,
+  submittedAt: true,
+});
+
+export const insertStudyEveningEntrySchema = createInsertSchema(studyEveningEntries).omit({
+  id: true,
+  submittedAt: true,
+});
+
+// ── Types (research) ───────────────────────────────────────────────────────
+
+export type StudyParticipant = typeof studyParticipants.$inferSelect;
+export type InsertStudyParticipant = z.infer<typeof insertStudyParticipantSchema>;
+export type StudySession = typeof studySessions.$inferSelect;
+export type InsertStudySession = z.infer<typeof insertStudySessionSchema>;
+export type StudyMorningEntry = typeof studyMorningEntries.$inferSelect;
+export type InsertStudyMorningEntry = z.infer<typeof insertStudyMorningEntrySchema>;
+export type StudyDaytimeEntry = typeof studyDaytimeEntries.$inferSelect;
+export type InsertStudyDaytimeEntry = z.infer<typeof insertStudyDaytimeEntrySchema>;
+export type StudyEveningEntry = typeof studyEveningEntries.$inferSelect;
+export type InsertStudyEveningEntry = z.infer<typeof insertStudyEveningEntrySchema>;
+
+// ── Insert schemas (existing) ───────────────────────────────────────────────
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
