@@ -44,6 +44,8 @@
 - [x] DREAMER dataset integrated (23 subjects, Emotiv EPOC 14-ch)
 - [x] GAMEEMO dataset integrated (28 subjects, 4 games, neutral class source)
 - [x] Device-aware gamma masking — Muse 2 zeros gamma features; research EEG uses all 85
+- [x] FACED dataset integrated (123 subjects, 32-ch BrainProducts) — 63.31% CV (3-class, DE features)
+- [x] DENS dataset integrated (9/40 subjects complete, 128-ch EGI HydroCel, 2826 samples) — 75.22% CV (3-class, RandomForest)
 
 ### Infrastructure
 - [x] Vercel deployment config (frontend + Express)
@@ -64,6 +66,8 @@
 | Emotion Classifier | MLP (PyTorch) | 93.11% | DEAP + SEED + GAMEEMO | Within-subject — not loaded |
 | Emotion Classifier | Feature heuristics | 65–75% | Live Muse 2 | **This is the live path** — FAA + DASM/RASM + FMT |
 | Emotion Classifier | GBM cross-subject | 69.25% CV (DEAP+DREAMER+GAMEEMO, 3-class, 85 features) | DEAP + DREAMER + GAMEEMO | Formal cross-subject benchmark |
+| Emotion Classifier (FACED) | LightGBM | 63.31% CV | FACED (123 subjects, 32-ch) | DE features, 3-class, 57 features |
+| Emotion Classifier (DENS) | RandomForest | 75.22% CV | DENS (9 subjects, 128-ch EGI) | Valence-based 3-class, 41 features |
 | Sleep Staging | Random Forest | 92.98% | ISRUC | Active, reliable |
 | Dream Detector | Gradient Boosting | 97.20% | — | Active, reliable |
 | Flow State | MLP | 62.86% | — | Active, marginal |
@@ -121,7 +125,7 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 - [ ] **Controlled pilot study** (4–6 weeks post-IRB) — 20–30 participants, food cue presentation protocol
 - [ ] **Cross-subject validation** — LOSO cross-validation, target >65% 6-class with calibration
 - [x] **DREAMER dataset** — downloaded and integrated into cross-dataset training pipeline
-- [ ] **FACED dataset** — create Synapse.org account, 123 subjects, 9 emotions
+- [x] **FACED dataset** — 123 subjects, integrated, 63.31% CV (3-class positive/neutral/negative)
 - [ ] **Write paper** — IEEE TAFFC or Frontiers in Neuroscience
 - [ ] **Open-source release** — GitHub tag, HuggingFace model weights, anonymized pilot data
 

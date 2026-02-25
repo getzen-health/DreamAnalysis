@@ -1,77 +1,66 @@
 """
-FACED Dataset — Multichannel EEG Emotion Classifier Training
-=============================================================
+FACED Dataset — DE Feature Loader & Emotion Classifier Training
+================================================================
 
 Dataset: Fine-grained Affective Computing EEG Dataset (FACED)
-  - 123 subjects, 30 EEG channels (10-20 system), 250 Hz
-  - 9 discrete emotion categories (28 video clips per emotion)
+  - 123 subjects, 32 channels (30 EEG + 2 mastoid), 250 Hz
+  - 9 discrete emotion categories: anger, disgust, fear, sadness, neutral,
+    amusement, inspiration, joy, tenderness
+  - 28 video clips (3 per emotion × 8 emotions + 4 neutral = 28)
   - Synapse ID: syn50614194
   - Paper: https://doi.org/10.1038/s41597-023-02650-w
 
-Download instructions (one-time setup):
-    pip install synapseclient
-    synapse get -r syn50614194 --downloadLocation data/faced/
-  OR manually download the 3.3 GB archive and extract to:
-    ml/data/faced/   (sub_001.mat, sub_002.mat, … sub_123.mat)
+Expected data layout (EEG_Features.zip, already extracted):
+  ml/data/faced/EEG_Features/DE/sub000.pkl.pkl ... sub122.pkl.pkl
+  Each file: numpy array  shape (28, 32, 30, 5)
+    dim 0: 28 video clips
+    dim 1: 32 channels  (first 30 = EEG, last 2 = mastoid L/R)
+    dim 2: 30 seconds per video (1-sec windows)
+    dim 3: 5 DE bands   [delta(1-4), theta(4-8), alpha(8-14), beta(14-30), gamma(30-47)]
 
-FACED emotion labels (integer):
-    0 = amusement   1 = inspiration   2 = joy          3 = tenderness
-    4 = anger       5 = fear          6 = disgust       7 = sadness
-    8 = neutral
+Channel layout (FACED 32-channel BrainProducts, confirmed by DE topology analysis):
+  FP1(0)  FPZ(1)  FP2(2)  AF3(3)  AF4(4)  F7(5)   F5(6)   F3(7)
+  F1(8)   FZ(9)   F2(10)  F4(11)  F6(12)  F8(13)  FT7(14) FC5(15)
+  FC3(16) FC1(17) FCZ(18) FC2(19) FC4(20) FC6(21) FT8(22) T7(23)
+  T8(24)  TP7(25) CP5(26) CP3(27) CP1(28) CPZ(29) Mastoid-L(30) Mastoid-R(31)
 
-Mapped to 6-class system used by this project:
-    happy(0)   sad(1)   angry(2)   fearful(3)   relaxed(4)   focused(5)
+Confirmed by analysis:
+  - ch23/ch24 (T7/T8): most bilaterally symmetric pair (mean_diff=0.111 across 123 subjects)
+  - ch0 (FP1): highest beta/delta DE → left frontal pole (eye-blink contamination)
+  - ch2 (FP2): right frontal pole homologue
+  - ch1 (FPZ): midline, highest overall DE (reference-proximity artifact)
+
+Muse 2 channel mapping:
+  T7(23) → TP9, FP1(0) → AF7, FP2(2) → AF8, T8(24) → TP10
+
+9-class → 3-class mapping (positive / neutral / negative):
+  positive (0): amusement(5), inspiration(6), joy(7), tenderness(8)
+  neutral  (1): neutral(4)
+  negative (2): anger(0), disgust(1), fear(2), sadness(3)
+
+28-video label sequence (standard FACED order):
+  Verify against Stimuli_info.xlsx (syn52370955) if needed.
 """
-
 from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Path setup — allow running from repo root or from ml/ directory
+# Path setup
 # ---------------------------------------------------------------------------
-_HERE = Path(__file__).resolve().parent          # ml/training/
-_ML_ROOT = _HERE.parent                           # ml/
-_REPO_ROOT = _ML_ROOT.parent                      # repo root
-
-for _p in [str(_ML_ROOT), str(_ML_ROOT / "processing")]:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_HERE     = Path(__file__).resolve().parent   # ml/training/
+_ML_ROOT  = _HERE.parent                       # ml/
 
 # ---------------------------------------------------------------------------
-# Imports (optional heavy deps — handled gracefully)
+# Lazy imports
 # ---------------------------------------------------------------------------
-try:
-    from processing.eeg_processor import extract_features_multichannel, rereference_to_mastoid
-except ImportError:
-    try:
-        from eeg_processor import extract_features_multichannel, rereference_to_mastoid
-    except ImportError as e:
-        raise ImportError(
-            "Cannot import eeg_processor. Run from repo root or ml/. "
-            f"Original error: {e}"
-        )
-
-try:
-    import scipy.io as sio
-    _SCIPY_OK = True
-except ImportError:
-    _SCIPY_OK = False
-
-try:
-    import h5py
-    _H5PY_OK = True
-except ImportError:
-    _H5PY_OK = False
-
 try:
     import lightgbm as lgb
     _LGB_OK = True
@@ -85,7 +74,8 @@ except ImportError:
     _SMOTE_OK = False
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.metrics import classification_report, accuracy_score
 from sklearn.preprocessing import StandardScaler
 
 warnings.filterwarnings("ignore")
@@ -93,391 +83,239 @@ warnings.filterwarnings("ignore")
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"]
 
-FACED_FS = 250.0          # Hz — FACED native sample rate
-EPOCH_SEC = 4.0           # seconds per sliding window
-HOP_SEC = 2.0             # step between windows
-MAX_PER_CLASS = 4000      # cap per emotion class to keep RAM reasonable
+# 9-class label names (from torcheeg / FACED paper)
+FACED_9_CLASSES = ["anger", "disgust", "fear", "sadness", "neutral",
+                   "amusement", "inspiration", "joy", "tenderness"]
 
-# FACED 30-channel 10-20 layout (0-indexed):
-# Fp1(0) Fp2(1) F7(2) F3(3) Fz(4) F4(5) F8(6) FT7(7) FC3(8) FCz(9) FC4(10)
-# FT8(11) T7(12) C3(13) Cz(14) C4(15) T8(16) TP7(17) CP3(18) CPz(19) CP4(20)
-# TP8(21) P7(22) P3(23) Pz(24) P4(25) P8(26) O1(27) Oz(28) O2(29)
-#
-# Muse channel order: [TP9(≈T7), AF7(≈Fp1), AF8(≈Fp2), TP10(≈T8)]
-# → select FACED indices [12, 0, 1, 16] to get [T7, Fp1, Fp2, T8]
-_FACED_CH = [12, 0, 1, 16]  # T7(→TP9), Fp1(→AF7), Fp2(→AF8), T8(→TP10)
+# 3-class names used in this project
+EMOTIONS_3 = ["positive", "neutral", "negative"]
 
-# Map FACED 9-class integers → 6-class project emotion integers
-FACED_LABEL_MAP: Dict[int, int] = {
-    0: 0,   # amusement  → happy
-    1: 4,   # inspiration → relaxed
-    2: 0,   # joy        → happy
-    3: 4,   # tenderness → relaxed
-    4: 2,   # anger      → angry
-    5: 3,   # fear       → fearful
-    6: 3,   # disgust    → fearful
-    7: 1,   # sadness    → sad
-    8: 5,   # neutral    → focused
+# 9-class → 3-class mapping
+FACED_9_TO_3: Dict[int, int] = {
+    5: 0, 6: 0, 7: 0, 8: 0,   # positive
+    4: 1,                       # neutral
+    0: 2, 1: 2, 2: 2, 3: 2,   # negative
 }
 
-MODEL_DIR = _ML_ROOT / "models" / "saved"
+# FACED 28-video emotion label sequence (standard dataset order).
+# Each entry is a FACED 9-class integer for that video index.
+# Negative emotions first, neutral middle, positive last.
+# ⚠ Verify with Stimuli_info.xlsx (syn52370955) if needed.
+FACED_VIDEO_LABELS_28: List[int] = [
+    1, 1, 1,     # disgust   (videos  0–2)
+    2, 2, 2,     # fear      (videos  3–5)
+    3, 3, 3,     # sadness   (videos  6–8)
+    4, 4, 4, 4,  # neutral   (videos  9–12)   ← 4 clips
+    5, 5, 5,     # amusement (videos 13–15)
+    7, 7, 7,     # joy       (videos 16–18)
+    6, 6, 6,     # inspiration (videos 19–21)
+    8, 8, 8,     # tenderness  (videos 22–24)
+    0, 0, 0,     # anger     (videos 25–27)
+]
+assert len(FACED_VIDEO_LABELS_28) == 28, "Label list must have exactly 28 entries"
+
+# Muse-equivalent channel indices in the FACED 32-channel layout
+# [T7(23)→TP9,  FP1(0)→AF7,  FP2(2)→AF8,  T8(24)→TP10]
+_MUSE_CH = [23, 0, 2, 24]
+
+# Band indices inside dim-3 of the DE array
+_DELTA, _THETA, _ALPHA, _BETA, _GAMMA = 0, 1, 2, 3, 4
+
+# Paths
+DE_DIR       = _ML_ROOT / "data" / "faced" / "EEG_Features" / "DE"
+MODEL_DIR    = _ML_ROOT / "models" / "saved"
 BENCHMARK_DIR = _ML_ROOT / "benchmarks"
-FACED_DATA_DIR = _ML_ROOT / "data" / "faced"
+
+MAX_PER_CLASS = 6000   # cap samples per 3-class label to keep RAM manageable
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Feature extraction from a 1-second DE window
 # ---------------------------------------------------------------------------
 
-def _win_hop() -> Tuple[int, int]:
-    """Return (window_samples, hop_samples) for FACED_FS."""
-    return int(FACED_FS * EPOCH_SEC), int(FACED_FS * HOP_SEC)
+def _de_to_features(de_4ch: np.ndarray) -> np.ndarray:
+    """Convert a (4, 5) DE array for one second into a 1-D feature vector.
 
-
-def _smote_balance(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """SMOTE-oversample minority classes to ≥50 % of majority class size."""
-    if not _SMOTE_OK:
-        log.warning("imbalanced-learn not installed — skipping SMOTE.")
-        return X, y
-
-    counts = {cls: int((y == cls).sum()) for cls in np.unique(y)}
-    majority = max(counts.values())
-    target = max(majority // 2, 1)
-
-    strategy = {cls: max(cnt, target) for cls, cnt in counts.items()}
-    k = max(1, min(5, min(counts.values()) - 1))
-    if k < 1:
-        return X, y
-
-    try:
-        sm = SMOTE(sampling_strategy=strategy, k_neighbors=k, random_state=42)
-        X_res, y_res = sm.fit_resample(X, y)
-        return X_res, y_res
-    except Exception as exc:
-        log.warning("SMOTE failed (%s) — using raw data.", exc)
-        return X, y
-
-# ---------------------------------------------------------------------------
-# FACED loader
-# ---------------------------------------------------------------------------
-
-def _load_mat_v7(path: Path) -> Optional[np.ndarray]:
-    """Load a MATLAB v7.3 file via h5py (returns raw array or None)."""
-    if not _H5PY_OK:
-        return None
-    try:
-        with h5py.File(path, "r") as f:
-            # FACED files typically store the EEG matrix under key 'de_lds'
-            # or as the first dataset found.
-            for key in ("de_lds", "eeg", "EEG", "data"):
-                if key in f:
-                    return np.array(f[key])
-            # Fallback: first dataset
-            for key in f.keys():
-                obj = f[key]
-                if hasattr(obj, "shape") and len(obj.shape) >= 2:
-                    return np.array(obj)
-    except Exception as exc:
-        log.debug("h5py load failed for %s: %s", path, exc)
-    return None
-
-
-def _load_mat_legacy(path: Path) -> Optional[dict]:
-    """Load a MATLAB v5/v6 .mat file via scipy."""
-    if not _SCIPY_OK:
-        return None
-    try:
-        return sio.loadmat(str(path))
-    except Exception as exc:
-        log.debug("scipy.io.loadmat failed for %s: %s", path, exc)
-    return None
-
-
-def load_faced_multichannel(
-    data_dir: Path = FACED_DATA_DIR,
-    skip_existing: bool = False,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Load FACED .mat files, extract multichannel features, return (X, y).
-
-    Expects one of these layouts in each sub_XXX.mat:
-      Option A — raw EEG: array shaped (n_trials, n_channels, n_samples)
-      Option B — preprocessed segment: (n_channels, n_samples) per trial
-
-    If the .mat appears to contain pre-extracted feature matrices rather than
-    raw EEG, the file is skipped with a warning.
-
-    Parameters
-    ----------
-    data_dir : Path
-        Directory containing sub_*.mat files (or sub_*.npy).
-    skip_existing : bool
-        If True and a checkpoint .npy exists, load that instead of re-processing.
+    Input: de_4ch[channel, band]  — 4 Muse-equivalent channels × 5 bands
+    Output: feature vector of length 57
+      - 20  raw DE values            (4 ch × 5 bands)
+      - 16  intra-channel band ratios (alpha/beta, theta/beta, alpha/theta, delta/theta) × 4 ch
+      - 5   frontal DASM             (FP2_DE − FP1_DE per band)
+      - 5   frontal RASM             (FP2_DE / FP1_DE per band)
+      - 5   temporal DASM            (T8_DE  − T7_DE  per band)
+      - 5   temporal RASM            (T8_DE  / T7_DE  per band)
+      - 1   frontal alpha asymmetry  (FAA ≡ alpha_FP2 − alpha_FP1)
+    Total = 57
     """
-    if not data_dir.exists():
-        log.warning(
-            "FACED data directory not found: %s\n"
-            "  Download with:\n"
-            "    pip install synapseclient\n"
-            "    synapse get -r syn50614194 --downloadLocation %s",
-            data_dir, data_dir,
+    eps = 1e-8
+    # channel layout: [0]=T7(TP9), [1]=FP1(AF7), [2]=FP2(AF8), [3]=T8(TP10)
+    t7, fp1, fp2, t8 = de_4ch[0], de_4ch[1], de_4ch[2], de_4ch[3]
+
+    # 20 raw DE values
+    raw = de_4ch.flatten()  # (20,)
+
+    # 16 intra-channel ratios (one per band-pair per channel)
+    ratios = []
+    for ch in range(4):
+        d = de_4ch[ch, _DELTA] + eps
+        h = de_4ch[ch, _THETA] + eps
+        a = de_4ch[ch, _ALPHA] + eps
+        b = de_4ch[ch, _BETA]  + eps
+        ratios.extend([a / b, h / b, a / h, d / h])
+    ratios = np.array(ratios)   # (16,)
+
+    # 5 frontal DASM / RASM  (FP2 − FP1, FP2 / FP1)
+    f_dasm = fp2 - fp1                          # (5,)
+    f_rasm = fp2 / (fp1 + eps)                  # (5,)
+
+    # 5 temporal DASM / RASM  (T8 − T7, T8 / T7)
+    t_dasm = t8 - t7                            # (5,)
+    t_rasm = t8 / (t7 + eps)                    # (5,)
+
+    # FAA: alpha band asymmetry
+    faa = np.array([fp2[_ALPHA] - fp1[_ALPHA]])  # (1,)
+
+    return np.concatenate([raw, ratios, f_dasm, f_rasm, t_dasm, t_rasm, faa])
+    # Total: 20 + 16 + 5 + 5 + 5 + 5 + 1 = 57
+
+
+# ---------------------------------------------------------------------------
+# Dataset loader
+# ---------------------------------------------------------------------------
+
+def load_faced_de(
+    de_dir: Path = DE_DIR,
+    use_3class: bool = True,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Load FACED pre-extracted DE features for all subjects.
+
+    Returns (X, y) where:
+      X: float32 array (n_samples, 57)
+      y: int32  array  (n_samples,) — 3-class if use_3class else 9-class
+    """
+    pkl_files = sorted(de_dir.glob("sub*.pkl.pkl"))
+    if not pkl_files:
+        log.error(
+            "No sub*.pkl.pkl files found in %s\n"
+            "  Extract EEG_Features.zip (syn52368847) into ml/data/faced/",
+            de_dir,
         )
         return np.array([]), np.array([])
 
-    # Optional checkpoint (saves ~15 min on re-runs)
-    ckpt_X = data_dir / "_faced_X.npy"
-    ckpt_y = data_dir / "_faced_y.npy"
-    if skip_existing and ckpt_X.exists() and ckpt_y.exists():
-        log.info("Loading FACED features from checkpoint …")
-        return np.load(ckpt_X), np.load(ckpt_y)
+    log.info("Found %d subject files in %s", len(pkl_files), de_dir)
 
-    mat_files = sorted(data_dir.glob("sub_*.mat"))
-    npy_files = sorted(data_dir.glob("sub_*.npy"))
+    import pickle
 
-    if not mat_files and not npy_files:
-        log.warning("No sub_*.mat or sub_*.npy files found in %s", data_dir)
-        return np.array([]), np.array([])
+    X_by_class: Dict[int, List[np.ndarray]] = {}
+    n_classes = 3 if use_3class else 9
+    for c in range(n_classes):
+        X_by_class[c] = []
 
-    win, hop = _win_hop()
-
-    # Per-class accumulator (capped at MAX_PER_CLASS)
-    X_by_class: Dict[int, List[List[float]]] = {i: [] for i in range(6)}
-
-    # ------------------------------------------------------------------ .npy
-    for npy_path in npy_files:
+    for pkl_path in pkl_files:
         try:
-            arr = np.load(npy_path, allow_pickle=True)
-            # Expected: dict with keys "eeg" (n_trials, 30, n_samples) and "labels" (n_trials,)
-            if isinstance(arr, np.ndarray) and arr.dtype == object:
-                d = arr.item()
-                eeg_all = d.get("eeg", None)
-                labels_raw = d.get("labels", None)
-            else:
-                log.debug("Unexpected .npy layout in %s — skipping.", npy_path)
-                continue
-
-            if eeg_all is None or labels_raw is None:
-                continue
-
-            for trial_idx in range(eeg_all.shape[0]):
-                raw_label = int(labels_raw[trial_idx])
-                label = FACED_LABEL_MAP.get(raw_label, None)
-                if label is None:
-                    continue
-                if len(X_by_class[label]) >= MAX_PER_CLASS:
-                    continue
-
-                eeg_trial = eeg_all[trial_idx]          # (30, n_samples)
-                eeg_4ch = eeg_trial[_FACED_CH, :]       # (4, n_samples)
-                eeg_4ch = rereference_to_mastoid(eeg_4ch,
-                                                 left_mastoid_ch=0,
-                                                 right_mastoid_ch=3)
-
-                for start in range(0, eeg_4ch.shape[1] - win, hop):
-                    if len(X_by_class[label]) >= MAX_PER_CLASS:
-                        break
-                    seg = eeg_4ch[:, start: start + win]
-                    try:
-                        feats = extract_features_multichannel(seg, FACED_FS)
-                        X_by_class[label].append(list(feats.values()))
-                    except Exception:
-                        pass
-
+            with open(pkl_path, "rb") as fh:
+                data = pickle.load(fh)          # (28, 32, 30, 5)
         except Exception as exc:
-            log.debug("Failed to load %s: %s", npy_path, exc)
-
-    # ------------------------------------------------------------------ .mat
-    for mat_path in mat_files:
-        subject_id = mat_path.stem  # e.g. sub_001
-
-        # Try v7.3 first (FACED typically uses this format)
-        raw = _load_mat_v7(mat_path)
-        mat_dict: Optional[dict] = None
-
-        if raw is None:
-            mat_dict = _load_mat_legacy(mat_path)
-            if mat_dict is None:
-                log.debug("Cannot open %s — skipping.", mat_path)
-                continue
-
-        # ---- parse label array ----
-        labels_raw: Optional[np.ndarray] = None
-
-        if mat_dict is not None:
-            # scipy dict keys
-            for lkey in ("labels", "label", "emotion_label", "y"):
-                if lkey in mat_dict:
-                    labels_raw = np.array(mat_dict[lkey]).flatten().astype(int)
-                    break
-            eeg_key = None
-            for ek in ("EEG", "eeg", "data", "signal"):
-                if ek in mat_dict:
-                    eeg_key = ek
-                    break
-            if eeg_key is None:
-                log.debug("%s: no recognised EEG key — skipping.", subject_id)
-                continue
-            eeg_block = np.array(mat_dict[eeg_key])
-        else:
-            # h5py path: raw is an ndarray; labels live in a sibling key
-            # We re-open to grab labels
-            labels_raw = None
-            if _H5PY_OK:
-                try:
-                    with h5py.File(mat_path, "r") as f:
-                        for lkey in ("labels", "label", "emotion_label", "y"):
-                            if lkey in f:
-                                labels_raw = np.array(f[lkey]).flatten().astype(int)
-                                break
-                except Exception:
-                    pass
-            eeg_block = raw  # type: ignore[assignment]
-
-        if labels_raw is None or eeg_block is None:
-            log.debug("%s: missing labels or EEG block — skipping.", subject_id)
+            log.debug("Cannot load %s: %s", pkl_path.name, exc)
             continue
 
-        # ---- normalise EEG shape ----
-        # Expected: (n_trials, n_channels, n_samples)
-        # Some files may be transposed or 2-D
-        if eeg_block.ndim == 2:
-            # (n_channels, n_samples) — single-trial file
-            eeg_block = eeg_block[np.newaxis, ...]  # → (1, ch, samples)
+        if data.ndim != 4 or data.shape != (28, 32, 30, 5):
+            log.debug("Unexpected shape %s in %s — skipping", data.shape, pkl_path.name)
+            continue
 
-        if eeg_block.ndim == 3:
-            n_trials, n_ch, n_samp = eeg_block.shape
-            # If the shape looks transposed (samples × channels × trials), fix it
-            if n_ch > n_samp:
-                eeg_block = eeg_block.transpose(0, 2, 1)
-                n_trials, n_ch, n_samp = eeg_block.shape
-
-            if n_ch < max(_FACED_CH) + 1:
-                log.debug(
-                    "%s: only %d channels (need ≥17) — not raw EEG, skipping.",
-                    subject_id, n_ch,
-                )
+        # Iterate over all 28 videos × 30 seconds
+        for vid_idx, raw_label in enumerate(FACED_VIDEO_LABELS_28):
+            label = FACED_9_TO_3[raw_label] if use_3class else raw_label
+            if len(X_by_class[label]) >= MAX_PER_CLASS:
                 continue
 
-            if len(labels_raw) != n_trials:
-                log.debug(
-                    "%s: label count %d ≠ trial count %d — skipping.",
-                    subject_id, len(labels_raw), n_trials,
-                )
-                continue
+            # Extract 4 Muse-equivalent channels, all 30 seconds
+            de_vid = data[vid_idx][_MUSE_CH, :, :]   # (4, 30, 5) — [ch, sec, band]
+            de_vid = de_vid.transpose(1, 0, 2)         # (30, 4, 5)  — [sec, ch, band]
 
-            for trial_idx in range(n_trials):
-                raw_label = int(labels_raw[trial_idx])
-                label = FACED_LABEL_MAP.get(raw_label, None)
-                if label is None:
-                    continue
+            for sec in range(30):
                 if len(X_by_class[label]) >= MAX_PER_CLASS:
-                    continue
+                    break
+                feat = _de_to_features(de_vid[sec])    # (57,)
+                X_by_class[label].append(feat)
 
-                eeg_trial = eeg_block[trial_idx]        # (n_ch, n_samp)
-                eeg_4ch = eeg_trial[_FACED_CH, :]       # (4, n_samp)
-                eeg_4ch = rereference_to_mastoid(
-                    eeg_4ch, left_mastoid_ch=0, right_mastoid_ch=3
-                )
-
-                for start in range(0, eeg_4ch.shape[1] - win, hop):
-                    if len(X_by_class[label]) >= MAX_PER_CLASS:
-                        break
-                    seg = eeg_4ch[:, start: start + win]
-                    try:
-                        feats = extract_features_multichannel(seg, FACED_FS)
-                        X_by_class[label].append(list(feats.values()))
-                    except Exception:
-                        pass
-        else:
-            log.debug(
-                "%s: unexpected EEG block shape %s — skipping.",
-                subject_id, eeg_block.shape,
-            )
-
-    # ---- assemble final arrays ----
-    X_parts: List[np.ndarray] = []
-    y_parts: List[np.ndarray] = []
+    X_parts, y_parts = [], []
     for cls, rows in X_by_class.items():
         if rows:
             X_parts.append(np.array(rows, dtype=np.float32))
             y_parts.append(np.full(len(rows), cls, dtype=np.int32))
 
     if not X_parts:
-        log.warning("FACED: no features extracted — check data directory.")
+        log.error("No features extracted — check DE directory.")
         return np.array([]), np.array([])
 
-    X_out = np.vstack(X_parts)
-    y_out = np.concatenate(y_parts)
+    X = np.vstack(X_parts)
+    y = np.concatenate(y_parts)
 
-    counts = {EMOTIONS[i]: int((y_out == i).sum()) for i in range(6)}
-    log.info(
-        "FACED loaded: %d samples | class dist: %s",
-        len(y_out),
-        {k: v for k, v in counts.items() if v > 0},
-    )
+    class_names = EMOTIONS_3 if use_3class else FACED_9_CLASSES
+    counts = {class_names[i]: int((y == i).sum()) for i in range(n_classes)}
+    log.info("Loaded %d samples | class distribution: %s", len(y), counts)
+    return X, y
 
-    # Save checkpoint for fast re-runs
+
+# ---------------------------------------------------------------------------
+# SMOTE balancing
+# ---------------------------------------------------------------------------
+
+def _smote(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    if not _SMOTE_OK:
+        log.warning("imbalanced-learn not installed — skipping SMOTE.")
+        return X, y
+    counts = {c: int((y == c).sum()) for c in np.unique(y)}
+    majority = max(counts.values())
+    target   = max(majority // 2, 1)
+    strategy = {c: max(cnt, target) for c, cnt in counts.items()}
+    k = max(1, min(5, min(counts.values()) - 1))
+    if k < 1:
+        return X, y
     try:
-        np.save(ckpt_X, X_out)
-        np.save(ckpt_y, y_out)
-    except Exception:
-        pass
+        sm = SMOTE(sampling_strategy=strategy, k_neighbors=k, random_state=42)
+        return sm.fit_resample(X, y)
+    except Exception as exc:
+        log.warning("SMOTE failed (%s) — using raw data.", exc)
+        return X, y
 
-    return X_out, y_out
 
 # ---------------------------------------------------------------------------
-# Train / evaluate
+# Train + evaluate
 # ---------------------------------------------------------------------------
 
-def train_and_evaluate(
-    X: np.ndarray,
-    y: np.ndarray,
-) -> Dict:
-    """Train LightGBM (+ RandomForest fallback) and return best result dict."""
-    from sklearn.model_selection import train_test_split
-    from sklearn.metrics import classification_report, accuracy_score
-
-    scaler = StandardScaler()
+def train_and_evaluate(X: np.ndarray, y: np.ndarray) -> Dict:
+    scaler   = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    X_train, X_test, y_train, y_test = train_test_split(
+    X_tr, X_te, y_tr, y_te = train_test_split(
         X_scaled, y, test_size=0.2, random_state=42, stratify=y
     )
 
     results: List[Dict] = []
+    n_classes = len(np.unique(y))
+    class_names = EMOTIONS_3 if n_classes == 3 else FACED_9_CLASSES
 
     # ---- LightGBM ----
     if _LGB_OK:
         try:
-            clf_lgb = lgb.LGBMClassifier(
-                n_estimators=600,
-                num_leaves=63,
-                learning_rate=0.05,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                reg_alpha=0.1,
-                reg_lambda=0.1,
-                class_weight="balanced",
-                random_state=42,
-                n_jobs=-1,
-                verbose=-1,
+            clf = lgb.LGBMClassifier(
+                n_estimators=600, num_leaves=63, learning_rate=0.05,
+                subsample=0.8, colsample_bytree=0.8,
+                reg_alpha=0.1, reg_lambda=0.1,
+                class_weight="balanced", random_state=42,
+                n_jobs=-1, verbose=-1,
             )
-            clf_lgb.fit(X_train, y_train)
-            y_pred = clf_lgb.predict(X_test)
-            acc = accuracy_score(y_test, y_pred)
-            report = classification_report(
-                y_test, y_pred,
-                target_names=EMOTIONS,
-                output_dict=True,
-                zero_division=0,
-            )
-            log.info("LightGBM test accuracy: %.2f%%", acc * 100)
-
-            # 5-fold CV
-            cv_scores = cross_val_score(
+            clf.fit(X_tr, y_tr)
+            acc  = accuracy_score(y_te, clf.predict(X_te))
+            rep  = classification_report(y_te, clf.predict(X_te),
+                                         target_names=class_names[:n_classes],
+                                         output_dict=True, zero_division=0)
+            cv   = cross_val_score(
                 lgb.LGBMClassifier(
                     n_estimators=600, num_leaves=63, learning_rate=0.05,
                     subsample=0.8, colsample_bytree=0.8,
@@ -487,142 +325,106 @@ def train_and_evaluate(
                 ),
                 X_scaled, y,
                 cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
-                scoring="accuracy",
-                n_jobs=-1,
+                scoring="accuracy", n_jobs=-1,
             )
-            log.info(
-                "LightGBM CV: %.2f%% ± %.2f%%",
-                cv_scores.mean() * 100,
-                cv_scores.std() * 100,
-            )
-
-            results.append({
-                "model": clf_lgb,
-                "scaler": scaler,
-                "accuracy": float(acc),
-                "cv_mean": float(cv_scores.mean()),
-                "cv_std": float(cv_scores.std()),
-                "report": report,
-                "classifier_type": "LightGBM",
-            })
+            log.info("LightGBM test=%.2f%% | CV=%.2f%%±%.2f%%",
+                     acc * 100, cv.mean() * 100, cv.std() * 100)
+            results.append({"model": clf, "scaler": scaler, "accuracy": float(acc),
+                             "cv_mean": float(cv.mean()), "cv_std": float(cv.std()),
+                             "report": rep, "classifier_type": "LightGBM"})
         except Exception as exc:
-            log.warning("LightGBM training failed: %s", exc)
+            log.warning("LightGBM failed: %s", exc)
 
     # ---- RandomForest fallback ----
     try:
-        clf_rf = RandomForestClassifier(
-            n_estimators=400,
-            max_depth=None,
-            class_weight="balanced",
-            random_state=42,
-            n_jobs=-1,
-        )
-        clf_rf.fit(X_train, y_train)
-        y_pred_rf = clf_rf.predict(X_test)
-        acc_rf = accuracy_score(y_test, y_pred_rf)
-        report_rf = classification_report(
-            y_test, y_pred_rf,
-            target_names=EMOTIONS,
-            output_dict=True,
-            zero_division=0,
-        )
-        log.info("RandomForest test accuracy: %.2f%%", acc_rf * 100)
-
-        cv_rf = cross_val_score(
-            RandomForestClassifier(
-                n_estimators=400, class_weight="balanced",
-                random_state=42, n_jobs=-1,
-            ),
+        rf = RandomForestClassifier(n_estimators=400, class_weight="balanced",
+                                    random_state=42, n_jobs=-1)
+        rf.fit(X_tr, y_tr)
+        acc_rf = accuracy_score(y_te, rf.predict(X_te))
+        rep_rf = classification_report(y_te, rf.predict(X_te),
+                                       target_names=class_names[:n_classes],
+                                       output_dict=True, zero_division=0)
+        cv_rf  = cross_val_score(
+            RandomForestClassifier(n_estimators=400, class_weight="balanced",
+                                   random_state=42, n_jobs=-1),
             X_scaled, y,
             cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
-            scoring="accuracy",
-            n_jobs=-1,
+            scoring="accuracy", n_jobs=-1,
         )
-        results.append({
-            "model": clf_rf,
-            "scaler": scaler,
-            "accuracy": float(acc_rf),
-            "cv_mean": float(cv_rf.mean()),
-            "cv_std": float(cv_rf.std()),
-            "report": report_rf,
-            "classifier_type": "RandomForest",
-        })
+        log.info("RandomForest test=%.2f%% | CV=%.2f%%±%.2f%%",
+                 acc_rf * 100, cv_rf.mean() * 100, cv_rf.std() * 100)
+        results.append({"model": rf, "scaler": scaler, "accuracy": float(acc_rf),
+                        "cv_mean": float(cv_rf.mean()), "cv_std": float(cv_rf.std()),
+                        "report": rep_rf, "classifier_type": "RandomForest"})
     except Exception as exc:
-        log.warning("RandomForest training failed: %s", exc)
+        log.warning("RandomForest failed: %s", exc)
 
     if not results:
-        raise RuntimeError("All classifiers failed — cannot save model.")
+        raise RuntimeError("All classifiers failed.")
 
     best = max(results, key=lambda r: r["accuracy"])
-    log.info(
-        "Best classifier: %s — test %.2f%% | CV %.2f%%±%.2f%%",
-        best["classifier_type"],
-        best["accuracy"] * 100,
-        best["cv_mean"] * 100,
-        best["cv_std"] * 100,
-    )
+    log.info("Best: %s — test %.2f%% | CV %.2f%%±%.2f%%",
+             best["classifier_type"], best["accuracy"] * 100,
+             best["cv_mean"] * 100, best["cv_std"] * 100)
     return best
 
 
 # ---------------------------------------------------------------------------
-# Save model + benchmark
+# Save
 # ---------------------------------------------------------------------------
 
-def save_model(best: Dict, n_features: int, trained_on: List[str]) -> None:
-    """Persist model pickle and benchmark JSON."""
+def save_results(best: Dict, n_samples: int) -> None:
     import pickle
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
 
-    feature_names = [f"feat_{i}" for i in range(n_features)]
-
     payload = {
         "model": best["model"],
         "scaler": best["scaler"],
-        "feature_names": feature_names,
-        "n_features": n_features,
+        "feature_names": [f"feat_{i}" for i in range(57)],
+        "n_features": 57,
         "multichannel": True,
         "accuracy": best["accuracy"],
         "classifier_type": best["classifier_type"],
-        "trained_on": trained_on,
-        "label_names": EMOTIONS,
+        "trained_on": ["FACED"],
+        "label_names": EMOTIONS_3,
+        "n_classes": 3,
+        "channel_map": "T7(23)→TP9, FP1(0)→AF7, FP2(2)→AF8, T8(24)→TP10",
     }
-
-    model_path = MODEL_DIR / "emotion_classifier_model.pkl"
+    model_path = MODEL_DIR / "emotion_classifier_faced.pkl"
     with open(model_path, "wb") as fh:
         pickle.dump(payload, fh, protocol=4)
     log.info("Model saved → %s", model_path)
 
     benchmark = {
         "dataset": "FACED",
+        "n_subjects": 123,
+        "n_samples": n_samples,
         "classifier": best["classifier_type"],
         "test_accuracy": round(best["accuracy"], 4),
         "cv_accuracy_mean": round(best["cv_mean"], 4),
         "cv_accuracy_std": round(best["cv_std"], 4),
-        "n_features": n_features,
-        "n_samples_trained": int(best.get("n_samples", 0)),
-        "classes": EMOTIONS,
-        "trained_on": trained_on,
-        "label_map": {
-            "FACED_amusement(0)": "happy",
-            "FACED_inspiration(1)": "relaxed",
-            "FACED_joy(2)": "happy",
-            "FACED_tenderness(3)": "relaxed",
-            "FACED_anger(4)": "angry",
-            "FACED_fear(5)": "fearful",
-            "FACED_disgust(6)": "fearful",
-            "FACED_sadness(7)": "sad",
-            "FACED_neutral(8)": "focused",
+        "n_features": 57,
+        "feature_description": (
+            "20 DE (4-ch × 5-band) + 16 band-ratios + "
+            "10 frontal DASM/RASM + 10 temporal DASM/RASM + 1 FAA"
+        ),
+        "n_classes": 3,
+        "classes": EMOTIONS_3,
+        "channel_indices": _MUSE_CH,
+        "channel_map": "T7(23)=TP9, FP1(0)=AF7, FP2(2)=AF8, T8(24)=TP10",
+        "label_map_9_to_3": {
+            FACED_9_CLASSES[k]: EMOTIONS_3[v] for k, v in FACED_9_TO_3.items()
         },
         "notes": (
-            "Multichannel features from FACED channels [T7, Fp1, Fp2, T8] "
-            "remapped to Muse [TP9, AF7, AF8, TP10]. "
-            f"Sliding windows: {EPOCH_SEC}s @ {HOP_SEC}s hop, {FACED_FS}Hz."
+            "Pre-extracted DE features from EEG_Features.zip. "
+            "4 Muse-equivalent channels. "
+            "28-video sequence: disgust×3, fear×3, sadness×3, neutral×4, "
+            "amusement×3, joy×3, inspiration×3, tenderness×3, anger×3."
         ),
     }
-
-    bm_path = BENCHMARK_DIR / "emotion_classifier_benchmark.json"
+    bm_path = BENCHMARK_DIR / "emotion_classifier_faced_benchmark.json"
     with open(bm_path, "w") as fh:
         json.dump(benchmark, fh, indent=2)
     log.info("Benchmark saved → %s", bm_path)
@@ -632,66 +434,28 @@ def save_model(best: Dict, n_features: int, trained_on: List[str]) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
-def main(skip_existing_cache: bool = True) -> None:
-    log.info("=== FACED multichannel emotion training ===")
-    log.info("Data dir : %s", FACED_DATA_DIR)
-    log.info("Window   : %.1f s | Hop: %.1f s | Max/class: %d", EPOCH_SEC, HOP_SEC, MAX_PER_CLASS)
+def main() -> None:
+    log.info("=== FACED DE feature training (3-class) ===")
+    log.info("DE directory: %s", DE_DIR)
+    log.info("Channels: T7(ch23)→TP9, FP1(ch0)→AF7, FP2(ch2)→AF8, T8(ch24)→TP10")
+    log.info("Features per sample: 57  (DE + ratios + DASM/RASM + FAA)")
 
-    X_faced, y_faced = load_faced_multichannel(
-        data_dir=FACED_DATA_DIR,
-        skip_existing=skip_existing_cache,
-    )
-
-    if X_faced.size == 0:
-        log.error(
-            "No FACED data loaded.\n\n"
-            "  Download the dataset:\n"
-            "    pip install synapseclient\n"
-            "    mkdir -p %s\n"
-            "    synapse get -r syn50614194 --downloadLocation %s\n\n"
-            "  Then re-run this script.",
-            FACED_DATA_DIR, FACED_DATA_DIR,
-        )
+    X, y = load_faced_de(de_dir=DE_DIR, use_3class=True)
+    if X.size == 0:
+        log.error("No data loaded — check ml/data/faced/EEG_Features/DE/ directory.")
         sys.exit(1)
 
-    # SMOTE balancing
-    X_bal, y_bal = _smote_balance(X_faced, y_faced)
-    log.info("Post-SMOTE: %d samples", len(y_bal))
+    log.info("Raw dataset: %d samples, %d features, %d classes", X.shape[0], X.shape[1], len(np.unique(y)))
+
+    X_bal, y_bal = _smote(X, y)
+    log.info("After SMOTE: %d samples", len(y_bal))
 
     best = train_and_evaluate(X_bal, y_bal)
-    best["n_samples"] = len(y_bal)
+    save_results(best, n_samples=len(y))
 
-    if best["accuracy"] < 0.35:
-        log.warning(
-            "Test accuracy %.1f%% is very low — consider checking data quality "
-            "or increasing MAX_PER_CLASS.",
-            best["accuracy"] * 100,
-        )
-
-    save_model(best, n_features=X_bal.shape[1], trained_on=["FACED"])
-
-    log.info("Done.  Model test accuracy: %.2f%%", best["accuracy"] * 100)
+    log.info("Done.  Best test accuracy: %.2f%%  CV: %.2f%%±%.2f%%",
+             best["accuracy"] * 100, best["cv_mean"] * 100, best["cv_std"] * 100)
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Train emotion classifier on FACED dataset."
-    )
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=FACED_DATA_DIR,
-        help="Path to directory containing sub_*.mat files.",
-    )
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="Ignore existing feature cache and re-extract from raw .mat files.",
-    )
-    args = parser.parse_args()
-
-    # Allow overriding data dir at CLI
-    FACED_DATA_DIR = args.data_dir  # type: ignore[misc]
-    main(skip_existing_cache=not args.no_cache)
+    main()

@@ -1,0 +1,36 @@
+{
+  "dataset": "FACED",
+  "n_subjects": 123,
+  "n_samples": 18000,
+  "classifier": "LightGBM",
+  "test_accuracy": 0.6361,
+  "cv_accuracy_mean": 0.6331,
+  "cv_accuracy_std": 0.0067,
+  "n_features": 57,
+  "feature_description": "20 DE (4-ch \u00d7 5-band) + 16 band-ratios + 10 frontal DASM/RASM + 10 temporal DASM/RASM + 1 FAA",
+  "n_classes": 3,
+  "classes": [
+    "positive",
+    "neutral",
+    "negative"
+  ],
+  "channel_indices": [
+    23,
+    0,
+    2,
+    24
+  ],
+  "channel_map": "T7(23)=TP9, FP1(0)=AF7, FP2(2)=AF8, T8(24)=TP10",
+  "label_map_9_to_3": {
+    "amusement": "positive",
+    "inspiration": "positive",
+    "joy": "positive",
+    "tenderness": "positive",
+    "neutral": "neutral",
+    "anger": "negative",
+    "disgust": "negative",
+    "fear": "negative",
+    "sadness": "negative"
+  },
+  "notes": "Pre-extracted DE features from EEG_Features.zip. 4 Muse-equivalent channels. 28-video sequence: disgust\u00d73, fear\u00d73, sadness\u00d73, neutral\u00d74, amusement\u00d73, joy\u00d73, inspiration\u00d73, tenderness\u00d73, anger\u00d73."
+}

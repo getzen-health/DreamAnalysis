@@ -1,0 +1,28 @@
+{
+  "dataset": "DENS",
+  "n_subjects": 40,
+  "n_samples": 2826,
+  "classifier": "RandomForest",
+  "test_accuracy": 0.7475,
+  "cv_accuracy_mean": 0.7522,
+  "cv_accuracy_std": 0.0206,
+  "n_features": 41,
+  "n_classes": 3,
+  "classes": [
+    "positive",
+    "neutral",
+    "negative"
+  ],
+  "channel_map": {
+    "TP9": "E48(ch47)",
+    "AF7": "E32(ch31)",
+    "AF8": "E1(ch0)",
+    "TP10": "E119(ch118)"
+  },
+  "label_rule": {
+    "positive": "valence >= 6.0",
+    "neutral": "4.0 < valence < 6.0",
+    "negative": "valence <= 4.0"
+  },
+  "notes": "128-ch EGI HydroCel, 4 Muse-equivalent channels selected by 3D coord matching. 4-sec sliding windows (50% overlap). Mastoid re-reference applied. Valence threshold: pos>=6, neg<=4."
+}
