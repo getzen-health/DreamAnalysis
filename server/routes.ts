@@ -7,6 +7,7 @@ import {
   insertUserSettingsSchema, insertEmotionReadingSchema,
   studyParticipants, studySessions, studyMorningEntries,
   studyDaytimeEntries, studyEveningEntries, foodLogs,
+  users,
 } from "@shared/schema";
 import { db } from "./db";
 import { emotionReadings } from "@shared/schema";
@@ -70,7 +71,18 @@ async function checkAndMarkValidDay(sessionId: string): Promise<boolean> {
   return isValid;
 }
 
+// Ensure the hardcoded "default" user exists — runs once on startup.
+// All research + food features use USER_ID = "default" on the client.
+async function ensureDefaultUser() {
+  await db.insert(users)
+    .values({ id: "default", username: "default", password: "n/a" })
+    .onConflictDoNothing();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Seed the default user so FK constraints never block self-study usage
+  await ensureDefaultUser();
+
   // Health metrics endpoints
   app.get("/api/health-metrics/:userId", async (req, res) => {
     try {
