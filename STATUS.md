@@ -20,10 +20,10 @@
 - [x] Biofeedback training screen (`/biofeedback` — 4 breathing exercises, live stress chart, before/after comparison)
 - [x] Baseline calibration UI (`/calibration`)
 - [x] Food & Cravings page (`/food` — 6 food states, biomarker gauges, dietary recommendations)
-- [x] Formal Benchmarks Dashboard (`/benchmarks` — all 16 models + 8 datasets + research roadmap)
+- [x] Formal Benchmarks Dashboard (`/benchmarks` — all 18 models + 8 datasets + research roadmap)
 - [x] 49 shadcn/ui components, 5 chart components, dark theme, responsive layout
 
-### ML Backend (79 endpoints, 17 models)
+### ML Backend (82 endpoints, 18 models)
 - [x] Emotion classifier (LightGBM, 97.79% on DEAP+SEED+GAMEEMO — within-subject)
 - [x] Sleep staging, dream detection, flow state, creativity detection
 - [x] Drowsiness, cognitive load, attention, stress, meditation classifiers
@@ -37,6 +37,7 @@
 - [x] WebSocket real-time streaming
 - [x] **Food-Emotion Predictor** — 6 eating states (craving_carbs, appetite_suppressed, comfort_seeking, balanced, stress_eating, mindful_eating) mapped from FAA + high-beta + theta + delta biomarkers
 - [x] routes.py split into modular route files (`ml/api/routes/` — 18 sub-routers)
+- [x] **PPO Adaptive Threshold RL Agent** — real-time neurofeedback difficulty controller; fires on every `/neurofeedback/evaluate` call; adjusts protocol threshold ±0.05 via learned policy; 67% live reward rate (target flow zone: 40–75%); trained 500 ep × 3 protocols on synthetic `NeurofeedbackEnv`; endpoints: `POST /neurofeedback/rl/train`, `GET /neurofeedback/rl/status`; training runs in isolated subprocess to prevent GIL/OpenMP deadlock with live inference
 - [x] 4-second sliding epoch buffer in `/analyze-eeg` (50% overlap, `epoch_ready` flag)
 - [x] `BaselineCalibrator` class + 3 API endpoints (per-user resting-state normalization, +15–29% accuracy)
 - [x] Mastoid re-reference wired into live BrainFlow stream
@@ -74,6 +75,7 @@
 | Flow State | MLP | 62.86% | — | Active, marginal |
 | Creativity | SVM + RF | 99.18% | — | Likely overfit (850 samples) |
 | Food-Emotion | Feature heuristics | N/A | — | Novel — no prior benchmark exists |
+| RL Threshold Agent (PPO) | PPO Actor-Critic (PyTorch) | 67% reward rate (live) | Synthetic NeurofeedbackEnv | Flow-zone target: 40–75%; 500 ep × 3 protocols |
 
 ## Needs Improvement
 
