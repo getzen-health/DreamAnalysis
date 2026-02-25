@@ -91,6 +91,9 @@ BENCHMARK_DIR = _ML_ROOT / "benchmarks"
 MODEL_OUT     = MODEL_DIR  / "emotion_mega_lgbm.pkl"
 BENCH_OUT     = BENCHMARK_DIR / "emotion_mega_lgbm_benchmark.json"
 
+# Project-root /data/ directory (datasets live here, not in ml/data/)
+_DATA_ROOT = _ML_ROOT.parent / "data"
+
 N_PCA_COMPONENTS = 80
 EMOTIONS_3 = ["positive", "neutral", "negative"]
 
@@ -187,7 +190,7 @@ def _sliding_windows(eeg4ch: np.ndarray, fs: float,
 # DEAP loader
 # ---------------------------------------------------------------------------
 
-_DEAP_DIR = _ML_ROOT / "data" / "deap"
+_DEAP_DIR = _DATA_ROOT / "deap" if (_DATA_ROOT / "deap").exists() else _ML_ROOT / "data" / "deap"
 _DEAP_FS  = 128.0
 # Muse-equivalent channels in DEAP 32-ch montage (0-indexed):
 #   FP1=0≈AF7, FP2=16≈AF8, T7=12≈TP9, T8=28≈TP10
@@ -260,7 +263,7 @@ def load_deap() -> Tuple[np.ndarray, np.ndarray]:
 # DREAMER loader
 # ---------------------------------------------------------------------------
 
-_DREAMER_PATH = _ML_ROOT / "data" / "dreamer" / "DREAMER.mat"
+_DREAMER_PATH = _DATA_ROOT / "dreamer" / "DREAMER.mat"
 _DREAMER_FS   = 128.0
 # Emotiv EPOC 14 channels: AF3,F7,F3,FC5,T7,P7,O1,O2,P8,T8,FC6,F4,F8,AF4
 # Muse equivalents: AF7≈F7(ch1), AF8≈F8(ch12), TP9≈T7(ch4), TP10≈T8(ch9)
@@ -296,10 +299,14 @@ def load_dreamer() -> Tuple[np.ndarray, np.ndarray]:
                 seg_raw = np.array(stimuli[t], dtype=np.float32)  # (n_samples, 14)
                 if seg_raw.ndim != 2 or seg_raw.shape[1] < 14:
                     continue
-                seg = seg_raw[:, _DREAMER_CH].T  # (4, n_samples)
+                # Convert Emotiv EPOC raw ADC → µV: (raw - 4096) × 0.51 µV/bit
+                seg_uv = (seg_raw - 4096.0) * 0.51
+                seg = seg_uv[:, _DREAMER_CH].T  # (4, n_samples)
                 val = float(val_labels[t]) if hasattr(val_labels, "__len__") else float(val_labels)
                 label = 0 if val >= 3.5 else 2   # binary: pos/neg; neutral rare in DREAMER
-                feats = _sliding_windows(seg, _DREAMER_FS)
+                # Use relaxed threshold (500 µV) — DREAMER temporal channels have
+                # large muscle artifacts; band-power features are ratio-normalised
+                feats = _sliding_windows(seg, _DREAMER_FS, artifact_uv=500.0)
                 for f in feats:
                     Xs.append(f); ys.append(label)
             except Exception:
@@ -315,68 +322,66 @@ def load_dreamer() -> Tuple[np.ndarray, np.ndarray]:
 # GAMEEMO loader
 # ---------------------------------------------------------------------------
 
-_GAMEEMO_DIR = _ML_ROOT / "data" / "gameemo"
+_GAMEEMO_DIR = _DATA_ROOT / "gameemo"
 _GAMEEMO_FS  = 128.0
-# same Emotiv EPOC as DREAMER
-_GAMEEMO_CH = _DREAMER_CH
-# 4 games: boring/calm/horror/joy → label map
-_GAMEEMO_LABEL = {"boredom": 1, "calm": 1, "horror": 2, "joy": 0,
-                  "neutral": 1}
+# Emotiv EPOC 14-ch layout (0-indexed): AF3,F7,F3,FC5,T7,P7,O1,O2,P8,T8,FC6,F4,F8,AF4
+# Muse equivalents: AF7≈F7(1), AF8≈F8(12), TP9≈T7(4), TP10≈T8(9)
+_GAMEEMO_CH_ORDER = ["AF3", "F7", "F3", "FC5", "T7", "P7",
+                     "O1", "O2", "P8", "T8", "FC6", "F4", "F8", "AF4"]
+_GAMEEMO_MUSE_KEYS = ["F7", "F8", "T7", "T8"]   # AF7, AF8, TP9, TP10 equivalents
+# G1=boring→neutral, G2=calm→positive, G3=horror→negative, G4=fun→positive
+_GAMEEMO_GAME_LABEL = {"G1": 1, "G2": 0, "G3": 2, "G4": 0}
 
 
-def _gameemo_label_from_filename(name: str) -> Optional[int]:
-    low = name.lower()
-    for k, v in _GAMEEMO_LABEL.items():
-        if k in low:
-            return v
+def _gameemo_label_from_filename(stem: str) -> Optional[int]:
+    """Extract game label from filename like 'S01G3AllChannels'."""
+    import re
+    m = re.search(r"G(\d)", stem)
+    if m:
+        key = f"G{m.group(1)}"
+        return _GAMEEMO_GAME_LABEL.get(key)
     return None
 
 
 def load_gameemo() -> Tuple[np.ndarray, np.ndarray]:
-    if not _gameemo_dir_ok():
-        log.warning("GAMEEMO: data not found in %s — skipping", _GAMEEMO_DIR)
+    gameemo_base = _GAMEEMO_DIR / "GAMEEMO"
+    if not gameemo_base.exists():
+        log.warning("GAMEEMO: data not found in %s — skipping", gameemo_base)
         return np.empty((0, 85), np.float32), np.empty(0, np.int32)
 
     Xs, ys = [], []
-    # GAMEEMO typically organized as .mat files per game per subject
-    for mat_file in sorted(_GAMEEMO_DIR.rglob("*.mat")):
-        label = _gameemo_label_from_filename(mat_file.stem)
-        if label is None:
+    # Walk subject dirs like (S01), (S02), ...
+    for subj_dir in sorted(gameemo_base.iterdir()):
+        if not subj_dir.is_dir():
             continue
-        try:
-            mat  = sio.loadmat(str(mat_file), struct_as_record=False, squeeze_me=True)
-            # Try common keys
-            eeg_raw = None
-            for key in ("eeg", "EEG", "data", "Data", "signal"):
-                if key in mat:
-                    eeg_raw = np.array(mat[key], dtype=np.float32)
-                    break
-            if eeg_raw is None:
+        mat_dir = subj_dir / "Preprocessed EEG Data" / ".mat format"
+        if not mat_dir.exists():
+            continue
+        for mat_file in sorted(mat_dir.glob("*.mat")):
+            label = _gameemo_label_from_filename(mat_file.stem)
+            if label is None:
                 continue
-            if eeg_raw.ndim == 2:
-                # shape (n_samples, 14) or (14, n_samples)
-                if eeg_raw.shape[0] == 14:
-                    seg = eeg_raw[_GAMEEMO_CH]   # (4, n_samples)
-                elif eeg_raw.shape[1] == 14:
-                    seg = eeg_raw[:, _GAMEEMO_CH].T
-                else:
+            try:
+                mat = sio.loadmat(str(mat_file), struct_as_record=False,
+                                  squeeze_me=True)
+                # Each channel is a separate key: AF3, F7, T7, etc.
+                channels = {k: np.array(mat[k], dtype=np.float32)
+                            for k in _GAMEEMO_MUSE_KEYS if k in mat}
+                if len(channels) < 4:
                     continue
-            else:
+                # Build (4, n_samples): order → TP9≈T7, AF7≈F7, AF8≈F8, TP10≈T8
+                seg = np.stack([channels["T7"], channels["F7"],
+                                channels["F8"], channels["T8"]])  # (4, n)
+                feats = _sliding_windows(seg, _GAMEEMO_FS)
+                for f in feats:
+                    Xs.append(f); ys.append(label)
+            except Exception:
                 continue
-            feats = _sliding_windows(seg, _GAMEEMO_FS)
-            for f in feats:
-                Xs.append(f); ys.append(label)
-        except Exception:
-            continue
 
     if not Xs:
         return np.empty((0, 85), np.float32), np.empty(0, np.int32)
     log.info("GAMEEMO: %d samples", len(ys))
     return np.array(Xs, np.float32), np.array(ys, np.int32)
-
-
-def _gameemo_dir_ok() -> bool:
-    return _GAMEEMO_DIR.exists() and any(_GAMEEMO_DIR.rglob("*.mat"))
 
 
 # ---------------------------------------------------------------------------

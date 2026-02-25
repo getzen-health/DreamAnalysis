@@ -13,9 +13,9 @@ const models = [
     name: "Emotion Classifier",
     file: "emotion_classifier.py",
     algo: "Mega LGBM (global PCA 85→80, DEAP+DENS) + Feature Heuristics",
-    liveAccuracy: "89.25% CV",
-    benchmarkAccuracy: "89.25% CV (DEAP+DENS, 3-class, cross-subject)",
-    crossSubject: "89.25% CV (DEAP+DENS, 3-class, global PCA 85→80)",
+    liveAccuracy: "82.04% CV",
+    benchmarkAccuracy: "82.04% CV (DEAP+DREAMER+GAMEEMO+DENS, 3-class, cross-subject)",
+    crossSubject: "82.04% CV (DEAP+DREAMER+GAMEEMO+DENS, 3-class, global PCA 85→80)",
     classes: 6,
     classLabels: ["happy", "sad", "angry", "fear", "relaxed", "focused"],
     primarySignals: ["FAA (AF7/AF8 asymmetry)", "Beta/Alpha ratio", "High-Beta 20–30 Hz", "Theta/Beta ratio"],
@@ -575,7 +575,7 @@ const publishingPlan = [
     title: "✅ DREAMER Dataset Access + Training — DONE",
     status: "done",
     detail:
-      "DREAMER dataset downloaded (23 subjects, 14-ch Emotiv EPOC). 37 823 samples extracted. Cross-dataset LGBM trained on DEAP+DREAMER+GAMEEMO with device-aware gamma masking. Result: 69.25% CV (3-class, 85 features). Gamma features zeroed for Muse 2, full 85 features used for research-grade EEG.",
+      "DREAMER dataset integrated (23 subjects, 14-ch Emotiv EPOC). 40 283 samples. Combined with DEAP+GAMEEMO+DENS in mega LGBM (global PCA 85→80). Result: 82.04% CV (4-dataset, 3-class, 67 911 samples). Gamma features zeroed for Muse 2, full 85 features used for research-grade EEG.",
     timeline: "Complete",
   },
   {
@@ -1018,8 +1018,8 @@ export default function FormalBenchmarksDashboard() {
                 {[
                   { cond: "Published (within-subject, lab-grade)", binary: "85–98%", six: "75–90%", note: "Cheating — same person, same session" },
                   { cond: "Published cross-subject (lab-grade)", binary: "65–75%", six: "55–70%", note: "More honest, still ideal conditions" },
-                  { cond: "Mega LGBM (DEAP+DENS, global PCA 85→80)", binary: "89.25% CV", six: "89.25% CV (3-class)", note: "✅ Active live path — scaler+PCA+LGBM saved in single pkl" },
-                  { cond: "Muse 2, no calibration, our system", binary: "~50–55%", six: "89.25% CV (DEAP+DENS, global PCA)", note: "Cross-dataset cross-subject benchmark — mega LGBM active" },
+                  { cond: "Mega LGBM (DEAP+DREAMER+GAMEEMO+DENS, global PCA 85→80)", binary: "82.04% CV", six: "82.04% CV (3-class)", note: "✅ Active live path — 67 911 samples, 4 datasets, scaler+PCA+LGBM in single pkl" },
+                  { cond: "Muse 2, no calibration, our system", binary: "~50–55%", six: "82.04% CV (4-dataset global PCA)", note: "Cross-dataset cross-subject benchmark — mega LGBM active" },
                   { cond: "DENS (128-ch EGI, 4-ch subset, valence labels)", binary: "79.55% CV", six: "79.55% CV (3-class)", note: "LGBM 80.46% test | 79.55% CV — best cross-subject result to date" },
                   { cond: "Muse 2, with BaselineCalibrator (2-min baseline)", binary: "65–75%", six: "60–70%", note: "+15–29 pts from calibration alone" },
                   { cond: "Muse 2, after 5 sessions (Online Learner)", binary: "75–82%", six: "68–76%", note: "Target after personalization" },
