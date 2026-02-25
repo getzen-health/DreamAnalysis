@@ -804,7 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" } },
             ],
           }],
-          max_tokens: 700,
+          max_completion_tokens: 8000,
         });
       } else {
         // Text path — analyze a written description
@@ -814,10 +814,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             role: "user",
             content: `The user describes their ${mealType ?? "meal"}: "${textDescription}"\n\nEstimate nutrition and return ONLY valid JSON (no markdown fences) with this exact shape:\n${JSON_SCHEMA}`,
           }],
-          max_tokens: 700,
+          max_completion_tokens: 8000,
         });
       }
 
+      console.log("GPT finish_reason:", response.choices[0].finish_reason);
+      console.log("GPT refusal:", response.choices[0].message.refusal);
       const raw = response.choices[0].message.content ?? "{}";
       let analysis: Record<string, unknown>;
       try {
@@ -825,7 +827,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch {
         // GPT sometimes wraps in markdown despite instructions — strip fences
         const stripped = raw.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
-        analysis = JSON.parse(stripped);
+        try {
+          analysis = JSON.parse(stripped);
+        } catch (parseErr) {
+          console.error("Food analyze — GPT raw response:", raw);
+          throw parseErr;
+        }
       }
 
       const [log] = await db.insert(foodLogs).values({

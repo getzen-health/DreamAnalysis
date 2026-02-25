@@ -397,7 +397,7 @@ export type DatadogErrorLog = typeof datadogErrorLog.$inferSelect;
 
 export const foodLogs = pgTable("food_logs", {
   id:               varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId:           varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  userId:           varchar("user_id"),
   loggedAt:         timestamp("logged_at").defaultNow(),
   mealType:         text("meal_type"),              // "breakfast"|"lunch"|"dinner"|"snack"
   foodItems:        jsonb("food_items"),            // [{name, portion, calories, carbs_g, protein_g, fat_g}]
