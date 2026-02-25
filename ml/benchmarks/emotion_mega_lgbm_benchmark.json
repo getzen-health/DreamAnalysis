@@ -1,0 +1,18 @@
+{
+  "dataset": "DEAP+DENS",
+  "n_samples": 19472,
+  "classifier": "LightGBM (global PCA 85\u219280)",
+  "accuracy": 0.8925,
+  "cv_accuracy_mean": 0.8925,
+  "cv_accuracy_std": 0.003,
+  "train_accuracy": 0.9999,
+  "n_features_raw": 85,
+  "n_pca_features": 80,
+  "n_classes": 3,
+  "classes": [
+    "positive",
+    "neutral",
+    "negative"
+  ],
+  "notes": "Single global PCA (85\u219280) fitted on ALL training data \u2014 scaler+PCA+LGBM all saved inside the .pkl for lossless inference. 3\u21926 class expansion via ancillary EEG features at inference. Gamma features zeroed for consumer devices (Muse 2 / Muse S)."
+}

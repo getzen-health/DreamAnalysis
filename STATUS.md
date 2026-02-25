@@ -65,6 +65,7 @@
 | Emotion Classifier | XGBoost | ~95% | DEAP + SEED + GAMEEMO | Within-subject — not loaded |
 | Emotion Classifier | MLP (PyTorch) | 93.11% | DEAP + SEED + GAMEEMO | Within-subject — not loaded |
 | Emotion Classifier | Feature heuristics | 65–75% | Live Muse 2 | **This is the live path** — FAA + DASM/RASM + FMT |
+| Emotion Classifier | LightGBM mega (global PCA) | **89.25% CV** (DEAP+DENS, 3-class, 85 features) | DEAP + DENS | **Active live path** — scaler+PCA+LGBM in single pkl, auto-loaded |
 | Emotion Classifier | GBM cross-subject | 69.25% CV (DEAP+DREAMER+GAMEEMO, 3-class, 85 features) | DEAP + DREAMER + GAMEEMO | Formal cross-subject benchmark |
 | Emotion Classifier (FACED) | LightGBM | 63.31% CV | FACED (123 subjects, 32-ch) | DE features, 3-class, 57 features |
 | Emotion Classifier (DENS) | LightGBM | 79.55% CV | DENS (27 subjects, 128-ch EGI) | Valence-based 3-class, 41 features |

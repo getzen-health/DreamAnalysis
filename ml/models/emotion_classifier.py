@@ -72,7 +72,13 @@ class EmotionClassifier:
         # Device-aware gamma masking — set via set_device_type() on connect/disconnect
         self.device_type: Optional[str] = None
 
-        # Muse-native LightGBM (80 raw features, no PCA — highest priority)
+        # Mega cross-dataset LGBM with global PCA (DEAP+DREAMER+GAMEEMO+DENS, highest priority)
+        self.mega_lgbm_model  = None
+        self.mega_lgbm_scaler = None  # StandardScaler (85→85)
+        self.mega_lgbm_pca    = None  # PCA (85→80)
+        self._mega_lgbm_benchmark = 0.0
+        self._try_load_mega_lgbm()
+        # Muse-native LightGBM (85 raw features, no PCA)
         self.lgbm_muse_model = None
         self.lgbm_muse_scaler = None
         self._lgbm_muse_benchmark = 0.0
@@ -121,6 +127,31 @@ class EmotionClassifier:
             self.multichannel_model = bool(data.get("multichannel", False))
             self.model_type = "sklearn-deap"
             self._benchmark_accuracy = bench
+        except Exception:
+            pass
+
+    def _try_load_mega_lgbm(self) -> None:
+        """Load the mega cross-dataset LGBM (global PCA 85→80, DEAP+DREAMER+GAMEEMO+DENS)."""
+        import json
+        from pathlib import Path
+        bench_path = Path("benchmarks/emotion_mega_lgbm_benchmark.json")
+        model_path = Path("models/saved/emotion_mega_lgbm.pkl")
+        if not bench_path.exists() or not model_path.exists():
+            return
+        try:
+            bench_data = json.loads(bench_path.read_text())
+            acc = float(bench_data.get("accuracy", 0.0))
+            if acc < _MIN_MODEL_ACCURACY:
+                return
+            import pickle
+            with open(model_path, "rb") as fh:
+                payload = pickle.load(fh)
+            self.mega_lgbm_model  = payload["model"]
+            self.mega_lgbm_scaler = payload["scaler"]
+            self.mega_lgbm_pca    = payload["pca"]
+            self._mega_lgbm_benchmark = acc
+            print(f"[EmotionClassifier] Loaded mega cross-dataset LGBM "
+                  f"(CV acc={acc:.4f}, datasets={payload.get('datasets')})")
         except Exception:
             pass
 
@@ -458,6 +489,87 @@ class EmotionClassifier:
             "model_type":            "lgbm-muse",
         }
 
+    def _predict_mega_lgbm(self, eeg: np.ndarray, fs: float) -> Dict:
+        """Run mega cross-dataset LGBM inference (85 raw → PCA 80 → 3-class → 6-class).
+
+        Reuses _extract_muse_live_features() and _build_muse_result() from the
+        Muse-native LGBM path for identical output format.
+        """
+        if np.any(np.abs(eeg) > _ARTIFACT_THRESHOLD_UV):
+            if self._ema_probs is None:
+                self._ema_probs = np.ones(6, dtype=np.float32) / 6
+            return self._build_muse_result(
+                int(np.argmax(self._ema_probs)), self._ema_probs,
+                eeg, fs, artifact_detected=True
+            )
+
+        feat = self._extract_muse_live_features(eeg, fs)   # 85-dim
+        if self._is_consumer_device:
+            feat[_GAMMA_FEAT_IDX] = 0.0
+
+        # Global scaler → PCA → LGBM
+        feat_sc  = self.mega_lgbm_scaler.transform(feat.reshape(1, -1))
+        feat_pca = self.mega_lgbm_pca.transform(feat_sc)
+        proba3   = self.mega_lgbm_model.predict_proba(feat_pca)[0]
+        p_pos, p_neu, p_neg = float(proba3[0]), float(proba3[1]), float(proba3[2])
+
+        # Ancillary features for 3→6 expansion (identical to _predict_lgbm_muse)
+        try:
+            proc_af7 = preprocess(eeg[1], fs)
+            proc_af8 = preprocess(eeg[2], fs)
+            bp7  = extract_band_powers(proc_af7, fs)
+            bp8  = extract_band_powers(proc_af8, fs)
+            a7   = max(bp7.get("alpha", 1e-6), 1e-6)
+            a8   = max(bp8.get("alpha", 1e-6), 1e-6)
+            alpha = (a7 + a8) / 2
+            beta  = (max(bp7.get("beta",  1e-6), 1e-6) + max(bp8.get("beta",  1e-6), 1e-6)) / 2
+            theta = (max(bp7.get("theta", 1e-6), 1e-6) + max(bp8.get("theta", 1e-6), 1e-6)) / 2
+            delta = (max(bp7.get("delta", 1e-6), 1e-6) + max(bp8.get("delta", 1e-6), 1e-6)) / 2
+            faa   = float(np.log(a8) - np.log(a7))
+        except Exception:
+            alpha = beta = theta = delta = 0.1
+            faa = 0.0
+
+        beta_alpha = beta / max(alpha, 1e-6)
+        arousal    = float(np.clip(
+            0.45 * beta / max(beta + alpha, 1e-6)
+            + 0.30 * (1 - alpha / max(alpha + beta + theta, 1e-6))
+            + 0.25 * (1 - delta / max(delta + beta, 1e-6)), 0, 1))
+        faa_val = float(np.clip(np.tanh(faa * 2.0), -1, 1))
+
+        probs6 = np.zeros(6, dtype=np.float32)
+        if arousal > 0.5:
+            probs6[0] += p_pos
+        else:
+            probs6[4] += p_pos
+        if beta_alpha > 1.2:
+            probs6[5] += p_neu
+        else:
+            probs6[4] += p_neu
+        if faa_val < -0.2 and arousal < 0.5:
+            probs6[1] += p_neg
+        elif faa_val < 0.0 and arousal > 0.5:
+            probs6[2] += p_neg
+        elif arousal > 0.55:
+            probs6[3] += p_neg
+        else:
+            probs6[1] += p_neg
+
+        total = probs6.sum()
+        if total > 0:
+            probs6 /= total
+
+        if self._ema_probs is None:
+            self._ema_probs = probs6.copy()
+        else:
+            self._ema_probs = (self._ema_alpha * probs6
+                               + (1 - self._ema_alpha) * self._ema_probs)
+        smoothed    = self._ema_probs
+        emotion_idx = int(np.argmax(smoothed))
+        result = self._build_muse_result(emotion_idx, smoothed, eeg, fs, artifact_detected=False)
+        result["model_type"] = "mega-lgbm-pca"
+        return result
+
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
         """Classify emotion from EEG signal.
 
@@ -465,7 +577,11 @@ class EmotionClassifier:
             eeg: 1D (single channel) or 2D (n_channels, n_samples) array.
             fs: Sampling frequency.
         """
-        # Muse-native LightGBM — highest priority (80 raw features, no PCA)
+        # Mega cross-dataset LGBM with global PCA — highest priority
+        if (self.mega_lgbm_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
+                and self._mega_lgbm_benchmark >= _MIN_MODEL_ACCURACY):
+            return self._predict_mega_lgbm(eeg, fs)
+        # Muse-native LightGBM (85 raw features, no PCA)
         if (self.lgbm_muse_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
                 and self._lgbm_muse_benchmark >= _MIN_MODEL_ACCURACY):
             return self._predict_lgbm_muse(eeg, fs)
