@@ -27,6 +27,7 @@ import FormalBenchmarksDashboard from "@/pages/formal-benchmarks-dashboard";
 import FoodEmotion from "@/pages/food-emotion";
 import DeviceSetup from "@/pages/device-setup";
 import ResearchEnroll from "@/pages/research-enroll";
+import ResearchMorning from "@/pages/research-morning";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -88,6 +89,9 @@ function AppRoutes() {
       </Route>
       <Route path="/research/enroll">
         <AppLayout><ResearchEnroll /></AppLayout>
+      </Route>
+      <Route path="/research/morning">
+        <AppLayout><ResearchMorning /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>
