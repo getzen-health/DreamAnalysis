@@ -385,6 +385,105 @@ def load_gameemo() -> Tuple[np.ndarray, np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
+# FACED loader (pre-extracted DE features → 85-dim)
+# ---------------------------------------------------------------------------
+
+_FACED_DE_DIR = _ML_ROOT / "data" / "faced" / "EEG_Features" / "DE"
+# FACED 32-ch BrainProducts layout; Muse equivalents:
+#   T7(23)→TP9, FP1(0)→AF7, FP2(2)→AF8, T8(24)→TP10
+_FACED_MUSE_CH = [23, 0, 2, 24]   # [TP9, AF7, AF8, TP10]
+
+# FACED 28-video emotion label sequence (9-class → integer)
+# Negative first, neutral middle, positive last.
+_FACED_VIDEO_LABELS = [
+    1, 1, 1,      # disgust   (0–2)
+    2, 2, 2,      # fear      (3–5)
+    3, 3, 3,      # sadness   (6–8)
+    4, 4, 4, 4,   # neutral   (9–12) — 4 clips
+    5, 5, 5,      # amusement (13–15)
+    7, 7, 7,      # joy       (16–18)
+    6, 6, 6,      # inspiration (19–21)
+    8, 8, 8,      # tenderness  (22–24)
+    0, 0, 0,      # anger     (25–27)
+]
+# 9-class → 3-class: positive(0), neutral(1), negative(2)
+_FACED_9TO3 = {5: 0, 6: 0, 7: 0, 8: 0,  4: 1,  0: 2, 1: 2, 2: 2, 3: 2}
+
+
+def _faced_de_to_85dim(de_4ch_chunk: np.ndarray) -> np.ndarray:
+    """Convert (4, n_windows, 5) DE chunk to 85-dim feature vector.
+
+    Layout matches extract_features():
+      [0:80]  5 bands × 4 channels × 4 stats (mean, std, median, IQR)
+      [80:85] 5 DASM: mean(AF8_b) − mean(AF7_b) per band
+              Channel order: [0]=TP9, [1]=AF7, [2]=AF8, [3]=TP10
+    """
+    feat: List[float] = []
+    for b in range(5):
+        for ch in range(4):
+            vals = de_4ch_chunk[ch, :, b].astype(np.float64)
+            vals = vals[np.isfinite(vals)]
+            if len(vals) < 2:
+                feat.extend([0.0, 0.0, 0.0, 0.0])
+            else:
+                feat.extend([
+                    float(np.mean(vals)),
+                    float(np.std(vals)),
+                    float(np.median(vals)),
+                    float(np.percentile(vals, 75) - np.percentile(vals, 25)),
+                ])
+    # DASM: AF8(ch2) − AF7(ch1) per band
+    for b in range(5):
+        af8 = de_4ch_chunk[2, :, b]; af8 = af8[np.isfinite(af8)]
+        af7 = de_4ch_chunk[1, :, b]; af7 = af7[np.isfinite(af7)]
+        feat.append(float(np.mean(af8) - np.mean(af7))
+                    if len(af8) > 0 and len(af7) > 0 else 0.0)
+    return np.array(feat, dtype=np.float32)
+
+
+def load_faced() -> Tuple[np.ndarray, np.ndarray]:
+    """Load FACED DE features and convert to 85-dim vectors.
+
+    Each video gives 14 overlapping 4-second chunks (hop=2) from 30 1-sec windows.
+    """
+    import pickle as _pkl
+    pkl_files = sorted(_FACED_DE_DIR.glob("sub*.pkl.pkl"))
+    if not pkl_files:
+        log.warning("FACED: no sub*.pkl.pkl files in %s — skipping", _FACED_DE_DIR)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    WIN, HOP = 4, 2   # 4-second chunk, 2-second hop (over 1-sec DE windows)
+    Xs, ys = [], []
+
+    for pkl_path in pkl_files:
+        try:
+            with open(pkl_path, "rb") as fh:
+                data = _pkl.load(fh)            # (28, 32, 30, 5)
+            if data.ndim != 4 or data.shape[1] < 25:
+                continue
+            # Select 4 Muse-equivalent channels → (28, 4, 30, 5)
+            de = data[:, _FACED_MUSE_CH, :, :]  # (28, 4, 30, 5)
+
+            for vid in range(de.shape[0]):
+                if vid >= len(_FACED_VIDEO_LABELS):
+                    break
+                label_3 = _FACED_9TO3[_FACED_VIDEO_LABELS[vid]]
+                n_t = de.shape[2]               # 30 time windows
+                for t in range(0, n_t - WIN + 1, HOP):
+                    chunk = de[vid, :, t:t+WIN, :]  # (4, WIN, 5)
+                    feat  = _faced_de_to_85dim(chunk)
+                    Xs.append(feat)
+                    ys.append(label_3)
+        except Exception:
+            continue
+
+    if not Xs:
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+    log.info("FACED: %d subjects → %d samples", len(pkl_files), len(ys))
+    return np.array(Xs, np.float32), np.array(ys, np.int32)
+
+
+# ---------------------------------------------------------------------------
 # DENS loader (raw EEG → 85-dim features)
 # ---------------------------------------------------------------------------
 
@@ -686,6 +785,13 @@ def main() -> None:
         all_X.append(X_dn); all_y.append(y_dn)
         datasets_used.append("DENS")
         log.info("DENS loaded: %d samples", len(y_dn))
+
+    log.info("── Loading FACED ──")
+    X_fc, y_fc = load_faced()
+    if X_fc.size > 0:
+        all_X.append(X_fc); all_y.append(y_fc)
+        datasets_used.append("FACED")
+        log.info("FACED loaded: %d samples", len(y_fc))
 
     if not all_X:
         log.error("No data loaded — check data directories.")
