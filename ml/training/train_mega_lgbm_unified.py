@@ -393,47 +393,46 @@ def load_gameemo() -> Tuple[np.ndarray, np.ndarray]:
 # EAV loader (raw EEG → 85-dim)
 # ---------------------------------------------------------------------------
 # EAV = EEG-Audio-Video Emotion Dataset (Lee et al., 2024, Scientific Data)
-# 42 subjects, 30-ch EEG at 500 Hz, 5 emotions, 200 trials/subject.
+# 42 subjects, 30-ch EEG at 500 Hz, 10 conditions (5 emotions × 2 tasks), 200 trials/subject.
 #
-# ⚠  RESTRICTED ACCESS — fill out DUA form at:
-#    https://zenodo.org/records/10205702
-# Once approved, download EEG files and place them at:
-#    ml/data/eav/EAV/subject01/EEG/subject01_eeg.mat
-#    ml/data/eav/EAV/subject01/EEG/subject01_eeg_label.mat
-#    ... (repeat for subject02 … subject42)
-#
-# Mat file internals:
-#   subject##_eeg.mat       → key 'seg1' (fallback 'seg'),  shape (10000, 30, 200)
-#   subject##_eeg_label.mat → key 'label', one-hot (200, 5)
-#   Emotion columns: 0=anger, 1=disgust, 2=fear, 3=joy, 4=neutral
-#   3-class: anger/disgust/fear→negative, joy→positive, neutral→neutral
+# Data format (verified from actual files):
+#   subject##_eeg.mat  → key 'seg', shape (10000, 30, 200)
+#     = (n_total_segments, n_channels, n_timepoints_per_segment)
+#     10000 / 200 trials = 50 segments per trial; each segment = 200 samples @ 500 Hz = 0.4 s
+#   subject##_eeg_label.mat → key 'label', shape (10, 200)
+#     = (n_conditions, n_trials) one-hot per column
+#     10 conditions: 0=neutral_listen, 1=neutral_speak, 2=sad_listen, 3=sad_speak,
+#                    4=anger_listen, 5=anger_speak, 6=happy_listen, 7=happy_speak,
+#                    8=relax_listen, 9=relax_speak
+#   3-class: neutral(cond 0,1)→1, positive(cond 6-9 happy/relax)→0, negative(cond 2-5 sad/anger)→2
 
 _EAV_DIR = _ML_ROOT / "data" / "eav" / "EAV"
 _EAV_FS  = 500.0
-# EAV 30-ch layout (standard 10-20, BrainAmp): channel order from the paper.
+# EAV 30-ch layout (standard 10-20, BrainAmp).
 # Closest Muse equivalents (0-indexed in the 30-ch set):
 #   F7(4)→AF7,  F8(14)→AF8,  T7(20)→TP9,  T8(21)→TP10
-# Indices verified from standard 10-20 position lists for 30-ch montages.
-_EAV_CH = [4, 14, 20, 21]   # [AF7≈F7, AF8≈F8, TP9≈T7, TP10≈T8]
 # Reorder to Muse layout [TP9, AF7, AF8, TP10]
 _EAV_CH_MUSE = [20, 4, 14, 21]
 
-# 5-class → 3-class (column index in one-hot label matrix)
-_EAV_5TO3 = {3: 0, 4: 1, 0: 2, 1: 2, 2: 2}   # joy→pos, neutral→neu, rest→neg
+# 10-condition → 3-class:
+#   neutral_listen(0)/neutral_speak(1) → neutral(1)
+#   happy_listen(6)/happy_speak(7)/relax_listen(8)/relax_speak(9) → positive(0)
+#   sad_listen(2)/sad_speak(3)/anger_listen(4)/anger_speak(5) → negative(2)
+_EAV_COND_TO3 = {0: 1, 1: 1, 2: 2, 3: 2, 4: 2, 5: 2, 6: 0, 7: 0, 8: 0, 9: 0}
+_EAV_SEGS_PER_TRIAL = 50  # 10000 total / 200 trials = 50 segments per trial
 
 
 def load_eav() -> Tuple[np.ndarray, np.ndarray]:
     """Load EAV raw EEG and convert to 85-dim feature vectors.
 
-    Skips silently if data directory is missing (dataset is restricted-access).
+    Actual data format:
+      seg:   (10000, 30, 200) — 10000 segments, 30 channels, 200 timepoints each @ 500 Hz
+      label: (10, 200)        — one-hot, 10 conditions × 200 trials; argmax on axis=0 gives
+                                which condition each trial belongs to.
+      Mapping: 50 consecutive segments → 1 trial → 1 label.
     """
     if not _EAV_DIR.exists():
-        log.warning(
-            "EAV: %s not found — skipping.\n"
-            "  Get access at https://zenodo.org/records/10205702 then place\n"
-            "  subject folders under ml/data/eav/EAV/",
-            _EAV_DIR,
-        )
+        log.warning("EAV: %s not found — skipping", _EAV_DIR)
         return np.empty((0, 85), np.float32), np.empty(0, np.int32)
 
     subj_dirs = sorted(
@@ -448,58 +447,58 @@ def load_eav() -> Tuple[np.ndarray, np.ndarray]:
     n_loaded = 0
 
     for subj_dir in subj_dirs:
-        eeg_dir   = subj_dir / "EEG"
-        sid       = subj_dir.name          # e.g. "subject01"
-        eeg_file  = eeg_dir / f"{sid}_eeg.mat"
-        lab_file  = eeg_dir / f"{sid}_eeg_label.mat"
+        eeg_dir  = subj_dir / "EEG"
+        sid      = subj_dir.name  # e.g. "subject1", "subject10"
+        eeg_file = eeg_dir / f"{sid}_eeg.mat"
+        lab_file = eeg_dir / f"{sid}_eeg_label.mat"
         if not (eeg_file.exists() and lab_file.exists()):
             continue
 
         try:
-            eeg_mat = sio.loadmat(str(eeg_file),  struct_as_record=False, squeeze_me=True)
+            eeg_mat = sio.loadmat(str(eeg_file), struct_as_record=False, squeeze_me=True)
             lab_mat = sio.loadmat(str(lab_file), struct_as_record=False, squeeze_me=True)
 
-            # EEG: key 'seg1' (shape 10000×30×200) or fallback 'seg'
+            # Load EEG: try 'seg1' then 'seg'
             raw = None
             for key in ("seg1", "seg", "eeg", "data"):
                 if key in eeg_mat:
                     raw = np.array(eeg_mat[key], dtype=np.float32)
                     break
-            if raw is None:
+            if raw is None or raw.ndim != 3:
                 continue
 
-            # Normalise to (n_trials, 30, 10000)
-            if raw.ndim == 3:
-                if raw.shape == (10000, 30, 200):
-                    raw = raw.transpose(2, 1, 0)     # (200, 30, 10000)
-                elif raw.shape == (200, 30, 10000):
-                    pass
-                elif raw.shape[1] == 30:
-                    raw = raw.transpose(0, 1, 2)     # already (trials, 30, time)
-                else:
-                    continue
-            else:
+            # Expect (n_total_segs, n_channels, n_timepoints)
+            # Verified shape: (10000, 30, 200)
+            n_total_segs, n_ch, n_tp = raw.shape
+            if n_ch != 30 or max(_EAV_CH_MUSE) >= n_ch:
                 continue
 
-            # Labels: one-hot (200, 5) → argmax → 3-class
-            lbl = np.array(lab_mat["label"], dtype=np.float32)
-            if lbl.ndim == 2 and lbl.shape[1] == 5:
-                cls5 = np.argmax(lbl, axis=1)        # (200,) values 0-4
-            elif lbl.ndim == 1 and len(lbl) == 200:
-                cls5 = lbl.astype(np.int32)
-            else:
+            # Load labels: shape (10, 200) — (n_conditions, n_trials)
+            lbl = np.array(lab_mat["label"], dtype=np.uint8)
+            if lbl.ndim != 2 or lbl.shape[0] != 10:
                 continue
-            labels3 = np.array([_EAV_5TO3[int(c)] for c in cls5], dtype=np.int32)
+            n_trials = lbl.shape[1]  # 200
 
-            # Channel selection → (n_trials, 4, 10000)
-            if max(_EAV_CH_MUSE) >= raw.shape[1]:
-                continue
-            eeg4 = raw[:, _EAV_CH_MUSE, :]          # (200, 4, 10000)
+            # argmax on axis=0: which condition each trial belongs to → (n_trials,)
+            cond_per_trial = np.argmax(lbl, axis=0)  # values 0-9
+            labels3 = np.array([_EAV_COND_TO3[int(c)] for c in cond_per_trial],
+                               dtype=np.int32)  # (n_trials,)
 
-            # Extract 85-dim features per trial via sliding windows
-            for trial_idx in range(eeg4.shape[0]):
-                seg = eeg4[trial_idx]                # (4, 10000)
-                feats = _sliding_windows(seg, _EAV_FS, artifact_uv=200.0)
+            # n_segs_per_trial: 10000 / 200 = 50 (integer)
+            n_segs_per_trial = n_total_segs // n_trials
+
+            # Select 4 Muse-equivalent channels: (n_total_segs, 4, n_tp)
+            eeg4 = raw[:, _EAV_CH_MUSE, :]
+
+            # For each trial: concatenate 50 segments → (4, 50*200=10000) at 500 Hz
+            # Then apply 4-sec sliding window (WIN=2000, HOP=1000)
+            for trial_idx in range(n_trials):
+                s0 = trial_idx * n_segs_per_trial
+                s1 = s0 + n_segs_per_trial
+                trial_segs = eeg4[s0:s1]          # (50, 4, 200)
+                # Reshape → (4, 50*200) by concatenating along time
+                trial_eeg = trial_segs.transpose(1, 0, 2).reshape(4, -1)  # (4, 10000)
+                feats = _sliding_windows(trial_eeg, _EAV_FS, artifact_uv=200.0)
                 for f in feats:
                     Xs.append(f)
                     ys.append(int(labels3[trial_idx]))
@@ -1039,6 +1038,106 @@ def load_dens() -> Tuple[np.ndarray, np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
+# EmoKey Moments EEG Dataset (EKM-ED) loader
+# ---------------------------------------------------------------------------
+# 45 subjects, Muse 4-channel raw EEG + band powers at 128 Hz (downsampled).
+# 4 emotions: ANGER, FEAR, HAPPINESS, SADNESS + NEUTRAL_* baseline clips.
+# Files: ml/data/emokey/EmoKey Moments EEG Dataset (EKM-ED)/
+#          muse_wearable_data/preprocessed/clean-signals/0.0078125S/
+#            {subject_id}/{EMOTION}.csv
+# Columns: RAW_TP9, RAW_AF7, RAW_AF8, RAW_TP10 (raw EEG in Muse ADC units)
+#          + band-power columns (Delta_TP9 ... Gamma_TP10)
+# Label mapping:
+#   HAPPINESS → positive(0)
+#   ANGER, FEAR, SADNESS → negative(2)
+#   NEUTRAL_* → neutral(1)
+
+_EMOKEY_DIR = (_ML_ROOT / "data" / "emokey" /
+               "EmoKey Moments EEG Dataset (EKM-ED)" /
+               "muse_wearable_data" / "preprocessed" /
+               "clean-signals" / "0.0078125S")
+_EMOKEY_FS  = 128.0
+
+# Map filename stem → 3-class label
+_EMOKEY_LABEL_MAP = {
+    "HAPPINESS":       0,   # positive
+    "ANGER":           2,   # negative
+    "FEAR":            2,   # negative
+    "SADNESS":         2,   # negative
+    "NEUTRAL_HAPPINESS": 1, # neutral
+    "NEUTRAL_ANGER":     1, # neutral
+    "NEUTRAL_FEAR":      1, # neutral
+    "NEUTRAL_SADNESS":   1, # neutral
+}
+
+# RAW EEG columns in Muse order: TP9, AF7, AF8, TP10
+_EMOKEY_RAW_COLS = ["RAW_TP9", "RAW_AF7", "RAW_AF8", "RAW_TP10"]
+
+
+def load_emokey() -> Tuple[np.ndarray, np.ndarray]:
+    """Load EmoKey Moments EEG Dataset using raw Muse EEG at 128 Hz.
+
+    Each CSV contains one emotion session for one subject. Uses RAW_TP9/AF7/AF8/TP10
+    columns (raw EEG) with 4-sec sliding windows to extract 85-dim features.
+    Relaxed artifact threshold (500 µV) because raw Muse ADC values include DC offset.
+    """
+    if not _EMOKEY_DIR.exists():
+        log.warning("EmoKey: %s not found — skipping", _EMOKEY_DIR)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    try:
+        import pandas as _pd
+    except ImportError:
+        log.warning("EmoKey: pandas not installed — skipping")
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    Xs, ys = [], []
+    n_files = 0
+
+    for subj_dir in sorted(_EMOKEY_DIR.iterdir()):
+        if not subj_dir.is_dir():
+            continue
+        for csv_path in sorted(subj_dir.glob("*.csv")):
+            stem = csv_path.stem.upper()
+            label = _EMOKEY_LABEL_MAP.get(stem)
+            if label is None:
+                continue
+            try:
+                df = _pd.read_csv(csv_path)
+                # Require all 4 raw EEG channels
+                if not all(c in df.columns for c in _EMOKEY_RAW_COLS):
+                    continue
+
+                # Keep only good-signal rows
+                if "HeadBandOn" in df.columns:
+                    df = df[df["HeadBandOn"].astype(str).str.lower()
+                            .isin(["true", "1", "yes", "1.0"])]
+                if len(df) < int(4 * _EMOKEY_FS):
+                    continue
+
+                # Extract raw EEG → (4, n_samples)
+                raw = df[_EMOKEY_RAW_COLS].values.astype(np.float32).T  # (4, N)
+
+                # Remove DC offset per channel (linear detrend)
+                from scipy.signal import detrend as _detrend
+                raw = _detrend(raw, axis=1).astype(np.float32)
+
+                # Relaxed artifact gate: Muse RAW is in ADC counts after detrend
+                feats = _sliding_windows(raw, _EMOKEY_FS, artifact_uv=500.0)
+                for f in feats:
+                    Xs.append(f)
+                    ys.append(label)
+                n_files += 1
+            except Exception:
+                continue
+
+    if not Xs:
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+    log.info("EmoKey: %d files → %d samples", n_files, len(ys))
+    return np.array(Xs, np.float32), np.array(ys, np.int32)
+
+
+# ---------------------------------------------------------------------------
 # SMOTE
 # ---------------------------------------------------------------------------
 
@@ -1263,6 +1362,13 @@ def main() -> None:
         all_X.append(X_ms); all_y.append(y_ms)
         datasets_used.append("Muse-Sub")
         log.info("Muse-Subconscious loaded: %d samples", len(y_ms))
+
+    log.info("── Loading EmoKey ──")
+    X_ek, y_ek = load_emokey()
+    if X_ek.size > 0:
+        all_X.append(X_ek); all_y.append(y_ek)
+        datasets_used.append("EmoKey")
+        log.info("EmoKey loaded: %d samples", len(y_ek))
 
     if not all_X:
         log.error("No data loaded — check data directories.")

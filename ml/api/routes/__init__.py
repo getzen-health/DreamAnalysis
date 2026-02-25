@@ -43,6 +43,7 @@ from .emotion_shift import router as _emotion_shift
 from .cognitive import router as _cognitive
 from .denoising import router as _denoising
 from .food_emotion import router as _food_emotion
+from .multimodal import router as _multimodal
 
 router = APIRouter()
 
@@ -65,3 +66,4 @@ router.include_router(_emotion_shift)
 router.include_router(_cognitive)
 router.include_router(_denoising)
 router.include_router(_food_emotion)
+router.include_router(_multimodal)

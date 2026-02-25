@@ -1,0 +1,15 @@
+{
+  "dataset": "EAV-Video",
+  "n_samples": 8200,
+  "classifier": "LightGBM (PCA 72\u219250)",
+  "accuracy": 0.7645,
+  "cv_accuracy_mean": 0.7645,
+  "cv_accuracy_std": 0.0107,
+  "n_features": 72,
+  "n_classes": 3,
+  "classes": [
+    "positive",
+    "neutral",
+    "negative"
+  ]
+}

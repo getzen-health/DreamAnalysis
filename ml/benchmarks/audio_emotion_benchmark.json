@@ -1,0 +1,15 @@
+{
+  "dataset": "EAV-Audio",
+  "n_samples": 4072,
+  "classifier": "LightGBM (PCA 92\u219260)",
+  "accuracy": 0.8261,
+  "cv_accuracy_mean": 0.8261,
+  "cv_accuracy_std": 0.0127,
+  "n_features": 92,
+  "n_classes": 3,
+  "classes": [
+    "positive",
+    "neutral",
+    "negative"
+  ]
+}
