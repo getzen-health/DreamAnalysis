@@ -28,7 +28,7 @@ interface StudyStatus {
   dayNumber: number;
   completedDays: number;
   targetDays: number;
-  compensationEarned: number;
+
   todaySession: {
     morningCompleted: boolean;
     daytimeCompleted: boolean;

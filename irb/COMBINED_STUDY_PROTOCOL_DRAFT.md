@@ -516,7 +516,7 @@ Participants are compensated **$5 per valid day completed** (valid = ≥ 2 of 3
 sessions: morning + daytime + evening), paid as a gift card at the end of the
 study or at withdrawal.
 
-| Scenario | Compensation |
+| Scenario | Compensation | Volunteer — no payment |
 |----------|-------------|
 | All 30 days completed | $150 |
 | 25 days completed | $125 |
@@ -756,6 +756,6 @@ researcher or a support resource.
 | Dream measurement | None | Daily morning journal + SAM |
 | Sleep EEG | None | Optional overnight (exploratory) |
 | Analysis | LOSO-CV classification | Multilevel mixed-effects models |
-| Compensation | $25 flat | $5/day ($150 max + $25 bonus) |
+| Compensation | Volunteer — no payment |
 | IRB complexity | Low | Moderate (longitudinal, dream content) |
 | Target journal | Frontiers, Sensors | Journal of Sleep Research, npj Digital Medicine |

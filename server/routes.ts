@@ -596,7 +596,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         studyCode: participant.studyCode,
         completedDays: participant.completedDays,
         targetDays: participant.targetDays,
-        compensationEarned: (participant.completedDays ?? 0) * 5,
         todaySession: today,
         preferredTimes: {
           morning: participant.preferredMorningTime,
@@ -728,7 +727,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         validDay: isValid,
         completedDays: finalDays,
-        compensationEarned: finalDays * 5,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to submit evening entry" });
@@ -766,8 +764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         daysCompleted: participant.completedDays ?? 0,
-        compensationEarned: (participant.completedDays ?? 0) * 5,
-        message: "You have been withdrawn from the study. Thank you for participating. Your compensation will be processed within 5 business days.",
+        message: "You have been withdrawn from the study. Thank you for your contribution.",
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to process withdrawal" });

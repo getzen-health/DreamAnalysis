@@ -27,7 +27,7 @@
 ║   🧠  30-DAY BRAIN-WAVE + DREAM STUDY                    ║
 ║        PAID RESEARCH PARTICIPANTS WANTED                  ║
 ║                                                           ║
-║         EARN UP TO $150 + $25 BONUS                       ║
+║         VOLUNTEER STUDY                       ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
 
@@ -54,9 +54,8 @@ YOU QUALIFY IF YOU:
   ✓ Are not on anticonvulsants or antipsychotic medications
 
 COMPENSATION:
-  $5 per completed day ($150 if you finish all 30)
-  + $25 bonus for completing 28+ days with overnight EEG
-
+  No monetary compensation — volunteer study
+  + 
 ──────────────────────────────────────────────────────────
 
 INTERESTED? SCAN TO SIGN UP OR LEARN MORE:
@@ -88,7 +87,7 @@ lakshmisravya.vedantham@gmail.com
 
 ### Version 1 (Friendly / Community — Nextdoor, Facebook)
 
-**🧠💭 Paid 30-Day Study — Dreams + Brain Waves — Earn up to $150**
+**🧠💭 Volunteer 30-Day Study — Dreams + Brain Waves — Volunteer participation**
 
 Hi neighbors! I'm running a research study on whether the emotions we feel during
 the day show up in our dreams that night — and I'm looking for participants in
@@ -101,7 +100,7 @@ the day show up in our dreams that night — and I'm looking for participants in
 
 Everything is done from home via an app. No lab visits after onboarding.
 
-**Compensation:** $5 per day ($150 if you complete all 30), plus a $25 bonus for
+**Compensation:** No monetary compensation — volunteer study
 going above and beyond with optional overnight brain-wave recording.
 
 **You qualify if you:**
@@ -121,7 +120,7 @@ Study is IRB-approved (independent ethics review board).
 
 ### Version 2 (Reddit — r/DreamJournaling, r/sleep, r/science)
 
-**[Study] Paid 30-Day EEG + Dream Research — Up to $150 — Do your daytime
+**[Study] Volunteer 30-Day EEG + Dream Research — Volunteer study — Do your daytime
 emotions predict your dreams?**
 
 **What this study is about:**
@@ -147,8 +146,7 @@ can predict nightmare nights.
 
 **Compensation:**
 - $5/day → $150 for completing all 30 days
-- $25 bonus if you do 28+ days + overnight EEG on ≥ 10 nights
-
+- 
 **Requirements:**
 - 18–65, fluent English
 - Regular sleep schedule (roughly same bedtime nightly)
@@ -168,7 +166,7 @@ Happy to answer any questions — AMA!
 
 ### Version 3 (Craigslist / Classifieds)
 
-**Title:** Paid 30-Day Research Study — Brain Waves & Dreams — Up to $150
+**Title:** Volunteer 30-Day Research Study — Brain Waves & Dreams — Volunteer study
 
 **Body:**
 
@@ -183,7 +181,7 @@ Daily commitment (~25–35 min/day across 3 short moments):
 - Evening: Brief questionnaire about your day and eating (8–10 min)
 
 Plus: 1 onboarding video call (~60 min) and 1 debrief call (~20 min).
-Optional: Wear the headset during sleep for bonus compensation.
+Optional: Wear the headset during sleep for optional participation.
 
 No lab visits required. All done from home.
 
@@ -197,9 +195,7 @@ No lab visits required. All done from home.
 
 **COMPENSATION:** $5 per valid day completed
 - Complete all 30 days = $150
-- Bonus $25 for 28+ days + 10+ nights of overnight EEG
-- Paid by gift card at end of study (or at withdrawal — pro-rated)
-
+- - 
 **HOW TO SIGN UP:** 3-minute screening survey at: [URL]
 
 IRB-approved independent research. IRB Protocol #: [TBD].
@@ -215,7 +211,7 @@ Contact: lakshmisravya.vedantham@gmail.com
 
 ---
 
-**Subject:** Paid 30-Day Research Study — Track Your Dreams & Brain Waves — Up to $150
+**Subject:** Volunteer 30-Day Research Study — Track Your Dreams & Brain Waves — Volunteer study
 
 Dear [Group Name / Community Members],
 
@@ -238,9 +234,9 @@ All participation is done from home.
 - **Evening (8–10 min):** Questions about your day, meals, and emotional state
 - **1 onboarding video call** at the start (~60 min) to learn the app and device
 - **1 debrief video call** at the end (~20 min)
-- Optional: Wear the headset during sleep for a bonus payment
+- Optional: Wear the headset during sleep for a optional participation
 
-**Compensation:** $5 per completed day ($150 total) + $25 bonus for an optional
+**Compensation:** No monetary compensation — volunteer study
 sleep component. Pro-rated for partial completion.
 
 **Eligibility:**

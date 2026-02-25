@@ -131,7 +131,7 @@ the periods when you are most likely dreaming (REM sleep). This provides an
 additional layer of scientific data connecting your brain activity to your dreams.
 
 **This is completely optional.** Not wearing the device during sleep does not
-affect your eligibility, your compensation, or the scientific value of your
+affect your eligibility or the scientific value of your
 daytime data. Many participants find sleeping with the headset comfortable; others
 do not. You decide each night. There is no minimum number of nights required.
 
@@ -280,7 +280,7 @@ as a gift card at the end of the study or at the time of withdrawal.
 | Fewer than 15 days | $5 × days completed |
 
 **Bonus:** If you complete 28 or more days AND wear the overnight EEG on at least
-10 nights, you receive an additional $25 gift card bonus.
+Overnight EEG data is optional and does not affect your participation.
 
 Compensation is based on completion only — not on data quality or specific results.
 If you withdraw early, you receive payment for the days you completed.
@@ -293,7 +293,7 @@ If you withdraw early, you receive payment for the days you completed.
 
 At any point during the 30 days, you may:
 - Skip any individual question, dream entry, or questionnaire item with no consequence
-- Skip an entire day with no penalty (it simply does not count toward compensation)
+- Skip an entire day with no penalty
 - Pause the study temporarily and resume later (discuss with researcher)
 - Withdraw completely at any time — you receive payment for all days completed
 
@@ -381,7 +381,7 @@ for the optional sleep/dream-detection component. I understand this is not requi
 and I can choose which nights to wear it.
 
 **______** I do NOT wish to participate in the optional overnight EEG component.
-I understand this does not affect my eligibility or compensation.
+I understand this does not affect my eligibility.
 
 ---
 
