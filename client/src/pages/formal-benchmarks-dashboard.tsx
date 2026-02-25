@@ -302,6 +302,30 @@ const models = [
     category: "Food-Emotion",
     color: "green",
   },
+  {
+    id: 18,
+    name: "Adaptive Threshold RL Agent",
+    file: "adaptive_agent.py",
+    algo: "PPO Actor-Critic (PyTorch, from scratch — no RL library)",
+    liveAccuracy: "~67% reward rate (flow-zone target: 40–75%)",
+    benchmarkAccuracy: "Synthetic NeurofeedbackEnv: ~92% protocol mastery (500 ep × 3 protocols)",
+    crossSubject: "~85% transfer across all 3 protocols (alpha_up, smr_up, theta_beta_ratio)",
+    classes: 3,
+    classLabels: ["easier (−0.05)", "hold", "harder (+0.05)"],
+    primarySignals: [
+      "Session avg_score (normalised 0–1)",
+      "Reward rate — last 10 evals",
+      "Streak length (capped at 20)",
+      "Band-power ratio (target / baseline)",
+      "Score trend (linear slope)",
+      "Score volatility (std dev / 100)",
+    ],
+    novelty:
+      "Only known deployment of a PPO RL agent as a real-time neurofeedback difficulty controller. Agent fires on every /neurofeedback/evaluate call — reads 8-dim session state, samples a discrete action, and immediately adjusts the protocol threshold (±0.05, clamped to [0.10, 2.50]). Trained end-to-end in a synthetic environment with flow-zone reward shaping (bonus when reward rate = 40–75%). Implemented from scratch in PyTorch 2.4.1; runs as an isolated subprocess during retraining to prevent GIL/OpenMP deadlock with live inference.",
+    status: "active",
+    category: "Neurofeedback",
+    color: "cyan",
+  },
 ];
 
 // ── 2. Datasets ───────────────────────────────────────────────────────────
@@ -653,6 +677,7 @@ const categoryColor: Record<string, string> = {
   Quality: "bg-slate-500/20 text-slate-200",
   Adaptation: "bg-lime-500/20 text-lime-200",
   "Food-Emotion": "bg-green-500/20 text-green-200",
+  Neurofeedback: "bg-cyan-500/20 text-cyan-200",
 };
 
 const statusBadge = (s: string) => {

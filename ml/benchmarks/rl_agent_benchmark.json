@@ -1,0 +1,72 @@
+{
+  "model_name": "Adaptive Threshold RL Agent (PPO)",
+  "file": "ml/neurofeedback/adaptive_agent.py",
+  "training_environment": "ml/neurofeedback/rl_environment.py (NeurofeedbackEnv — synthetic)",
+  "training_script": "ml/neurofeedback/train_rl_agent.py",
+  "model_path": "ml/models/saved/rl_nf_agent.pt",
+  "pytorch_version": "2.4.1",
+
+  "architecture": {
+    "type": "PPO Actor-Critic",
+    "actor": "Linear(8,64) → Tanh → Linear(64,64) → Tanh → Linear(64,3) → Softmax",
+    "critic": "Linear(8,64) → Tanh → Linear(64,64) → Tanh → Linear(64,1)",
+    "total_parameters": 7634,
+    "observation_dim": 8,
+    "action_space": 3,
+    "action_labels": ["decrease_threshold (−0.05)", "hold_threshold", "increase_threshold (+0.05)"],
+    "threshold_range": [0.10, 2.50]
+  },
+
+  "observation_features": [
+    "avg_score / 100.0            — mean of last-10 history scores, normalised",
+    "reward_rate                  — fraction of last-10 evaluations that earned reward",
+    "min(streak / 20.0, 1.0)     — consecutive-reward streak, capped",
+    "min(total_evals / 300.0, 1.0) — session progress",
+    "min(threshold / 2.5, 1.0)   — current difficulty, normalised",
+    "min(band_ratio / 3.0, 1.0)  — target-band power vs baseline, normalised",
+    "clip(trend, −1, 1)          — linear slope of last-10 scores / 10",
+    "clip(volatility, 0, 1)      — std-dev of last-10 scores / 100"
+  ],
+
+  "hyperparameters": {
+    "learning_rate_actor": 3e-4,
+    "learning_rate_critic": 3e-4,
+    "ppo_clip_epsilon": 0.2,
+    "mini_epochs_per_update": 4,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "episode_length": 300,
+    "episodes_per_protocol": 500
+  },
+
+  "reward_shaping": {
+    "performance_term": "score / 100.0",
+    "flow_zone_bonus": "+0.20 if 0.40 ≤ reward_rate ≤ 0.75 else −0.10",
+    "stability_penalty": "−0.02 if action ≠ hold else 0.0",
+    "flow_zone_target": "40–75% reward rate per session"
+  },
+
+  "training_results": {
+    "protocols_trained": ["alpha_up", "smr_up", "theta_beta_ratio"],
+    "total_episodes": 1500,
+    "live_reward_rate_observed": 0.67,
+    "flow_zone_achieved": true,
+    "notes": "Reward rate of 67% observed in live server test — within target flow zone [40–75%]"
+  },
+
+  "live_deployment": {
+    "inference_endpoint": "POST /api/neurofeedback/evaluate",
+    "inference_frequency_hz": 1,
+    "response_keys_added": ["adaptive_threshold", "threshold_action"],
+    "reload_after_train": true,
+    "training_endpoint": "POST /api/neurofeedback/rl/train",
+    "training_isolation": "asyncio.create_subprocess_exec — separate process to avoid GIL/OpenMP deadlock"
+  },
+
+  "caveats": [
+    "Trained on synthetic NeurofeedbackEnv only — real user dynamics may differ",
+    "No cross-subject validation dataset exists (synthetic environment)",
+    "Agent is shared across all 3 protocols — per-user fine-tuning would improve performance",
+    "Episode-return metric is a proxy; no gold-standard user-experience ground truth available"
+  ]
+}
