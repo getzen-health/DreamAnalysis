@@ -1,7 +1,7 @@
 # IRB SELECTION GUIDE FOR INDEPENDENT RESEARCHERS (USA)
 ## Consumer-Grade EEG as a Biomarker for Emotional State and Daily Eating Behavior
 
-**Version:** 1.2
+**Version:** 1.3
 **Date:** February 25, 2026
 **Purpose:** Help an independent researcher (no institutional affiliation) choose, apply to, and work with a commercial IRB in the United States.
 
@@ -43,7 +43,24 @@ Your study qualifies for **Expedited Review**, not Full Board Review. This is im
 
 ## 3. TOP COMMERCIAL IRBs FOR INDEPENDENT RESEARCHERS (USA)
 
-### 3.1 WCG IRB (formerly Western IRB / WIRB)
+### 3.1 IRB Solutions ⭐ RECOMMENDED FOR THIS STUDY
+**Website:** https://www.irbsolutions.com
+**Best for:** Independent researchers, small studies, first-time submissions
+**Turnaround (expedited):** 5–10 business days
+**Cost estimate (expedited, minimal risk):** ~$1,000–$2,000 initial + ~$400–$800 annual continuing review
+**Notes:**
+- Specifically designed to work with independent researchers without institutional backing
+- Lower fees than WCG/Advarra — important for self-funded research
+- Straightforward online submission portal; staff are accustomed to guiding first-time applicants
+- Accepted by peer-reviewed journals for publication
+- Good choice if cost is a primary concern and you do not need the brand recognition of WCG/Advarra for a specific high-impact journal target
+- Ask directly about their "independent researcher" or "pilot study" pricing tier
+
+**Contact:** info@irbsolutions.com | (800) 991-2148
+
+---
+
+### 3.2 WCG IRB (formerly Western IRB / WIRB)
 **Website:** https://www.wcgirb.com
 **Best for:** Mid-to-large studies, excellent reputation for journal acceptance
 **Turnaround (expedited):** 5–15 business days
@@ -58,7 +75,7 @@ Your study qualifies for **Expedited Review**, not Full Board Review. This is im
 
 ---
 
-### 3.2 Advarra (formerly Chesapeake IRB + PRACS)
+### 3.3 Advarra (formerly Chesapeake IRB + PRACS)
 **Website:** https://www.advarra.com
 **Best for:** Independent researchers, academic-adjacent projects
 **Turnaround (expedited):** 5–10 business days
@@ -73,7 +90,7 @@ Your study qualifies for **Expedited Review**, not Full Board Review. This is im
 
 ---
 
-### 3.3 Quorum Review IRB
+### 3.4 Quorum Review IRB
 **Website:** https://www.quorumreview.com
 **Best for:** Budget-conscious independent researchers, startup / tech-adjacent research
 **Turnaround (expedited):** 3–10 business days
@@ -88,7 +105,7 @@ Your study qualifies for **Expedited Review**, not Full Board Review. This is im
 
 ---
 
-### 3.4 New England IRB (NEIRB)
+### 3.5 New England IRB (NEIRB)
 **Website:** https://www.neirb.com
 **Best for:** East-coast projects, academic researchers
 **Turnaround (expedited):** 5–15 business days
@@ -99,7 +116,7 @@ Your study qualifies for **Expedited Review**, not Full Board Review. This is im
 
 ---
 
-### 3.5 Copernicus Group IRB (CGIRB)
+### 3.6 Copernicus Group IRB (CGIRB)
 **Website:** https://www.cgirb.com
 **Best for:** Multi-site studies, behavioral/social science research
 **Turnaround (expedited):** 5–10 business days
@@ -136,7 +153,7 @@ When you contact an IRB, they will ask you to submit a package. Use your complet
 
 | Document | Your File |
 |----------|-----------|
-| Study Protocol | `01_STUDY_PROTOCOL.md` → convert to PDF |
+| Study Protocol | `COMBINED_STUDY_PROTOCOL_DRAFT.md` (v1.0) → convert to PDF |
 | Informed Consent Form | `02_INFORMED_CONSENT_FORM.md` → convert to PDF |
 | Recruitment Materials (all) | `03_RECRUITMENT_MATERIALS.md` → convert to PDF |
 | Data Security Plan | `04_DATA_SECURITY_PLAN.md` → convert to PDF |
@@ -167,7 +184,7 @@ Email your top 2–3 IRB choices with this brief message:
 >
 > Dear IRB Team,
 >
-> I am an independent researcher seeking expedited IRB review for a minimal-risk behavioral pilot study involving consumer EEG (Muse 2 headband) and brief questionnaire data from N=20–30 healthy adults in the United States. The study involves a single session of approximately 20–30 minutes (any time of day), no medical procedures, no electrical stimulation, no sensitive personal questions, and no vulnerable populations. We anticipate this qualifies for expedited review under 45 CFR 46.110, Categories 6 and 7.
+> I am an independent researcher seeking expedited IRB review for a minimal-risk longitudinal behavioral pilot study involving consumer EEG (Muse 2 headband, BYOD), brief questionnaire data, and a daily dream journal from N=20–30 healthy adults in the United States. The study runs for 30 consecutive days (~25–35 min/day across 3 self-administered touchpoints: morning dream journal, daytime EEG session, evening questionnaire). There are no medical procedures, no electrical stimulation, no sensitive personal questions beyond daily mood/eating behavior, and no vulnerable populations. We anticipate this qualifies for expedited review under 45 CFR 46.110, Categories 6 and 7.
 >
 > Could you please provide a fee schedule or project quote, and confirm you accept applications from independent (non-institutional) researchers?
 >
@@ -203,7 +220,7 @@ Use your protocol documents to fill in the answers — you've already written mo
 Upload all documents (convert .md files to PDF first using pandoc or a Markdown-to-PDF converter):
 ```bash
 # Convert all IRB documents to PDF (requires pandoc + a PDF engine like wkhtmltopdf)
-pandoc 01_STUDY_PROTOCOL.md -o 01_STUDY_PROTOCOL.pdf
+pandoc COMBINED_STUDY_PROTOCOL_DRAFT.md -o COMBINED_STUDY_PROTOCOL.pdf
 pandoc 02_INFORMED_CONSENT_FORM.md -o 02_INFORMED_CONSENT_FORM.pdf
 pandoc 03_RECRUITMENT_MATERIALS.md -o 03_RECRUITMENT_MATERIALS.pdf
 pandoc 04_DATA_SECURITY_PLAN.md -o 04_DATA_SECURITY_PLAN.pdf
@@ -283,7 +300,7 @@ Before the expiration date on your approval letter, submit a continuing review r
 | IRB review and potential queries | Week 5–8 |
 | Receive approval letter | Week 6–10 |
 | Begin recruitment | Week 7–11 |
-| Complete data collection (20–30 participants × 1 session) | Month 3–5 |
+| Complete data collection (20–30 participants × 30 days) | Month 3–6 |
 | Data analysis and manuscript preparation | Month 5–7 |
 | Journal submission | Month 7–8 |
 
@@ -310,9 +327,9 @@ Once approved, you have ongoing obligations:
 
 **Start with CITI training today** — it's free and takes less than a week. You can begin the IRB application process concurrently with training completion.
 
-Then email **Quorum** and **Advarra** simultaneously requesting quotes. Choose based on price, turnaround time, and responsiveness.
+Then email **IRB Solutions**, **Quorum**, and **Advarra** simultaneously requesting quotes. Choose based on price, turnaround time, and responsiveness.
 
-**Recommended choice for this study:** **Quorum Review IRB** for best cost-to-quality ratio for an independent minimal-risk study, OR **Advarra** if you want the strongest brand recognition for journal submission.
+**Recommended choice for this study:** **IRB Solutions** — specifically built for independent researchers, lower fees, and straightforward process for a first-time applicant. Use **Advarra** or **WCG** instead if you are targeting a journal that specifies one of those IRBs, or if you need the stronger brand recognition for grant applications.
 
 ---
 
@@ -325,6 +342,7 @@ Then email **Quorum** and **Advarra** simultaneously requesting quotes. Choose b
 | HHS OHRP (regulatory guidance) | https://www.hhs.gov/ohrp |
 | HHS expedited review categories | https://www.hhs.gov/ohrp/regulations-and-policy/regulations/45-cfr-46/index.html |
 | OHRP Compliance Activities | https://www.hhs.gov/ohrp/compliance-and-reporting |
+| IRB Solutions ⭐ | https://www.irbsolutions.com |
 | WCG IRB | https://www.wcgirb.com |
 | Advarra | https://www.advarra.com |
 | Quorum Review IRB | https://www.quorumreview.com |

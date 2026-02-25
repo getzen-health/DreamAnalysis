@@ -266,9 +266,10 @@ Independent Researcher
 
 ## DOCUMENT D: SCREENING SURVEY QUESTIONS
 
-> **Usage:** Create in REDCap, Typeform, or Google Forms. Aim for under
-> 3 minutes. The sleep-disorder questions are critical — they protect both
-> participant welfare and scientific validity.
+> **Usage:** Create in Tally or Typeform (use their HIPAA-compliant / encrypted
+> plan). Aim for under 3 minutes. The sleep-disorder questions are critical —
+> they protect both participant welfare and scientific validity. Do NOT use
+> standard Google Forms (not HIPAA-compliant for health data).
 
 ---
 
@@ -383,11 +384,10 @@ to assess eligibility. If you qualify, we'll contact you within 3 business days.
       "no recall" entries are valid and useful data)*
     - I don't think I can commit to that daily *(→ Ineligible — core study task)*
 
-15. Do you own a Muse 2 EEG headset, or are you comfortable receiving one by
-    mail and returning it after the study?
-    - I own a Muse 2 ✓
-    - I don't own one but I'm fine receiving and returning one by mail ✓
-    - Neither *(→ Ineligible)*
+15. Do you own a Muse 2 EEG headset?
+    - Yes, I own a Muse 2 ✓
+    - No *(→ Ineligible — this study requires participants to use their own Muse 2
+      headset. We do not loan or mail devices.)*
 
 ---
 
@@ -436,13 +436,13 @@ so we can use the onboarding call to practice the app and headset together.
 
 ---
 
-**WHAT'S ARRIVING BY MAIL** *(if you don't own a Muse 2):*
-- Muse 2 EEG headband (sanitized, in original case)
-- Quick Reference Card (laminated, for your nightstand)
-- Pre-paid return label for the end of the study
+**YOUR MUSE 2 HEADSET:**
+You confirmed during screening that you own a Muse 2. Please make sure it is
+charged before our onboarding call (charges via micro-USB, takes about 2 hours
+from empty). We'll connect it to the app together during onboarding.
 
-Please confirm receipt by replying to this email. If it doesn't arrive 2 days
-before your onboarding call, let me know immediately.
+A **Quick Reference Card** (1-page protocol summary) will be emailed to you
+before Day 1 — print it and keep it on your nightstand.
 
 ---
 
@@ -545,8 +545,6 @@ Before distributing any recruitment materials, confirm:
 - [ ] All [BRACKETED] placeholders replaced with actual information
 - [ ] App store link tested and live
 - [ ] Screening survey URL live and tested end-to-end (including thank-you messages)
-- [ ] Muse 2 headsets procured, sanitized, and ready to mail
-- [ ] Mailing envelopes + pre-paid return labels prepared
 - [ ] Flyer approved by IRB (submit with application package)
 - [ ] Social media posts approved by IRB (or confirmed substantially similar to approved flyer)
 - [ ] Reddit posts comply with each subreddit's research posting rules

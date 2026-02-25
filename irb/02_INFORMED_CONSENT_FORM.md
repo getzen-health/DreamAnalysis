@@ -70,7 +70,8 @@ the rights and wellbeing of research participants.
 - **Daily time commitment:** approximately 25–35 minutes per day, spread across
   three brief touchpoints (morning, daytime, evening)
 - **All data collection is self-administered** via the NeuralDreamWorkshop app
-  on your phone — no daily check-ins with the researcher required
+  on your phone. The researcher will send brief welfare check-in emails at Day 7
+  and Day 21 — these are optional support contacts, not data collection events.
 - **One onboarding session** (~60 min) at the start to learn the app and device
 - **One offboarding session** (~20 min) at the end for debrief and final payment
 - Sessions are conducted **remotely (video call)** or **in person**
@@ -146,7 +147,7 @@ Before Day 1, you will have a video call (or in-person session) with the researc
 - Learn how to use the app (morning, daytime, evening flows)
 - Practice a full daytime EEG session live with the researcher present
 - Practice a dream journal entry
-- Receive the EEG headset (mailed in advance or handed over in person)
+- Connect your own Muse 2 EEG headset to the app (device ownership confirmed at screening)
 - Set your preferred daily reminder times
 
 ### Offboarding Session (~20 min)
@@ -172,6 +173,8 @@ After Day 30, you will have a brief video call:
 | Sleep hours, caffeine, exercise, alcohol (numbers) | No | Encrypted database, pseudonymized |
 | Optional overnight EEG features (if you opt in) | No | Encrypted database, pseudonymized |
 
+**Third-party processing:** Dream journal text is processed by OpenAI's GPT API (server-side only, no participant identifiers transmitted) to extract a numerical emotional tone score. OpenAI does not use API-submitted data for model training per their terms of service.
+
 **Important — what we do NOT store:**
 - **Raw EEG voltage** is NOT saved. Only processed numerical summaries (85 numbers
   per 4-second window) — like a step counter saving "10,000 steps" rather than
@@ -185,8 +188,11 @@ study. Your dream journal entries are stored under your pseudonymous code only.
 The researcher may read entries only for data quality checks (e.g., to verify the
 app is working correctly). Dreams are never shared externally in identifiable form.
 The AI module in the app reads your dream text to extract its emotional tone (a
-number between -1 and +1) — only this number is used in the analysis. Your raw
-dream text is retained securely and destroyed after 7 years.
+number between -1 and +1) — only this number is used in the analysis. This
+processing is performed by OpenAI's GPT API; only the dream text is transmitted,
+with no identifying information. Under OpenAI's API terms of service, your data
+is not used to train their models. Your raw dream text is retained securely and
+destroyed after 7 years.
 
 ---
 
@@ -313,16 +319,28 @@ lakshmisravya.vedantham@gmail.com
 is within 24 hours on weekdays.*
 
 **For concerns about your rights as a research participant** (independent of the researcher):
-[IRB NAME — e.g., WCG IRB / Advarra IRB]
-[IRB EMAIL]
-[IRB PHONE]
-[IRB WEBSITE]
+IRB Solutions (or the approving IRB — to be confirmed at submission)
+[IRB EMAIL — to be filled after IRB selection]
+[IRB PHONE — to be filled after IRB selection]
+[IRB WEBSITE — to be filled after IRB selection]
+
+> **Note to researcher:** Fill in the exact IRB contact information once you have
+> received written approval from your chosen IRB. Do not distribute this form to
+> participants until these fields are complete.
 
 You may contact the IRB at any time without notifying the researcher first.
 
 ---
 
 ## STATEMENT OF CONSENT
+
+> **Note on digital consent:** For participants completing enrollment remotely
+> via the NeuralDreamWorkshop app, digital checkboxes and a typed name entry
+> serve as the equivalent of written initials and signature. A timestamped
+> consent record (including consent version, date, and all checkbox responses)
+> is stored securely in the research database. A PDF copy of this form is
+> emailed to the participant upon completion. Digital consent is legally
+> equivalent to wet-ink signature under the E-SIGN Act (15 U.S.C. § 7001).
 
 Please read each statement below and initial to confirm you understand and agree:
 

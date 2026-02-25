@@ -1,9 +1,16 @@
-# STUDY PROTOCOL
+# STUDY PROTOCOL — ARCHIVED (SUPERSEDED)
 ## Consumer-Grade EEG as a Biomarker for Emotional State and Daily Eating Behavior: A Validation Study
 
-**Version:** 1.2
+> ⚠️ **THIS DOCUMENT IS ARCHIVED AND NOT THE ACTIVE IRB SUBMISSION PROTOCOL.**
+>
+> This single-session pilot protocol has been superseded by the 30-day longitudinal
+> study protocol: **`COMBINED_STUDY_PROTOCOL_DRAFT.md` (v1.0)**, which is the
+> document submitted for IRB review. This file is retained for reference only.
+> Do not submit this document to any IRB or use it to recruit participants.
+
+**Version:** 1.2 (Archived)
 **Date:** February 25, 2026
-**IRB Submission Type:** Expedited Review (45 CFR 46.110, Categories 6 & 7)
+**Status:** Superseded by COMBINED_STUDY_PROTOCOL_DRAFT.md v1.0
 **Principal Investigator:** Lakshmi Sravya Vedantham, Independent Researcher
 **Contact:** lakshmisravya.vedantham@gmail.com
 

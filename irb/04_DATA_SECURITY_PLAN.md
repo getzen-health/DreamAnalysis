@@ -154,7 +154,7 @@ Encrypted PostgreSQL DB (Neon, SOC 2 Type II)
 
 ### 4.4 Screening Survey Responses
 
-- Collected via REDCap (if available) or an encrypted Google Forms alternative
+- Collected via Tally or Typeform (HIPAA-compliant plan)
 - Eligibility determination only — not linked to study ID
 - **Permanently deleted within 30 days** after enrollment decision is made for each respondent
 
@@ -244,7 +244,7 @@ Dream journal text is the most sensitive data in the study. Additional controls 
 
 - **Transmission**: Dream text is transmitted immediately on morning submission over TLS 1.3. It is never cached in browser local storage or device storage after upload.
 - **Storage**: Stored in the `study_morning_entries` table under `studyCode` only, in the encrypted Neon database. Never stored in a separate file, spreadsheet, or email.
-- **AI processing**: The app passes dream text to an AI language model (Claude API) to extract a single numerical emotional valence score (−1.0 to +1.0). This call is made server-side (not from the participant's device). Only the score is stored in the analysis tables; the raw text is stored separately in the `dreamText` column.
+- **AI processing**: The app passes dream text to an AI language model (OpenAI GPT API) to extract a single numerical emotional valence score (−1.0 to +1.0). This call is made server-side (not from the participant's device). The text is transmitted to OpenAI's servers for processing; no participant identifiers are included in the request, and OpenAI's API terms prohibit use of API-submitted content for model training. Only the extracted score is stored in the analysis tables; the raw dream text is stored separately in the `dreamText` column under the pseudonymous study code.
 - **Researcher access**: The PI may read dream text entries only for data quality checks (e.g., verifying the morning flow is working correctly). Dream text is never shared with any third party in identifiable or pseudonymized form.
 - **Public dataset**: Dream text will NOT be included in any public open dataset. Only the extracted numerical valence score will be shared if a de-identified dataset is published.
 - **Participant skip right**: Participants may skip any dream entry at any time by tapping "Skip — I don't want to record this one." This creates a session row with `dreamSkipped = true` and no text content. Skipping has no consequence on compensation.

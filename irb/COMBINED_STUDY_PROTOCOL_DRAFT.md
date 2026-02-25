@@ -1,17 +1,20 @@
-# STUDY PROTOCOL — DRAFT
+# STUDY PROTOCOL
 ## The Emotional Day-Night Cycle: Daytime EEG Emotion, Eating Behavior, and Dream Content
 ### A 30-Day Naturalistic Longitudinal Study Using Consumer-Grade Wearable EEG
 
-**Version:** 0.1 (Draft — Not Yet Submitted)
+**Version:** 1.0
 **Date:** February 25, 2026
 **IRB Submission Type:** Expedited Review (45 CFR 46.110, Categories 6 & 7)
 **Principal Investigator:** Lakshmi Sravya Vedantham, Independent Researcher
 **Contact:** lakshmisravya.vedantham@gmail.com
 
-> **Status note:** This protocol supersedes the single-session pilot protocol
-> (01_STUDY_PROTOCOL.md v1.1). It expands the design to a 30-day longitudinal
-> study integrating all three NeuralDreamWorkshop measurement domains: waking
-> emotion, eating behavior, and sleep/dream monitoring.
+---
+
+### Version History
+
+| Version | Date | Changes |
+|---|---|---|
+| 1.0 | Feb 25, 2026 | Initial IRB submission version. 30-day longitudinal design integrating daytime EEG emotion monitoring, evening eating behavior questionnaire, and morning dream journaling. Supersedes single-session pilot protocol (archived as 01_STUDY_PROTOCOL.md). |
 
 ---
 
@@ -193,7 +196,7 @@ approximately 25–35 minutes, spread across the day.
 | D1 | EEG baseline: 2 min eyes-closed resting | 2 min |
 | D2 | EEG eyes-open: 2 min fixation cross | 2 min |
 | D3 | Current emotion rating: SAM valence + arousal + stress (1–9) | 2 min |
-| D4 | Abbreviated PANAS: 10 items (PA subscale only — 5 positive, 5 negative) | 3 min |
+| D4 | PANAS-SF (validated 10-item short form): 5 positive affect + 5 negative affect items (Thompson, 2007) | 3 min |
 | D5 | Brief context: hours slept, caffeine so far, significant event yes/no | 2 min |
 
 > **Why consistent timing:** Circadian variation in EEG band powers is significant.
@@ -356,8 +359,9 @@ waitlist maintained in case of early dropout.
 
 ### 4.1 Screening
 
-Interested individuals complete a brief online screening survey (REDCap or
-equivalent) covering inclusion/exclusion criteria, with particular attention to:
+Interested individuals complete a brief online screening survey (Tally or Typeform,
+encrypted form platform) covering inclusion/exclusion criteria, with particular
+attention to:
 - Sleep schedule regularity (required: consistent wake time ± 1 hour)
 - Primary sleep disorder history (exclusionary)
 - Medication list review (see exclusion criteria)
@@ -377,11 +381,11 @@ in-person). Participants receive a copy. Specific consent is obtained for:
 
 ### 4.3 Device Provision and Training
 
-**Device options:**
-- Participants who own a Muse 2 use their own device (confirmed during screening)
-- Participants without a device: a sanitized Muse 2 is mailed before onboarding
-  and returned by mail at study end. A $50 refundable device deposit is collected
-  and returned upon device receipt in working condition.
+**Device requirement (BYOD — Bring Your Own Device):**
+This study requires participants to own a Muse 2 EEG headset. Device ownership is
+confirmed during screening (Question 15 of the screening survey). Participants who
+do not own a Muse 2 are not eligible. No devices are loaned, mailed, or purchased
+by the researcher for this study.
 
 **Training during onboarding:**
 - Correct headset fit (forehead placement, ear hook positions)
@@ -399,8 +403,12 @@ in-person). Participants receive a copy. Specific consent is obtained for:
   times as reminders
 - Days with < 2 of 3 sessions completed are flagged as "partial days" and
   excluded from primary analyses
-- If participant misses 3 consecutive days, researcher contacts them to check
-  welfare and offer protocol troubleshooting
+- If participant misses 3 consecutive days, researcher contacts them by email to
+  check welfare and offer protocol troubleshooting
+- Scheduled welfare check-ins: researcher sends a brief email at Day 7 and Day 21
+  to all active participants, checking on app function, signal quality, and general
+  wellbeing. These are not data collection events — they are welfare monitoring
+  and technical support contacts.
 
 **Minimum valid days:**
 - Participants completing < 15 valid days (of 30) are excluded from primary
@@ -457,7 +465,8 @@ Some participants may experience:
 - Participants are reminded at onboarding and in the app that they may skip any
   morning entry if a dream was too distressing to record
 - The app includes a daily check-in question: "How are you feeling right now?"
-  with a follow-up prompt and mental health resource links if the rating is < 3
+  with a follow-up prompt and mental health resource links if the rating is ≤ 2
+  out of 9
 - The researcher checks in with each participant by message at Day 7 and Day 21
   to assess welfare and answer questions
 - A full list of mental health resources (crisis lines, therapist finders) is
@@ -539,11 +548,11 @@ Specific protections:
 - Stored under pseudonymized study ID only (no participant name)
 - Accessible only to the PI for data quality verification
 - Not used for any purpose other than the research aims described in this protocol
-- Text is processed by the NeuralDreamWorkshop AI analysis module (GPT API) for
-  emotional valence extraction. GPT API calls are made with no system prompt
-  containing participant identifiers; only the dream text is transmitted. OpenAI
-  data usage policies apply (data not used for model training under the API
-  terms of service as of 2026).
+- Text is processed by OpenAI's GPT API for emotional valence extraction. API calls
+  are made server-side with no participant identifiers transmitted; only the dream
+  text itself is sent. Under OpenAI's API terms of service (as of 2026), data
+  submitted via the API is not used to train OpenAI's models. This third-party
+  processing is disclosed in the informed consent form.
 - AI-extracted valence scores are stored; raw dream text is retained for 7 years
   then destroyed.
 
@@ -572,7 +581,7 @@ As described in 04_DATA_SECURITY_PLAN.md:
 
 The PI has no financial relationship with InteraXon Inc. (Muse 2 manufacturer),
 OpenAI, or any entity with a financial interest in the study outcome.
-NeuralDreamWorkshop is an open-source project developed independently by the PI.
+NeuralDreamWorkshop is an independent research software project developed by the PI.
 
 ---
 
@@ -688,13 +697,14 @@ adjusted α = 0.017 per test. Aim 4 is descriptive — no correction applied.
 ### Statistical Methods
 
 19. Maas, C.J.M., & Hox, J.J. (2005). Sufficient sample sizes for multilevel modeling. *Methodology, 1*(3), 86–92.
+20. Thompson, E.R. (2007). Development and validation of an internationally reliable short-form of the Positive and Negative Affect Schedule (PANAS). *Journal of Cross-Cultural Psychology, 38*(2), 227–242.
 
 ### Emotional Transfer Chain — Traditional and Scientific Foundations
 
-20. Hatfield, E., Cacioppo, J.T., & Rapson, R.L. (1993). Emotional contagion. *Current Directions in Psychological Science, 2*(3), 96–100.
-21. Dunbar, R.I.M. (2017). Breaking bread: the functions of social eating. *Adaptive Human Behavior and Physiology, 3*(3), 198–211.
-22. Sharma, P.V. (Ed.) (1981). *Charaka Samhita* (Sutrasthana, Chapter 27). Chaukhambha Orientalia.
-23. Ishige, N. (2001). *The History and Culture of Japanese Food.* Kegan Paul International.
+21. Hatfield, E., Cacioppo, J.T., & Rapson, R.L. (1993). Emotional contagion. *Current Directions in Psychological Science, 2*(3), 96–100.
+22. Dunbar, R.I.M. (2017). Breaking bread: the functions of social eating. *Adaptive Human Behavior and Physiology, 3*(3), 198–211.
+23. Sharma, P.V. (Ed.) (1981). *Charaka Samhita* (Sutrasthana, Chapter 27). Chaukhambha Orientalia.
+24. Ishige, N. (2001). *The History and Culture of Japanese Food.* Kegan Paul International.
 
 ---
 
@@ -740,7 +750,7 @@ researcher or a support resource.
 | Duration | Single session, 20–30 min | 30 days + onboarding + offboarding |
 | N | 20–30 | 30 |
 | Design | Cross-sectional | Longitudinal, within-person |
-| EEG timing | During interview | Daily 15-min morning session |
+| EEG timing | During questionnaire | Daily 15-min daytime session (9 AM–1 PM) |
 | Primary outcome | EEG-emotion agreement (accuracy) | Dream valence predicted by EEG |
 | Food measurement | Last meal recall | Daily evening questionnaire |
 | Dream measurement | None | Daily morning journal + SAM |
