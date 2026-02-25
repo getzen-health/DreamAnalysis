@@ -12,10 +12,10 @@ const models = [
     id: 1,
     name: "Emotion Classifier",
     file: "emotion_classifier.py",
-    algo: "Mega LGBM (global PCA 85→80, DEAP+DENS) + Feature Heuristics",
-    liveAccuracy: "70.73% CV",
-    benchmarkAccuracy: "70.73% CV (DEAP+DREAMER+GAMEEMO+DENS+FACED, 3-class, cross-subject)",
-    crossSubject: "70.73% CV (DEAP+DREAMER+GAMEEMO+DENS+FACED, 3-class, global PCA 85→80)",
+    algo: "Mega LGBM (global PCA 85→80, DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV) + Feature Heuristics",
+    liveAccuracy: "73.94% CV",
+    benchmarkAccuracy: "73.94% CV (DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV, 3-class, cross-subject)",
+    crossSubject: "73.94% CV (DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV, 3-class, global PCA 85→80)",
     classes: 6,
     classLabels: ["happy", "sad", "angry", "fear", "relaxed", "focused"],
     primarySignals: ["FAA (AF7/AF8 asymmetry)", "Beta/Alpha ratio", "High-Beta 20–30 Hz", "Theta/Beta ratio"],
@@ -466,6 +466,21 @@ const datasets = [
     caveat: "Valence labels (SAM scale ≥6=pos, ≤4=neg). 13 subjects had <1 trial in available window. 4-sec windows, mastoid re-reference applied.",
     status: "loaded",
   },
+  {
+    name: "SEED-IV",
+    origin: "BCMI Lab, Shanghai Jiao Tong University (Kaggle mirror)",
+    subjects: 15,
+    samples: 17490,
+    channels: 62,
+    device: "ESI NeuroScan (research-grade, 62-ch)",
+    classes: "4 (neutral/sad/fear/happy) → 3-class",
+    accuracy: 0.7394,
+    f1: 0,
+    cvMethod: "5-fold stratified CV (mega-trainer)",
+    note: "Integrated. 15 subjects × 3 sessions = 45 files. Pre-extracted DE features (4-sec windows). 4 Muse-equivalent channels: T7(23)→TP9, FP1(0)→AF7, FP2(2)→AF8, T8(31)→TP10. 4-class → 3-class: neutral→1, sad/fear→2, happy→0. 17 490 samples. Mega LGBM with SEED-IV: 73.94% CV.",
+    caveat: "Research-grade 62-ch layout — 4 channels selected by 10-20 position. Pre-extracted DE (not raw EEG).",
+    status: "loaded",
+  },
 ];
 
 // ── 3. Research Differentiation vs Published Papers ───────────────────────
@@ -527,7 +542,7 @@ const differentiation = [
     dimension: "Dataset Breadth",
     published: "Papers typically use 1–2 datasets. Rarely show cross-dataset transfer results.",
     thisWork:
-      "10 datasets: DEAP, SEED, GAMEEMO, EEG-ER, EmoKeyMuseS, Brainwave, DREAMER ✅, FACED ✅, DENS ✅ (75.22% CV). Cross-dataset transfer explicitly modeled. Training scripts for all.",
+      "11 datasets: DEAP, SEED, GAMEEMO, EEG-ER, EmoKeyMuseS, Brainwave, DREAMER ✅, FACED ✅, DENS ✅, SEED-IV ✅ (73.94% CV — 133 617 samples, 6 active datasets). Cross-dataset transfer explicitly modeled. Training scripts for all.",
     advantage: true,
   },
 ];
@@ -616,6 +631,14 @@ const publishingPlan = [
     status: "done",
     detail:
       "Downloaded Dataset on Emotion with Naturalistic Stimuli (OpenNeuro ds003751). 128-ch EGI HydroCel, 40 subjects. 4 Muse-equivalent channels identified by 3D coordinate matching (AF7=E32/ch31, AF8=E1/ch0, TP9=E48/ch47, TP10=E119/ch118). Partial FDT loader extracts all trials within available window — 27/40 subjects processed, 4807 samples. Result: LightGBM 80.46% test | 79.55% CV ±1.50% (3-class, valence-based labels). Best cross-subject result in project.",
+    timeline: "Complete",
+  },
+  {
+    step: 5.7,
+    title: "✅ SEED-IV Dataset Integration — DONE",
+    status: "done",
+    detail:
+      "Downloaded SEED-IV via Kaggle (phhasian0710/seed-iv, ~14 GB). 15 subjects × 3 sessions = 45 .mat files. Pre-extracted DE features (62-ch, 4-sec windows). 4 Muse-equivalent channels selected: T7(23)→TP9, FP1(0)→AF7, FP2(2)→AF8, T8(31)→TP10. 4-class labels (neutral/sad/fear/happy) from ReadMe.txt, mapped to 3-class. WIN=4 chunks with HOP=2 → 17 490 samples. Added to mega-trainer alongside DEAP+DREAMER+GAMEEMO+DENS+FACED. New CV accuracy: 73.94% ± 0.23% (133 617 samples, 6 datasets).",
     timeline: "Complete",
   },
   {
@@ -1043,8 +1066,8 @@ export default function FormalBenchmarksDashboard() {
                 {[
                   { cond: "Published (within-subject, lab-grade)", binary: "85–98%", six: "75–90%", note: "Cheating — same person, same session" },
                   { cond: "Published cross-subject (lab-grade)", binary: "65–75%", six: "55–70%", note: "More honest, still ideal conditions" },
-                  { cond: "Mega LGBM (DEAP+DREAMER+GAMEEMO+DENS+FACED, global PCA 85→80)", binary: "70.73% CV", six: "70.73% CV (3-class)", note: "✅ Active live path — 116 127 samples, 5 datasets, scaler+PCA+LGBM in single pkl" },
-                  { cond: "Muse 2, no calibration, our system", binary: "~50–55%", six: "70.73% CV (5-dataset global PCA)", note: "Cross-dataset cross-subject benchmark — mega LGBM active" },
+                  { cond: "Mega LGBM (DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV, global PCA 85→80)", binary: "73.94% CV", six: "73.94% CV (3-class)", note: "✅ Active live path — 133 617 samples, 6 datasets, scaler+PCA+LGBM in single pkl" },
+                  { cond: "Muse 2, no calibration, our system", binary: "~50–55%", six: "73.94% CV (6-dataset global PCA)", note: "Cross-dataset cross-subject benchmark — mega LGBM active" },
                   { cond: "DENS (128-ch EGI, 4-ch subset, valence labels)", binary: "79.55% CV", six: "79.55% CV (3-class)", note: "LGBM 80.46% test | 79.55% CV — best cross-subject result to date" },
                   { cond: "Muse 2, with BaselineCalibrator (2-min baseline)", binary: "65–75%", six: "60–70%", note: "+15–29 pts from calibration alone" },
                   { cond: "Muse 2, after 5 sessions (Online Learner)", binary: "75–82%", six: "68–76%", note: "Target after personalization" },
@@ -1137,10 +1160,11 @@ export default function FormalBenchmarksDashboard() {
               {
                 priority: "Critical", color: "red",
                 items: [
-                  "✅ Integrate deployable LGBM model (global PCA 85→80, scaler+PCA+LGBM in single pkl) — 89.25% CV DONE",
+                  "✅ Integrate deployable LGBM model (global PCA 85→80, scaler+PCA+LGBM in single pkl) — 73.94% CV on 6 datasets DONE",
                   "Conduct IRB-approved food-emotion pilot study (n=20–30)",
                   "✅ Download DREAMER dataset + train Muse-comparable model — DONE",
                   "✅ Download FACED dataset (123 subjects, 9 classes) — DONE (63.31% CV)",
+                  "✅ Download SEED-IV dataset (15 subjects × 3 sessions, 62-ch) — DONE (73.94% CV combined)",
                 ],
               },
               {

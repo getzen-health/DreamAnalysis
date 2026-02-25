@@ -17,6 +17,8 @@ Datasets included:
   - DREAMER  (23 subjects, Emotiv EPOC 14-ch)
   - GAMEEMO  (28 subjects, Emotiv EPOC 14-ch, 4 emotions)
   - DENS     (27/40 subjects, EGI 128-ch → 4-ch Muse equivalent)
+  - FACED    (123 subjects, 32-ch, pre-extracted DE)
+  - SEED-IV  (15 subjects × 3 sessions, 62-ch, pre-extracted DE, 4 emotions)
 
 Saves:
   models/saved/emotion_mega_lgbm.pkl          — {model, scaler, pca, metadata}
@@ -610,6 +612,84 @@ def load_faced() -> Tuple[np.ndarray, np.ndarray]:
 
 
 # ---------------------------------------------------------------------------
+# SEED-IV loader (pre-extracted DE features → 85-dim vectors)
+# ---------------------------------------------------------------------------
+
+_SEED_IV_DIR = _ML_ROOT / "data" / "seed_iv"
+
+# Session clip labels from ReadMe.txt
+# 0=neutral, 1=sad, 2=fear, 3=happy
+_SEED_IV_SESSION_LABELS: dict = {
+    1: [1,2,3,0,2,0,0,1,0,1,2,1,1,1,2,3,2,2,3,3,0,3,0,3],
+    2: [2,1,3,0,0,2,0,2,3,3,2,3,2,0,1,1,2,1,0,3,0,1,3,1],
+    3: [1,2,2,1,3,3,3,1,1,2,1,0,2,3,3,0,2,3,0,0,2,0,1,0],
+}
+
+# 4-class → 3-class: neutral(0)→1, sad(1)→2, fear(2)→2, happy(3)→0
+_SEED_IV_4TO3: dict = {0: 1, 1: 2, 2: 2, 3: 0}
+
+# Select 4 channels closest to Muse 2 from 62-ch 10-20 layout:
+#   T7(23)→TP9,  FP1(0)→AF7,  FP2(2)→AF8,  T8(31)→TP10
+_SEED_IV_MUSE_CH = [23, 0, 2, 31]
+
+
+def load_seed_iv() -> Tuple[np.ndarray, np.ndarray]:
+    """Load SEED-IV pre-extracted DE features and convert to 85-dim vectors.
+
+    Structure: eeg_feature_smooth/{session}/{subj}_{date}.mat
+    Each .mat has keys de_LDS{1..24}: shape (62, n_windows, 5).
+    Windows are already 4-sec; we aggregate WIN=4 consecutive windows
+    (16 sec) with HOP=2 to compute statistics, same approach as FACED.
+    """
+    feat_dir = _SEED_IV_DIR / "eeg_feature_smooth"
+    if not feat_dir.exists() or not _SCI_OK:
+        log.warning("SEED-IV: %s not found — skipping", feat_dir)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    WIN, HOP = 4, 2  # aggregate 4 × 4-sec windows → 16 sec, hop 2
+    Xs, ys = [], []
+    n_files = 0
+
+    for session_id in sorted(_SEED_IV_SESSION_LABELS.keys()):
+        session_dir = feat_dir / str(session_id)
+        if not session_dir.exists():
+            continue
+        clip_labels = _SEED_IV_SESSION_LABELS[session_id]
+
+        for mat_path in sorted(session_dir.glob("*.mat")):
+            try:
+                mat = sio.loadmat(str(mat_path), squeeze_me=True)
+            except Exception:
+                continue
+
+            n_files += 1
+            for trial_idx, raw_label in enumerate(clip_labels):
+                trial_num = trial_idx + 1
+                key = f"de_LDS{trial_num}"
+                if key not in mat:
+                    continue
+                arr = mat[key]              # (62, n_windows, 5)
+                if arr.ndim != 3 or arr.shape[0] < 32:
+                    continue
+                # Select 4 Muse-equivalent channels → (4, n_windows, 5)
+                de4 = arr[_SEED_IV_MUSE_CH, :, :]
+                label_3 = _SEED_IV_4TO3[int(raw_label)]
+                n_t = de4.shape[1]
+                for t in range(0, n_t - WIN + 1, HOP):
+                    chunk = de4[:, t:t+WIN, :]   # (4, WIN, 5)
+                    feat = _faced_de_to_85dim(chunk)
+                    Xs.append(feat)
+                    ys.append(label_3)
+
+    if not Xs:
+        log.warning("SEED-IV: 0 samples extracted (check data at %s)", feat_dir)
+        return np.empty((0, 85), np.float32), np.empty(0, np.int32)
+
+    log.info("SEED-IV: %d files → %d samples", n_files, len(ys))
+    return np.array(Xs, np.float32), np.array(ys, np.int32)
+
+
+# ---------------------------------------------------------------------------
 # DENS loader (raw EEG → 85-dim features)
 # ---------------------------------------------------------------------------
 
@@ -925,6 +1005,13 @@ def main() -> None:
         all_X.append(X_eav); all_y.append(y_eav)
         datasets_used.append("EAV")
         log.info("EAV loaded: %d samples", len(y_eav))
+
+    log.info("── Loading SEED-IV ──")
+    X_sv, y_sv = load_seed_iv()
+    if X_sv.size > 0:
+        all_X.append(X_sv); all_y.append(y_sv)
+        datasets_used.append("SEED-IV")
+        log.info("SEED-IV loaded: %d samples", len(y_sv))
 
     if not all_X:
         log.error("No data loaded — check data directories.")
