@@ -19,6 +19,8 @@ import {
   Wand2,
   FlaskConical,
   Camera,
+  Sunset,
+  BrainCircuit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -65,8 +67,11 @@ const sections: NavSection[] = [
   {
     title: "Research",
     items: [
-      { path: "/research", label: "Research Study", icon: FlaskConical },
-      { path: "/food-log", label: "Food Log", icon: Camera },
+      { path: "/research",          label: "Study Hub",     icon: FlaskConical },
+      { path: "/research/morning",  label: "Morning",       icon: Moon },
+      { path: "/research/daytime",  label: "Daytime",       icon: BrainCircuit },
+      { path: "/research/evening",  label: "Evening",       icon: Sunset },
+      { path: "/food-log",          label: "Food Log",      icon: Camera },
     ],
   },
   {
