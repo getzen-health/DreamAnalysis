@@ -1,3 +1,4 @@
+import { getParticipantId } from "@/lib/participant";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
-const USER_ID = "default";
+const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
 import { ingestHealthData } from "@/lib/ml-api";
 

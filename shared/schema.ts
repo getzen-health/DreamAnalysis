@@ -176,6 +176,8 @@ export const studyParticipants = pgTable("study_participants", {
   enrolledAt:            timestamp("enrolled_at").defaultNow(),
   consentVersion:        text("consent_version").notNull(),        // "2.0"
   consentSignedAt:       timestamp("consent_signed_at").notNull(),
+  consentFullName:       text("consent_full_name"),                // typed full name = digital signature
+  consentInitials:       jsonb("consent_initials"),                // { [sectionId]: "SL" } per-section initials
   overnightEegConsent:   boolean("overnight_eeg_consent").default(false),
   status:                text("status").default("active"),         // "active" | "completed" | "withdrawn"
   targetDays:            integer("target_days").default(30),

@@ -529,7 +529,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/study/enroll", async (req, res) => {
     try {
       const { userId, studyId, consentVersion, overnightEegConsent,
-              preferredMorningTime, preferredDaytimeTime, preferredEveningTime } = req.body;
+              preferredMorningTime, preferredDaytimeTime, preferredEveningTime,
+              consentFullName, consentInitials } = req.body;
 
       if (!userId || !studyId || !consentVersion) {
         return res.status(400).json({ message: "userId, studyId, and consentVersion are required" });
@@ -558,6 +559,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [participant] = await db.insert(studyParticipants).values({
         userId, studyId, studyCode, consentVersion,
         consentSignedAt: new Date(),
+        consentFullName: consentFullName ?? null,
+        consentInitials: consentInitials ?? null,
         overnightEegConsent: overnightEegConsent ?? false,
         preferredMorningTime, preferredDaytimeTime, preferredEveningTime,
       }).returning();

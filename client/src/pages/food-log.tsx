@@ -1,3 +1,4 @@
+import { getParticipantId } from "@/lib/participant";
 import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +24,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const USER_ID = "default";
+const USER_ID = getParticipantId();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

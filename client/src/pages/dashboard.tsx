@@ -1,3 +1,4 @@
+import { getParticipantId } from "@/lib/participant";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -200,7 +201,7 @@ const QUICK_ACTIONS = [
   { href: "/biofeedback", icon: Wind, label: "Breathe", color: "hsl(38, 85%, 58%)" },
 ];
 
-const USER_ID = "default";
+const USER_ID = getParticipantId();
 
 /* Metric card config */
 const HEALTH_METRICS = [

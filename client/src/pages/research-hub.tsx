@@ -1,3 +1,4 @@
+import { getParticipantId } from "@/lib/participant";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +18,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-const USER_ID = "default";
+const USER_ID = getParticipantId();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

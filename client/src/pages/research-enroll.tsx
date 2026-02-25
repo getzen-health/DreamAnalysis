@@ -33,8 +33,9 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getParticipantId, saveStudyCode } from "@/lib/participant";
 
-const USER_ID = "default";
+const USER_ID = getParticipantId();
 const CONSENT_VERSION = "2.0";
 
 // ─── Consent sections ────────────────────────────────────────────────────────
@@ -154,6 +155,7 @@ export default function ResearchEnroll() {
     Record<string, { initial: string; read: boolean }>
   >(Object.fromEntries(CONSENT_SECTIONS.map((s) => [s.id, { initial: "", read: false }])));
   const [hasScrolledConsent, setHasScrolledConsent] = useState(false);
+  const [fullName, setFullName] = useState("");
   const consentRef = useRef<HTMLDivElement>(null);
 
   // Step 4 — overnight EEG
@@ -182,7 +184,7 @@ export default function ResearchEnroll() {
   const allSectionsComplete = CONSENT_SECTIONS.every(
     (s) => sectionStates[s.id].initial.trim().length > 0 && sectionStates[s.id].read
   );
-  const consentCanContinue = hasScrolledConsent && allSectionsComplete;
+  const consentCanContinue = hasScrolledConsent && allSectionsComplete && fullName.trim().length >= 2;
 
   // ── Navigation guards ────────────────────────────────────────────────────
   const canAdvance = () => {
@@ -207,9 +209,14 @@ export default function ResearchEnroll() {
         preferredMorningTime: morningTime,
         preferredDaytimeTime: daytimeTime,
         preferredEveningTime: eveningTime,
+        consentFullName: fullName.trim(),
+        consentInitials: Object.fromEntries(
+          Object.entries(sectionStates).map(([id, { initial }]) => [id, initial])
+        ),
       });
       const data = await res.json();
       setStudyCode(data.studyCode);
+      saveStudyCode(data.studyCode); // persist to localStorage — ties all future data to this participant
       setStep(5);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Enrollment failed";
@@ -439,6 +446,26 @@ export default function ResearchEnroll() {
         <p className="text-xs text-amber-400 text-center">
           Please initial and check all sections above
         </p>
+      )}
+
+      {/* Full-name signature — required, acts as digital signature */}
+      {hasScrolledConsent && allSectionsComplete && (
+        <div className="space-y-2 pt-1">
+          <label className="text-sm font-medium block">
+            Full name <span className="text-muted-foreground text-xs">(digital signature)</span>
+          </label>
+          <input
+            type="text"
+            placeholder="Type your full name to sign"
+            value={fullName}
+            onChange={e => setFullName(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground">
+            By typing your name you confirm you have read, understood, and agree to all sections above.
+            This signature is stored with a timestamp as your consent record.
+          </p>
+        </div>
       )}
     </div>
   );

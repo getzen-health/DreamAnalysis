@@ -1,3 +1,4 @@
+import { getParticipantId } from "@/lib/participant";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -20,7 +21,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const USER_ID = "default";
+const USER_ID = getParticipantId();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

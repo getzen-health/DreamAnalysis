@@ -1,3 +1,4 @@
+import { getParticipantId } from "@/lib/participant";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -8,7 +9,7 @@ import { Moon, CheckCircle2, Loader2, Activity } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const USER_ID = "default";
+const USER_ID = getParticipantId();
 
 const VALENCE_LABELS: Record<number, string> = { 1:"😞", 3:"😟", 5:"😐", 7:"🙂", 9:"😊" };
 const STRESS_LABELS:  Record<number, string> = { 1:"😌", 3:"🙂", 5:"😐", 7:"😰", 9:"😱" };
