@@ -1,7 +1,7 @@
 import React from "react";
 
 // ─── Neural Dream Workshop — Comprehensive Research Dashboard ──────────────
-// Covers all 18 ML models, 8 EEG datasets, food-emotion module, publishing
+// Covers all 21 ML models, 11 EEG datasets, food-emotion module, publishing
 // roadmap, research differentiation, and architecture overview.
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -12,10 +12,10 @@ const models = [
     id: 1,
     name: "Emotion Classifier",
     file: "emotion_classifier.py",
-    algo: "Mega LGBM (global PCA 85→80, 9 datasets: DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub) + Feature Heuristics",
-    liveAccuracy: "74.21% CV",
-    benchmarkAccuracy: "74.21% CV (9 datasets, 3-class, cross-subject, 163 534 samples)",
-    crossSubject: "74.21% CV (9 datasets, 3-class, global PCA 85→80)",
+    algo: "Mega LGBM (global PCA 85→80, 11 datasets: DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub+EmoKey+EAV) + Feature Heuristics",
+    liveAccuracy: "71.52% CV",
+    benchmarkAccuracy: "71.52% CV (11 datasets, 3-class, cross-subject, 187 751 samples)",
+    crossSubject: "71.52% CV (11 datasets, 3-class, global PCA 85→80)",
     classes: 6,
     classLabels: ["happy", "sad", "angry", "fear", "relaxed", "focused"],
     primarySignals: ["FAA (AF7/AF8 asymmetry)", "Beta/Alpha ratio", "High-Beta 20–30 Hz", "Theta/Beta ratio"],
@@ -326,6 +326,70 @@ const models = [
     category: "Neurofeedback",
     color: "cyan",
   },
+  {
+    id: 19,
+    name: "Audio Emotion LGBM",
+    file: "models/saved/audio_emotion_lgbm.pkl",
+    algo: "LightGBM (PCA 92→60) on 92-dim MFCC + spectral features from EAV voice recordings",
+    liveAccuracy: "82.61% CV",
+    benchmarkAccuracy: "82.61% CV ± 1.27% (EAV-Audio, 3-class, 4 072 samples, 41 subjects)",
+    crossSubject: "82.61% CV (cross-subject, EAV dataset)",
+    classes: 3,
+    classLabels: ["positive", "neutral", "negative"],
+    primarySignals: [
+      "40 MFCCs (mean + std) — 80 features",
+      "Spectral centroid, bandwidth, rolloff",
+      "Zero-crossing rate, RMS energy, spectral flatness",
+    ],
+    novelty:
+      "Trained on EAV conversational speech (41 subjects, speaking task only). 92-dim MFCC+spectral feature pipeline. Part of the multimodal late-fusion system — fused with EEG and video at inference time. One of three modality-specific models in the multimodal emotion pipeline.",
+    status: "active",
+    category: "Emotion",
+    color: "orange",
+  },
+  {
+    id: 20,
+    name: "Video Facial Emotion LGBM",
+    file: "models/saved/video_emotion_lgbm.pkl",
+    algo: "LightGBM (PCA 72→50) on 72-dim spatial facial-grid features (Haar cascade + Sobel gradient)",
+    liveAccuracy: "76.45% CV",
+    benchmarkAccuracy: "76.45% CV ± 1.07% (EAV-Video, 3-class, 8 200 samples, 41 subjects × 200 videos)",
+    crossSubject: "76.45% CV (cross-subject, EAV dataset, 100% face detection rate)",
+    classes: 3,
+    classLabels: ["positive", "neutral", "negative"],
+    primarySignals: [
+      "48×48 face crop — Haar cascade frontal face detector",
+      "6×6 grid mean grayscale intensity (36-dim)",
+      "6×6 grid mean Sobel gradient magnitude (36-dim)",
+    ],
+    novelty:
+      "No deep learning required — OpenCV Haar cascade + spatial grid features achieve 76% cross-subject accuracy on 8 200 EAV videos. Runs in real time from webcam frames. Part of the multimodal fusion pipeline; handles no-face gracefully (weight falls to zero). 100% face detection rate across all 41 EAV subjects.",
+    status: "active",
+    category: "Emotion",
+    color: "pink",
+  },
+  {
+    id: 21,
+    name: "Multimodal Mega LGBM",
+    file: "models/saved/multimodal_mega_lgbm.pkl",
+    algo: "LightGBM on 251-dim combined feature vector: EEG(85) + Audio(92) + Video(72) + modality flags(2). NaN for absent modalities.",
+    liveAccuracy: "75.93% CV",
+    benchmarkAccuracy: "75.93% CV ± 0.14% (11 datasets + EAV multimodal, 3-class, 303 177 SMOTE-balanced samples)",
+    crossSubject: "75.93% CV (cross-subject, feature-level fusion, NaN-aware LGBM)",
+    classes: 3,
+    classLabels: ["positive", "neutral", "negative"],
+    primarySignals: [
+      "EEG: 5-band × 4-channel × 4-stats + 5 DASM = 85 features",
+      "Audio: 40 MFCCs × 2 + 6 spectral × 2 = 92 features (NaN if absent)",
+      "Video: 6×6 facial grid intensity + gradient = 72 features (NaN if absent)",
+      "Modality flags: has_audio, has_video (2 features)",
+    ],
+    novelty:
+      "Single unified LightGBM trained on EEG from 11 datasets (187 751 samples) plus EAV audio+video (294 audio + 581 video trials). LightGBM's native NaN handling learns the best split direction for missing modalities — no zero-padding needed. Replaces the hand-tuned weighted average with a data-driven feature-level fusion. At inference: 70% combined model + 30% EEG-only ensemble. Upgraded from late fusion (3 separate models) to feature-level fusion in a single model pass.",
+    status: "active",
+    category: "Emotion",
+    color: "violet",
+  },
 ];
 
 // ── 2. Datasets ───────────────────────────────────────────────────────────
@@ -498,7 +562,7 @@ const differentiation = [
     published:
       "Most papers focus on 1–2 models: typically emotion classification ± sleep staging. Multi-model BCI systems are academic prototypes, rarely integrated.",
     thisWork:
-      "18 models running in parallel: emotion, sleep (5 stages), dream detection, flow, creativity, memory, drowsiness, cognitive load, attention, stress, lucid dream, meditation, anomaly, artifact, denoising, online learner, food-emotion, and a PPO RL agent for adaptive neurofeedback difficulty. All connected through a single FastAPI (82 endpoints, 19-page React frontend).",
+      "21 models running in parallel: emotion (EEG mega), audio emotion, video facial emotion, multimodal fusion (EEG+audio+video 251-dim), sleep (5 stages), dream detection, flow, creativity, memory, drowsiness, cognitive load, attention, stress, lucid dream, meditation, anomaly, artifact, denoising, online learner, food-emotion, and a PPO RL agent for adaptive neurofeedback difficulty. All connected through a single FastAPI (85 endpoints, 19-page React frontend).",
     advantage: true,
   },
   {
@@ -750,7 +814,7 @@ export default function FormalBenchmarksDashboard() {
             Full System Overview
           </h1>
           <p className="mt-5 max-w-3xl text-lg text-white/65">
-            18 ML models, 8 EEG datasets, 82 API endpoints, and one novel food-emotion
+            21 ML models, 11 EEG datasets, 85 API endpoints, and one novel food-emotion
             biomarker system — all running on a $250 Muse 2 headband.
           </p>
 
@@ -779,7 +843,7 @@ export default function FormalBenchmarksDashboard() {
         <section>
           <SectionHeader
             tag="Section 1 · Models"
-            title="All 18 ML Models"
+            title="All 21 ML Models"
             sub="Every model, its algorithm, live accuracy, the signals it reads, and how it differs from published work."
           />
 

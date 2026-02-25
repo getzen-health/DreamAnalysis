@@ -814,6 +814,21 @@ export async function getFoodRecommendations(
   );
 }
 
+// ── Multimodal Fusion ────────────────────────────────────────────────────────
+
+export interface MultimodalStatus {
+  eeg_model_loaded: boolean;
+  audio_model_loaded: boolean;
+  video_model_loaded: boolean;
+  n_modalities: number;
+  fusion_weights: { eeg: number; audio: number; video: number };
+  ready: boolean;
+}
+
+export async function getMultimodalStatus(): Promise<MultimodalStatus> {
+  return mlFetch<MultimodalStatus>("/multimodal/status");
+}
+
 export type {
   EEGAnalysisResult,
   SimulationResult,

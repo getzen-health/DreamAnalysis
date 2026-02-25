@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock, AlertTriangle, SlidersHorizontal, X } from "lucide-react";
+import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock, AlertTriangle, SlidersHorizontal, X, Layers } from "lucide-react";
 import { EmotionWheel } from "@/components/emotion-wheel";
 import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { useDevice } from "@/hooks/use-device";
-import { listSessions, getBaselineStatus, type SessionSummary } from "@/lib/ml-api";
+import { listSessions, getBaselineStatus, getMultimodalStatus, type SessionSummary, type MultimodalStatus } from "@/lib/ml-api";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -216,6 +216,14 @@ export default function EmotionLab() {
     retry: false,
   });
   const showCalBanner = !calBannerDismissed && calStatus != null && !calStatus.ready;
+
+  // Multimodal model status
+  const { data: mmStatus } = useQuery<MultimodalStatus>({
+    queryKey: ["multimodal-status"],
+    queryFn: getMultimodalStatus,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
 
   // Emotion window history — last 5 thirty-second results
   const [emotionWindowHistory, setEmotionWindowHistory] = useState<
@@ -548,6 +556,59 @@ export default function EmotionLab() {
           )}
         </Card>
       </div>
+
+      {/* Multimodal Fusion Status */}
+      <Card className="glass-card p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Layers className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium">Multimodal Fusion</h3>
+          <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+            {mmStatus ? `${mmStatus.n_modalities}/3 modalities` : "loading…"}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { key: "eeg_model_loaded",   label: "EEG",   acc: "71.52%", desc: "11 datasets · 187k samples",  weight: mmStatus?.fusion_weights?.eeg,   icon: "🧠" },
+            { key: "audio_model_loaded", label: "Audio", acc: "82.61%", desc: "EAV · 4,072 voice samples",   weight: mmStatus?.fusion_weights?.audio, icon: "🎤" },
+            { key: "video_model_loaded", label: "Video", acc: "76.45%", desc: "EAV · 8,200 face videos",     weight: mmStatus?.fusion_weights?.video, icon: "📷" },
+          ].map(({ key, label, acc, desc, weight, icon }) => {
+            const loaded = mmStatus?.[key as keyof MultimodalStatus] as boolean | undefined;
+            return (
+              <div key={key} className={`rounded-lg p-3 border text-center transition-colors ${
+                loaded === true  ? "border-primary/30 bg-primary/5" :
+                loaded === false ? "border-border/20 bg-muted/10 opacity-50" :
+                                   "border-border/20 bg-muted/10"
+              }`}>
+                <div className="text-xl mb-1">{icon}</div>
+                <div className="text-xs font-medium mb-0.5">{label}</div>
+                <div className="text-[10px] font-mono text-primary mb-1">{acc} CV</div>
+                <div className="text-[9px] text-muted-foreground leading-tight mb-1.5">{desc}</div>
+                {weight !== undefined && weight > 0 && (
+                  <div className="text-[9px] font-mono text-secondary">
+                    weight {(weight * 100).toFixed(0)}%
+                  </div>
+                )}
+                <div className={`mt-1.5 text-[9px] font-medium ${
+                  loaded === true ? "text-success" : loaded === false ? "text-muted-foreground" : "text-muted-foreground"
+                }`}>
+                  {loaded === true ? "● active" : loaded === false ? "○ not loaded" : "○ —"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {mmStatus && (
+          <div className="mt-3 pt-3 border-t border-border/20 flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>
+              Combined model: <span className="text-primary font-mono">75.93% CV</span>
+              <span className="ml-2 text-foreground/40">· 251-dim · 303k samples</span>
+            </span>
+            <span className={mmStatus.ready ? "text-success" : "text-muted-foreground"}>
+              {mmStatus.ready ? "● fusion ready" : "○ awaiting models"}
+            </span>
+          </div>
+        )}
+      </Card>
 
       {/* Period Selector — shared for Timeline + V-A */}
       <div className="flex items-center justify-between">
