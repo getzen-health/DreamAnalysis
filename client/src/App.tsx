@@ -26,6 +26,7 @@ import CalibrationPage from "@/pages/calibration";
 import FormalBenchmarksDashboard from "@/pages/formal-benchmarks-dashboard";
 import FoodEmotion from "@/pages/food-emotion";
 import DeviceSetup from "@/pages/device-setup";
+import ResearchEnroll from "@/pages/research-enroll";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -84,6 +85,9 @@ function AppRoutes() {
       </Route>
       <Route path="/device-setup">
         <AppLayout><DeviceSetup /></AppLayout>
+      </Route>
+      <Route path="/research/enroll">
+        <AppLayout><ResearchEnroll /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

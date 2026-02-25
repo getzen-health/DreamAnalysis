@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   Utensils,
   Wand2,
+  FlaskConical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -58,6 +59,12 @@ const sections: NavSection[] = [
       { path: "/health-analytics", label: "Health Analytics", icon: BarChart3 },
       { path: "/insights", label: "Insights", icon: Lightbulb },
       { path: "/food", label: "Food & Cravings", icon: Utensils },
+    ],
+  },
+  {
+    title: "Research",
+    items: [
+      { path: "/research", label: "Research Study", icon: FlaskConical },
     ],
   },
   {
