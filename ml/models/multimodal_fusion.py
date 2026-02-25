@@ -118,6 +118,16 @@ def _predict_3class(payload: dict, feat: np.ndarray) -> np.ndarray:
     return clf.predict_proba(x)[0].astype(np.float32)   # (3,)
 
 
+def _predict_combined(payload: dict, feat: np.ndarray) -> np.ndarray:
+    """Run the combined multimodal LGBM (no scaler/PCA) on a 251-dim vector.
+
+    NaN values in feat are handled natively by LightGBM.
+    Returns (3,) probabilities.
+    """
+    clf = payload["model"]
+    return clf.predict_proba(feat.reshape(1, -1))[0].astype(np.float32)
+
+
 # ── Main fusion class ─────────────────────────────────────────────────────────
 
 class MultimodalEmotionFusion:
@@ -151,20 +161,100 @@ class MultimodalEmotionFusion:
         "negative_low_arousal":  "sad",
     }
 
-    def __init__(self) -> None:
-        self._eeg_payload   = _load_pkl(_MODEL_DIR / "emotion_mega_lgbm.pkl")
-        self._audio_payload = _load_pkl(_MODEL_DIR / "audio_emotion_lgbm.pkl")
-        self._video_payload = _load_pkl(_MODEL_DIR / "video_emotion_lgbm.pkl")
+    # Feature dimensions for the combined model
+    N_EEG   = 85
+    N_AUDIO = 92
+    N_VIDEO = 72
+    N_TOTAL = 251   # 85+92+72+2
 
-        ok_eeg   = self._eeg_payload   is not None
-        ok_audio = self._audio_payload is not None
-        ok_video = self._video_payload is not None
+    def __init__(self) -> None:
+        self._eeg_payload      = _load_pkl(_MODEL_DIR / "emotion_mega_lgbm.pkl")
+        self._audio_payload    = _load_pkl(_MODEL_DIR / "audio_emotion_lgbm.pkl")
+        self._video_payload    = _load_pkl(_MODEL_DIR / "video_emotion_lgbm.pkl")
+        self._combined_payload = _load_pkl(_MODEL_DIR / "multimodal_mega_lgbm.pkl")
+
+        ok_eeg      = self._eeg_payload      is not None
+        ok_audio    = self._audio_payload    is not None
+        ok_video    = self._video_payload    is not None
+        ok_combined = self._combined_payload is not None
         log.info(
-            "MultimodalFusion loaded — EEG:%s  Audio:%s  Video:%s",
+            "MultimodalFusion loaded — EEG:%s  Audio:%s  Video:%s  Combined:%s",
             "✓" if ok_eeg else "✗",
             "✓" if ok_audio else "✗",
             "✓" if ok_video else "✗",
+            "✓" if ok_combined else "✗ (train multimodal_mega_lgbm to enable)",
         )
+
+    # ── Raw EEG feature extraction (for combined model) ───────────────────────
+
+    def _extract_eeg_feat(self, eeg: np.ndarray, fs: float) -> Optional[np.ndarray]:
+        """Return 85-dim raw EEG feature vector (no scaler/PCA)."""
+        try:
+            import sys as _sys
+            _sys.path.insert(0, str(_ML_ROOT))
+            from training.train_mega_lgbm_unified import (
+                extract_features as _ext,
+                _sliding_windows as _sw,
+            )
+            if eeg.ndim == 2 and eeg.shape[0] == 4:
+                rows = _sw(eeg, fs, win_s=4.0, hop_s=2.0)
+                if len(rows) > 0:
+                    return rows.mean(axis=0).astype(np.float32)
+            return _ext(eeg if eeg.ndim == 2 else eeg.reshape(1, -1), fs)
+        except Exception as exc:
+            log.debug("EEG feature extraction failed: %s", exc)
+            return None
+
+    # ── Combined multimodal predict ───────────────────────────────────────────
+
+    def _predict_combined_model(
+        self,
+        eeg: np.ndarray,
+        fs: float,
+        audio_samples: Optional[np.ndarray],
+        sr: int,
+        frame_bgr: Optional[np.ndarray],
+    ) -> Optional[np.ndarray]:
+        """Use the trained 251-dim combined LGBM when available.
+
+        Returns (3,) probabilities or None if the model is not loaded.
+        """
+        if self._combined_payload is None:
+            return None
+        try:
+            eeg_feat   = self._extract_eeg_feat(eeg, fs)
+            if eeg_feat is None:
+                return None
+
+            audio_feat = (
+                _extract_audio_features(audio_samples, sr)
+                if audio_samples is not None else None
+            )
+            video_feat = (
+                _extract_video_features(frame_bgr)
+                if frame_bgr is not None else None
+            )
+
+            # Build 251-dim vector with NaN for absent modalities
+            row = np.full(self.N_TOTAL, np.nan, dtype=np.float32)
+            row[:self.N_EEG] = eeg_feat
+
+            if audio_feat is not None:
+                row[self.N_EEG: self.N_EEG + self.N_AUDIO]       = audio_feat
+                row[self.N_EEG + self.N_AUDIO + self.N_VIDEO]     = 1.0
+            else:
+                row[self.N_EEG + self.N_AUDIO + self.N_VIDEO]     = 0.0
+
+            if video_feat is not None:
+                row[self.N_EEG + self.N_AUDIO: self.N_EEG + self.N_AUDIO + self.N_VIDEO] = video_feat
+                row[self.N_EEG + self.N_AUDIO + self.N_VIDEO + 1] = 1.0
+            else:
+                row[self.N_EEG + self.N_AUDIO + self.N_VIDEO + 1] = 0.0
+
+            return _predict_combined(self._combined_payload, row)
+        except Exception as exc:
+            log.debug("Combined model predict failed: %s", exc)
+            return None
 
     # ── Internal EEG predict ──────────────────────────────────────────────────
 
@@ -301,22 +391,33 @@ class MultimodalEmotionFusion:
         aud_probs         = self._predict_audio(audio_samples, sr_audio)
         vid_probs         = self._predict_video(video_frame)
 
-        # ── Weighted late fusion ──────────────────────────────────────────────
-        weights = {"eeg": self.WEIGHTS["eeg"]}
-        if aud_probs is not None:
-            weights["audio"] = self.WEIGHTS["audio"]
-        if vid_probs is not None:
-            weights["video"] = self.WEIGHTS["video"]
+        # ── Combined feature-level model (preferred when trained) ─────────────
+        combined_probs = self._predict_combined_model(
+            eeg_array, fs_eeg, audio_samples, sr_audio, video_frame
+        )
 
-        # Renormalize weights to sum to 1
-        total_w = sum(weights.values())
-        weights = {k: v / total_w for k, v in weights.items()}
+        if combined_probs is not None:
+            # Feature-level fusion: blend 70% combined model + 30% EEG-only
+            # (gives the combined model primacy while keeping EEG stability)
+            fused   = 0.70 * combined_probs + 0.30 * eeg_probs
+            weights = {"combined": 0.70, "eeg_fallback": 0.30}
+        else:
+            # Fallback: weighted late fusion of per-modality models
+            weights = {"eeg": self.WEIGHTS["eeg"]}
+            if aud_probs is not None:
+                weights["audio"] = self.WEIGHTS["audio"]
+            if vid_probs is not None:
+                weights["video"] = self.WEIGHTS["video"]
 
-        fused = eeg_probs * weights["eeg"]
-        if aud_probs is not None:
-            fused += aud_probs * weights.get("audio", 0.0)
-        if vid_probs is not None:
-            fused += vid_probs * weights.get("video", 0.0)
+            # Renormalize weights to sum to 1
+            total_w = sum(weights.values())
+            weights = {k: v / total_w for k, v in weights.items()}
+
+            fused = eeg_probs * weights["eeg"]
+            if aud_probs is not None:
+                fused += aud_probs * weights.get("audio", 0.0)
+            if vid_probs is not None:
+                fused += vid_probs * weights.get("video", 0.0)
 
         # ── 3-class result ────────────────────────────────────────────────────
         probs3 = {lbl: round(float(fused[i]), 4) for i, lbl in enumerate(self.LABELS)}
@@ -347,5 +448,8 @@ class MultimodalEmotionFusion:
             # meta
             "fusion_weights":   {k: round(v, 3) for k, v in weights.items()},
             "modalities_used":  list(weights.keys()),
-            "model_type":       "multimodal_fusion",
+            "model_type": (
+                "multimodal_combined_lgbm" if combined_probs is not None
+                else "multimodal_late_fusion"
+            ),
         }

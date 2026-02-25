@@ -1,0 +1,19 @@
+{
+  "dataset": "DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub+EmoKey+EAV-multimodal",
+  "n_samples": 187751,
+  "classifier": "LightGBM (251-dim: EEG+Audio+Video, NaN-missing)",
+  "accuracy": 0.7593,
+  "cv_accuracy_mean": 0.7593,
+  "cv_accuracy_std": 0.0014,
+  "train_accuracy": 0.8648,
+  "n_features": 251,
+  "n_eeg_features": 85,
+  "n_audio_features": 92,
+  "n_video_features": 72,
+  "n_classes": 3,
+  "classes": [
+    "positive",
+    "neutral",
+    "negative"
+  ]
+}
