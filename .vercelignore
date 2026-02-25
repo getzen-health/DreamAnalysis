@@ -13,6 +13,10 @@ attached_assets
 # ML backend — deployed separately to Render
 ml/
 
+# Large data directories — not needed for frontend build
+data/
+dist/
+
 # Individual API function files — replaced by api/[...path].ts catch-all
 # (Vercel Hobby plan limit: 12 serverless functions; we had 21)
 api/auth/
