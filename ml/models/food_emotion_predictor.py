@@ -22,7 +22,6 @@ Muse 2 channel order (BrainFlow board 38):
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np

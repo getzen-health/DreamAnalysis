@@ -259,8 +259,10 @@ class EmotionClassifier:
         # 5 DASM features: mean(AF8_band) - mean(AF7_band) per band
         # AF7=ch1 (left frontal), AF8=ch2 (right frontal)
         for band_idx in range(5):
-            af8 = arr[:, band_idx, 2]; af8 = af8[np.isfinite(af8)]
-            af7 = arr[:, band_idx, 1]; af7 = af7[np.isfinite(af7)]
+            af8 = arr[:, band_idx, 2]
+            af8 = af8[np.isfinite(af8)]
+            af7 = arr[:, band_idx, 1]
+            af7 = af7[np.isfinite(af7)]
             if len(af8) > 0 and len(af7) > 0:
                 feat.append(float(np.mean(af8)) - float(np.mean(af7)))
             else:

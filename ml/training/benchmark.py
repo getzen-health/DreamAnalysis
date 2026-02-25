@@ -220,7 +220,7 @@ def benchmark_on_real_dataset(model_path, model_name, dataset_name, class_names,
             X, y = load_faced(epoch_sec=epoch_sec)
             dataset_label = "faced"
         except FileNotFoundError:
-            print(f"  Skipping FACED — data not found in data/faced/. "
+            print("  Skipping FACED — data not found in data/faced/. "
                   "Download from https://synapse.org/faced")
             return None
 

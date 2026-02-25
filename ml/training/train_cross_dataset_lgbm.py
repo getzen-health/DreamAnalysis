@@ -47,7 +47,6 @@ try:
 except ImportError:
     HAS_LGBM = False
     print("[WARN] LightGBM not found — falling back to GradientBoosting")
-    from sklearn.ensemble import GradientBoostingClassifier
 
 try:
     import joblib
@@ -163,8 +162,10 @@ def extract_features(eeg4ch: np.ndarray, fs: float) -> np.ndarray:
     # 5 DASM features: mean(AF8_band) - mean(AF7_band) per band
     # AF7=ch1 (left frontal), AF8=ch2 (right frontal)
     for band_idx in range(5):
-        af8 = arr[:, band_idx, 2]; af8 = af8[np.isfinite(af8)]
-        af7 = arr[:, band_idx, 1]; af7 = af7[np.isfinite(af7)]
+        af8 = arr[:, band_idx, 2]
+        af8 = af8[np.isfinite(af8)]
+        af7 = arr[:, band_idx, 1]
+        af7 = af7[np.isfinite(af7)]
         if len(af8) > 0 and len(af7) > 0:
             feat.append(float(np.mean(af8)) - float(np.mean(af7)))
         else:
@@ -667,22 +668,30 @@ def main():
     # 1. DEAP
     X_d, y_d = load_deap()
     if len(X_d) > 0:
-        all_X.append(X_d); all_y.append(y_d); dataset_names.append("DEAP")
+        all_X.append(X_d)
+        all_y.append(y_d)
+        dataset_names.append("DEAP")
 
     # 2. EmoKey (real Muse hardware)
     X_e, y_e = load_emokey()
     if len(X_e) > 0:
-        all_X.append(X_e); all_y.append(y_e); dataset_names.append("EmoKey")
+        all_X.append(X_e)
+        all_y.append(y_e)
+        dataset_names.append("EmoKey")
 
     # 3. DREAMER (optional — needs data/DREAMER.mat)
     X_dr, y_dr = load_dreamer()
     if len(X_dr) > 0:
-        all_X.append(X_dr); all_y.append(y_dr); dataset_names.append("DREAMER")
+        all_X.append(X_dr)
+        all_y.append(y_dr)
+        dataset_names.append("DREAMER")
 
     # 4. GAMEEMO (optional)
     X_g, y_g = load_gameemo()
     if len(X_g) > 0:
-        all_X.append(X_g); all_y.append(y_g); dataset_names.append("GAMEEMO")
+        all_X.append(X_g)
+        all_y.append(y_g)
+        dataset_names.append("GAMEEMO")
 
     if not all_X:
         log("\n[ERROR] No data loaded — check data/ directory")

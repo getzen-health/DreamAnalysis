@@ -12,7 +12,7 @@ import argparse
 import json
 import numpy as np
 from pathlib import Path
-from sklearn.model_selection import train_test_split, LeaveOneGroupOut, StratifiedKFold
+from sklearn.model_selection import train_test_split, LeaveOneGroupOut
 from sklearn.metrics import classification_report, accuracy_score, f1_score, confusion_matrix, cohen_kappa_score
 from scipy import stats as _scipy_stats
 from sklearn.ensemble import GradientBoostingClassifier
