@@ -1024,16 +1024,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch { /* best-effort — non-blocking */ }
 
-    // Forward to ML backend online learner (best-effort)
-    const mlBase = process.env.ML_BACKEND_URL ?? "http://localhost:8000";
+    // Count this user's corrections; trigger fine-tuning every 5th
     try {
-      await fetch(`${mlBase}/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, detected: detectedEmotion, corrected: correctedEmotion }),
-        signal: AbortSignal.timeout(3000),
-      });
-    } catch { /* ML backend offline — that's fine */ }
+      const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(emotionReadings)
+        .where(
+          and(
+            eq(emotionReadings.userId, userId),
+            sql`(eeg_snapshot->>'userCorrected')::text = 'true'`
+          )
+        );
+      if (count > 0 && count % 5 === 0) {
+        const mlBase = process.env.ML_BACKEND_URL ?? "http://localhost:8000";
+        fetch(`${mlBase}/feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId, detected: detectedEmotion, corrected: correctedEmotion }),
+          signal: AbortSignal.timeout(3000),
+        }).catch(() => {});
+      }
+    } catch { /* best-effort — non-blocking */ }
 
     res.json({ ok: true });
   });

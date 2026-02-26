@@ -123,13 +123,13 @@
 ### Phase 3 — Daily pull ✅ COMPLETE
 - [x] Daily Brain Report screen (`/brain-report` — morning summary, sleep/dreams/forecast/recommended action)
 - [x] Sleep session mode (`/sleep-session` — idle/recording/summary state machine, live stage tracking, dream detection, sleep score)
-- [ ] Pattern engine: correlate time-of-day, activities, mental states
-- [x] Morning push notification — SW + subscribe UI done; server VAPID trigger pending
+- [x] Pattern engine — correlates biofeedback session days vs non-session days over 14-day window; renders insight card on `/brain-report` when delta ≥ 8%
+- [x] Morning push notification — SW + subscribe UI + daily 8am cron trigger (VAPID env vars required)
 
 ### Phase 4 — Growth 🔄 IN PROGRESS
 - [x] Weekly brain summary card — 7-day avg stress/focus/sleep with copy button (on `/brain-report`)
-- [ ] User-correctable labels → feeds personalization
-- [ ] Per-user model fine-tuning after 5 sessions
+- [x] User-correctable emotion labels — "Was this right?" chip panel in `/emotion-lab`; stores correction + POSTs to ML backend `/feedback`
+- [x] Per-user model fine-tuning trigger — after every 5 corrections for a user, POST batch to ML backend online learner (`PersonalModelAdapter.adapt()`)
 - [ ] Export data (CSV, Apple Health sync)
 
 ## Food-Emotion Research Roadmap

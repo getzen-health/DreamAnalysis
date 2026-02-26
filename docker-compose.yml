@@ -31,6 +31,10 @@ services:
       PORT: "5000"
       NODE_ENV: production
       VITE_ML_API_URL: http://ml:8000
+      ML_BACKEND_URL: http://ml:8000
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_EMAIL: ${VAPID_EMAIL:-mailto:admin@example.com}
       DD_AGENT_HOST: datadog-agent
       DD_SERVICE: neural-dream-workshop-api
       DD_ENV: ${DD_ENV:-production}
