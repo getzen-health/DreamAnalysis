@@ -21,6 +21,7 @@ import {
   Camera,
   Sunset,
   BrainCircuit,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -78,9 +79,10 @@ const sections: NavSection[] = [
   {
     title: "Tools",
     items: [
-      { path: "/calibration",  label: "Calibrate",     icon: SlidersHorizontal },
-      { path: "/ai-companion", label: "AI Companion",  icon: MessageSquare },
-      { path: "/sessions",     label: "Sessions",      icon: Clock },
+      { path: "/device-setup", label: "Connect Device", icon: Radio },
+      { path: "/calibration",  label: "Calibrate",      icon: SlidersHorizontal },
+      { path: "/ai-companion", label: "AI Companion",   icon: MessageSquare },
+      { path: "/sessions",     label: "Sessions",       icon: Clock },
     ],
   },
 ];

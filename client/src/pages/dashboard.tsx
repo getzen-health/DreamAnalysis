@@ -400,10 +400,15 @@ export default function Dashboard() {
     <main className="p-6 space-y-6 max-w-6xl">
       {/* 1. Connection Banner */}
       {!isStreaming && (
-        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
-          <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 from the sidebar to see live dashboard data.
-        </div>
+        <Link href="/device-setup">
+          <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center justify-between gap-3 cursor-pointer hover:bg-warning/10 transition-colors">
+            <div className="flex items-center gap-3">
+              <Radio className="h-4 w-4 shrink-0" />
+              Connect your Muse 2 to see live dashboard data.
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 opacity-60" />
+          </div>
+        </Link>
       )}
 
       {/* 2. Baseline calibration prompt (shown until calibrated) */}
