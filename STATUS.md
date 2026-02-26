@@ -146,8 +146,7 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 
 ## Future Plans
 
-- [x] ~~Add Vitest for frontend tests~~ — 128 tests across 13 pages (biofeedback, calibration, dashboard, emotion-lab, research-hub, daily-brain-report, ai-companion, sleep-session, onboarding, research-enroll, dream-journal, health-analytics, neurofeedback)
-- [ ] Expand test coverage to remaining 9 pages (session-history, settings, brain-monitor, brain-connectivity, inner-energy, food-emotion, insights, dream-patterns, formal-benchmarks-dashboard)
+- [x] ~~Add Vitest for frontend tests~~ — **227 tests across 22 pages / 23 files** — 100% page coverage (all pages tested)
 - [ ] Train all 17 models on real datasets with published benchmarks
 - [ ] Mobile-optimized layout / React Native companion app
 - [ ] Multi-user session support (currently single-user per server instance)
