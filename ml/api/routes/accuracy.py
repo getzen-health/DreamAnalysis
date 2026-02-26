@@ -11,7 +11,7 @@ from ._shared import (
     creativity_model, memory_model,
     drowsiness_model, cognitive_load_model, attention_model,
     stress_model, lucid_dream_model, meditation_model,
-    _state_engine, _confidence_cal, _calibration_runners,
+    _get_state_engine, _get_confidence_cal, _calibration_runners,
     SignalQualityChecker, UserCalibration, CalibrationRunner, CALIBRATION_STEPS,
     FeedbackCollector, PersonalizedPipeline,
     add_uncertainty_labels,
@@ -45,15 +45,15 @@ async def check_signal_quality(req: SignalQualityRequest):
 # ── Confidence & Reliability ────────────────────────────────────────────────
 
 @router.get("/confidence/reliability")
-async def get_model_reliability():
+async def get_model_reliability(user_id: str = "default"):
     """Get reliability assessment for all models."""
-    return _confidence_cal.get_all_reliability()
+    return _get_confidence_cal(user_id).get_all_reliability()
 
 
 @router.post("/confidence/calibrate")
-async def calibrate_confidence(model_name: str, raw_confidence: float):
+async def calibrate_confidence(model_name: str, raw_confidence: float, user_id: str = "default"):
     """Calibrate a single confidence score."""
-    return _confidence_cal.calibrate(model_name, raw_confidence)
+    return _get_confidence_cal(user_id).calibrate(model_name, raw_confidence)
 
 
 # ── Calibration Protocol ────────────────────────────────────────────────────
@@ -246,12 +246,14 @@ async def analyze_eeg_accurate(req: AccurateAnalysisRequest):
         "meditation": meditation_model.predict(channel_data, req.sample_rate),
     }
 
-    # Step 4: Confidence calibration
-    add_uncertainty_labels(analysis, _confidence_cal)
+    # Step 4: Confidence calibration (per-user)
+    user_confidence_cal = _get_confidence_cal(req.user_id)
+    add_uncertainty_labels(analysis, user_confidence_cal)
     conf_summary = analysis.pop("_confidence_summary", {})
 
-    # Step 5: State smoothing
-    smoothed = _state_engine.update({
+    # Step 5: State smoothing (per-user)
+    user_state_engine = _get_state_engine(req.user_id)
+    smoothed = user_state_engine.update({
         "sleep": analysis.get("sleep_staging", {}),
         "flow": analysis.get("flow_state", {}),
         "emotion": analysis.get("emotions", {}),
@@ -265,7 +267,7 @@ async def analyze_eeg_accurate(req: AccurateAnalysisRequest):
     pipeline.update_from_feedback()
     p_status = pipeline.get_personalization_status()
 
-    coherence = _state_engine.get_cross_state_coherence()
+    coherence = user_state_engine.get_cross_state_coherence()
 
     return _numpy_safe({
         "status": "ok",

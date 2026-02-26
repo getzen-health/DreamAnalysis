@@ -10,12 +10,13 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from processing.eeg_processor import extract_features, extract_band_powers, preprocess
 from storage.timescale_writer import TimescaleWriter
+from storage.parquet_writer import ParquetWriter
 
 logger = logging.getLogger(__name__)
 
 # Per-connection state storage (keyed by connection ID)
 _connection_state: dict[str, dict] = {}
-MAX_CONNECTIONS = 50
+MAX_CONNECTIONS = 200
 
 # Emotion classification window: 15 seconds at 256 Hz.
 # Reduced from 30s → 15s: first classification arrives 2× faster (15s vs 30s),
@@ -93,6 +94,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
     }
     user_id = "default"
     ts_writer = await TimescaleWriter.create(user_id)  # always-on TimescaleDB recording
+    parquet_writer = ParquetWriter(user_id=user_id)     # always-on Parquet recording
     run_models = True
     run_quality = True
     run_smoothing = True
@@ -163,11 +165,11 @@ async def eeg_stream_endpoint(websocket: WebSocket):
         except Exception as e:
             logger.warning("BrainFlow not available: %s", e)
 
-        # Get session recorder
+        # Get per-user session recorder
         session_recorder = None
         try:
-            from api.routes import _session_recorder
-            session_recorder = _session_recorder
+            from api.routes._shared import _get_session_recorder
+            session_recorder = _get_session_recorder(user_id)
         except Exception as e:
             logger.warning("Session recorder not available: %s", e)
 
@@ -187,8 +189,16 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         new_uid = cmd.get("user_id", "default")
                         if new_uid != user_id:
                             await ts_writer.close()
+                            parquet_writer.flush()
                             user_id = new_uid
                             ts_writer = await TimescaleWriter.create(user_id)
+                            parquet_writer = ParquetWriter(user_id=user_id)
+                            # Switch to the new user's session recorder
+                            try:
+                                from api.routes._shared import _get_session_recorder
+                                session_recorder = _get_session_recorder(user_id)
+                            except Exception:
+                                pass
                         user_id = new_uid
                     elif cmd.get("command") == "configure":
                         run_models = cmd.get("run_models", run_models)
@@ -400,8 +410,9 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         except Exception as e:
                             logger.warning("Spiritual energy analysis error: %s", e)
 
-                    # Always-on: push to TimescaleDB
+                    # Always-on: push to TimescaleDB + Parquet
                     ts_writer.push_frame(frame, frame.get("signals", []))
+                    parquet_writer.push_frame(frame.get("analysis", {}), frame.get("timestamp"))
 
                     # Pipe to session recorder
                     if session_recorder and session_recorder.is_recording:
@@ -428,4 +439,5 @@ async def eeg_stream_endpoint(websocket: WebSocket):
             pass
     finally:
         await ts_writer.close()
+        await parquet_writer.close()
         _connection_state.pop(conn_id, None)

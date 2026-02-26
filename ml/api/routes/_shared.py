@@ -136,16 +136,74 @@ food_emotion_model = FoodEmotionPredictor(model_path=_find_model("food_emotion_m
 # ─── Shared state ────────────────────────────────────────────────────────────
 _emotion_shift_detectors: Dict[str, EmotionShiftDetector] = {}
 _device_manager = None
-_nf_protocol: Optional[NeurofeedbackProtocol] = None
-_session_recorder = SessionRecorder()
-_anomaly_detector = AnomalyDetector()
 _personal_models: Dict[str, object] = {}
 
-# Accuracy pipeline singletons
+# Per-user neurofeedback protocol state (replaces global _nf_protocol singleton)
+_nf_protocols: Dict[str, NeurofeedbackProtocol] = {}
+
+# Per-user session recorders (replaces global _session_recorder singleton)
+_session_recorders: Dict[str, SessionRecorder] = {}
+
+# Per-user anomaly detectors (replaces global _anomaly_detector singleton)
+_anomaly_detectors: Dict[str, AnomalyDetector] = {}
+
+# Per-user accuracy pipeline (replaces global _state_engine / _confidence_cal singletons)
+_state_engines: Dict[str, BrainStateEngine] = {}
+_confidence_cals: Dict[str, ConfidenceCalibrator] = {}
+
+# Accuracy pipeline — shared signal quality checker (stateless, safe to share)
 _quality_checker = SignalQualityChecker(fs=256)
-_state_engine = BrainStateEngine()
-_confidence_cal = ConfidenceCalibrator()
 _calibration_runners: Dict[str, CalibrationRunner] = {}
+
+# ── Legacy aliases (kept for code that imports these directly) ────────────────
+# These always return/act on the "default" user bucket so old single-user
+# callers continue to work without modification.
+_session_recorder: SessionRecorder  # assigned lazily below via getter
+
+
+def _get_nf_protocol(user_id: str = "default") -> Optional[NeurofeedbackProtocol]:
+    """Return the active NeurofeedbackProtocol for *user_id*, or None."""
+    return _nf_protocols.get(user_id)
+
+
+def _set_nf_protocol(user_id: str, protocol: Optional[NeurofeedbackProtocol]) -> None:
+    """Set (or clear) the NeurofeedbackProtocol for *user_id*."""
+    if protocol is None:
+        _nf_protocols.pop(user_id, None)
+    else:
+        _nf_protocols[user_id] = protocol
+
+
+def _get_session_recorder(user_id: str = "default") -> SessionRecorder:
+    """Return (creating if needed) the SessionRecorder for *user_id*."""
+    if user_id not in _session_recorders:
+        _session_recorders[user_id] = SessionRecorder()
+    return _session_recorders[user_id]
+
+
+def _get_anomaly_detector(user_id: str = "default") -> AnomalyDetector:
+    """Return (creating if needed) the AnomalyDetector for *user_id*."""
+    if user_id not in _anomaly_detectors:
+        _anomaly_detectors[user_id] = AnomalyDetector()
+    return _anomaly_detectors[user_id]
+
+
+def _get_state_engine(user_id: str = "default") -> BrainStateEngine:
+    """Return (creating if needed) the BrainStateEngine for *user_id*."""
+    if user_id not in _state_engines:
+        _state_engines[user_id] = BrainStateEngine()
+    return _state_engines[user_id]
+
+
+def _get_confidence_cal(user_id: str = "default") -> ConfidenceCalibrator:
+    """Return (creating if needed) the ConfidenceCalibrator for *user_id*."""
+    if user_id not in _confidence_cals:
+        _confidence_cals[user_id] = ConfidenceCalibrator()
+    return _confidence_cals[user_id]
+
+
+# Initialise the legacy singleton so existing `from ._shared import _session_recorder` still works
+_session_recorder = _get_session_recorder("default")
 
 
 # ─── Helper functions ────────────────────────────────────────────────────────
@@ -208,11 +266,13 @@ class NeurofeedbackStartRequest(BaseModel):
     target_band: Optional[str] = Field(default=None, description="Target frequency band")
     threshold: Optional[float] = Field(default=None, description="Reward threshold")
     calibrate: bool = Field(default=True, description="Run baseline calibration")
+    user_id: str = Field(default="default", description="User identifier for per-user state isolation")
 
 
 class NeurofeedbackEvalRequest(BaseModel):
     band_powers: Dict[str, float] = Field(..., description="Current band powers")
     channel_powers: Optional[List[Dict[str, float]]] = Field(default=None)
+    user_id: str = Field(default="default", description="User identifier for per-user state isolation")
 
 
 class SessionStartRequest(BaseModel):

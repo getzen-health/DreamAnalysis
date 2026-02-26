@@ -7,7 +7,7 @@ from fastapi.responses import Response
 
 from ._shared import (
     _numpy_safe,
-    _session_recorder,
+    _get_session_recorder,
     SessionRecorder,
     SessionStartRequest,
 )
@@ -22,7 +22,8 @@ from storage.session_analytics import compare_sessions, get_session_trends, get_
 @router.post("/sessions/start")
 async def start_session(request: SessionStartRequest):
     """Start recording an EEG session."""
-    session_id = _session_recorder.start_recording(
+    recorder = _get_session_recorder(request.user_id)
+    session_id = recorder.start_recording(
         user_id=request.user_id,
         session_type=request.session_type,
         metadata=request.metadata,
@@ -31,11 +32,12 @@ async def start_session(request: SessionStartRequest):
 
 
 @router.post("/sessions/stop")
-async def stop_session():
+async def stop_session(user_id: str = "default"):
     """Stop the current recording and return summary."""
-    if not _session_recorder.is_recording:
+    recorder = _get_session_recorder(user_id)
+    if not recorder.is_recording:
         raise HTTPException(status_code=400, detail="No active recording")
-    return _session_recorder.stop_recording()
+    return recorder.stop_recording()
 
 
 @router.get("/sessions")

@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 from ._shared import (
     NeurofeedbackProtocol, PROTOCOLS,
     NeurofeedbackStartRequest, NeurofeedbackEvalRequest,
+    _get_nf_protocol, _set_nf_protocol,
 )
-import api.routes._shared as _state
 
 router = APIRouter()
 
@@ -68,20 +68,21 @@ async def list_protocols():
 @router.post("/neurofeedback/start")
 async def start_neurofeedback(request: NeurofeedbackStartRequest):
     """Start a neurofeedback session."""
-    _state._nf_protocol = NeurofeedbackProtocol(
+    protocol = NeurofeedbackProtocol(
         protocol_type=request.protocol_type,
         target_band=request.target_band,
         threshold=request.threshold,
     )
+    _set_nf_protocol(request.user_id, protocol)
 
     # Attempt to load the RL agent (no-op if already loaded or file absent)
     _load_rl_agent()
 
     if request.calibrate:
-        _state._nf_protocol.start_calibration()
+        protocol.start_calibration()
         return {"status": "calibrating", "protocol": request.protocol_type}
 
-    _state._nf_protocol.start()
+    protocol.start()
     return {
         "status": "active",
         "protocol": request.protocol_type,
@@ -92,58 +93,57 @@ async def start_neurofeedback(request: NeurofeedbackStartRequest):
 @router.post("/neurofeedback/evaluate")
 async def evaluate_neurofeedback(request: NeurofeedbackEvalRequest):
     """Evaluate current EEG against the active neurofeedback protocol."""
-    if _state._nf_protocol is None:
+    protocol = _get_nf_protocol(request.user_id)
+    if protocol is None:
         raise HTTPException(status_code=400, detail="No active neurofeedback session")
 
-    if _state._nf_protocol.is_calibrating:
-        done = _state._nf_protocol.add_calibration_sample(request.band_powers)
-        progress = len(_state._nf_protocol.baseline_samples) / 30.0
+    if protocol.is_calibrating:
+        done = protocol.add_calibration_sample(request.band_powers)
+        progress = len(protocol.baseline_samples) / 30.0
         if done:
             return {
                 "status": "calibration_complete",
-                "baseline": _state._nf_protocol.baseline,
+                "baseline": protocol.baseline,
                 "progress": 1.0,
             }
         return {"status": "calibrating", "progress": float(progress)}
 
-    result = _state._nf_protocol.evaluate(request.band_powers, request.channel_powers)
+    result = protocol.evaluate(request.band_powers, request.channel_powers)
 
     # ── Adaptive threshold adjustment via RL agent ────────────────────────────
     if _rl_agent is not None and _rl_agent.is_trained:
-        rl_state = _state._nf_protocol.get_rl_state(request.band_powers)
+        rl_state = protocol.get_rl_state(request.band_powers)
         obs = _rl_agent.build_obs(rl_state)
         action, _ = _rl_agent.act(obs)
         delta = (action - 1) * 0.05
-        _state._nf_protocol.threshold = float(
-            np.clip(_state._nf_protocol.threshold + delta, 0.10, 2.50)
-        )
-        result["adaptive_threshold"] = round(_state._nf_protocol.threshold, 3)
+        protocol.threshold = float(np.clip(protocol.threshold + delta, 0.10, 2.50))
+        result["adaptive_threshold"] = round(protocol.threshold, 3)
         result["threshold_action"] = ["easier", "hold", "harder"][action]
 
     return {"status": "active", **result}
 
 
 @router.post("/neurofeedback/stop")
-async def stop_neurofeedback():
+async def stop_neurofeedback(user_id: str = "default"):
     """Stop the current neurofeedback session and return stats."""
-    if _state._nf_protocol is None:
+    protocol = _get_nf_protocol(user_id)
+    if protocol is None:
         raise HTTPException(status_code=400, detail="No active neurofeedback session")
 
-    stats = _state._nf_protocol.stop()
-    _state._nf_protocol = None
+    stats = protocol.stop()
+    _set_nf_protocol(user_id, None)
     return {"status": "stopped", "stats": stats}
 
 
 @router.get("/neurofeedback/rl/status")
-async def rl_status():
+async def rl_status(user_id: str = "default"):
     """Return RL agent status and current threshold."""
     trained = _rl_agent is not None and _rl_agent.is_trained
-    current_threshold = (
-        _state._nf_protocol.threshold if _state._nf_protocol is not None else None
-    )
+    protocol = _get_nf_protocol(user_id)
+    current_threshold = protocol.threshold if protocol is not None else None
     return {
         "trained": trained,
-        "is_active": _state._nf_protocol is not None and _state._nf_protocol.is_active,
+        "is_active": protocol is not None and protocol.is_active,
         "current_threshold": current_threshold,
         "agent_path": str(_RL_AGENT_PATH),
     }
