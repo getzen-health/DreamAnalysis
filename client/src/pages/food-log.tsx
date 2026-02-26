@@ -56,6 +56,7 @@ interface FoodLog {
 }
 
 type InputMode = "photo" | "text";
+type FilterType = "all" | "breakfast" | "lunch" | "dinner" | "snack";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -132,6 +133,7 @@ export default function FoodLog() {
 
   const [inputMode, setInputMode] = useState<InputMode>("photo");
   const [mealType, setMealType] = useState(autoMealType());
+  const [filterType, setFilterType] = useState<FilterType>("all");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<FoodAnalysis | null>(null);
 
@@ -248,23 +250,6 @@ export default function FoodLog() {
         </button>
       </div>
 
-      {/* ── Meal type chips ───────────────────────────────────────────────────── */}
-      <div className="flex gap-2">
-        {MEAL_TYPES.map(t => (
-          <button
-            key={t}
-            onClick={() => setMealType(t)}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-              mealType === t
-                ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
-                : "border-border/50 bg-muted/20 text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {MEAL_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
-      </div>
-
       {/* ── Capture card ─────────────────────────────────────────────────────── */}
       <Card>
         <CardContent className="pt-5 space-y-4">
@@ -278,6 +263,23 @@ export default function FoodLog() {
             className="hidden"
             onChange={handleFileChange}
           />
+
+          {/* Meal type selector — inside the log form */}
+          <div className="flex gap-1.5">
+            {MEAL_TYPES.map(t => (
+              <button
+                key={t}
+                onClick={() => setMealType(t)}
+                className={`flex-1 py-1 rounded-md text-xs font-medium border transition-colors ${
+                  mealType === t
+                    ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
+                    : "border-border/50 bg-muted/20 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {MEAL_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
 
           {/* ── PHOTO MODE ─────────────────────────────────────────────────── */}
           {inputMode === "photo" && (
@@ -428,9 +430,36 @@ export default function FoodLog() {
       {/* ── History ───────────────────────────────────────────────────────────── */}
       {history && history.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent meals</p>
-          <div className="space-y-2">
-            {history.map(log => (
+          {/* Filter tabs */}
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {(["all", ...MEAL_TYPES] as FilterType[]).map(t => (
+              <button
+                key={t}
+                onClick={() => setFilterType(t)}
+                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  filterType === t
+                    ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
+                    : "border-border/50 bg-muted/20 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t === "all" ? "All" : `${MEAL_ICONS[t]} ${t.charAt(0).toUpperCase() + t.slice(1)}`}
+              </button>
+            ))}
+          </div>
+
+          {/* Filtered list */}
+          {(() => {
+            const filtered = filterType === "all"
+              ? history
+              : history.filter(l => l.mealType === filterType);
+            if (filtered.length === 0) return (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                No {filterType} entries logged yet.
+              </p>
+            );
+            return (
+              <div className="space-y-2">
+                {filtered.map(log => (
               <div
                 key={log.id}
                 className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 text-sm"
@@ -456,8 +485,10 @@ export default function FoodLog() {
                   </Badge>
                 )}
               </div>
-            ))}
-          </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
