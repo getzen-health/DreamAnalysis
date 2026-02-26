@@ -1,0 +1,76 @@
+{
+  "timestamp": "2026-02-26 13:56:12",
+  "total_time_sec": 892.7,
+  "models": [
+    {
+      "model_name": "drowsiness",
+      "model_type": "LightGBM",
+      "cv_accuracy": 0.8172222222222223,
+      "cv_std": 0.011027462911821743,
+      "test_accuracy": 0.8305555555555556,
+      "n_samples": 1800,
+      "n_classes": 3,
+      "model_size_mb": 6.1
+    },
+    {
+      "model_name": "cognitive_load",
+      "model_type": "LightGBM",
+      "cv_accuracy": 0.6572222222222222,
+      "cv_std": 0.022333056935824203,
+      "test_accuracy": 0.6833333333333333,
+      "n_samples": 1800,
+      "n_classes": 3,
+      "model_size_mb": 7.6
+    },
+    {
+      "model_name": "attention",
+      "model_type": "LightGBM",
+      "cv_accuracy": 0.6,
+      "cv_std": 0.021908902300206663,
+      "test_accuracy": 0.5825,
+      "n_samples": 2000,
+      "n_classes": 4,
+      "model_size_mb": 10.5
+    },
+    {
+      "model_name": "stress",
+      "model_type": "LightGBM",
+      "cv_accuracy": 0.5875,
+      "cv_std": 0.014404860290887958,
+      "test_accuracy": 0.58,
+      "n_samples": 2000,
+      "n_classes": 4,
+      "model_size_mb": 10.3
+    },
+    {
+      "model_name": "lucid_dream",
+      "model_type": "LightGBM",
+      "cv_accuracy": 0.6184999999999999,
+      "cv_std": 0.023430749027719966,
+      "test_accuracy": 0.6225,
+      "n_samples": 2000,
+      "n_classes": 4,
+      "model_size_mb": 10.2
+    },
+    {
+      "model_name": "meditation",
+      "model_type": "LightGBM",
+      "cv_accuracy": 0.5248,
+      "cv_std": 0.013775340286178064,
+      "test_accuracy": 0.488,
+      "n_samples": 2500,
+      "n_classes": 5,
+      "model_size_mb": 15.3
+    },
+    {
+      "model_name": "flow_state",
+      "model_type": "LightGBM",
+      "cv_accuracy": 0.57,
+      "cv_std": 0.006803606580336652,
+      "test_accuracy": 0.553125,
+      "n_samples": 3200,
+      "n_classes": 4,
+      "model_size_mb": 13.1
+    }
+  ]
+}

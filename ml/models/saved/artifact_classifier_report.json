@@ -1,0 +1,19 @@
+{
+  "model": "artifact_classifier",
+  "model_type": "LightGBM",
+  "accuracy": 0.96,
+  "cv_accuracy": 0.9646666666666667,
+  "cv_std": 0.003519785346990479,
+  "n_train": 4800,
+  "n_test": 1200,
+  "data_source": "synthetic",
+  "training_time_sec": 66.42219090461731,
+  "classes": {
+    "0": "clean",
+    "1": "eye_blink",
+    "2": "muscle_emg",
+    "3": "electrode_pop",
+    "4": "motion",
+    "5": "powerline"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "model": "denoising_autoencoder",
+  "final_loss": 2.6330986615199192,
+  "snr_before_db": -2.4861519351201777,
+  "snr_after_db": -0.19703143201826837,
+  "snr_improvement_db": 2.2891205031019095,
+  "n_training_samples": 5000,
+  "epochs": 50,
+  "training_time_sec": 360.53321170806885,
+  "data_source": "synthetic"
+}

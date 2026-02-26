@@ -81,8 +81,16 @@
 | Emotion Classifier (DENS standalone) | LightGBM | 79.55% CV | DENS (27 subjects, 128-ch EGI) | Valence-based 3-class, 41 features |
 | Sleep Staging | Random Forest | 92.98% | ISRUC | Active, reliable |
 | Dream Detector | Gradient Boosting | 97.20% | — | Active, reliable |
-| Flow State | MLP | 62.86% | — | Active, marginal |
+| Flow State | LightGBM | 57.00% CV | Synthetic (noise-augmented) | Retrained with noise augmentation |
 | Creativity | SVM + RF | 99.18% | — | Likely overfit (850 samples) |
+| Drowsiness | LightGBM | **81.72% CV** | Mental Attention + synthetic | Real dataset used — best new model |
+| Cognitive Load | LightGBM | **65.72% CV** | STEW (3285 real samples) + synthetic | Real STEW dataset (14-ch, 45 subjects) |
+| Attention | LightGBM | 60.00% CV | Synthetic (noise-augmented) | 4-class: distracted/passive/focused/hyperfocused |
+| Stress | LightGBM | 58.75% CV | Synthetic (noise-augmented) | 4-class: relaxed/mild/moderate/high |
+| Lucid Dream | LightGBM | 61.85% CV | Synthetic (noise-augmented) | 4-class: non-lucid/pre-lucid/lucid/controlled |
+| Meditation | LightGBM | 52.48% CV | Synthetic (noise-augmented) | 5-class: surface/light/moderate/deep/transcendent |
+| Artifact Classifier | LightGBM | **96.47% CV** | Synthetic (6000 samples, 6 artifact types) | Replaces rule-based detection |
+| Denoising Autoencoder | PyTorch | +2.29 dB SNR improvement | Synthetic paired (5000 samples) | Saved as denoiser_model.pt |
 | Food-Emotion | Feature heuristics | N/A | — | Novel — no prior benchmark exists |
 | RL Threshold Agent (PPO) | PPO Actor-Critic (PyTorch) | 67% reward rate (live) | Synthetic NeurofeedbackEnv | Flow-zone target: 40–75%; 500 ep × 3 protocols |
 
@@ -90,7 +98,7 @@
 
 - [x] ~~**No frontend tests**~~ — 97 Vitest tests across 10 pages (biofeedback, calibration, dashboard, emotion-lab, research-hub, daily-brain-report, ai-companion, sleep-session, onboarding, research-enroll) — 16 of those are Daily Brain Report tests
 - [ ] **Untested hardware integration** — BrainFlow Muse 2 connection not tested end-to-end
-- [ ] **Train remaining 15 models** — Only emotion classifier has formal training pipeline. Others use heuristic fallbacks
+- [x] **Train remaining models** — All 16 models now have saved weights. 9 newly trained: drowsiness (81.72%), cognitive load (65.72%), attention (60%), stress (58.75%), lucid dream (61.85%), meditation (52.48%), artifact classifier (96.47%), denoising autoencoder (+2.29 dB SNR), flow state retrained. Synthetic data used where no public dataset available.
 - [x] ~~**97.79% LGBM model**~~ — Deleted (inflated score, per-dataset PCA + within-subject contamination). Replaced by mega LGBM 74.21% CV
 - [x] ~~**Baseline calibration has no frontend UX**~~ — `/onboarding` fullscreen 3-phase guided calibration screen built; dashboard banner shows until BaselineCalibrator is ready; sidebar "Connect Device" links to `/device-setup` which routes to `/onboarding`
 - [x] ~~**Device pairing UX missing**~~ — Device pairing wizard wired: Connect Device in sidebar → `/device-setup` banner → `/onboarding`
