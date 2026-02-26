@@ -26,12 +26,14 @@
  *   GET    /api/insights/weekly
  *   POST   /api/notifications/subscribe
  *   POST   /api/analyze-mood
+ *   POST   /api/food/analyze
+ *   GET    /api/food/logs/:userId
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 
 import { getDb } from './_lib/db';
 import { getOpenAIClient } from './_lib/openai';
@@ -393,6 +395,85 @@ async function analyzeMood(req: VercelRequest, res: VercelResponse) {
   return success(res, JSON.parse(resp.choices[0].message.content || '{}'));
 }
 
+// ── Food log ─────────────────────────────────────────────────────────────────
+
+const FOOD_JSON_SCHEMA = `{
+  "foodItems": [{"name":"...","portion":"...","calories":0,"carbs_g":0,"protein_g":0,"fat_g":0}],
+  "totalCalories": 0,
+  "dominantMacro": "carbs|protein|fat|balanced",
+  "glycemicImpact": "low|medium|high",
+  "moodImpact": "2-sentence prediction of mood/energy 2-4 hours later",
+  "dreamRelevance": "2-sentence note on how this may affect tonight's sleep or dream vividness",
+  "summary": "One plain-English sentence describing what was eaten"
+}`;
+
+async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId, imageBase64, textDescription, mealType, moodBefore, notes } = req.body;
+  if (!userId) return badRequest(res, 'userId required');
+  if (!imageBase64 && !textDescription) return badRequest(res, 'imageBase64 or textDescription required');
+  const openai = getOpenAIClient();
+  const db = getDb();
+
+  let content: string;
+  if (imageBase64) {
+    // Vision path
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-5',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: `Analyze this food photo. Return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}` },
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: 'low' } },
+        ],
+      }],
+      max_completion_tokens: 8000,
+    });
+    content = resp.choices[0].message.content ?? '{}';
+  } else {
+    // Text path
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-5',
+      messages: [{
+        role: 'user',
+        content: `The user describes their ${mealType ?? 'meal'}: "${textDescription}"\n\nEstimate nutrition and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`,
+      }],
+      response_format: { type: 'json_object' },
+    });
+    content = resp.choices[0].message.content ?? '{}';
+  }
+
+  // Strip markdown fences if present
+  const stripped = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const analysis = JSON.parse(stripped || '{}');
+
+  const [log] = await db.insert(schema.foodLogs).values({
+    userId,
+    mealType: mealType ?? 'snack',
+    foodItems: analysis.foodItems ?? [],
+    totalCalories: typeof analysis.totalCalories === 'number' ? analysis.totalCalories : null,
+    dominantMacro: typeof analysis.dominantMacro === 'string' ? analysis.dominantMacro : null,
+    glycemicImpact: typeof analysis.glycemicImpact === 'string' ? analysis.glycemicImpact : null,
+    aiMoodImpact: typeof analysis.moodImpact === 'string' ? analysis.moodImpact : null,
+    aiDreamRelevance: typeof analysis.dreamRelevance === 'string' ? analysis.dreamRelevance : null,
+    summary: typeof analysis.summary === 'string' ? analysis.summary : null,
+    moodBefore: moodBefore ?? null,
+    notes: notes ?? null,
+  }).returning();
+
+  return success(res, { ...analysis, id: log.id, loggedAt: log.loggedAt }, 201);
+}
+
+async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const logs = await db.select().from(schema.foodLogs)
+    .where(eq(schema.foodLogs.userId, userId))
+    .orderBy(desc(schema.foodLogs.loggedAt))
+    .limit(20);
+  return success(res, logs);
+}
+
 // ── Main router ──────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -451,6 +532,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'insights' && s1 === 'weekly') return await insightsWeekly(req, res);
     if (s0 === 'notifications' && s1 === 'subscribe') return await notificationsSubscribe(req, res);
     if (s0 === 'analyze-mood') return await analyzeMood(req, res);
+
+    if (s0 === 'food') {
+      if (s1 === 'analyze') return await foodAnalyze(req, res);
+      if (s1 === 'logs' && segs[2]) return await foodLogs(req, res, segs[2]);
+    }
 
     return error(res, 'Not found', 404);
   } catch (err: any) {
