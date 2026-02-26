@@ -16,11 +16,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  Heart,
-  Activity,
   Brain,
   Sparkles,
-  Zap,
   TrendingUp,
   Radio,
 } from "lucide-react";
@@ -257,31 +254,6 @@ export default function HealthAnalytics() {
           <ScoreCircle value={wellbeingScore} label="Wellbeing" gradientId="grad-wellbeing" colorFrom="hsl(38, 85%, 58%)" colorTo="hsl(25, 85%, 55%)" size="sm" />
           <p className="text-xs text-muted-foreground mt-1">Relaxation + Low Stress + Flow</p>
         </div>
-      </div>
-
-      {/* Vital Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { icon: Activity, label: "Stress", value: `${stressIndex}%`, color: stressIndex > 50 ? "text-warning" : "text-success" },
-          { icon: Brain, label: "Focus", value: `${focusScore}%`, color: "text-primary" },
-          { icon: Zap, label: "Flow", value: `${flowScore}%`, color: "text-accent" },
-          { icon: Heart, label: "Relaxation", value: `${relaxScore}%`, color: "text-success" },
-          { icon: TrendingUp, label: "Creativity", value: `${creativityScore}%`, color: "text-secondary" },
-          { icon: Brain, label: "Memory", value: `${memoryScore}%`, color: "text-primary" },
-          { icon: Activity, label: "Cog Load", value: `${cogLoadIndex}%`, color: cogLoadIndex > 70 ? "text-warning" : "text-foreground" },
-          { icon: Activity, label: "Drowsiness", value: `${drowsinessIndex}%`, color: drowsinessIndex > 60 ? "text-warning" : "text-success" },
-        ].map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.label} className="glass-card p-4 hover-glow">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon className={`h-4 w-4 ${stat.color}`} />
-                <span className="text-xs text-muted-foreground">{stat.label}</span>
-              </div>
-              <p className={`text-lg font-semibold font-mono ${stat.color}`}>{stat.value}</p>
-            </Card>
-          );
-        })}
       </div>
 
       {/* Brain Health Trends */}
