@@ -230,6 +230,9 @@ export default function EmotionLab() {
     Array<{ emotion: string; label: string; confidence: number; time: string }>
   >([]);
 
+  // User correction state — "Was this right?"
+  const [correctionSent, setCorrectionSent] = useState<string | null>(null); // which emotion was confirmed/corrected
+
   // Sessions query
   const { data: allSessions = [] } = useQuery<SessionSummary[]>({
     queryKey: ["sessions"],
@@ -312,6 +315,8 @@ export default function EmotionLab() {
       if (last?.label === label && last?.emotion === emotions.emotion) return prev;
       return [...prev.slice(-4), { emotion: emotions.emotion!, label, confidence: emotions.confidence, time: now }];
     });
+    // Reset correction prompt for the new window
+    setCorrectionSent(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emotions?.emotion, emotions?.ready]);
 
@@ -497,6 +502,61 @@ export default function EmotionLab() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Was this right? — user label correction */}
+              {emotionReady && currentEmotion.emotion && currentEmotion.emotion !== "—" && isStreaming && (
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  {correctionSent ? (
+                    <p className="text-[10px] text-success flex items-center gap-1">
+                      <span>✓</span>
+                      {correctionSent === currentEmotion.emotion
+                        ? "Confirmed — model learns from your feedback"
+                        : `Corrected to ${correctionSent} — model will adapt`}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-muted-foreground mb-2">
+                        Was this right?
+                      </p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {Object.entries(EMOTION_EMOJI).map(([em, emoji]) => {
+                          const isDetected = em === currentEmotion.emotion;
+                          return (
+                            <button
+                              key={em}
+                              onClick={async () => {
+                                setCorrectionSent(em);
+                                // Best-effort POST to ML backend for online learner
+                                try {
+                                  await fetch("/api/emotions/correct", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      userId: "default",
+                                      detectedEmotion: currentEmotion.emotion,
+                                      correctedEmotion: em,
+                                      confidence: currentEmotion.confidence,
+                                    }),
+                                  });
+                                } catch { /* fire and forget */ }
+                              }}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-colors ${
+                                isDetected
+                                  ? "bg-primary/15 border border-primary/30 text-primary"
+                                  : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <span>{emoji}</span>
+                              <span className="capitalize">{em}</span>
+                              {isDetected && <span className="text-[8px] ml-0.5 opacity-70">detected</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </>

@@ -17,6 +17,8 @@ import {
   CalendarDays,
   Copy,
   Check,
+  Flame,
+  BarChart2,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -60,6 +62,85 @@ function greeting(): string {
   if (h < 12) return "Good morning";
   if (h < 17) return "Good afternoon";
   return "Good evening";
+}
+
+/* ── Streak helper ───────────────────────────────────────────── */
+function currentStreak(sessions: SessionSummary[]): number {
+  if (sessions.length === 0) return 0;
+  const dayMs = 86_400_000;
+  const daySet = new Set(
+    sessions.map((s) => {
+      const d = new Date((s.start_time ?? 0) * 1000);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })
+  );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTs = today.getTime();
+  const startTs = daySet.has(todayTs)
+    ? todayTs
+    : daySet.has(todayTs - dayMs)
+    ? todayTs - dayMs
+    : null;
+  if (!startTs) return 0;
+  let streak = 0;
+  let checkTs = startTs;
+  while (daySet.has(checkTs)) {
+    streak++;
+    checkTs -= dayMs;
+  }
+  return streak;
+}
+
+/* ── Pattern engine ──────────────────────────────────────────── */
+function patternInsight(sessions: SessionSummary[], health: HealthEntry[]): string | null {
+  const twoWeeksMs = 14 * 86_400_000;
+  const twoWeeksAgoUnix = (Date.now() - twoWeeksMs) / 1000;
+  const twoWeeksAgoDate = new Date(Date.now() - twoWeeksMs);
+
+  const recentSessions = sessions.filter((s) => (s.start_time ?? 0) >= twoWeeksAgoUnix);
+  const biofeedbackDays = new Set(
+    recentSessions
+      .filter((s) => s.session_type === "biofeedback")
+      .map((s) => {
+        const d = new Date((s.start_time ?? 0) * 1000);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })
+  );
+
+  if (biofeedbackDays.size < 2) return null;
+
+  const recentHealth = health.filter((h) => new Date(h.timestamp) >= twoWeeksAgoDate);
+  if (recentHealth.length === 0) return null;
+
+  const bfStress: number[] = [];
+  const otherStress: number[] = [];
+
+  for (const h of recentHealth) {
+    const d = new Date(h.timestamp);
+    d.setHours(0, 0, 0, 0);
+    if (biofeedbackDays.has(d.getTime())) {
+      bfStress.push(h.stressLevel ?? 5);
+    } else {
+      otherStress.push(h.stressLevel ?? 5);
+    }
+  }
+
+  if (bfStress.length === 0 || otherStress.length === 0) return null;
+
+  const avgBf    = bfStress.reduce((a, b) => a + b, 0) / bfStress.length;
+  const avgOther = otherStress.reduce((a, b) => a + b, 0) / otherStress.length;
+  const deltaPct = Math.round(((avgOther - avgBf) / Math.max(avgOther, 0.1)) * 100);
+
+  if (deltaPct >= 8) {
+    return `${biofeedbackDays.size} breathing sessions in 2 weeks → stress ${deltaPct}% lower on those days.`;
+  }
+  if (deltaPct <= -8) {
+    return `${biofeedbackDays.size} breathing sessions tracked — stress similar to non-session days so far.`;
+  }
+  return null;
 }
 
 /** Map a stress level (0–10) to a text label. */
@@ -332,6 +413,8 @@ export default function DailyBrainReport() {
   const insight = yesterdayInsight(health);
   const latestStress = latestHealth?.stressLevel ?? null;
   const weekly = weeklyStats(health, sessions);
+  const streak = currentStreak(sessions);
+  const pattern = patternInsight(sessions, health);
 
   /* — Overnight EEG session — */
   const overnightSession = sessions.find(
@@ -346,7 +429,15 @@ export default function DailyBrainReport() {
           <p className="text-sm text-muted-foreground mb-1">{new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</p>
           <h1 className="text-2xl font-semibold">{greeting()}</h1>
         </div>
-        <Sun className="h-8 w-8 text-yellow-400 opacity-80" />
+        <div className="flex flex-col items-end gap-1">
+          <Sun className="h-7 w-7 text-yellow-400 opacity-80" />
+          {streak >= 2 && (
+            <span className={`flex items-center gap-1 text-xs font-semibold ${streak >= 7 ? "text-orange-400" : "text-amber-400"}`}>
+              <Flame className="h-3.5 w-3.5" />
+              {streak}-day streak
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Last night — sleep summary */}
@@ -604,6 +695,17 @@ export default function DailyBrainReport() {
               </p>
             </div>
           </div>
+        </Card>
+      )}
+
+      {/* Pattern engine insight */}
+      {!isLoading && pattern && (
+        <Card className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <BarChart2 className="h-4 w-4 text-emerald-400" />
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Patterns</h2>
+          </div>
+          <p className="text-sm text-foreground/80 leading-relaxed">{pattern}</p>
         </Card>
       )}
 

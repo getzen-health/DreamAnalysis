@@ -2,16 +2,27 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import OpenAI from "openai";
+import webpush from "web-push";
+import cron from "node-cron";
 import {
   insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
   insertUserSettingsSchema, insertEmotionReadingSchema,
   studyParticipants, studySessions, studyMorningEntries,
   studyDaytimeEntries, studyEveningEntries, foodLogs,
-  users,
+  users, pushSubscriptions,
 } from "@shared/schema";
 import { db } from "./db";
 import { emotionReadings } from "@shared/schema";
 import { eq, gte, lt, and, asc, desc, sql } from "drizzle-orm";
+
+// ── VAPID setup (web push) ─────────────────────────────────────────────────
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  ?? "";
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? "";
+const VAPID_EMAIL   = process.env.VAPID_EMAIL ?? "mailto:admin@example.com";
+
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
+}
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -942,6 +953,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch correlation data" });
     }
   });
+
+  // ── Push notifications ────────────────────────────────────────────────────
+
+  /** Return VAPID public key so client can subscribe */
+  app.get("/api/notifications/vapid-public-key", (_req, res) => {
+    if (!VAPID_PUBLIC) return res.status(503).json({ error: "VAPID not configured" });
+    res.json({ publicKey: VAPID_PUBLIC });
+  });
+
+  /** Send a push notification to all subscribers (or a specific userId) */
+  app.post("/api/notifications/send", async (req, res) => {
+    if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+      return res.status(503).json({ error: "VAPID not configured" });
+    }
+    const { userId, title, body, url } = req.body as {
+      userId?: string; title?: string; body?: string; url?: string;
+    };
+    try {
+      const query = userId
+        ? db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId))
+        : db.select().from(pushSubscriptions);
+      const subs = await query;
+
+      const payload = JSON.stringify({
+        title: title ?? "Neural Dream Workshop",
+        body:  body  ?? "Your morning brain report is ready.",
+        url:   url   ?? "/brain-report",
+        tag:   "ndw-morning",
+      });
+
+      const results = await Promise.allSettled(
+        subs.map((s) =>
+          webpush.sendNotification(
+            { endpoint: s.endpoint, keys: s.keys as { p256dh: string; auth: string } },
+            payload
+          )
+        )
+      );
+      const sent   = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.filter((r) => r.status === "rejected").length;
+      res.json({ sent, failed });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to send notifications" });
+    }
+  });
+
+  // ── Emotion corrections (user label feedback → online learner) ────────────
+
+  app.post("/api/emotions/correct", async (req, res) => {
+    const { userId, detectedEmotion, correctedEmotion, confidence } = req.body as {
+      userId: string; detectedEmotion: string; correctedEmotion: string; confidence?: number;
+    };
+    if (!userId || !correctedEmotion) {
+      return res.status(400).json({ error: "userId and correctedEmotion are required" });
+    }
+    // Store as a new emotion reading with the corrected label
+    try {
+      await db.insert(emotionReadings).values({
+        userId,
+        dominantEmotion: correctedEmotion,
+        stress: 0,
+        focus: 0,
+        happiness: 0,
+        energy: 0,
+        valence: 0,
+        arousal: 0,
+        timestamp: new Date(),
+        eegSnapshot: { userCorrected: true, detectedEmotion, confidence: confidence ?? 0 },
+      });
+    } catch { /* best-effort — non-blocking */ }
+
+    // Forward to ML backend online learner (best-effort)
+    const mlBase = process.env.ML_BACKEND_URL ?? "http://localhost:8000";
+    try {
+      await fetch(`${mlBase}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, detected: detectedEmotion, corrected: correctedEmotion }),
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch { /* ML backend offline — that's fine */ }
+
+    res.json({ ok: true });
+  });
+
+  // ── Daily 8 am morning brain report push ─────────────────────────────────
+
+  if (VAPID_PUBLIC && VAPID_PRIVATE) {
+    // "0 8 * * *" = every day at 08:00 server local time
+    cron.schedule("0 8 * * *", async () => {
+      try {
+        const subs = await db.select().from(pushSubscriptions);
+        const payload = JSON.stringify({
+          title: "Morning Brain Report",
+          body:  "Your sleep summary, focus forecast, and recommended action are ready.",
+          url:   "/brain-report",
+          tag:   "ndw-morning",
+        });
+        await Promise.allSettled(
+          subs.map((s) =>
+            webpush.sendNotification(
+              { endpoint: s.endpoint, keys: s.keys as { p256dh: string; auth: string } },
+              payload
+            )
+          )
+        );
+      } catch { /* log silently — cron must not crash the server */ }
+    });
+  }
 
   const httpServer = createServer(app);
   return httpServer;

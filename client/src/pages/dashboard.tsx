@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Trophy,
   Clock,
+  Flame,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import {
@@ -34,6 +35,36 @@ import {
 } from "@/lib/ml-api";
 
 /* ---------- helpers ---------- */
+
+function currentStreak(sessions: SessionSummary[]): number {
+  if (sessions.length === 0) return 0;
+  const dayMs = 86_400_000;
+  const daySet = new Set(
+    sessions.map((s) => {
+      const d = new Date((s.start_time ?? 0) * 1000);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })
+  );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTs = today.getTime();
+  // Allow streak to still count if today has no session yet (start from yesterday)
+  const startTs = daySet.has(todayTs)
+    ? todayTs
+    : daySet.has(todayTs - dayMs)
+    ? todayTs - dayMs
+    : null;
+  if (!startTs) return 0;
+  let streak = 0;
+  let checkTs = startTs;
+  while (daySet.has(checkTs)) {
+    streak++;
+    checkTs -= dayMs;
+  }
+  return streak;
+}
+
 const EMOTION_LABELS: Record<string, string> = {
   happy: "Happy",
   sad: "Sad",
@@ -382,6 +413,8 @@ export default function Dashboard() {
     ? generateSessionInsight(lastSession, sessionsWithData)
     : null;
 
+  const streak = currentStreak(allSessions);
+
   // Personal records across all sessions
   const peakFocus = sessionsWithData.reduce(
     (m, s) => Math.max(m, Math.round((s.summary?.avg_focus ?? 0) * 100)),
@@ -508,8 +541,13 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 mb-3">
                 <Trophy className="h-4 w-4 text-amber-400" />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Personal Records</p>
+                {streak >= 3 && (
+                  <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-orange-400">
+                    <Flame className="h-3 w-3" />{streak}d
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <div className="text-center">
                   <p className="text-xl font-bold text-primary font-mono">{peakFocus}%</p>
                   <p className="text-[10px] text-muted-foreground">Peak Focus</p>
@@ -521,6 +559,14 @@ export default function Dashboard() {
                 <div className="text-center">
                   <p className="text-xl font-bold text-secondary font-mono">{longestSession}m</p>
                   <p className="text-[10px] text-muted-foreground">Longest</p>
+                </div>
+                <div className="text-center">
+                  <p className={`text-xl font-bold font-mono ${streak >= 7 ? "text-orange-400" : streak >= 3 ? "text-amber-400" : "text-muted-foreground"}`}>
+                    {streak}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
+                    {streak >= 3 && <Flame className="h-2.5 w-2.5 text-orange-400" />}Streak
+                  </p>
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground mt-2 text-center">

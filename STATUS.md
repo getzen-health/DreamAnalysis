@@ -68,6 +68,8 @@
 - [x] ONNX model export for browser inference
 - [x] PWA support (service worker + offline store)
 - [x] Per-user state isolation (epoch buffer + BaselineCalibrator keyed by user_id)
+- [x] Session history 24-hour timeline strip (Today view — green/orange/cyan session blocks)
+- [x] Push notification service worker + Settings subscribe UI (morning reminder to /brain-report)
 
 ## Working Model Accuracies
 
@@ -86,7 +88,7 @@
 
 ## Needs Improvement
 
-- [x] ~~**No frontend tests**~~ — 53+ Vitest tests across 7 pages (biofeedback, calibration, dashboard, emotion-lab, research-hub, daily-brain-report, ai-companion) — 16 of those are Daily Brain Report tests
+- [x] ~~**No frontend tests**~~ — 97 Vitest tests across 10 pages (biofeedback, calibration, dashboard, emotion-lab, research-hub, daily-brain-report, ai-companion, sleep-session, onboarding, research-enroll) — 16 of those are Daily Brain Report tests
 - [ ] **Untested hardware integration** — BrainFlow Muse 2 connection not tested end-to-end
 - [ ] **Train remaining 15 models** — Only emotion classifier has formal training pipeline. Others use heuristic fallbacks
 - [x] ~~**97.79% LGBM model**~~ — Deleted (inflated score, per-dataset PCA + within-subject contamination). Replaced by mega LGBM 74.21% CV
@@ -113,7 +115,7 @@
 - [x] Vite vendor bundle splitting + React.lazy() code-splitting (14 pages)
 
 ### Phase 2 — Create a reason to come back ✅ COMPLETE
-- [ ] Session history with timeline view
+- [x] Session history with timeline view
 - [x] "Yesterday's insight" card — detects patterns from previous day's health data (`/brain-report`)
 - [x] Intervention library — 7 evidence-based exercises with before/after (added Physio Sigh, Cyclic Sigh, Power Breath)
 - [x] Personal records ("New focus record: 47 min") — peak focus/flow/longest session + live "beat it" indicator on dashboard
@@ -122,7 +124,7 @@
 - [x] Daily Brain Report screen (`/brain-report` — morning summary, sleep/dreams/forecast/recommended action)
 - [x] Sleep session mode (`/sleep-session` — idle/recording/summary state machine, live stage tracking, dream detection, sleep score)
 - [ ] Pattern engine: correlate time-of-day, activities, mental states
-- [ ] Morning push notification with yesterday's summary
+- [x] Morning push notification — SW + subscribe UI done; server VAPID trigger pending
 
 ### Phase 4 — Growth 🔄 IN PROGRESS
 - [x] Weekly brain summary card — 7-day avg stress/focus/sleep with copy button (on `/brain-report`)
@@ -144,7 +146,7 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 
 ## Future Plans
 
-- [x] ~~Add Vitest for frontend component + integration tests~~ — 53+ tests across 7 pages shipped
+- [x] ~~Add Vitest for frontend component + integration tests~~ — 97 tests across 10 pages shipped
 - [ ] Expand test coverage to remaining 15 pages
 - [ ] Train all 17 models on real datasets with published benchmarks
 - [ ] Mobile-optimized layout / React Native companion app

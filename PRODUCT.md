@@ -155,7 +155,7 @@ Backend API                  █████████░  94%
   Parallel inference (ThreadPoolExecutor) on hot paths. ✅
   Prod deployment: Render free tier (neural-dream-ml.onrender.com). ✅
 
-Frontend                     █████████░  88%
+Frontend                     █████████░  92%
   22 pages exist. All core user flows built and working.
   Daily Brain Report (/brain-report): sleep summary, forecast, yesterday's insight,
     weekly 7-day avg card, recommended action.
@@ -166,17 +166,19 @@ Frontend                     █████████░  88%
   Biofeedback: 7 exercises (added Physio Sigh, Cyclic Sigh, Power Breath). ✅
   Research beta signup (/research/enroll): IRB language removed, beta program framing.
   Vite bundle splitting + React.lazy() on 14 pages (faster load). ✅
-  53+ Vitest tests across 7 pages (biofeedback, calibration, dashboard, emotion-lab,
-    research-hub, daily-brain-report, ai-companion). ✅
-  Missing: session history timeline view, push notifications.
+  Session history 24-hour timeline strip (Today view — green/orange/cyan session blocks). ✅
+  Push notification service worker + Settings subscribe UI (morning reminder to /brain-report). ✅
+  97 Vitest tests across 11 files, 10 pages (biofeedback, calibration, dashboard, emotion-lab,
+    research-hub, daily-brain-report, ai-companion, sleep-session, onboarding, research-enroll). ✅
+  Missing: streaks, user-correctable labels, pattern engine, server push VAPID trigger.
 
-Product thinking             ████████░░  78%
+Product thinking             ████████░░  82%
   Full measure → insight → action → result loop now in place.
   Daily Brain Report answers "what should I do today, and when?" ✅
   Yesterday's Insight card identifies patterns from previous day's data. ✅
   Personal records give reason to beat previous bests. ✅
   Weekly summary card gives shareable social artifact. ✅
-  Missing: push notification to open app in morning.
+  Missing: streaks, server VAPID trigger for push.
 
 Retention mechanics          ███████░░░  68%
   Daily pull: Daily Brain Report gives morning pull. ✅
@@ -269,7 +271,7 @@ also links there. `/device-setup` routes into `/onboarding` for guided calibrati
 - [x] Vite vendor bundle splitting + React.lazy() across 14 pages
 
 ### Phase 2 — Create a reason to come back ✅ COMPLETE
-- [ ] Session history with timeline view
+- [x] Session history with timeline view
 - [x] "Yesterday's insight" card — pattern detection from previous day's health data (`/brain-report`)
 - [x] Intervention library — 7 evidence-based exercises with before/after (Physio Sigh, Cyclic Sigh, Power Breath added)
 - [x] Personal records — peak focus/flow/longest session + live "beat it" indicator on dashboard
@@ -278,7 +280,7 @@ also links there. `/device-setup` routes into `/onboarding` for guided calibrati
 - [x] Daily Brain Report screen (`/brain-report` — morning summary, sleep/dreams/forecast/recommended action)
 - [x] Sleep session mode (`/sleep-session` — idle/recording/summary state machine, live staging, dream detection, sleep score)
 - [ ] Pattern engine: correlate time-of-day, activities, mental states
-- [ ] Morning push notification with yesterday's summary
+- [x] Morning push notification — SW + subscribe UI done; server VAPID trigger pending
 
 ### Phase 4 — Growth 🔄 IN PROGRESS
 - [x] Weekly brain summary card — 7-day avg stress/focus/sleep with copy button (`/brain-report`)
