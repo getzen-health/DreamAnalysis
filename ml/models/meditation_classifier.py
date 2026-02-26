@@ -1,11 +1,9 @@
 """Meditation Depth Classifier from EEG signals.
 
-Classifies meditation depth into 5 levels:
-  0: surface     — basic relaxation, eyes closed, minimal depth
-  1: light       — initial theta increase, alpha stabilization
-  2: moderate    — sustained theta/alpha, reduced default mode
-  3: deep        — strong theta dominance, minimal beta, deep absorption
-  4: transcendent — gamma bursts, theta-gamma coupling, non-dual awareness
+Classifies meditation depth into 3 levels (reduced from 5 for better cross-subject accuracy):
+  0: relaxed     — eyes-closed rest, alpha dominant, minimal meditation depth
+  1: meditating  — sustained theta increase, alpha stabilization, reduced mental chatter
+  2: deep        — strong theta dominance, beta suppressed, deep absorption
 
 Scientific basis:
 - Meditation increases frontal midline theta (Kubota et al., 2001)
@@ -30,7 +28,7 @@ from processing.eeg_processor import (
     spectral_entropy
 )
 
-MEDITATION_DEPTHS = ["surface", "light", "moderate", "deep", "transcendent"]
+MEDITATION_DEPTHS = ["relaxed", "meditating", "deep"]
 
 
 class MeditationClassifier:
@@ -151,17 +149,13 @@ class MeditationClassifier:
 
         adjusted_score = float(np.clip(meditation_score + session_bonus, 0, 1))
 
-        # === Classify Depth ===
-        if adjusted_score >= 0.80:
-            depth_idx = 4  # transcendent
-        elif adjusted_score >= 0.60:
-            depth_idx = 3  # deep
-        elif adjusted_score >= 0.40:
-            depth_idx = 2  # moderate
-        elif adjusted_score >= 0.20:
-            depth_idx = 1  # light
+        # === Classify Depth (3-class) ===
+        if adjusted_score >= 0.55:
+            depth_idx = 2  # deep
+        elif adjusted_score >= 0.25:
+            depth_idx = 1  # meditating
         else:
-            depth_idx = 0  # surface
+            depth_idx = 0  # relaxed
 
         # === Tradition Match ===
         tradition_scores = {
@@ -172,8 +166,8 @@ class MeditationClassifier:
         }
         best_tradition = max(tradition_scores, key=tradition_scores.get)
 
-        # Confidence
-        thresholds = [0.0, 0.20, 0.40, 0.60, 0.80, 1.0]
+        # Confidence (3-class thresholds: 0.0 / 0.25 / 0.55 / 1.0)
+        thresholds = [0.0, 0.25, 0.55, 1.0]
         mid = (thresholds[depth_idx] + thresholds[depth_idx + 1]) / 2
         dist = abs(adjusted_score - mid)
         range_size = thresholds[depth_idx + 1] - thresholds[depth_idx]

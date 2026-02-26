@@ -236,6 +236,99 @@ def train_cognitive_load(n_samples=600):
     return train_model(X, y, feature_names, "cognitive_load", 3)
 
 
+def _load_deap_proxy(data_dir: str = "data/deap") -> tuple:
+    """Load DEAP .dat files and extract stress + attention proxy labels.
+
+    DEAP arousal/valence ratings are on a 1-9 scale.
+    Stress proxy:  high arousal + low valence  → stressed
+    Attention proxy: high arousal + high valence → hyperfocused/focused
+
+    Returns:
+        (X_stress, y_stress, X_attn, y_attn, feature_names) or all-None on failure.
+    """
+    import pickle
+    from pathlib import Path
+
+    deap_path = Path(data_dir)
+    dat_files = sorted(deap_path.glob("s*.dat"))
+    if not dat_files:
+        return None, None, None, None, None
+
+    print(f"  Loading {len(dat_files)} DEAP subjects for stress/attention proxy...")
+
+    dummy_feat = extract_features(preprocess(np.random.randn(2560), 256.0), 256.0)
+    feature_names = list(dummy_feat.keys())
+
+    X_stress, y_stress = [], []
+    X_attn, y_attn = [], []
+
+    for dat_file in dat_files[:20]:  # limit to first 20 subjects for speed
+        try:
+            with open(dat_file, "rb") as f:
+                subj = pickle.load(f, encoding="latin1")
+            # data: (40 trials, 40 channels, 8064 samples)
+            # labels: (40 trials, 4) — [valence, arousal, dominance, liking], 1–9 scale
+            data = subj["data"]        # (40, 40, 8064)
+            labels = subj["labels"]    # (40, 4)
+
+            n_trials = data.shape[0]
+            fs = 128.0   # DEAP sampling rate
+            epoch_samples = int(fs * 10.0)   # 10-second epochs
+            step = epoch_samples // 2         # 50% overlap
+
+            for trial_idx in range(n_trials):
+                valence = float(labels[trial_idx, 0])   # 1-9
+                arousal = float(labels[trial_idx, 1])   # 1-9
+
+                # Stress proxy labels (4-class)
+                if arousal > 6.0 and valence < 4.5:
+                    stress_label = 3   # high stress
+                elif arousal > 5.0 and valence < 5.5:
+                    stress_label = 2   # moderate
+                elif arousal > 4.0:
+                    stress_label = 1   # mild
+                else:
+                    stress_label = 0   # relaxed
+
+                # Attention proxy labels (4-class)
+                if arousal > 6.5 and valence > 6.0:
+                    attn_label = 3    # hyperfocused
+                elif arousal > 5.5 and valence > 4.5:
+                    attn_label = 2    # focused
+                elif arousal > 4.0:
+                    attn_label = 1    # passive
+                else:
+                    attn_label = 0    # distracted
+
+                # Use channel 0 (AF7-equivalent frontal channel in DEAP)
+                trial_sig = data[trial_idx, 0, :]   # (8064,)
+
+                pos = 0
+                while pos + epoch_samples <= len(trial_sig):
+                    epoch = trial_sig[pos:pos + epoch_samples]
+                    feat = extract_features(preprocess(epoch, fs), fs)
+                    fv = [feat.get(k, 0.0) for k in feature_names]
+                    X_stress.append(fv)
+                    y_stress.append(stress_label)
+                    X_attn.append(fv)
+                    y_attn.append(attn_label)
+                    pos += step
+
+        except Exception as e:
+            print(f"    Skipping {dat_file.name}: {e}")
+            continue
+
+    if len(X_stress) == 0:
+        return None, None, None, None, None
+
+    print(f"  Loaded {len(X_stress)} DEAP samples for stress/attention proxy")
+    return (
+        np.array(X_stress), np.array(y_stress),
+        np.array(X_attn), np.array(y_attn),
+        feature_names,
+    )
+
+
 def train_attention(n_samples=500):
     """Train attention classifier: distracted / passive / focused / hyperfocused."""
     print("\n=== Training Attention Classifier ===")
@@ -246,7 +339,20 @@ def train_attention(n_samples=500):
         2: ["focus", "rest"],           # focused
         3: ["focus", "stress"],         # hyperfocused
     }
-    X, y, feature_names = generate_state_data(states_config, n_per_class=n_samples)
+    X_syn, y_syn, feature_names = generate_state_data(states_config, n_per_class=n_samples)
+
+    # Try DEAP proxy
+    _, _, X_deap, y_deap, deap_feat = _load_deap_proxy()
+    if X_deap is not None:
+        # Align feature count
+        min_feat = min(X_syn.shape[1], X_deap.shape[1])
+        X = np.vstack([X_syn[:, :min_feat], X_deap[:, :min_feat]])
+        y = np.concatenate([y_syn, y_deap])
+        feature_names = feature_names[:min_feat]
+        print(f"  Combined synthetic ({len(y_syn)}) + DEAP proxy ({len(y_deap)}) = {len(y)} samples")
+    else:
+        X, y = X_syn, y_syn
+
     return train_model(X, y, feature_names, "attention", 4)
 
 
@@ -260,7 +366,19 @@ def train_stress(n_samples=500):
         2: ["stress", "focus"],         # moderate
         3: ["stress"],                  # high stress
     }
-    X, y, feature_names = generate_state_data(states_config, n_per_class=n_samples)
+    X_syn, y_syn, feature_names = generate_state_data(states_config, n_per_class=n_samples)
+
+    # Try DEAP proxy
+    X_deap, y_deap, _, _, _ = _load_deap_proxy()
+    if X_deap is not None:
+        min_feat = min(X_syn.shape[1], X_deap.shape[1])
+        X = np.vstack([X_syn[:, :min_feat], X_deap[:, :min_feat]])
+        y = np.concatenate([y_syn, y_deap])
+        feature_names = feature_names[:min_feat]
+        print(f"  Combined synthetic ({len(y_syn)}) + DEAP proxy ({len(y_deap)}) = {len(y)} samples")
+    else:
+        X, y = X_syn, y_syn
+
     return train_model(X, y, feature_names, "stress", 4)
 
 
@@ -279,19 +397,26 @@ def train_lucid_dream(n_samples=500):
     return train_model(X, y, feature_names, "lucid_dream", 4)
 
 
-def train_meditation(n_samples=500):
-    """Train meditation depth classifier: surface / light / moderate / deep / transcendent."""
-    print("\n=== Training Meditation Classifier ===")
+def train_meditation(n_samples=800):
+    """Train meditation depth classifier: relaxed / meditating / deep.
+
+    Reduced from 5 classes to 3 to improve cross-subject accuracy.
+    52% CV with 5 classes (5×500 synthetic) → target ~70%+ with 3 classes (3×800).
+
+    Classes:
+      0: relaxed     — eyes-closed rest, alpha dominant
+      1: meditating  — sustained meditation, theta increasing
+      2: deep        — deep theta dominance, beta suppressed
+    """
+    print("\n=== Training Meditation Classifier (3-class) ===")
 
     states_config = {
-        0: ["rest"],                    # surface (eyes closed relaxation)
-        1: ["rest", "meditation"],      # light (initial calming)
-        2: ["meditation"],              # moderate (sustained meditation)
-        3: ["meditation", "deep_sleep"],# deep (deep theta state)
-        4: ["meditation", "focus"],     # transcendent (gamma + theta)
+        0: ["rest"],                         # relaxed (eyes-closed baseline)
+        1: ["meditation", "rest"],           # meditating (theta + alpha mix)
+        2: ["meditation", "deep_sleep"],     # deep (theta + delta, low beta)
     }
     X, y, feature_names = generate_state_data(states_config, n_per_class=n_samples)
-    return train_model(X, y, feature_names, "meditation", 5)
+    return train_model(X, y, feature_names, "meditation", 3)
 
 
 def retrain_flow_state(n_samples=800):
