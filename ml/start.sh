@@ -83,19 +83,29 @@ echo -e "  ${GREEN}✓ Optional packages done${RESET}"
 
 # ── Step 3: Start uvicorn ────────────────────────────────────────────────────
 echo ""
-echo -e "${CYAN}[3/4] ML Backend (port 8000)${RESET}"
+echo -e "${CYAN}[3/4] ML Backend${RESET}"
 
-# Kill any stale instance on port 8000
-if lsof -ti:8000 > /dev/null 2>&1; then
-  echo "  Stopping existing process on port 8000..."
-  lsof -ti:8000 | xargs kill -9 2>/dev/null || true
-  sleep 1
+# Pick port: prefer 8080, fall back to 8001 if busy
+NDW_PORT=8080
+if lsof -ti:8080 > /dev/null 2>&1; then
+  pid=$(lsof -ti:8080)
+  # Only kill if it's our own uvicorn process
+  if ps -p "$pid" -o command= 2>/dev/null | grep -q "uvicorn main:app"; then
+    echo "  Stopping stale uvicorn on port 8080..."
+    kill -9 "$pid" 2>/dev/null || true
+    sleep 1
+  else
+    echo "  Port 8080 busy (not uvicorn) — using 8001"
+    NDW_PORT=8001
+  fi
 fi
+
+echo -e "  Using port ${NDW_PORT}"
 
 # Start uvicorn in background, log to file
 LOG_FILE="/tmp/ndw_backend.log"
 nohup python3 -m uvicorn main:app \
-  --port 8000 \
+  --port "$NDW_PORT" \
   --host 0.0.0.0 \
   --log-level warning \
   > "$LOG_FILE" 2>&1 &
@@ -105,7 +115,7 @@ UVICORN_PID=$!
 echo -n "  Waiting for backend (model loading takes ~20s)"
 READY=0
 for i in {1..60}; do
-  if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+  if curl -sf "http://localhost:${NDW_PORT}/health" > /dev/null 2>&1; then
     READY=1
     break
   fi
@@ -137,22 +147,23 @@ if ! command -v ngrok &> /dev/null; then
   echo "  Then add your authtoken:"
   echo "    ngrok config add-authtoken <YOUR_TOKEN>  (free at ngrok.com)"
   echo ""
-  echo -e "  ${YELLOW}Skipping ngrok. Use the backend locally only at:${RESET}"
-  echo "  http://localhost:8000"
+  echo -e "  ${YELLOW}Skipping ngrok. Use the backend locally at:${RESET}"
+  echo "  http://localhost:${NDW_PORT}"
   echo ""
   echo "  Paste that into Settings → ML Backend if you are running"
   echo "  the app on the same machine."
-  goto_done "http://localhost:8000"
+  echo ""
+  echo "  Press Ctrl+C to stop the backend"
+  wait "$UVICORN_PID" 2>/dev/null || true
   exit 0
 fi
 
 # Kill stale ngrok on port 8000
-pkill -f "ngrok http 8000" 2>/dev/null || true
-pkill -f "ngrok http --port 8000" 2>/dev/null || true
+pkill -f "ngrok http" 2>/dev/null || true
 sleep 1
 
 # Start ngrok
-nohup ngrok http 8000 \
+nohup ngrok http "$NDW_PORT" \
   --log=stdout \
   --log-format=json \
   > /tmp/ndw_ngrok.log 2>&1 &
