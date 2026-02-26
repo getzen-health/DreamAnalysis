@@ -28,12 +28,19 @@
  *   POST   /api/analyze-mood
  *   POST   /api/food/analyze
  *   GET    /api/food/logs/:userId
+ *   POST   /api/study/enroll
+ *   GET    /api/study/status/:userId
+ *   POST   /api/study/morning
+ *   POST   /api/study/daytime
+ *   POST   /api/study/evening
+ *   GET    /api/study/history/:userId
+ *   POST   /api/study/withdraw
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, and, gte, lt, sql } from 'drizzle-orm';
 
 import { getDb } from './_lib/db';
 import { getOpenAIClient } from './_lib/openai';
@@ -474,6 +481,220 @@ async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string)
   return success(res, logs);
 }
 
+// ── Study helpers ─────────────────────────────────────────────────────────────
+
+async function getActiveParticipant(userId: string) {
+  const db = getDb();
+  const [p] = await db.select().from(schema.studyParticipants)
+    .where(and(
+      eq(schema.studyParticipants.userId, userId),
+      eq(schema.studyParticipants.status, 'active')
+    )).limit(1);
+  return p ?? null;
+}
+
+async function getOrCreateTodaySession(participant: typeof schema.studyParticipants.$inferSelect) {
+  const db = getDb();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+  const [existing] = await db.select().from(schema.studySessions)
+    .where(and(
+      eq(schema.studySessions.participantId, participant.id),
+      gte(schema.studySessions.sessionDate, todayStart),
+      lt(schema.studySessions.sessionDate, tomorrowStart)
+    )).limit(1);
+  if (existing) return existing;
+
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` })
+    .from(schema.studySessions)
+    .where(eq(schema.studySessions.participantId, participant.id));
+  const dayNumber = (n ?? 0) + 1;
+
+  const [created] = await db.insert(schema.studySessions).values({
+    participantId: participant.id,
+    studyCode: participant.studyCode,
+    dayNumber,
+    sessionDate: todayStart,
+  }).returning();
+  return created;
+}
+
+async function checkAndMarkValidDay(sessionId: string): Promise<boolean> {
+  const db = getDb();
+  const [session] = await db.select().from(schema.studySessions)
+    .where(eq(schema.studySessions.id, sessionId));
+  if (!session) return false;
+  const done = [session.morningCompleted, session.daytimeCompleted, session.eveningCompleted]
+    .filter(Boolean).length;
+  const isValid = done >= 2;
+  if (isValid && !session.validDay) {
+    await db.update(schema.studySessions).set({ validDay: true }).where(eq(schema.studySessions.id, sessionId));
+  }
+  return isValid;
+}
+
+// ── Study route handlers ──────────────────────────────────────────────────────
+
+async function studyEnroll(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId, studyId, consentVersion, overnightEegConsent,
+          preferredMorningTime, preferredDaytimeTime, preferredEveningTime,
+          consentFullName, consentInitials } = req.body;
+  if (!userId || !studyId || !consentVersion)
+    return badRequest(res, 'userId, studyId, and consentVersion are required');
+  const already = await getActiveParticipant(userId);
+  if (already) return res.status(409).json({ message: 'Already enrolled in an active study', studyCode: already.studyCode });
+  const db = getDb();
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const makeCode = () => Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  let studyCode = makeCode();
+  let collision = await db.select({ id: schema.studyParticipants.id }).from(schema.studyParticipants)
+    .where(eq(schema.studyParticipants.studyCode, studyCode)).limit(1);
+  while (collision.length > 0) {
+    studyCode = makeCode();
+    collision = await db.select({ id: schema.studyParticipants.id }).from(schema.studyParticipants)
+      .where(eq(schema.studyParticipants.studyCode, studyCode)).limit(1);
+  }
+  const [participant] = await db.insert(schema.studyParticipants).values({
+    userId, studyId, studyCode, consentVersion,
+    consentSignedAt: new Date(),
+    consentFullName: consentFullName ?? null,
+    consentInitials: consentInitials ?? null,
+    overnightEegConsent: overnightEegConsent ?? false,
+    preferredMorningTime, preferredDaytimeTime, preferredEveningTime,
+  }).returning();
+  return success(res, { studyCode: participant.studyCode, enrolledAt: participant.enrolledAt }, 201);
+}
+
+async function studyStatus(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const participant = await getActiveParticipant(userId);
+  if (!participant) return success(res, { enrolled: false });
+  const db = getDb();
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const [today] = await db.select().from(schema.studySessions)
+    .where(and(
+      eq(schema.studySessions.participantId, participant.id),
+      gte(schema.studySessions.sessionDate, todayStart),
+      lt(schema.studySessions.sessionDate, tomorrowStart)
+    )).limit(1);
+  return success(res, {
+    enrolled: true,
+    studyCode: participant.studyCode,
+    completedDays: participant.completedDays,
+    targetDays: participant.targetDays,
+    todaySession: today ?? null,
+    preferredTimes: {
+      morning: participant.preferredMorningTime,
+      daytime: participant.preferredDaytimeTime,
+      evening: participant.preferredEveningTime,
+    },
+  });
+}
+
+async function studyMorning(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId, dreamText, noRecall, dreamValence, dreamArousal,
+          nightmareFlag, sleepQuality, sleepHours,
+          minutesFromWaking, currentMoodRating } = req.body;
+  const participant = await getActiveParticipant(userId);
+  if (!participant) return error(res, 'Not enrolled in an active study', 404);
+  const session = await getOrCreateTodaySession(participant);
+  if (session.morningCompleted) return res.status(409).json({ message: 'Morning entry already submitted today' });
+  const db = getDb();
+  await db.insert(schema.studyMorningEntries).values({
+    sessionId: session.id,
+    studyCode: participant.studyCode,
+    dreamText: noRecall ? null : (dreamText ?? null),
+    noRecall: noRecall ?? false,
+    dreamValence, dreamArousal, nightmareFlag,
+    sleepQuality, sleepHours, minutesFromWaking, currentMoodRating,
+  });
+  await db.update(schema.studySessions).set({ morningCompleted: true }).where(eq(schema.studySessions.id, session.id));
+  await checkAndMarkValidDay(session.id);
+  const needsSupport = typeof currentMoodRating === 'number' && currentMoodRating <= 2;
+  return success(res, { success: true, dayNumber: session.dayNumber, needsSupport });
+}
+
+async function studyDaytime(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId, eegFeatures, faa, highBeta, fmt, sqiMean, eegDurationSec,
+          samValence, samArousal, samStress, panasItems,
+          sleepHoursReported, caffeineServings, significantEventYN } = req.body;
+  const participant = await getActiveParticipant(userId);
+  if (!participant) return error(res, 'Not enrolled in an active study', 404);
+  const session = await getOrCreateTodaySession(participant);
+  if (session.daytimeCompleted) return res.status(409).json({ message: 'Daytime entry already submitted today' });
+  const db = getDb();
+  await db.insert(schema.studyDaytimeEntries).values({
+    sessionId: session.id,
+    studyCode: participant.studyCode,
+    eegFeatures, faa, highBeta, fmt, sqiMean, eegDurationSec,
+    samValence, samArousal, samStress, panasItems,
+    sleepHoursReported, caffeineServings, significantEventYN,
+  });
+  await db.update(schema.studySessions).set({ daytimeCompleted: true }).where(eq(schema.studySessions.id, session.id));
+  await checkAndMarkValidDay(session.id);
+  return success(res, { success: true, dayNumber: session.dayNumber });
+}
+
+async function studyEvening(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId, dayValence, dayArousal, peakEmotionIntensity,
+          peakEmotionDirection, meals, emotionalEatingDay,
+          cravingsToday, cravingTypes, exerciseLevel, alcoholDrinks,
+          medicationsTaken, stressRightNow, readyForSleep } = req.body;
+  const participant = await getActiveParticipant(userId);
+  if (!participant) return error(res, 'Not enrolled in an active study', 404);
+  const session = await getOrCreateTodaySession(participant);
+  if (session.eveningCompleted) return res.status(409).json({ message: 'Evening entry already submitted today' });
+  const db = getDb();
+  await db.insert(schema.studyEveningEntries).values({
+    sessionId: session.id,
+    studyCode: participant.studyCode,
+    dayValence, dayArousal, peakEmotionIntensity, peakEmotionDirection,
+    meals, emotionalEatingDay, cravingsToday, cravingTypes,
+    exerciseLevel, alcoholDrinks, medicationsTaken, stressRightNow, readyForSleep,
+  });
+  await db.update(schema.studySessions).set({ eveningCompleted: true }).where(eq(schema.studySessions.id, session.id));
+  const isValid = await checkAndMarkValidDay(session.id);
+  if (isValid) {
+    await db.update(schema.studyParticipants)
+      .set({ completedDays: sql`${schema.studyParticipants.completedDays} + 1` })
+      .where(eq(schema.studyParticipants.id, participant.id));
+  }
+  const finalDays = (participant.completedDays ?? 0) + (isValid ? 1 : 0);
+  return success(res, { success: true, validDay: isValid, completedDays: finalDays });
+}
+
+async function studyHistory(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const participant = await getActiveParticipant(userId);
+  if (!participant) return success(res, []);
+  const db = getDb();
+  const sessions = await db.select().from(schema.studySessions)
+    .where(eq(schema.studySessions.participantId, participant.id))
+    .orderBy(asc(schema.studySessions.dayNumber));
+  return success(res, sessions);
+}
+
+async function studyWithdraw(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId } = req.body;
+  if (!userId) return badRequest(res, 'userId is required');
+  const participant = await getActiveParticipant(userId);
+  if (!participant) return error(res, 'No active study enrollment found', 404);
+  const db = getDb();
+  await db.update(schema.studyParticipants)
+    .set({ status: 'withdrawn', withdrawnAt: new Date() })
+    .where(eq(schema.studyParticipants.id, participant.id));
+  return success(res, { daysCompleted: participant.completedDays ?? 0, message: 'You have been withdrawn from the study. Thank you for your contribution.' });
+}
+
 // ── Main router ──────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -536,6 +757,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'food') {
       if (s1 === 'analyze') return await foodAnalyze(req, res);
       if (s1 === 'logs' && segs[2]) return await foodLogs(req, res, segs[2]);
+    }
+
+    if (s0 === 'study') {
+      if (s1 === 'enroll')               return await studyEnroll(req, res);
+      if (s1 === 'morning')              return await studyMorning(req, res);
+      if (s1 === 'daytime')              return await studyDaytime(req, res);
+      if (s1 === 'evening')              return await studyEvening(req, res);
+      if (s1 === 'withdraw')             return await studyWithdraw(req, res);
+      if (s1 === 'status' && segs[2])    return await studyStatus(req, res, segs[2]);
+      if (s1 === 'history' && segs[2])   return await studyHistory(req, res, segs[2]);
     }
 
     return error(res, 'Not found', 404);

@@ -104,7 +104,7 @@ echo -e "  Using port ${NDW_PORT}"
 
 # Start uvicorn in background, log to file
 LOG_FILE="/tmp/ndw_backend.log"
-nohup python3 -m uvicorn main:app \
+EXPRESS_URL="http://localhost:4000" nohup python3 -m uvicorn main:app \
   --port "$NDW_PORT" \
   --host 0.0.0.0 \
   --log-level warning \
