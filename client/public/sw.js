@@ -45,12 +45,14 @@ self.addEventListener("fetch", (event) => {
 // Push notification handling
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
-  const title = data.title || "Svapnastra";
+  const title = data.title || "Neural Dream Workshop";
   const options = {
-    body: data.body || "Time to record your dream!",
+    body: data.body || "Your morning brain report is ready.",
     icon: "/favicon.png",
     badge: "/favicon.png",
-    data: data.url || "/dream-journal",
+    tag: data.tag || "ndw-notification",
+    renotify: true,
+    data: { url: data.url || "/brain-report" },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -58,7 +60,17 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const url = event.notification.data?.url || "/brain-report";
   event.waitUntil(
-    self.clients.openWindow(event.notification.data || "/")
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(url) && "focus" in client) {
+            return client.focus();
+          }
+        }
+        return self.clients.openWindow(url);
+      })
   );
 });

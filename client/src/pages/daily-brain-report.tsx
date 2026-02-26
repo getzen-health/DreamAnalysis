@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { type SessionSummary } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,15 +42,6 @@ interface HealthEntry {
   neuralActivity?: number;
   sleepDuration?: number;
   timestamp: string;
-}
-
-interface SessionSummary {
-  id: string;
-  session_type?: string;
-  duration_seconds?: number;
-  start_time?: number;
-  end_time?: number;
-  summary?: Record<string, unknown>;
 }
 
 /* ── Derived / computed helpers ──────────────────────────────── */
@@ -243,18 +235,36 @@ function SkeletonCard() {
 }
 
 /* ── Weekly summary helpers ──────────────────────────────────── */
-function weeklyStats(health: HealthEntry[]) {
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const week = health.filter((h) => new Date(h.timestamp).getTime() >= cutoff);
-  if (week.length === 0) return null;
-  const avgStress = week.reduce((s, h) => s + (h.stressLevel ?? 5), 0) / week.length;
-  const avgFocus = week.reduce((s, h) => s + (h.neuralActivity ?? 5), 0) / week.length;
-  const avgSleep = week.reduce((s, h) => s + (h.sleepQuality ?? 5), 0) / week.length;
+function weeklyStats(health: HealthEntry[], sessions: SessionSummary[]) {
+  const cutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const cutoffUnix = cutoffMs / 1000;
+  const week = health.filter((h) => new Date(h.timestamp).getTime() >= cutoffMs);
+  const weekSessions = sessions.filter(
+    (s) => (s.start_time ?? 0) >= cutoffUnix && (s.summary?.avg_focus ?? 0) > 0
+  );
+  if (week.length === 0 && weekSessions.length === 0) return null;
+
+  // Stress from health entries (frequent signal)
+  const avgStress = week.length > 0
+    ? week.reduce((s, h) => s + (h.stressLevel ?? 5), 0) / week.length
+    : 5;
+
+  // Focus: prefer EEG session avg_focus (0-1 → ×100 = %) over health proxy
+  const avgFocusPct = weekSessions.length > 0
+    ? weekSessions.reduce((s, sess) => s + (sess.summary?.avg_focus ?? 0), 0) / weekSessions.length * 100
+    : week.reduce((s, h) => s + (h.neuralActivity ?? 5), 0) / Math.max(week.length, 1) * 10;
+
+  // Sleep from health entries
+  const avgSleep = week.length > 0
+    ? week.reduce((s, h) => s + (h.sleepQuality ?? 5), 0) / week.length
+    : 5;
+
   return {
-    days: week.length,
+    days: Math.max(week.length, weekSessions.length),
     avgStress: Math.round(avgStress * 10),
-    avgFocus: Math.round(avgFocus * 10),
+    avgFocus: Math.round(avgFocusPct),
     avgSleep: Math.round(avgSleep * 10),
+    focusSource: weekSessions.length > 0 ? "eeg" : "proxy",
   };
 }
 
@@ -321,11 +331,11 @@ export default function DailyBrainReport() {
   const action = recommendedAction(health);
   const insight = yesterdayInsight(health);
   const latestStress = latestHealth?.stressLevel ?? null;
-  const weekly = weeklyStats(health);
+  const weekly = weeklyStats(health, sessions);
 
   /* — Overnight EEG session — */
   const overnightSession = sessions.find(
-    (s) => s.session_type === "sleep" || (s.duration_seconds ?? 0) > 3600
+    (s) => s.session_type === "sleep" || (s.summary?.duration_sec ?? 0) > 3600
   );
 
   return (
@@ -381,8 +391,8 @@ export default function DailyBrainReport() {
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Session length</p>
                 <p className="text-lg font-semibold">
-                  {overnightSession.duration_seconds
-                    ? fmtMinutes(overnightSession.duration_seconds / 60)
+                  {overnightSession.summary?.duration_sec
+                    ? fmtMinutes(overnightSession.summary.duration_sec / 60)
                     : "—"}
                 </p>
               </div>

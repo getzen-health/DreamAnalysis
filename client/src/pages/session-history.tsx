@@ -429,6 +429,85 @@ export default function DataHub() {
             </Card>
           )}
 
+          {/* Timeline — today's sessions on a 24-hour strip */}
+          {periodDays <= 1 && periodSessions.length > 0 && (
+            <Card className="glass-card p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-medium">Today's Timeline</h3>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {periodSessions.length} session{periodSessions.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              {/* 24-hour strip */}
+              <div className="relative h-9 rounded-lg bg-muted/30 overflow-hidden border border-border/20">
+                {/* Hour marks at 6, 9, 12, 15, 18, 21 */}
+                {[6, 9, 12, 15, 18, 21].map((h) => (
+                  <div
+                    key={h}
+                    style={{ left: `${(h / 24) * 100}%` }}
+                    className="absolute top-0 h-full w-px bg-border/40"
+                  />
+                ))}
+                {/* Session blocks */}
+                {periodSessions.map((s) => {
+                  const startDate = new Date((s.start_time ?? 0) * 1000);
+                  const hours = startDate.getHours() + startDate.getMinutes() / 60;
+                  const durationHours = (s.summary?.duration_sec ?? 300) / 3600;
+                  const leftPct = (hours / 24) * 100;
+                  const widthPct = Math.max((durationHours / 24) * 100, 0.8);
+                  const focus = s.summary?.avg_focus ?? 0;
+                  const stress = s.summary?.avg_stress ?? 0;
+                  // Color: green = focus > stress, orange = stress > focus, cyan = balanced
+                  const hue = focus > stress + 0.1 ? "152,60%,48%" : stress > focus + 0.1 ? "38,85%,58%" : "200,60%,55%";
+                  return (
+                    <div
+                      key={s.session_id}
+                      title={`${fmtTime(s.start_time ?? 0)}  ·  ${fmt(s.summary?.duration_sec ?? 0)}\nFocus ${Math.round(focus * 100)}%   Stress ${Math.round(stress * 100)}%${s.summary?.dominant_emotion ? `\n${s.summary.dominant_emotion}` : ""}`}
+                      style={{
+                        left: `${leftPct}%`,
+                        width: `${widthPct}%`,
+                        background: `hsl(${hue})`,
+                      }}
+                      className="absolute top-1.5 bottom-1.5 rounded-full opacity-80 hover:opacity-100 transition-opacity cursor-default"
+                    />
+                  );
+                })}
+              </div>
+              {/* Hour labels */}
+              <div className="relative mt-1 h-4">
+                {[
+                  { label: "12am", pct: 0 },
+                  { label: "6am",  pct: 25 },
+                  { label: "Noon", pct: 50 },
+                  { label: "6pm",  pct: 75 },
+                  { label: "12am", pct: 100 },
+                ].map(({ label, pct }) => (
+                  <span
+                    key={pct}
+                    style={{ left: `${pct}%`, transform: pct === 0 ? "none" : pct === 100 ? "translateX(-100%)" : "translateX(-50%)" }}
+                    className="absolute text-[9px] text-muted-foreground"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+              {/* Legend */}
+              <div className="flex gap-3 mt-2">
+                {[
+                  { color: "hsl(152,60%,48%)", label: "Focus-dominant" },
+                  { color: "hsl(38,85%,58%)",  label: "Stress-dominant" },
+                  { color: "hsl(200,60%,55%)", label: "Balanced" },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                    <span className="text-[9px] text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           {/* Session cards */}
           {sortedDays.map((day) => (
             <div key={day}>

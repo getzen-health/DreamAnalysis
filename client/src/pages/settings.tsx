@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server } from "lucide-react";
+import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server, Bell, BellOff } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
@@ -474,6 +474,9 @@ export default function SettingsPage() {
         </Card>
       </div>
 
+      {/* Notifications */}
+      <NotificationsCard userId={userId} />
+
       {/* Export Brain Data */}
       <ExportBrainDataCard userId={userId} />
 
@@ -596,6 +599,138 @@ function MLBackendCard() {
       <p className="text-[11px] text-muted-foreground mt-3">
         Current: <span className="font-mono">{url.trim() || "http://localhost:8000 (default)"}</span>
       </p>
+    </Card>
+  );
+}
+
+/* ── Notifications Card ──────────────────────────────────────── */
+
+function NotificationsCard({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [permission, setPermission] = useState<NotificationPermission>(
+    typeof Notification !== "undefined" ? Notification.permission : "default"
+  );
+  const [subscribing, setSubscribing] = useState(false);
+
+  const supported =
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "Notification" in window;
+
+  async function enableNotifications() {
+    if (!supported) return;
+    setSubscribing(true);
+    try {
+      // Request notification permission
+      const perm = await Notification.requestPermission();
+      setPermission(perm);
+      if (perm !== "granted") {
+        toast({ title: "Permission denied", description: "Enable notifications in your browser settings.", variant: "destructive" });
+        return;
+      }
+
+      // Register the service worker
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+
+      // Try to get VAPID key from server; gracefully handle missing key
+      let sub: PushSubscription | null = null;
+      try {
+        const vapidRes = await fetch("/api/notifications/vapid-public-key");
+        if (vapidRes.ok) {
+          const { publicKey } = await vapidRes.json();
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: publicKey,
+          });
+        }
+      } catch {
+        // VAPID not configured — SW is registered, local notifications work
+      }
+
+      if (sub) {
+        const { endpoint, keys } = sub.toJSON() as { endpoint: string; keys: Record<string, string> };
+        await fetch("/api/notifications/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, endpoint, keys }),
+        });
+        toast({ title: "Notifications enabled", description: "You'll get a morning brain report reminder at 8 am." });
+      } else {
+        // SW registered but no VAPID — in-browser only
+        toast({ title: "Notifications ready", description: "Service worker registered. Push delivery requires backend VAPID setup." });
+      }
+    } catch (err) {
+      toast({ title: "Could not enable notifications", description: String(err), variant: "destructive" });
+    } finally {
+      setSubscribing(false);
+    }
+  }
+
+  async function disableNotifications() {
+    if (!supported) return;
+    try {
+      const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe();
+      }
+      setPermission("default");
+      toast({ title: "Notifications disabled" });
+    } catch {
+      toast({ title: "Could not disable", variant: "destructive" });
+    }
+  }
+
+  return (
+    <Card className="glass-card p-6 rounded-xl">
+      <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+        <Bell className="h-4 w-4 text-primary" />
+        Morning Reminders
+      </h3>
+      <p className="text-sm text-muted-foreground mb-4">
+        Get a daily push notification at 8 am with your Brain Report — sleep quality, focus forecast, and top recommended action.
+      </p>
+
+      {!supported && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
+          <Info className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>Push notifications are not supported in this browser.</span>
+        </div>
+      )}
+
+      {supported && permission === "denied" && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive">
+          <BellOff className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>Notifications are blocked. Enable them in your browser's site settings, then reload.</span>
+        </div>
+      )}
+
+      {supported && permission !== "denied" && (
+        <div className="flex items-center justify-between">
+          <div>
+            {permission === "granted" ? (
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                <span className="text-sm text-success">Enabled</span>
+              </div>
+            ) : (
+              <span className="text-sm text-muted-foreground">Not enabled</span>
+            )}
+          </div>
+          {permission === "granted" ? (
+            <Button variant="outline" size="sm" onClick={disableNotifications}>
+              <BellOff className="h-3.5 w-3.5 mr-1.5" />
+              Disable
+            </Button>
+          ) : (
+            <Button size="sm" onClick={enableNotifications} disabled={subscribing}>
+              <Bell className="h-3.5 w-3.5 mr-1.5" />
+              {subscribing ? "Enabling…" : "Enable notifications"}
+            </Button>
+          )}
+        </div>
+      )}
     </Card>
   );
 }

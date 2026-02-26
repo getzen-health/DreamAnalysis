@@ -31,6 +31,10 @@ dream-analysis-*.png
 ml/sessions/
 ml/sessions/*.json
 
+# Large EEG datasets — download locally, never commit
+data/
+*.csv
+
 # Temporary generated files
 CONVERSATION_SUMMARY.md
 benchmarks-dashboard.html
