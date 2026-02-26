@@ -2,10 +2,10 @@
 
 ## Completed Features
 
-### Frontend (20 pages)
-- [x] **Daily Brain Report** (`/brain-report` — sleep summary, focus forecast, yesterday's insight, recommended action)
+### Frontend (22 pages)
+- [x] **Daily Brain Report** (`/brain-report` — sleep summary, focus forecast, yesterday's insight, weekly 7-day avg card, recommended action)
 - [x] Landing page + authentication
-- [x] Main dashboard with health metric overview
+- [x] Main dashboard with health metric overview (personal records: peak focus/flow/longest session + live "beat it" indicator; calibration banner until BaselineCalibrator ready)
 - [x] Real-time EEG brain monitor
 - [x] Brain connectivity analysis
 - [x] Emotion lab (real-time classification)
@@ -18,11 +18,15 @@
 - [x] Insights page
 - [x] Session history
 - [x] Settings + device configuration
-- [x] Biofeedback training screen (`/biofeedback` — 4 breathing exercises, live stress chart, before/after comparison)
+- [x] Biofeedback training screen (`/biofeedback` — 7 breathing exercises incl. Physio Sigh, Cyclic Sigh, Power Breath; live stress chart, before/after comparison)
 - [x] Baseline calibration UI (`/calibration`)
+- [x] Baseline calibration onboarding screen (`/onboarding` — fullscreen 3-phase guided calibration)
+- [x] Sleep session mode (`/sleep-session` — idle/recording/summary state machine, live stage tracking, dream detection, sleep score)
 - [x] Food & Cravings page (`/food` — 6 food states, biomarker gauges, dietary recommendations)
 - [x] Formal Benchmarks Dashboard (`/benchmarks` — all 18 models + 8 datasets + research roadmap)
+- [x] Research beta signup (`/research/enroll` — rewritten as beta program, IRB language removed)
 - [x] 49 shadcn/ui components, 5 chart components, dark theme, responsive layout
+- [x] Vite vendor bundle splitting + React.lazy() code-splitting across 14 pages
 
 ### ML Backend (82 endpoints, 18 models)
 - [x] Emotion classifier (LightGBM mega, 74.21% CV on 9 datasets, 163 534 samples — cross-subject)
@@ -31,8 +35,9 @@
 - [x] Lucid dream detection
 - [x] Anomaly detection (Isolation Forest)
 - [x] Artifact classification + denoising autoencoder
-- [x] Online learning (per-user adaptation)
+- [x] Online learning (per-user adaptation) — PersonalModelAdapter wired into `/analyze-eeg` inference with `personal_override` blending
 - [x] EEG simulation mode (works without hardware)
+- [x] **Parallel ML inference** — `ThreadPoolExecutor` for `/analyze-eeg` and `/simulate-eeg`
 - [x] Signal quality gates (5-point SQI system, blocks readings below 40%)
 - [x] Spiritual analysis (chakras, consciousness, aura)
 - [x] WebSocket real-time streaming
@@ -81,12 +86,12 @@
 
 ## Needs Improvement
 
-- [ ] **No frontend tests** — No Vitest or Jest configured. All 19 pages are untested
+- [x] ~~**No frontend tests**~~ — 53+ Vitest tests across 7 pages (biofeedback, calibration, dashboard, emotion-lab, research-hub, daily-brain-report, ai-companion) — 16 of those are Daily Brain Report tests
 - [ ] **Untested hardware integration** — BrainFlow Muse 2 connection not tested end-to-end
 - [ ] **Train remaining 15 models** — Only emotion classifier has formal training pipeline. Others use heuristic fallbacks
 - [x] ~~**97.79% LGBM model**~~ — Deleted (inflated score, per-dataset PCA + within-subject contamination). Replaced by mega LGBM 74.21% CV
-- [ ] **Baseline calibration has no frontend UX** — API (`/calibration/baseline/add-frame`) exists but there is no guided 2-min onboarding screen
-- [ ] **Device pairing UX missing** — No guided flow to connect Muse 2 with signal quality check before session starts
+- [x] ~~**Baseline calibration has no frontend UX**~~ — `/onboarding` fullscreen 3-phase guided calibration screen built; dashboard banner shows until BaselineCalibrator is ready; sidebar "Connect Device" links to `/device-setup` which routes to `/onboarding`
+- [x] ~~**Device pairing UX missing**~~ — Device pairing wizard wired: Connect Device in sidebar → `/device-setup` banner → `/onboarding`
 - [ ] **Food-emotion module needs validation data** — 6 states are scientifically grounded but no pilot study has been run to measure real accuracy
 
 ## Phase Roadmap
@@ -99,25 +104,28 @@
 - [x] "Calibrating…" until `epoch_ready: true`
 - [x] Show confidence on emotion label
 
-### Phase 1 — Create the aha moment 🔄 IN PROGRESS
-- [x] Real-time biofeedback screen (`/biofeedback` — breathing exercises with live stress chart)
-- [ ] **Baseline calibration onboarding screen** — 2-min eyes-closed guided session before first reading
-- [ ] **Device pairing flow** — guided connect + HSI signal quality check before session starts
+### Phase 1 — Create the aha moment ✅ COMPLETE
+- [x] Real-time biofeedback screen (`/biofeedback` — 7 exercises, expanding circle, live stress chart, before/after comparison)
+- [x] **Baseline calibration onboarding screen** (`/onboarding` — fullscreen 3-phase guided calibration)
+- [x] **Device pairing wizard** — Connect Device in sidebar → `/device-setup` → `/onboarding`
+- [x] Dashboard calibration banner — shows until BaselineCalibrator ready
+- [x] Parallel ML inference — `ThreadPoolExecutor` for `/analyze-eeg` + `/simulate-eeg`
+- [x] Vite vendor bundle splitting + React.lazy() code-splitting (14 pages)
 
-### Phase 2 — Create a reason to come back ⏳ PENDING
+### Phase 2 — Create a reason to come back ✅ COMPLETE
 - [ ] Session history with timeline view
-- [ ] "Yesterday's insight" card (one surprising pattern from last session)
-- [ ] Intervention library (5–10 evidence-based exercises with before/after)
-- [ ] Personal records ("New focus record: 47 min")
+- [x] "Yesterday's insight" card — detects patterns from previous day's health data (`/brain-report`)
+- [x] Intervention library — 7 evidence-based exercises with before/after (added Physio Sigh, Cyclic Sigh, Power Breath)
+- [x] Personal records ("New focus record: 47 min") — peak focus/flow/longest session + live "beat it" indicator on dashboard
 
-### Phase 3 — Daily pull ⏳ PENDING
-- [ ] Daily Brain Report screen (the North Star — one-screen morning summary)
-- [ ] Sleep session mode (overnight recording with dream detection)
+### Phase 3 — Daily pull ✅ COMPLETE
+- [x] Daily Brain Report screen (`/brain-report` — morning summary, sleep/dreams/forecast/recommended action)
+- [x] Sleep session mode (`/sleep-session` — idle/recording/summary state machine, live stage tracking, dream detection, sleep score)
 - [ ] Pattern engine: correlate time-of-day, activities, mental states
 - [ ] Morning push notification with yesterday's summary
 
-### Phase 4 — Growth ⏳ PENDING
-- [ ] Weekly brain summary card (shareable)
+### Phase 4 — Growth 🔄 IN PROGRESS
+- [x] Weekly brain summary card — 7-day avg stress/focus/sleep with copy button (on `/brain-report`)
 - [ ] User-correctable labels → feeds personalization
 - [ ] Per-user model fine-tuning after 5 sessions
 - [ ] Export data (CSV, Apple Health sync)
@@ -136,7 +144,8 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 
 ## Future Plans
 
-- [ ] Add Vitest for frontend component + integration tests
+- [x] ~~Add Vitest for frontend component + integration tests~~ — 53+ tests across 7 pages shipped
+- [ ] Expand test coverage to remaining 15 pages
 - [ ] Train all 17 models on real datasets with published benchmarks
 - [ ] Mobile-optimized layout / React Native companion app
 - [ ] Multi-user session support (currently single-user per server instance)

@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
+import { startSession, stopSession } from "@/lib/ml-api";
 import {
   Moon,
   BrainCircuit,
@@ -221,12 +222,15 @@ export default function SleepSession() {
     setCurrentStage("N1");
     setStageTimeSec(0);
     setPhase("recording");
+    // Best-effort API call — don't block UI if ML backend is offline
+    startSession("sleep", "default").catch(() => {});
   };
 
   const handleWakeUp = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     setDreamsDetected(dreamCountRef.current);
     setPhase("summary");
+    stopSession().catch(() => {});
   };
 
   const handleReset = () => {

@@ -77,14 +77,56 @@ function stressLabel(level: number): string {
   return "high";
 }
 
-/** Estimate peak focus window from time-of-day heuristic. */
-function peakFocusWindow(): string {
-  return "9:30 am – 12:00 pm";
+/** Find the 2-hour window with highest avg focus across all health entries.
+ *  Falls back to a circadian heuristic if there's not enough data. */
+function peakFocusWindow(health: HealthEntry[]): string {
+  if (health.length < 6) return "9:30 am – 12:00 pm";
+  const buckets: number[] = Array(24).fill(0);
+  const counts: number[] = Array(24).fill(0);
+  for (const h of health) {
+    const hour = new Date(h.timestamp).getHours();
+    buckets[hour] += h.neuralActivity ?? 5;
+    counts[hour]++;
+  }
+  let bestHour = 9;
+  let bestAvg = 0;
+  for (let hr = 5; hr <= 22; hr++) {
+    if (counts[hr] === 0) continue;
+    const avg = buckets[hr] / counts[hr];
+    if (avg > bestAvg) { bestAvg = avg; bestHour = hr; }
+  }
+  const fmt = (h: number) => {
+    const ampm = h < 12 ? "am" : "pm";
+    const h12 = h % 12 || 12;
+    return `${h12}:00 ${ampm}`;
+  };
+  return `${fmt(bestHour)} – ${fmt(bestHour + 2)}`;
 }
 
-/** Estimate afternoon slump window. */
-function slumpWindow(): string {
-  return "2:30 pm – 3:30 pm";
+/** Find the 1-hour window with highest avg stress (the slump).
+ *  Falls back to circadian heuristic. */
+function slumpWindow(health: HealthEntry[]): string {
+  if (health.length < 6) return "2:30 pm – 3:30 pm";
+  const buckets: number[] = Array(24).fill(0);
+  const counts: number[] = Array(24).fill(0);
+  for (const h of health) {
+    const hour = new Date(h.timestamp).getHours();
+    buckets[hour] += h.stressLevel ?? 5;
+    counts[hour]++;
+  }
+  let worstHour = 14;
+  let worstAvg = 0;
+  for (let hr = 12; hr <= 18; hr++) {
+    if (counts[hr] === 0) continue;
+    const avg = buckets[hr] / counts[hr];
+    if (avg > worstAvg) { worstAvg = avg; worstHour = hr; }
+  }
+  const fmt = (h: number) => {
+    const ampm = h < 12 ? "am" : "pm";
+    const h12 = h % 12 || 12;
+    return `${h12}:00 ${ampm}`;
+  };
+  return `${fmt(worstHour)} – ${fmt(worstHour + 1)}`;
 }
 
 /** Derive recommended action from latest health data. */
@@ -125,22 +167,66 @@ function recommendedAction(health: HealthEntry[]): {
   };
 }
 
-/** Pick the most recent yesterday's insight from health entries. */
+/** Richer pattern engine: correlates time-of-day with focus/stress peaks.
+ *  Returns a specific insight like "Focus peaked at 11 am, 31% above your afternoon."
+ */
 function yesterdayInsight(health: HealthEntry[]): string | null {
   if (health.length < 2) return null;
-  const yesterday = health.find((h) => {
+  const today = new Date();
+  const yday = new Date(today);
+  yday.setDate(today.getDate() - 1);
+
+  const yesterdayEntries = health.filter((h) => {
     const d = new Date(h.timestamp);
-    const today = new Date();
-    return d.getDate() === today.getDate() - 1;
+    return d.getFullYear() === yday.getFullYear() &&
+           d.getMonth() === yday.getMonth() &&
+           d.getDate() === yday.getDate();
   });
-  if (!yesterday) return null;
-  const stress = yesterday.stressLevel ?? 5;
-  const focus = yesterday.neuralActivity ?? 5;
-  if (focus > 6)
-    return `Focus was ${Math.round((focus / 10) * 100)}% above baseline yesterday.`;
-  if (stress > 6)
-    return `Stress ran high yesterday — today is a fresh start.`;
-  return `Yesterday looked balanced — stress ${stressLabel(stress)}, focus steady.`;
+
+  // If no yesterday entries, fall back to most recent single entry
+  const entries = yesterdayEntries.length >= 2 ? yesterdayEntries : health.slice(0, 5);
+  if (entries.length < 2) return null;
+
+  // Find peak focus hour and compare to rest of the day
+  let peakFocusEntry = entries[0];
+  for (const e of entries) {
+    if ((e.neuralActivity ?? 0) > (peakFocusEntry.neuralActivity ?? 0)) peakFocusEntry = e;
+  }
+  const peakFocus = peakFocusEntry.neuralActivity ?? 5;
+  const otherFocusAvg =
+    entries
+      .filter((e) => e !== peakFocusEntry)
+      .reduce((s, e) => s + (e.neuralActivity ?? 5), 0) /
+    Math.max(1, entries.length - 1);
+
+  const focusDeltaPct = Math.round(((peakFocus - otherFocusAvg) / Math.max(otherFocusAvg, 1)) * 100);
+  const peakHour = new Date(peakFocusEntry.timestamp).getHours();
+  const peakHourFmt = `${peakHour % 12 || 12} ${peakHour < 12 ? "am" : "pm"}`;
+
+  // Find highest stress period
+  let peakStressEntry = entries[0];
+  for (const e of entries) {
+    if ((e.stressLevel ?? 0) > (peakStressEntry.stressLevel ?? 0)) peakStressEntry = e;
+  }
+  const peakStress = peakStressEntry.stressLevel ?? 5;
+  const stressHour = new Date(peakStressEntry.timestamp).getHours();
+  const stressHourFmt = `${stressHour % 12 || 12} ${stressHour < 12 ? "am" : "pm"}`;
+
+  // Pick the most interesting pattern
+  if (focusDeltaPct >= 20) {
+    return `Focus peaked at ${peakHourFmt}, ${focusDeltaPct}% above the rest of the day.`;
+  }
+  if (peakStress > 6) {
+    return `Stress spiked around ${stressHourFmt} yesterday — ${stressLabel(peakStress)} level. Today, watch that window.`;
+  }
+  if (focusDeltaPct >= 10) {
+    return `${peakHourFmt} was your sharpest hour yesterday — ${focusDeltaPct}% above average.`;
+  }
+  const avgFocus = entries.reduce((s, e) => s + (e.neuralActivity ?? 5), 0) / entries.length;
+  const avgStress = entries.reduce((s, e) => s + (e.stressLevel ?? 5), 0) / entries.length;
+  if (avgFocus > 6) return `Yesterday was a strong focus day — avg ${Math.round(avgFocus * 10)}%.`;
+  if (avgStress > 6) return `Stress ran high yesterday — today is a fresh start.`;
+  return `Yesterday looked balanced — stress ${stressLabel(avgStress)}, focus steady.`;
 }
 
 /* ── Skeleton card ───────────────────────────────────────────── */
@@ -364,7 +450,7 @@ export default function DailyBrainReport() {
                 </div>
               </div>
               <span className="text-sm font-mono text-foreground/90">
-                {peakFocusWindow()}
+                {peakFocusWindow(health)}
               </span>
             </div>
 
@@ -377,7 +463,7 @@ export default function DailyBrainReport() {
                 </div>
               </div>
               <span className="text-sm font-mono text-foreground/90">
-                {slumpWindow()}
+                {slumpWindow(health)}
               </span>
             </div>
 
