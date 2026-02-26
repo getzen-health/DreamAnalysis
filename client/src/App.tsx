@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,37 +8,51 @@ import { ThemeProvider } from "./hooks/use-theme";
 import { AuthProvider } from "./hooks/use-auth";
 import { DeviceProvider } from "./hooks/use-device";
 import AppLayout from "./layouts/app-layout";
+
+// ── Core journey pages — static imports (always needed on first load) ──────
 import Landing from "@/pages/landing";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import EmotionLab from "@/pages/emotion-lab";
 import BrainMonitor from "@/pages/brain-monitor";
-import BrainConnectivity from "@/pages/brain-connectivity";
 import DreamJournal from "@/pages/dream-journal";
-import HealthAnalytics from "@/pages/health-analytics";
-import Neurofeedback from "@/pages/neurofeedback";
 import AICompanionPage from "@/pages/ai-companion";
-import Insights from "@/pages/insights";
-import InnerEnergy from "@/pages/inner-energy";
 import Biofeedback from "@/pages/biofeedback";
 import SessionHistory from "@/pages/session-history";
 import SettingsPage from "@/pages/settings";
 import CalibrationPage from "@/pages/calibration";
-import FormalBenchmarksDashboard from "@/pages/formal-benchmarks-dashboard";
-import FoodEmotion from "@/pages/food-emotion";
-import DeviceSetup from "@/pages/device-setup";
-import ResearchEnroll from "@/pages/research-enroll";
-import ResearchMorning from "@/pages/research-morning";
-import ResearchHub from "@/pages/research-hub";
-import ResearchDaytime from "@/pages/research-daytime";
-import ResearchEvening from "@/pages/research-evening";
-import FoodLog from "@/pages/food-log";
 import DailyBrainReport from "@/pages/daily-brain-report";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
+// ── Heavy / rarely-visited pages — lazy loaded ─────────────────────────────
+const BrainConnectivity      = lazy(() => import("@/pages/brain-connectivity"));
+const HealthAnalytics        = lazy(() => import("@/pages/health-analytics"));
+const Neurofeedback          = lazy(() => import("@/pages/neurofeedback"));
+const Insights               = lazy(() => import("@/pages/insights"));
+const InnerEnergy            = lazy(() => import("@/pages/inner-energy"));
+const FormalBenchmarksDashboard = lazy(() => import("@/pages/formal-benchmarks-dashboard"));
+const FoodEmotion            = lazy(() => import("@/pages/food-emotion"));
+const DeviceSetup            = lazy(() => import("@/pages/device-setup"));
+const ResearchEnroll         = lazy(() => import("@/pages/research-enroll"));
+const ResearchMorning        = lazy(() => import("@/pages/research-morning"));
+const ResearchHub            = lazy(() => import("@/pages/research-hub"));
+const ResearchDaytime        = lazy(() => import("@/pages/research-daytime"));
+const ResearchEvening        = lazy(() => import("@/pages/research-evening"));
+const FoodLog                = lazy(() => import("@/pages/food-log"));
+
+// Minimal fallback shown while a lazy chunk loads
+function PageLoader() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground text-sm">
+      Loading…
+    </div>
+  );
+}
+
 function AppRoutes() {
   return (
+    <Suspense fallback={<PageLoader />}>
     <Switch>
       <Route path="/welcome" component={Landing} />
       <Route path="/auth" component={AuthPage} />
@@ -118,6 +133,7 @@ function AppRoutes() {
       <Route path="/onboarding" component={Onboarding} />
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

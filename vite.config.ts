@@ -28,6 +28,28 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
     // cache-bust: 2026-02-20
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React runtime — cached aggressively by browsers
+          "vendor-react": ["react", "react-dom"],
+          // TanStack Query — shared state layer
+          "vendor-query": ["@tanstack/react-query"],
+          // Charting — heaviest third-party dependency
+          "vendor-charts": ["recharts"],
+          // Animation library
+          "vendor-motion": ["framer-motion"],
+          // Radix UI primitives (shadcn/ui foundation)
+          "vendor-radix": [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-tooltip",
+          ],
+        },
+      },
+    },
   },
   server: {
     fs: {

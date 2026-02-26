@@ -1,6 +1,8 @@
 """Core EEG analysis endpoints: /analyze-eeg, /simulate-eeg."""
 
+import asyncio
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict
 import numpy as np
 from fastapi import APIRouter, HTTPException
@@ -22,6 +24,11 @@ from ._shared import (
 )
 
 router = APIRouter()
+
+# Shared thread-pool for parallel ML inference.
+# LightGBM, NumPy and SciPy release the GIL during native computation,
+# so multiple models genuinely run concurrently on multi-core hosts.
+_MODEL_EXECUTOR = ThreadPoolExecutor(max_workers=8, thread_name_prefix="ml_inference")
 
 
 # ─── 4-second epoch buffer (sliding window, 50% overlap) ─────────────────────
@@ -102,17 +109,27 @@ async def analyze_eeg(input_data: EEGInput):
         n_channels = signals.shape[0]   # re-read after buffer update
 
         if n_channels > 1:
-            extract_features_multichannel(signals, fs, method="average")
             avg_signal = np.mean(signals, axis=0)
             eeg = avg_signal
         else:
             eeg = signals[0]
 
-        sleep_result = sleep_model.predict(eeg, fs)
-        emotion_result = emotion_model.predict(signals if n_channels >= 2 else eeg, fs)
-        dream_result = dream_model.predict(eeg, fs)
+        # ── Parallel inference: 3 models + preprocessing run concurrently ──
+        # LightGBM/NumPy/SciPy release the GIL, so this is genuine parallelism.
+        loop = asyncio.get_event_loop()
+        emotion_input = signals if n_channels >= 2 else eeg
+        (
+            sleep_result,
+            emotion_result,
+            dream_result,
+            processed,
+        ) = await asyncio.gather(
+            loop.run_in_executor(_MODEL_EXECUTOR, sleep_model.predict, eeg, fs),
+            loop.run_in_executor(_MODEL_EXECUTOR, emotion_model.predict, emotion_input, fs),
+            loop.run_in_executor(_MODEL_EXECUTOR, dream_model.predict, eeg, fs),
+            loop.run_in_executor(_MODEL_EXECUTOR, preprocess, eeg, fs),
+        )
 
-        processed = preprocess(eeg, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
 
@@ -227,26 +244,58 @@ async def simulate_eeg_endpoint(request: SimulateRequest):
     )
 
     eeg = np.array(result["signals"][0])
-    sleep_result = sleep_model.predict(eeg, request.fs)
+    fs = request.fs
+    loop = asyncio.get_event_loop()
+
+    # Sleep runs first — lucid_dream prediction depends on its output.
+    sleep_result = await loop.run_in_executor(_MODEL_EXECUTOR, sleep_model.predict, eeg, fs)
+    is_rem = sleep_result.get("stage") == "REM"
+    sleep_stage_idx = sleep_result.get("stage_index", 0)
+
+    def _lucid():
+        return lucid_dream_model.predict(eeg, fs, is_rem=is_rem, sleep_stage=sleep_stage_idx)
+
+    # Remaining 11 models run in parallel.
+    (
+        emotions,
+        dream_detection,
+        flow_state,
+        creativity,
+        memory_encoding,
+        drowsiness,
+        cognitive_load,
+        attention,
+        stress,
+        lucid_dream,
+        meditation,
+    ) = await asyncio.gather(
+        loop.run_in_executor(_MODEL_EXECUTOR, emotion_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, dream_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, flow_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, creativity_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, memory_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, drowsiness_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, cognitive_load_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, attention_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, stress_model.predict, eeg, fs),
+        loop.run_in_executor(_MODEL_EXECUTOR, _lucid),
+        loop.run_in_executor(_MODEL_EXECUTOR, meditation_model.predict, eeg, fs),
+    )
 
     return {
         **result,
         "analysis": {
             "sleep_stage": sleep_result,
-            "emotions": emotion_model.predict(eeg, request.fs),
-            "dream_detection": dream_model.predict(eeg, request.fs),
-            "flow_state": flow_model.predict(eeg, request.fs),
-            "creativity": creativity_model.predict(eeg, request.fs),
-            "memory_encoding": memory_model.predict(eeg, request.fs),
-            "drowsiness": drowsiness_model.predict(eeg, request.fs),
-            "cognitive_load": cognitive_load_model.predict(eeg, request.fs),
-            "attention": attention_model.predict(eeg, request.fs),
-            "stress": stress_model.predict(eeg, request.fs),
-            "lucid_dream": lucid_dream_model.predict(
-                eeg, request.fs,
-                is_rem=(sleep_result.get("stage") == "REM"),
-                sleep_stage=sleep_result.get("stage_index", 0),
-            ),
-            "meditation": meditation_model.predict(eeg, request.fs),
+            "emotions": emotions,
+            "dream_detection": dream_detection,
+            "flow_state": flow_state,
+            "creativity": creativity,
+            "memory_encoding": memory_encoding,
+            "drowsiness": drowsiness,
+            "cognitive_load": cognitive_load,
+            "attention": attention,
+            "stress": stress,
+            "lucid_dream": lucid_dream,
+            "meditation": meditation,
         },
     }
