@@ -33,6 +33,7 @@ import ResearchDaytime from "@/pages/research-daytime";
 import ResearchEvening from "@/pages/research-evening";
 import FoodLog from "@/pages/food-log";
 import DailyBrainReport from "@/pages/daily-brain-report";
+import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -113,6 +114,8 @@ function AppRoutes() {
       <Route path="/brain-report">
         <AppLayout><DailyBrainReport /></AppLayout>
       </Route>
+      {/* Fullscreen onboarding — no sidebar */}
+      <Route path="/onboarding" component={Onboarding} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -10,6 +10,7 @@ import {
   Activity,
   AlertCircle,
   ArrowRight,
+  ChevronRight,
   Moon,
   MessageSquare,
   Sparkles,
@@ -27,6 +28,7 @@ import { useDevice } from "@/hooks/use-device";
 import {
   getHealthInsights,
   listSessions,
+  getBaselineStatus,
   type HealthInsight,
   type SessionSummary,
 } from "@/lib/ml-api";
@@ -355,6 +357,15 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // --- Baseline calibration status (for setup banner) ---
+  const { data: baselineStatus } = useQuery({
+    queryKey: ["baseline-status"],
+    queryFn: () => getBaselineStatus(USER_ID),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const baselineReady = baselineStatus?.ready ?? true; // optimistic: hide banner until data loads
+
   // --- Sessions for Yesterday's Insight + Personal Records ---
   const { data: allSessions = [] } = useQuery<SessionSummary[]>({
     queryKey: ["sessions"],
@@ -395,7 +406,23 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 2. Emotional Shift Alert */}
+      {/* 2. Baseline calibration prompt (shown until calibrated) */}
+      {!baselineReady && (
+        <Link href="/onboarding">
+          <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 text-sm flex items-center justify-between gap-3 cursor-pointer hover:bg-primary/10 transition-colors">
+            <div className="flex items-center gap-3">
+              <Brain className="h-4 w-4 shrink-0 text-primary" />
+              <span>
+                <span className="font-medium">Calibrate for accurate readings</span>
+                <span className="text-muted-foreground ml-2">— takes 2 min, +15–29% accuracy</span>
+              </span>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          </div>
+        </Link>
+      )}
+
+      {/* 3. Emotional Shift Alert */}
       {shift?.detected && (
         <div
           className={
