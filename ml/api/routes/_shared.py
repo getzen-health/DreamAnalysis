@@ -165,7 +165,7 @@ def _get_personal_model(user_id: str):
     if user_id not in _personal_models:
         try:
             from models.online_learner import PersonalModelAdapter
-            _personal_models[user_id] = PersonalModelAdapter(sleep_model, user_id)
+            _personal_models[user_id] = PersonalModelAdapter(emotion_model, user_id)
         except Exception:
             return None
     return _personal_models[user_id]

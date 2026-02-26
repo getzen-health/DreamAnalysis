@@ -183,6 +183,14 @@ async def analyze_eeg(input_data: EEGInput):
             pm = _get_personal_model(user_id)
             if pm:
                 personal = pm.predict(features)
+                # Blend personal prediction into emotion result when confident
+                if personal.get("has_personal") and personal.get("personal_confidence", 0.0) >= 0.5:
+                    emotion_result = dict(emotion_result)
+                    emotion_result["emotion"] = personal["personal_prediction"]
+                    emotion_result["personal_override"] = True
+                elif personal is not None:
+                    emotion_result = dict(emotion_result)
+                    emotion_result["personal_override"] = False
         except Exception:
             pass
 
