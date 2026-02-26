@@ -558,7 +558,7 @@ export default function Dashboard() {
           />
           <p className="text-xs text-muted-foreground mt-2">
             {isStreaming
-              ? `Focus ${Math.round(focusIndex)} · Stress ${Math.round(stressIndex)}`
+              ? `Focus ${Math.round(focusIndex)}% · Stress ${Math.round(stressIndex)}%`
               : "—"}
           </p>
         </div>
@@ -613,13 +613,13 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{insightText}</p>
                 <div className="flex gap-2 mt-3">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary">
-                    Stress {Math.round(stressIndex)}
+                    Stress {Math.round(stressIndex)}%
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary/10 text-secondary">
-                    Focus {Math.round(focusIndex)}
+                    Focus {Math.round(focusIndex)}%
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent/10 text-accent">
-                    Relax {Math.round(relaxationIndex)}
+                    Relax {Math.round(relaxationIndex)}%
                   </span>
                 </div>
               </div>
