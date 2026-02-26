@@ -2,7 +2,8 @@
 
 ## Completed Features
 
-### Frontend (19 pages)
+### Frontend (20 pages)
+- [x] **Daily Brain Report** (`/brain-report` — sleep summary, focus forecast, yesterday's insight, recommended action)
 - [x] Landing page + authentication
 - [x] Main dashboard with health metric overview
 - [x] Real-time EEG brain monitor

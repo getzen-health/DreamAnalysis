@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Brain,
+  Sun,
   Heart,
   Activity,
   Moon,
@@ -42,6 +43,7 @@ const sections: NavSection[] = [
   {
     title: "Core",
     items: [
+      { path: "/brain-report", label: "Brain Report", icon: Sun },
       { path: "/", label: "Dashboard", icon: Brain },
       { path: "/emotions", label: "Emotions", icon: Heart },
       { path: "/brain-monitor", label: "Brain Monitor", icon: Activity },

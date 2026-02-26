@@ -32,6 +32,7 @@ import ResearchHub from "@/pages/research-hub";
 import ResearchDaytime from "@/pages/research-daytime";
 import ResearchEvening from "@/pages/research-evening";
 import FoodLog from "@/pages/food-log";
+import DailyBrainReport from "@/pages/daily-brain-report";
 import NotFound from "@/pages/not-found";
 
 function AppRoutes() {
@@ -108,6 +109,9 @@ function AppRoutes() {
       </Route>
       <Route path="/food-log">
         <AppLayout><FoodLog /></AppLayout>
+      </Route>
+      <Route path="/brain-report">
+        <AppLayout><DailyBrainReport /></AppLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>
