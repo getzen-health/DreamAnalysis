@@ -1,0 +1,142 @@
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import { renderWithProviders } from "../test-utils";
+import FoodEmotion from "@/pages/food-emotion";
+
+beforeAll(() => {
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
+
+vi.mock("@/lib/participant", () => ({ getParticipantId: () => "test-user-123" }));
+
+vi.mock("@/lib/ml-api", () => ({
+  predictFoodEmotion: vi.fn().mockResolvedValue({
+    food_state: "balanced",
+    state_probabilities: {
+      craving_carbs: 0.1,
+      appetite_suppressed: 0.05,
+      comfort_seeking: 0.1,
+      balanced: 0.6,
+      stress_eating: 0.05,
+      mindful_eating: 0.1,
+    },
+    confidence: 0.8,
+    is_calibrated: false,
+    calibration_progress: 0.3,
+    components: {
+      faa: 0.2,
+      high_beta: 0.35,
+      prefrontal_theta: 0.4,
+      delta: 0.25,
+    },
+    recommendations: {
+      prefer: ["Complex carbs", "Leafy greens"],
+      avoid: ["Sugary snacks", "Processed foods"],
+      strategy: "Focus on mindful eating",
+      mindfulness_tip: "Pause before eating",
+    },
+    simulation_mode: true,
+  }),
+  calibrateFoodEmotion: vi.fn().mockResolvedValue({}),
+}));
+
+describe("FoodEmotion page", () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    }) as unknown as typeof fetch;
+  });
+
+  it("renders without crashing", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => expect(document.body).toBeTruthy());
+  });
+
+  it("shows the Food & Cravings heading", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(screen.getByText("Food & Cravings")).toBeInTheDocument();
+    });
+  });
+
+  it("shows EEG-based appetite subtitle", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(
+        screen.getByText("EEG-based appetite and eating-state analysis")
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows Current Food State card", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(screen.getByText("Current Food State")).toBeInTheDocument();
+    });
+  });
+
+  it("shows the balanced food state badge after data loads", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(screen.getByText("Balanced")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Neural Biomarkers section", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(screen.getByText("Neural Biomarkers")).toBeInTheDocument();
+    });
+  });
+
+  it("shows FAA biomarker gauge label", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(
+        screen.getByText("Frontal Alpha Asymmetry (FAA)")
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows High-Beta biomarker gauge", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(
+        screen.getByText("High-Beta (Stress / Anxiety)")
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows State Probabilities chart section", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(screen.getByText("State Probabilities")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Dietary Guidance section after data loads", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(screen.getByText("Dietary Guidance")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Calibration card", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(screen.getByText("Calibration")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Calibrate Now button", async () => {
+    renderWithProviders(<FoodEmotion />);
+    await waitFor(() => {
+      expect(screen.getByText("Calibrate Now")).toBeInTheDocument();
+    });
+  });
+});
