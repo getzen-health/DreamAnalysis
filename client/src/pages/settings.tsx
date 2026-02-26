@@ -63,6 +63,7 @@ export default function SettingsPage() {
     google_fit: false,
   });
   const [uploading, setUploading] = useState<string | null>(null);
+  const [exportingHealthkit, setExportingHealthkit] = useState(false);
 
   const appleFileRef = useRef<HTMLInputElement>(null);
   const googleFileRef = useRef<HTMLInputElement>(null);
@@ -136,6 +137,32 @@ export default function SettingsPage() {
       });
     } finally {
       setUploading(null);
+    }
+  };
+
+  const handleHealthkitExport = async () => {
+    setExportingHealthkit(true);
+    try {
+      const res = await fetch(`/api/ml/health/export-to-healthkit/${userId}`, { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `healthkit_export_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({
+        title: "HealthKit export ready",
+        description: `${data.count} samples exported. Import with Shortcuts or Health app on iOS.`,
+      });
+    } catch (err) {
+      toast({ title: "Export failed", description: String(err), variant: "destructive" });
+    } finally {
+      setExportingHealthkit(false);
     }
   };
 
@@ -294,12 +321,23 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Coming soon note */}
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border">
-              <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-              <p className="text-xs text-muted-foreground">
-                Direct API connection coming soon. For now, export your data from the Health app and upload the file here.
-              </p>
+            {/* Apple HealthKit export */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <p className="text-xs text-muted-foreground">
+                  Export your brain sessions as HealthKit-formatted JSON. Import on iOS via Shortcuts or the Health app.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportingHealthkit}
+                onClick={handleHealthkitExport}
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                {exportingHealthkit ? "Exporting..." : "Export to HealthKit"}
+              </Button>
             </div>
           </div>
         </Card>

@@ -130,7 +130,7 @@
 - [x] Weekly brain summary card — 7-day avg stress/focus/sleep with copy button (on `/brain-report`)
 - [x] User-correctable emotion labels — "Was this right?" chip panel in `/emotion-lab`; stores correction + POSTs to ML backend `/feedback`
 - [x] Per-user model fine-tuning trigger — after every 5 corrections for a user, POST batch to ML backend online learner (`PersonalModelAdapter.adapt()`)
-- [ ] Export data (CSV, Apple Health sync)
+- [x] Export data — CSV/JSON export with date-range + metric selector (`/api/ml/brain/export` via `ExportBrainDataCard`); Apple HealthKit export (`/api/ml/health/export-to-healthkit/{user_id}`) wired to "Export to HealthKit" button in Settings
 
 ## Food-Emotion Research Roadmap
 
@@ -146,10 +146,10 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 
 ## Future Plans
 
-- [x] ~~Add Vitest for frontend component + integration tests~~ — 97 tests across 10 pages shipped
-- [ ] Expand test coverage to remaining 15 pages
+- [x] ~~Add Vitest for frontend tests~~ — 128 tests across 13 pages (biofeedback, calibration, dashboard, emotion-lab, research-hub, daily-brain-report, ai-companion, sleep-session, onboarding, research-enroll, dream-journal, health-analytics, neurofeedback)
+- [ ] Expand test coverage to remaining 9 pages (session-history, settings, brain-monitor, brain-connectivity, inner-energy, food-emotion, insights, dream-patterns, formal-benchmarks-dashboard)
 - [ ] Train all 17 models on real datasets with published benchmarks
 - [ ] Mobile-optimized layout / React Native companion app
 - [ ] Multi-user session support (currently single-user per server instance)
-- [ ] Docker Compose setup for one-command deployment (frontend + backend + DB)
+- [x] Docker Compose one-command deployment — `docker-compose up` starts db + api + ml; VAPID and ML_BACKEND_URL env vars wired; Datadog profile-gated
 - [ ] Real-time collaborative sessions (shared brain data viewing)
