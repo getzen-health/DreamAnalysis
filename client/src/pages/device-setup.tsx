@@ -584,7 +584,7 @@ export default function DeviceSetup() {
           <StepDone
             deviceName={selectedName}
             isSynthetic={isSynthetic}
-            onCalibrate={() => navigate("/calibration")}
+            onCalibrate={() => navigate("/onboarding")}
             onEmotions={() => navigate("/emotions")}
           />
         )}

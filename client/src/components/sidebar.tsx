@@ -53,7 +53,8 @@ const sections: NavSection[] = [
   {
     title: "Dreams",
     items: [
-      { path: "/dreams", label: "Dreams", icon: Moon },
+      { path: "/dreams",         label: "Dreams",        icon: Moon },
+      { path: "/sleep-session",  label: "Sleep Session", icon: Moon },
     ],
   },
   {

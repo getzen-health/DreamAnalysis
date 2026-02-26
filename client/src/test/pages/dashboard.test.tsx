@@ -80,7 +80,7 @@ describe("Dashboard page", () => {
   it("shows connect device banner when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Connect your Muse 2 from the sidebar/)
+      screen.getByText(/Connect your Muse 2 to see live dashboard data/)
     ).toBeInTheDocument();
   });
 

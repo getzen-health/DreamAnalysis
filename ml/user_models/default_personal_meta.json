@@ -51,6 +51,6 @@
     "f_high_beta_frac",
     "f_theta_alpha_ratio"
   ],
-  "n_samples": 337897,
-  "train_accuracy": 0.5785
+  "n_samples": 373638,
+  "train_accuracy": 0.5875
 }

@@ -526,6 +526,15 @@ export default function Dashboard() {
               <p className="text-[10px] text-muted-foreground mt-2 text-center">
                 Across {sessionsWithData.length} sessions
               </p>
+              {isStreaming && focusIndex > 0 && (
+                <p className={`text-[10px] text-center mt-1 font-medium ${focusIndex >= peakFocus ? "text-emerald-400" : focusIndex >= peakFocus * 0.85 ? "text-amber-400" : "text-muted-foreground/50"}`}>
+                  {focusIndex >= peakFocus
+                    ? "Focus record this session — keep going"
+                    : focusIndex >= peakFocus * 0.85
+                    ? `${Math.round(peakFocus - focusIndex)}% from your focus record`
+                    : `Live focus: ${Math.round(focusIndex)}%`}
+                </p>
+              )}
             </Card>
           )}
         </div>

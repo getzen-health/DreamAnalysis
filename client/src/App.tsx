@@ -40,6 +40,7 @@ const ResearchHub            = lazy(() => import("@/pages/research-hub"));
 const ResearchDaytime        = lazy(() => import("@/pages/research-daytime"));
 const ResearchEvening        = lazy(() => import("@/pages/research-evening"));
 const FoodLog                = lazy(() => import("@/pages/food-log"));
+const SleepSession           = lazy(() => import("@/pages/sleep-session"));
 
 // Minimal fallback shown while a lazy chunk loads
 function PageLoader() {
@@ -125,6 +126,9 @@ function AppRoutes() {
       </Route>
       <Route path="/food-log">
         <AppLayout><FoodLog /></AppLayout>
+      </Route>
+      <Route path="/sleep-session">
+        <AppLayout><SleepSession /></AppLayout>
       </Route>
       <Route path="/brain-report">
         <AppLayout><DailyBrainReport /></AppLayout>

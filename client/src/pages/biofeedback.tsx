@@ -81,6 +81,46 @@ const EXERCISES: Exercise[] = [
     fillColor: "rgba(168,85,247,0.15)",
     strokeColor: "hsl(270, 70%, 65%)",
   },
+  {
+    id: "physiological-sigh",
+    name: "Physio Sigh",
+    tagline: "Fastest anxiety relief",
+    science: "Double inhale maximally inflates alveoli, flushing CO₂. Stanford 2023: superior to mindfulness for acute stress in real-time.",
+    phases: [
+      { label: "Inhale",  duration: 2, expand: true },
+      { label: "Inhale+", duration: 1, expand: true },
+      { label: "Exhale",  duration: 8, expand: false },
+    ],
+    color: "hsl(176, 70%, 45%)",
+    fillColor: "rgba(20,184,166,0.15)",
+    strokeColor: "hsl(176, 70%, 45%)",
+  },
+  {
+    id: "cyclic-sighing",
+    name: "Cyclic Sigh",
+    tagline: "Sustained calm",
+    science: "1:2 inhale:exhale ratio prolongs vagal tone. Shown to reduce self-reported anxiety 44% over 5 minutes.",
+    phases: [
+      { label: "Inhale", duration: 5, expand: true },
+      { label: "Exhale", duration: 10, expand: false },
+    ],
+    color: "hsl(43, 90%, 55%)",
+    fillColor: "rgba(234,179,8,0.15)",
+    strokeColor: "hsl(43, 90%, 55%)",
+  },
+  {
+    id: "power-breath",
+    name: "Power Breath",
+    tagline: "Energise & focus",
+    science: "Short 2:1 ratio raises sympathetic tone and blood oxygenation — a legal pre-performance stimulant.",
+    phases: [
+      { label: "Inhale", duration: 4, expand: true },
+      { label: "Exhale", duration: 2, expand: false },
+    ],
+    color: "hsl(22, 90%, 58%)",
+    fillColor: "rgba(249,115,22,0.15)",
+    strokeColor: "hsl(22, 90%, 58%)",
+  },
 ];
 
 // ─── Timing helper ────────────────────────────────────────────────────────────
@@ -121,6 +161,7 @@ function buildPaths(readings: Reading[]) {
 // ─── Phase guidance text ──────────────────────────────────────────────────────
 
 function guidanceText(label: string): string {
+  if (label === "Inhale+") return "One more quick sniff to top off your lungs…";
   if (label === "Inhale") return "Breathe in slowly through your nose…";
   if (label === "Exhale") return "Let it all go — out through your mouth…";
   return "Hold gently. Stay still.";

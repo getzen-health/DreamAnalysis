@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parameters Dashboard — Neural Dream Workshop</title>
+    <style>
+      :root {
+        --bg: #07090d;
+        --panel: rgba(255, 255, 255, 0.04);
+        --panel-border: rgba(255, 255, 255, 0.1);
+        --muted: rgba(255, 255, 255, 0.55);
+        --emotion: #38bdf8;
+        --food: #f59e0b;
+        --dream: #a78bfa;
+        --health: #10b981;
+        --signal: #f97316;
+        --redundant: #ef4444;
+        --caution: #facc15;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Poppins", "Avenir Next", "Montserrat", sans-serif;
+        background: var(--bg);
+        color: #fff;
+      }
+      /* ── Hero ── */
+      .hero {
+        padding: 48px 24px 36px;
+        border-bottom: 1px solid var(--panel-border);
+        background:
+          radial-gradient(circle at 10% 20%, rgba(56,189,248,0.12), transparent 50%),
+          radial-gradient(circle at 80% 10%, rgba(167,139,250,0.12), transparent 50%),
+          radial-gradient(circle at 50% 90%, rgba(16,185,129,0.10), transparent 50%);
+      }
+      .container { max-width: 1200px; margin: 0 auto; }
+      .kicker {
+        letter-spacing: 0.45em;
+        text-transform: uppercase;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      h1 { margin: 14px 0 12px; font-size: 38px; font-weight: 600; }
+      .sub { max-width: 680px; color: var(--muted); line-height: 1.7; font-size: 15px; }
+      /* ── Stat pills ── */
+      .stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 24px; }
+      .stat-pill {
+        padding: 8px 18px; border-radius: 999px; font-size: 13px; font-weight: 500;
+        border: 1px solid;
+      }
+      .stat-pill.em { border-color: rgba(56,189,248,0.4); background: rgba(56,189,248,0.12); color: #7dd3fc; }
+      .stat-pill.fd { border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); color: #fde68a; }
+      .stat-pill.dr { border-color: rgba(167,139,250,0.4); background: rgba(167,139,250,0.12); color: #c4b5fd; }
+      .stat-pill.hl { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); color: #6ee7b7; }
+      .stat-pill.rd { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.12); color: #fca5a5; }
+      /* ── Layout ── */
+      .body-grid {
+        display: grid;
+        grid-template-columns: 1.4fr 0.6fr;
+        gap: 24px;
+        padding: 32px 24px 64px;
+      }
+      @media (max-width: 900px) { .body-grid { grid-template-columns: 1fr; } }
+      /* ── Cards ── */
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 20px;
+        padding: 20px 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.3);
+      }
+      .card:last-child { margin-bottom: 0; }
+      .card-title {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+      .dot.em { background: var(--emotion); }
+      .dot.fd { background: var(--food); }
+      .dot.dr { background: var(--dream); }
+      .dot.hl { background: var(--health); }
+      .dot.sg { background: var(--signal); }
+      .dot.rd { background: var(--redundant); }
+      /* ── Param rows ── */
+      .param-list { list-style: none; margin: 0; padding: 0; }
+      .param-list li {
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        display: grid;
+        grid-template-columns: 180px 1fr auto;
+        gap: 12px;
+        align-items: start;
+        font-size: 13px;
+      }
+      .param-list li:last-child { border-bottom: none; }
+      .param-name {
+        font-family: "Fira Code", "Menlo", "Courier New", monospace;
+        font-size: 12px;
+        color: #fff;
+        background: rgba(255,255,255,0.07);
+        padding: 2px 7px;
+        border-radius: 4px;
+        word-break: break-all;
+        align-self: start;
+      }
+      .param-why { color: var(--muted); line-height: 1.5; }
+      .param-why strong { color: rgba(255,255,255,0.85); font-weight: 500; }
+      .tag {
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        white-space: nowrap;
+        font-weight: 500;
+        align-self: start;
+      }
+      .tag.live { background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4); }
+      .tag.heuristic { background: rgba(245,158,11,0.2); color: #fde68a; border: 1px solid rgba(245,158,11,0.4); }
+      .tag.unused { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
+      .tag.caution { background: rgba(250,204,21,0.15); color: #fef08a; border: 1px solid rgba(250,204,21,0.35); }
+      .tag.derived { background: rgba(167,139,250,0.2); color: #c4b5fd; border: 1px solid rgba(167,139,250,0.4); }
+      /* ── Redundancy section ── */
+      .redundancy-item {
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        font-size: 13px;
+      }
+      .redundancy-item:last-child { border-bottom: none; }
+      .redundancy-title {
+        font-weight: 600;
+        color: #fca5a5;
+        margin-bottom: 4px;
+        font-size: 13px;
+      }
+      .redundancy-desc { color: var(--muted); line-height: 1.5; }
+      .redundancy-desc code {
+        font-family: monospace;
+        font-size: 11px;
+        background: rgba(255,255,255,0.08);
+        padding: 1px 5px;
+        border-radius: 3px;
+        color: rgba(255,255,255,0.8);
+      }
+      /* ── Reliability table ── */
+      .rel-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+      .rel-table th {
+        text-align: left; padding: 8px 10px;
+        font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+        color: var(--muted); border-bottom: 1px solid rgba(255,255,255,0.1);
+      }
+      .rel-table td { padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+      .rel-table tr:last-child td { border-bottom: none; }
+      .bar-cell { width: 80px; }
+      .mini-bar {
+        height: 6px; border-radius: 99px; background: rgba(255,255,255,0.08); overflow: hidden;
+      }
+      .mini-bar span { display: block; height: 100%; border-radius: 99px; }
+      .good { background: linear-gradient(90deg, #10b981, rgba(16,185,129,0.3)); }
+      .ok   { background: linear-gradient(90deg, #f59e0b, rgba(245,158,11,0.3)); }
+      .bad  { background: linear-gradient(90deg, #ef4444, rgba(239,68,68,0.3)); }
+      /* ── Side panel ── */
+      .panel-card {
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 20px;
+        padding: 20px 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.3);
+      }
+      .panel-card h3 { margin: 0 0 10px; font-size: 18px; }
+      .panel-card p, .panel-card li {
+        color: var(--muted); font-size: 13px; line-height: 1.65;
+      }
+      .panel-card ul { margin: 8px 0 0; padding-left: 16px; }
+      .verdict {
+        margin-top: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .verdict.warn { background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.25); color: #fef08a; }
+      .verdict.ok-v { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); color: #6ee7b7; }
+      .verdict.bad-v { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); color: #fca5a5; }
+      .section-header {
+        font-size: 20px; font-weight: 600; margin: 0 0 4px;
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- ── Hero ── -->
+    <header class="hero">
+      <div class="container">
+        <div class="kicker">NeuralDreamWorkshop · Parameter Analysis</div>
+        <h1>What We're Measuring<br>and Why</h1>
+        <p class="sub">
+          All 85 features extracted per epoch, every derived index, every database column —
+          mapped to their scientific basis, usage status, and reliability. Redundancies called out with zero mercy.
+        </p>
+        <div class="stat-row">
+          <div class="stat-pill em">17 raw EEG features/channel × 4 ch = 85 total</div>
+          <div class="stat-pill fd">6 food-emotion states</div>
+          <div class="stat-pill dr">12 dream parameters</div>
+          <div class="stat-pill hl">5 health columns</div>
+          <div class="stat-pill rd">10 redundancies identified</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Body ── -->
+    <main class="body-grid container">
+
+      <!-- ═══ LEFT COLUMN — parameter groups ═══ -->
+      <section>
+
+        <!-- EEG Band Powers -->
+        <div class="card">
+          <div class="card-title"><span class="dot em"></span>EEG Band Powers — Core Features</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">delta (0.5–4 Hz)</span>
+              <span class="param-why"><strong>Deep sleep & unconscious processing.</strong> Increases during N3 sleep, high delta → you're crashing. Used by sleep staging model (92.98% acc). Also inverted proxy for arousal (low delta = more awake).</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">theta (4–8 Hz)</span>
+              <span class="param-why"><strong>Meditation, creativity, memory encoding, drowsiness.</strong> Frontal midline theta (FMT) from this band is the most reference-robust valence signal. Theta/beta ratio → cognitive load & creativity state.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">alpha (8–12 Hz)</span>
+              <span class="param-why"><strong>Core emotion signal.</strong> Used in FAA (left vs right alpha → valence), alpha/beta ratio (relaxation), alpha suppression → task engagement. Primary frequency band for the entire emotion pipeline.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">beta (12–30 Hz)</span>
+              <span class="param-why"><strong>Active thinking, concentration, anxiety, stress.</strong> High-beta (20–30 Hz) specifically = anxiety/fight-flight. Beta/(alpha+beta) → arousal. Most visible live change when user is stressed.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">high_beta (20–30 Hz)</span>
+              <span class="param-why"><strong>Anxiety fraction of beta.</strong> Separated out because low-beta (focus) and high-beta (anxiety) have opposite connotations. high_beta/beta = anxiety fraction — key input to stress detector and food stress_eating state.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">gamma (30–100 Hz)</span>
+              <span class="param-why"><strong>On Muse 2: mostly jaw-clenching EMG, not neural signal.</strong> Kept for completeness and lucid dream detection (40 Hz gamma burst = REM awareness). Explicitly zeroed in arousal/stress formulas after bug fix Feb 2026.</span>
+              <span class="tag caution">⚠ EMG Noise</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Asymmetry Features -->
+        <div class="card">
+          <div class="card-title"><span class="dot em"></span>Asymmetry Features — Valence Pipeline</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">FAA<br>(frontal_asymmetry)</span>
+              <span class="param-why"><strong>ln(AF8_alpha) − ln(AF7_alpha).</strong> Davidson (1992) — 30 years of replication. Left-frontal activation = approach/positive affect; right = withdrawal/negative. Blended 50/50 with alpha/beta ratio for final valence. Test-retest r=0.53–0.66 (40% noise per epoch).</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">DASM<br>(5 features)</span>
+              <span class="param-why"><strong>DE_AF8 − DE_AF7 per band</strong> (delta, theta, alpha, beta, gamma). Extends FAA logic to ALL bands. Differential Entropy version is more sensitive to phase-locked activity than raw power asymmetry. Published as optimal compact feature for 4-channel EEG.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">RASM<br>(5 features)</span>
+              <span class="param-why"><strong>DE_AF8 / DE_AF7 per band.</strong> Ratio version of DASM — scale-invariant, less sensitive to absolute power drift across sessions. Paired with DASM in the 85-feature vector.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">FMT<br>(frontal_midline_theta)</span>
+              <span class="param-why"><strong>Theta power at AF7 from ACC/mPFC.</strong> Less sensitive to reference electrode choice than FAA. Pleasant stimuli → higher left theta. Used as valence complement when FAA is unreliable. Returned in every prediction response as <code>frontal_midline_theta</code>.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">temporal_asymmetry</span>
+              <span class="param-why"><strong>TP9 vs TP10 asymmetry.</strong> Temporal channels capture emotion-related activity in auditory and association cortex. Partially implemented — TP9/TP10 signals are unreliable on Muse 2 (2024 validation: non-physiological in 17/N recordings even with green indicators).</span>
+              <span class="tag caution">⚠ Unreliable</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Ratios -->
+        <div class="card">
+          <div class="card-title"><span class="dot em"></span>Derived Ratios — Why Each One</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">alpha_beta_ratio</span>
+              <span class="param-why"><strong>Relaxation vs alertness.</strong> Core input to valence (tanh blend). High = relaxed, low = alert/stressed. Used in 3 separate code paths → the primary redundancy target.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">theta_beta_ratio</span>
+              <span class="param-why"><strong>Creativity / drowsiness vs focus.</strong> High theta/beta = meditative or drowsy state. Input to cognitive load, flow state, and drowsiness detectors. Research basis: Schomer & Lopes da Silva (2011).</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">alpha_theta_ratio</span>
+              <span class="param-why"><strong>Calm wakefulness vs drowsiness.</strong> High = relaxed-but-awake (Zen state). Drops during both high stress and sleepiness. Used by meditation classifier for depth estimation.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">high_beta_frac</span>
+              <span class="param-why"><strong>Anxiety fraction of total beta.</strong> high_beta/beta. Separates anxious focus from calm focus. Direct input to stress_index formula and food stress_eating state biomarker.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">delta_theta_ratio</span>
+              <span class="param-why"><strong>Deep sleep marker.</strong> Very high delta/theta = N3 sleep. Used exclusively by sleep staging model. Not relevant during wake sessions.</span>
+              <span class="tag live">Live</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Hjorth + Spectral -->
+        <div class="card">
+          <div class="card-title"><span class="dot em"></span>Hjorth Parameters + Spectral Features</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">hjorth_activity</span>
+              <span class="param-why"><strong>Signal variance (power proxy).</strong> Faster to compute than Welch PSD. Used in artifact detection — sudden activity spike = blink or electrode pop.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">hjorth_mobility</span>
+              <span class="param-why"><strong>Mean frequency of signal.</strong> Ratio of derivative variance to signal variance. Increases with beta/gamma activity. Useful for gross state changes without full PSD.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">hjorth_complexity</span>
+              <span class="param-why"><strong>Signal "roughness" — how different from a sine wave.</strong> High complexity = many frequency components active simultaneously. Low during deep sleep (delta dominates), high during cognition.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">spectral_entropy</span>
+              <span class="param-why"><strong>How "spread out" power is across frequencies.</strong> Low entropy = one frequency dominates (e.g., alpha peak in eyes-closed relaxation). High = broadband activity (cognition or noise). One per epoch.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">differential_entropy<br>(per band)</span>
+              <span class="param-why"><strong>Information content of the band's power distribution.</strong> More sensitive than raw power to phase-locked emotional activity. Used in DASM/RASM features (above). Published as the single best feature for EEG emotion recognition (Shi et al., 2013).</span>
+              <span class="tag live">Live</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Derived Indices -->
+        <div class="card">
+          <div class="card-title"><span class="dot em"></span>Derived Emotion Indices — What the App Shows You</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">valence<br>(−1 to +1)</span>
+              <span class="param-why"><strong>Negative ↔ positive feeling.</strong> 50% FAA + 50% alpha/beta ratio (both normalized via tanh). Russell's circumplex X-axis. Published cross-subject accuracy: 60–72%. Individual variation: ±0.25 per epoch is noise.</span>
+              <span class="tag derived">Derived</span>
+            </li>
+            <li>
+              <span class="param-name">arousal<br>(0 to 1)</span>
+              <span class="param-why"><strong>Calm ↔ energetic.</strong> 45% beta/(beta+alpha) + 30% (1 − alpha fraction) + 25% (1 − delta proxy). Russell's circumplex Y-axis. More reliable than valence (~10 points better). Gamma removed after EMG bug fix.</span>
+              <span class="tag derived">Derived</span>
+            </li>
+            <li>
+              <span class="param-name">stress_index<br>(0 to 1)</span>
+              <span class="param-why"><strong>Physiological stress level.</strong> 45% high_beta/(beta+alpha) + 30% (theta/alpha)×0.3 + 25% high_beta_frac. Validated against HRV and cortisol in Al-Shargie et al. (2016).</span>
+              <span class="tag derived">Derived</span>
+            </li>
+            <li>
+              <span class="param-name">focus_index<br>(0 to 1)</span>
+              <span class="param-why"><strong>Sustained attention level.</strong> 45% beta_ratio + 40% (1 − alpha_ratio) + 15% (1 − theta_beta). High beta + suppressed alpha = focused task engagement. Gamma removed (was detecting jaw clenching as "focus").</span>
+              <span class="tag derived">Derived</span>
+            </li>
+            <li>
+              <span class="param-name">relaxation_index<br>(0 to 1)</span>
+              <span class="param-why"><strong>Relaxation state.</strong> Primarily alpha dominance + low beta. Inverse of stress_index. Shown on the biofeedback breathing page to give real-time feedback during 4-7-8 breathing exercises.</span>
+              <span class="tag derived">Derived</span>
+            </li>
+            <li>
+              <span class="param-name">confidence<br>(0 to 1)</span>
+              <span class="param-why"><strong>Model confidence score.</strong> Calibrated from prediction probability. Shown as a badge on the emotion label. Below 0.4 → displays "uncertain" to prevent misleading readings during artifact epochs.</span>
+              <span class="tag derived">Derived</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Food-Emotion -->
+        <div class="card">
+          <div class="card-title"><span class="dot fd"></span>Food-Emotion Biomarkers — The Novel Module</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">craving_carbs</span>
+              <span class="param-why"><strong>High FAA + high beta.</strong> Positive valence + arousal → anticipatory reward state. Dopaminergic activation preceding intake. FAA weight 0.35, high_beta 0.40.</span>
+              <span class="tag heuristic">Heuristic</span>
+            </li>
+            <li>
+              <span class="param-name">appetite_suppressed</span>
+              <span class="param-why"><strong>Negative FAA + elevated delta.</strong> Right-frontal dominance + slow wave activity → withdrawal state. Consistent with anhedonic, post-stress appetite loss. FAA weight −0.20, delta 0.40.</span>
+              <span class="tag heuristic">Heuristic</span>
+            </li>
+            <li>
+              <span class="param-name">comfort_seeking</span>
+              <span class="param-why"><strong>Negative FAA + moderate theta.</strong> Negative valence + emotional-processing theta → reaching for food to regulate mood. Cross-cultural phenomenon (Ayurveda → sazón). FAA weight −0.40.</span>
+              <span class="tag heuristic">Heuristic</span>
+            </li>
+            <li>
+              <span class="param-name">balanced</span>
+              <span class="param-why"><strong>Neutral FAA + low beta + elevated theta/delta.</strong> Calm, not seeking reward, not avoiding — the homeostatic baseline eating state. FAA near zero, low high_beta.</span>
+              <span class="tag heuristic">Heuristic</span>
+            </li>
+            <li>
+              <span class="param-name">stress_eating</span>
+              <span class="param-why"><strong>Negative FAA + very high beta.</strong> Negative valence + hyperarousal → using food to dampen cortisol response. High_beta weight 0.50 (dominant signal). Most clinically relevant state.</span>
+              <span class="tag heuristic">Heuristic</span>
+            </li>
+            <li>
+              <span class="param-name">mindful_eating</span>
+              <span class="param-why"><strong>Slightly positive FAA + high theta.</strong> Mild positive valence + meditative theta → intentional, aware eating. Theta weight 0.40 (highest of any state). Correlates with slow eating, taste focus.</span>
+              <span class="tag heuristic">Heuristic</span>
+            </li>
+          </ul>
+          <div class="verdict warn">
+            ⚠ All 6 states are <strong>theory-derived heuristics</strong> — no training data yet. Biomarker weights are physiologically motivated but unvalidated. This is the most novel (and most speculative) module. The 30-day study is Phase 1 of validating these biomarkers.
+          </div>
+        </div>
+
+        <!-- Dream parameters -->
+        <div class="card">
+          <div class="card-title"><span class="dot dr"></span>Dream Parameters — What Gets Stored</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">dreamValence</span>
+              <span class="param-why"><strong>Emotional tone of dream content.</strong> GPT-5 extracts valence from free-text dream journal entries. −1 = nightmare, +1 = positive dream. The primary outcome variable for the continuity hypothesis test.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">lucidityScore</span>
+              <span class="param-why"><strong>Self-reported lucidity 0–10.</strong> Cross-validated with overnight EEG gamma bursts during REM (Voss et al., 2009). Higher lucidity → more gamma at 40 Hz during detected REM periods.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">nightmareFlag</span>
+              <span class="param-why"><strong>Binary nightmare indicator.</strong> Stored separately from valence because nightmare threshold is subjective. Used to flag distress and show mental health resources (welfare gate check).</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">symbols (JSON array)</span>
+              <span class="param-why"><strong>AI-extracted recurring imagery.</strong> GPT-5 identifies symbols (water, falling, flying, family, etc.) for pattern analysis across 30 days. Primary input to dream-patterns page trend chart.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">noRecall</span>
+              <span class="param-why"><strong>Dream recall failure flag.</strong> ~55% of mornings. Critical to not confuse "forgot dream" with "no dream." Excluded from continuity analysis when true — treated as missing data, not negative valence.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">welfareScore</span>
+              <span class="param-why"><strong>Morning wellbeing 1–10.</strong> Research welfare gate. Below threshold (≤2) → app shows mental health resources and flags session for researcher review. Ethical safety check built into the study protocol.</span>
+              <span class="tag live">Live</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Health metrics -->
+        <div class="card">
+          <div class="card-title"><span class="dot hl"></span>Health Metrics — What Comes From Outside EEG</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">heartRate</span>
+              <span class="param-why"><strong>BPM from Apple Health / Google Fit.</strong> Correlates with stress and arousal. Used as ground-truth cross-validation for EEG stress_index (if HR spikes and stress_index doesn't → model miss).</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">stressLevel</span>
+              <span class="param-why"><strong>Composite from health integrations.</strong> Populated from Apple Watch stress estimation or HRV-derived stress. Shown on main dashboard as a sanity check against EEG-derived stress_index.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">sleepQuality</span>
+              <span class="param-why"><strong>Subjective 1–9 + Oura/Apple Sleep score.</strong> Dream recall correlates with sleep quality. Higher quality → more REM → better recall. Confound variable that must be controlled in the emotion→dream correlation.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">dailySteps</span>
+              <span class="param-why"><strong>Activity level proxy.</strong> Exercise affects EEG (post-exercise alpha increase, better sleep architecture). Steps → covariate in the emotion→dream correlation model. Prevents confounding "had a great dream because I ran 10K".</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">sleepDuration</span>
+              <span class="param-why"><strong>Total hours asleep.</strong> REM proportion increases with sleep length (REM rebound). Short night → less dreaming → confounded noRecall. Used to weight dream data quality in the continuity analysis.</span>
+              <span class="tag live">Live</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Signal pipeline -->
+        <div class="card">
+          <div class="card-title"><span class="dot sg"></span>Signal Pipeline Parameters</div>
+          <ul class="param-list">
+            <li>
+              <span class="param-name">epoch_ready</span>
+              <span class="param-why"><strong>Minimum 4 seconds buffered.</strong> False in first 4 seconds. Prevents classifying on too few samples where Welch PSD is unreliable (theta at 4 Hz needs ≥2 complete cycles = ≥500ms minimum; 4 sec gives 16+ cycles).</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">signalQuality (SQI)</span>
+              <span class="param-why"><strong>1–5 scale, 5-point composite.</strong> Gating: below 40% → frozen EMA, no new prediction. Prevents artifact epochs from corrupting emotion timeline. Note: HSI (horseshoe indicator from Muse) is unreliable — SQI is recomputed from signal.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">baseline_mean / std</span>
+              <span class="param-why"><strong>Per-user resting state calibration.</strong> Record 2 min eyes-closed → compute mean/std per feature → z-score normalize all subsequent live features. Gives +15–29% accuracy. Must be re-recorded every session (drifts across days).</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">mastoid_ref</span>
+              <span class="param-why"><strong>(TP9 + TP10) / 2.</strong> Re-reference offline to remove Fpz contamination from Muse default reference. Applied in brainflow_manager before data enters Python. Critical for meaningful FAA values.</span>
+              <span class="tag live">Live</span>
+            </li>
+            <li>
+              <span class="param-name">amplitude_threshold (75µV)</span>
+              <span class="param-why"><strong>Artifact rejection gate.</strong> Any epoch exceeding ±75µV is rejected — EMA frozen, model not updated. Catches blinks (delta spike at Fp channels), muscle burst, electrode pop. Paper-validated threshold (Krigolson 2021).</span>
+              <span class="tag live">Live</span>
+            </li>
+          </ul>
+        </div>
+
+      </section>
+
+      <!-- ═══ RIGHT COLUMN — side panel ═══ -->
+      <aside>
+
+        <!-- Redundancy Report -->
+        <div class="panel-card">
+          <div class="kicker" style="margin-bottom:10px">⚠ Redundancy Report</div>
+          <h3 style="color:#fca5a5">10 Issues Found</h3>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">1. Band Powers Recomputed 8× Per Frame</div>
+            <div class="redundancy-desc">
+              <code>extract_band_powers()</code> runs Welch PSD independently in <code>emotion_classifier</code>, <code>food_emotion_predictor</code>, <code>sleep_staging</code>, <code>flow_state</code>, <code>stress_detector</code>, and 3 others.
+              <strong style="color:#fde68a"> Fix: compute once in <code>/analyze-eeg</code>, pass vector to all 16 models.</strong>
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">2. Arousal Formula in 3 Places</div>
+            <div class="redundancy-desc">
+              Computed in <code>_predict_features()</code>, <code>_predict_onnx()</code> (twice — duplicate lines 509+512), <code>_predict_sklearn()</code>. Slightly different formulas across paths.
+              <strong style="color:#fde68a"> Fix: single <code>compute_arousal()</code> utility.</strong>
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">3. Valence Formula Inconsistent</div>
+            <div class="redundancy-desc">
+              ONNX and sklearn paths use only alpha/beta ratio. Feature path uses 50% FAA + 50% alpha/beta. Three different outputs for the same emotional state depending on which model loads.
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">4. Signal Quality Checked 3 Ways</div>
+            <div class="redundancy-desc">
+              <code>signal_quality.py</code> (40% gate), <code>artifact_detector.py</code> (100µV), <code>emotion_classifier.py</code> inline (75µV). Three different amplitude thresholds in the same pipeline.
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">5. EMA Smoothing Duplicated</div>
+            <div class="redundancy-desc">
+              <code>emotion_classifier._ema_probs</code> (α=0.35) and <code>state_transitions.py</code> EMA (different α). Then client-side React applies a third pass of smoothing.
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">6. Neurofeedback Thresholds in 3 Files</div>
+            <div class="redundancy-desc">
+              Hardcoded in <code>protocol_engine.py</code>, <code>rl_environment.py</code>, and the <code>/neurofeedback/start</code> endpoint. Diverged over time.
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">7. Emotion → Label in 3 Places</div>
+            <div class="redundancy-desc">
+              <code>_raw_to_discrete_emotion()</code> in classifier, inline in <code>emotion_shift_detector.py</code>, and client-side TypeScript. Same logic, different thresholds.
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">8. 5 Model-Loading Paths in emotion_classifier</div>
+            <div class="redundancy-desc">
+              mega_lgbm → ONNX → sklearn → features → fallback. Each path reinitializes scaler/PCA objects. Memory leak risk on repeated calls.
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">9. temporal_asymmetry Half-Implemented</div>
+            <div class="redundancy-desc">
+              TP9/TP10 asymmetry computed but inconsistently included. Sometimes used in RASM, sometimes not. 2024 paper: TP9/TP10 signals non-physiological in 17/N recordings.
+            </div>
+          </div>
+
+          <div class="redundancy-item">
+            <div class="redundancy-title">10. stressLevel in DB + stress_index in ML</div>
+            <div class="redundancy-desc">
+              Two separate stress values: <code>healthMetrics.stressLevel</code> (from Apple Health) and ML <code>stress_index</code>. No reconciliation logic. Dashboard shows them in separate cards with no explanation of the difference.
+            </div>
+          </div>
+        </div>
+
+        <!-- Signal Reliability -->
+        <div class="panel-card">
+          <div class="kicker" style="margin-bottom:10px">Signal Reliability Matrix</div>
+          <h3 style="font-size:16px; margin:0 0 10px">How much to trust each output</h3>
+          <table class="rel-table">
+            <thead>
+              <tr>
+                <th>Parameter</th>
+                <th>Reliability</th>
+                <th class="bar-cell">Signal</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Arousal (beta/alpha)</td>
+                <td style="color:#6ee7b7; font-size:12px">70–80%</td>
+                <td><div class="mini-bar"><span class="good" style="width:75%"></span></div></td>
+              </tr>
+              <tr>
+                <td>Valence (FAA + ratio)</td>
+                <td style="color:#fde68a; font-size:12px">60–72%</td>
+                <td><div class="mini-bar"><span class="ok" style="width:66%"></span></div></td>
+              </tr>
+              <tr>
+                <td>Stress Index</td>
+                <td style="color:#6ee7b7; font-size:12px">68–75%</td>
+                <td><div class="mini-bar"><span class="good" style="width:71%"></span></div></td>
+              </tr>
+              <tr>
+                <td>Sleep Staging</td>
+                <td style="color:#6ee7b7; font-size:12px">92.98%</td>
+                <td><div class="mini-bar"><span class="good" style="width:93%"></span></div></td>
+              </tr>
+              <tr>
+                <td>Dream Detection</td>
+                <td style="color:#6ee7b7; font-size:12px">97.20%</td>
+                <td><div class="mini-bar"><span class="good" style="width:97%"></span></div></td>
+              </tr>
+              <tr>
+                <td>Creativity Model</td>
+                <td style="color:#fca5a5; font-size:12px">99.18% ⚠</td>
+                <td><div class="mini-bar"><span class="bad" style="width:99%"></span></div></td>
+              </tr>
+              <tr>
+                <td>Food-Emotion States</td>
+                <td style="color:#fde68a; font-size:12px">Unvalidated</td>
+                <td><div class="mini-bar"><span class="ok" style="width:40%"></span></div></td>
+              </tr>
+              <tr>
+                <td>FAA (per epoch)</td>
+                <td style="color:#fca5a5; font-size:12px">r=0.53 TRT</td>
+                <td><div class="mini-bar"><span class="bad" style="width:35%"></span></div></td>
+              </tr>
+              <tr>
+                <td>Gamma / Lucid</td>
+                <td style="color:#fca5a5; font-size:12px">EMG noise</td>
+                <td><div class="mini-bar"><span class="bad" style="width:20%"></span></div></td>
+              </tr>
+              <tr>
+                <td>TP9/TP10 temporal</td>
+                <td style="color:#fca5a5; font-size:12px">Low (2024 study)</td>
+                <td><div class="mini-bar"><span class="bad" style="width:25%"></span></div></td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size:11px; color:var(--muted); margin-top:12px">Creativity 99.18% = overfit on 850 samples (≈212/class). Treat as broken.</p>
+        </div>
+
+        <!-- Why these params -->
+        <div class="panel-card">
+          <div class="kicker" style="margin-bottom:10px">The Core Logic</div>
+          <h3 style="font-size:16px; margin:0 0 8px">Why these 3 domains together?</h3>
+          <p>The Emotional Transfer Chain hypothesis:</p>
+          <ul>
+            <li><strong>Emotion (EEG)</strong> — daytime valence/arousal state shapes what gets consolidated during sleep</li>
+            <li><strong>Food (eating states)</strong> — food choices are both a proxy for emotional state AND a mediating variable (blood sugar, gut-brain axis) affecting dream content</li>
+            <li><strong>Dreams (journal + AI)</strong> — the downstream readout of what the brain processed emotionally that day (Continuity Hypothesis, Domhoff 2003)</li>
+          </ul>
+          <div class="verdict ok-v">
+            ✓ The three domains are genuinely mechanistically linked — not random features.
+          </div>
+        </div>
+
+        <!-- What's missing -->
+        <div class="panel-card">
+          <div class="kicker" style="margin-bottom:10px">Missing Parameters</div>
+          <h3 style="font-size:16px; margin:0 0 8px">Gaps in the pipeline</h3>
+          <ul>
+            <li><strong>Per-user personalization</strong> — population-average thresholds only. Within-subject vs cross-subject gap: 26 points accuracy.</li>
+            <li><strong>HRV</strong> — Muse 2 has PPG sensor (board preset "p50") but it's not being collected. Best stress ground-truth available on-device.</li>
+            <li><strong>Sleep spindles / K-complexes</strong> — code exists in <code>eeg_processor.py</code>, not wired into sleep staging output.</li>
+            <li><strong>Cortisol proxy</strong> — high-beta pattern in first 30 min post-waking = cortisol awakening response. Not captured.</li>
+            <li><strong>Epoch length 4s</strong> — research recommends 8s for valence. Sliding window exists but window size is a tunable parameter not yet optimized.</li>
+          </ul>
+        </div>
+
+      </aside>
+    </main>
+
+  </body>
+</html>

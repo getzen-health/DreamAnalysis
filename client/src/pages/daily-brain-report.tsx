@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,9 @@ import {
   Clock,
   BookOpen,
   ArrowRight,
+  CalendarDays,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -152,9 +156,26 @@ function SkeletonCard() {
   );
 }
 
+/* ── Weekly summary helpers ──────────────────────────────────── */
+function weeklyStats(health: HealthEntry[]) {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const week = health.filter((h) => new Date(h.timestamp).getTime() >= cutoff);
+  if (week.length === 0) return null;
+  const avgStress = week.reduce((s, h) => s + (h.stressLevel ?? 5), 0) / week.length;
+  const avgFocus = week.reduce((s, h) => s + (h.neuralActivity ?? 5), 0) / week.length;
+  const avgSleep = week.reduce((s, h) => s + (h.sleepQuality ?? 5), 0) / week.length;
+  return {
+    days: week.length,
+    avgStress: Math.round(avgStress * 10),
+    avgFocus: Math.round(avgFocus * 10),
+    avgSleep: Math.round(avgSleep * 10),
+  };
+}
+
 /* ── Main page ───────────────────────────────────────────────── */
 export default function DailyBrainReport() {
   const [, navigate] = useLocation();
+  const [copied, setCopied] = useState(false);
 
   /* — Data fetches — */
   const { data: sessions = [], isLoading: sessionsLoading } =
@@ -214,6 +235,7 @@ export default function DailyBrainReport() {
   const action = recommendedAction(health);
   const insight = yesterdayInsight(health);
   const latestStress = latestHealth?.stressLevel ?? null;
+  const weekly = weeklyStats(health);
 
   /* — Overnight EEG session — */
   const overnightSession = sessions.find(
@@ -431,6 +453,60 @@ export default function DailyBrainReport() {
               Start
               <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Weekly brain summary */}
+      {!isLoading && weekly && (
+        <Card className="glass-card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-sky-400" />
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                This week
+              </h2>
+              <span className="text-[10px] text-muted-foreground/60">
+                {weekly.days} day{weekly.days !== 1 ? "s" : ""} of data
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                const text = `Brain Summary — ${new Date().toLocaleDateString([], { month: "long", day: "numeric" })}\nStress: ${weekly.avgStress}%\nFocus: ${weekly.avgFocus}%\nSleep quality: ${weekly.avgSleep}%\nvia Svapnastra`;
+                navigator.clipboard.writeText(text).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                });
+              }}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {copied ? (
+                <><Check className="h-3 w-3 text-emerald-400" /><span className="text-emerald-400">Copied</span></>
+              ) : (
+                <><Copy className="h-3 w-3" />Copy summary</>
+              )}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Avg stress</p>
+              <p className={`text-xl font-semibold font-mono ${weekly.avgStress > 60 ? "text-red-400" : weekly.avgStress > 40 ? "text-orange-400" : "text-emerald-400"}`}>
+                {weekly.avgStress}%
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Avg focus</p>
+              <p className="text-xl font-semibold font-mono text-primary">
+                {weekly.avgFocus}%
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Sleep quality</p>
+              <p className={`text-xl font-semibold font-mono ${weekly.avgSleep > 60 ? "text-emerald-400" : weekly.avgSleep > 40 ? "text-orange-400" : "text-red-400"}`}>
+                {weekly.avgSleep}%
+              </p>
+            </div>
           </div>
         </Card>
       )}
