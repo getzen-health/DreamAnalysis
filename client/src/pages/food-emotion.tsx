@@ -14,16 +14,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
-import { Utensils, Activity, RefreshCw, CheckCircle } from "lucide-react";
+import { Utensils, RefreshCw, CheckCircle } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,33 +39,6 @@ const STATE_COLORS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function BiomarkerGauge({
-  label,
-  value,
-  min = 0,
-  max = 1,
-}: {
-  label: string;
-  value: number;
-  min?: number;
-  max?: number;
-}) {
-  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-mono text-xs">{value.toFixed(3)}</span>
-      </div>
-      <Progress value={pct} className="h-2" />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -95,14 +59,6 @@ export default function FoodEmotion() {
   const state = data?.food_state ?? "balanced";
   const stateLabel = STATE_LABELS[state] ?? state;
   const stateColor = STATE_COLORS[state] ?? "#10b981";
-
-  const probData = data
-    ? Object.entries(data.state_probabilities).map(([k, v]) => ({
-        name: STATE_LABELS[k] ?? k,
-        value: Math.round(v * 100),
-        color: STATE_COLORS[k] ?? "#6b7280",
-      }))
-    : [];
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
@@ -215,71 +171,6 @@ export default function FoodEmotion() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Biomarkers */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            Neural Biomarkers
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <BiomarkerGauge
-            label="Frontal Alpha Asymmetry (FAA)"
-            value={data?.components.faa ?? 0}
-            min={-1}
-            max={1}
-          />
-          <BiomarkerGauge
-            label="High-Beta (Stress / Anxiety)"
-            value={data?.components.high_beta ?? 0}
-            min={0}
-            max={1}
-          />
-          <BiomarkerGauge
-            label="Prefrontal Theta (Hunger / Urge)"
-            value={data?.components.prefrontal_theta ?? 0}
-            min={0}
-            max={1}
-          />
-          <BiomarkerGauge
-            label="Delta (Satiety / Deep Inhibition)"
-            value={data?.components.delta ?? 0}
-            min={0}
-            max={1}
-          />
-        </CardContent>
-      </Card>
-
-      {/* State Probabilities */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">
-            State Probabilities
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart
-              data={probData}
-              margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
-            >
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
-              <Tooltip
-                formatter={(v) => [`${v}%`, "Probability"]}
-                contentStyle={{ fontSize: 12 }}
-              />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {probData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
 
       {/* Dietary Recommendations */}
       {data?.recommendations && (
