@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 // PRODUCT.md: Phase 1 — The aha moment. User watches stress drop live during breathing.
+import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
-import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Headphones, ExternalLink } from "lucide-react";
+import { getParticipantId } from "@/lib/participant";
 
 // ─── Breathing exercise definitions ──────────────────────────────────────────
 
@@ -123,6 +125,122 @@ const EXERCISES: Exercise[] = [
   },
 ];
 
+// ─── Music playlists ──────────────────────────────────────────────────────────
+
+interface Playlist {
+  id: string;
+  title: string;
+  description: string;
+  detail: string;       // science note
+  bpm?: string;
+  spotifyUrl: string;   // Spotify web URL
+  youtubeUrl: string;   // YouTube URL
+  mood: "calm" | "focus";
+  color: string;
+}
+
+const PLAYLISTS: Playlist[] = [
+  // calm mood
+  {
+    id: "peaceful-piano",
+    title: "Peaceful Piano",
+    description: "Slow instrumental pieces",
+    detail: "60–75 BPM. Activates the parasympathetic system via the autonomous nervous system's response to low-tempo music.",
+    bpm: "60–75 BPM",
+    spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO",
+    youtubeUrl: "https://www.youtube.com/results?search_query=peaceful+piano+calm+music",
+    mood: "calm",
+    color: "hsl(250, 70%, 65%)",
+  },
+  {
+    id: "nature-sounds",
+    title: "Nature & Rain",
+    description: "Pink noise + natural ambience",
+    detail: "Pink noise reduces cortisol and masks sudden environmental sounds that spike stress. Used in clinical anxiety research.",
+    spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DWN1Y7lu9lY4v",
+    youtubeUrl: "https://www.youtube.com/results?search_query=rain+sounds+10+hours+sleep",
+    mood: "calm",
+    color: "hsl(176, 65%, 45%)",
+  },
+  {
+    id: "lo-fi-chill",
+    title: "Lo-Fi Chill Beats",
+    description: "Soft hip-hop, 70–85 BPM",
+    detail: "Self-selected calming music (Thoma et al. 2013) reduces salivary cortisol during acute stress recovery better than silence.",
+    bpm: "70–85 BPM",
+    spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DWWQRwui0ExPn",
+    youtubeUrl: "https://www.youtube.com/results?search_query=lofi+hip+hop+chill+beats",
+    mood: "calm",
+    color: "hsl(22, 80%, 58%)",
+  },
+  // focus mood
+  {
+    id: "binaural-gamma",
+    title: "Binaural Beats 40 Hz",
+    description: "Gamma-frequency entrainment",
+    detail: "40 Hz gamma binaural beats improve selective attention and working memory within 10 min (Kraus et al. 2021). Use headphones.",
+    bpm: "40 Hz beat",
+    spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DX0SM0LYsmbMT",
+    youtubeUrl: "https://www.youtube.com/results?search_query=40hz+binaural+beats+focus+gamma",
+    mood: "focus",
+    color: "hsl(142, 65%, 48%)",
+  },
+  {
+    id: "brain-food",
+    title: "Brain Food",
+    description: "Instrumental focus music",
+    detail: "Moderate-tempo (~90–110 BPM) instrumental music boosts sustained attention without the distraction of lyrics.",
+    bpm: "90–110 BPM",
+    spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DWXLeA8Omikj7",
+    youtubeUrl: "https://www.youtube.com/results?search_query=brain+food+instrumental+focus+music",
+    mood: "focus",
+    color: "hsl(210, 85%, 60%)",
+  },
+  {
+    id: "brown-noise",
+    title: "Brown Noise",
+    description: "Deep low-frequency noise",
+    detail: "Brown noise (lower frequency than white/pink) improves ADHD focus and masks distracting office sounds. Preferred by 38% of focus-music users.",
+    spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DWUZ5bk6qqDSy",
+    youtubeUrl: "https://www.youtube.com/results?search_query=brown+noise+focus+work+8+hours",
+    mood: "focus",
+    color: "hsl(30, 60%, 50%)",
+  },
+];
+
+// ─── Intervention outcome helper ──────────────────────────────────────────────
+
+function getMLApiBase(): string {
+  try {
+    const s = localStorage.getItem("ml_backend_url");
+    if (s?.trim()) return s.trim().replace(/\/$/, "");
+  } catch { /* ignore */ }
+  return (import.meta.env.VITE_ML_API_URL as string | undefined) ?? "http://localhost:8000";
+}
+
+function reportInterventionOutcome(
+  userId: string,
+  interventionType: string,
+  stressAfter: number,        // 0-1 scale
+  focusAfter: number,         // 0-1 scale
+  feltHelpful: boolean,
+) {
+  const base = getMLApiBase();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (base.includes("ngrok")) headers["ngrok-skip-browser-warning"] = "true";
+  fetch(`${base}/api/interventions/outcome`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      user_id: userId,
+      intervention_type: interventionType,
+      stress_after: stressAfter,
+      focus_after: focusAfter,
+      felt_helpful: feltHelpful,
+    }),
+  }).catch(() => {});
+}
+
 // ─── Timing helper ────────────────────────────────────────────────────────────
 
 function getBreathState(elapsedMs: number, phases: BreathPhase[]) {
@@ -170,13 +288,45 @@ function guidanceText(label: string): string {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 type SessionPhase = "idle" | "active" | "done";
+type ActiveTab = "breathing" | "music";
+type MusicMood = "calm" | "focus";
 
 export default function Biofeedback() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
+  const [location] = useLocation();
+  const userId = useRef(getParticipantId());
+
+  // ── Tab + music state ──────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<ActiveTab>("breathing");
+  const [musicMood, setMusicMood] = useState<MusicMood>("calm");
+
+  // ── Parse URL params once on mount ────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    const mood = params.get("mood");
+    const protocol = params.get("protocol");
+    const autoStart = params.get("auto") === "true";
+
+    if (tab === "music") {
+      setActiveTab("music");
+      if (mood === "focus") setMusicMood("focus");
+      else setMusicMood("calm");
+    } else if (protocol) {
+      const found = EXERCISES.find(e => e.id === protocol);
+      if (found) setExercise(found);
+      if (autoStart) {
+        // Short delay so the page renders before auto-start kicks in
+        setTimeout(() => setAutoStartPending(true), 400);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
 
   const [sessionPhase, setSessionPhase] = useState<SessionPhase>("idle");
   const [exercise, setExercise] = useState<Exercise>(EXERCISES[0]);
+  const [autoStartPending, setAutoStartPending] = useState(false);
   const [readings, setReadings] = useState<Reading[]>([]);
   const [breathPhaseIdx, setBreathPhaseIdx] = useState(0);
   const [breathPhaseProgress, setBreathPhaseProgress] = useState(0);
@@ -230,6 +380,15 @@ export default function Biofeedback() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionPhase, isStreaming]);
 
+  // ── Auto-start when pending (after URL-param protocol selection) ──────────
+  useEffect(() => {
+    if (autoStartPending && sessionPhase === "idle") {
+      setAutoStartPending(false);
+      handleStart();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartPending]);
+
   // ── Start / stop ──────────────────────────────────────────────────────────
   const handleStart = () => {
     sessionStartRef.current = Date.now();
@@ -242,7 +401,20 @@ export default function Biofeedback() {
     setSessionPhase("active");
   };
 
-  const handleStop = () => setSessionPhase("done");
+  const handleStop = () => {
+    setSessionPhase("done");
+    // Report outcome to intervention engine after 5 minutes
+    const finalStress = (latestStressRef.current ?? 50) / 100;
+    setTimeout(() => {
+      reportInterventionOutcome(
+        userId.current,
+        "breathing",
+        finalStress,
+        0.5,   // focus unknown at this point
+        true,  // assume helpful (user stayed for the full session)
+      );
+    }, 5 * 60 * 1000);
+  };
 
   const handleReset = () => {
     setSessionPhase("idle");
@@ -292,15 +464,20 @@ export default function Biofeedback() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Wind className="h-6 w-6 text-primary" />
+          {activeTab === "music"
+            ? <Music className="h-6 w-6 text-primary" />
+            : <Wind className="h-6 w-6 text-primary" />
+          }
           <div>
-            <h2 className="text-xl font-semibold">Breathing Biofeedback</h2>
+            <h2 className="text-xl font-semibold">Biofeedback</h2>
             <p className="text-xs text-muted-foreground">
-              Watch your stress respond in real time as you breathe
+              {activeTab === "music"
+                ? "Music shown to reduce stress and sharpen focus"
+                : "Watch your stress respond in real time as you breathe"}
             </p>
           </div>
         </div>
-        {sessionPhase === "active" && (
+        {activeTab === "breathing" && sessionPhase === "active" && (
           <div className="flex items-center gap-4">
             <span className="text-sm font-mono text-foreground/50">{formatTime(elapsed)}</span>
             <Button
@@ -315,6 +492,137 @@ export default function Biofeedback() {
           </div>
         )}
       </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 p-1 rounded-lg bg-muted/20 border border-border/30 w-fit">
+        <button
+          onClick={() => setActiveTab("breathing")}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+            activeTab === "breathing"
+              ? "bg-background/80 text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Wind className="h-3.5 w-3.5" />
+          Breathing
+        </button>
+        <button
+          onClick={() => setActiveTab("music")}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+            activeTab === "music"
+              ? "bg-background/80 text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Headphones className="h-3.5 w-3.5" />
+          Music
+        </button>
+      </div>
+
+      {/* ── MUSIC TAB ── */}
+      {activeTab === "music" && (
+        <div className="space-y-5">
+          {/* Mood switcher */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">Mood:</span>
+            <div className="flex gap-1 p-0.5 rounded-lg bg-muted/20 border border-border/30">
+              <button
+                onClick={() => setMusicMood("calm")}
+                className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                  musicMood === "calm"
+                    ? "bg-background/80 text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Calm / Stress relief
+              </button>
+              <button
+                onClick={() => setMusicMood("focus")}
+                className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                  musicMood === "focus"
+                    ? "bg-background/80 text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Focus / Deep work
+              </button>
+            </div>
+          </div>
+
+          {/* Context note */}
+          <p className="text-xs text-muted-foreground/70">
+            {musicMood === "calm"
+              ? "60–80 BPM music activates your parasympathetic system within minutes. Self-selected calming music reduces cortisol (Thoma et al. 2013)."
+              : "Binaural beats require headphones — the two slightly different tones create a beat in the brain. 40 Hz gamma improves selective attention (Kraus et al. 2021)."}
+          </p>
+
+          {/* Playlist cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {PLAYLISTS.filter(p => p.mood === musicMood).map(playlist => (
+              <Card key={playlist.id} className="glass-card p-5 rounded-xl space-y-3">
+                <div className="flex items-start justify-between">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: `${playlist.color}20`, border: `1px solid ${playlist.color}40` }}
+                  >
+                    <Music className="h-4 w-4" style={{ color: playlist.color }} />
+                  </div>
+                  {playlist.bpm && (
+                    <span
+                      className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+                      style={{ background: `${playlist.color}15`, color: playlist.color }}
+                    >
+                      {playlist.bpm}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">{playlist.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{playlist.description}</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                  {playlist.detail}
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <a
+                    href={playlist.spotifyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-colors"
+                    style={{ background: `${playlist.color}15`, color: playlist.color }}
+                  >
+                    Spotify
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <a
+                    href={playlist.youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border border-border/30 transition-colors"
+                  >
+                    YouTube
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Effectiveness note */}
+          <Card className="glass-card p-4 rounded-xl">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              <span className="text-foreground font-medium">How it works: </span>
+              After you listen, go back to the Brain Monitor — if your stress dropped, it worked.
+              The intervention engine tracks which music actually reduced your cortisol and will
+              recommend it again next time.
+            </p>
+          </Card>
+        </div>
+      )}
+
+      {/* ── BREATHING TAB content below ── */}
+      {activeTab === "breathing" && (
+      <>
 
       {/* No-device banner */}
       {!isStreaming && sessionPhase === "idle" && (
@@ -655,6 +963,9 @@ export default function Biofeedback() {
             </div>
           </Card>
         </div>
+      )}
+
+      </> /* end breathing tab */
       )}
     </main>
   );
