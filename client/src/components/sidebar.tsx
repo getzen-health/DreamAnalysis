@@ -110,7 +110,7 @@ export function Sidebar() {
                   const Icon = item.icon;
                   const isActive =
                     location === item.path ||
-                    (item.path !== "/" && location.startsWith(item.path));
+                    (item.path !== "/" && location.startsWith(item.path + "/"));
 
                   return (
                     <Link

@@ -118,6 +118,9 @@ function AppRoutes() {
         <ProtectedRoute><AppLayout><FormalBenchmarksDashboard /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/food">
+        <ProtectedRoute><AppLayout><FoodLog /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/food-emotion">
         <ProtectedRoute><AppLayout><FoodEmotion /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/device-setup">
