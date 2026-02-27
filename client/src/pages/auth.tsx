@@ -28,6 +28,23 @@ export default function AuthPage() {
   const [registerDevice, setRegisterDevice] = useState('muse_2');
   const [registerLoading, setRegisterLoading] = useState(false);
 
+  // After login/register, route based on stored intent
+  async function redirectByIntent() {
+    try {
+      const res = await fetch('/api/user/intent', { credentials: 'include' });
+      const data = await res.json();
+      if (data.intent === 'study') {
+        setLocation('/study');
+      } else if (data.intent === 'explore') {
+        setLocation('/');
+      } else {
+        setLocation('/intent'); // first-time user — pick intent
+      }
+    } catch {
+      setLocation('/intent');
+    }
+  }
+
   // Redirect if already authenticated
   if (user) {
     setLocation('/');
@@ -53,7 +70,7 @@ export default function AuthPage() {
         title: 'Welcome back',
         description: 'You have been logged in successfully.',
       });
-      setLocation('/');
+      await redirectByIntent();
     } catch (err: any) {
       const message = err.message?.includes(':')
         ? err.message.split(':').slice(1).join(':').trim()
@@ -127,7 +144,7 @@ export default function AuthPage() {
         title: 'Account Created',
         description: 'Welcome to Svapnastra!',
       });
-      setLocation('/');
+      await redirectByIntent();
     } catch (err: any) {
       const message = err.message?.includes(':')
         ? err.message.split(':').slice(1).join(':').trim()
