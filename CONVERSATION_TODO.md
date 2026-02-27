@@ -83,9 +83,9 @@ Then add native features progressively. No full rewrite needed to ship v1.
 - [ ] Apple HealthKit integration — `@capacitor-community/health` plugin. Auto-pull: HRV SDNN, resting HR, respiratory rate, sleep stages, steps, SpO2, skin temperature. Feed into MultimodalEmotionFusion automatically.
 - [ ] Google Health Connect integration — Android equivalent. Same data fields.
 - [ ] Push notifications — `@capacitor/push-notifications`. Server triggers when stress is high → "Time to breathe" alert.
-- [ ] Haptic feedback — `@capacitor/haptics`. Pulse on breathing inhale/exhale in biofeedback screen.
+- [x] Haptic feedback — `@capacitor/haptics`. Pulse on breathing inhale/exhale in biofeedback screen.
 - [ ] Background processing — iOS BackgroundFetch + Android WorkManager. Keep EEG streaming during sleep without screen on.
-- [ ] Local ML inference — convert emotion LGBM model to ONNX, run on-device via onnxruntime-web (already in the frontend stack). No server needed for basic inference.
+- [x] Local ML inference — emotion_classifier_model.onnx (2.2MB) served from client/public/models/. JS heuristics for sleep/dream. use-inference.ts: local first, server fallback.
 - [ ] Offline mode — queue EEG data locally when no internet, sync when connected.
 - [ ] Home screen widget — iOS WidgetKit + Android App Widget. Show today's brain state (stress level + recommended action) without opening app.
 - [ ] Spotify integration — `spotify-web-api-node`. When stress HIGH → auto-queue calming playlist.

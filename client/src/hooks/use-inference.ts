@@ -40,6 +40,7 @@ export function useInference(): InferenceResult {
       if (localML.isReady()) {
         try {
           const signal = signals[0] || [];
+          localML.setLastSignal(signal, fs);
           const features = extractFeatures(signal, fs);
 
           const [sleep, emotion, dream] = await Promise.all([
