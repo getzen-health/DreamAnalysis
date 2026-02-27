@@ -7,6 +7,8 @@ interface User {
   id: string;
   username: string;
   email: string | null;
+  age: number | null;
+  deviceType: string | null;
   createdAt: string;
 }
 
@@ -27,6 +29,8 @@ interface RegisterData {
   username: string;
   password: string;
   email?: string;
+  age?: number;
+  deviceType?: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);

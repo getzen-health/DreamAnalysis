@@ -21,7 +21,18 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 
 ---
 
-## SECTION 2: App Feature Gaps (missing pages / features)
+## SECTION 2: Auth / Login (do before app features — blocks everything)
+
+- [ ] Audit existing auth page (`client/src/pages/auth.tsx`) and server auth routes — understand current state before building anything new
+- [ ] Login page: email + password, remember me, forgot password link
+- [ ] Register page: name, email, password, age (for research), device selection (Muse 2 / OpenBCI / none yet)
+- [ ] Auth guards: redirect unauthenticated users to /auth, redirect logged-in users away from /auth
+- [ ] User profile stored in DB: user_id, name, email, age, device_type, created_at
+- [ ] user_id flows into: personal model (ml/models/saved/personal/{user_id}/), Parquet storage, per-user ML state, all API calls
+- [ ] Session persistence: JWT or session cookie so user stays logged in across browser closes
+- [ ] "Who am I" shown in sidebar: user name + avatar initial at the bottom
+
+## SECTION 3: App Feature Gaps (missing pages / features)
 
 - [ ] Daily Brain Report page (`/brain-report`) — THE north star feature per PRODUCT.md. Show: last night sleep summary, today's focus forecast, yesterday's insight, recommended action. File: `client/src/pages/daily-brain-report.tsx`. Route and sidebar link already wired.
 - [ ] Intervention engine — real-time closed loop. When stress crosses threshold → auto-trigger music recommendation OR breathing exercise OR food suggestion. Build as `ml/api/routes/interventions.py` + frontend notification banner.

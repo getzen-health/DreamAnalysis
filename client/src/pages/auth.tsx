@@ -24,6 +24,8 @@ export default function AuthPage() {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [registerAge, setRegisterAge] = useState('');
+  const [registerDevice, setRegisterDevice] = useState('muse_2');
   const [registerLoading, setRegisterLoading] = useState(false);
 
   // Redirect if already authenticated
@@ -118,6 +120,8 @@ export default function AuthPage() {
         username: registerUsername.trim(),
         password: registerPassword,
         email: registerEmail.trim() || undefined,
+        age: registerAge ? Number(registerAge) : undefined,
+        deviceType: registerDevice || undefined,
       });
       toast({
         title: 'Account Created',
@@ -338,6 +342,39 @@ export default function AuthPage() {
                       className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
                       autoComplete="new-password"
                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="register-age" className="text-foreground/80">
+                        Age <span className="text-foreground/40">(optional)</span>
+                      </Label>
+                      <Input
+                        id="register-age"
+                        type="number"
+                        placeholder="e.g. 28"
+                        min={10} max={120}
+                        value={registerAge}
+                        onChange={(e) => setRegisterAge(e.target.value)}
+                        className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="register-device" className="text-foreground/80">
+                        EEG Device
+                      </Label>
+                      <select
+                        id="register-device"
+                        value={registerDevice}
+                        onChange={(e) => setRegisterDevice(e.target.value)}
+                        className="w-full h-10 rounded-md border border-primary/20 bg-card/50 px-3 text-sm focus:outline-none focus:border-primary/50 text-foreground"
+                      >
+                        <option value="muse_2">Muse 2</option>
+                        <option value="muse_s">Muse S</option>
+                        <option value="openbci_cyton">OpenBCI Cyton</option>
+                        <option value="openbci_ganglion">OpenBCI Ganglion</option>
+                        <option value="none">No device yet</option>
+                      </select>
+                    </div>
                   </div>
                   <Button
                     type="submit"

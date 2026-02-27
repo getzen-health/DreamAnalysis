@@ -13,12 +13,14 @@ import {
   FlaskConical,
   Radio,
   BedDouble,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDevice } from "@/hooks/use-device";
 import { DeviceConnection } from "@/components/device-connection";
 import { useTheme } from "@/hooks/use-theme";
+import { useAuth } from "@/hooks/use-auth";
 
 interface NavItem {
   path: string;
@@ -72,6 +74,7 @@ export function Sidebar() {
   const device = useDevice();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const { user, logout } = useAuth();
 
   const isConnected =
     device.state === "streaming" || device.state === "connected";
@@ -186,7 +189,7 @@ export function Sidebar() {
           {/* BCI Status */}
           <button
             onClick={() => setDeviceModalOpen(true)}
-            className="mx-3 mb-4 p-3 rounded-xl text-left transition-colors cursor-pointer hover:bg-muted/30"
+            className="mx-3 mb-3 p-3 rounded-xl text-left transition-colors cursor-pointer hover:bg-muted/30"
             style={{
               background: isDark ? "hsl(220, 22%, 8%)" : "hsl(220, 14%, 96%)",
               border: isDark ? "1px solid hsl(220, 18%, 13%)" : "1px solid hsl(220, 14%, 88%)",
@@ -213,6 +216,34 @@ export function Sidebar() {
               </p>
             )}
           </button>
+
+          {/* User avatar + logout */}
+          {user && (
+            <div
+              className="mx-3 mb-4 px-3 py-2 rounded-xl flex items-center gap-2"
+              style={{
+                background: isDark ? "hsl(220, 22%, 7%)" : "hsl(220, 14%, 95%)",
+                border: isDark ? "1px solid hsl(220, 18%, 12%)" : "1px solid hsl(220, 14%, 87%)",
+              }}
+            >
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-semibold text-white"
+                style={{ background: "linear-gradient(135deg, hsl(152,60%,40%), hsl(38,85%,50%))" }}
+              >
+                {user.username.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-xs text-foreground/70 truncate flex-1">
+                {user.username}
+              </span>
+              <button
+                onClick={() => logout()}
+                className="shrink-0 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

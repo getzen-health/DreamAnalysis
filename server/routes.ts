@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import OpenAI from "openai";
 import webpush from "web-push";
 import cron from "node-cron";
+import bcrypt from "bcryptjs";
+import session from "express-session";
 import {
   insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
   insertUserSettingsSchema, insertEmotionReadingSchema,
@@ -91,6 +93,100 @@ async function ensureDefaultUser() {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // ── Session middleware ────────────────────────────────────────────────────
+  app.use(session({
+    secret: process.env.SESSION_SECRET ?? "svapnastra-dev-secret-change-in-prod",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    },
+  }));
+
+  // ── Auth routes ───────────────────────────────────────────────────────────
+
+  // POST /api/auth/register
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { username, password, email, age, deviceType } = req.body;
+      if (!username || typeof username !== "string" || username.trim().length < 3)
+        return res.status(400).json({ error: "Username must be at least 3 characters." });
+      if (!password || typeof password !== "string" || password.length < 6)
+        return res.status(400).json({ error: "Password must be at least 6 characters." });
+
+      const existing = await db.select().from(users)
+        .where(eq(users.username, username.trim().toLowerCase())).limit(1);
+      if (existing.length > 0)
+        return res.status(409).json({ error: "Username already taken." });
+
+      const hashed = await bcrypt.hash(password, 12);
+      const [newUser] = await db.insert(users).values({
+        username: username.trim().toLowerCase(),
+        password: hashed,
+        email: email?.trim() || null,
+        age: age ? Number(age) : null,
+        deviceType: deviceType || null,
+      }).returning({ id: users.id, username: users.username, email: users.email,
+                     age: users.age, deviceType: users.deviceType, createdAt: users.createdAt });
+
+      (req.session as any).userId = newUser.id;
+      return res.status(201).json({ user: newUser });
+    } catch (err: any) {
+      console.error("Register error:", err);
+      return res.status(500).json({ error: "Registration failed." });
+    }
+  });
+
+  // POST /api/auth/login
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password)
+        return res.status(400).json({ error: "Username and password are required." });
+
+      const [user] = await db.select().from(users)
+        .where(eq(users.username, username.trim().toLowerCase())).limit(1);
+      if (!user)
+        return res.status(401).json({ error: "Invalid username or password." });
+
+      const match = await bcrypt.compare(password, user.password);
+      if (!match)
+        return res.status(401).json({ error: "Invalid username or password." });
+
+      (req.session as any).userId = user.id;
+      const { password: _pw, ...safeUser } = user;
+      return res.json({ user: safeUser });
+    } catch (err) {
+      console.error("Login error:", err);
+      return res.status(500).json({ error: "Login failed." });
+    }
+  });
+
+  // GET /api/auth/me
+  app.get("/api/auth/me", async (req, res) => {
+    const userId = (req.session as any).userId;
+    if (!userId) return res.status(401).json(null);
+    try {
+      const [user] = await db.select().from(users)
+        .where(eq(users.id, userId)).limit(1);
+      if (!user) return res.status(401).json(null);
+      const { password: _pw, ...safeUser } = user;
+      return res.json(safeUser);
+    } catch {
+      return res.status(401).json(null);
+    }
+  });
+
+  // POST /api/auth/logout
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy(() => {
+      res.clearCookie("connect.sid");
+      res.json({ ok: true });
+    });
+  });
+
   // Seed the default user so FK constraints never block self-study usage
   await ensureDefaultUser();
 

@@ -1,11 +1,11 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./hooks/use-theme";
-import { AuthProvider } from "./hooks/use-auth";
+import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { DeviceProvider } from "./hooks/use-device";
 import AppLayout from "./layouts/app-layout";
 
@@ -51,6 +51,18 @@ function PageLoader() {
   );
 }
 
+// Redirects unauthenticated users to /auth
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+  if (isLoading) return <PageLoader />;
+  if (!user) {
+    setLocation("/auth");
+    return null;
+  }
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -58,80 +70,80 @@ function AppRoutes() {
       <Route path="/welcome" component={Landing} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/">
-        <AppLayout><Dashboard /></AppLayout>
+        <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/emotions">
-        <AppLayout><EmotionLab /></AppLayout>
+        <ProtectedRoute><AppLayout><EmotionLab /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/brain-monitor">
-        <AppLayout><BrainMonitor /></AppLayout>
+        <ProtectedRoute><AppLayout><BrainMonitor /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/brain-connectivity">
-        <AppLayout><BrainConnectivity /></AppLayout>
+        <ProtectedRoute><AppLayout><BrainConnectivity /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/dreams">
-        <AppLayout><DreamJournal /></AppLayout>
+        <ProtectedRoute><AppLayout><DreamJournal /></AppLayout></ProtectedRoute>
       </Route>
 
       <Route path="/health-analytics">
-        <AppLayout><HealthAnalytics /></AppLayout>
+        <ProtectedRoute><AppLayout><HealthAnalytics /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/neurofeedback">
-        <AppLayout><Neurofeedback /></AppLayout>
+        <ProtectedRoute><AppLayout><Neurofeedback /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/ai-companion">
-        <AppLayout><AICompanionPage /></AppLayout>
+        <ProtectedRoute><AppLayout><AICompanionPage /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/insights">
-        <AppLayout><Insights /></AppLayout>
+        <ProtectedRoute><AppLayout><Insights /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/inner-energy">
-        <AppLayout><InnerEnergy /></AppLayout>
+        <ProtectedRoute><AppLayout><InnerEnergy /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/biofeedback">
-        <AppLayout><Biofeedback /></AppLayout>
+        <ProtectedRoute><AppLayout><Biofeedback /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/sessions">
-        <AppLayout><SessionHistory /></AppLayout>
+        <ProtectedRoute><AppLayout><SessionHistory /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/settings">
-        <AppLayout><SettingsPage /></AppLayout>
+        <ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/calibration">
-        <AppLayout><CalibrationPage /></AppLayout>
+        <ProtectedRoute><AppLayout><CalibrationPage /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/benchmarks">
-        <AppLayout><FormalBenchmarksDashboard /></AppLayout>
+        <ProtectedRoute><AppLayout><FormalBenchmarksDashboard /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/food">
-        <AppLayout><FoodEmotion /></AppLayout>
+        <ProtectedRoute><AppLayout><FoodEmotion /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/device-setup">
-        <AppLayout><DeviceSetup /></AppLayout>
+        <ProtectedRoute><AppLayout><DeviceSetup /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/research/enroll">
-        <AppLayout><ResearchEnroll /></AppLayout>
+        <ProtectedRoute><AppLayout><ResearchEnroll /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/research/morning">
-        <AppLayout><ResearchMorning /></AppLayout>
+        <ProtectedRoute><AppLayout><ResearchMorning /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/research/daytime">
-        <AppLayout><ResearchDaytime /></AppLayout>
+        <ProtectedRoute><AppLayout><ResearchDaytime /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/research/evening">
-        <AppLayout><ResearchEvening /></AppLayout>
+        <ProtectedRoute><AppLayout><ResearchEvening /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/research">
-        <AppLayout><ResearchHub /></AppLayout>
+        <ProtectedRoute><AppLayout><ResearchHub /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/food-log">
-        <AppLayout><FoodLog /></AppLayout>
+        <ProtectedRoute><AppLayout><FoodLog /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/sleep-session">
-        <AppLayout><SleepSession /></AppLayout>
+        <ProtectedRoute><AppLayout><SleepSession /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/brain-report">
-        <AppLayout><DailyBrainReport /></AppLayout>
+        <ProtectedRoute><AppLayout><DailyBrainReport /></AppLayout></ProtectedRoute>
       </Route>
       {/* Fullscreen onboarding — no sidebar */}
       <Route path="/onboarding" component={Onboarding} />

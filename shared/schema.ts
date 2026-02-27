@@ -8,6 +8,8 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(), // bcrypt hashed
   email: text("email"),
+  age: integer("age"),                  // for research demographics
+  deviceType: text("device_type"),      // "muse_2" | "openbci_cyton" | "none"
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -324,6 +326,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
   email: true,
+  age: true,
+  deviceType: true,
 });
 
 export const insertHealthMetricsSchema = createInsertSchema(healthMetrics).omit({
