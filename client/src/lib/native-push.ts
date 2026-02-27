@@ -1,0 +1,142 @@
+/**
+ * native-push.ts — Capacitor Push Notifications for iOS (APNs) and Android (FCM).
+ *
+ * Complements the existing web-push VAPID path (which works in PWA/browser).
+ * This module activates only when running inside the Capacitor native shell.
+ *
+ * Flow:
+ *   1. Request permission (shows iOS/Android native dialog)
+ *   2. Receive APNs/FCM registration token
+ *   3. POST token to Express endpoint /api/notifications/native-token
+ *   4. Server stores token per user → sends push when stress is high
+ *
+ * Background push delivery:
+ *   When the app is backgrounded and the server calls FCM/APNs,
+ *   the OS delivers the notification without opening the app.
+ *   If the user taps it, Capacitor fires the pushNotificationActionPerformed
+ *   event which this module handles → navigates to the correct page.
+ *
+ * Server side (FCM):
+ *   Set FIREBASE_SERVICE_ACCOUNT_KEY (JSON string) in environment.
+ *   The /api/notifications/send-native endpoint uses firebase-admin to deliver.
+ *
+ * Set up requirements:
+ *   iOS:  Add push notifications capability in Xcode, upload APNs key to Firebase
+ *   Android: google-services.json in android/app/
+ */
+
+import { Capacitor } from "@capacitor/core";
+import { getParticipantId } from "./participant";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface NativePushToken {
+  token: string;
+  platform: "ios" | "android";
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function isNative(): boolean {
+  return Capacitor.isNativePlatform();
+}
+
+function getPlatform(): "ios" | "android" {
+  return Capacitor.getPlatform() === "ios" ? "ios" : "android";
+}
+
+async function registerTokenWithServer(token: string): Promise<void> {
+  const userId = getParticipantId();
+  await fetch("/api/notifications/native-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId,
+      token,
+      platform: getPlatform(),
+    }),
+  });
+}
+
+// ── Main registration function ────────────────────────────────────────────────
+
+let _registered = false;
+
+/**
+ * Request push notification permission and register the device token.
+ * Safe to call multiple times — only registers once per session.
+ * No-op on web (falls back to VAPID web push).
+ */
+export async function registerNativePush(): Promise<NativePushToken | null> {
+  if (!isNative()) return null;
+  if (_registered) return null;
+
+  const { PushNotifications } = await import("@capacitor/push-notifications");
+
+  // Check current permission
+  let permStatus = await PushNotifications.checkPermissions();
+  if (permStatus.receive === "prompt") {
+    permStatus = await PushNotifications.requestPermissions();
+  }
+  if (permStatus.receive !== "granted") {
+    console.warn("[native-push] Permission not granted");
+    return null;
+  }
+
+  // Set up listeners before registering
+  return new Promise((resolve) => {
+    // Registration success → got the FCM/APNs token
+    PushNotifications.addListener("registration", async (token) => {
+      _registered = true;
+      const payload: NativePushToken = { token: token.value, platform: getPlatform() };
+      try {
+        await registerTokenWithServer(token.value);
+      } catch (e) {
+        console.warn("[native-push] Failed to register token with server:", e);
+      }
+      resolve(payload);
+    });
+
+    // Registration error
+    PushNotifications.addListener("registrationError", (err) => {
+      console.error("[native-push] Registration error:", err);
+      resolve(null);
+    });
+
+    // Foreground notification received
+    PushNotifications.addListener("pushNotificationReceived", (notification) => {
+      // When app is open: show an in-app toast or banner
+      // The notification object has title, body, data
+      window.dispatchEvent(
+        new CustomEvent("native-push-received", {
+          detail: notification,
+        })
+      );
+    });
+
+    // User tapped a notification → navigate
+    PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+      const data = action.notification.data as Record<string, string> | undefined;
+      const route = data?.route ?? "/brain-report";
+      // Navigate using a custom event so we don't need to import wouter here
+      window.dispatchEvent(
+        new CustomEvent("native-push-navigate", { detail: { route } })
+      );
+    });
+
+    // Trigger registration
+    PushNotifications.register();
+  });
+}
+
+/**
+ * Clear the stored notification badge count (iOS).
+ * Call this when the user opens a notification-triggered page.
+ */
+export async function clearBadge(): Promise<void> {
+  if (!isNative()) return;
+  try {
+    const { PushNotifications } = await import("@capacitor/push-notifications");
+    await PushNotifications.removeAllDeliveredNotifications();
+  } catch { /* ignore */ }
+}

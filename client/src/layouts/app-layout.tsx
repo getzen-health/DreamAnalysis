@@ -5,6 +5,7 @@ import { NeuralBackground } from "@/components/neural-background";
 import { InterventionBanner } from "@/components/intervention-banner";
 import OfflineSyncBanner from "@/components/offline-sync-banner";
 import { useHealthSync } from "@/hooks/use-health-sync";
+import { registerNativePush } from "@/lib/native-push";
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -38,6 +39,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
   // Start HealthKit / Health Connect auto-sync on first mount (no-op on web)
   useHealthSync();
+
+  // Register for native push notifications on iOS/Android (no-op on web)
+  useEffect(() => {
+    registerNativePush().catch(() => {});
+    // Handle navigation triggered by tapping a native push notification
+    const onNavigate = (e: Event) => {
+      const route = (e as CustomEvent<{ route: string }>).detail.route;
+      if (route) window.location.href = route;
+    };
+    window.addEventListener("native-push-navigate", onNavigate);
+    return () => window.removeEventListener("native-push-navigate", onNavigate);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);

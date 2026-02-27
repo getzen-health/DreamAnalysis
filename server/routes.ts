@@ -1365,6 +1365,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Native push token registration (APNs / FCM) ────────────────────────────
+  // Store the FCM/APNs device token per user so the server can send
+  // native pushes when the app is backgrounded.
+
+  /** In-memory token store (process restart clears it — acceptable for MVP) */
+  const _nativeTokens = new Map<string, { token: string; platform: string }>();
+
+  app.post("/api/notifications/native-token", (req, res) => {
+    const { userId, token, platform } = req.body as {
+      userId?: string; token?: string; platform?: string;
+    };
+    if (!userId || !token) {
+      return res.status(400).json({ error: "userId and token required" });
+    }
+    _nativeTokens.set(userId, { token, platform: platform ?? "unknown" });
+    res.json({ registered: true });
+  });
+
+  /**
+   * Send a native push notification to a specific user via FCM.
+   * Requires FIREBASE_SERVICE_ACCOUNT_KEY env var (JSON string).
+   * Falls back gracefully if Firebase is not configured.
+   */
+  app.post("/api/notifications/send-native", async (req, res) => {
+    const { userId, title, body, data } = req.body as {
+      userId?: string; title?: string; body?: string; data?: Record<string, string>;
+    };
+    if (!userId || !title || !body) {
+      return res.status(400).json({ error: "userId, title, body required" });
+    }
+
+    const tokenInfo = _nativeTokens.get(userId);
+    if (!tokenInfo) {
+      return res.status(404).json({ error: "No native token registered for user" });
+    }
+
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    if (!serviceAccountJson) {
+      // Firebase not configured — log and return graceful response
+      console.log(`[native-push] FIREBASE_SERVICE_ACCOUNT_KEY not set. Would send to ${userId}: "${title}"`);
+      return res.json({ sent: false, reason: "firebase_not_configured" });
+    }
+
+    try {
+      // Dynamic import to avoid requiring firebase-admin when not needed
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adminImport: Promise<any> = new Function('m', 'return import(m)')("firebase-admin");
+      const admin = await adminImport.catch(() => null);
+      if (!admin) {
+        return res.json({ sent: false, reason: "firebase-admin not installed" });
+      }
+
+      // Initialize only once
+      if (!admin.default.apps.length) {
+        const serviceAccount = JSON.parse(serviceAccountJson);
+        admin.default.initializeApp({
+          credential: admin.default.credential.cert(serviceAccount),
+        });
+      }
+
+      const message = {
+        token: tokenInfo.token,
+        notification: { title, body },
+        data: data ?? {},
+        apns: { payload: { aps: { badge: 1, sound: "default" } } },
+        android: { priority: "high" as const, notification: { sound: "default" } },
+      };
+
+      const result = await admin.default.messaging().send(message);
+      res.json({ sent: true, messageId: result });
+    } catch (err) {
+      console.error("[native-push] FCM error:", err);
+      res.status(500).json({ error: "Failed to send native push" });
+    }
+  });
+
   // ── Emotion corrections (user label feedback → online learner) ────────────
 
   app.post("/api/emotions/correct", async (req, res) => {
