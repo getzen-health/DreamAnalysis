@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 // PRODUCT.md: Phase 1 — The aha moment. User watches stress drop live during breathing.
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
-import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Headphones, ExternalLink, FlaskConical, CheckCircle2, AlertCircle } from "lucide-react";
+import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Headphones, ExternalLink } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticMedium, hapticSuccess } from "@/lib/haptics";
 import SpotifyConnect from "@/components/spotify-connect";
@@ -291,19 +290,8 @@ function guidanceText(label: string): string {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 type SessionPhase = "idle" | "active" | "done";
-type ActiveTab = "breathing" | "music" | "evidence";
+type ActiveTab = "breathing" | "music";
 type MusicMood = "calm" | "focus";
-
-interface EffectivenessData {
-  user_id: string;
-  total_outcomes: number;
-  by_type: Record<string, {
-    count: number;
-    worked: number;
-    avg_stress_delta: number;
-    success_rate: number;
-  }>;
-}
 
 export default function Biofeedback() {
   const { latestFrame, state: deviceState } = useDevice();
@@ -314,26 +302,6 @@ export default function Biofeedback() {
   // ── Tab + music state ──────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<ActiveTab>("breathing");
   const [musicMood, setMusicMood] = useState<MusicMood>("calm");
-
-  // ── Effectiveness data (Evidence tab) ─────────────────────────────────────
-  const mlBase = (() => {
-    try {
-      const s = localStorage.getItem("ml_backend_url");
-      if (s?.trim()) return s.trim().replace(/\/$/, "");
-    } catch { /* */ }
-    return (import.meta.env.VITE_ML_API_URL as string | undefined) ?? "http://localhost:8000";
-  })();
-
-  const { data: effectiveness } = useQuery<EffectivenessData>({
-    queryKey: ["interventions/effectiveness", userId.current],
-    queryFn: async () => {
-      const res = await fetch(`${mlBase}/api/interventions/effectiveness/${userId.current}`);
-      if (!res.ok) throw new Error("ML backend offline");
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  });
 
   // ── Parse URL params once on mount ────────────────────────────────────────
   useEffect(() => {
@@ -569,17 +537,6 @@ export default function Biofeedback() {
           <Headphones className="h-3.5 w-3.5" />
           Music
         </button>
-        <button
-          onClick={() => setActiveTab("evidence")}
-          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-            activeTab === "evidence"
-              ? "bg-background/80 text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <FlaskConical className="h-3.5 w-3.5" />
-          Evidence
-        </button>
       </div>
 
       {/* ── MUSIC TAB ── */}
@@ -614,13 +571,6 @@ export default function Biofeedback() {
               </button>
             </div>
           </div>
-
-          {/* Context note */}
-          <p className="text-xs text-muted-foreground/70">
-            {musicMood === "calm"
-              ? "60–80 BPM music activates your parasympathetic system within minutes. Self-selected calming music reduces cortisol (Thoma et al. 2013)."
-              : "Binaural beats require headphones — the two slightly different tones create a beat in the brain. 40 Hz gamma improves selective attention (Kraus et al. 2021)."}
-          </p>
 
           {/* Playlist cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -683,132 +633,6 @@ export default function Biofeedback() {
               recommend it again next time.
             </p>
           </Card>
-        </div>
-      )}
-
-      {/* ── EVIDENCE TAB ── before/after EEG comparison per exercise ── */}
-      {activeTab === "evidence" && (
-        <div className="space-y-5">
-          {/* Header */}
-          <div>
-            <h3 className="text-sm font-semibold">Intervention Library</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Evidence behind each technique — and your personal before/after data once you start using them.
-            </p>
-          </div>
-
-          {/* Personal effectiveness (when ML backend has data) */}
-          {effectiveness && effectiveness.total_outcomes > 0 && (
-            <Card className="glass-card p-5 rounded-xl">
-              <div className="flex items-center gap-2 mb-4">
-                <FlaskConical className="h-4 w-4 text-primary" />
-                <h4 className="text-sm font-medium">Your Personal Before/After Data</h4>
-                <span className="ml-auto text-[10px] text-muted-foreground">
-                  {effectiveness.total_outcomes} session{effectiveness.total_outcomes !== 1 ? "s" : ""} recorded
-                </span>
-              </div>
-              <div className="space-y-4">
-                {Object.entries(effectiveness.by_type).map(([type, stats]) => {
-                  const label = type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-                  const pct = Math.round(stats.success_rate * 100);
-                  const delta = Math.round(stats.avg_stress_delta * 100);
-                  const worked = stats.success_rate >= 0.6;
-                  return (
-                    <div key={type}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-medium">{label}</span>
-                        <div className="flex items-center gap-2">
-                          {worked
-                            ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                            : <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                          }
-                          <span className={`text-xs font-mono ${worked ? "text-emerald-400" : "text-muted-foreground"}`}>
-                            {pct}% success · avg −{delta}% stress
-                          </span>
-                        </div>
-                      </div>
-                      {/* Before bar = fixed at 100%, After bar = 100% - avg_delta */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground w-12 shrink-0">Before</span>
-                          <div className="flex-1 bg-rose-500/15 rounded-full h-2">
-                            <div className="h-full w-full bg-rose-500/50 rounded-full" />
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground w-12 shrink-0">After</span>
-                          <div className="flex-1 bg-muted/20 rounded-full h-2 overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-700"
-                              style={{
-                                width: `${Math.max(10, 100 - delta)}%`,
-                                background: worked ? "hsl(142, 60%, 45%)" : "hsl(0, 60%, 55%)",
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        {stats.count} session{stats.count !== 1 ? "s" : ""} · {stats.worked} helped
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          )}
-
-          {/* No personal data yet */}
-          {(!effectiveness || effectiveness.total_outcomes === 0) && (
-            <Card className="glass-card p-4 rounded-xl flex items-center gap-3">
-              <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-              <p className="text-xs text-muted-foreground">
-                Your before/after EEG comparison will appear here after you complete your first
-                breathing session. Run a session above — the intervention engine records your
-                stress before and 5 minutes after.
-              </p>
-            </Card>
-          )}
-
-          {/* Science library — all 7 exercises with citations */}
-          <div className="space-y-3">
-            <h4 className="text-xs text-muted-foreground uppercase tracking-wider">Research Citations</h4>
-            {EXERCISES.map(ex => (
-              <Card key={ex.id} className="glass-card p-4 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-2 h-2 rounded-full mt-1.5 shrink-0"
-                    style={{ background: ex.color }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium">{ex.name} Breathing</p>
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded font-mono shrink-0"
-                        style={{ background: `${ex.color}20`, color: ex.color }}
-                      >
-                        {ex.phases.map(p => p.duration).join("–")}s
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      {ex.science}
-                    </p>
-                    {/* Phase breakdown */}
-                    <div className="flex gap-3 mt-2">
-                      {ex.phases.map((p, i) => (
-                        <div key={i} className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground/60">{p.label}</span>
-                          <span className="text-[10px] font-mono" style={{ color: ex.color }}>
-                            {p.duration}s
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
         </div>
       )}
 
