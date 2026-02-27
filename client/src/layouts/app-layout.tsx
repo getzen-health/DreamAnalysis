@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Sidebar } from "@/components/sidebar";
 import { NeuralBackground } from "@/components/neural-background";
 import { InterventionBanner } from "@/components/intervention-banner";
+import OfflineSyncBanner from "@/components/offline-sync-banner";
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -83,6 +84,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
       {/* Real-time intervention notifications — floats above all content */}
       <InterventionBanner />
+      {/* Offline indicator + auto-sync when connection restores */}
+      <OfflineSyncBanner />
     </div>
   );
 }
