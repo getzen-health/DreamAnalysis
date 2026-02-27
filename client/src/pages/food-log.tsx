@@ -19,8 +19,6 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const USER_ID = getParticipantId();
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface FoodItem {
@@ -127,6 +125,7 @@ async function compressToBase64(file: File, maxPx = 800): Promise<string> {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function FoodLog() {
+  const USER_ID = getParticipantId();
   const { toast } = useToast();
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
