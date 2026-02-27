@@ -51,7 +51,7 @@ export default function StudyProfile() {
       });
 
       navigate(
-        `/study/session/${sessionType}?code=${encodeURIComponent(participantCode)}`
+        `/study/session?code=${encodeURIComponent(participantCode)}&block=${sessionType}`
       );
     } catch (err: unknown) {
       const msg =
