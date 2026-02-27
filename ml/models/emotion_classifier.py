@@ -72,6 +72,15 @@ class EmotionClassifier:
         # Device-aware gamma masking — set via set_device_type() on connect/disconnect
         self.device_type: Optional[str] = None
 
+        # EEGNet — device-agnostic CNN, highest priority when trained model exists.
+        # Works with 4-ch Muse 2, 8-ch OpenBCI Cyton, 16-ch Cyton+Daisy without retraining.
+        # Model file: models/saved/eegnet_emotion_{n_channels}ch.pt
+        try:
+            from models.eegnet import EEGNetEmotionClassifier
+            self._eegnet = EEGNetEmotionClassifier()
+        except Exception:
+            self._eegnet = None
+
         # Mega cross-dataset LGBM with global PCA (DEAP+DREAMER+GAMEEMO+DENS, highest priority)
         self.mega_lgbm_model  = None
         self.mega_lgbm_scaler = None  # StandardScaler (85→85)
@@ -577,7 +586,15 @@ class EmotionClassifier:
             eeg: 1D (single channel) or 2D (n_channels, n_samples) array.
             fs: Sampling frequency.
         """
-        # Mega cross-dataset LGBM with global PCA — highest priority
+        # EEGNet — device-agnostic CNN on raw EEG. Highest priority when trained.
+        # Works on any channel count (4ch Muse, 8ch OpenBCI, 16ch Cyton+Daisy).
+        # Only activates if ml/models/saved/eegnet_emotion_{n_ch}ch.pt exists
+        # AND its benchmark accuracy >= 60%.
+        if (self._eegnet is not None and eeg.ndim == 2
+                and self._eegnet.is_available(eeg.shape[0], min_accuracy=_MIN_MODEL_ACCURACY)):
+            return self._eegnet.predict(eeg, fs)
+
+        # Mega cross-dataset LGBM with global PCA — second priority
         if (self.mega_lgbm_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
                 and self._mega_lgbm_benchmark >= _MIN_MODEL_ACCURACY):
             return self._predict_mega_lgbm(eeg, fs)
