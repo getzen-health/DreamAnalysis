@@ -42,6 +42,7 @@ const ResearchEvening        = lazy(() => import("@/pages/research-evening"));
 const FoodLog                = lazy(() => import("@/pages/food-log"));
 const SleepSession           = lazy(() => import("@/pages/sleep-session"));
 const WeeklyBrainSummary     = lazy(() => import("@/pages/weekly-brain-summary"));
+const PrivacyPolicy          = lazy(() => import("@/pages/privacy-policy"));
 
 // Minimal fallback shown while a lazy chunk loads
 function PageLoader() {
@@ -151,6 +152,12 @@ function AppRoutes() {
       </Route>
       {/* Fullscreen onboarding — no sidebar */}
       <Route path="/onboarding" component={Onboarding} />
+      {/* Public route — no auth required (needed for App Store / HealthKit) */}
+      <Route path="/privacy">
+        <Suspense fallback={<PageLoader />}>
+          <AppLayout><PrivacyPolicy /></AppLayout>
+        </Suspense>
+      </Route>
       <Route component={NotFound} />
     </Switch>
     </Suspense>

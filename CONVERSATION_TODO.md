@@ -92,7 +92,7 @@ Then add native features progressively. No full rewrite needed to ship v1.
 - [ ] Siri Shortcuts (iOS) / Google Assistant Actions (Android) — "Hey Siri, check my brain state."
 
 ### Phase 3 — App Store submission
-- [ ] Privacy policy page (required for HealthKit)
+- [x] Privacy policy page (required for HealthKit) — `/privacy` route, no auth guard
 - [ ] App Store description + screenshots (5 screenshots required, show Brain Report, Brain State, Sleep, Dreams, Food)
 - [ ] Submit as "wellness app" not "medical device" — avoids FDA clearance requirement
 - [ ] TestFlight beta with pilot study participants first
