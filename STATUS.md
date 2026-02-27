@@ -142,6 +142,23 @@
 - [x] User-correctable emotion labels — "Was this right?" chip panel in `/emotion-lab`; stores correction + POSTs to ML backend `/feedback`
 - [x] Per-user model fine-tuning trigger — after every 5 corrections for a user, POST batch to ML backend online learner (`PersonalModelAdapter.adapt()`)
 - [x] Export data — CSV/JSON export with date-range + metric selector (`/api/ml/brain/export` via `ExportBrainDataCard`); Apple HealthKit export (`/api/ml/health/export-to-healthkit/{user_id}`) wired to "Export to HealthKit" button in Settings
+- [x] Personal records gamification — `longestEverStreak`, `focusTrend`, `nextMilestone` helpers; new-record celebration banner; "beat it" challenge per row; live comparison; streak + milestone countdown
+- [x] Weekly brain summary standalone page (`/weekly-summary`) — this week vs last week stress/focus/sleep with trend arrows, week-in-one-sentence, Canvas 2D PNG export (800×450, no deps)
+- [x] Intervention library Evidence tab — personal before/after stress bars from `/interventions/effectiveness/:userId`; science citations for all 7 exercises
+
+### Phase 5 — Mobile 🔄 IN PROGRESS
+- [x] Capacitor 8.1.0 installed (`@capacitor/core`, `cli`, `ios`, `android`)
+- [x] `capacitor.config.ts` — appId, webDir=dist/public, SplashScreen/StatusBar/PushNotifications config
+- [x] Safe area insets — `viewport-fit=cover`; `env(safe-area-inset-*)` CSS vars; body padding; home indicator clearance
+- [x] iOS HIG touch targets — global `min-height: 44px` + `min-h-[44px]` on sidebar nav links; hamburger 44×44px
+- [x] Haptic feedback — `@capacitor/haptics`; `haptics.ts` wrapper with `isNative()` check; `hapticLight` on inhale, `hapticMedium` on hold/exhale, `hapticSuccess` on session complete; wired into biofeedback + sleep-session
+- [x] Local ML inference — `emotion_classifier_model.onnx` (2.2 MB) served from `client/public/models/`; JS band-power heuristics for sleep/dream; `use-inference.ts`: local-first, server fallback
+- [x] Offline mode — IndexedDB v2 (`offline-store.ts`): `dream_drafts` + `eeg_queue` + `health_queue`; `OfflineSyncBanner` auto-syncs on reconnect; `syncAll()` drains all queues
+- [x] Privacy policy page (`/privacy`) — 6 sections covering EEG, HealthKit, research, security, contact; no auth guard (required for App Store)
+- [x] Spotify integration — OAuth 2.0 flow (`/api/spotify/auth` + `/api/spotify/callback`); `POST /api/spotify/play` with mood routing; `SpotifyConnect` component in biofeedback Music tab; auto-plays calm/focus when music intervention fires via `InterventionBanner`
+- [ ] `npx cap add ios` — blocked on Xcode.app (only CLI tools installed)
+- [ ] `npx cap add android` — blocked on JDK + Android Studio
+- [ ] Splash screen + app icon — 1024×1024 PNG design needed
 
 ## Food-Emotion Research Roadmap
 

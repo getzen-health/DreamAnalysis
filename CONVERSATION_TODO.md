@@ -104,8 +104,8 @@ Then add native features progressively. No full rewrite needed to ship v1.
 
 - [ ] Write paper: "Food-Emotion EEG: A First Dataset and Real-Time Intervention System" — arXiv first, then IEEE EMBC 2026 or Frontiers in Neuroscience
 - [ ] Include in paper: dataset stats, model accuracy table (Muse 2 vs OpenBCI), intervention outcomes, device compatibility section
-- [ ] STATUS.md — update with all completed items from this conversation
-- [ ] PRODUCT.md — update honest assessment percentages
+- [x] STATUS.md — updated: Phase 4 + Phase 5 mobile items, Spotify, haptics, offline, ONNX
+- [x] PRODUCT.md — updated: honest assessment percentages, mobile bar added
 
 ---
 

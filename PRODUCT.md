@@ -146,52 +146,74 @@ Core ML / Signal pipeline    █████████░  94%
     67% reward rate in flow zone (target 40–75%). 18 models total.
   PersonalModelAdapter wired into /analyze-eeg with personal_override blending. ✅
   Parallel ML inference via ThreadPoolExecutor (/analyze-eeg + /simulate-eeg). ✅
+  Local ONNX inference: emotion_classifier_model.onnx (2.2 MB) + JS heuristics for sleep/dream. ✅
   Missing: personalization fine-tuning after 5 sessions.
 
-Backend API                  █████████░  94%
-  82 endpoints. 18 modular route files (routes.py split done). WebSocket exists.
+Backend API                  █████████░  96%
+  87 endpoints. 18 modular route files (routes.py split done). WebSocket exists.
   Per-user state isolation fixed. Food-emotion + simulation support added.
   RL training endpoint runs in isolated subprocess (no GIL/OpenMP deadlock). ✅
   Parallel inference (ThreadPoolExecutor) on hot paths. ✅
   Prod deployment: Render free tier (neural-dream-ml.onrender.com). ✅
+  Spotify OAuth + play + status + disconnect endpoints added. ✅
+  Just-in-time push notification trigger (POST /api/notifications/brain-state-trigger). ✅
+  Yesterday's Insights endpoint (GET /api/brain/yesterday-insights/:userId). ✅
 
-Frontend                     █████████░  92%
-  22 pages exist. All core user flows built and working.
+Frontend                     ██████████  96%
+  25 pages exist. All core user flows built and working.
   Daily Brain Report (/brain-report): sleep summary, forecast, yesterday's insight,
     weekly 7-day avg card, recommended action.
-  Sleep session mode (/sleep-session): state machine, live staging, dream detection, sleep score.
+  Sleep session mode (/sleep-session): dim-screen mode, tap-to-peek, real stats from DB.
+  Weekly brain summary (/weekly-summary): this week vs last, trend arrows, PNG export. ✅
+  Intervention library Evidence tab: personal before/after stress bars + science citations. ✅
+  Privacy policy (/privacy): 6-section policy, no auth guard. ✅
   Baseline calibration onboarding (/onboarding): fullscreen 3-phase guided calibration.
   Device pairing wizard: Connect Device → /device-setup → /onboarding. ✅
-  Dashboard: personal records (peak focus/flow/longest session + "beat it" indicator). ✅
-  Biofeedback: 7 exercises (added Physio Sigh, Cyclic Sigh, Power Breath). ✅
+  Dashboard: personal records (peak focus/flow/longest session + "beat it" indicator + gamification). ✅
+  Biofeedback: 7 exercises + Music tab (SpotifyConnect auto-play) + Evidence tab. ✅
   Research beta signup (/research/enroll): IRB language removed, beta program framing.
   Vite bundle splitting + React.lazy() on 14 pages (faster load). ✅
   Session history 24-hour timeline strip (Today view — green/orange/cyan session blocks). ✅
   Push notification service worker + Settings subscribe UI (morning reminder to /brain-report). ✅
-  97 Vitest tests across 11 files, 10 pages (biofeedback, calibration, dashboard, emotion-lab,
-    research-hub, daily-brain-report, ai-companion, sleep-session, onboarding, research-enroll). ✅
-  Missing: streaks, user-correctable labels, pattern engine, server push VAPID trigger.
+  97 Vitest tests across 11 files, 10 pages. ✅
 
-Product thinking             ████████░░  82%
+Mobile (Capacitor)           ███████░░░  70%
+  Capacitor 8.1.0 installed. capacitor.config.ts created. ✅
+  Safe area insets: viewport-fit=cover, env(safe-area-inset-*) CSS vars. ✅
+  iOS HIG touch targets: 44px min height on all interactive elements. ✅
+  Haptic feedback: @capacitor/haptics; light/medium/heavy/success/warning/error. ✅
+  Local ML inference: ONNX + JS heuristics, no server needed. ✅
+  Offline mode: IndexedDB queue (dreams + EEG sessions + health metrics), auto-sync. ✅
+  Spotify: OAuth 2.0, auto-play calm/focus on music intervention. ✅
+  Missing: cap add ios/android (needs Xcode + JDK), BLE Muse 2, HealthKit, home screen widget.
+
+Product thinking             █████████░  90%
   Full measure → insight → action → result loop now in place.
   Daily Brain Report answers "what should I do today, and when?" ✅
   Yesterday's Insight card identifies patterns from previous day's data. ✅
   Personal records give reason to beat previous bests. ✅
   Weekly summary card gives shareable social artifact. ✅
-  Missing: streaks, server VAPID trigger for push.
+  Intervention library shows evidence + personal before/after. ✅
+  Spotify auto-plays calm music when stress is high — closes the loop. ✅
+  Missing: App Store submission, pilot study data.
 
-Retention mechanics          ███████░░░  68%
+Retention mechanics          ████████░░  82%
   Daily pull: Daily Brain Report gives morning pull. ✅
   Personal records: peak focus/flow/longest session + "beat it" live indicator. ✅
-  Weekly brain summary: 7-day avg with copy button. ✅
+  Weekly brain summary: 7-day avg, PNG export, shareable. ✅
   Cause and effect: biofeedback before/after + brain report correlations. ✅
-  Missing: streaks, user-correctable labels, per-user model fine-tuning.
+  Haptic breathing: tactile feedback makes breathing sessions feel real. ✅
+  Spotify auto-play: music starts automatically when stress crosses threshold. ✅
+  Missing: App Store distribution, pilot user base.
 
-Infrastructure               ███████░░░  72%
+Infrastructure               ████████░░  80%
   Frontend on Vercel (dream-analysis.vercel.app).
   ML backend on Render free tier (neural-dream-ml.onrender.com). ✅
   Per-user isolation: fixed. No monitoring. No auth enforcement.
   Bundle optimized: Vite vendor splitting + lazy loading. ✅
+  Offline: IndexedDB queue + auto-sync on reconnect. ✅
+  PWA: manifest, service worker, installable. ✅
+  Missing: cap add ios/android, App Store, pilot data.
 ```
 
 **The gap is not technical. The gap is narrative.**
