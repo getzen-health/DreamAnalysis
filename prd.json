@@ -1,16 +1,15 @@
 {
   "project": "NeuralDreamWorkshop",
-  "branchName": "ralph/neural-dream-study-mode",
-  "description": "Add /study research mode for 2-week human pilot study — consent flow, stress session (Block A), food-emotion session (Block B), and admin dashboard with CSV export for paper analysis",
+  "branchName": "ralph/eeg-pipeline-upgrade",
+  "description": "Fix Muse connection for production, activate Datadog observability, and retrain stress/flow models above the 60% activation threshold so experiments can start tonight.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add study_participants and study_sessions database tables",
-      "description": "As a developer, I need database tables to store anonymous participant consent and EEG session data for the pilot study.",
+      "title": "Fix dead ML backend URL fallback in ml-api.ts",
+      "description": "As a developer, I need the ML backend URL default to point to localhost:8000 instead of an expired ngrok URL so the app doesn't fail silently in development.",
       "acceptanceCriteria": [
-        "Add study_participants table: id (serial pk), participant_code (varchar unique), age (int), diet_type (varchar), has_apple_watch (boolean), consent_text (text), consent_timestamp (timestamp), created_at (timestamp default now())",
-        "Add study_sessions table: id (serial pk), participant_code (varchar), block_type (varchar: stress|food|sleep), pre_eeg_json (jsonb), post_eeg_json (jsonb), eeg_features_json (jsonb), survey_json (jsonb), intervention_triggered (boolean default false), created_at (timestamp default now())",
-        "Drizzle migration generated and runs successfully with drizzle-kit push",
+        "In client/src/lib/ml-api.ts lines 1-3, the fallback URL changes from 'https://brendan-postanesthetic-soliloquisingly.ngrok-free.dev' to 'http://localhost:8000'",
+        "grep -r 'brendan-postanesthetic' . returns zero matches",
         "Typecheck passes"
       ],
       "priority": 1,
@@ -19,16 +18,13 @@
     },
     {
       "id": "US-002",
-      "title": "Add study API routes to Express server",
-      "description": "As a developer, I need REST API endpoints to handle participant consent, session creation, session completion, and admin data access.",
+      "title": "Add pingBackend utility to ml-api.ts",
+      "description": "As a developer, I need a pingBackend() function that silently checks if the ML backend is reachable so the UI can show a warm-up spinner instead of a cryptic error.",
       "acceptanceCriteria": [
-        "POST /api/study/consent — accepts { participant_code, age, diet_type, has_apple_watch, consent_text }, saves to study_participants, returns { success: true, participant_code }",
-        "POST /api/study/session/start — accepts { participant_code, block_type }, creates pending study_sessions record, returns { session_id }",
-        "POST /api/study/session/complete — accepts { session_id, pre_eeg_json, post_eeg_json, eeg_features_json, survey_json, intervention_triggered }, updates session record, returns { success: true }",
-        "GET /api/study/admin/participants — returns all study_participants rows (requires auth middleware)",
-        "GET /api/study/admin/sessions — returns all study_sessions rows joined with participant data (requires auth middleware)",
-        "GET /api/study/admin/export-csv — returns CSV file with headers: participant_code, block_type, age, diet_type, has_apple_watch, pre_alpha, pre_beta, pre_theta, pre_delta, pre_gamma, post_alpha, post_beta, post_theta, post_delta, post_gamma, intervention_triggered, and all survey_json numeric fields flattened",
-        "All routes return 400 for missing required fields, 401 for unauthorized admin routes",
+        "Export async function pingBackend(timeoutMs = 12000): Promise<boolean> added to client/src/lib/ml-api.ts",
+        "Function uses AbortController with the given timeout",
+        "Function calls GET /health on getMLApiUrl()",
+        "Returns true if response.ok, false on any error",
         "Typecheck passes"
       ],
       "priority": 2,
@@ -37,13 +33,15 @@
     },
     {
       "id": "US-003",
-      "title": "Build /study landing page",
-      "description": "As a potential participant, I want to understand the study and click to join from a single shareable page.",
+      "title": "Add warm-up spinner to StudySession muse-pair screen",
+      "description": "As a participant, I want to see 'Waking up ML backend…' instead of a broken connection error when the Render backend is cold-starting so I know to wait.",
       "acceptanceCriteria": [
-        "Page exists at /study route",
-        "Page displays: study title 'Neural Dream Workshop Pilot Study', what participants do (wear Muse 2, complete stress and food sessions), time required (25-40 min total), that participation is anonymous and voluntary",
-        "Join the Study button navigates to /study/consent",
-        "Page is mobile-responsive with readable text on small screens",
+        "backendReady state (boolean | null) added to StudySession component",
+        "useEffect pings backend via pingBackend() when phase === 'muse-pair'",
+        "While backendReady === null: 'Waking up ML backend…' spinner shown in Card",
+        "While backendReady === false: amber warning text shown",
+        "Pair Muse 2 button disabled while backendChecking is true",
+        "pingBackend imported from @/lib/ml-api in the import statement",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
@@ -53,18 +51,13 @@
     },
     {
       "id": "US-004",
-      "title": "Build /study/consent page with digital consent form",
-      "description": "As a participant, I want to read the informed consent text, check agreement, enter my participant code, and proceed.",
+      "title": "Fix Render CORS_ORIGINS to include Vercel production URL",
+      "description": "As a developer, I need the Render ML backend to accept requests from the Vercel production frontend so CORS doesn't silently block Muse connection attempts.",
       "acceptanceCriteria": [
-        "Page exists at /study/consent",
-        "Displays full consent text: what data is collected (EEG features and self-report surveys), how it is used (academic research paper), that participation is voluntary, right to withdraw at any time",
-        "Checkbox input: 'I have read the above and agree to participate voluntarily'",
-        "Text input: 'Enter your participant code (e.g. P001)' with validation (must match pattern P + 3 digits)",
-        "Continue button is disabled until both checkbox is checked and participant code is entered",
-        "On submit: POST to /api/study/consent with consent_text snapshot and participant_code",
-        "On success: navigate to /study/profile passing participant_code in state or query param",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "render.yaml CORS_ORIGINS value includes 'https://dream-analysis.vercel.app'",
+        "render.yaml CORS_ORIGINS value includes 'https://dream-analysis-*.vercel.app' for preview deployments",
+        "render.yaml CORS_ORIGINS still includes all localhost variants",
+        "Typecheck passes"
       ],
       "priority": 4,
       "passes": false,
@@ -72,18 +65,14 @@
     },
     {
       "id": "US-005",
-      "title": "Build /study/profile page",
-      "description": "As a participant, I want to enter basic demographic info and choose which session block to start.",
+      "title": "Add Datadog APM env vars to render.yaml",
+      "description": "As a developer, I need DD_SITE, DD_SERVICE, and DD_ENV set in render.yaml so Datadog APM activates when DD_API_KEY is added in the Render dashboard.",
       "acceptanceCriteria": [
-        "Page exists at /study/profile",
-        "Age number input (18-99 range)",
-        "Diet type dropdown: Omnivore, Vegetarian, Vegan, Other",
-        "Apple Watch toggle: Yes / No",
-        "Start Stress Session button navigates to /study/session/stress",
-        "Start Food Session button navigates to /study/session/food",
-        "Profile data submitted via PUT to /api/study/consent or PATCH endpoint before navigating",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "render.yaml envVars block includes DD_SITE with value 'datadoghq.com'",
+        "render.yaml envVars block includes DD_SERVICE with value 'neural-dream-ml'",
+        "render.yaml envVars block includes DD_ENV with value 'production'",
+        "render.yaml envVars block includes DD_API_KEY with sync: false (secret)",
+        "Typecheck passes"
       ],
       "priority": 5,
       "passes": false,
@@ -91,19 +80,13 @@
     },
     {
       "id": "US-006",
-      "title": "Build /study/session/stress page — Block A (stress at work)",
-      "description": "As a participant, I want to complete the 25-minute stress session: baseline EEG, work task with live stress monitoring, breathing intervention, post-EEG, and survey.",
+      "title": "Wire Datadog accuracy metrics in ML backend auto-retraining loop",
+      "description": "As a developer, I need the auto-retraining loop to emit model accuracy as a Datadog metric so I can see when models improve or degrade after each retrain.",
       "acceptanceCriteria": [
-        "Page exists at /study/session/stress",
-        "Step 1 Baseline: 5-minute countdown timer, instruction text 'Sit still with eyes closed', calls /api/analyze-eeg or /api/simulate-eeg every 4 seconds to collect EEG data, stores averaged features as pre_eeg_json",
-        "Step 2 Work Task: 15-minute countdown timer, text 'Continue your normal work with headband on', displays live stress level as a colored progress bar (green < 0.4, yellow 0.4-0.65, red > 0.65)",
-        "Step 3 Intervention: triggers automatically when stress_score > 0.65 OR at 15-minute mark; shows Box Breathing or Physio Sigh component (reuse existing breathing exercise UI); sets intervention_triggered = true",
-        "Step 4 Post-EEG: 5-minute countdown timer, collects EEG data, stores as post_eeg_json",
-        "Step 5 Survey: three sliders (1-10): 'How stressed did you feel during the session?', 'Did the breathing exercise help?', 'How do you feel right now?'; stores as survey_json",
-        "Progress stepper shows current step (1 of 5) at top of page",
-        "On completion: POST to /api/study/session/complete, navigate to /study/complete",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "In ml/main.py, the comment '# Report accuracy to Datadog' is replaced with actual statsd.gauge() calls",
+        "statsd.gauge('eeg.model.retrain_accuracy', acc * 100) called when accuracy is available in result dict",
+        "The metric emission is wrapped in try/except so it never crashes the retrain loop",
+        "Typecheck passes"
       ],
       "priority": 6,
       "passes": false,
@@ -111,59 +94,77 @@
     },
     {
       "id": "US-007",
-      "title": "Build /study/session/food page — Block B (food + emotional state)",
-      "description": "As a participant, I want to complete the food-emotion session: pre-meal EEG baseline, eat normally, post-meal EEG, and food survey.",
+      "title": "Add Datadog Browser RUM SDK to client/index.html",
+      "description": "As a developer, I need Datadog Browser RUM initialized in index.html so frontend errors, failed network requests, and WebSocket drops are captured in the Datadog dashboard.",
       "acceptanceCriteria": [
-        "Page exists at /study/session/food",
-        "Step 1 Pre-meal survey: sliders (1-10) for 'How hungry are you?' and 'What is your current mood?'",
-        "Step 2 Pre-meal EEG: 5-minute countdown timer with Muse on, collects EEG data, stores as pre_eeg_json",
-        "Step 3 Eat: instruction screen 'Remove the headband and eat your normal meal. Tap the button below when you finish eating.' — button says 'I finished eating', no auto-timer",
-        "Step 4 Wait: 5-minute countdown timer after finishing meal, text 'Please wait 5 minutes before putting the headband back on'",
-        "Step 5 Post-meal EEG: 10-minute countdown timer with Muse on, collects EEG data, stores as post_eeg_json",
-        "Step 6 Post-meal survey: text input 'What did you eat? (brief description)', sliders (1-10) for 'How healthy was this meal?', 'Energy level now?', 'Mood now?', 'Do you feel satisfied?'; stores as survey_json",
-        "Progress stepper shows current step at top of page",
-        "On completion: POST to /api/study/session/complete, navigate to /study/complete",
-        "Typecheck passes",
+        "Datadog Browser RUM <script> block added inside <head> of client/index.html",
+        "Script calls DD_RUM.init() with service='neural-dream-workshop', env='production'",
+        "trackUserInteractions: true, trackResources: true set",
+        "applicationId and clientToken placeholders are clearly marked as YOUR_APPLICATION_ID and YOUR_CLIENT_TOKEN",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
       "passes": false,
-      "notes": ""
+      "notes": "User must replace YOUR_APPLICATION_ID and YOUR_CLIENT_TOKEN with values from Datadog RUM Applications dashboard before this activates."
     },
     {
       "id": "US-008",
-      "title": "Build /study/complete confirmation page",
-      "description": "As a participant, I want confirmation that my session was saved and clear next steps.",
+      "title": "Run DREAMER dataset training to improve stress model",
+      "description": "As a researcher, I need the stress model retrained with DREAMER (consumer Emotiv EPOC dataset, closest to Muse 2) so it exceeds the 60% activation threshold and appears in live inference.",
       "acceptanceCriteria": [
-        "Page exists at /study/complete",
-        "Shows 'Session complete — thank you!' with participant code displayed",
-        "If only stress session done: shows 'Next: complete the Food session to finish your participation' with button to /study/session/food",
-        "If only food session done: shows 'Next: complete the Stress session' with button to /study/session/stress",
-        "If both sessions done: shows 'You have completed both sessions. Your data helps advance brain science. Thank you!' with no further CTAs",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "python ml/training/train_dreamer.py runs without error",
+        "Script outputs a cross-validation accuracy number",
+        "If accuracy >= 60%: ml/models/saved/stress_model.pkl is updated",
+        "Training log saved to /tmp/train_dreamer_log.txt",
+        "Typecheck passes"
       ],
       "priority": 8,
       "passes": false,
-      "notes": ""
+      "notes": "This story requires running Python training. May take 5-30 min depending on dataset size. DREAMER data downloaded automatically via train_dreamer.py."
     },
     {
       "id": "US-009",
-      "title": "Build /study/admin dashboard with CSV export",
-      "description": "As Sravya, I want to see all participant data and session results, and export everything as a CSV file for Python analysis.",
+      "title": "Run TSception 4-channel training to improve flow state model",
+      "description": "As a researcher, I need the TSception CNN trained on 4-channel EEG data so the flow state model exceeds the 60% threshold and starts showing in live inference sessions.",
       "acceptanceCriteria": [
-        "Page exists at /study/admin, redirects to login if not authenticated",
-        "Summary stats at top: total participants, stress sessions completed, food sessions completed",
-        "Table with columns: participant_code, age, diet_type, has_apple_watch, sessions_completed count, last session date",
-        "Clicking a row expands to show session details: block_type, intervention_triggered, survey scores as key-value pairs",
-        "Export CSV button calls GET /api/study/admin/export-csv and triggers file download named study-data-YYYY-MM-DD.csv",
-        "CSV includes all numeric EEG band powers (pre and post) and all survey numeric values as separate columns",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "python ml/training/train_tsception.py runs without error",
+        "Script outputs a test accuracy number",
+        "ml/models/saved/eegnet_emotion_4ch.pt is updated with new weights",
+        "Training log saved to /tmp/train_tsception_log.txt",
+        "Typecheck passes"
       ],
       "priority": 9,
       "passes": false,
-      "notes": ""
+      "notes": "ml/training/train_tsception.py already exists. Check that n_channels=4 is configured before running."
+    },
+    {
+      "id": "US-010",
+      "title": "Re-run mega LGBM unified training to incorporate new data",
+      "description": "As a researcher, I need the mega LGBM emotion model retrained after the DREAMER and FACED data are added so the unified model benefits from the larger training set.",
+      "acceptanceCriteria": [
+        "python ml/training/train_mega_lgbm_unified.py runs without error",
+        "Script outputs cross-validation accuracy (target: >= 74.21% baseline)",
+        "ml/models/saved/emotion_mega_lgbm.pkl updated",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Run after US-008 (DREAMER) completes. train_faced.py can also be run first to add FACED data before this mega retrain."
+    },
+    {
+      "id": "US-011",
+      "title": "Update STATUS.md with post-retrain model accuracy numbers",
+      "description": "As a researcher, I need STATUS.md to reflect the new model accuracy numbers after retraining so the benchmark dashboard shows accurate information.",
+      "acceptanceCriteria": [
+        "STATUS.md model accuracy table updated with new CV accuracy for stress model",
+        "STATUS.md model accuracy table updated with new CV accuracy for flow state model",
+        "STATUS.md model accuracy table updated with new CV accuracy for emotion mega LGBM",
+        "Each row shows the new accuracy number and dataset used",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Run after US-008, US-009, US-010 complete."
     }
   ]
 }

@@ -1,0 +1,169 @@
+{
+  "project": "NeuralDreamWorkshop",
+  "branchName": "ralph/neural-dream-study-mode",
+  "description": "Add /study research mode for 2-week human pilot study — consent flow, stress session (Block A), food-emotion session (Block B), and admin dashboard with CSV export for paper analysis",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add study_participants and study_sessions database tables",
+      "description": "As a developer, I need database tables to store anonymous participant consent and EEG session data for the pilot study.",
+      "acceptanceCriteria": [
+        "Add study_participants table: id (serial pk), participant_code (varchar unique), age (int), diet_type (varchar), has_apple_watch (boolean), consent_text (text), consent_timestamp (timestamp), created_at (timestamp default now())",
+        "Add study_sessions table: id (serial pk), participant_code (varchar), block_type (varchar: stress|food|sleep), pre_eeg_json (jsonb), post_eeg_json (jsonb), eeg_features_json (jsonb), survey_json (jsonb), intervention_triggered (boolean default false), created_at (timestamp default now())",
+        "Drizzle migration generated and runs successfully with drizzle-kit push",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add study API routes to Express server",
+      "description": "As a developer, I need REST API endpoints to handle participant consent, session creation, session completion, and admin data access.",
+      "acceptanceCriteria": [
+        "POST /api/study/consent — accepts { participant_code, age, diet_type, has_apple_watch, consent_text }, saves to study_participants, returns { success: true, participant_code }",
+        "POST /api/study/session/start — accepts { participant_code, block_type }, creates pending study_sessions record, returns { session_id }",
+        "POST /api/study/session/complete — accepts { session_id, pre_eeg_json, post_eeg_json, eeg_features_json, survey_json, intervention_triggered }, updates session record, returns { success: true }",
+        "GET /api/study/admin/participants — returns all study_participants rows (requires auth middleware)",
+        "GET /api/study/admin/sessions — returns all study_sessions rows joined with participant data (requires auth middleware)",
+        "GET /api/study/admin/export-csv — returns CSV file with headers: participant_code, block_type, age, diet_type, has_apple_watch, pre_alpha, pre_beta, pre_theta, pre_delta, pre_gamma, post_alpha, post_beta, post_theta, post_delta, post_gamma, intervention_triggered, and all survey_json numeric fields flattened",
+        "All routes return 400 for missing required fields, 401 for unauthorized admin routes",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Build /study landing page",
+      "description": "As a potential participant, I want to understand the study and click to join from a single shareable page.",
+      "acceptanceCriteria": [
+        "Page exists at /study route",
+        "Page displays: study title 'Neural Dream Workshop Pilot Study', what participants do (wear Muse 2, complete stress and food sessions), time required (25-40 min total), that participation is anonymous and voluntary",
+        "Join the Study button navigates to /study/consent",
+        "Page is mobile-responsive with readable text on small screens",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Build /study/consent page with digital consent form",
+      "description": "As a participant, I want to read the informed consent text, check agreement, enter my participant code, and proceed.",
+      "acceptanceCriteria": [
+        "Page exists at /study/consent",
+        "Displays full consent text: what data is collected (EEG features and self-report surveys), how it is used (academic research paper), that participation is voluntary, right to withdraw at any time",
+        "Checkbox input: 'I have read the above and agree to participate voluntarily'",
+        "Text input: 'Enter your participant code (e.g. P001)' with validation (must match pattern P + 3 digits)",
+        "Continue button is disabled until both checkbox is checked and participant code is entered",
+        "On submit: POST to /api/study/consent with consent_text snapshot and participant_code",
+        "On success: navigate to /study/profile passing participant_code in state or query param",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Build /study/profile page",
+      "description": "As a participant, I want to enter basic demographic info and choose which session block to start.",
+      "acceptanceCriteria": [
+        "Page exists at /study/profile",
+        "Age number input (18-99 range)",
+        "Diet type dropdown: Omnivore, Vegetarian, Vegan, Other",
+        "Apple Watch toggle: Yes / No",
+        "Start Stress Session button navigates to /study/session/stress",
+        "Start Food Session button navigates to /study/session/food",
+        "Profile data submitted via PUT to /api/study/consent or PATCH endpoint before navigating",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Build /study/session/stress page — Block A (stress at work)",
+      "description": "As a participant, I want to complete the 25-minute stress session: baseline EEG, work task with live stress monitoring, breathing intervention, post-EEG, and survey.",
+      "acceptanceCriteria": [
+        "Page exists at /study/session/stress",
+        "Step 1 Baseline: 5-minute countdown timer, instruction text 'Sit still with eyes closed', calls /api/analyze-eeg or /api/simulate-eeg every 4 seconds to collect EEG data, stores averaged features as pre_eeg_json",
+        "Step 2 Work Task: 15-minute countdown timer, text 'Continue your normal work with headband on', displays live stress level as a colored progress bar (green < 0.4, yellow 0.4-0.65, red > 0.65)",
+        "Step 3 Intervention: triggers automatically when stress_score > 0.65 OR at 15-minute mark; shows Box Breathing or Physio Sigh component (reuse existing breathing exercise UI); sets intervention_triggered = true",
+        "Step 4 Post-EEG: 5-minute countdown timer, collects EEG data, stores as post_eeg_json",
+        "Step 5 Survey: three sliders (1-10): 'How stressed did you feel during the session?', 'Did the breathing exercise help?', 'How do you feel right now?'; stores as survey_json",
+        "Progress stepper shows current step (1 of 5) at top of page",
+        "On completion: POST to /api/study/session/complete, navigate to /study/complete",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Build /study/session/food page — Block B (food + emotional state)",
+      "description": "As a participant, I want to complete the food-emotion session: pre-meal EEG baseline, eat normally, post-meal EEG, and food survey.",
+      "acceptanceCriteria": [
+        "Page exists at /study/session/food",
+        "Step 1 Pre-meal survey: sliders (1-10) for 'How hungry are you?' and 'What is your current mood?'",
+        "Step 2 Pre-meal EEG: 5-minute countdown timer with Muse on, collects EEG data, stores as pre_eeg_json",
+        "Step 3 Eat: instruction screen 'Remove the headband and eat your normal meal. Tap the button below when you finish eating.' — button says 'I finished eating', no auto-timer",
+        "Step 4 Wait: 5-minute countdown timer after finishing meal, text 'Please wait 5 minutes before putting the headband back on'",
+        "Step 5 Post-meal EEG: 10-minute countdown timer with Muse on, collects EEG data, stores as post_eeg_json",
+        "Step 6 Post-meal survey: text input 'What did you eat? (brief description)', sliders (1-10) for 'How healthy was this meal?', 'Energy level now?', 'Mood now?', 'Do you feel satisfied?'; stores as survey_json",
+        "Progress stepper shows current step at top of page",
+        "On completion: POST to /api/study/session/complete, navigate to /study/complete",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Build /study/complete confirmation page",
+      "description": "As a participant, I want confirmation that my session was saved and clear next steps.",
+      "acceptanceCriteria": [
+        "Page exists at /study/complete",
+        "Shows 'Session complete — thank you!' with participant code displayed",
+        "If only stress session done: shows 'Next: complete the Food session to finish your participation' with button to /study/session/food",
+        "If only food session done: shows 'Next: complete the Stress session' with button to /study/session/stress",
+        "If both sessions done: shows 'You have completed both sessions. Your data helps advance brain science. Thank you!' with no further CTAs",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Build /study/admin dashboard with CSV export",
+      "description": "As Sravya, I want to see all participant data and session results, and export everything as a CSV file for Python analysis.",
+      "acceptanceCriteria": [
+        "Page exists at /study/admin, redirects to login if not authenticated",
+        "Summary stats at top: total participants, stress sessions completed, food sessions completed",
+        "Table with columns: participant_code, age, diet_type, has_apple_watch, sessions_completed count, last session date",
+        "Clicking a row expands to show session details: block_type, intervention_triggered, survey scores as key-value pairs",
+        "Export CSV button calls GET /api/study/admin/export-csv and triggers file download named study-data-YYYY-MM-DD.csv",
+        "CSV includes all numeric EEG band powers (pre and post) and all survey numeric values as separate columns",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
