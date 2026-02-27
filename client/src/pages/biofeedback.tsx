@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
 import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Headphones, ExternalLink, FlaskConical, CheckCircle2, AlertCircle } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
+import { hapticLight, hapticMedium, hapticSuccess } from "@/lib/haptics";
 
 // ─── Breathing exercise definitions ──────────────────────────────────────────
 
@@ -399,6 +400,23 @@ export default function Biofeedback() {
     return () => clearInterval(id);
   }, [sessionPhase, exercise]);
 
+  // ── Haptic feedback on phase transitions ──────────────────────────────────
+  // Fires once per phase change (not every 50ms tick).
+  useEffect(() => {
+    if (sessionPhase !== "active") return;
+    const phase = exercise.phases[breathPhaseIdx];
+    if (!phase) return;
+    const label = phase.label.toLowerCase();
+    if (label.startsWith("inhale")) {
+      hapticLight();          // gentle tap: new breath starting
+    } else if (label.startsWith("hold")) {
+      hapticMedium();         // medium tap: hold transition
+    } else if (label.startsWith("exhale")) {
+      hapticMedium();         // medium tap: release breath
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [breathPhaseIdx, sessionPhase]);
+
   // ── Session clock + reading collector (1.5s) ──────────────────────────────
   useEffect(() => {
     if (sessionPhase !== "active") return;
@@ -435,6 +453,7 @@ export default function Biofeedback() {
 
   const handleStop = () => {
     setSessionPhase("done");
+    hapticSuccess(); // celebrate session completion on mobile
     // Report outcome to intervention engine after 5 minutes
     const finalStress = (latestStressRef.current ?? 50) / 100;
     setTimeout(() => {

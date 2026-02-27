@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
 import { startSession, stopSession } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
+import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import {
   Moon,
   BrainCircuit,
@@ -235,6 +236,7 @@ export default function SleepSession() {
         dreamCountRef.current += 1;
         setDreamCount(dreamCountRef.current);
         setDreamFlash(true);
+        hapticLight(); // subtle pulse: dream detected (doesn't fully wake user)
         setTimeout(() => setDreamFlash(false), 4000);
       }
       lastDreamRef.current = isDreaming;
@@ -279,6 +281,7 @@ export default function SleepSession() {
     if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
     setDimmed(false);
     setPeekVisible(false);
+    hapticSuccess(); // session complete
     setDreamsDetected(dreamCountRef.current);
     setPhase("summary");
     stopSession().catch(() => {});
