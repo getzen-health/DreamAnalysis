@@ -45,6 +45,7 @@ from .denoising import router as _denoising
 from .food_emotion import router as _food_emotion
 from .multimodal import router as _multimodal
 from .parquet import router as _parquet
+from .hrv_fusion import router as _hrv_fusion
 
 router = APIRouter()
 
@@ -69,3 +70,4 @@ router.include_router(_denoising)
 router.include_router(_food_emotion)
 router.include_router(_multimodal)
 router.include_router(_parquet)
+router.include_router(_hrv_fusion)
