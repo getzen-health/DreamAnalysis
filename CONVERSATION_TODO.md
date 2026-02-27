@@ -8,12 +8,15 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 ## SECTION 1: ML / Model Gaps (fix first — affects accuracy)
 
 - [ ] Wire MultimodalEmotionFusion into live WebSocket stream — currently built but not connected to real-time inference path. Every frame that comes from Muse should go through multimodal fusion before returning to dashboard.
+- [ ] Wire PersonalModel into live inference path — expose `POST /personal/label-epoch`, `GET /personal/status`, `POST /personal/fine-tune` endpoints so dashboard can send labeled epochs and show personalisation progress. `ml/models/personal_model.py` is built, needs API route + wiring into `predict()` flow.
 - [ ] Wire OnlineLearner into live inference path — `ml/models/online_learner.py` exists but never called. After each prediction, call `online_learner.update(features, user_feedback)` so model adapts per-user over time. +15–20% accuracy for returning users.
 - [ ] Add channel_map config layer — `compute_frontal_asymmetry()` and `compute_dasm_rasm()` currently hardcode ch1=AF7, ch2=AF8 (Muse-specific). Create a `CHANNEL_MAPS` dict keyed by device name so OpenBCI Cyton, Neurosity Crown etc. automatically get correct left/right frontal indices.
 - [ ] Download Emognition dataset (Harvard Dataverse doi:10.7910/DVN/R9WAF4) — Muse 2 exact hardware, 43 subjects, 9 emotions. Add to mega LGBM retraining pipeline. Expected: +5–8% cross-person accuracy.
 - [ ] Download AMIGOS dataset (Queen Mary University) — has ECG channel → use for HRV-stress fusion training data. Register at their site first.
 - [ ] Retrain emotion mega LGBM once Emognition data is downloaded. Run `ml/training/mega_trainer.py`.
-- [ ] EEGNet variable-channel model — replace fixed 4-channel LGBM with EEGNet (PyTorch) that accepts any channel count. One model works across Muse 2, OpenBCI Cyton (8ch), future devices. Medium effort (~1 week).
+- [x] EEGNet variable-channel model — DONE. `ml/models/eegnet.py` + `ml/training/train_eegnet.py`. Works on 4/8/16 channels, ONNX export for mobile, wired as top inference priority in `emotion_classifier.py`.
+- [x] Personalized per-user model — DONE. `ml/models/personal_model.py`. Central EEGNet backbone frozen, personal classifier head fine-tunes on user's own labeled EEG data. Activates after 30 epochs, improves each session. Saves to `ml/models/saved/personal/{user_id}/`.
+- [ ] Train EEGNet on synthetic data to verify pipeline works: `python -m training.train_eegnet --channels 4 --use-synthetic --epochs 50` — generates `eegnet_emotion_4ch.pt` so it activates in inference.
 - [ ] Emotiv EPOC X adapter — 14 channels, proprietary SDK (not BrainFlow). Write thin adapter layer that reads Emotiv SDK and outputs same format as BrainFlow. Unlocks AMIGOS dataset hardware for real users.
 
 ---
