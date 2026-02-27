@@ -42,9 +42,9 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 - [x] Yesterday's Insight card on Daily Brain Report — DONE. New GET /api/brain/yesterday-insights/:userId endpoint cross-correlates 48h of emotion readings with biofeedback session times. Generates "Focus was 31% higher after your 3pm breathing session" and day-vs-day comparisons. Card shows up to 3 ranked insights; falls back to client-side heuristic when DB has no data.
 - [x] Personal records gamification — DONE. longestEverStreak, focusTrend, nextMilestone helpers; newFocusRecord celebration banner; beat-it challenge framing per record row; live streaming comparison; streak + milestone countdown.
 - [x] Sleep session mode — DONE. Screen auto-dims 15s after session start; tap-to-peek reveals controls for 8s; real sleep stats from DB; explicit dim/undim controls.
-- [ ] Just-in-time push notifications — server-side trigger (not scheduled). Fire when brain state needs action, not on a timer.
-- [ ] Weekly brain summary — shareable card showing this week vs last week for stress, focus, sleep. PNG export for sharing.
-- [ ] Intervention library — 5–10 evidence-based exercises in biofeedback page with before/after EEG comparison to show they work.
+- [x] Just-in-time push notifications — DONE. POST /api/notifications/brain-state-trigger with 15-min per-user cooldown. stress≥0.70 → breathing push, focus≤0.25 → focus music push. Wired into InterventionBanner check cycle.
+- [x] Weekly brain summary — DONE. /weekly-summary page with this week vs last week stress/focus/sleep comparison, trend arrows, week-in-one-sentence, and Canvas 2D PNG export (800×450, no extra deps). Sidebar: 'Week in Review'.
+- [x] Intervention library — DONE. 'Evidence' tab in biofeedback page: personal before/after stress bars from /interventions/effectiveness/:userId, science citations for all 7 exercises with phase breakdowns.
 
 ---
 
