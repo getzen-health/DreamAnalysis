@@ -2,6 +2,7 @@ import { useState, useEffect, ReactNode } from "react";
 import { useLocation } from "wouter";
 import { Sidebar } from "@/components/sidebar";
 import { NeuralBackground } from "@/components/neural-background";
+import { InterventionBanner } from "@/components/intervention-banner";
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -75,6 +76,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
         {children}
       </div>
+
+      {/* Real-time intervention notifications — floats above all content */}
+      <InterventionBanner />
     </div>
   );
 }

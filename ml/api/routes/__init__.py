@@ -52,6 +52,7 @@ from .parquet import router as _parquet
 from .hrv_fusion import router as _hrv_fusion
 from .personal import router as _personal
 from .biometrics import router as _biometrics
+from .interventions import router as _interventions
 
 router = APIRouter()
 
@@ -79,3 +80,4 @@ router.include_router(_parquet)
 router.include_router(_hrv_fusion)
 router.include_router(_personal)
 router.include_router(_biometrics)
+router.include_router(_interventions)
