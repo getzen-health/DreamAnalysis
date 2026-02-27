@@ -12,11 +12,19 @@ services:
     healthCheckPath: /health
 
     envVars:
-      # Set this to your Vercel frontend URL after first deploy
       - key: CORS_ORIGINS
-        value: http://localhost:5000,http://localhost:3000,http://localhost:5173
+        value: "http://localhost:5000,http://localhost:3000,http://localhost:5173,https://dream-analysis.vercel.app,https://dream-analysis-*.vercel.app"
       - key: ML_LOG_LEVEL
         value: INFO
       # Prevents Python from writing .pyc files (saves disk on free tier)
       - key: PYTHONDONTWRITEBYTECODE
         value: "1"
+      # Datadog APM — set DD_API_KEY in Render dashboard to activate
+      - key: DD_SITE
+        value: datadoghq.com
+      - key: DD_SERVICE
+        value: neural-dream-ml
+      - key: DD_ENV
+        value: production
+      - key: DD_API_KEY
+        sync: false
