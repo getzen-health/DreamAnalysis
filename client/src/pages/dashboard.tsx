@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
-import { ScoreCircle } from "@/components/score-circle";
 import {
   Heart,
   Brain,
@@ -586,140 +585,111 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 4. Score Circles — Mental Health + Wellness + Sleep + Brain */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-        <div className="score-card p-6 flex flex-col items-center hover-glow">
-          <ScoreCircle
-            value={mentalHealthScore}
-            label="Mental Health"
-            gradientId="grad-mental-health"
-            colorFrom={scoreColor(mentalHealthScore)}
-            colorTo={mentalHealthScore > 70 ? "hsl(180, 65%, 50%)" : mentalHealthScore >= 40 ? "hsl(38, 60%, 65%)" : "hsl(4, 50%, 65%)"}
-            size="lg"
-          />
-          <p className="text-xs text-muted-foreground mt-2">
-            {isStreaming
-              ? `${mentalHealthScore > 70 ? "Great" : mentalHealthScore >= 40 ? "Moderate" : "Low"}`
-              : "—"}
-          </p>
-        </div>
+      {/* 4. Brain State — single clear card showing stress + emotion */}
+      {(() => {
+        const stress = Math.round(stressIndex);
+        const focus  = Math.round(focusIndex);
+        const flow   = Math.round(flowScore);
+        const stressLevel = stress > 65 ? "HIGH" : stress > 35 ? "MEDIUM" : "LOW";
+        const stressColor = stress > 65
+          ? { bg: "bg-destructive/10", text: "text-destructive", bar: "hsl(4,72%,55%)" }
+          : stress > 35
+          ? { bg: "bg-warning/10", text: "text-warning", bar: "hsl(38,85%,58%)" }
+          : { bg: "bg-success/10", text: "text-success", bar: "hsl(152,60%,48%)" };
+        const focusLevel = focus > 60 ? "HIGH" : focus > 30 ? "MEDIUM" : "LOW";
+        const focusColor = focus > 60
+          ? "hsl(152,60%,48%)"
+          : focus > 30
+          ? "hsl(38,85%,58%)"
+          : "hsl(4,72%,55%)";
+        const emotionLabel = EMOTION_LABELS[currentEmotion] || currentEmotion;
+        const actionHref  = stress > 65 ? "/biofeedback" : focus < 30 ? "/neurofeedback" : "/brain-report";
+        const actionLabel = stress > 65 ? "Start breathing session →" : focus < 30 ? "Start focus session →" : "View Brain Report →";
 
-        <div className="score-card p-6 flex flex-col items-center hover-glow">
-          <ScoreCircle
-            value={wellnessScore}
-            label="Wellness"
-            gradientId="grad-wellness"
-            colorFrom="hsl(152, 60%, 48%)"
-            colorTo="hsl(180, 65%, 50%)"
-            size="lg"
-          />
-          <p className="text-xs text-muted-foreground mt-2">
-            {isStreaming
-              ? `${EMOTION_LABELS[currentEmotion] || currentEmotion} · ${Math.round(confidence * 100)}%`
-              : "—"}
-          </p>
-        </div>
+        return (
+          <Card className="glass-card p-5 hover-glow">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Brain State Now</p>
+              {isStreaming && (
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${stressColor.bg} ${stressColor.text}`}>
+                  {emotionLabel !== "—" && emotionLabel !== "Calibrating…" ? emotionLabel : stressLevel + " STRESS"}
+                </span>
+              )}
+            </div>
 
-        <div className="score-card p-6 flex flex-col items-center hover-glow">
-          <ScoreCircle
-            value={sleepScore}
-            label="Sleep"
-            gradientId="grad-sleep"
-            colorFrom="hsl(200, 70%, 55%)"
-            colorTo="hsl(262, 45%, 65%)"
-            size="lg"
-          />
-          <p className="text-xs text-muted-foreground mt-2">
-            {isStreaming && sleepStaging ? `${sleepStaging.stage} stage` : "—"}
-          </p>
-        </div>
-
-        <div className="score-card p-6 flex flex-col items-center hover-glow">
-          <ScoreCircle
-            value={brainScore}
-            label="Brain"
-            gradientId="grad-brain"
-            colorFrom="hsl(262, 45%, 65%)"
-            colorTo="hsl(320, 55%, 60%)"
-            size="lg"
-          />
-          <p className="text-xs text-muted-foreground mt-2">
-            {isStreaming
-              ? `Focus ${Math.round(focusIndex)}% · Stress ${Math.round(stressIndex)}%`
-              : "—"}
-          </p>
-        </div>
-      </div>
-
-      {/* 5. Health Metric Cards (6-grid) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-        {HEALTH_METRICS.map((metric) => {
-          const Icon = METRIC_ICONS[metric.key];
-          const value = liveMetricValues[metric.key];
-          return (
-            <Card key={metric.key} className="glass-card p-4 hover-glow">
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${metric.bgClass}`}>
-                  <Icon className={`h-3.5 w-3.5 ${metric.textClass}`} />
+            {isStreaming ? (
+              <div className="space-y-4">
+                {/* Stress */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-foreground">Stress</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono text-muted-foreground">{stress}%</span>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${stressColor.bg} ${stressColor.text}`}>
+                        {stressLevel}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${stress}%`, backgroundColor: stressColor.bar }} />
+                  </div>
                 </div>
-                <span className="text-xs text-muted-foreground">{metric.label}</span>
-              </div>
-              <p className="text-xl font-semibold font-mono">
-                {value}%
-              </p>
-              <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${value}%`,
-                    backgroundColor: metric.color,
-                  }}
-                />
-              </div>
-            </Card>
-          );
-        })}
-      </div>
 
-      {/* 6. AI Insight + Brain-Health Insights (side by side) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* AI Insight */}
-        <div className="ai-insight-card">
-          {isStreaming ? (
-            <div className="flex items-start gap-3">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                style={{
-                  background: "linear-gradient(135deg, hsl(152,60%,48%,0.2), hsl(38,85%,58%,0.2))",
-                }}
-              >
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground mb-1">AI Insight</p>
-                <p className="text-sm text-muted-foreground leading-relaxed">{insightText}</p>
-                <div className="flex gap-2 mt-3">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary">
-                    Stress {Math.round(stressIndex)}%
+                {/* Focus */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-foreground">Focus</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono text-muted-foreground">{focus}%</span>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        {focusLevel}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${focus}%`, backgroundColor: focusColor }} />
+                  </div>
+                </div>
+
+                {/* Flow */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-foreground">Flow</span>
+                    <span className="text-sm font-mono text-muted-foreground">{flow}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${flow}%`, backgroundColor: "hsl(200,70%,55%)" }} />
+                  </div>
+                </div>
+
+                {/* Emotion + Action */}
+                <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                  <span className="text-xs text-muted-foreground">
+                    {emotionLabel !== "—" && emotionLabel !== "Calibrating…"
+                      ? `Feeling: ${emotionLabel} · ${Math.round(confidence * 100)}% confident`
+                      : insightText || "Calibrating…"}
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary/10 text-secondary">
-                    Focus {Math.round(focusIndex)}%
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent/10 text-accent">
-                    Relax {Math.round(relaxationIndex)}%
-                  </span>
+                  <Link href={actionHref}
+                    className="text-xs text-primary hover:text-primary/80 transition-colors font-medium shrink-0 ml-3">
+                    {actionLabel}
+                  </Link>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground gap-2 py-6">
-              <Sparkles className="h-8 w-8 text-muted-foreground/40" />
-              <p>Connect device for live AI insights</p>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                <Brain className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
+                Connect device to see live brain state
+              </div>
+            )}
+          </Card>
+        );
+      })()}
 
-        {/* Brain-Health Insights */}
+      {/* 5. Brain-Health Insights */}
+      <div className="grid grid-cols-1 gap-4">
         <Card className="glass-card p-5 hover-glow">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="h-4 w-4 text-accent" />
@@ -761,7 +731,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* 7. Quick Actions */}
+      {/* 6. Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
         {QUICK_ACTIONS.map((action) => {
           const Icon = action.icon;

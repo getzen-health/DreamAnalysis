@@ -3,25 +3,16 @@ import { Link, useLocation } from "wouter";
 import {
   Brain,
   Sun,
-  Heart,
-  Activity,
   Moon,
   MessageSquare,
-  Clock,
   Settings,
   Menu,
-  BarChart3,
-  Lightbulb,
   Sparkles,
-  BookOpen,
   Wind,
-  SlidersHorizontal,
   Utensils,
   FlaskConical,
-  Camera,
-  Sunset,
-  BrainCircuit,
   Radio,
+  BedDouble,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -42,48 +33,33 @@ interface NavSection {
 
 const sections: NavSection[] = [
   {
-    title: "Core",
+    title: "Today",
     items: [
-      { path: "/brain-report", label: "Brain Report", icon: Sun },
-      { path: "/", label: "Dashboard", icon: Brain },
-      { path: "/emotions", label: "Emotions", icon: Heart },
-      { path: "/brain-monitor", label: "Brain Monitor", icon: Activity },
+      { path: "/brain-report", label: "Brain Report",   icon: Sun },
+      { path: "/",             label: "Brain State",    icon: Brain },
     ],
   },
   {
-    title: "Dreams",
+    title: "States",
     items: [
-      { path: "/dreams",         label: "Dreams",        icon: Moon },
-      { path: "/sleep-session",  label: "Sleep Session", icon: Moon },
-    ],
-  },
-  {
-    title: "Wellness",
-    items: [
-      { path: "/biofeedback", label: "Breathe", icon: Wind },
-      { path: "/inner-energy", label: "Inner Energy", icon: Sparkles },
-      { path: "/health-analytics", label: "Health Analytics", icon: BarChart3 },
-      { path: "/insights", label: "Insights", icon: Lightbulb },
-      { path: "/food", label: "Food & Cravings", icon: Utensils },
+      { path: "/sleep-session", label: "Sleep",         icon: BedDouble },
+      { path: "/dreams",        label: "Dreams",        icon: Moon },
+      { path: "/inner-energy",  label: "Spiritual",     icon: Sparkles },
+      { path: "/food",          label: "Food",          icon: Utensils },
+      { path: "/biofeedback",   label: "Breathe",       icon: Wind },
     ],
   },
   {
     title: "Research",
     items: [
-      { path: "/research",          label: "Study Hub",     icon: FlaskConical },
-      { path: "/research/morning",  label: "Morning",       icon: Moon },
-      { path: "/research/daytime",  label: "Daytime",       icon: BrainCircuit },
-      { path: "/research/evening",  label: "Evening",       icon: Sunset },
-      { path: "/food-log",          label: "Food Log",      icon: Camera },
+      { path: "/research",      label: "Study Hub",     icon: FlaskConical },
     ],
   },
   {
     title: "Tools",
     items: [
-      { path: "/device-setup", label: "Connect Device", icon: Radio },
-      { path: "/calibration",  label: "Calibrate",      icon: SlidersHorizontal },
-      { path: "/ai-companion", label: "AI Companion",   icon: MessageSquare },
-      { path: "/sessions",     label: "Sessions",       icon: Clock },
+      { path: "/device-setup",  label: "Connect Device", icon: Radio },
+      { path: "/ai-companion",  label: "AI Companion",   icon: MessageSquare },
     ],
   },
 ];
