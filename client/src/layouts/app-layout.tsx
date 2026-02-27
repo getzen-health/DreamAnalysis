@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/sidebar";
 import { NeuralBackground } from "@/components/neural-background";
 import { InterventionBanner } from "@/components/intervention-banner";
 import OfflineSyncBanner from "@/components/offline-sync-banner";
+import { useHealthSync } from "@/hooks/use-health-sync";
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -35,6 +36,8 @@ interface AppLayoutProps {
 export default function AppLayout({ children }: AppLayoutProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location] = useLocation();
+  // Start HealthKit / Health Connect auto-sync on first mount (no-op on web)
+  useHealthSync();
 
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);

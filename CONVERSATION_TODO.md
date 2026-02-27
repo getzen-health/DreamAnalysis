@@ -80,8 +80,8 @@ Then add native features progressively. No full rewrite needed to ship v1.
 
 ### Phase 2 — Native features (1–2 months)
 - [x] Bluetooth BLE for Muse 2 — DONE. `@capacitor-community/bluetooth-le@8.1.0` installed. `client/src/lib/muse-ble.ts`: MuseBleManager class, GATT UUIDs, 12-bit packet decoder, ring buffers, feature extraction (FAA, stress/focus). `use-device.tsx` BLE path activates when `Capacitor.isNativePlatform()` + device is muse_2/muse_s. Falls back to WebSocket/BrainFlow on desktop. TypeScript clean.
-- [ ] Apple HealthKit integration — `@capacitor-community/health` plugin. Auto-pull: HRV SDNN, resting HR, respiratory rate, sleep stages, steps, SpO2, skin temperature. Feed into MultimodalEmotionFusion automatically.
-- [ ] Google Health Connect integration — Android equivalent. Same data fields.
+- [x] Apple HealthKit integration — DONE. `@perfood/capacitor-healthkit@1.3.2` installed. `client/src/lib/health-sync.ts`: HealthSyncManager pulls HR, resting HR, HRV-SDNN proxy, respiratory rate, SpO2, body temp, sleep stages, steps, active calories → POSTs to `/api/biometrics/update`. Hook `use-health-sync.ts` auto-syncs every 15 min. Wired into AppLayout.
+- [x] Google Health Connect integration — DONE. `capacitor-health@8.0.1` installed. Android path in health-sync.ts pulls HR (from workouts), steps, active calories, mindfulness minutes. Same POST endpoint. Platform-routed automatically.
 - [ ] Push notifications — `@capacitor/push-notifications`. Server triggers when stress is high → "Time to breathe" alert.
 - [x] Haptic feedback — `@capacitor/haptics`. Pulse on breathing inhale/exhale in biofeedback screen.
 - [ ] Background processing — iOS BackgroundFetch + Android WorkManager. Keep EEG streaming during sleep without screen on.
