@@ -26,6 +26,7 @@ from ._shared import (
     fusion_model as fusion_model,
     get_biometric_snapshot as get_biometric_snapshot,
     update_biometric_snapshot as update_biometric_snapshot,
+    predict_emotion as predict_emotion,
 )
 
 from .analysis import router as _analysis

@@ -21,7 +21,7 @@ from ._shared import (
     detect_eye_blinks, detect_muscle_artifacts, detect_electrode_pops,
     compute_signal_quality_index, auto_reject_epochs,
     AnomalyDetector,
-    fusion_model, get_biometric_snapshot,
+    fusion_model, get_biometric_snapshot, predict_emotion,
 )
 
 router = APIRouter()
@@ -126,7 +126,7 @@ async def analyze_eeg(input_data: EEGInput):
             processed,
         ) = await asyncio.gather(
             loop.run_in_executor(_MODEL_EXECUTOR, sleep_model.predict, eeg, fs),
-            loop.run_in_executor(_MODEL_EXECUTOR, emotion_model.predict, emotion_input, fs),
+            loop.run_in_executor(_MODEL_EXECUTOR, predict_emotion, user_id, emotion_input, fs, n_channels),
             loop.run_in_executor(_MODEL_EXECUTOR, dream_model.predict, eeg, fs),
             loop.run_in_executor(_MODEL_EXECUTOR, preprocess, eeg, fs),
         )

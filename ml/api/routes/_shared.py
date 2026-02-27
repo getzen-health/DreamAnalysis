@@ -241,7 +241,7 @@ def _get_device_manager():
 
 
 def _get_personal_model(user_id: str):
-    """Get or create personal model adapter for a user."""
+    """Get or create personal model adapter for a user (legacy online-learner wrapper)."""
     if user_id not in _personal_models:
         try:
             from models.online_learner import PersonalModelAdapter
@@ -249,6 +249,31 @@ def _get_personal_model(user_id: str):
         except Exception:
             return None
     return _personal_models[user_id]
+
+
+def predict_emotion(user_id: str, eeg, fs: float, n_channels: int = 4) -> dict:
+    """Run emotion prediction, preferring the personal model when available.
+
+    Priority:
+      1. PersonalModel (EEGNet backbone + personal adapter head) — if backbone is
+         trained AND the user has ≥30 labeled epochs fine-tuned
+      2. PersonalModel central head (EEGNet backbone, cross-person) — if backbone
+         trained but not enough personal data yet
+      3. Global EmotionClassifier (mega LGBM, 74.21% CV) — if EEGNet not trained
+
+    This function is safe to call from a ThreadPoolExecutor (fully synchronous,
+    releases GIL during NumPy/LightGBM computation).
+    """
+    try:
+        from models.personal_model import get_personal_model as _get_pm
+        pm = _get_pm(user_id, n_channels=n_channels)
+        result = pm.predict(eeg, fs)
+        # "fallback_no_backbone" means EEGNet weights not present → use mega LGBM
+        if result.get("model_type") != "fallback_no_backbone":
+            return result
+    except Exception:
+        pass
+    return emotion_model.predict(eeg, fs)
 
 
 # ─── Pydantic schemas ────────────────────────────────────────────────────────
