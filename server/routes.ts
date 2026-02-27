@@ -2021,6 +2021,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH /api/study/session/:id/checkpoint
+  app.patch("/api/study/session/:id/checkpoint", async (req, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      if (isNaN(sessionId)) return res.status(400).json({ error: "invalid session id" });
+      const { pre_eeg_json, post_eeg_json, eeg_features_json, intervention_triggered, partial, phase_log } = req.body;
+      await db.update(pilotSessions)
+        .set({
+          ...(pre_eeg_json !== undefined   && { preEegJson: pre_eeg_json }),
+          ...(post_eeg_json !== undefined  && { postEegJson: post_eeg_json }),
+          ...(eeg_features_json !== undefined && { eegFeaturesJson: eeg_features_json }),
+          ...(intervention_triggered !== undefined && { interventionTriggered: !!intervention_triggered }),
+          ...(partial !== undefined        && { partial: !!partial }),
+          ...(phase_log !== undefined      && { phaseLog: phase_log }),
+          checkpointAt: new Date(),
+        })
+        .where(eq(pilotSessions.id, sessionId));
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("PATCH /api/study/session/:id/checkpoint error:", err);
+      return res.status(500).json({ error: "checkpoint failed" });
+    }
+  });
+
+  // GET /api/user/intent
+  app.get("/api/user/intent", async (req, res) => {
+    const userId = (req.session as { userId?: string }).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const [u] = await db.select({ intent: users.intent }).from(users).where(eq(users.id, userId));
+    return res.json({ intent: u?.intent ?? null });
+  });
+
+  // PATCH /api/user/intent
+  app.patch("/api/user/intent", async (req, res) => {
+    const userId = (req.session as { userId?: string }).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { intent } = req.body;
+    if (!["study", "explore"].includes(intent)) return res.status(400).json({ error: "invalid intent" });
+    await db.update(users).set({ intent }).where(eq(users.id, userId));
+    return res.json({ success: true, intent });
+  });
+
   // GET /api/study/admin/participants
   app.get("/api/study/admin/participants", requireStudyAdmin, async (_req, res) => {
     try {

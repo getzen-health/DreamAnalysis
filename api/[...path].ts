@@ -825,6 +825,44 @@ async function pilotAdminExportCsv(req: VercelRequest, res: VercelResponse) {
   return res.send(csvLines.join('\n'));
 }
 
+async function pilotSessionCheckpoint(req: VercelRequest, res: VercelResponse, sessionId: number) {
+  if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
+  const { pre_eeg_json, post_eeg_json, eeg_features_json, intervention_triggered, partial, phase_log } = req.body;
+  const db = getDb();
+  await db.update(schema.pilotSessions)
+    .set({
+      ...(pre_eeg_json !== undefined      && { preEegJson: pre_eeg_json }),
+      ...(post_eeg_json !== undefined     && { postEegJson: post_eeg_json }),
+      ...(eeg_features_json !== undefined && { eegFeaturesJson: eeg_features_json }),
+      ...(intervention_triggered !== undefined && { interventionTriggered: !!intervention_triggered }),
+      ...(partial !== undefined           && { partial: !!partial }),
+      ...(phase_log !== undefined         && { phaseLog: phase_log }),
+      checkpointAt: new Date(),
+    })
+    .where(eq(schema.pilotSessions.id, sessionId));
+  return success(res, { success: true });
+}
+
+async function userIntentGet(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const payload = requireAuth(req, res);
+  if (!payload) return;
+  const db = getDb();
+  const [u] = await db.select({ intent: schema.users.intent }).from(schema.users).where(eq(schema.users.id, payload.userId));
+  return success(res, { intent: u?.intent ?? null });
+}
+
+async function userIntentPatch(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
+  const payload = requireAuth(req, res);
+  if (!payload) return;
+  const { intent } = req.body;
+  if (!['study', 'explore'].includes(intent)) return badRequest(res, 'invalid intent');
+  const db = getDb();
+  await db.update(schema.users).set({ intent }).where(eq(schema.users.id, payload.userId));
+  return success(res, { success: true, intent });
+}
+
 // ── Main router ──────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -901,9 +939,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (s1 === 'consent')                                    return await pilotConsent(req, res);
       if (s1 === 'session' && segs[2] === 'start')             return await pilotSessionStart(req, res);
       if (s1 === 'session' && segs[2] === 'complete')          return await pilotSessionComplete(req, res);
+      if (s1 === 'session' && segs[2] && segs[3] === 'checkpoint') return await pilotSessionCheckpoint(req, res, Number(segs[2]));
       if (s1 === 'admin' && segs[2] === 'participants')        return await pilotAdminParticipants(req, res);
       if (s1 === 'admin' && segs[2] === 'sessions')            return await pilotAdminSessions(req, res);
       if (s1 === 'admin' && segs[2] === 'export-csv')          return await pilotAdminExportCsv(req, res);
+    }
+
+    if (s0 === 'user') {
+      if (s1 === 'intent' && req.method === 'GET')   return await userIntentGet(req, res);
+      if (s1 === 'intent' && req.method === 'PATCH')  return await userIntentPatch(req, res);
     }
 
     return error(res, 'Not found', 404);
