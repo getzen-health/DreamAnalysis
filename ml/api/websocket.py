@@ -11,6 +11,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from processing.eeg_processor import extract_features, extract_band_powers, preprocess
 from storage.timescale_writer import TimescaleWriter
 from storage.parquet_writer import ParquetWriter
+from api.routes import fusion_model, get_biometric_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -282,12 +283,19 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                     try:
                                         eeg_30s = buf if buf.shape[0] >= 4 else buf[0]
                                         emotion_result = m["emotion"].predict(eeg_30s, fs) if "emotion" in m else {}
+                                        # Multimodal fusion: blend EEG result with any cached biometrics
+                                        try:
+                                            bio = get_biometric_snapshot(conn_state.get("user_id", "default"))
+                                            emotion_result = fusion_model.fuse(emotion_result, bio)
+                                        except Exception:
+                                            pass  # keep raw EEG result if fusion fails
                                         conn_state["emotion_result"] = emotion_result
                                         conn_state["emotion_updated_at"] = now
                                         _connection_state[conn_id] = conn_state
-                                        logger.info("[emotion] 30s window classified: %s (conf=%.2f)",
+                                        logger.info("[emotion+fusion] classified: %s (conf=%.2f, signals=%d)",
                                                     emotion_result.get("emotion", "?"),
-                                                    emotion_result.get("confidence", 0))
+                                                    emotion_result.get("confidence", 0),
+                                                    emotion_result.get("signal_count", 0))
                                     except Exception as e:
                                         logger.warning("30s emotion error: %s", e)
 

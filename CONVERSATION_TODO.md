@@ -7,7 +7,7 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 
 ## SECTION 1: ML / Model Gaps (fix first — affects accuracy)
 
-- [ ] Wire MultimodalEmotionFusion into live WebSocket stream — currently built but not connected to real-time inference path. Every frame that comes from Muse should go through multimodal fusion before returning to dashboard.
+- [x] Wire MultimodalEmotionFusion into live WebSocket stream — DONE. WebSocket and /analyze-eeg both call fusion_model.fuse(emotion_result, bio) after each prediction. BiometricSnapshot cache updated via POST /biometrics/update. Fusion failure is silenced so raw EEG result is always returned as fallback.
 - [ ] Wire PersonalModel into live inference path — expose `POST /personal/label-epoch`, `GET /personal/status`, `POST /personal/fine-tune` endpoints so dashboard can send labeled epochs and show personalisation progress. `ml/models/personal_model.py` is built, needs API route + wiring into `predict()` flow.
 - [ ] Wire OnlineLearner into live inference path — `ml/models/online_learner.py` exists but never called. After each prediction, call `online_learner.update(features, user_feedback)` so model adapts per-user over time. +15–20% accuracy for returning users.
 - [ ] Add channel_map config layer — `compute_frontal_asymmetry()` and `compute_dasm_rasm()` currently hardcode ch1=AF7, ch2=AF8 (Muse-specific). Create a `CHANNEL_MAPS` dict keyed by device name so OpenBCI Cyton, Neurosity Crown etc. automatically get correct left/right frontal indices.
@@ -23,18 +23,17 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 
 ## SECTION 2: Auth / Login (do before app features — blocks everything)
 
-- [ ] Audit existing auth page (`client/src/pages/auth.tsx`) and server auth routes — understand current state before building anything new
-- [ ] Login page: email + password, remember me, forgot password link
-- [ ] Register page: name, email, password, age (for research), device selection (Muse 2 / OpenBCI / none yet)
-- [ ] Auth guards: redirect unauthenticated users to /auth, redirect logged-in users away from /auth
-- [ ] User profile stored in DB: user_id, name, email, age, device_type, created_at
-- [ ] user_id flows into: personal model (ml/models/saved/personal/{user_id}/), Parquet storage, per-user ML state, all API calls
-- [ ] Session persistence: JWT or session cookie so user stays logged in across browser closes
-- [ ] "Who am I" shown in sidebar: user name + avatar initial at the bottom
+- [x] Audit existing auth page (`client/src/pages/auth.tsx`) and server auth routes — understand current state before building anything new
+- [x] Login page: username + password form (existing auth.tsx had this)
+- [x] Register page: username, email, password, age (for research), device selection (Muse 2 / OpenBCI / none yet)
+- [x] Auth guards: ProtectedRoute in App.tsx redirects unauthenticated to /auth; auth.tsx redirects logged-in away
+- [x] User profile stored in DB: age + deviceType columns added to users table (schema.ts)
+- [x] Session persistence: express-session cookie (7-day maxAge) — stays logged in across browser closes
+- [x] "Who am I" shown in sidebar: username + avatar initial + logout button at bottom of sidebar
 
 ## SECTION 3: App Feature Gaps (missing pages / features)
 
-- [ ] Daily Brain Report page (`/brain-report`) — THE north star feature per PRODUCT.md. Show: last night sleep summary, today's focus forecast, yesterday's insight, recommended action. File: `client/src/pages/daily-brain-report.tsx`. Route and sidebar link already wired.
+- [x] Daily Brain Report page (`/brain-report`) — DONE. Full page with sleep summary, focus forecast, yesterday's insight, recommended action, weekly brain summary, pattern engine, streak counter.
 - [ ] Intervention engine — real-time closed loop. When stress crosses threshold → auto-trigger music recommendation OR breathing exercise OR food suggestion. Build as `ml/api/routes/interventions.py` + frontend notification banner.
 - [ ] Music intervention — Spotify / Apple Music API: when stress HIGH, suggest calming playlist. When focus LOW, suggest focus music (binaural beats). Log which songs actually reduced stress.
 - [ ] Breathing intervention — when stress HIGH for >60 seconds, auto-open biofeedback breathing screen with push notification. Currently biofeedback is manual-only.

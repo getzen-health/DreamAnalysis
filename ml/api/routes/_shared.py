@@ -70,6 +70,7 @@ from processing.spiritual_energy import (
 )
 from processing.emotion_shift_detector import EmotionShiftDetector as EmotionShiftDetector
 from models.anomaly_detector import AnomalyDetector as AnomalyDetector
+from models.multimodal_emotion_fusion import MultimodalEmotionFusion, BiometricSnapshot
 from processing.calibration import (
     UserCalibration as UserCalibration,
     CalibrationRunner as CalibrationRunner,
@@ -132,6 +133,7 @@ stress_model = StressDetector(model_path=_find_model("stress_model"))
 lucid_dream_model = LucidDreamDetector(model_path=_find_model("lucid_dream_model"))
 meditation_model = MeditationClassifier(model_path=_find_model("meditation_model"))
 food_emotion_model = FoodEmotionPredictor(model_path=_find_model("food_emotion_model"))
+fusion_model = MultimodalEmotionFusion()
 
 # ─── Shared state ────────────────────────────────────────────────────────────
 _emotion_shift_detectors: Dict[str, EmotionShiftDetector] = {}
@@ -154,6 +156,26 @@ _confidence_cals: Dict[str, ConfidenceCalibrator] = {}
 # Accuracy pipeline — shared signal quality checker (stateless, safe to share)
 _quality_checker = SignalQualityChecker(fs=256)
 _calibration_runners: Dict[str, CalibrationRunner] = {}
+
+# Per-user biometric snapshots — updated via POST /biometrics/update
+_biometric_snapshots: Dict[str, BiometricSnapshot] = {}
+
+
+def get_biometric_snapshot(user_id: str) -> BiometricSnapshot:
+    """Return the cached BiometricSnapshot for *user_id*, creating one if absent."""
+    if user_id not in _biometric_snapshots:
+        _biometric_snapshots[user_id] = BiometricSnapshot()
+    return _biometric_snapshots[user_id]
+
+
+def update_biometric_snapshot(user_id: str, fields: dict) -> BiometricSnapshot:
+    """Merge *fields* into the per-user BiometricSnapshot and return it."""
+    snap = get_biometric_snapshot(user_id)
+    for k, v in fields.items():
+        if hasattr(snap, k) and v is not None:
+            setattr(snap, k, v)
+    _biometric_snapshots[user_id] = snap
+    return snap
 
 # ── Legacy aliases (kept for code that imports these directly) ────────────────
 # These always return/act on the "default" user bucket so old single-user

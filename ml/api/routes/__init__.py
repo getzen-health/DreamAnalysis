@@ -23,6 +23,9 @@ from ._shared import (
     lucid_dream_model as lucid_dream_model,
     meditation_model as meditation_model,
     food_emotion_model as food_emotion_model,
+    fusion_model as fusion_model,
+    get_biometric_snapshot as get_biometric_snapshot,
+    update_biometric_snapshot as update_biometric_snapshot,
 )
 
 from .analysis import router as _analysis
@@ -47,6 +50,7 @@ from .multimodal import router as _multimodal
 from .parquet import router as _parquet
 from .hrv_fusion import router as _hrv_fusion
 from .personal import router as _personal
+from .biometrics import router as _biometrics
 
 router = APIRouter()
 
@@ -73,3 +77,4 @@ router.include_router(_multimodal)
 router.include_router(_parquet)
 router.include_router(_hrv_fusion)
 router.include_router(_personal)
+router.include_router(_biometrics)

@@ -21,6 +21,7 @@ from ._shared import (
     detect_eye_blinks, detect_muscle_artifacts, detect_electrode_pops,
     compute_signal_quality_index, auto_reject_epochs,
     AnomalyDetector,
+    fusion_model, get_biometric_snapshot,
 )
 
 router = APIRouter()
@@ -129,6 +130,13 @@ async def analyze_eeg(input_data: EEGInput):
             loop.run_in_executor(_MODEL_EXECUTOR, dream_model.predict, eeg, fs),
             loop.run_in_executor(_MODEL_EXECUTOR, preprocess, eeg, fs),
         )
+
+        # ── Multimodal fusion: enrich emotion_result with any available biometrics ──
+        try:
+            bio = get_biometric_snapshot(user_id)
+            emotion_result = fusion_model.fuse(emotion_result, bio)
+        except Exception:
+            pass  # fusion failure must never break the main inference path
 
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
