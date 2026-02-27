@@ -11,7 +11,6 @@ import { backgroundEeg } from "@/lib/background-eeg";
 import {
   Moon,
   BrainCircuit,
-  Activity,
   Sparkles,
   Clock,
   Play,
@@ -325,7 +324,7 @@ export default function SleepSession() {
         {/* No-device notice */}
         {!isStreaming && (
           <div className="flex items-center gap-3 p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5 text-sm text-yellow-500">
-            <Activity className="h-4 w-4 shrink-0" />
+            <Moon className="h-4 w-4 shrink-0 opacity-60" />
             No device connected — simulation mode will cycle through N1 → N2 → N3 → REM.
           </div>
         )}
@@ -341,23 +340,6 @@ export default function SleepSession() {
               <div key={label} className="text-center">
                 <p className="text-2xl font-mono font-bold text-primary">{value}</p>
                 <p className="text-[10px] text-muted-foreground mt-1">{label}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Sleep stage legend */}
-        <Card className="glass-card p-5">
-          <h3 className="text-sm font-medium mb-4">Sleep Stage Guide</h3>
-          <div className="space-y-2">
-            {(["Wake", "N1", "N2", "N3", "REM"] as SleepStage[]).map(stage => (
-              <div key={stage} className="flex items-center gap-3">
-                <div
-                  className="w-3 h-3 rounded-full shrink-0"
-                  style={{ background: STAGE_COLORS[stage] }}
-                />
-                <span className="text-xs font-medium w-10">{stage}</span>
-                <span className="text-xs text-muted-foreground">{STAGE_DESCRIPTION[stage]}</span>
               </div>
             ))}
           </div>
@@ -507,43 +489,6 @@ export default function SleepSession() {
               Dream detected!
             </div>
           )}
-        </Card>
-
-        {/* Stage breakdown bars */}
-        <Card className="glass-card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Stage Breakdown</h3>
-            {!isStreaming && (
-              <span className="ml-auto text-[10px] text-muted-foreground opacity-50">
-                simulation
-              </span>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            {(["Wake", "N1", "N2", "N3", "REM"] as SleepStage[]).map(stage => {
-              const stageSec = tally[stage];
-              const pct = elapsed > 0 ? (stageSec / elapsed) * 100 : 0;
-              return (
-                <div key={stage} className="flex items-center gap-3">
-                  <span className="text-[11px] font-medium w-8 shrink-0">{stage}</span>
-                  <div className="flex-1 bg-muted/20 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000"
-                      style={{
-                        width: `${pct}%`,
-                        background: STAGE_COLORS[stage],
-                      }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-mono w-14 text-right shrink-0">
-                    {fmtDuration(stageSec)} ({Math.round(pct)}%)
-                  </span>
-                </div>
-              );
-            })}
-          </div>
         </Card>
 
         {/* Dream count */}
