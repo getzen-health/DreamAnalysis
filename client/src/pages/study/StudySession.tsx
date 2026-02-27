@@ -414,22 +414,36 @@ export default function StudySession() {
 
   // ── Survey submit ─────────────────────────────────────────────────────────
 
+  // Track peak stress across the whole session
+  const peakStressRef = useRef(0);
+  useEffect(() => {
+    if (liveStress > peakStressRef.current) peakStressRef.current = liveStress;
+  }, [liveStress]);
+
   const canSubmitSurvey = surveyQ1 !== null && surveyQ2 !== null && surveyQ3 !== null;
 
   async function handleSurveySubmit() {
     if (!canSubmitSurvey || isSubmitting) return;
     setIsSubmitting(true);
+    const finalPre  = preEegJson  ?? avgSnapshots(preReadings.current);
+    const finalPost = postEegJson ?? avgSnapshots(postReadings.current);
     const surveyData = { q1: surveyQ1, q2: surveyQ2, q3: surveyQ3 };
     try {
       await apiRequest("POST", "/api/study/session/complete", {
         session_id: sessionId,
-        pre_eeg_json: preEegJson ?? avgSnapshots(preReadings.current),
-        post_eeg_json: postEegJson ?? avgSnapshots(postReadings.current),
+        pre_eeg_json:  finalPre,
+        post_eeg_json: finalPost,
         eeg_features_json: { frame_count: preReadings.current.length + postReadings.current.length },
         survey_json: surveyData,
         intervention_triggered: interventionTriggered,
       });
-      navigate(`/study/complete?code=${encodeURIComponent(participantCode)}&done=${blockType}`);
+      const preS  = (finalPre?.stress_level  ?? 0).toFixed(2);
+      const postS = (finalPost?.stress_level ?? 0).toFixed(2);
+      const peak  = peakStressRef.current.toFixed(2);
+      navigate(
+        `/study/complete?code=${encodeURIComponent(participantCode)}&done=${blockType}` +
+        `&pre_stress=${preS}&peak_stress=${peak}&post_stress=${postS}`
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Submit failed — try again";
       toast({ title: "Submit failed", description: msg, variant: "destructive" });
