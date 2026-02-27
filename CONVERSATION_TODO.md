@@ -17,7 +17,7 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 - [x] EEGNet variable-channel model — DONE. `ml/models/eegnet.py` + `ml/training/train_eegnet.py`. Works on 4/8/16 channels, ONNX export for mobile, wired as top inference priority in `emotion_classifier.py`.
 - [x] Personalized per-user model — DONE. `ml/models/personal_model.py`. Central EEGNet backbone frozen, personal classifier head fine-tunes on user's own labeled EEG data. Activates after 30 epochs, improves each session. Saves to `ml/models/saved/personal/{user_id}/`.
 - [x] Train EEGNet on synthetic data to verify pipeline works — DONE. 85% val_acc (synthetic), early stopping at epoch 43. `models/saved/eegnet_emotion_4ch.pt` (24 KB) + `eegnet_emotion_4ch_benchmark.txt` (0.85) saved. EEGNet now activates as top inference priority (above mega LGBM). ONNX export skipped (onnxscript not installed, non-critical). Retrain on real Muse 2 data once pilot data collected.
-- [ ] Emotiv EPOC X adapter — 14 channels, proprietary SDK (not BrainFlow). Write thin adapter layer that reads Emotiv SDK and outputs same format as BrainFlow. Unlocks AMIGOS dataset hardware for real users.
+- [x] Emotiv EPOC X adapter — DONE. `ml/hardware/emotiv_adapter.py`. Two backends: (1) Cortex WebSocket API (wss://localhost:6789, JSON-RPC, no binary SDK needed — runs alongside EmotivPro), (2) EDF/CSV/NPZ file reader for AMIGOS dataset replay. Same interface as BrainFlowManager (connect/disconnect/start_streaming/stop_streaming/get_current_data). `devices.py` updated to dispatch Emotiv device_types to EmotivAdapter; `list_devices` merges both adapter outputs. Channel map for EPOC X (F3/F4 as left/right frontal) already in `channel_maps.py`.
 
 ---
 
