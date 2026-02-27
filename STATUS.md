@@ -134,7 +134,7 @@
 ### Phase 3 — Daily pull ✅ COMPLETE
 - [x] Daily Brain Report screen (`/brain-report` — morning summary, sleep/dreams/forecast/recommended action)
 - [x] Sleep session mode (`/sleep-session` — idle/recording/summary state machine, live stage tracking, dream detection, sleep score)
-- [x] Pattern engine — correlates biofeedback session days vs non-session days over 14-day window; renders insight card on `/brain-report` when delta ≥ 8%
+- [x] Pattern engine — server-side `GET /api/brain/patterns/:userId`: 30-day analysis → 5 pattern types (focus_peak_hour, stress_peak_hour, best_day_of_week, sleep_focus_correlation, biofeedback_effect). Brain Report "Your patterns" card now shows title + description + confidence + actionable recommendation. Fallback to client heuristic when server has no data.
 - [x] Morning push notification — SW + subscribe UI + daily 8am cron trigger (VAPID env vars required)
 
 ### Phase 4 — Growth 🔄 IN PROGRESS
