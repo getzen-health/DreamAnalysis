@@ -139,6 +139,20 @@ export function InterventionBanner() {
     } catch {
       // ML backend offline — silent fail, never block the UI
     }
+
+    // Just-in-time push notification trigger (fires even when app is backgrounded)
+    // The server enforces a 15-minute per-user cooldown so this won't spam.
+    if (_sharedStress >= 0.70 || _sharedFocus <= 0.25) {
+      fetch("/api/notifications/brain-state-trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userId.current,
+          stress: _sharedStress,
+          focus: _sharedFocus,
+        }),
+      }).catch(() => {}); // silent fail if VAPID not configured
+    }
   }, []);
 
   useEffect(() => {

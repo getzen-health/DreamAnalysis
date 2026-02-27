@@ -40,8 +40,8 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 - [x] Food intervention — backend logic in interventions.py (4-hr meal gap + stress ≥ 0.45 → food card). Banner navigates to /food?alert=protein_snack.
 - [x] Intervention outcome tracking — biofeedback session stop schedules a 5-min delayed POST /interventions/outcome with stress_after. GET /interventions/effectiveness/{user_id} aggregates which types worked.
 - [x] Yesterday's Insight card on Daily Brain Report — DONE. New GET /api/brain/yesterday-insights/:userId endpoint cross-correlates 48h of emotion readings with biofeedback session times. Generates "Focus was 31% higher after your 3pm breathing session" and day-vs-day comparisons. Card shows up to 3 ranked insights; falls back to client-side heuristic when DB has no data.
-- [ ] Personal records gamification — "New focus record: 47 min — beat it?" Show streaks on dashboard. Motivates daily use.
-- [ ] Sleep session mode — tap to enter sleep mode: screen dims, Muse streams overnight, morning shows sleep report. Currently sleep data is simulated.
+- [x] Personal records gamification — DONE. longestEverStreak, focusTrend, nextMilestone helpers; newFocusRecord celebration banner; beat-it challenge framing per record row; live streaming comparison; streak + milestone countdown.
+- [x] Sleep session mode — DONE. Screen auto-dims 15s after session start; tap-to-peek reveals controls for 8s; real sleep stats from DB; explicit dim/undim controls.
 - [ ] Just-in-time push notifications — server-side trigger (not scheduled). Fire when brain state needs action, not on a timer.
 - [ ] Weekly brain summary — shareable card showing this week vs last week for stress, focus, sleep. PNG export for sharing.
 - [ ] Intervention library — 5–10 evidence-based exercises in biofeedback page with before/after EEG comparison to show they work.

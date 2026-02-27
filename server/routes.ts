@@ -1289,6 +1289,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Just-in-time brain-state push trigger ─────────────────────────────────
+  // Per-user cooldown map: userId → last fire timestamp (ms)
+  const _pushCooldown = new Map<string, number>();
+  const PUSH_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes per user
+
+  /**
+   * POST /api/notifications/brain-state-trigger
+   * Called by the frontend after each EEG batch (every ~15s when streaming).
+   * Fires a push notification if:
+   *   stress >= 0.70  → "High stress detected — try a breathing exercise"
+   *   focus  <= 0.25  → "Focus is fading — a short walk might help"
+   * Cooldown: 15 minutes per user so notifications don't spam.
+   */
+  app.post("/api/notifications/brain-state-trigger", async (req, res) => {
+    if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+      return res.status(503).json({ error: "VAPID not configured" });
+    }
+    const { userId, stress, focus } = req.body as {
+      userId?: string; stress?: number; focus?: number;
+    };
+    if (!userId || stress == null || focus == null) {
+      return res.status(400).json({ error: "userId, stress, and focus are required" });
+    }
+
+    // Rate limit
+    const lastFire = _pushCooldown.get(userId) ?? 0;
+    if (Date.now() - lastFire < PUSH_COOLDOWN_MS) {
+      return res.json({ triggered: false, reason: "cooldown" });
+    }
+
+    // Determine if a notification is warranted
+    let title: string | null = null;
+    let body: string | null  = null;
+    let url  = "/biofeedback";
+
+    if (stress >= 0.70) {
+      title = "High stress detected";
+      body  = "Your stress is elevated. A 4-minute breathing exercise can help.";
+      url   = "/biofeedback?protocol=coherence&auto=true";
+    } else if (focus <= 0.25) {
+      title = "Focus is fading";
+      body  = "Your concentration is dropping. A short walk or music break may help.";
+      url   = "/biofeedback?tab=music&mood=focus";
+    }
+
+    if (!title) {
+      return res.json({ triggered: false, reason: "thresholds not met" });
+    }
+
+    try {
+      const subs = await db
+        .select()
+        .from(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, userId));
+
+      if (subs.length === 0) {
+        return res.json({ triggered: false, reason: "no subscriptions" });
+      }
+
+      const payload = JSON.stringify({ title, body, url, tag: "ndw-brain-state" });
+      await Promise.allSettled(
+        subs.map((s) =>
+          webpush.sendNotification(
+            { endpoint: s.endpoint, keys: s.keys as { p256dh: string; auth: string } },
+            payload
+          )
+        )
+      );
+      _pushCooldown.set(userId, Date.now());
+      res.json({ triggered: true, title, body, url });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to send push notification" });
+    }
+  });
+
   // ── Emotion corrections (user label feedback → online learner) ────────────
 
   app.post("/api/emotions/correct", async (req, res) => {
