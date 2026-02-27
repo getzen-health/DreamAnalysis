@@ -4,7 +4,6 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import {
-  Heart,
   Brain,
   Activity,
   AlertCircle,
@@ -14,10 +13,6 @@ import {
   MessageSquare,
   Sparkles,
   Radio,
-  Zap,
-  Eye,
-  Cpu,
-  MemoryStick,
   Wind,
   TrendingUp,
   TrendingDown,
@@ -286,32 +281,6 @@ const QUICK_ACTIONS = [
 
 const USER_ID = getParticipantId();
 
-/* Metric card config */
-const HEALTH_METRICS = [
-  { key: "stress", label: "Stress", source: "stress_index", color: "var(--warning)", bgClass: "bg-warning/10", textClass: "text-warning" },
-  { key: "focus", label: "Focus", source: "focus_index", color: "var(--primary)", bgClass: "bg-primary/10", textClass: "text-primary" },
-  { key: "flow", label: "Flow", source: "flow_score", color: "var(--success)", bgClass: "bg-success/10", textClass: "text-success" },
-  { key: "creativity", label: "Creativity", source: "creativity_score", color: "var(--secondary)", bgClass: "bg-secondary/10", textClass: "text-secondary" },
-  { key: "cogLoad", label: "Cog Load", source: "load_index", color: "var(--neural-blue)", bgClass: "bg-[hsl(200,70%,55%)]/10", textClass: "text-[hsl(200,70%,55%)]" },
-  { key: "memory", label: "Memory", source: "encoding_score", color: "var(--neural-purple)", bgClass: "bg-[hsl(262,45%,65%)]/10", textClass: "text-[hsl(262,45%,65%)]" },
-];
-
-const METRIC_ICONS: Record<string, typeof Activity> = {
-  stress: Zap,
-  focus: Eye,
-  flow: Activity,
-  creativity: Sparkles,
-  cogLoad: Cpu,
-  memory: MemoryStick,
-};
-
-/* Score color helper */
-function scoreColor(score: number): string {
-  if (score > 70) return "hsl(152, 60%, 48%)";
-  if (score >= 40) return "hsl(38, 85%, 58%)";
-  return "hsl(4, 72%, 55%)";
-}
-
 /* ========== Component ========== */
 export default function Dashboard() {
   const { latestFrame, state: deviceState } = useDevice();
@@ -326,9 +295,6 @@ export default function Dashboard() {
 
   // Live metrics from analysis sub-objects
   const flowState = (analysis as Record<string, any>)?.flow_state;
-  const creativity = (analysis as Record<string, any>)?.creativity;
-  const cognitiveLoad = (analysis as Record<string, any>)?.cognitive_load;
-  const memoryEncoding = (analysis as Record<string, any>)?.memory_encoding;
 
   // Current metrics
   const stressIndex = (emotions?.stress_index ?? 0) * 100;
@@ -339,37 +305,9 @@ export default function Dashboard() {
   const emotionReady = !emotions || emotions.ready !== false || emotions.emotion != null;
   const currentEmotion = emotionReady ? (emotions?.emotion ?? "—") : "Calibrating…";
   const confidence = emotions?.confidence ?? 0;
-  const valence = emotions?.valence ?? 0;
-  const arousal = emotions?.arousal ?? 0;
 
   // Derived live metrics
   const flowScore = (flowState?.flow_score ?? 0) * 100;
-  const creativityScore = (creativity?.creativity_score ?? 0) * 100;
-  const cogLoadIndex = (cognitiveLoad?.load_index ?? 0) * 100;
-  const memoryScore = (memoryEncoding?.encoding_score ?? 0) * 100;
-
-  // Mental Health Score composite
-  const mentalHealthScore = isStreaming
-    ? Math.round(
-        (100 - stressIndex) * 0.25 +
-        focusIndex * 0.20 +
-        flowScore * 0.20 +
-        relaxationIndex * 0.20 +
-        creativityScore * 0.15
-      )
-    : 0;
-
-  // Live metric values for cards
-  const liveMetricValues: Record<string, number> = {
-    stress: Math.round(stressIndex),
-    focus: Math.round(focusIndex),
-    flow: Math.round(flowScore),
-    creativity: Math.round(creativityScore),
-    cogLoad: Math.round(cogLoadIndex),
-    memory: Math.round(memoryScore),
-  };
-
-
 
 
   // Shift alert from emotion_shift
@@ -401,17 +339,6 @@ export default function Dashboard() {
       return () => clearTimeout(timer);
     }
   }, [shift]);
-
-  // Computed scores from live data
-  const wellnessScore = isStreaming
-    ? Math.round(relaxationIndex * 0.4 + (100 - stressIndex) * 0.35 + focusIndex * 0.25)
-    : 0;
-  const sleepScore = isStreaming && sleepStaging
-    ? Math.round(sleepStaging.confidence * 100)
-    : 0;
-  const brainScore = isStreaming
-    ? Math.round(focusIndex * 0.4 + relaxationIndex * 0.3 + (100 - arousal * 60) * 0.3)
-    : 0;
 
   const hour = new Date().getHours();
   const [insightText, setInsightText] = useState("");
