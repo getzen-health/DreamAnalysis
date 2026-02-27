@@ -16,7 +16,7 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 - [ ] Retrain emotion mega LGBM once Emognition data is downloaded. Run `ml/training/mega_trainer.py`.
 - [x] EEGNet variable-channel model — DONE. `ml/models/eegnet.py` + `ml/training/train_eegnet.py`. Works on 4/8/16 channels, ONNX export for mobile, wired as top inference priority in `emotion_classifier.py`.
 - [x] Personalized per-user model — DONE. `ml/models/personal_model.py`. Central EEGNet backbone frozen, personal classifier head fine-tunes on user's own labeled EEG data. Activates after 30 epochs, improves each session. Saves to `ml/models/saved/personal/{user_id}/`.
-- [ ] Train EEGNet on synthetic data to verify pipeline works: `python -m training.train_eegnet --channels 4 --use-synthetic --epochs 50` — generates `eegnet_emotion_4ch.pt` so it activates in inference.
+- [x] Train EEGNet on synthetic data to verify pipeline works — DONE. 85% val_acc (synthetic), early stopping at epoch 43. `models/saved/eegnet_emotion_4ch.pt` (24 KB) + `eegnet_emotion_4ch_benchmark.txt` (0.85) saved. EEGNet now activates as top inference priority (above mega LGBM). ONNX export skipped (onnxscript not installed, non-critical). Retrain on real Muse 2 data once pilot data collected.
 - [ ] Emotiv EPOC X adapter — 14 channels, proprietary SDK (not BrainFlow). Write thin adapter layer that reads Emotiv SDK and outputs same format as BrainFlow. Unlocks AMIGOS dataset hardware for real users.
 
 ---
