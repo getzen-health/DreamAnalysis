@@ -32,6 +32,7 @@ const IntentSelect = lazy(() => import("@/pages/intent-select"));
 const StudyLanding       = lazy(() => import("@/pages/study/StudyLanding"));
 const StudyConsent       = lazy(() => import("@/pages/study/StudyConsent"));
 const StudyProfile       = lazy(() => import("@/pages/study/StudyProfile"));
+const StudySession       = lazy(() => import("@/pages/study/StudySession"));
 const StudySessionStress = lazy(() => import("@/pages/study/StudySessionStress"));
 const StudySessionFood   = lazy(() => import("@/pages/study/StudySessionFood"));
 const StudyComplete      = lazy(() => import("@/pages/study/StudyComplete"));
@@ -166,6 +167,9 @@ function AppRoutes() {
         <ProtectedRoute><AppLayout><WeeklyBrainSummary /></AppLayout></ProtectedRoute>
       </Route>
       {/* Study pages — public, no auth required */}
+      <Route path="/study/session">
+        <Suspense fallback={<PageLoader />}><StudySession /></Suspense>
+      </Route>
       <Route path="/study/session/stress"><StudySessionStress /></Route>
       <Route path="/study/session/food"><StudySessionFood /></Route>
       <Route path="/study/complete"><StudyComplete /></Route>
