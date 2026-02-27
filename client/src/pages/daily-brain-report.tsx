@@ -19,6 +19,7 @@ import {
   Check,
   Flame,
   BarChart2,
+  Lightbulb,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -44,6 +45,13 @@ interface HealthEntry {
   neuralActivity?: number;
   sleepDuration?: number;
   timestamp: string;
+}
+
+/* ── Types ───────────────────────────────────────────────────── */
+interface ServerInsight {
+  type: string;
+  text: string;
+  delta?: number;
 }
 
 /* ── Derived / computed helpers ──────────────────────────────── */
@@ -391,6 +399,20 @@ export default function DailyBrainReport() {
       retry: false,
     });
 
+  const { data: serverInsightsData } =
+    useQuery<{ userId: string; insights: ServerInsight[] }>({
+      queryKey: ["yesterday-insights", CURRENT_USER],
+      queryFn: async () => {
+        const res = await fetch(`/api/brain/yesterday-insights/${CURRENT_USER}`);
+        if (!res.ok) return { userId: CURRENT_USER, insights: [] };
+        return res.json();
+      },
+      staleTime: 5 * 60_000,   // re-fetch every 5 minutes
+      retry: false,
+    });
+
+  const serverInsights: ServerInsight[] = serverInsightsData?.insights ?? [];
+
   const isLoading = sessionsLoading || dreamsLoading || healthLoading;
 
   /* — Derived data — */
@@ -602,16 +624,38 @@ export default function DailyBrainReport() {
         </Card>
       )}
 
-      {/* Yesterday's insight */}
-      {!isLoading && insight && (
+      {/* Yesterday's insight — server-computed activity correlations */}
+      {!isLoading && (serverInsights.length > 0 || insight) && (
         <Card className="glass-card p-6">
-          <div className="flex items-center gap-2 mb-3">
-            <Brain className="h-4 w-4 text-violet-400" />
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb className="h-4 w-4 text-violet-400" />
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
               Yesterday's insight
             </h2>
           </div>
-          <p className="text-sm text-foreground/90">{insight}</p>
+
+          {serverInsights.length > 0 ? (
+            <div className="space-y-3">
+              {serverInsights.map((si, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-3 ${i > 0 ? "pt-3 border-t border-border/20" : ""}`}
+                >
+                  <div className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${
+                    si.type === "activity_focus" || si.type === "activity_stress"
+                      ? "bg-emerald-400"
+                      : si.type === "peak_focus"
+                      ? "bg-violet-400"
+                      : "bg-sky-400"
+                  }`} />
+                  <p className="text-sm text-foreground/90 leading-snug">{si.text}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* Fallback to client-side insight when server has no data */
+            <p className="text-sm text-foreground/90">{insight}</p>
+          )}
         </Card>
       )}
 

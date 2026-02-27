@@ -523,6 +523,200 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/brain/yesterday-insights/:userId
+  // Cross-correlates yesterday's emotion readings with EEG session events to produce
+  // activity-specific insights: "Focus was 31% higher after your 3pm breathing session."
+  app.get("/api/brain/yesterday-insights/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      // Fetch 48 h of readings (yesterday + today for comparison)
+      const from48h = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      const allReadings = await storage.getEmotionReadings(userId, 3000, from48h);
+
+      if (allReadings.length < 3) {
+        return res.json({ userId, insights: [] });
+      }
+
+      // Partition into yesterday vs today
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      const yesterdayMidnight = new Date(todayMidnight.getTime() - 86_400_000);
+
+      const yesterday = allReadings.filter(r => {
+        const t = new Date(r.timestamp).getTime();
+        return t >= yesterdayMidnight.getTime() && t < todayMidnight.getTime();
+      });
+      const today = allReadings.filter(r => new Date(r.timestamp).getTime() >= todayMidnight.getTime());
+
+      // Helper: average over a slice
+      const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+      const fmtHour = (date: Date) => {
+        const h = date.getHours();
+        return `${h % 12 || 12}${h < 12 ? "am" : "pm"}`;
+      };
+      const pctDelta = (a: number, b: number) =>
+        Math.round(Math.abs(a - b) / Math.max(Math.abs(b), 0.001) * 100);
+
+      const insights: Array<{ type: string; text: string; delta?: number }> = [];
+
+      // ── Insight 1: peak focus hour vs rest of yesterday ────────────────
+      if (yesterday.length >= 4) {
+        const byHour: Record<number, number[]> = {};
+        yesterday.forEach(r => {
+          const h = new Date(r.timestamp).getHours();
+          if (!byHour[h]) byHour[h] = [];
+          byHour[h].push(r.focus);
+        });
+        const hourAvgs = Object.entries(byHour).map(([h, vals]) => ({
+          hour: parseInt(h),
+          avg: avg(vals) ?? 0,
+          count: vals.length,
+        })).filter(e => e.count >= 2);
+
+        if (hourAvgs.length >= 2) {
+          hourAvgs.sort((a, b) => b.avg - a.avg);
+          const peak = hourAvgs[0];
+          const rest = hourAvgs.slice(1);
+          const restAvg = avg(rest.map(e => e.avg)) ?? 0;
+          const delta = pctDelta(peak.avg, restAvg);
+          if (delta >= 12) {
+            const peakDate = new Date(yesterdayMidnight.getTime() + peak.hour * 3600_000);
+            insights.push({
+              type: "peak_focus",
+              text: `Focus peaked at ${fmtHour(peakDate)}, ${delta}% above the rest of yesterday.`,
+              delta,
+            });
+          }
+        }
+      }
+
+      // ── Insight 2: activity cross-correlation (biofeedback sessions) ───
+      // Fetch sessions from ML backend (via internal HTTP)
+      const ML_API = process.env.ML_API_URL || "http://localhost:8000";
+      try {
+        const sessRes = await fetch(`${ML_API}/api/sessions`, { signal: AbortSignal.timeout(3000) });
+        if (sessRes.ok) {
+          const sessions = (await sessRes.json()) as Array<{
+            session_id: string; session_type: string; start_time: number;
+          }>;
+
+          // Yesterday's biofeedback sessions
+          const bfSessions = sessions.filter(s =>
+            s.session_type === "biofeedback" &&
+            s.start_time * 1000 >= yesterdayMidnight.getTime() &&
+            s.start_time * 1000 < todayMidnight.getTime()
+          );
+
+          for (const sess of bfSessions.slice(0, 2)) {
+            const sessionMs = sess.start_time * 1000;
+            const windowMs = 60 * 60 * 1000; // 60-minute window
+
+            const before = allReadings.filter(r => {
+              const t = new Date(r.timestamp).getTime();
+              return t >= sessionMs - windowMs && t < sessionMs;
+            });
+            const after = allReadings.filter(r => {
+              const t = new Date(r.timestamp).getTime();
+              return t > sessionMs && t <= sessionMs + windowMs;
+            });
+
+            if (before.length >= 2 && after.length >= 2) {
+              const focusBefore = avg(before.map(r => r.focus)) ?? 0;
+              const focusAfter  = avg(after.map(r => r.focus))  ?? 0;
+              const stressBefore = avg(before.map(r => r.stress)) ?? 0;
+              const stressAfter  = avg(after.map(r => r.stress))  ?? 0;
+
+              const focusDelta  = pctDelta(focusAfter, focusBefore);
+              const stressDelta = pctDelta(stressBefore, stressAfter);
+              const sessHour = fmtHour(new Date(sessionMs));
+
+              if (focusAfter > focusBefore && focusDelta >= 10) {
+                insights.push({
+                  type: "activity_focus",
+                  text: `Focus was ${focusDelta}% higher in the hour after your ${sessHour} breathing session.`,
+                  delta: focusDelta,
+                });
+              } else if (stressAfter < stressBefore && stressDelta >= 10) {
+                insights.push({
+                  type: "activity_stress",
+                  text: `Stress dropped ${stressDelta}% in the hour after your ${sessHour} breathing session.`,
+                  delta: stressDelta,
+                });
+              }
+            }
+          }
+        }
+      } catch {
+        // ML backend offline — skip session cross-correlation, continue with other insights
+      }
+
+      // ── Insight 3: yesterday vs day-before comparison ──────────────────
+      if (yesterday.length >= 3) {
+        const dayBeforeReadings = allReadings.filter(r => {
+          const t = new Date(r.timestamp).getTime();
+          return t >= yesterdayMidnight.getTime() - 86_400_000 && t < yesterdayMidnight.getTime();
+        });
+
+        const ydayFocus  = avg(yesterday.map(r => r.focus));
+        const ydayStress = avg(yesterday.map(r => r.stress));
+        const prevFocus  = avg(dayBeforeReadings.map(r => r.focus));
+        const prevStress = avg(dayBeforeReadings.map(r => r.stress));
+
+        if (ydayFocus != null && prevFocus != null) {
+          const delta = pctDelta(ydayFocus, prevFocus);
+          if (delta >= 10) {
+            insights.push({
+              type: "day_comparison",
+              text: ydayFocus > prevFocus
+                ? `Yesterday's focus (${Math.round(ydayFocus * 100)}%) was ${delta}% stronger than the day before.`
+                : `Yesterday's focus was ${delta}% lower than the day before — today is a reset.`,
+              delta,
+            });
+          }
+        } else if (ydayStress != null && prevStress != null) {
+          const delta = pctDelta(ydayStress, prevStress);
+          if (delta >= 15) {
+            insights.push({
+              type: "day_comparison",
+              text: ydayStress < prevStress
+                ? `Stress was ${delta}% lower yesterday than the day before.`
+                : `Stress ran ${delta}% higher yesterday — watch for that pattern today.`,
+              delta,
+            });
+          }
+        }
+      }
+
+      // ── Insight 4: today vs yesterday baseline (morning preview) ──────
+      if (today.length >= 2 && yesterday.length >= 2) {
+        const todayFocus = avg(today.map(r => r.focus));
+        const ydayFocus  = avg(yesterday.map(r => r.focus));
+        if (todayFocus != null && ydayFocus != null) {
+          const delta = pctDelta(todayFocus, ydayFocus);
+          if (delta >= 8 && today.length >= 3) {
+            insights.push({
+              type: "today_vs_yesterday",
+              text: todayFocus > ydayFocus
+                ? `You're already ${delta}% sharper than this time yesterday.`
+                : `Focus is ${delta}% below yesterday so far — give it time to warm up.`,
+              delta,
+            });
+          }
+        }
+      }
+
+      // Return top 3 most interesting insights (highest delta first)
+      const ranked = insights
+        .sort((a, b) => (b.delta ?? 0) - (a.delta ?? 0))
+        .slice(0, 3);
+
+      res.json({ userId, insights: ranked });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to compute yesterday insights" });
+    }
+  });
+
   // POST /api/emotion-readings/batch — bulk insert from ML backend on session stop
   app.post("/api/emotion-readings/batch", async (req, res) => {
     try {
