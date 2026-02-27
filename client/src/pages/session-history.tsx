@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,10 @@ import {
   Download,
   Trash2,
   Brain,
-  Eye,
   Activity,
   Sparkles,
   Moon,
   Heart,
-  Zap,
-  BookOpen,
   BarChart2,
   TrendingUp,
   Trophy,
