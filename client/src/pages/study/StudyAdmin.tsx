@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, RefreshCw, Download, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { Loader2, RefreshCw, Download, ChevronDown, ChevronUp, Lock, Radio } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,12 +20,53 @@ interface SurveyScore {
   value: number | string;
 }
 
+interface EegSnapshot {
+  stress_level?: number;
+  [key: string]: unknown;
+}
+
 interface AdminSession {
   id: number;
   block_type: "stress" | "food";
   intervention_triggered: boolean;
+  partial: boolean;
   survey_json: Record<string, unknown> | null;
+  pre_eeg_json: EegSnapshot | null;
+  post_eeg_json: EegSnapshot | null;
+  checkpoint_at: string | null;
   created_at: string;
+}
+
+type SessionStatus = "recording" | "complete" | "partial";
+
+function sessionStatus(s: AdminSession): SessionStatus {
+  if (s.partial) return "partial";
+  if (s.survey_json) return "complete";
+  return "recording";
+}
+
+function StressBar({ pre, post }: { pre: number | undefined; post: number | undefined }) {
+  if (pre === undefined && post === undefined) return null;
+  const preW  = Math.round((pre  ?? 0) * 100);
+  const postW = Math.round((post ?? 0) * 100);
+  const dropped = (pre ?? 0) - (post ?? 0) > 0.05;
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-muted-foreground w-5">pre</span>
+      <div className="relative h-2 w-20 rounded bg-muted overflow-hidden">
+        <div className="h-full bg-orange-400/70 rounded" style={{ width: `${preW}%` }} />
+      </div>
+      <span className="text-muted-foreground">→</span>
+      <div className="relative h-2 w-20 rounded bg-muted overflow-hidden">
+        <div
+          className={`h-full rounded ${dropped ? "bg-green-400/70" : "bg-orange-400/70"}`}
+          style={{ width: `${postW}%` }}
+        />
+      </div>
+      <span className="text-muted-foreground w-5">post</span>
+      {dropped && <span className="text-green-400 text-[10px]">↓</span>}
+    </div>
+  );
 }
 
 interface AdminParticipant {
@@ -140,6 +181,18 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
                       >
                         {session.block_type}
                       </Badge>
+                      {/* Status badge */}
+                      {sessionStatus(session) === "recording" && (
+                        <Badge variant="outline" className="border-yellow-500/50 text-yellow-400 text-xs gap-1">
+                          <Radio className="h-2.5 w-2.5" />recording
+                        </Badge>
+                      )}
+                      {sessionStatus(session) === "complete" && (
+                        <Badge variant="outline" className="border-green-500/50 text-green-400 text-xs">complete</Badge>
+                      )}
+                      {sessionStatus(session) === "partial" && (
+                        <Badge variant="outline" className="border-amber-500/50 text-amber-400 text-xs">partial</Badge>
+                      )}
                       <Badge
                         variant="outline"
                         className={
@@ -154,6 +207,14 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
                         {new Date(session.created_at).toLocaleString()}
                       </span>
                     </div>
+
+                    {/* Stress sparkline */}
+                    {(session.pre_eeg_json?.stress_level !== undefined || session.post_eeg_json?.stress_level !== undefined) && (
+                      <StressBar
+                        pre={session.pre_eeg_json?.stress_level}
+                        post={session.post_eeg_json?.stress_level}
+                      />
+                    )}
 
                     {scores.length > 0 && (
                       <div className="flex flex-wrap gap-2 pt-1">
@@ -196,6 +257,8 @@ export default function StudyAdmin() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const unauthorizedRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -210,6 +273,7 @@ export default function StudyAdmin() {
 
       if (pRes.status === 401 || sRes.status === 401) {
         setIsUnauthorized(true);
+        unauthorizedRef.current = true;
         return;
       }
 
@@ -238,6 +302,7 @@ export default function StudyAdmin() {
       }));
 
       setParticipants(merged);
+      setLastRefreshed(new Date());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setError(msg);
@@ -248,6 +313,10 @@ export default function StudyAdmin() {
 
   useEffect(() => {
     void fetchData();
+    const interval = setInterval(() => {
+      if (!unauthorizedRef.current) void fetchData();
+    }, 60_000);
+    return () => clearInterval(interval);
   }, [fetchData]);
 
   // ── Derived stats ────────────────────────────────────────────────────────────
@@ -288,6 +357,12 @@ export default function StudyAdmin() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {lastRefreshed && (
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {" "}· auto-refresh 60s
+              </span>
+            )}
             <Button
               variant="outline"
               size="sm"
