@@ -45,6 +45,15 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },
+    BackgroundRunner: {
+      // Path relative to webDir (dist/public)
+      label: "com.neuraldreamworkshop.eeg-flush",
+      src: "background-runner.js",
+      event: "eegFlush",
+      repeat: true,
+      interval: 15,   // minutes
+      autoStart: false,
+    },
     BluetoothLe: {
       // Shown in iOS permission prompt when scanning for Muse
       displayStrings: {

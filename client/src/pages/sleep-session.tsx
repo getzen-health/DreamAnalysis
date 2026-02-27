@@ -7,6 +7,7 @@ import { useDevice } from "@/hooks/use-device";
 import { startSession, stopSession } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import { backgroundEeg } from "@/lib/background-eeg";
 import {
   Moon,
   BrainCircuit,
@@ -274,6 +275,8 @@ export default function SleepSession() {
     setTimeout(() => setDimmed(true), 15_000);
     // Best-effort API call — don't block UI if ML backend is offline
     startSession("sleep", "default").catch(() => {});
+    // Start background processing (wake lock on web, BackgroundRunner on native)
+    backgroundEeg.startSleepRecording().catch(() => {});
   };
 
   const handleWakeUp = () => {
@@ -285,6 +288,7 @@ export default function SleepSession() {
     setDreamsDetected(dreamCountRef.current);
     setPhase("summary");
     stopSession().catch(() => {});
+    backgroundEeg.stopSleepRecording().catch(() => {});
   };
 
   const handleReset = () => {
