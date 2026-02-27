@@ -1,6 +1,6 @@
 const ML_API_URL_DEFAULT =
   import.meta.env.VITE_ML_API_URL ||
-  "https://brendan-postanesthetic-soliloquisingly.ngrok-free.dev";
+  "http://localhost:8000";
 
 /** Reads the ML backend URL from localStorage so the user can override it in Settings. */
 function getMLApiUrl(): string {
@@ -621,6 +621,22 @@ export function getWebSocketUrl(): string {
   const base = `${wsProtocol}://${host}/ws/eeg-stream`;
   // ngrok requires this query param to skip the browser-warning interstitial
   return url.includes("ngrok") ? `${base}?ngrok-skip-browser-warning=true` : base;
+}
+
+/** Pings ML backend /health with a timeout. Returns true if reachable. */
+export async function pingBackend(timeoutMs = 12_000): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(`${getMLApiUrl()}/health`, {
+      signal: controller.signal,
+      headers: { ...ngrokHeaders() },
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Health Integration ─────────────────────────────────────────────────

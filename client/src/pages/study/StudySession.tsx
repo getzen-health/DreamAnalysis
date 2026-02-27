@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, Bluetooth, CheckCircle2, Wind, Utensils, Brain } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { pingBackend } from "@/lib/ml-api";
 import { useToast } from "@/hooks/use-toast";
 import { useDevice } from "@/hooks/use-device";
 
@@ -223,6 +224,7 @@ export default function StudySession() {
   const [surveyQ2, setSurveyQ2] = useState<number | null>(null);
   const [surveyQ3, setSurveyQ3] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [backendReady, setBackendReady] = useState<boolean | null>(null);
 
   // Phase timer flags
   const [baselineActive, setBaselineActive] = useState(false);
@@ -257,6 +259,14 @@ export default function StudySession() {
       setIsStarting(false);
     }
   }, [participantCode]);
+
+  // ── Warm up ML backend when muse-pair screen appears ─────────────────────
+
+  useEffect(() => {
+    if (phase !== "muse-pair") return;
+    setBackendReady(null);
+    pingBackend().then((ok) => setBackendReady(ok));
+  }, [phase]);
 
   // ── Auto-start on Muse connect ────────────────────────────────────────────
 
@@ -492,8 +502,9 @@ export default function StudySession() {
 
   // Muse pair screen
   if (phase === "muse-pair") {
-    const isConnecting = deviceState === "connecting";
-    const isConnected  = deviceState === "connected" || deviceState === "streaming";
+    const isConnecting   = deviceState === "connecting";
+    const isConnected    = deviceState === "connected" || deviceState === "streaming";
+    const backendChecking = backendReady === null;
 
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
@@ -508,6 +519,19 @@ export default function StudySession() {
 
           <Card>
             <CardContent className="pt-6 space-y-4">
+              {/* Backend warm-up status */}
+              {backendChecking && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Waking up ML backend…
+                </div>
+              )}
+              {backendReady === false && (
+                <p className="text-xs text-amber-400">
+                  ML backend unreachable. Check your backend URL in Settings or start it locally.
+                </p>
+              )}
+
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Device status</span>
                 <Badge variant="outline" className={isConnected ? "border-green-500/50 text-green-400" : "border-muted"}>
@@ -516,7 +540,7 @@ export default function StudySession() {
               </div>
 
               {!isConnected && (
-                <Button className="w-full" disabled={isConnecting}
+                <Button className="w-full" disabled={isConnecting || backendChecking}
                   onClick={() => connect("muse_2")}>
                   {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting…</> : <><Bluetooth className="mr-2 h-4 w-4" />Pair Muse 2</>}
                 </Button>
