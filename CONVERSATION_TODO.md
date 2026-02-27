@@ -34,12 +34,12 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 ## SECTION 3: App Feature Gaps (missing pages / features)
 
 - [x] Daily Brain Report page (`/brain-report`) — DONE. Full page with sleep summary, focus forecast, yesterday's insight, recommended action, weekly brain summary, pattern engine, streak counter.
-- [ ] Intervention engine — real-time closed loop. When stress crosses threshold → auto-trigger music recommendation OR breathing exercise OR food suggestion. Build as `ml/api/routes/interventions.py` + frontend notification banner.
-- [ ] Music intervention — Spotify / Apple Music API: when stress HIGH, suggest calming playlist. When focus LOW, suggest focus music (binaural beats). Log which songs actually reduced stress.
-- [ ] Breathing intervention — when stress HIGH for >60 seconds, auto-open biofeedback breathing screen with push notification. Currently biofeedback is manual-only.
-- [ ] Food intervention — based on `minutes_since_last_meal` + stress: "You haven't eaten in 4 hours and your stress is rising — have a protein snack, not sugar." Novel feature, nobody else has this.
-- [ ] Intervention outcome tracking — after triggering an intervention, measure stress 5 min later. Log: what worked, what didn't. Feeds back into personalization.
-- [ ] Yesterday's Insight card on Daily Brain Report — "Focus was 23% higher after your 11am walk." Needs pattern detection across sessions.
+- [x] Intervention engine — real-time closed loop. When stress crosses threshold → auto-trigger music recommendation OR breathing exercise OR food suggestion. Build as `ml/api/routes/interventions.py` + frontend notification banner. DONE. 7 API endpoints, per-user state, 10-min cooldown, 5 intervention types (breathing/music_calm/music_focus/food/walk). InterventionBanner polls every 30s; slide-in card with action + snooze.
+- [x] Music intervention — No Spotify API keys needed. 6 curated playlists (3 calm, 3 focus) in biofeedback Music tab. Auto-selected via ?tab=music&mood=calm|focus URL param. Each card links to Spotify + YouTube, shows BPM and science citation.
+- [x] Breathing intervention — biofeedback page now accepts ?protocol=coherence&auto=true, auto-selects exercise, auto-starts session. Intervention banner deep-links directly.
+- [x] Food intervention — backend logic in interventions.py (4-hr meal gap + stress ≥ 0.45 → food card). Banner navigates to /food?alert=protein_snack.
+- [x] Intervention outcome tracking — biofeedback session stop schedules a 5-min delayed POST /interventions/outcome with stress_after. GET /interventions/effectiveness/{user_id} aggregates which types worked.
+- [x] Yesterday's Insight card on Daily Brain Report — DONE. New GET /api/brain/yesterday-insights/:userId endpoint cross-correlates 48h of emotion readings with biofeedback session times. Generates "Focus was 31% higher after your 3pm breathing session" and day-vs-day comparisons. Card shows up to 3 ranked insights; falls back to client-side heuristic when DB has no data.
 - [ ] Personal records gamification — "New focus record: 47 min — beat it?" Show streaks on dashboard. Motivates daily use.
 - [ ] Sleep session mode — tap to enter sleep mode: screen dims, Muse streams overnight, morning shows sleep report. Currently sleep data is simulated.
 - [ ] Just-in-time push notifications — server-side trigger (not scheduled). Fire when brain state needs action, not on a timer.

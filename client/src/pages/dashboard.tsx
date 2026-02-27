@@ -20,9 +20,11 @@ import {
   MemoryStick,
   Wind,
   TrendingUp,
+  TrendingDown,
   Trophy,
   Clock,
   Flame,
+  Star,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import {
@@ -62,6 +64,55 @@ function currentStreak(sessions: SessionSummary[]): number {
     checkTs -= dayMs;
   }
   return streak;
+}
+
+/** All-time longest consecutive-day streak across all sessions. */
+function longestEverStreak(sessions: SessionSummary[]): number {
+  if (sessions.length === 0) return 0;
+  const dayMs = 86_400_000;
+  const daySet = new Set(
+    sessions.map((s) => {
+      const d = new Date((s.start_time ?? 0) * 1000);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }),
+  );
+  const sorted = Array.from(daySet).sort((a, b) => a - b);
+  let best = 1;
+  let current = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] - sorted[i - 1] === dayMs) {
+      current++;
+      best = Math.max(best, current);
+    } else {
+      current = 1;
+    }
+  }
+  return best;
+}
+
+/** Focus trend: compares avg focus of last 7 sessions vs prior 7. */
+function focusTrend(sessions: SessionSummary[]): "up" | "down" | "stable" {
+  const withData = sessions.filter((s) => (s.summary?.n_frames ?? 0) > 0);
+  if (withData.length < 4) return "stable";
+  const recent = withData.slice(-7);
+  const prior  = withData.slice(-14, -7);
+  const mean = (arr: SessionSummary[]) =>
+    arr.reduce((s, x) => s + (x.summary?.avg_focus ?? 0), 0) / arr.length;
+  const rMean = mean(recent);
+  const pMean = prior.length > 0 ? mean(prior) : rMean;
+  const delta = pMean > 0 ? (rMean - pMean) / pMean * 100 : 0;
+  if (delta >  6) return "up";
+  if (delta < -6) return "down";
+  return "stable";
+}
+
+/** Next streak milestone above current streak. */
+function nextMilestone(streak: number): number {
+  for (const m of [3, 7, 14, 21, 30, 60, 100]) {
+    if (streak < m) return m;
+  }
+  return streak + 10;
 }
 
 const EMOTION_LABELS: Record<string, string> = {
@@ -427,6 +478,23 @@ export default function Dashboard() {
     (m, s) => Math.max(m, Math.round((s.summary?.duration_sec ?? 0) / 60)),
     0,
   );
+  const bestStreak  = longestEverStreak(allSessions);
+  const trend       = focusTrend(sessionsWithData);
+  const milestone   = nextMilestone(streak);
+  const totalSessions = sessionsWithData.length;
+
+  // New-record celebration — fires once when live focus exceeds all-time peak
+  const [newFocusRecord, setNewFocusRecord] = useState(false);
+  const recordTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!isStreaming || peakFocus === 0) { recordTriggeredRef.current = false; return; }
+    if (focusIndex > peakFocus && !recordTriggeredRef.current) {
+      recordTriggeredRef.current = true;
+      setNewFocusRecord(true);
+      setTimeout(() => setNewFocusRecord(false), 6000);
+    }
+    if (!isStreaming) recordTriggeredRef.current = false;
+  }, [focusIndex, peakFocus, isStreaming]);
 
   return (
     <main className="p-6 space-y-6 max-w-6xl">
@@ -534,52 +602,115 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {/* Personal Records */}
-          {sessionsWithData.length >= 2 && (
-            <Card className="glass-card p-4 hover-glow">
+          {/* Personal Records — gamified */}
+          {sessionsWithData.length >= 1 && (
+            <Card className={`glass-card p-4 hover-glow transition-all ${newFocusRecord ? "ring-2 ring-emerald-400/50" : ""}`}>
+              {/* Header */}
               <div className="flex items-center gap-2 mb-3">
                 <Trophy className="h-4 w-4 text-amber-400" />
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Personal Records</p>
-                {streak >= 3 && (
-                  <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-orange-400">
-                    <Flame className="h-3 w-3" />{streak}d
+                {trend !== "stable" && (
+                  <span className="ml-auto">
+                    {trend === "up"
+                      ? <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                      : <TrendingDown className="h-3.5 w-3.5 text-red-400" />}
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-4 gap-2">
-                <div className="text-center">
-                  <p className="text-xl font-bold text-primary font-mono">{peakFocus}%</p>
-                  <p className="text-[10px] text-muted-foreground">Peak Focus</p>
+
+              {/* New record celebration banner */}
+              {newFocusRecord && (
+                <div className="mb-3 px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center gap-2 animate-pulse">
+                  <Star className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  <p className="text-xs font-bold text-emerald-400">New focus record this session — keep going!</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-xl font-bold text-success font-mono">{peakFlow}%</p>
-                  <p className="text-[10px] text-muted-foreground">Best Flow</p>
+              )}
+
+              {/* Record rows */}
+              <div className="space-y-2.5">
+                {/* Focus */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-lg font-bold font-mono leading-none ${newFocusRecord ? "text-emerald-400" : "text-primary"}`}>
+                      {peakFocus > 0 ? `${peakFocus}%` : "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Peak focus</p>
+                  </div>
+                  {peakFocus > 0 && (
+                    isStreaming && focusIndex > 0 ? (
+                      <span className={`text-[11px] font-medium ${
+                        focusIndex >= peakFocus
+                          ? "text-emerald-400 font-bold"
+                          : focusIndex >= peakFocus * 0.9
+                          ? "text-amber-400"
+                          : "text-muted-foreground/60"
+                      }`}>
+                        {focusIndex >= peakFocus
+                          ? "Record broken!"
+                          : focusIndex >= peakFocus * 0.9
+                          ? `${Math.round(peakFocus - focusIndex)}% to beat`
+                          : `Beat ${peakFocus}%?`}
+                      </span>
+                    ) : (
+                      <Link href="/brain-monitor"
+                        className="text-[10px] text-muted-foreground/50 hover:text-primary transition-colors">
+                        Beat {peakFocus}%? →
+                      </Link>
+                    )
+                  )}
                 </div>
-                <div className="text-center">
-                  <p className="text-xl font-bold text-secondary font-mono">{longestSession}m</p>
-                  <p className="text-[10px] text-muted-foreground">Longest</p>
+
+                {/* Flow */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-lg font-bold font-mono text-success leading-none">
+                      {peakFlow > 0 ? `${peakFlow}%` : "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Best flow</p>
+                  </div>
+                  {peakFlow > 0 && (
+                    <Link href="/neurofeedback"
+                      className="text-[10px] text-muted-foreground/50 hover:text-success transition-colors">
+                      Beat {peakFlow}%? →
+                    </Link>
+                  )}
                 </div>
-                <div className="text-center">
-                  <p className={`text-xl font-bold font-mono ${streak >= 7 ? "text-orange-400" : streak >= 3 ? "text-amber-400" : "text-muted-foreground"}`}>
-                    {streak}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground flex items-center justify-center gap-0.5">
-                    {streak >= 3 && <Flame className="h-2.5 w-2.5 text-orange-400" />}Streak
-                  </p>
+
+                {/* Longest session */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-lg font-bold font-mono text-secondary leading-none">
+                      {longestSession > 0 ? `${longestSession}m` : "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Longest session</p>
+                  </div>
+                  {longestSession > 0 && (
+                    <Link href="/emotions"
+                      className="text-[10px] text-muted-foreground/50 hover:text-secondary transition-colors">
+                      Beat {longestSession}m? →
+                    </Link>
+                  )}
                 </div>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2 text-center">
-                Across {sessionsWithData.length} sessions
-              </p>
-              {isStreaming && focusIndex > 0 && (
-                <p className={`text-[10px] text-center mt-1 font-medium ${focusIndex >= peakFocus ? "text-emerald-400" : focusIndex >= peakFocus * 0.85 ? "text-amber-400" : "text-muted-foreground/50"}`}>
-                  {focusIndex >= peakFocus
-                    ? "Focus record this session — keep going"
-                    : focusIndex >= peakFocus * 0.85
-                    ? `${Math.round(peakFocus - focusIndex)}% from your focus record`
-                    : `Live focus: ${Math.round(focusIndex)}%`}
-                </p>
-              )}
+
+              {/* Streak section */}
+              <div className="mt-3 pt-3 border-t border-border/20 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Flame className={`h-3.5 w-3.5 ${streak >= 7 ? "text-orange-400" : streak >= 3 ? "text-amber-400" : "text-muted-foreground/40"}`} />
+                  <span className={`text-sm font-bold font-mono ${streak >= 7 ? "text-orange-400" : streak >= 3 ? "text-amber-400" : "text-muted-foreground"}`}>
+                    {streak}d
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">streak</span>
+                  {bestStreak > streak && (
+                    <span className="text-[10px] text-muted-foreground/50">· best {bestStreak}d</span>
+                  )}
+                </div>
+                <span className="text-[10px] text-muted-foreground/60">
+                  {streak < milestone
+                    ? `${milestone - streak} more → ${milestone}d goal`
+                    : `${totalSessions} sessions total`}
+                </span>
+              </div>
             </Card>
           )}
         </div>
