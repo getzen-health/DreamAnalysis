@@ -1,123 +1,41 @@
-import { useState, useEffect, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { ChartTooltip } from "@/components/chart-tooltip";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from "recharts";
-import { Brain, Heart, Activity, TrendingUp, Zap, Radio, Smile, Clock, AlertTriangle, SlidersHorizontal, X, Layers } from "lucide-react";
-import { EmotionWheel } from "@/components/emotion-wheel";
-import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { useDevice } from "@/hooks/use-device";
-import { listSessions, getBaselineStatus, getMultimodalStatus, type SessionSummary, type MultimodalStatus } from "@/lib/ml-api";
-
-/* ---------- constants ---------- */
-const PERIOD_TABS = [
-  { label: "Today", days: 1 },
-  { label: "Week", days: 7 },
-  { label: "Month", days: 30 },
-  { label: "3 Months", days: 90 },
-  { label: "Year", days: 365 },
-];
-
-/* ---------- types ---------- */
-interface EmotionState {
-  emotion: string;
-  confidence: number;
-  valence: number;
-  arousal: number;
-  stress_index: number;
-  focus_index: number;
-  relaxation_index: number;
-  band_powers: Record<string, number>;
-  probabilities: Record<string, number>;
-}
-
-interface HistoryEntry extends EmotionState {
-  time: string;
-}
-
-interface SessionPoint {
-  date: string;
-  stress_index: number;
-  focus_index: number;
-  relaxation_index: number;
-}
-
-interface VAPoint {
-  valence: number;
-  arousal: number;
-  emotion: string;
-  size: number;
-}
-
-/** Per-frame live band-power point (updates every ~1.5 s) */
-interface LivePoint {
-  time: string;
-  calm: number;    // alpha power % of total — higher = more relaxed
-  alert: number;   // beta power % of total  — higher = more active/focused
-  creative: number;// theta power % of total — higher = creative/drowsy
-}
 
 /* ---------- helpers ---------- */
-function avgNums(arr: number[]): number {
-  return arr.length ? parseFloat((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : 0;
-}
 
-// 1. Smarter emotion label based on band powers + raw emotion
-function getSmartEmotionLabel(emotion: string, bands: Record<string, number>): string {
+const EMOTION_EMOJI: Record<string, string> = {
+  happy:   "😊",
+  sad:     "😔",
+  angry:   "😠",
+  fearful: "😨",
+  relaxed: "😌",
+  focused: "🎯",
+  neutral: "😶",
+  surprise:"😲",
+};
+
+function getSmartLabel(emotion: string, bands: Record<string, number>): string {
   const alpha = bands.alpha ?? 0;
   const beta  = bands.beta  ?? 0;
   const theta = bands.theta ?? 0;
-  if (theta > 0.35 && beta < 0.22)  return "Drifting / Meditative";
+  if (theta > 0.35 && beta < 0.22)  return "Drifting · Meditative";
   if (alpha > 0.35 && beta < 0.12)  return "Calm & Resting";
   if (alpha > 0.25 && beta > 0.22)  return "Focused Calm";
   if (beta  > 0.35 && alpha < 0.15) return "Alert & Active";
   if (alpha > 0.20 && theta > 0.25) return "Relaxed & Dreamy";
-  if (emotion === "relaxed")  return "Relaxed & At Ease";
-  if (emotion === "focused")  return "Mentally Engaged";
-  if (emotion === "happy")    return "Positive & Uplifted";
-  if (emotion === "sad")      return "Low & Withdrawn";
-  if (emotion === "angry")    return "Tense & Activated";
-  if (emotion === "fearful")  return "Anxious & On-Edge";
-  return "Neutral State";
+  const map: Record<string, string> = {
+    relaxed: "Relaxed & At Ease",
+    focused: "Mentally Engaged",
+    happy:   "Positive & Uplifted",
+    sad:     "Low & Withdrawn",
+    angry:   "Tense & Activated",
+    fearful: "Anxious & On-Edge",
+  };
+  return map[emotion] ?? "Neutral State";
 }
 
-// 2. One-line brain state description from band powers
-function getBrainStateDesc(bands: Record<string, number>): string {
-  const alpha = bands.alpha ?? 0;
-  const beta  = bands.beta  ?? 0;
-  const theta = bands.theta ?? 0;
-  const gamma = bands.gamma ?? 0;
-  const parts: string[] = [];
-  if (alpha > 0.3)       parts.push("high alpha");
-  else if (alpha > 0.15) parts.push("moderate alpha");
-  else                   parts.push("low alpha");
-  if (beta > 0.25)       parts.push("elevated beta");
-  else if (beta > 0.12)  parts.push("moderate beta");
-  if (theta > 0.35)      parts.push("high theta");
-  else if (theta > 0.2)  parts.push("moderate theta");
-  if (gamma > 0.05)      parts.push("some gamma");
-  const interpretation =
-    alpha > 0.35 && beta < 0.12  ? "calm resting state" :
-    theta > 0.35 && beta < 0.15  ? "drowsy / meditative" :
-    beta  > 0.3  && alpha < 0.15 ? "highly activated cortex" :
-    alpha > 0.2  && beta > 0.2   ? "balanced active-calm" :
-                                   "transitional brain state";
-  return parts.join(", ") + " — " + interpretation;
-}
-
-// 3. Confidence → color + label
-function getConfidenceStyle(confidence: number): { color: string; label: string } {
-  if (confidence >= 0.40) return { color: "hsl(152, 60%, 45%)", label: "High confidence" };
-  if (confidence >= 0.30) return { color: "hsl(38, 85%, 55%)",  label: "Moderate confidence" };
-  return                         { color: "hsl(220, 12%, 55%)", label: "Low confidence — neutral" };
-}
-
-// 4. Plain-English valence
-function getValenceLabel(valence: number): string {
+function moodLine(valence: number): string {
   if (valence >  0.5) return "Very positive mood";
   if (valence >  0.2) return "Positive mood";
   if (valence > -0.2) return "Neutral mood";
@@ -125,828 +43,182 @@ function getValenceLabel(valence: number): string {
   return "Negative mood";
 }
 
-// 5. Plain-English arousal
-function getArousalLabel(arousal: number): string {
-  if (arousal > 0.70) return "High activation";
-  if (arousal > 0.50) return "Moderate activation";
-  if (arousal > 0.30) return "Low-moderate · calm";
-  return "Very low · deeply relaxed";
+interface BarProps { label: string; value: number; color: string }
+function Bar({ label, value, color }: BarProps) {
+  const pct = Math.round(Math.max(0, Math.min(100, value)));
+  const intensity =
+    pct >= 70 ? "HIGH" : pct >= 40 ? "MED" : "LOW";
+  const badgeColor =
+    pct >= 70 ? "text-red-400 bg-red-500/10 border-red-500/30" :
+    pct >= 40 ? "text-amber-400 bg-amber-500/10 border-amber-500/30" :
+               "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${badgeColor}`}>
+          {intensity}
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${pct}%`, background: color }}
+        />
+      </div>
+    </div>
+  );
 }
 
-// Emoji for each emotion
-const EMOTION_EMOJI: Record<string, string> = {
-  happy: "😊", sad: "😔", angry: "😠", fearful: "😨",
-  relaxed: "😌", focused: "🎯", neutral: "😶",
-};
+/* ---------- component ---------- */
 
-function buildEmotionChartData(sessions: SessionSummary[], days: number): SessionPoint[] {
-  const map: Record<
-    string,
-    { stress: number[]; focus: number[]; relaxation: number[]; ts: number }
-  > = {};
-
-  for (const s of sessions) {
-    if (s.summary?.avg_focus == null) continue;
-    const d = new Date((s.start_time ?? 0) * 1000);
-    let key: string;
-    let ts: number;
-
-    if (days <= 1) {
-      key = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      ts = d.getTime();
-    } else if (days <= 7) {
-      key = d.toLocaleDateString("en-US", { weekday: "short" });
-      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    } else if (days <= 30) {
-      key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    } else if (days <= 90) {
-      const ws = new Date(d);
-      ws.setDate(d.getDate() - d.getDay());
-      key = ws.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      ts = ws.getTime();
-    } else {
-      key = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-      ts = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-    }
-
-    if (!map[key]) map[key] = { stress: [], focus: [], relaxation: [], ts };
-    map[key].stress.push((s.summary.avg_stress ?? 0) * 100);
-    map[key].focus.push((s.summary.avg_focus ?? 0) * 100);
-    map[key].relaxation.push((s.summary.avg_relaxation ?? 0) * 100);
-  }
-
-  return Object.entries(map)
-    .sort(([, a], [, b]) => a.ts - b.ts)
-    .map(([date, data]) => ({
-      date,
-      stress_index: Math.round(avgNums(data.stress)),
-      focus_index: Math.round(avgNums(data.focus)),
-      relaxation_index: Math.round(avgNums(data.relaxation)),
-    }));
+interface HistoryItem {
+  emotion: string;
+  label: string;
+  time: string;
+  confidence: number;
 }
 
-/* ========== Component ========== */
 export default function EmotionLab() {
-  const [, navigate] = useLocation();
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
-  const analysis = latestFrame?.analysis;
+  const analysis    = latestFrame?.analysis;
+  const emotions    = analysis?.emotions;
+  const bandPowers  = analysis?.band_powers ?? {};
 
-  // Signal quality — gate readings if headset is poorly seated
-  const rawQuality = latestFrame?.quality as Record<string, unknown> | undefined;
-  const sqi = rawQuality
-    ? ((rawQuality.sqi as number) ?? (rawQuality.quality_score as number) ?? 0) * 100
-    : null;
-  const artifacts = (rawQuality?.artifacts_detected as string[]) ?? [];
-  const signalPoor = sqi !== null && sqi < 60;   // warn
-  const signalBlocked = sqi !== null && sqi < 40; // block readings
-
-  const [periodDays, setPeriodDays] = useState(1);
-  const isLiveToday = periodDays === 1;
-
-  // Calibration banner — check once on mount, dismissable per session
-  const [calBannerDismissed, setCalBannerDismissed] = useState(
-    () => sessionStorage.getItem("cal-banner-dismissed") === "1"
-  );
-  const { data: calStatus } = useQuery({
-    queryKey: ["baseline-status"],
-    queryFn: () => getBaselineStatus("default"),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-  const showCalBanner = !calBannerDismissed && calStatus != null && !calStatus.ready;
-
-  // Multimodal model status
-  const { data: mmStatus } = useQuery<MultimodalStatus>({
-    queryKey: ["multimodal-status"],
-    queryFn: getMultimodalStatus,
-    staleTime: 60 * 1000,
-    retry: false,
-  });
-
-  // Emotion window history — last 5 thirty-second results
-  const [emotionWindowHistory, setEmotionWindowHistory] = useState<
-    Array<{ emotion: string; label: string; confidence: number; time: string }>
-  >([]);
-
-  // User correction state — "Was this right?"
-  const [correctionSent, setCorrectionSent] = useState<string | null>(null); // which emotion was confirmed/corrected
-
-  // Sessions query
-  const { data: allSessions = [] } = useQuery<SessionSummary[]>({
-    queryKey: ["sessions"],
-    queryFn: () => listSessions(),
-    retry: false,
-    staleTime: 2 * 60 * 1000,
-    refetchInterval: 60_000,
-  });
-
-  // Build current emotion from live Muse 2 data
-  const emotions = analysis?.emotions;
-  const bandPowers = analysis?.band_powers ?? {};
-
-  // emotion is null while the 30s buffer is still filling — show calibrating state
-  const emotionReady = !emotions || emotions.ready !== false || emotions.emotion != null;
+  // Is the 30-second buffer still filling?
   const bufferedSec = emotions?.buffered_sec ?? 0;
-  const windowSec = emotions?.window_sec ?? 30;
+  const windowSec   = emotions?.window_sec ?? 30;
+  const emotionReady = !emotions || emotions.ready !== false || emotions.emotion != null;
 
-  const currentEmotion: EmotionState = emotions && emotionReady
-    ? {
-        emotion: emotions.emotion ?? "unknown",
-        confidence: emotions.confidence ?? 0,
-        valence: emotions.valence ?? 0,
-        arousal: emotions.arousal ?? 0,
-        stress_index: (emotions.stress_index ?? 0) * 100,
-        focus_index: (emotions.focus_index ?? 0) * 100,
-        relaxation_index: (emotions.relaxation_index ?? 0) * 100,
-        band_powers: bandPowers,
-        probabilities: emotions.probabilities ?? {},
-      }
-    : {
-        emotion: emotions ? `Buffering ${bufferedSec}s / ${windowSec}s` : "—",
-        confidence: 0,
-        valence: 0,
-        arousal: 0,
-        stress_index: 0,
-        focus_index: 0,
-        relaxation_index: 0,
-        band_powers: {},
-        probabilities: {},
-      };
+  // Current values
+  const emotion      = emotionReady ? (emotions?.emotion ?? "neutral") : "neutral";
+  const confidence   = emotions?.confidence ?? 0;
+  const stress       = (emotions?.stress_index     ?? 0) * 100;
+  const focus        = (emotions?.focus_index      ?? 0) * 100;
+  const relaxation   = (emotions?.relaxation_index ?? 0) * 100;
+  const valence      = emotions?.valence ?? 0;
 
-  // Accumulate live history (every frame) — used for V-A circumplex trail
-  const [emotionHistory, setEmotionHistory] = useState<HistoryEntry[]>([]);
+  const label   = getSmartLabel(emotion, bandPowers);
+  const emoji   = EMOTION_EMOJI[emotion] ?? "🧠";
 
-  useEffect(() => {
-    if (!isStreaming || !emotions) return;
-    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    setEmotionHistory((prev) => [
-      ...prev.slice(-60),
-      { ...currentEmotion, time: now },
-    ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestFrame?.timestamp]);
+  // Confidence ring color
+  const confColor =
+    confidence >= 0.40 ? "hsl(152, 60%, 45%)" :
+    confidence >= 0.30 ? "hsl(38, 85%, 55%)"  :
+                         "hsl(220, 12%, 50%)";
 
-  // Per-frame live band-power timeline — changes every ~1.5 s regardless of emotion window
-  const [liveTimeline, setLiveTimeline] = useState<LivePoint[]>([]);
-  useEffect(() => {
-    if (!isStreaming || !analysis?.band_powers) return;
-    const bp = analysis.band_powers;
-    // band_powers values are already 0-1 fractions of total power
-    const total = (bp.delta ?? 0) + (bp.theta ?? 0) + (bp.alpha ?? 0) +
-                  (bp.beta ?? 0) + (bp.gamma ?? 0) + 0.001;
-    const calm     = Math.round(Math.min(100, (bp.alpha ?? 0) / total * 100));
-    const alert    = Math.round(Math.min(100, (bp.beta  ?? 0) / total * 100));
-    const creative = Math.round(Math.min(100, (bp.theta ?? 0) / total * 100));
-    const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    setLiveTimeline((prev) => [...prev.slice(-80), { time: now, calm, alert, creative }]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestFrame?.timestamp]);
+  // History — last 5 distinct emotion changes (updated every 30s window)
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
-  // Track 30s emotion window changes
   useEffect(() => {
     if (!emotions?.ready || !emotions?.emotion) return;
     const now = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    const label = getSmartEmotionLabel(emotions.emotion, emotions.band_powers ?? {});
-    setEmotionWindowHistory((prev) => {
-      // Only add if emotion actually changed or first entry
+    const newLabel = getSmartLabel(emotions.emotion, emotions.band_powers ?? {});
+    setHistory((prev) => {
       const last = prev[prev.length - 1];
-      if (last?.label === label && last?.emotion === emotions.emotion) return prev;
-      return [...prev.slice(-4), { emotion: emotions.emotion!, label, confidence: emotions.confidence, time: now }];
+      if (last?.label === newLabel && last?.emotion === emotions.emotion) return prev;
+      return [
+        ...prev.slice(-4),
+        { emotion: emotions.emotion!, label: newLabel, time: now, confidence: emotions.confidence },
+      ];
     });
-    // Reset correction prompt for the new window
-    setCorrectionSent(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emotions?.emotion, emotions?.ready]);
 
-  // Build period-filtered session data
-  const cutoff = Date.now() / 1000 - periodDays * 86400;
-  const periodSessions = allSessions.filter((s) => (s.start_time ?? 0) >= cutoff);
-  const sessionChartData = buildEmotionChartData(periodSessions, periodDays);
-
-  // Timeline chart data
-  const liveNow: HistoryEntry | null = isLiveToday && isStreaming
-    ? { ...currentEmotion, time: "Now" }
-    : null;
-  const todayTimeline = liveNow ? [...emotionHistory.slice(-30), liveNow] : emotionHistory.slice(-30);
-  const timelineData = isLiveToday ? todayTimeline : sessionChartData;
-  const timelineDataKey = isLiveToday ? "time" : "date";
-  const hasTimelineData = timelineData.length >= 1;
-
-  // V-A scatter data
-  const liveVaData: VAPoint[] = emotionHistory.map((e, i) => ({
-    valence: e.valence,
-    arousal: e.arousal,
-    emotion: e.emotion,
-    size: 30 + i * 2,
-  }));
-
-  const historicalVaData: VAPoint[] = periodSessions.map((s, i) => ({
-    valence: s.summary.avg_valence ?? 0,
-    arousal: s.summary.avg_arousal ?? 0,
-    emotion: s.summary.dominant_emotion ?? "",
-    size: 80,
-  }));
-
-  const vaData = isLiveToday ? liveVaData : historicalVaData;
-  const hasVaData = vaData.length >= 1;
-
   return (
-    <main className="p-6 space-y-6 max-w-5xl">
-      {/* Connection status */}
-      {!isStreaming && (
-        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
-          <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 from the sidebar to see live emotion data.
-        </div>
-      )}
+    <div className="max-w-lg mx-auto px-4 py-8 space-y-4">
 
-      {/* Calibration banner — shown when baseline not yet collected */}
-      {showCalBanner && (
-        <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/8 flex items-center gap-3">
-          <SlidersHorizontal className="h-4 w-4 text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-200 flex-1">
-            <strong>Calibrate first</strong> for up to +29% emotion accuracy — takes 2 minutes and works without a headset.
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => navigate("/calibration")}
-            className="border-amber-500/40 text-amber-300 hover:bg-amber-500/15 text-xs h-7 shrink-0"
-          >
-            Calibrate →
-          </Button>
-          <button
-            onClick={() => {
-              setCalBannerDismissed(true);
-              sessionStorage.setItem("cal-banner-dismissed", "1");
-            }}
-            className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-            aria-label="Dismiss"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      {/* ── Card 1: Right now ─────────────────────────────────────────────── */}
+      <Card className="p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-4">
+          Right now
+        </p>
 
-      {/* Signal quality gate — shown when streaming with poor contact */}
-      {isStreaming && signalBlocked && (
-        <div className="p-4 rounded-xl border border-destructive/40 bg-destructive/8 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-destructive">Signal too poor to measure</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              SQI {sqi?.toFixed(0)}% — adjust the headset and press each electrode firmly against your skin. Readings will resume when signal improves.
+        {!isStreaming ? (
+          /* No device */
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <div className="text-5xl">🧠</div>
+            <p className="text-sm font-medium">Connect your device</p>
+            <p className="text-xs text-muted-foreground max-w-[220px]">
+              Attach your Muse 2 from the sidebar to see live emotion detection.
             </p>
           </div>
-          <SignalQualityBadge sqi={sqi ?? 0} artifacts={artifacts} compact />
-        </div>
-      )}
-      {isStreaming && signalPoor && !signalBlocked && (
-        <div className="p-3 rounded-xl border border-warning/30 bg-warning/5 flex items-center gap-3">
-          <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
-          <p className="text-xs text-warning flex-1">
-            Fair signal quality (SQI {sqi?.toFixed(0)}%) — readings may be inaccurate. Check headset fit.
-          </p>
-          <SignalQualityBadge sqi={sqi ?? 0} artifacts={artifacts} compact />
-        </div>
-      )}
-
-      {/* Top Row — Emotion Wheel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Emotion Wheel */}
-        <Card className="glass-card p-6">
-          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
-            <Heart className="h-4 w-4 text-primary" />
-            Current Emotion
-            {isStreaming && (
-              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
-            )}
-          </h3>
-
-          {signalBlocked ? (
-            <div className="flex flex-col items-center justify-center h-48 gap-3">
-              <AlertTriangle className="h-8 w-8 text-destructive" />
-              <p className="text-sm text-destructive font-medium">Signal blocked</p>
-              <p className="text-xs text-muted-foreground text-center px-4">
-                Adjust headset and press each electrode firmly against your skin.
-              </p>
-            </div>
-          ) : !emotionReady && emotions ? (
-            <div className="flex flex-col items-center justify-center h-48 gap-3">
-              <div className="text-4xl animate-pulse">🧠</div>
-              <p className="text-sm text-muted-foreground">Buffering EEG data…</p>
-              <div className="w-40 h-2 rounded-full bg-muted overflow-hidden">
-                <div className="h-full bg-primary transition-all duration-1000"
-                  style={{ width: `${Math.min(100, (bufferedSec / windowSec) * 100)}%` }} />
-              </div>
-              <p className="text-xs text-muted-foreground font-mono">{bufferedSec}s / {windowSec}s</p>
-            </div>
-          ) : (
-            <>
-              <EmotionWheel
-                probabilities={currentEmotion.probabilities}
-                dominantEmotion={currentEmotion.emotion}
-                confidence={currentEmotion.confidence}
+        ) : !emotionReady ? (
+          /* Buffering */
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <div className="text-5xl animate-pulse">🧠</div>
+            <p className="text-sm font-medium">Calibrating…</p>
+            <div className="w-40 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-1000"
+                style={{ width: `${Math.round((bufferedSec / windowSec) * 100)}%` }}
               />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {bufferedSec}s of {windowSec}s collected
+            </p>
+          </div>
+        ) : (
+          /* Live emotion */
+          <div className="space-y-5">
+            {/* Emotion display */}
+            <div className="flex items-center gap-4">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+                style={{ background: `${confColor}18`, border: `2px solid ${confColor}50` }}
+              >
+                {emoji}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-lg font-semibold leading-tight">{label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{moodLine(valence)}</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-1">
+                  {Math.round(confidence * 100)}% confidence
+                </p>
+              </div>
+            </div>
 
-              {emotionReady && currentEmotion.emotion && currentEmotion.emotion !== "—" && (() => {
-                const smartLabel = getSmartEmotionLabel(currentEmotion.emotion, currentEmotion.band_powers);
-                const confStyle  = getConfidenceStyle(currentEmotion.confidence);
-                const emoji      = EMOTION_EMOJI[currentEmotion.emotion] ?? "🧠";
-                const stateDesc  = getBrainStateDesc(currentEmotion.band_powers);
-                return (
-                  <div className="mt-3 space-y-2">
-                    {/* Smart label + confidence badge */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-foreground">
-                        {emoji} {smartLabel}
-                      </span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full"
-                        style={{ background: confStyle.color + "22", color: confStyle.color }}>
-                        {confStyle.label}
-                      </span>
-                    </div>
-                    {/* Brain state description */}
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">{stateDesc}</p>
-                    {/* Compact stress/focus/relaxation chips */}
-                    <div className="flex gap-3 text-[10px] font-mono pt-1">
-                      <span className="text-warning">Stress {Math.round(currentEmotion.stress_index)}%</span>
-                      <span className="text-primary">Focus {Math.round(currentEmotion.focus_index)}%</span>
-                      <span className="text-success">Relax {Math.round(currentEmotion.relaxation_index)}%</span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Emotion window history — last 5 thirty-second windows */}
-              {emotionWindowHistory.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-border">
-                  <p className="text-[10px] text-muted-foreground mb-2">30s window history</p>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {emotionWindowHistory.map((w, i) => {
-                      const isLatest = i === emotionWindowHistory.length - 1;
-                      const emoji = EMOTION_EMOJI[w.emotion] ?? "🧠";
-                      return (
-                        <div key={i}
-                          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-center"
-                          style={{ background: isLatest ? "hsl(152,60%,40%,0.15)" : "hsl(220,14%,15%)" }}>
-                          <span className="text-sm">{emoji}</span>
-                          <span className="text-[9px] text-muted-foreground leading-none">{w.time}</span>
-                          <span className="text-[9px] font-medium capitalize leading-none"
-                            style={{ color: isLatest ? "hsl(152,60%,55%)" : undefined }}>
-                            {w.emotion}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Was this right? — user label correction */}
-              {emotionReady && currentEmotion.emotion && currentEmotion.emotion !== "—" && isStreaming && (
-                <div className="mt-3 pt-3 border-t border-border/50">
-                  {correctionSent ? (
-                    <p className="text-[10px] text-success flex items-center gap-1">
-                      <span>✓</span>
-                      {correctionSent === currentEmotion.emotion
-                        ? "Confirmed — model learns from your feedback"
-                        : `Corrected to ${correctionSent} — model will adapt`}
-                    </p>
-                  ) : (
-                    <>
-                      <p className="text-[10px] text-muted-foreground mb-2">
-                        Was this right?
-                      </p>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {Object.entries(EMOTION_EMOJI).map(([em, emoji]) => {
-                          const isDetected = em === currentEmotion.emotion;
-                          return (
-                            <button
-                              key={em}
-                              onClick={async () => {
-                                setCorrectionSent(em);
-                                // Best-effort POST to ML backend for online learner
-                                try {
-                                  await fetch("/api/emotions/correct", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      userId: "default",
-                                      detectedEmotion: currentEmotion.emotion,
-                                      correctedEmotion: em,
-                                      confidence: currentEmotion.confidence,
-                                    }),
-                                  });
-                                } catch { /* fire and forget */ }
-                              }}
-                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-colors ${
-                                isDetected
-                                  ? "bg-primary/15 border border-primary/30 text-primary"
-                                  : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
-                              }`}
-                            >
-                              <span>{emoji}</span>
-                              <span className="capitalize">{em}</span>
-                              {isDetected && <span className="text-[8px] ml-0.5 opacity-70">detected</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </Card>
-
-        {/* Band Powers — compact version replacing BrainBands + Mental State */}
-        <Card className="glass-card p-6">
-          <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
-            <Brain className="h-4 w-4 text-primary" />
-            Brainwave Snapshot
-            {isStreaming && (
-              <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">LIVE</span>
-            )}
-          </h3>
-          {currentEmotion.band_powers ? (
+            {/* Bars */}
             <div className="space-y-3">
-              {(["delta","theta","alpha","beta","gamma"] as const).map((band) => {
-                const val = currentEmotion.band_powers?.[band] ?? 0;
-                const colors: Record<string, string> = {
-                  delta: "hsl(262,45%,65%)", theta: "hsl(200,70%,55%)",
-                  alpha: "hsl(152,60%,48%)", beta: "hsl(38,85%,58%)", gamma: "hsl(340,70%,55%)"
-                };
-                const labels: Record<string, string> = {
-                  delta: "Deep/Sleep", theta: "Creative/Meditative",
-                  alpha: "Calm/Relaxed", beta: "Alert/Focused", gamma: "Active/EMG"
-                };
-                return (
-                  <div key={band} className="space-y-1">
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-muted-foreground capitalize">{band} <span className="text-foreground/40">— {labels[band]}</span></span>
-                      <span className="font-mono">{(val * 100).toFixed(0)}%</span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden bg-muted/30">
-                      <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(100, val * 100)}%`, background: colors[band] }} />
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="pt-3 border-t border-border/30 grid grid-cols-2 gap-2 text-[11px]">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Mood</span>
-                  <span className={currentEmotion.valence >= 0 ? "text-success" : "text-destructive"}>
-                    {getValenceLabel(currentEmotion.valence)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Activation</span>
-                  <span className="text-secondary">{getArousalLabel(currentEmotion.arousal)}</span>
-                </div>
-              </div>
+              <Bar label="Stress"      value={stress}      color="hsl(0,72%,55%)" />
+              <Bar label="Focus"       value={focus}       color="hsl(152,60%,48%)" />
+              <Bar label="Relaxation"  value={relaxation}  color="hsl(217,91%,60%)" />
             </div>
-          ) : (
-            <div className="h-40 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
-              {isStreaming ? "Waiting for data…" : "Connect device to see brainwaves"}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Multimodal Fusion Status */}
-      <Card className="glass-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Layers className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-medium">Multimodal Fusion</h3>
-          <span className="ml-auto text-[10px] text-muted-foreground font-mono">
-            {mmStatus ? `${mmStatus.n_modalities}/3 modalities` : "loading…"}
-          </span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { key: "eeg_model_loaded",   label: "EEG",   acc: "71.52%", desc: "11 datasets · 187k samples",  weight: mmStatus?.fusion_weights?.eeg,   icon: "🧠" },
-            { key: "audio_model_loaded", label: "Audio", acc: "82.61%", desc: "EAV · 4,072 voice samples",   weight: mmStatus?.fusion_weights?.audio, icon: "🎤" },
-            { key: "video_model_loaded", label: "Video", acc: "76.45%", desc: "EAV · 8,200 face videos",     weight: mmStatus?.fusion_weights?.video, icon: "📷" },
-          ].map(({ key, label, acc, desc, weight, icon }) => {
-            const loaded = mmStatus?.[key as keyof MultimodalStatus] as boolean | undefined;
-            return (
-              <div key={key} className={`rounded-lg p-3 border text-center transition-colors ${
-                loaded === true  ? "border-primary/30 bg-primary/5" :
-                loaded === false ? "border-border/20 bg-muted/10 opacity-50" :
-                                   "border-border/20 bg-muted/10"
-              }`}>
-                <div className="text-xl mb-1">{icon}</div>
-                <div className="text-xs font-medium mb-0.5">{label}</div>
-                <div className="text-[10px] font-mono text-primary mb-1">{acc} CV</div>
-                <div className="text-[9px] text-muted-foreground leading-tight mb-1.5">{desc}</div>
-                {weight !== undefined && weight > 0 && (
-                  <div className="text-[9px] font-mono text-secondary">
-                    weight {(weight * 100).toFixed(0)}%
-                  </div>
-                )}
-                <div className={`mt-1.5 text-[9px] font-medium ${
-                  loaded === true ? "text-success" : loaded === false ? "text-muted-foreground" : "text-muted-foreground"
-                }`}>
-                  {loaded === true ? "● active" : loaded === false ? "○ not loaded" : "○ —"}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {mmStatus && (
-          <div className="mt-3 pt-3 border-t border-border/20 flex items-center justify-between text-[10px] text-muted-foreground">
-            <span>
-              Combined model: <span className="text-primary font-mono">75.93% CV</span>
-              <span className="ml-2 text-foreground/40">· 251-dim · 303k samples</span>
-            </span>
-            <span className={mmStatus.ready ? "text-success" : "text-muted-foreground"}>
-              {mmStatus.ready ? "● fusion ready" : "○ awaiting models"}
-            </span>
           </div>
         )}
       </Card>
 
-      {/* Period Selector — shared for Timeline + V-A */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Emotion History</span>
-          {isLiveToday && isStreaming && (
-            <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
-          )}
-        </div>
-        <div className="flex gap-1 flex-wrap">
-          {PERIOD_TABS.map((tab) => (
-            <button
-              key={tab.days}
-              onClick={() => setPeriodDays(tab.days)}
-              className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                periodDays === tab.days
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* ── Card 2: Today's emotions ─────────────────────────────────────── */}
+      <Card className="p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+          Today's emotions
+        </p>
 
-      {/* Live Circumplex + AI History (shown while streaming) */}
-      {isStreaming && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Beautiful Circumplex */}
-          <Card className="glass-card p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Smile className="h-4 w-4 text-pink-400" />
-              <h3 className="text-sm font-medium">Emotion Circumplex</h3>
-              <span className="text-[10px] font-mono text-primary animate-pulse ml-auto">● LIVE</span>
-            </div>
-            <ValenceArousalPlot
-              valence={currentEmotion.valence}
-              arousal={currentEmotion.arousal}
-              emotion={currentEmotion.emotion}
-              history={emotionHistory.slice(0, 24).map(h => ({ valence: h.valence, arousal: h.arousal, emotion: h.emotion }))}
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground mt-1 font-mono">
-              <span>Valence: {(currentEmotion.valence * 100).toFixed(0)}%</span>
-              <span>Arousal: {(currentEmotion.arousal * 100).toFixed(0)}%</span>
-              <span className="capitalize" style={{ color: EMOTION_COLORS[currentEmotion.emotion] ?? "inherit" }}>
-                {currentEmotion.emotion}
-              </span>
-            </div>
-          </Card>
-
-          {/* AI Emotion History */}
-          <Card className="glass-card p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="h-4 w-4 text-cyan-400" />
-              <h3 className="text-sm font-medium">AI Emotion History</h3>
-              <span className="text-xs text-muted-foreground ml-auto">{emotionHistory.length} readings</span>
-            </div>
-            {emotionHistory.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
-                Waiting for emotion data…
-              </div>
-            ) : (
-              <div className="space-y-1 max-h-[260px] overflow-y-auto pr-1">
-                {emotionHistory.slice().reverse().map((e, i) => (
-                  <div key={i} className="flex items-center gap-3 text-xs py-1.5 border-b border-border/10 last:border-0">
-                    <span className="font-mono text-muted-foreground w-16 shrink-0">{e.time}</span>
-                    <EmotionDot emotion={e.emotion} />
-                    <span className="capitalize font-medium w-16">{e.emotion}</span>
-                    <div className="flex-1 flex gap-2 text-[10px] text-muted-foreground">
-                      <span>V:{(e.valence * 100).toFixed(0)}%</span>
-                      <span>A:{(e.arousal * 100).toFixed(0)}%</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0">{(e.confidence * 100).toFixed(0)}%</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
-
-      {/* Emotion Timeline */}
-      <Card className="glass-card p-6">
-        <div className="flex items-center gap-2 mb-1">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-medium">
-            {isLiveToday && isStreaming ? "Brainwave Activity — Live" : "Session Trends"}
-          </h3>
-          {isLiveToday && isStreaming && (
-            <span className="ml-auto text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
-          )}
-        </div>
-        {isLiveToday && isStreaming && (
-          <p className="text-[10px] text-muted-foreground mb-3">
-            % of total EEG power per band — updates every 1.5 s
+        {history.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4 text-center">
+            {isStreaming
+              ? "Emotion readings will appear here as they come in."
+              : "Start a session to track your emotions today."}
           </p>
-        )}
-
-        {/* Live: per-frame band-power chart */}
-        {isLiveToday && isStreaming ? (
-          liveTimeline.length < 2 ? (
-            <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-              <Activity className="h-8 w-8 opacity-30" />
-              <p>Collecting live data…</p>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={liveTimeline}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.5} />
-                <XAxis dataKey="time" tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                <YAxis domain={[0, 60]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} tickFormatter={(v) => `${v}%`} />
-                <Tooltip
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: number, name: string) => [`${v}%`, name]}
-                />
-                <Line type="monotone" dataKey="calm"     name="Calm (α)"     stroke="hsl(152,65%,50%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="alert"    name="Alert (β)"    stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )
         ) : (
-          /* Historical: session-based focus/stress/relax */
-          !hasTimelineData ? (
-            <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-              <Activity className="h-8 w-8 opacity-30" />
-              <p>{isLiveToday ? "Connect device to see live data" : "No sessions in this period"}</p>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={timelineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 18%, 15%)" opacity={0.5} />
-                <XAxis dataKey={timelineDataKey} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220, 12%, 42%)" }} axisLine={false} tickLine={false} width={24} />
-                <Tooltip
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: number) => [`${v}%`]}
-                />
-                <Line type="monotone" dataKey="focus_index"      name="Focus"  stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="stress_index"     name="Stress" stroke="hsl(38,85%,58%)"  strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="relaxation_index" name="Relax"  stroke="hsl(152,60%,48%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )
+          <div className="space-y-2">
+            {[...history].reverse().map((item, i) => (
+              <div key={i} className="flex items-center gap-3 py-1.5 border-b border-border/20 last:border-0">
+                <span className="text-xl shrink-0">{EMOTION_EMOJI[item.emotion] ?? "🧠"}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium leading-tight">{item.label}</p>
+                  <p className="text-xs text-muted-foreground">{item.time}</p>
+                </div>
+                <span className="text-[10px] text-muted-foreground/60 shrink-0">
+                  {Math.round(item.confidence * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
         )}
-
-        <div className="flex flex-wrap gap-4 mt-2">
-          {(isLiveToday && isStreaming ? [
-            { label: "Calm (α — alpha)",      color: "hsl(152,65%,50%)" },
-            { label: "Alert (β — beta)",       color: "hsl(200,70%,55%)" },
-            { label: "Creative (θ — theta)",   color: "hsl(270,65%,62%)", dashed: true },
-          ] : [
-            { label: "Focus",  color: "hsl(200,70%,55%)" },
-            { label: "Stress", color: "hsl(38,85%,58%)", dashed: true },
-            { label: "Relax",  color: "hsl(152,60%,48%)" },
-          ]).map((l) => (
-            <div key={l.label} className="flex items-center gap-1.5">
-              <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
-              <span className="text-[10px] text-muted-foreground">{l.label}</span>
-            </div>
-          ))}
-        </div>
       </Card>
-    </main>
-  );
-}
 
-/* ── Shared emotion colors ─────────────────────────────────────── */
-const EMOTION_COLORS: Record<string, string> = {
-  happy:   "hsl(48,90%,58%)",
-  excited: "hsl(28,90%,58%)",
-  focused: "hsl(200,80%,58%)",
-  relaxed: "hsl(152,70%,50%)",
-  calm:    "hsl(165,65%,48%)",
-  angry:   "hsl(5,80%,55%)",
-  fearful: "hsl(270,60%,60%)",
-  sad:     "hsl(210,70%,55%)",
-  neutral: "hsl(220,18%,55%)",
-};
-
-const EMOTION_ANCHORS = [
-  { name: "Happy",   v:  0.72, a: 0.70, color: EMOTION_COLORS.happy   },
-  { name: "Excited", v:  0.48, a: 0.90, color: EMOTION_COLORS.excited  },
-  { name: "Focused", v:  0.20, a: 0.65, color: EMOTION_COLORS.focused  },
-  { name: "Relaxed", v:  0.68, a: 0.20, color: EMOTION_COLORS.relaxed  },
-  { name: "Calm",    v:  0.38, a: 0.08, color: EMOTION_COLORS.calm     },
-  { name: "Angry",   v: -0.68, a: 0.80, color: EMOTION_COLORS.angry    },
-  { name: "Fearful", v: -0.40, a: 0.72, color: EMOTION_COLORS.fearful  },
-  { name: "Sad",     v: -0.65, a: 0.18, color: EMOTION_COLORS.sad      },
-];
-
-/* ── Valence/Arousal Circumplex ────────────────────────────────── */
-function ValenceArousalPlot({
-  valence, arousal, emotion = "neutral", history,
-}: {
-  valence: number; arousal: number; emotion?: string;
-  history: Array<{ valence: number; arousal: number; emotion: string }>;
-}) {
-  const SIZE = 300, CX = SIZE / 2, CY = SIZE / 2, R = SIZE / 2 - 32;
-  const toXY = (v: number, a: number) => ({ x: CX + v * R, y: CY - (a * 2 - 1) * R });
-  const dot      = toXY(valence, arousal);
-  const dotColor = EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral;
-  const trail    = [...history].reverse();
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: "block" }}>
-      <defs>
-        <clipPath id="el-va-clip"><circle cx={CX} cy={CY} r={R} /></clipPath>
-        <filter id="el-va-glow" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="5" result="blur" />
-          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-        <radialGradient id="el-va-vignette" cx="50%" cy="50%" r="50%">
-          <stop offset="60%" stopColor="transparent" stopOpacity="0" />
-          <stop offset="100%" stopColor="hsl(220,22%,4%)" stopOpacity="0.55" />
-        </radialGradient>
-      </defs>
-      <circle cx={CX} cy={CY} r={R} fill="hsl(220,24%,6%)" />
-      <g clipPath="url(#el-va-clip)">
-        <rect x={CX}     y={CY-R} width={R} height={R} fill="hsl(42,90%,54%)"  opacity={0.13} />
-        <rect x={CX-R}   y={CY-R} width={R} height={R} fill="hsl(0,80%,54%)"   opacity={0.12} />
-        <rect x={CX}     y={CY}   width={R} height={R} fill="hsl(152,68%,44%)" opacity={0.12} />
-        <rect x={CX-R}   y={CY}   width={R} height={R} fill="hsl(215,70%,54%)" opacity={0.10} />
-      </g>
-      <circle cx={CX} cy={CY} r={R*0.33} fill="none" stroke="hsl(220,20%,16%)" strokeWidth={0.7} strokeDasharray="3 5" />
-      <circle cx={CX} cy={CY} r={R*0.67} fill="none" stroke="hsl(220,20%,16%)" strokeWidth={0.7} strokeDasharray="3 5" />
-      <circle cx={CX} cy={CY} r={R}       fill="none" stroke="hsl(220,20%,20%)" strokeWidth={1.4} />
-      <circle cx={CX} cy={CY} r={R} fill="url(#el-va-vignette)" />
-      <line x1={CX-R+2} y1={CY} x2={CX+R-2} y2={CY} stroke="hsl(220,20%,24%)" strokeWidth={0.9} />
-      <line x1={CX} y1={CY+R-2} x2={CX} y2={CY-R+2} stroke="hsl(220,20%,24%)" strokeWidth={0.9} />
-      <polygon points={`${CX+R-1},${CY} ${CX+R-7},${CY-3} ${CX+R-7},${CY+3}`}  fill="hsl(220,20%,30%)" />
-      <polygon points={`${CX},${CY-R+1} ${CX-3},${CY-R+7} ${CX+3},${CY-R+7}`} fill="hsl(220,20%,30%)" />
-      <text x={CX+R-10} y={CY-7}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="end"   fontFamily="monospace">+VALENCE</text>
-      <text x={CX-R+10} y={CY-7}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start" fontFamily="monospace">−VALENCE</text>
-      <text x={CX+5}    y={CY-R+14} fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start" fontFamily="monospace">HIGH AROUSAL</text>
-      <text x={CX+5}    y={CY+R-6}  fontSize={7.5} fill="hsl(220,15%,36%)" textAnchor="start" fontFamily="monospace">LOW AROUSAL</text>
-      <text x={CX+R*0.60} y={CY-R*0.80} fontSize={9.5} fill="hsl(42,88%,60%)"  textAnchor="middle" fontWeight="700" letterSpacing="0.6">HAPPY</text>
-      <text x={CX+R*0.60} y={CY-R*0.66} fontSize={7}   fill="hsl(42,70%,44%)"  textAnchor="middle">Excited · Joyful</text>
-      <text x={CX-R*0.60} y={CY-R*0.80} fontSize={9.5} fill="hsl(0,80%,58%)"   textAnchor="middle" fontWeight="700" letterSpacing="0.6">STRESSED</text>
-      <text x={CX-R*0.60} y={CY-R*0.66} fontSize={7}   fill="hsl(0,65%,44%)"   textAnchor="middle">Angry · Fearful</text>
-      <text x={CX+R*0.60} y={CY+R*0.68} fontSize={9.5} fill="hsl(152,65%,50%)" textAnchor="middle" fontWeight="700" letterSpacing="0.6">RELAXED</text>
-      <text x={CX+R*0.60} y={CY+R*0.82} fontSize={7}   fill="hsl(152,52%,38%)" textAnchor="middle">Calm · Serene</text>
-      <text x={CX-R*0.60} y={CY+R*0.68} fontSize={9.5} fill="hsl(210,70%,58%)" textAnchor="middle" fontWeight="700" letterSpacing="0.6">SAD</text>
-      <text x={CX-R*0.60} y={CY+R*0.82} fontSize={7}   fill="hsl(210,55%,44%)" textAnchor="middle">Depressed · Bored</text>
-      <text x={CX+R*0.24} y={CY-R*0.28} fontSize={7.5} fill="hsl(200,70%,52%)" textAnchor="middle" opacity={0.75}>Focused</text>
-      {EMOTION_ANCHORS.map(({ name, v, a, color }) => {
-        const p = toXY(v, a);
-        return <g key={name}><circle cx={p.x} cy={p.y} r={3.5} fill={color} opacity={0.28} /><circle cx={p.x} cy={p.y} r={2} fill={color} opacity={0.55} /></g>;
-      })}
-      {trail.length > 1 && (
-        <polyline clipPath="url(#el-va-clip)"
-          points={trail.map(h => { const p = toXY(h.valence, h.arousal); return `${p.x},${p.y}`; }).join(" ")}
-          fill="none" stroke={dotColor} strokeWidth={1.5} strokeOpacity={0.28} strokeLinecap="round" strokeLinejoin="round" />
-      )}
-      {history.map((h, i) => {
-        const p = toXY(h.valence, h.arousal);
-        const ratio = 1 - i / Math.max(history.length - 1, 1);
-        const col = EMOTION_COLORS[h.emotion] ?? EMOTION_COLORS.neutral;
-        return <circle key={i} cx={p.x} cy={p.y} r={1.8 + ratio * 2.2} fill={col} opacity={0.12 + ratio * 0.50} clipPath="url(#el-va-clip)" />;
-      })}
-      <circle cx={dot.x} cy={dot.y} r={12} fill="none" stroke={dotColor} strokeWidth={1.5} opacity={0.0}>
-        <animate attributeName="r"       values="10;20;10" dur="2.6s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0.35;0;0.35" dur="2.6s" repeatCount="indefinite" />
-      </circle>
-      <circle cx={dot.x} cy={dot.y} r={9}  fill={dotColor} opacity={0.18} />
-      <circle cx={dot.x} cy={dot.y} r={6}  fill={dotColor} opacity={0.9} filter="url(#el-va-glow)" />
-      <circle cx={dot.x} cy={dot.y} r={6}  fill={dotColor} />
-      <circle cx={dot.x} cy={dot.y} r={2}  fill="white" opacity={0.92} />
-    </svg>
-  );
-}
-
-/* ── Emotion Dot ───────────────────────────────────────────────── */
-function EmotionDot({ emotion }: { emotion: string }) {
-  return (
-    <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
-      style={{ background: EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral }} />
+    </div>
   );
 }
