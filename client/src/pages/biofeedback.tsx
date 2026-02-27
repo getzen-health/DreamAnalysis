@@ -8,6 +8,7 @@ import { useDevice } from "@/hooks/use-device";
 import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Headphones, ExternalLink, FlaskConical, CheckCircle2, AlertCircle } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticMedium, hapticSuccess } from "@/lib/haptics";
+import SpotifyConnect from "@/components/spotify-connect";
 
 // ─── Breathing exercise definitions ──────────────────────────────────────────
 
@@ -584,6 +585,9 @@ export default function Biofeedback() {
       {/* ── MUSIC TAB ── */}
       {activeTab === "music" && (
         <div className="space-y-5">
+          {/* Spotify connect / auto-play */}
+          <SpotifyConnect autoPlayMood={musicMood as "calm" | "focus"} />
+
           {/* Mood switcher */}
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground">Mood:</span>

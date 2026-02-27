@@ -88,7 +88,7 @@ Then add native features progressively. No full rewrite needed to ship v1.
 - [x] Local ML inference — emotion_classifier_model.onnx (2.2MB) served from client/public/models/. JS heuristics for sleep/dream. use-inference.ts: local first, server fallback.
 - [x] Offline mode — IndexedDB queues for EEG sessions + health metrics + dream drafts. OfflineSyncBanner auto-syncs on reconnect. offline-store.ts v2.
 - [ ] Home screen widget — iOS WidgetKit + Android App Widget. Show today's brain state (stress level + recommended action) without opening app.
-- [ ] Spotify integration — `spotify-web-api-node`. When stress HIGH → auto-queue calming playlist.
+- [x] Spotify integration — OAuth flow + 5 server endpoints. SpotifyConnect component in biofeedback music tab. Auto-plays calm/focus on music intervention trigger.
 - [ ] Siri Shortcuts (iOS) / Google Assistant Actions (Android) — "Hey Siri, check my brain state."
 
 ### Phase 3 — App Store submission

@@ -6,6 +6,7 @@ import webpush from "web-push";
 import cron from "node-cron";
 import bcrypt from "bcryptjs";
 import session from "express-session";
+import SpotifyWebApi from "spotify-web-api-node";
 import {
   insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
   insertUserSettingsSchema, insertEmotionReadingSchema,
@@ -1438,6 +1439,187 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch { /* log silently — cron must not crash the server */ }
     });
   }
+
+  // ── Spotify integration ──────────────────────────────────────────────────
+  //
+  // Requires env vars: SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI
+  // Gracefully disabled when vars are missing.
+  //
+  // Endpoints:
+  //   GET  /api/spotify/auth            → redirect to Spotify login page
+  //   GET  /api/spotify/callback        → OAuth callback, stores token in session
+  //   GET  /api/spotify/status          → { connected: bool, username? }
+  //   POST /api/spotify/play            → play a URI or mood (calm/focus/sleep) on active device
+  //   POST /api/spotify/disconnect      → revoke stored token
+
+  const SPOTIFY_CLIENT_ID     = process.env.SPOTIFY_CLIENT_ID ?? "";
+  const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET ?? "";
+  const SPOTIFY_REDIRECT_URI  = process.env.SPOTIFY_REDIRECT_URI ?? "http://localhost:5000/api/spotify/callback";
+  const SPOTIFY_ENABLED       = !!(SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_SECRET);
+
+  // Curated playlist URIs (same as biofeedback music tab, stored as Spotify URIs)
+  const MOOD_PLAYLISTS: Record<string, string[]> = {
+    calm: [
+      "spotify:playlist:37i9dQZF1DX4sWSpwq3LiO",  // Peaceful Piano
+      "spotify:playlist:37i9dQZF1DWN1Y7lu9lY4v",  // Deep Sleep
+      "spotify:playlist:37i9dQZF1DWWQRwui0ExPn",  // Calming Acoustic
+    ],
+    focus: [
+      "spotify:playlist:37i9dQZF1DX0SM0LYsmbMT",  // Focus Flow
+      "spotify:playlist:37i9dQZF1DWXLeA8Omikj7",  // Brain Food
+      "spotify:playlist:37i9dQZF1DWUZ5bk6qqDSy",  // Brown Noise
+    ],
+    sleep: [
+      "spotify:playlist:37i9dQZF1DWN1Y7lu9lY4v",  // Deep Sleep
+      "spotify:playlist:37i9dQZF1DX4sWSpwq3LiO",  // Peaceful Piano
+    ],
+  };
+
+  // Per-session Spotify token store (userId → SpotifyWebApi instance)
+  const _spotifyClients = new Map<string, SpotifyWebApi>();
+
+  function makeSpotifyApi(accessToken?: string, refreshToken?: string): SpotifyWebApi {
+    const api = new SpotifyWebApi({
+      clientId: SPOTIFY_CLIENT_ID,
+      clientSecret: SPOTIFY_CLIENT_SECRET,
+      redirectUri: SPOTIFY_REDIRECT_URI,
+    });
+    if (accessToken)  api.setAccessToken(accessToken);
+    if (refreshToken) api.setRefreshToken(refreshToken);
+    return api;
+  }
+
+  async function refreshIfNeeded(api: SpotifyWebApi): Promise<void> {
+    if (!api.getRefreshToken()) return;
+    try {
+      const data = await api.refreshAccessToken();
+      api.setAccessToken(data.body.access_token);
+    } catch { /* token may still be valid — ignore */ }
+  }
+
+  // GET /api/spotify/auth — redirect user to Spotify OAuth page
+  app.get("/api/spotify/auth", (req, res) => {
+    if (!SPOTIFY_ENABLED) {
+      return res.status(503).json({ error: "Spotify not configured. Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET." });
+    }
+    const api = makeSpotifyApi();
+    const scopes = [
+      "user-read-playback-state",
+      "user-modify-playback-state",
+      "streaming",
+      "user-read-email",
+      "user-read-private",
+    ];
+    const url = api.createAuthorizeURL(scopes, "neural-dream-state");
+    res.redirect(url);
+  });
+
+  // GET /api/spotify/callback — Spotify redirects here with ?code=...
+  app.get("/api/spotify/callback", async (req, res) => {
+    const { code, error } = req.query as { code?: string; error?: string };
+
+    if (error || !code) {
+      return res.redirect("/?spotify=error");
+    }
+
+    try {
+      const api = makeSpotifyApi();
+      const data = await api.authorizationCodeGrant(code);
+      api.setAccessToken(data.body.access_token);
+      api.setRefreshToken(data.body.refresh_token);
+
+      // Get user profile to identify them
+      const me = await api.getMe();
+      const spotifyUserId = me.body.id;
+
+      // Map session user → Spotify client
+      const sessionUserId = (req.session as { userId?: string }).userId ?? spotifyUserId;
+      _spotifyClients.set(sessionUserId, api);
+
+      // Store tokens in session so they survive server restart (lightweight)
+      (req.session as any).spotifyAccessToken  = data.body.access_token;
+      (req.session as any).spotifyRefreshToken = data.body.refresh_token;
+      (req.session as any).spotifyUsername     = me.body.display_name ?? me.body.id;
+
+      res.redirect("/biofeedback?tab=music&spotify=connected");
+    } catch (err) {
+      console.error("Spotify OAuth error:", err);
+      res.redirect("/?spotify=error");
+    }
+  });
+
+  // GET /api/spotify/status
+  app.get("/api/spotify/status", (req, res) => {
+    const sess = req.session as any;
+    const connected = !!(sess.spotifyAccessToken);
+    res.json({
+      connected,
+      enabled: SPOTIFY_ENABLED,
+      username: connected ? sess.spotifyUsername : null,
+    });
+  });
+
+  // POST /api/spotify/play — play a mood or specific URI
+  // Body: { userId?, mood?: "calm"|"focus"|"sleep", uri?: string }
+  app.post("/api/spotify/play", async (req, res) => {
+    const sess = req.session as any;
+    if (!sess.spotifyAccessToken) {
+      return res.status(401).json({ error: "not_connected", authUrl: "/api/spotify/auth" });
+    }
+
+    const { mood, uri } = req.body as { mood?: string; uri?: string };
+
+    // Restore or create API client from session tokens
+    const sessionUserId = (req.session as { userId?: string }).userId ?? "default";
+    let api = _spotifyClients.get(sessionUserId);
+    if (!api) {
+      api = makeSpotifyApi(
+        sess.spotifyAccessToken as string,
+        sess.spotifyRefreshToken as string
+      );
+      _spotifyClients.set(sessionUserId, api);
+    }
+
+    try {
+      await refreshIfNeeded(api);
+
+      // Resolve URI to play
+      let targetUri = uri;
+      if (!targetUri && mood) {
+        const options = MOOD_PLAYLISTS[mood] ?? MOOD_PLAYLISTS.calm;
+        targetUri = options[Math.floor(Math.random() * options.length)];
+      }
+      if (!targetUri) targetUri = MOOD_PLAYLISTS.calm[0];
+
+      // Start playback on active device (shuffle on for playlists)
+      await api.setShuffle(true);
+      await api.play({ context_uri: targetUri });
+
+      res.json({ ok: true, playing: targetUri, mood: mood ?? "calm" });
+    } catch (err: unknown) {
+      // Common error: no active device (user must have Spotify open somewhere)
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("NO_ACTIVE_DEVICE") || msg.includes("404")) {
+        return res.status(409).json({
+          error: "no_active_device",
+          message: "Open Spotify on any device first, then try again.",
+        });
+      }
+      console.error("Spotify play error:", err);
+      res.status(500).json({ error: "playback_failed", message: msg });
+    }
+  });
+
+  // POST /api/spotify/disconnect
+  app.post("/api/spotify/disconnect", (req, res) => {
+    const sess = req.session as any;
+    const sessionUserId = (req.session as { userId?: string }).userId ?? "default";
+    _spotifyClients.delete(sessionUserId);
+    delete sess.spotifyAccessToken;
+    delete sess.spotifyRefreshToken;
+    delete sess.spotifyUsername;
+    res.json({ ok: true });
+  });
 
   const httpServer = createServer(app);
   return httpServer;

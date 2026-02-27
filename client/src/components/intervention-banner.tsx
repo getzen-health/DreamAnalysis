@@ -24,6 +24,7 @@ import {
   Brain,
 } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
+import { triggerSpotifyPlay } from "@/components/spotify-connect";
 
 // ── Shared brain state (module-level) ────────────────────────────────────────
 // Other components write here; the banner reads it on every check cycle.
@@ -127,6 +128,13 @@ export function InterventionBanner() {
       if (data.has_recommendation && data.intervention) {
         setIntervention(data.intervention);
         setVisible(true);
+
+        // Auto-play Spotify when a music intervention fires (silent if not connected)
+        if (data.intervention.type === "music_calm") {
+          triggerSpotifyPlay("calm").catch(() => {});
+        } else if (data.intervention.type === "music_focus") {
+          triggerSpotifyPlay("focus").catch(() => {});
+        }
 
         // Record that the banner was shown (starts cooldown)
         mlPost("/interventions/trigger", {
