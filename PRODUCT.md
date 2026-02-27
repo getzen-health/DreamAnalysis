@@ -177,7 +177,7 @@ Frontend                     ██████████  96%
   Push notification service worker + Settings subscribe UI (morning reminder to /brain-report). ✅
   97 Vitest tests across 11 files, 10 pages. ✅
 
-Mobile (Capacitor)           ███████░░░  70%
+Mobile (Capacitor)           █████████░  88%
   Capacitor 8.1.0 installed. capacitor.config.ts created. ✅
   Safe area insets: viewport-fit=cover, env(safe-area-inset-*) CSS vars. ✅
   iOS HIG touch targets: 44px min height on all interactive elements. ✅
@@ -185,7 +185,13 @@ Mobile (Capacitor)           ███████░░░  70%
   Local ML inference: ONNX + JS heuristics, no server needed. ✅
   Offline mode: IndexedDB queue (dreams + EEG sessions + health metrics), auto-sync. ✅
   Spotify: OAuth 2.0, auto-play calm/focus on music intervention. ✅
-  Missing: cap add ios/android (needs Xcode + JDK), BLE Muse 2, HealthKit, home screen widget.
+  BLE Muse 2/S: @capacitor-community/bluetooth-le, GATT packet decoder, ring buffers, FAA/stress. ✅
+  Apple HealthKit: HR, HRV, respiratory rate, SpO2, sleep stages, steps, calories → /biometrics/update. ✅
+  Google Health Connect: steps, HR, calories, mindfulness via capacitor-health. ✅
+  Native push (APNs/FCM): @capacitor/push-notifications, token registration, firebase-admin optional. ✅
+  Background EEG sleep: Screen Wake Lock (web) + BackgroundRunner (native) + ongoing notification. ✅
+  App Store listing: docs/app-store-listing.md — full copy, privacy strings, Info.plist config. ✅
+  Missing: cap add ios/android (needs Xcode + JDK), home screen widget (WidgetKit), Siri Shortcuts.
 
 Product thinking             █████████░  90%
   Full measure → insight → action → result loop now in place.

@@ -156,6 +156,13 @@
 - [x] Offline mode — IndexedDB v2 (`offline-store.ts`): `dream_drafts` + `eeg_queue` + `health_queue`; `OfflineSyncBanner` auto-syncs on reconnect; `syncAll()` drains all queues
 - [x] Privacy policy page (`/privacy`) — 6 sections covering EEG, HealthKit, research, security, contact; no auth guard (required for App Store)
 - [x] Spotify integration — OAuth 2.0 flow (`/api/spotify/auth` + `/api/spotify/callback`); `POST /api/spotify/play` with mood routing; `SpotifyConnect` component in biofeedback Music tab; auto-plays calm/focus when music intervention fires via `InterventionBanner`
+- [x] Bluetooth BLE for Muse 2/S — `@capacitor-community/bluetooth-le@8.1.0`; `muse-ble.ts`: MuseBleManager, GATT UUIDs, 12-bit packet decoder (20-byte BLE → µV), ring buffers, FAA/stress/focus extraction; `use-device.tsx` auto-routes to BLE path when `Capacitor.isNativePlatform()` + muse device; desktop falls back to BrainFlow/WebSocket
+- [x] Apple HealthKit — `@perfood/capacitor-healthkit@1.3.2`; `health-sync.ts`: pulls HR, resting HR, HRV proxy (SDNN from beat variance), respiratory rate, SpO2, body temp, sleep stages, steps, active calories → POST `/api/biometrics/update` → MultimodalEmotionFusion. 15-min auto-sync via `useHealthSync` hook in AppLayout.
+- [x] Google Health Connect — `capacitor-health@8.0.1`; Android path in `health-sync.ts`: HR workouts, steps, calories, mindfulness. Same endpoint.
+- [x] Native push notifications — `@capacitor/push-notifications@8.0.1`; `native-push.ts`: APNs/FCM token registration, foreground+background handlers, tap-to-navigate; server: `POST /api/notifications/native-token` + `POST /api/notifications/send-native` (firebase-admin, optional). Wired into AppLayout.
+- [x] Background EEG for sleep — `@capacitor/background-runner@3.0.0`; `background-eeg.ts`: web=Screen Wake Lock API, native=BackgroundRunner.dispatchEvent(); `background-runner.js`: isolated JS context, ongoing Android notification, 15-min periodic flush; capacitor.config.ts updated; wired into sleep-session handleStart/handleWakeUp.
+- [x] App Store listing — `docs/app-store-listing.md`: 4000-char description, keywords, 5 screenshot descriptions, HealthKit/BT privacy strings, UIBackgroundModes Info.plist config, age rating, privacy nutrition label.
+- [x] Research paper draft — `docs/paper_draft.md`: 9 sections, ablation table, Algorithm 1, full accuracy tables. Target: arXiv first, then IEEE EMBC 2026.
 - [ ] `npx cap add ios` — blocked on Xcode.app (only CLI tools installed)
 - [ ] `npx cap add android` — blocked on JDK + Android Studio
 - [ ] Splash screen + app icon — 1024×1024 PNG design needed

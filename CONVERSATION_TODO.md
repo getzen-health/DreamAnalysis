@@ -93,7 +93,7 @@ Then add native features progressively. No full rewrite needed to ship v1.
 
 ### Phase 3 — App Store submission
 - [x] Privacy policy page (required for HealthKit) — `/privacy` route, no auth guard
-- [ ] App Store description + screenshots (5 screenshots required, show Brain Report, Brain State, Sleep, Dreams, Food)
+- [x] App Store description + screenshots — DONE. `docs/app-store-listing.md`: 4000-char description, subtitle "Brain Performance Tracker", keywords (eeg,brain,muse,biofeedback…), 5 screenshot descriptions, HealthKit/BT privacy strings, UIBackgroundModes plist, privacy nutrition label. Screenshots: manual capture still needed.
 - [ ] Submit as "wellness app" not "medical device" — avoids FDA clearance requirement
 - [ ] TestFlight beta with pilot study participants first
 - [ ] Google Play internal testing track first
