@@ -20,6 +20,7 @@ import {
   type DeviceInfo,
   type DeviceStatusResponse,
 } from "@/lib/ml-api";
+import { museBle, museFrameToEegStreamFrame } from "@/lib/muse-ble";
 
 type DeviceState = "disconnected" | "connecting" | "connected" | "streaming";
 
@@ -291,6 +292,38 @@ function useDeviceInternal(): UseDeviceReturn {
   const connect = useCallback(async (deviceType: string, params?: Record<string, string>) => {
     setError(null);
     setState("connecting");
+
+    // ── Mobile BLE path (iOS / Android via Capacitor) ──────────────────────
+    if (museBle.isNative && (deviceType === "muse_2" || deviceType === "muse_s")) {
+      try {
+        museBle.onEegFrame((frame) => {
+          const eegFrame = museFrameToEegStreamFrame(frame);
+          // Dispatch raw signals for waveform canvas
+          window.dispatchEvent(
+            new CustomEvent("eeg-signals", { detail: eegFrame.signals })
+          );
+          setLatestFrame(eegFrame as EEGStreamFrame);
+        });
+        museBle.onStatus((status) => {
+          if (status.state === "idle" || status.state === "error") {
+            isStreamingRef.current = false;
+            setState("disconnected");
+            if (status.error) setError(status.error);
+          }
+        });
+        await museBle.connect();
+        setSelectedDevice(deviceType);
+        setState("streaming");
+        isStreamingRef.current = true;
+        startSession("general").catch(() => {});
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "BLE connection failed");
+        setState("disconnected");
+      }
+      return;
+    }
+
+    // ── Desktop path (BrainFlow via ML backend WebSocket) ──────────────────
     try {
       await connectDevice(deviceType, params);
       setSelectedDevice(deviceType);
@@ -321,11 +354,18 @@ function useDeviceInternal(): UseDeviceReturn {
       wsRef.current = null;
     }
     stopSession().catch(() => {}); // save recording if one was active
-    try {
-      await disconnectDevice();
-    } catch {
-      // ignore
+
+    // Disconnect BLE if active (mobile path)
+    if (museBle.getStatus().state === "streaming" || museBle.getStatus().state === "connected") {
+      await museBle.disconnect().catch(() => {});
+    } else {
+      try {
+        await disconnectDevice();
+      } catch {
+        // ignore
+      }
     }
+
     setState("disconnected");
     setSelectedDevice(null);
     setDeviceStatus(null);

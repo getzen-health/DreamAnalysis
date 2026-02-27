@@ -45,6 +45,15 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },
+    BluetoothLe: {
+      // Shown in iOS permission prompt when scanning for Muse
+      displayStrings: {
+        scanning: "Scanning for Muse headbands...",
+        cancel: "Cancel",
+        availableDevices: "Available Muse Devices",
+        noDeviceFound: "No Muse headband found",
+      },
+    },
   },
 };
 

@@ -79,7 +79,7 @@ Then add native features progressively. No full rewrite needed to ship v1.
 - [ ] Test on iOS simulator + Android emulator (blocked on cap add)
 
 ### Phase 2 — Native features (1–2 months)
-- [ ] Bluetooth BLE for Muse 2 — `@capacitor-community/bluetooth-le` plugin. Replaces BrainFlow on mobile (BrainFlow is desktop-only). Muse SDK has iOS/Android BLE support.
+- [x] Bluetooth BLE for Muse 2 — DONE. `@capacitor-community/bluetooth-le@8.1.0` installed. `client/src/lib/muse-ble.ts`: MuseBleManager class, GATT UUIDs, 12-bit packet decoder, ring buffers, feature extraction (FAA, stress/focus). `use-device.tsx` BLE path activates when `Capacitor.isNativePlatform()` + device is muse_2/muse_s. Falls back to WebSocket/BrainFlow on desktop. TypeScript clean.
 - [ ] Apple HealthKit integration — `@capacitor-community/health` plugin. Auto-pull: HRV SDNN, resting HR, respiratory rate, sleep stages, steps, SpO2, skin temperature. Feed into MultimodalEmotionFusion automatically.
 - [ ] Google Health Connect integration — Android equivalent. Same data fields.
 - [ ] Push notifications — `@capacitor/push-notifications`. Server triggers when stress is high → "Time to breathe" alert.

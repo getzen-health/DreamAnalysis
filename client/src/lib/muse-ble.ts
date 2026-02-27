@@ -1,0 +1,477 @@
+/**
+ * muse-ble.ts — Bluetooth LE driver for Muse 2 / Muse S headbands.
+ *
+ * Runs on iOS and Android via @capacitor-community/bluetooth-le.
+ * On desktop (BrainFlow path) this module is imported but never called.
+ *
+ * Architecture:
+ *   1. MuseBleManager.connect() → BLE scan → connect → write control → subscribe
+ *   2. Four EEG characteristics stream 12-bit packets at 256 Hz (12 samples/packet)
+ *   3. Packets are decoded into µV values and accumulated in a ring buffer
+ *   4. Every EMIT_INTERVAL_MS (250 ms) the ring buffer is read and a MuseEegFrame
+ *      is emitted to the registered callback
+ *   5. The use-device hook listens on mobile and feeds frames into the same
+ *      latestFrame state that the WebSocket path uses on desktop
+ *
+ * References:
+ *   - muse-js (Alexandre Barachant) — GATT UUIDs and packet format
+ *   - muselsl (Alexandre Barachant) — Python reference implementation
+ *   - Muse 2 BLE specification (InteraXon internal, reverse-engineered)
+ */
+
+import { Capacitor } from "@capacitor/core";
+import { extractBandPowers } from "./eeg-features";
+
+// ── GATT UUIDs ───────────────────────────────────────────────────────────────
+
+export const MUSE_SERVICE         = "0000fe8d-0000-1000-8000-00805f9b34fb";
+export const MUSE_CONTROL_CHAR    = "273e0001-4c4d-454d-96be-f03bac821358";
+export const MUSE_TELEMETRY_CHAR  = "273e0002-4c4d-454d-96be-f03bac821358";
+
+// One characteristic per EEG channel (TP9, AF7, AF8, TP10, AUX)
+export const MUSE_EEG_CHARS = [
+  "273e0003-4c4d-454d-96be-f03bac821358", // ch0 — TP9  (left temporal)
+  "273e0004-4c4d-454d-96be-f03bac821358", // ch1 — AF7  (left frontal)  ← FAA left
+  "273e0005-4c4d-454d-96be-f03bac821358", // ch2 — AF8  (right frontal) ← FAA right
+  "273e0006-4c4d-454d-96be-f03bac821358", // ch3 — TP10 (right temporal)
+  "273e0007-4c4d-454d-96be-f03bac821358", // ch4 — AUX  (right ear/5th channel, optional)
+] as const;
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const MUSE_SAMPLE_RATE        = 256;   // Hz
+const SAMPLES_PER_PACKET      = 12;    // samples per BLE notification per channel
+const ADC_ZERO                = 2048;  // 12-bit midpoint
+const ADC_TO_MICROVOLTS       = 0.48828125; // µV/count ≈ 1000 µV / 2048 counts
+const RING_BUFFER_SAMPLES     = MUSE_SAMPLE_RATE * 4; // 4-second ring buffer per channel
+const EMIT_INTERVAL_MS        = 250;   // emit a frame every 250 ms (4 Hz)
+const N_ACTIVE_CHANNELS       = 4;     // TP9, AF7, AF8, TP10 (no AUX by default)
+
+// BLE write commands (format: length_byte + payload + 0x0a)
+function makeCommand(cmd: string): DataView {
+  const bytes = new Uint8Array(cmd.length + 2);
+  bytes[0] = cmd.length + 1; // length includes the 0x0a
+  for (let i = 0; i < cmd.length; i++) bytes[i + 1] = cmd.charCodeAt(i);
+  bytes[cmd.length + 1] = 0x0a; // newline terminator
+  return new DataView(bytes.buffer);
+}
+
+const CMD_START      = makeCommand("d");   // start data streaming
+const CMD_STOP       = makeCommand("h");   // halt streaming
+const CMD_PRESET_P21 = makeCommand("p21"); // standard 4-channel EEG preset
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+export interface MuseEegFrame {
+  /** Raw samples per channel — shape [4][n_samples], µV, 256 Hz */
+  signals: number[][];
+  /** Band powers averaged across all 4 channels */
+  bandPowers: Record<string, number>;
+  /** Frontal Alpha Asymmetry: ln(AF8_alpha) − ln(AF7_alpha) */
+  faa: number;
+  /** Stress proxy: high-beta / (alpha + beta) */
+  stressIndex: number;
+  /** Focus proxy: beta / (alpha + beta) */
+  focusIndex: number;
+  /** Relaxation proxy: alpha / (alpha + beta + theta) */
+  relaxationIndex: number;
+  /** Signal quality 0–1 based on amplitude variance and artifact rejection */
+  signalQuality: number;
+  timestampMs: number;
+  sampleRate: number;
+  nChannels: number;
+}
+
+export type MuseBleState =
+  | "idle"
+  | "scanning"
+  | "connecting"
+  | "connected"
+  | "streaming"
+  | "error";
+
+export interface MuseBleStatus {
+  state: MuseBleState;
+  deviceId: string | null;
+  deviceName: string | null;
+  error: string | null;
+  /** True when running in a Capacitor native context (iOS / Android) */
+  isNative: boolean;
+}
+
+// ── Ring buffer ───────────────────────────────────────────────────────────────
+
+class RingBuffer {
+  private buf: Float64Array;
+  private head = 0;
+  private count = 0;
+
+  constructor(size: number) {
+    this.buf = new Float64Array(size);
+  }
+
+  push(value: number): void {
+    this.buf[this.head] = value;
+    this.head = (this.head + 1) % this.buf.length;
+    if (this.count < this.buf.length) this.count++;
+  }
+
+  /** Return the last `n` samples in chronological order. */
+  last(n: number): number[] {
+    const take = Math.min(n, this.count);
+    const out: number[] = new Array(take);
+    const size = this.buf.length;
+    for (let i = 0; i < take; i++) {
+      out[i] = this.buf[(this.head - take + i + size) % size];
+    }
+    return out;
+  }
+
+  get length(): number {
+    return this.count;
+  }
+}
+
+// ── Packet decoder ─────────────────────────────────────────────────────────────
+
+/**
+ * Decode a 20-byte Muse EEG BLE notification.
+ *
+ * Format:
+ *   bytes[0-1]  — uint16 big-endian sequence number
+ *   bytes[2-19] — 12 samples × 12 bits, packed 2 samples per 3 bytes
+ *                 3-byte group = AAAA AAAA | AAAA BBBB | BBBB BBBB
+ *
+ * Returns an array of 12 µV values.
+ */
+function decodeEegPacket(data: DataView): number[] {
+  const samples: number[] = new Array(SAMPLES_PER_PACKET);
+  for (let i = 0; i < SAMPLES_PER_PACKET; i += 2) {
+    const byteOffset = 2 + (i >> 1) * 3;
+    const b0 = data.getUint8(byteOffset);
+    const b1 = data.getUint8(byteOffset + 1);
+    const b2 = data.getUint8(byteOffset + 2);
+    const s0 = ((b0 << 4) | (b1 >> 4)) & 0xfff;
+    const s1 = ((b1 & 0xf) << 8 | b2) & 0xfff;
+    samples[i]     = ADC_TO_MICROVOLTS * (s0 - ADC_ZERO);
+    samples[i + 1] = ADC_TO_MICROVOLTS * (s1 - ADC_ZERO);
+  }
+  return samples;
+}
+
+// ── Feature extraction from 4-channel buffer ─────────────────────────────────
+
+function computeFaa(af7Samples: number[], af8Samples: number[], fs: number): number {
+  if (af7Samples.length < 32 || af8Samples.length < 32) return 0;
+  const bp7 = extractBandPowers(af7Samples, fs);
+  const bp8 = extractBandPowers(af8Samples, fs);
+  const alpha7 = Math.max(bp7.alpha ?? 0, 1e-10);
+  const alpha8 = Math.max(bp8.alpha ?? 0, 1e-10);
+  return Math.log(alpha8) - Math.log(alpha7); // positive = approach / positive valence
+}
+
+function computeIndices(bandPowers: Record<string, number>): {
+  stress: number;
+  focus: number;
+  relaxation: number;
+} {
+  const alpha     = bandPowers.alpha    ?? 0;
+  const beta      = bandPowers.beta     ?? 0.001;
+  const theta     = bandPowers.theta    ?? 0.001;
+  const highBeta  = beta * 0.35; // approximate high-beta as 35% of beta band
+  const ab        = alpha + beta;
+  return {
+    stress:      Math.max(0, Math.min(1, highBeta / Math.max(ab, 1e-10))),
+    focus:       Math.max(0, Math.min(1, beta      / Math.max(ab, 1e-10))),
+    relaxation:  Math.max(0, Math.min(1, alpha     / Math.max(ab + theta, 1e-10))),
+  };
+}
+
+function computeSignalQuality(samples: number[]): number {
+  if (samples.length === 0) return 0;
+  // Amplitude check: good EEG stays within ±100 µV; artefacts hit ±200+ µV
+  const maxAmp = Math.max(...samples.map(Math.abs));
+  if (maxAmp > 200) return 0.2;
+  if (maxAmp > 100) return 0.5;
+  // Variance check: flat line (disconnected electrode) has near-zero variance
+  const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
+  const variance = samples.reduce((a, b) => a + (b - mean) ** 2, 0) / samples.length;
+  if (variance < 0.1) return 0.1;  // flat line
+  if (variance > 5000) return 0.3; // excessive noise
+  return Math.min(1, 0.5 + variance / 1000);
+}
+
+// ── Main BLE manager class ────────────────────────────────────────────────────
+
+export class MuseBleManager {
+  private deviceId: string | null = null;
+  private deviceName: string | null = null;
+  private state: MuseBleState = "idle";
+  private error: string | null = null;
+  private rings: RingBuffer[] = Array.from(
+    { length: N_ACTIVE_CHANNELS },
+    () => new RingBuffer(RING_BUFFER_SAMPLES)
+  );
+  private emitTimer: ReturnType<typeof setInterval> | null = null;
+  private onFrame: ((frame: MuseEegFrame) => void) | null = null;
+  private onStatusChange: ((status: MuseBleStatus) => void) | null = null;
+  private BleClient: typeof import("@capacitor-community/bluetooth-le").BleClient | null = null;
+
+  get isNative(): boolean {
+    return Capacitor.isNativePlatform();
+  }
+
+  getStatus(): MuseBleStatus {
+    return {
+      state: this.state,
+      deviceId: this.deviceId,
+      deviceName: this.deviceName,
+      error: this.error,
+      isNative: this.isNative,
+    };
+  }
+
+  /** Register callback for decoded EEG frames. */
+  onEegFrame(callback: (frame: MuseEegFrame) => void): void {
+    this.onFrame = callback;
+  }
+
+  /** Register callback for connection state changes. */
+  onStatus(callback: (status: MuseBleStatus) => void): void {
+    this.onStatusChange = callback;
+  }
+
+  private setStatus(state: MuseBleState, error: string | null = null): void {
+    this.state = state;
+    this.error = error;
+    this.onStatusChange?.(this.getStatus());
+  }
+
+  // ── Lazy-load the BLE plugin (only available in Capacitor native context) ──
+
+  private async getBleClient() {
+    if (!this.BleClient) {
+      const mod = await import("@capacitor-community/bluetooth-le");
+      this.BleClient = mod.BleClient;
+    }
+    return this.BleClient;
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  /**
+   * Scan for Muse devices and prompt the user to select one.
+   * Automatically connects and starts streaming.
+   *
+   * Throws if BLE is unavailable (non-native context or permissions denied).
+   */
+  async connect(): Promise<void> {
+    if (!this.isNative) {
+      throw new Error("BLE is only available on iOS/Android. Use BrainFlow on desktop.");
+    }
+
+    const ble = await this.getBleClient();
+    this.setStatus("scanning");
+
+    try {
+      await ble.initialize({ androidNeverForLocation: true });
+    } catch (e) {
+      this.setStatus("error", `BLE init failed: ${String(e)}`);
+      throw e;
+    }
+
+    let device: { deviceId: string; name?: string };
+    try {
+      // Shows the native device picker filtered to Muse's primary service UUID
+      device = await ble.requestDevice({
+        services: [MUSE_SERVICE],
+        optionalServices: [],
+      });
+    } catch (e) {
+      this.setStatus("idle", "Device selection cancelled");
+      throw e;
+    }
+
+    this.setStatus("connecting");
+    this.deviceId   = device.deviceId;
+    this.deviceName = device.name ?? "Muse";
+
+    try {
+      await ble.connect(device.deviceId, () => {
+        // Disconnection callback
+        this.stopEmitter();
+        this.setStatus("idle", "Device disconnected");
+      });
+    } catch (e) {
+      this.setStatus("error", `Connection failed: ${String(e)}`);
+      this.deviceId = null;
+      throw e;
+    }
+
+    try {
+      // Set standard preset (4-channel EEG) then start data
+      await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
+      await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
+    } catch (e) {
+      this.setStatus("error", `Failed to start EEG stream: ${String(e)}`);
+      throw e;
+    }
+
+    // Subscribe to all 4 EEG channel characteristics
+    for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+      const charUuid = MUSE_EEG_CHARS[ch];
+      const channelIndex = ch;
+      await ble.startNotifications(
+        device.deviceId,
+        MUSE_SERVICE,
+        charUuid,
+        (data: DataView) => this.onEegNotification(channelIndex, data)
+      );
+    }
+
+    this.startEmitter();
+    this.setStatus("streaming");
+  }
+
+  /**
+   * Stop streaming and disconnect from the device.
+   */
+  async disconnect(): Promise<void> {
+    this.stopEmitter();
+    if (!this.deviceId) return;
+
+    try {
+      const ble = await this.getBleClient();
+      // Send stop command before disconnecting so the headset goes to idle
+      await ble.write(this.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_STOP).catch(() => {});
+      await ble.disconnect(this.deviceId);
+    } catch {
+      // ignore errors during teardown
+    } finally {
+      this.deviceId = null;
+      this.deviceName = null;
+      this.setStatus("idle");
+    }
+  }
+
+  // ── Internal ───────────────────────────────────────────────────────────────
+
+  private onEegNotification(channel: number, data: DataView): void {
+    if (channel >= N_ACTIVE_CHANNELS || data.byteLength < 20) return;
+    const samples = decodeEegPacket(data);
+    for (const s of samples) {
+      this.rings[channel].push(s);
+    }
+  }
+
+  private startEmitter(): void {
+    this.emitTimer = setInterval(() => this.emitFrame(), EMIT_INTERVAL_MS);
+  }
+
+  private stopEmitter(): void {
+    if (this.emitTimer !== null) {
+      clearInterval(this.emitTimer);
+      this.emitTimer = null;
+    }
+  }
+
+  private emitFrame(): void {
+    if (!this.onFrame) return;
+
+    const windowSamples = MUSE_SAMPLE_RATE; // 1-second window for feature computation
+    const signals: number[][] = this.rings.map((r) => r.last(windowSamples));
+
+    // Need at least 256 samples before emitting a meaningful frame
+    if (signals[0].length < windowSamples / 4) return;
+
+    // Average band powers across all 4 channels
+    const allBandPowers = signals.map((s) =>
+      s.length >= 32 ? extractBandPowers(s, MUSE_SAMPLE_RATE) : null
+    );
+    const validBp = allBandPowers.filter(Boolean) as Record<string, number>[];
+
+    const avgBandPowers: Record<string, number> = {};
+    for (const band of ["delta", "theta", "alpha", "beta", "gamma"]) {
+      const vals = validBp.map((bp) => bp[band] ?? 0);
+      avgBandPowers[band] = vals.length > 0
+        ? vals.reduce((a, b) => a + b, 0) / vals.length
+        : 0;
+    }
+
+    const { stress, focus, relaxation } = computeIndices(avgBandPowers);
+    // ch1 = AF7, ch2 = AF8 (BrainFlow Muse 2 ordering)
+    const faa = computeFaa(signals[1], signals[2], MUSE_SAMPLE_RATE);
+    const sqiValues = signals.map((s) => computeSignalQuality(s));
+    const signalQuality = sqiValues.reduce((a, b) => a + b, 0) / sqiValues.length;
+
+    const frame: MuseEegFrame = {
+      signals,
+      bandPowers: avgBandPowers,
+      faa,
+      stressIndex: stress,
+      focusIndex: focus,
+      relaxationIndex: relaxation,
+      signalQuality,
+      timestampMs: Date.now(),
+      sampleRate: MUSE_SAMPLE_RATE,
+      nChannels: N_ACTIVE_CHANNELS,
+    };
+
+    this.onFrame(frame);
+  }
+}
+
+// ── Singleton instance ────────────────────────────────────────────────────────
+
+export const museBle = new MuseBleManager();
+
+// ── Utility: convert MuseEegFrame → use-device EEGStreamFrame shape ───────────
+// This adapter lets the mobile BLE path feed into the same hook state as the
+// desktop WebSocket path (both ultimately set `latestFrame`).
+
+export function museFrameToEegStreamFrame(f: MuseEegFrame): {
+  signals: number[][];
+  analysis: Record<string, unknown>;
+  quality: { sqi: number; artifacts_detected: string[]; clean_ratio: number; channel_quality: number[] };
+  timestamp: number;
+  n_channels: number;
+  sample_rate: number;
+} {
+  const bp = f.bandPowers;
+
+  return {
+    signals: f.signals,
+    analysis: {
+      band_powers: bp,
+      features: {
+        faa: f.faa,
+        stress_index: f.stressIndex,
+        focus_index: f.focusIndex,
+        relaxation_index: f.relaxationIndex,
+      },
+      emotions: {
+        // Derive basic emotion from FAA + stress/focus
+        emotion: f.faa > 0.1 && f.focusIndex > 0.45 ? "focused"
+               : f.faa < -0.1 && f.stressIndex > 0.55 ? "stressed"
+               : f.faa < -0.15 ? "sad"
+               : f.relaxationIndex > 0.5 ? "relaxed"
+               : "neutral",
+        confidence: f.signalQuality,
+        valence: Math.max(-1, Math.min(1, f.faa * 2)),
+        arousal: f.stressIndex * 0.6 + f.focusIndex * 0.4,
+        stress_index: f.stressIndex,
+        focus_index: f.focusIndex,
+        relaxation_index: f.relaxationIndex,
+      },
+    },
+    quality: {
+      sqi: f.signalQuality,
+      artifacts_detected: f.signalQuality < 0.4 ? ["amplitude"] : [],
+      clean_ratio: f.signalQuality,
+      channel_quality: f.signals.map((s) => computeSignalQuality(s)),
+    },
+    timestamp: f.timestampMs / 1000,
+    n_channels: f.nChannels,
+    sample_rate: f.sampleRate,
+  };
+}
