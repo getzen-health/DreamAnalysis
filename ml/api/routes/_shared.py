@@ -261,6 +261,11 @@ def predict_emotion(user_id: str, eeg, fs: float, n_channels: int = 4) -> dict:
          trained but not enough personal data yet
       3. Global EmotionClassifier (mega LGBM, 74.21% CV) — if EEGNet not trained
 
+    After the base prediction is obtained, the OnlineLearner (SGDClassifier) is
+    also consulted. If it has been calibrated and its confidence exceeds 0.6, its
+    emotion label overrides the base prediction while all numeric indices (stress,
+    valence, arousal) are kept from the higher-quality base model.
+
     This function is safe to call from a ThreadPoolExecutor (fully synchronous,
     releases GIL during NumPy/LightGBM computation).
     """
@@ -270,10 +275,36 @@ def predict_emotion(user_id: str, eeg, fs: float, n_channels: int = 4) -> dict:
         result = pm.predict(eeg, fs)
         # "fallback_no_backbone" means EEGNet weights not present → use mega LGBM
         if result.get("model_type") != "fallback_no_backbone":
-            return result
+            base_result = result
+        else:
+            base_result = emotion_model.predict(eeg, fs)
     except Exception:
-        pass
-    return emotion_model.predict(eeg, fs)
+        base_result = emotion_model.predict(eeg, fs)
+
+    # ── OnlineLearner (SGDClassifier) blend ──────────────────────────────────
+    # Consults the per-user incremental model that updates on every user correction.
+    # Only overrides the emotion label; numeric indices come from the base model.
+    try:
+        pma = _get_personal_model(user_id)
+        if pma is not None:
+            # Extract 1D features for the SGDClassifier (needs feature dict)
+            _sig = eeg[0] if (hasattr(eeg, "ndim") and eeg.ndim == 2) else eeg
+            _proc = preprocess(_sig, fs)
+            _feats = extract_features(_proc, fs)
+            ol_result = pma.predict(_feats)
+            if ol_result.get("has_personal") and ol_result.get("personal_confidence", 0) > 0.6:
+                base_result = {
+                    **base_result,
+                    "emotion": ol_result["personal_prediction"],
+                    "online_learner_active": True,
+                    "online_confidence": round(ol_result["personal_confidence"], 3),
+                }
+            else:
+                base_result["online_learner_active"] = False
+    except Exception:
+        pass  # OnlineLearner failure never breaks main prediction
+
+    return base_result
 
 
 # ─── Pydantic schemas ────────────────────────────────────────────────────────
