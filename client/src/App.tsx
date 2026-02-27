@@ -25,6 +25,9 @@ import DailyBrainReport from "@/pages/daily-brain-report";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
+// ── Intent selection page — lazy loaded ────────────────────────────────────
+const IntentSelect = lazy(() => import("@/pages/intent-select"));
+
 // ── Study pages — lazy loaded ───────────────────────────────────────────────
 const StudyLanding       = lazy(() => import("@/pages/study/StudyLanding"));
 const StudyConsent       = lazy(() => import("@/pages/study/StudyConsent"));
@@ -172,6 +175,12 @@ function AppRoutes() {
       <Route path="/study"><StudyLanding /></Route>
       {/* Fullscreen onboarding — no sidebar */}
       <Route path="/onboarding" component={Onboarding} />
+      {/* Intent selection — study vs explore, shown after first login */}
+      <Route path="/intent">
+        <Suspense fallback={<PageLoader />}>
+          <IntentSelect />
+        </Suspense>
+      </Route>
       {/* Public route — no auth required (needed for App Store / HealthKit) */}
       <Route path="/privacy">
         <Suspense fallback={<PageLoader />}>
