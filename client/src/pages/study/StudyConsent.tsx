@@ -60,9 +60,15 @@ For questions about this study, contact the research team through the applicatio
 By checking the box below you confirm that you have read and understood the above,
 that you are 18 years of age or older, and that you agree to participate voluntarily.`;
 
-function generateCode(): string {
+const STUDY_CODE_KEY = "ndw_study_code";
+
+function getOrCreateCode(): string {
+  const stored = localStorage.getItem(STUDY_CODE_KEY);
+  if (stored && /^P\d{3}$/.test(stored)) return stored;
   const n = Math.floor(Math.random() * 900) + 100; // 100–999
-  return `P${n}`;
+  const code = `P${n}`;
+  localStorage.setItem(STUDY_CODE_KEY, code);
+  return code;
 }
 
 export default function StudyConsent() {
@@ -70,7 +76,7 @@ export default function StudyConsent() {
   const { toast } = useToast();
 
   const [agreed, setAgreed] = useState(false);
-  const [code, setCode] = useState(() => generateCode());
+  const [code] = useState(() => getOrCreateCode());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = agreed;
@@ -157,19 +163,19 @@ export default function StudyConsent() {
             <div className="space-y-1">
               <Label className="text-sm font-medium">Your anonymous participant code</Label>
               <p className="text-xs text-muted-foreground">
-                This code was randomly assigned to you. Write it down — you'll need it to
-                start each session. It contains no personal information.
+                This code is saved to this device. As long as you use the same browser,
+                you'll get the same code automatically. Screenshot or note it down as a backup.
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-3xl font-bold tracking-widest text-primary">
+              <span className="font-mono text-3xl font-bold tracking-widest text-primary select-all">
                 {code}
               </span>
               <Badge
                 variant="outline"
                 className="border-green-500/50 text-green-400 text-xs"
               >
-                Ready
+                Saved to device
               </Badge>
             </div>
           </CardContent>
