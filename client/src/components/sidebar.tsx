@@ -4,6 +4,7 @@ import {
   Brain,
   Sun,
   Moon,
+  BarChart3,
   MessageSquare,
   Settings,
   Menu,
@@ -37,8 +38,9 @@ const sections: NavSection[] = [
   {
     title: "Today",
     items: [
-      { path: "/brain-report", label: "Brain Report",   icon: Sun },
-      { path: "/",             label: "Brain State",    icon: Brain },
+      { path: "/brain-report",    label: "Brain Report",   icon: Sun },
+      { path: "/weekly-summary", label: "Week in Review", icon: BarChart3 },
+      { path: "/",               label: "Brain State",    icon: Brain },
     ],
   },
   {

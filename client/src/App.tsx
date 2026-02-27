@@ -41,6 +41,7 @@ const ResearchDaytime        = lazy(() => import("@/pages/research-daytime"));
 const ResearchEvening        = lazy(() => import("@/pages/research-evening"));
 const FoodLog                = lazy(() => import("@/pages/food-log"));
 const SleepSession           = lazy(() => import("@/pages/sleep-session"));
+const WeeklyBrainSummary     = lazy(() => import("@/pages/weekly-brain-summary"));
 
 // Minimal fallback shown while a lazy chunk loads
 function PageLoader() {
@@ -144,6 +145,9 @@ function AppRoutes() {
       </Route>
       <Route path="/brain-report">
         <ProtectedRoute><AppLayout><DailyBrainReport /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/weekly-summary">
+        <ProtectedRoute><AppLayout><WeeklyBrainSummary /></AppLayout></ProtectedRoute>
       </Route>
       {/* Fullscreen onboarding — no sidebar */}
       <Route path="/onboarding" component={Onboarding} />
