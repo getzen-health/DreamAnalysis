@@ -475,7 +475,7 @@ export default function DailyBrainReport() {
           </div>
 
           {sleepData.deepSleepMinutes !== undefined ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Deep sleep</p>
                 <p className="text-lg font-semibold">
@@ -500,7 +500,7 @@ export default function DailyBrainReport() {
               </div>
             </div>
           ) : overnightSession ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Session length</p>
                 <p className="text-lg font-semibold">
@@ -719,7 +719,7 @@ export default function DailyBrainReport() {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div>
               <p className="text-xs text-muted-foreground mb-1">Avg stress</p>
               <p className={`text-xl font-semibold font-mono ${weekly.avgStress > 60 ? "text-red-400" : weekly.avgStress > 40 ? "text-orange-400" : "text-emerald-400"}`}>

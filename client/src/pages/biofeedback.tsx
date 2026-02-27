@@ -1061,7 +1061,7 @@ export default function Biofeedback() {
 
             {/* Before / After */}
             {startStress != null && currentStress != null && readings.length > 5 && (
-              <div className="grid grid-cols-3 gap-4 py-4 border-y border-border/20">
+              <div className="grid grid-cols-3 gap-2 py-4 border-y border-border/20">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Before</p>
                   <p className="text-3xl font-mono font-bold">{Math.round(startStress)}</p>

@@ -87,7 +87,12 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="fixed top-4 left-4 z-50"
+          // top-[calc(16px+env(safe-area-inset-top))] pushes below iOS notch/Dynamic Island
+          className="fixed z-50 w-11 h-11"
+          style={{
+            top: "calc(12px + env(safe-area-inset-top, 0px))",
+            left: "calc(12px + env(safe-area-inset-left, 0px))",
+          }}
           onClick={() => setIsOpen(!isOpen)}
         >
           <Menu className="h-5 w-5" />
@@ -135,7 +140,7 @@ export function Sidebar() {
                       key={item.path}
                       href={item.path}
                       onClick={() => isMobile && setIsOpen(false)}
-                      className={`flex items-center px-3 py-2 rounded-lg text-[13px] transition-all mb-0.5 ${
+                      className={`flex items-center px-3 py-2.5 rounded-lg text-[13px] transition-all mb-0.5 min-h-[44px] ${
                         isActive
                           ? "text-primary font-medium"
                           : isDark
@@ -165,7 +170,7 @@ export function Sidebar() {
               <Link
                 href="/settings"
                 onClick={() => isMobile && setIsOpen(false)}
-                className={`flex items-center px-3 py-2 rounded-lg text-[13px] transition-all ${
+                className={`flex items-center px-3 py-2.5 rounded-lg text-[13px] transition-all min-h-[44px] ${
                   location === "/settings"
                     ? "text-primary font-medium"
                     : isDark
@@ -219,11 +224,12 @@ export function Sidebar() {
             )}
           </button>
 
-          {/* User avatar + logout */}
+          {/* User avatar + logout — padded above home indicator bar */}
           {user && (
             <div
-              className="mx-3 mb-4 px-3 py-2 rounded-xl flex items-center gap-2"
+              className="mx-3 px-3 py-2 rounded-xl flex items-center gap-2"
               style={{
+                marginBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
                 background: isDark ? "hsl(220, 22%, 7%)" : "hsl(220, 14%, 95%)",
                 border: isDark ? "1px solid hsl(220, 18%, 12%)" : "1px solid hsl(220, 14%, 87%)",
               }}

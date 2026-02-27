@@ -626,7 +626,7 @@ export default function EmotionLab() {
             {mmStatus ? `${mmStatus.n_modalities}/3 modalities` : "loading…"}
           </span>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { key: "eeg_model_loaded",   label: "EEG",   acc: "71.52%", desc: "11 datasets · 187k samples",  weight: mmStatus?.fusion_weights?.eeg,   icon: "🧠" },
             { key: "audio_model_loaded", label: "Audio", acc: "82.61%", desc: "EAV · 4,072 voice samples",   weight: mmStatus?.fusion_weights?.audio, icon: "🎤" },

@@ -68,13 +68,15 @@ Capacitor wraps the existing React web app into a native iOS/Android shell in ~2
 Then add native features progressively. No full rewrite needed to ship v1.
 
 ### Phase 1 — Capacitor wrapper (2 weeks, ship to TestFlight + Play Store beta)
-- [ ] Install Capacitor: `npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/android`
-- [ ] Init: `npx cap init`, `npx cap add ios`, `npx cap add android`
-- [ ] Fix mobile layouts — add responsive Tailwind breakpoints to all 11 sidebar pages
-- [ ] Touch targets — all tap areas minimum 44×44px (iOS HIG requirement)
-- [ ] Safe area insets — handle notch / Dynamic Island / Android navbar padding
-- [ ] Splash screen + app icon (brain/neural theme)
-- [ ] Test on iOS simulator + Android emulator
+- [x] Install Capacitor: packages installed (@capacitor/core@8.1.0, cli, ios, android)
+- [x] capacitor.config.ts created (appId: com.neuraldreamworkshop.app, webDir: dist/public, SplashScreen + StatusBar + PushNotifications plugin config)
+- [ ] Init native projects: `npx cap add ios` (needs Xcode.app) + `npx cap add android` (needs JDK + Android Studio) — run manually
+- [x] Fix mobile layouts — responsive breakpoints added to daily-brain-report, emotion-lab; overflow-x-hidden on layout
+- [x] Touch targets — sidebar nav links + settings link raised to min-h-[44px]; hamburger button 44×44px; global CSS min-height 44px on all interactive elements
+- [x] Safe area insets — viewport-fit=cover; env(safe-area-inset-*) CSS vars; header pl-14 on mobile; sidebar bottom padding; home indicator clearance
+- [x] PWA manifest updated (name, theme, icon purposes split for maskable compliance)
+- [ ] Splash screen + app icon assets — need 1024×1024 PNG designed (placeholder: favicon.png)
+- [ ] Test on iOS simulator + Android emulator (blocked on cap add)
 
 ### Phase 2 — Native features (1–2 months)
 - [ ] Bluetooth BLE for Muse 2 — `@capacitor-community/bluetooth-le` plugin. Replaces BrainFlow on mobile (BrainFlow is desktop-only). Muse SDK has iOS/Android BLE support.

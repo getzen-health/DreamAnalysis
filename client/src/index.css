@@ -318,3 +318,60 @@
   0% { stroke-dashoffset: 10; }
   100% { stroke-dashoffset: 0; }
 }
+
+/* ── Mobile / Capacitor safe-area + touch target fixes ──────────────────────
+   These CSS custom properties expose iOS/Android safe area insets so that
+   Tailwind utilities and components can consume them.
+   Reference: https://webkit.org/blog/7929/designing-websites-for-iphone-x/
+*/
+
+:root {
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+}
+
+/* Capacitor / PWA: push the entire app below the notch */
+body {
+  padding-top:    env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left:   env(safe-area-inset-left, 0px);
+  padding-right:  env(safe-area-inset-right, 0px);
+}
+
+/* Prevent horizontal overflow (common source of mobile layout bugs) */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* iOS HIG: minimum 44×44 px tap target for all interactive elements */
+button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Sidebar nav links — already styled in sidebar.tsx, but ensure 44px height */
+.sidebar-nav-link {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* Prevent text size adjustment on orientation change (iOS Safari bug) */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Touch scrolling — native feel on iOS */
+.overflow-y-auto,
+.overflow-y-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Remove tap highlight on mobile (replaced by custom focus styles) */
+* {
+  -webkit-tap-highlight-color: transparent;
+}

@@ -52,9 +52,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <NeuralBackground />
       <Sidebar />
 
-      <div className="md:ml-56 min-h-screen">
+      {/* md:ml-56 = sidebar width; on mobile sidebar overlays so no margin needed */}
+      <div className="md:ml-56 min-h-screen overflow-x-hidden">
         <header
-          className="sticky top-0 z-30 border-b px-6 py-3"
+          className="sticky top-0 z-30 border-b pl-14 pr-4 py-3 md:px-6"
           style={{
             background: "hsl(222, 25%, 6%, 0.85)",
             backdropFilter: "blur(12px)",
@@ -74,7 +75,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
         </header>
 
-        {children}
+        {/* pb-safe: extra bottom padding on devices with home indicator */}
+        <div className="pb-[env(safe-area-inset-bottom,0px)]">
+          {children}
+        </div>
       </div>
 
       {/* Real-time intervention notifications — floats above all content */}
