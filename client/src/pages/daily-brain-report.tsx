@@ -4,22 +4,10 @@ import { type SessionSummary } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Sun,
   Moon,
-  Brain,
-  Wind,
-  TrendingUp,
-  Zap,
-  AlertTriangle,
-  Clock,
-  BookOpen,
   ArrowRight,
-  CalendarDays,
-  Copy,
-  Check,
   Flame,
   BarChart2,
-  Lightbulb,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -465,16 +453,36 @@ export default function DailyBrainReport() {
     (s) => s.session_type === "sleep" || (s.summary?.duration_sec ?? 0) > 3600
   );
 
+  /* — Stress badge color — */
+  const stressBadgeClass =
+    latestStress !== null && latestStress > 6
+      ? "bg-red-500/15 text-red-400 border-red-500/30"
+      : latestStress !== null && latestStress > 3
+      ? "bg-orange-500/15 text-orange-400 border-orange-500/30"
+      : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+
+  const stressBadgeLabel =
+    latestStress !== null
+      ? latestStress > 6 ? "High stress" : latestStress > 3 ? "Moderate" : "Calm"
+      : null;
+
+  /* — Top insight (1 liner) — */
+  const topInsight: string | null =
+    serverInsights.length > 0
+      ? serverInsights[0].text
+      : insight;
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-lg mx-auto px-4 py-8 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-2">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">{new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</p>
-          <h1 className="text-2xl font-semibold">{greeting()}</h1>
+          <p className="text-xs text-muted-foreground">
+            {new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
+          </p>
+          <h1 className="text-xl font-semibold mt-0.5">{greeting()}</h1>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <Sun className="h-7 w-7 text-yellow-400 opacity-80" />
           {streak >= 2 && (
             <span className={`flex items-center gap-1 text-xs font-semibold ${streak >= 7 ? "text-orange-400" : "text-amber-400"}`}>
               <Flame className="h-3.5 w-3.5" />
@@ -484,339 +492,107 @@ export default function DailyBrainReport() {
         </div>
       </div>
 
-      {/* Last night — sleep summary */}
+      {/* Card 1 — Right now */}
       {isLoading ? (
         <SkeletonCard />
       ) : (
-        <Card className="glass-card p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Moon className="h-4 w-4 text-indigo-400" />
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Last night
-            </h2>
+        <Card className="glass-card p-5">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-3">Right now</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            {stressBadgeLabel && (
+              <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${stressBadgeClass}`}>
+                {stressBadgeLabel}
+              </span>
+            )}
+            {latestHealth?.sleepQuality !== undefined && (
+              <span className="text-xs px-2.5 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
+                Sleep {Math.round(latestHealth.sleepQuality * 10)}%
+              </span>
+            )}
+            {latestHealth?.heartRate && (
+              <span className="text-xs px-2.5 py-1 rounded-full border border-border/40 text-muted-foreground">
+                ♥ {latestHealth.heartRate} bpm
+              </span>
+            )}
           </div>
-
-          {sleepData.deepSleepMinutes !== undefined ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Deep sleep</p>
-                <p className="text-lg font-semibold">
-                  {fmtMinutes(sleepData.deepSleepMinutes)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">REM</p>
-                <p className="text-lg font-semibold">
-                  {sleepData.remMinutes !== undefined
-                    ? fmtMinutes(sleepData.remMinutes)
-                    : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Dreams</p>
-                <p className="text-lg font-semibold">
-                  {recentDreams.length > 0
-                    ? `${recentDreams.length} detected`
-                    : "None recorded"}
-                </p>
-              </div>
-            </div>
-          ) : overnightSession ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Session length</p>
-                <p className="text-lg font-semibold">
-                  {overnightSession.summary?.duration_sec
-                    ? fmtMinutes(overnightSession.summary.duration_sec / 60)
-                    : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Dreams</p>
-                <p className="text-lg font-semibold">
-                  {recentDreams.length > 0
-                    ? `${recentDreams.length} detected`
-                    : "None recorded"}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No overnight session recorded yet.{" "}
-              <button
-                onClick={() => navigate("/device-setup")}
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                Connect your Muse 2
-              </button>{" "}
-              to start tracking sleep.
+          {topInsight && (
+            <p className="mt-3 text-sm text-foreground/75 leading-relaxed border-t border-border/20 pt-3">
+              {topInsight}
             </p>
-          )}
-
-          {recentDreams.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-border/30">
-              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                <BookOpen className="h-3 w-3" />
-                Latest dream
-              </p>
-              <p className="text-sm text-foreground/80 line-clamp-2">
-                {recentDreams[0].dreamText}
-              </p>
-              <button
-                onClick={() => navigate("/dreams")}
-                className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
-              >
-                Open dream journal <ArrowRight className="h-3 w-3" />
-              </button>
-            </div>
           )}
         </Card>
       )}
 
-      {/* Today's forecast */}
-      {isLoading ? (
-        <SkeletonCard />
-      ) : (
-        <Card className="glass-card p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-emerald-400" />
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Today's forecast
-            </h2>
+      {/* Card 2 — Last night */}
+      {!isLoading && (sleepData.totalSleepMinutes !== undefined || recentDreams.length > 0 || overnightSession) && (
+        <Card className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Moon className="h-3.5 w-3.5 text-indigo-400" />
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Last night</p>
           </div>
-
-          <div className="space-y-3">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-yellow-400 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">Peak focus</p>
-                  <p className="text-xs text-muted-foreground">protect this time</p>
-                </div>
+          <div className="flex items-center gap-6">
+            {sleepData.totalSleepMinutes !== undefined && (
+              <div>
+                <p className="text-lg font-semibold">{fmtMinutes(sleepData.totalSleepMinutes)}</p>
+                <p className="text-[11px] text-muted-foreground">sleep</p>
               </div>
-              <span className="text-sm font-mono text-foreground/90">
-                {peakFocusWindow(health)}
-              </span>
-            </div>
-
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-orange-400 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">Likely slump</p>
-                  <p className="text-xs text-muted-foreground">schedule a break</p>
-                </div>
+            )}
+            {overnightSession?.summary?.duration_sec && !sleepData.totalSleepMinutes && (
+              <div>
+                <p className="text-lg font-semibold">{fmtMinutes(overnightSession.summary.duration_sec / 60)}</p>
+                <p className="text-[11px] text-muted-foreground">session</p>
               </div>
-              <span className="text-sm font-mono text-foreground/90">
-                {slumpWindow(health)}
-              </span>
-            </div>
-
-            {latestStress !== null && (
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle
-                    className={`h-4 w-4 shrink-0 ${
-                      latestStress > 6
-                        ? "text-red-400"
-                        : latestStress > 3
-                        ? "text-orange-400"
-                        : "text-emerald-400"
-                    }`}
-                  />
-                  <div>
-                    <p className="text-sm font-medium">Stress risk</p>
-                    <p className="text-xs text-muted-foreground">based on last reading</p>
-                  </div>
-                </div>
-                <span
-                  className={`text-sm font-medium capitalize ${
-                    latestStress > 6
-                      ? "text-red-400"
-                      : latestStress > 3
-                      ? "text-orange-400"
-                      : "text-emerald-400"
-                  }`}
-                >
-                  {stressLabel(latestStress)}
-                </span>
+            )}
+            {recentDreams.length > 0 && (
+              <div>
+                <p className="text-lg font-semibold">{recentDreams.length}</p>
+                <p className="text-[11px] text-muted-foreground">dream{recentDreams.length !== 1 ? "s" : ""}</p>
               </div>
             )}
           </div>
-        </Card>
-      )}
-
-      {/* Yesterday's insight — server-computed activity correlations */}
-      {!isLoading && (serverInsights.length > 0 || insight) && (
-        <Card className="glass-card p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Lightbulb className="h-4 w-4 text-violet-400" />
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Yesterday's insight
-            </h2>
-          </div>
-
-          {serverInsights.length > 0 ? (
-            <div className="space-y-3">
-              {serverInsights.map((si, i) => (
-                <div
-                  key={i}
-                  className={`flex items-start gap-3 ${i > 0 ? "pt-3 border-t border-border/20" : ""}`}
-                >
-                  <div className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${
-                    si.type === "activity_focus" || si.type === "activity_stress"
-                      ? "bg-emerald-400"
-                      : si.type === "peak_focus"
-                      ? "bg-violet-400"
-                      : "bg-sky-400"
-                  }`} />
-                  <p className="text-sm text-foreground/90 leading-snug">{si.text}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* Fallback to client-side insight when server has no data */
-            <p className="text-sm text-foreground/90">{insight}</p>
+          {recentDreams.length > 0 && (
+            <button
+              onClick={() => navigate("/dreams")}
+              className="mt-3 text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              Open dream journal <ArrowRight className="h-3 w-3" />
+            </button>
           )}
         </Card>
       )}
 
-      {/* Recommended action */}
-      {isLoading ? (
-        <SkeletonCard />
-      ) : (
-        <Card className="glass-card p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Wind className="h-4 w-4 text-sky-400" />
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Recommended now
-            </h2>
-          </div>
-
+      {/* Card 3 — Do this now */}
+      {!isLoading && (
+        <Card className="glass-card p-5">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-3">Do this now</p>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium mb-1">{action.label}</p>
-              <p className="text-xs text-muted-foreground">{action.description}</p>
+              <p className="text-sm font-medium">{action.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{action.description}</p>
             </div>
             <Button
               size="sm"
-              className="shrink-0"
+              className="shrink-0 min-w-[72px]"
               onClick={() => navigate(action.route)}
             >
-              Start
-              <ArrowRight className="ml-1 h-3 w-3" />
+              Start <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
           </div>
         </Card>
       )}
 
-      {/* Weekly brain summary */}
-      {!isLoading && weekly && (
-        <Card className="glass-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-sky-400" />
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                This week
-              </h2>
-              <span className="text-[10px] text-muted-foreground/60">
-                {weekly.days} day{weekly.days !== 1 ? "s" : ""} of data
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                const text = `Brain Summary — ${new Date().toLocaleDateString([], { month: "long", day: "numeric" })}\nStress: ${weekly.avgStress}%\nFocus: ${weekly.avgFocus}%\nSleep quality: ${weekly.avgSleep}%\nvia Svapnastra`;
-                navigator.clipboard.writeText(text).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                });
-              }}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {copied ? (
-                <><Check className="h-3 w-3 text-emerald-400" /><span className="text-emerald-400">Copied</span></>
-              ) : (
-                <><Copy className="h-3 w-3" />Copy summary</>
-              )}
-            </button>
+      {/* Card 4 — Your pattern (shown only when server has a meaningful pattern) */}
+      {!isLoading && brainPatterns.length > 0 && (
+        <Card className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <BarChart2 className="h-3.5 w-3.5 text-emerald-400" />
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Your pattern</p>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Avg stress</p>
-              <p className={`text-xl font-semibold font-mono ${weekly.avgStress > 60 ? "text-red-400" : weekly.avgStress > 40 ? "text-orange-400" : "text-emerald-400"}`}>
-                {weekly.avgStress}%
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Avg focus</p>
-              <p className="text-xl font-semibold font-mono text-primary">
-                {weekly.avgFocus}%
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Sleep quality</p>
-              <p className={`text-xl font-semibold font-mono ${weekly.avgSleep > 60 ? "text-emerald-400" : weekly.avgSleep > 40 ? "text-orange-400" : "text-red-400"}`}>
-                {weekly.avgSleep}%
-              </p>
-            </div>
-          </div>
+          <p className="text-sm font-medium">{brainPatterns[0].title}</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{brainPatterns[0].description}</p>
+          <p className="text-xs text-emerald-400/90 mt-1.5">→ {brainPatterns[0].recommendation}</p>
         </Card>
       )}
-
-      {/* Pattern engine — server-computed 30-day correlations */}
-      {!isLoading && (brainPatterns.length > 0 || pattern) && (
-        <Card className="glass-card p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart2 className="h-4 w-4 text-emerald-400" />
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Your patterns
-            </h2>
-            {patternsData && patternsData.dataPoints > 0 && (
-              <span className="text-[10px] text-muted-foreground/60 ml-auto">
-                {patternsData.dataPoints} readings
-              </span>
-            )}
-          </div>
-
-          {brainPatterns.length > 0 ? (
-            <div className="space-y-4">
-              {brainPatterns.map((p, i) => (
-                <div
-                  key={p.type}
-                  className={`${i > 0 ? "pt-4 border-t border-border/20" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <p className="text-sm font-medium leading-snug">{p.title}</p>
-                    <span className="shrink-0 text-[10px] text-muted-foreground/60 mt-0.5">
-                      {Math.round(p.confidence * 100)}% confidence
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed mb-1.5">
-                    {p.description}
-                  </p>
-                  <p className="text-xs text-emerald-400/90 leading-relaxed">
-                    → {p.recommendation}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : pattern ? (
-            /* Fallback to client-side pattern when server has no data yet */
-            <p className="text-sm text-foreground/80 leading-relaxed">{pattern}</p>
-          ) : null}
-        </Card>
-      )}
-
-      {/* Footer link to sessions */}
-      <div className="text-center pt-2">
-        <button
-          onClick={() => navigate("/sessions")}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          View full session history →
-        </button>
-      </div>
     </div>
   );
 }
