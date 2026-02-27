@@ -16,6 +16,7 @@ from processing.eeg_processor import (
     compute_frontal_asymmetry, compute_dasm_rasm,
     compute_frontal_midline_theta,
 )
+from processing.channel_maps import get_channel_map
 
 # Amplitude threshold above which an epoch is flagged as artifact-contaminated.
 # From Krigolson (2021): 75 µV catches most blinks (100-200 µV) and EMG bursts.
@@ -310,7 +311,7 @@ class EmotionClassifier:
 
         return np.array(feat, dtype=np.float32)  # 85 features
 
-    def _predict_lgbm_muse(self, eeg: np.ndarray, fs: float) -> Dict:
+    def _predict_lgbm_muse(self, eeg: np.ndarray, fs: float, device_type: str = "muse_2") -> Dict:
         """Run Muse-native LightGBM inference (85 features: 80 band-power + 5 DASM, no PCA).
 
         Expands the 3-class LGBM output (positive/neutral/negative)
@@ -322,7 +323,7 @@ class EmotionClassifier:
                 self._ema_probs = np.ones(6, dtype=np.float32) / 6
             return self._build_muse_result(
                 int(np.argmax(self._ema_probs)), self._ema_probs,
-                eeg, fs, artifact_detected=True
+                eeg, fs, artifact_detected=True, device_type=device_type
             )
 
         # Feature extraction + scale
@@ -399,14 +400,21 @@ class EmotionClassifier:
 
         smoothed = self._ema_probs
         emotion_idx = int(np.argmax(smoothed))
-        return self._build_muse_result(emotion_idx, smoothed, eeg, fs, artifact_detected=False)
+        return self._build_muse_result(emotion_idx, smoothed, eeg, fs, artifact_detected=False,
+                                       device_type=device_type)
 
     def _build_muse_result(self, emotion_idx: int, smoothed: np.ndarray,
                            eeg: np.ndarray, fs: float,
-                           artifact_detected: bool) -> Dict:
+                           artifact_detected: bool,
+                           device_type: str = "muse_2") -> Dict:
         """Build the standard 15-key return dict for the Muse-native LGBM path."""
+        n_ch = eeg.shape[0] if eeg.ndim == 2 else 1
+        cmap = get_channel_map(device_type, n_ch)
+        lf   = cmap["left_frontal"]   # left-frontal channel index
+        rf   = cmap["right_frontal"]  # right-frontal channel index
+
         try:
-            proc  = preprocess(eeg[1], fs)   # AF7
+            proc  = preprocess(eeg[lf], fs)  # left-frontal channel
             bp    = extract_band_powers(proc, fs)
             de    = differential_entropy(proc, fs)
             alpha     = max(bp.get("alpha",    1e-6), 1e-6)
@@ -424,15 +432,15 @@ class EmotionClassifier:
             de = {}
 
         try:
-            dasm_rasm = compute_dasm_rasm(eeg, fs, left_ch=1, right_ch=2)
+            dasm_rasm = compute_dasm_rasm(eeg, fs, left_ch=lf, right_ch=rf)
         except Exception:
             dasm_rasm = {}
         try:
-            fmt = compute_frontal_midline_theta(eeg[1], fs)
+            fmt = compute_frontal_midline_theta(eeg[lf], fs)
         except Exception:
             fmt = {}
         try:
-            asym = compute_frontal_asymmetry(eeg, fs, left_ch=1, right_ch=2)
+            asym = compute_frontal_asymmetry(eeg, fs, left_ch=lf, right_ch=rf)
             faa_valence = float(asym.get("asymmetry_valence", 0.0))
         except Exception:
             faa_valence = 0.0
@@ -498,7 +506,7 @@ class EmotionClassifier:
             "model_type":            "lgbm-muse",
         }
 
-    def _predict_mega_lgbm(self, eeg: np.ndarray, fs: float) -> Dict:
+    def _predict_mega_lgbm(self, eeg: np.ndarray, fs: float, device_type: str = "muse_2") -> Dict:
         """Run mega cross-dataset LGBM inference (85 raw → PCA 80 → 3-class → 6-class).
 
         Reuses _extract_muse_live_features() and _build_muse_result() from the
@@ -509,7 +517,7 @@ class EmotionClassifier:
                 self._ema_probs = np.ones(6, dtype=np.float32) / 6
             return self._build_muse_result(
                 int(np.argmax(self._ema_probs)), self._ema_probs,
-                eeg, fs, artifact_detected=True
+                eeg, fs, artifact_detected=True, device_type=device_type
             )
 
         feat = self._extract_muse_live_features(eeg, fs)   # 85-dim
@@ -523,9 +531,12 @@ class EmotionClassifier:
         p_pos, p_neu, p_neg = float(proba3[0]), float(proba3[1]), float(proba3[2])
 
         # Ancillary features for 3→6 expansion (identical to _predict_lgbm_muse)
+        cmap = get_channel_map(device_type, eeg.shape[0])
+        lf   = cmap["left_frontal"]   # left-frontal electrode index
+        rf   = cmap["right_frontal"]  # right-frontal electrode index
         try:
-            proc_af7 = preprocess(eeg[1], fs)
-            proc_af8 = preprocess(eeg[2], fs)
+            proc_af7 = preprocess(eeg[lf], fs)
+            proc_af8 = preprocess(eeg[rf], fs)
             bp7  = extract_band_powers(proc_af7, fs)
             bp8  = extract_band_powers(proc_af8, fs)
             a7   = max(bp7.get("alpha", 1e-6), 1e-6)
@@ -575,16 +586,20 @@ class EmotionClassifier:
                                + (1 - self._ema_alpha) * self._ema_probs)
         smoothed    = self._ema_probs
         emotion_idx = int(np.argmax(smoothed))
-        result = self._build_muse_result(emotion_idx, smoothed, eeg, fs, artifact_detected=False)
+        result = self._build_muse_result(emotion_idx, smoothed, eeg, fs, artifact_detected=False,
+                                         device_type=device_type)
         result["model_type"] = "mega-lgbm-pca"
         return result
 
-    def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
+    def predict(self, eeg: np.ndarray, fs: float = 256.0, device_type: str = "muse_2") -> Dict:
         """Classify emotion from EEG signal.
 
         Args:
-            eeg: 1D (single channel) or 2D (n_channels, n_samples) array.
-            fs: Sampling frequency.
+            eeg:         1D (single channel) or 2D (n_channels, n_samples) array.
+            fs:          Sampling frequency.
+            device_type: Device name used to select correct left/right frontal
+                         channel indices for FAA/DASM computation (see
+                         processing/channel_maps.py for the full registry).
         """
         # EEGNet — device-agnostic CNN on raw EEG. Highest priority when trained.
         # Works on any channel count (4ch Muse, 8ch OpenBCI, 16ch Cyton+Daisy).
@@ -597,17 +612,17 @@ class EmotionClassifier:
         # Mega cross-dataset LGBM with global PCA — second priority
         if (self.mega_lgbm_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
                 and self._mega_lgbm_benchmark >= _MIN_MODEL_ACCURACY):
-            return self._predict_mega_lgbm(eeg, fs)
+            return self._predict_mega_lgbm(eeg, fs, device_type)
         # Muse-native LightGBM (85 raw features, no PCA)
         if (self.lgbm_muse_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
                 and self._lgbm_muse_benchmark >= _MIN_MODEL_ACCURACY):
-            return self._predict_lgbm_muse(eeg, fs)
+            return self._predict_lgbm_muse(eeg, fs, device_type)
         # Multichannel DEAP model (requires exactly 4 Muse 2 channels: AF7, AF8, TP9, TP10)
         # Gated on accuracy — DEAP model at ~51% has severe class-imbalance bias toward "sad"
         # (11,165 sad samples vs 1,769 focused), so skip it unless it meets the 60% threshold.
         if (self.model_type == "sklearn-deap" and eeg.ndim == 2 and eeg.shape[0] >= 4
                 and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY):
-            return self._predict_multichannel(eeg, fs)
+            return self._predict_multichannel(eeg, fs, device_type)
         if self.onnx_session is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
             return self._predict_onnx(eeg if eeg.ndim == 1 else eeg[0], fs)
         if self.sklearn_model is not None and self._benchmark_accuracy >= _MIN_MODEL_ACCURACY:
@@ -616,13 +631,13 @@ class EmotionClassifier:
             if self.multichannel_model and eeg.ndim == 2:
                 return self._predict_sklearn(eeg, fs)
             return self._predict_sklearn(eeg if eeg.ndim == 1 else eeg[0], fs)
-        return self._predict_features(eeg, fs)  # pass full multichannel array for FAA
+        return self._predict_features(eeg, fs, device_type)  # pass full multichannel array for FAA
 
     # ────────────────────────────────────────────────────────────────
     # Multichannel DEAP-trained model (primary for Muse 2)
     # ────────────────────────────────────────────────────────────────
 
-    def _predict_multichannel(self, channels: np.ndarray, fs: float) -> Dict:
+    def _predict_multichannel(self, channels: np.ndarray, fs: float, device_type: str = "muse_2") -> Dict:
         """Predict using the DEAP-trained multichannel model."""
         from training.train_deap_muse import extract_multichannel_features
 
@@ -675,8 +690,11 @@ class EmotionClassifier:
         theta_beta_ratio = theta / max(beta, 1e-10)
 
         # Frontal alpha asymmetry (Davidson 1992): richer valence signal
-        # For Muse 2 channel order: AF7(0), AF8(1), TP9(2), TP10(3)
-        asymmetry = compute_frontal_asymmetry(channels, fs, left_ch=0, right_ch=1)
+        _cmap = get_channel_map(device_type, channels.shape[0])
+        asymmetry = compute_frontal_asymmetry(
+            channels, fs,
+            left_ch=_cmap["left_frontal"], right_ch=_cmap["right_frontal"]
+        )
         asym_valence = asymmetry.get("asymmetry_valence", 0.0)  # -1 to +1
 
         # Blend alpha-beta ratio valence (60%) with frontal asymmetry (40%)
@@ -730,7 +748,7 @@ class EmotionClassifier:
     # Feature-based classifier (primary path for Muse 2)
     # ────────────────────────────────────────────────────────────────
 
-    def _predict_features(self, eeg: np.ndarray, fs: float) -> Dict:
+    def _predict_features(self, eeg: np.ndarray, fs: float, device_type: str = "muse_2") -> Dict:
         """Neuroscience-backed emotion classification from band powers.
 
         Accepts 1D (single channel) or 2D (n_channels, n_samples) input.
@@ -826,9 +844,9 @@ class EmotionClassifier:
         # anger (approach + negative valence) also shows left FAA. Blend with ABR for robustness.
         faa_valence = 0.0
         if channels is not None and channels.shape[0] >= 2:
-            # BrainFlow Muse 2 channel order: ch0=TP9, ch1=AF7, ch2=AF8, ch3=TP10
-            # FAA requires ch1 (AF7, left frontal) and ch2 (AF8, right frontal).
-            asym = compute_frontal_asymmetry(channels, fs, left_ch=1, right_ch=2)
+            _cmap = get_channel_map(device_type, channels.shape[0])
+            _lf, _rf = _cmap["left_frontal"], _cmap["right_frontal"]
+            asym = compute_frontal_asymmetry(channels, fs, left_ch=_lf, right_ch=_rf)
             faa_valence = asym.get("asymmetry_valence", 0.0)
 
         # ── DASM Alpha (DE-based asymmetry complement to FAA) ────
@@ -840,7 +858,9 @@ class EmotionClassifier:
         dasm_alpha_valence = 0.0
         dasm_beta_stress = 0.0
         if channels is not None and channels.shape[0] >= 3:
-            dasm_rasm = compute_dasm_rasm(channels, fs, left_ch=1, right_ch=2)
+            _cmap = get_channel_map(device_type, channels.shape[0])
+            _lf, _rf = _cmap["left_frontal"], _cmap["right_frontal"]
+            dasm_rasm = compute_dasm_rasm(channels, fs, left_ch=_lf, right_ch=_rf)
             dasm_alpha_valence = float(
                 np.clip(np.tanh(dasm_rasm.get("dasm_alpha", 0.0)), -1, 1)
             )

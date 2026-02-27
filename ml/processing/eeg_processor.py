@@ -563,14 +563,17 @@ def epoch_signal(
 
 
 def extract_features_multichannel(
-    signals: np.ndarray, fs: float = 256.0, method: str = "average"
+    signals: np.ndarray, fs: float = 256.0, method: str = "average",
+    left_ch: int = 1, right_ch: int = 2,
 ) -> Dict[str, float]:
     """Extract features from multi-channel EEG, averaging across channels.
 
     Args:
-        signals: 2D array (n_channels, n_samples)
-        fs: Sampling frequency
-        method: Aggregation method ("average" supported)
+        signals:   2D array (n_channels, n_samples)
+        fs:        Sampling frequency
+        method:    Aggregation method ("average" supported)
+        left_ch:   Index of left-frontal electrode for DASM/RASM (default 1 = AF7 on Muse 2).
+        right_ch:  Index of right-frontal electrode for DASM/RASM (default 2 = AF8 on Muse 2).
 
     Returns:
         Dict of averaged features (same 17 features as single-channel).
@@ -592,9 +595,12 @@ def extract_features_multichannel(
             )
 
         # DASM/RASM: inter-hemispheric asymmetry across all bands.
-        # Requires AF7 (ch1) and AF8 (ch2) — the standard Muse 2 layout.
+        # left_ch / right_ch are device-specific (see processing/channel_maps.py).
         if n_channels >= 3:
-            dasm_rasm = compute_dasm_rasm(signals, fs, left_ch=1, right_ch=2)
+            # Clamp to valid range in case caller passes unchecked indices
+            lf = min(left_ch, n_channels - 1)
+            rf = min(right_ch, n_channels - 1)
+            dasm_rasm = compute_dasm_rasm(signals, fs, left_ch=lf, right_ch=rf)
             avg_features.update(dasm_rasm)
 
         return avg_features

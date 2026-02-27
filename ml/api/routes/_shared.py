@@ -251,7 +251,9 @@ def _get_personal_model(user_id: str):
     return _personal_models[user_id]
 
 
-def predict_emotion(user_id: str, eeg, fs: float, n_channels: int = 4) -> dict:
+def predict_emotion(
+    user_id: str, eeg, fs: float, n_channels: int = 4, device_type: str = "muse_2"
+) -> dict:
     """Run emotion prediction, preferring the personal model when available.
 
     Priority:
@@ -266,6 +268,9 @@ def predict_emotion(user_id: str, eeg, fs: float, n_channels: int = 4) -> dict:
     emotion label overrides the base prediction while all numeric indices (stress,
     valence, arousal) are kept from the higher-quality base model.
 
+    device_type selects the correct left/right frontal channel indices for FAA/DASM
+    computation (see processing/channel_maps.py).
+
     This function is safe to call from a ThreadPoolExecutor (fully synchronous,
     releases GIL during NumPy/LightGBM computation).
     """
@@ -277,9 +282,9 @@ def predict_emotion(user_id: str, eeg, fs: float, n_channels: int = 4) -> dict:
         if result.get("model_type") != "fallback_no_backbone":
             base_result = result
         else:
-            base_result = emotion_model.predict(eeg, fs)
+            base_result = emotion_model.predict(eeg, fs, device_type=device_type)
     except Exception:
-        base_result = emotion_model.predict(eeg, fs)
+        base_result = emotion_model.predict(eeg, fs, device_type=device_type)
 
     # ── OnlineLearner (SGDClassifier) blend ──────────────────────────────────
     # Consults the per-user incremental model that updates on every user correction.
@@ -312,6 +317,7 @@ class EEGInput(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
     fs: float = Field(default=256.0, description="Sampling frequency in Hz")
     user_id: str = Field(default="default", description="User identifier for per-user state isolation")
+    device_type: str = Field(default="muse_2", description="EEG device name for channel map selection (e.g. 'muse_2', 'openbci_cyton')")
 
 
 class SimulateRequest(BaseModel):

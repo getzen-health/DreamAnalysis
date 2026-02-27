@@ -103,6 +103,7 @@ async def analyze_eeg(input_data: EEGInput):
 
         fs = input_data.fs
         user_id = input_data.user_id
+        device_type = input_data.device_type
         n_channels = signals.shape[0]
 
         # Accumulate into per-user epoch buffer; use 4-second window when available
@@ -126,7 +127,7 @@ async def analyze_eeg(input_data: EEGInput):
             processed,
         ) = await asyncio.gather(
             loop.run_in_executor(_MODEL_EXECUTOR, sleep_model.predict, eeg, fs),
-            loop.run_in_executor(_MODEL_EXECUTOR, predict_emotion, user_id, emotion_input, fs, n_channels),
+            loop.run_in_executor(_MODEL_EXECUTOR, predict_emotion, user_id, emotion_input, fs, n_channels, device_type),
             loop.run_in_executor(_MODEL_EXECUTOR, dream_model.predict, eeg, fs),
             loop.run_in_executor(_MODEL_EXECUTOR, preprocess, eeg, fs),
         )
