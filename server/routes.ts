@@ -13,6 +13,7 @@ import {
   studyParticipants, studySessions, studyMorningEntries,
   studyDaytimeEntries, studyEveningEntries, foodLogs,
   users, pushSubscriptions,
+  pilotParticipants, pilotSessions,
 } from "@shared/schema";
 import { db } from "./db";
 import { emotionReadings } from "@shared/schema";
@@ -1932,6 +1933,198 @@ export async function registerRoutes(app: Express): Promise<Server> {
     delete sess.spotifyRefreshToken;
     delete sess.spotifyUsername;
     res.json({ ok: true });
+  });
+
+  // ── Pilot study routes (US-002) ───────────────────────────────────────────
+  // These routes are independent of the 30-day longitudinal study routes above.
+  // They operate on pilot_participants and pilot_sessions tables.
+
+  // Auth guard reused for admin routes
+  function requireStudyAdmin(
+    req: import("express").Request,
+    res: import("express").Response,
+    next: import("express").NextFunction,
+  ) {
+    const userId = (req.session as { userId?: string }).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    next();
+  }
+
+  // POST /api/study/consent
+  app.post("/api/study/consent", async (req, res) => {
+    try {
+      const { participant_code, age, diet_type, has_apple_watch, consent_text } = req.body;
+      if (!participant_code) {
+        return res.status(400).json({ error: "participant_code is required" });
+      }
+      await db.insert(pilotParticipants).values({
+        participantCode:  String(participant_code),
+        age:              age != null ? Number(age) : null,
+        dietType:         diet_type ?? null,
+        hasAppleWatch:    has_apple_watch ? true : false,
+        consentText:      consent_text ?? null,
+        consentTimestamp: new Date(),
+      }).onConflictDoNothing();
+      return res.json({ success: true, participant_code });
+    } catch (err) {
+      console.error("POST /api/study/consent error:", err);
+      return res.status(500).json({ error: "Failed to save consent" });
+    }
+  });
+
+  // POST /api/study/session/start
+  app.post("/api/study/session/start", async (req, res) => {
+    try {
+      const { participant_code, block_type } = req.body;
+      if (!participant_code || !block_type) {
+        return res.status(400).json({ error: "participant_code and block_type are required" });
+      }
+      const [row] = await db.insert(pilotSessions).values({
+        participantCode:       String(participant_code),
+        blockType:             String(block_type),
+        interventionTriggered: false,
+      }).returning({ id: pilotSessions.id });
+      return res.json({ session_id: row.id });
+    } catch (err) {
+      console.error("POST /api/study/session/start error:", err);
+      return res.status(500).json({ error: "Failed to start session" });
+    }
+  });
+
+  // POST /api/study/session/complete
+  app.post("/api/study/session/complete", async (req, res) => {
+    try {
+      const {
+        session_id,
+        pre_eeg_json,
+        post_eeg_json,
+        eeg_features_json,
+        survey_json,
+        intervention_triggered,
+      } = req.body;
+      if (session_id == null) {
+        return res.status(400).json({ error: "session_id is required" });
+      }
+      await db.update(pilotSessions)
+        .set({
+          preEegJson:            pre_eeg_json ?? null,
+          postEegJson:           post_eeg_json ?? null,
+          eegFeaturesJson:       eeg_features_json ?? null,
+          surveyJson:            survey_json ?? null,
+          interventionTriggered: intervention_triggered ? true : false,
+        })
+        .where(eq(pilotSessions.id, Number(session_id)));
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("POST /api/study/session/complete error:", err);
+      return res.status(500).json({ error: "Failed to complete session" });
+    }
+  });
+
+  // GET /api/study/admin/participants
+  app.get("/api/study/admin/participants", requireStudyAdmin, async (_req, res) => {
+    try {
+      const rows = await db.select().from(pilotParticipants).orderBy(desc(pilotParticipants.createdAt));
+      return res.json(rows);
+    } catch (err) {
+      console.error("GET /api/study/admin/participants error:", err);
+      return res.status(500).json({ error: "Failed to fetch participants" });
+    }
+  });
+
+  // GET /api/study/admin/sessions
+  app.get("/api/study/admin/sessions", requireStudyAdmin, async (_req, res) => {
+    try {
+      const rows = await db.select().from(pilotSessions).orderBy(desc(pilotSessions.createdAt));
+      return res.json(rows);
+    } catch (err) {
+      console.error("GET /api/study/admin/sessions error:", err);
+      return res.status(500).json({ error: "Failed to fetch sessions" });
+    }
+  });
+
+  // GET /api/study/admin/export-csv
+  app.get("/api/study/admin/export-csv", requireStudyAdmin, async (_req, res) => {
+    try {
+      // Join sessions with participant demographics
+      const rows = await db
+        .select({
+          participantCode:       pilotSessions.participantCode,
+          blockType:             pilotSessions.blockType,
+          age:                   pilotParticipants.age,
+          dietType:              pilotParticipants.dietType,
+          hasAppleWatch:         pilotParticipants.hasAppleWatch,
+          interventionTriggered: pilotSessions.interventionTriggered,
+          preEegJson:            pilotSessions.preEegJson,
+          postEegJson:           pilotSessions.postEegJson,
+          surveyJson:            pilotSessions.surveyJson,
+        })
+        .from(pilotSessions)
+        .leftJoin(
+          pilotParticipants,
+          eq(pilotSessions.participantCode, pilotParticipants.participantCode),
+        )
+        .orderBy(desc(pilotSessions.createdAt));
+
+      const EEG_BANDS = ["alpha", "beta", "theta", "delta", "gamma"] as const;
+
+      // Collect all survey keys that appear across all rows (numeric values only)
+      const surveyKeys = new Set<string>();
+      for (const row of rows) {
+        const s = row.surveyJson as Record<string, unknown> | null;
+        if (s && typeof s === "object") {
+          for (const [k, v] of Object.entries(s)) {
+            if (typeof v === "number") surveyKeys.add(k);
+          }
+        }
+      }
+      const sortedSurveyKeys = Array.from(surveyKeys).sort();
+
+      // Build CSV header
+      const baseHeaders = [
+        "participant_code", "block_type", "age", "diet_type", "has_apple_watch",
+        "intervention_triggered",
+        ...EEG_BANDS.map((b) => `pre_${b}`),
+        ...EEG_BANDS.map((b) => `post_${b}`),
+        ...sortedSurveyKeys,
+      ];
+
+      const csvLines: string[] = [baseHeaders.join(",")];
+
+      for (const row of rows) {
+        const pre = row.preEegJson as Record<string, unknown> | null;
+        const post = row.postEegJson as Record<string, unknown> | null;
+        const survey = row.surveyJson as Record<string, unknown> | null;
+
+        const cell = (v: unknown): string => {
+          if (v == null) return "";
+          return String(v).replace(/,/g, ";");
+        };
+
+        const csvRow = [
+          cell(row.participantCode),
+          cell(row.blockType),
+          cell(row.age),
+          cell(row.dietType),
+          cell(row.hasAppleWatch),
+          cell(row.interventionTriggered),
+          ...EEG_BANDS.map((b) => cell(pre?.[b])),
+          ...EEG_BANDS.map((b) => cell(post?.[b])),
+          ...sortedSurveyKeys.map((k) => cell(survey?.[k])),
+        ];
+        csvLines.push(csvRow.join(","));
+      }
+
+      const csvString = csvLines.join("\n");
+      const dateStr = new Date().toISOString().slice(0, 10);
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="study-data-${dateStr}.csv"`);
+      return res.send(csvString);
+    } catch (err) {
+      console.error("GET /api/study/admin/export-csv error:", err);
+      return res.status(500).json({ error: "Failed to export CSV" });
+    }
   });
 
   const httpServer = createServer(app);

@@ -25,6 +25,15 @@ import DailyBrainReport from "@/pages/daily-brain-report";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
+// ── Study pages — lazy loaded ───────────────────────────────────────────────
+const StudyLanding       = lazy(() => import("@/pages/study/StudyLanding"));
+const StudyConsent       = lazy(() => import("@/pages/study/StudyConsent"));
+const StudyProfile       = lazy(() => import("@/pages/study/StudyProfile"));
+const StudySessionStress = lazy(() => import("@/pages/study/StudySessionStress"));
+const StudySessionFood   = lazy(() => import("@/pages/study/StudySessionFood"));
+const StudyComplete      = lazy(() => import("@/pages/study/StudyComplete"));
+const StudyAdmin         = lazy(() => import("@/pages/study/StudyAdmin"));
+
 // ── Heavy / rarely-visited pages — lazy loaded ─────────────────────────────
 const BrainConnectivity      = lazy(() => import("@/pages/brain-connectivity"));
 const HealthAnalytics        = lazy(() => import("@/pages/health-analytics"));
@@ -153,6 +162,14 @@ function AppRoutes() {
       <Route path="/weekly-summary">
         <ProtectedRoute><AppLayout><WeeklyBrainSummary /></AppLayout></ProtectedRoute>
       </Route>
+      {/* Study pages — public, no auth required */}
+      <Route path="/study/session/stress"><StudySessionStress /></Route>
+      <Route path="/study/session/food"><StudySessionFood /></Route>
+      <Route path="/study/complete"><StudyComplete /></Route>
+      <Route path="/study/admin"><StudyAdmin /></Route>
+      <Route path="/study/consent"><StudyConsent /></Route>
+      <Route path="/study/profile"><StudyProfile /></Route>
+      <Route path="/study"><StudyLanding /></Route>
       {/* Fullscreen onboarding — no sidebar */}
       <Route path="/onboarding" component={Onboarding} />
       {/* Public route — no auth required (needed for App Store / HealthKit) */}

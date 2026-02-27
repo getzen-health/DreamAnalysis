@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, jsonb, timestamp, real, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, serial, jsonb, timestamp, real, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -306,12 +306,12 @@ export const insertStudyEveningEntrySchema = createInsertSchema(studyEveningEntr
   submittedAt: true,
 });
 
-// ── Types (research) ───────────────────────────────────────────────────────
+// ── Types (research — longitudinal 30-day study) ───────────────────────────
 
-export type StudyParticipant = typeof studyParticipants.$inferSelect;
-export type InsertStudyParticipant = z.infer<typeof insertStudyParticipantSchema>;
-export type StudySession = typeof studySessions.$inferSelect;
-export type InsertStudySession = z.infer<typeof insertStudySessionSchema>;
+export type LongStudyParticipant = typeof studyParticipants.$inferSelect;
+export type InsertLongStudyParticipant = z.infer<typeof insertStudyParticipantSchema>;
+export type LongStudySession = typeof studySessions.$inferSelect;
+export type InsertLongStudySession = z.infer<typeof insertStudySessionSchema>;
 export type StudyMorningEntry = typeof studyMorningEntries.$inferSelect;
 export type InsertStudyMorningEntry = z.infer<typeof insertStudyMorningEntrySchema>;
 export type StudyDaytimeEntry = typeof studyDaytimeEntries.$inferSelect;
@@ -420,3 +420,47 @@ export const foodLogs = pgTable("food_logs", {
 export const insertFoodLogSchema = createInsertSchema(foodLogs).omit({ id: true, loggedAt: true });
 export type FoodLog = typeof foodLogs.$inferSelect;
 export type InsertFoodLog = z.infer<typeof insertFoodLogSchema>;
+
+// ── Pilot study tables (US-001) ─────────────────────────────────────────────
+// Anonymous consent + EEG session records for the 2-week human pilot study.
+// Uses integer serial PKs and a participant_code slug (e.g. "P001") as the
+// natural key, keeping these tables fully independent of the existing
+// longitudinal study_participants / study_sessions tables above.
+
+export const pilotParticipants = pgTable("pilot_participants", {
+  id:                 serial("id").primaryKey(),
+  participantCode:    varchar("participant_code", { length: 20 }).notNull().unique(),
+  age:                integer("age"),
+  dietType:           varchar("diet_type", { length: 20 }),  // "omnivore" | "vegetarian" | "vegan" | "other"
+  hasAppleWatch:      boolean("has_apple_watch").default(false),
+  consentText:        text("consent_text"),
+  consentTimestamp:   timestamp("consent_timestamp"),
+  createdAt:          timestamp("created_at").defaultNow(),
+});
+
+export const pilotSessions = pgTable("pilot_sessions", {
+  id:                    serial("id").primaryKey(),
+  participantCode:       varchar("participant_code", { length: 20 }).notNull(),
+  blockType:             varchar("block_type", { length: 20 }).notNull(), // "stress" | "food" | "sleep"
+  preEegJson:            jsonb("pre_eeg_json"),
+  postEegJson:           jsonb("post_eeg_json"),
+  eegFeaturesJson:       jsonb("eeg_features_json"),
+  surveyJson:            jsonb("survey_json"),
+  interventionTriggered: boolean("intervention_triggered").default(false),
+  createdAt:             timestamp("created_at").defaultNow(),
+});
+
+export const insertPilotParticipantSchema = createInsertSchema(pilotParticipants).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPilotSessionSchema = createInsertSchema(pilotSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type StudyParticipant = typeof pilotParticipants.$inferSelect;
+export type InsertStudyParticipant = z.infer<typeof insertPilotParticipantSchema>;
+export type StudySession = typeof pilotSessions.$inferSelect;
+export type InsertStudySession = z.infer<typeof insertPilotSessionSchema>;
