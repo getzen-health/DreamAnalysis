@@ -718,6 +718,243 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/brain/patterns/:userId
+  // Long-term pattern engine: correlates 30 days of emotion readings with time-of-day,
+  // day-of-week, sleep quality, and biofeedback sessions to produce actionable patterns.
+  // Patterns: focus_peak_hour, stress_peak_hour, best_day_of_week, sleep_focus_correlation,
+  //           biofeedback_effect.
+  app.get("/api/brain/patterns/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const from30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      const [readings, health] = await Promise.all([
+        storage.getEmotionReadings(userId, 5000, from30d),
+        storage.getHealthMetrics(userId, 500),
+      ]);
+
+      if (readings.length < 10) {
+        return res.json({ userId, dataPoints: readings.length, patterns: [] });
+      }
+
+      const avg = (arr: number[]): number =>
+        arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+      const pctDelta = (a: number, b: number): number =>
+        b > 0 ? Math.round(Math.abs(a - b) / b * 100) : 0;
+      const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const fmt12h = (h: number) => `${h % 12 || 12}${h < 12 ? "am" : "pm"}`;
+
+      type Pattern = {
+        type: string;
+        title: string;
+        description: string;
+        recommendation: string;
+        confidence: number;
+        data: Record<string, unknown>;
+      };
+      const patterns: Pattern[] = [];
+
+      // ── 1. Focus peak hour (5am–10pm) ─────────────────────────────────
+      {
+        const byHour: Record<number, number[]> = {};
+        for (const r of readings) {
+          const h = new Date(r.timestamp).getHours();
+          if (h >= 5 && h <= 22) {
+            if (!byHour[h]) byHour[h] = [];
+            byHour[h].push(r.focus);
+          }
+        }
+        const hourEntries = Object.entries(byHour)
+          .map(([h, vals]) => ({ hour: parseInt(h), avg: avg(vals), count: vals.length }))
+          .filter(e => e.count >= 3);
+
+        if (hourEntries.length >= 4) {
+          hourEntries.sort((a, b) => b.avg - a.avg);
+          const peak = hourEntries[0];
+          const restAvg = avg(hourEntries.slice(1).map(e => e.avg));
+          const delta = pctDelta(peak.avg, restAvg);
+          if (delta >= 15) {
+            patterns.push({
+              type: "focus_peak_hour",
+              title: `Focus peaks at ${fmt12h(peak.hour)}`,
+              description: `Your focus is ${delta}% higher at ${fmt12h(peak.hour)} than the rest of the day`,
+              recommendation: `Protect ${fmt12h(peak.hour - 1 < 5 ? peak.hour : peak.hour - 1)}–${fmt12h(peak.hour + 2)} for deep work`,
+              confidence: Math.min(0.95, 0.5 + peak.count / 60),
+              data: { hour: peak.hour, deltaPercent: delta, sampleCount: peak.count },
+            });
+          }
+        }
+      }
+
+      // ── 2. Stress peak hour (afternoon 11am–7pm) ─────────────────────
+      {
+        const byHour: Record<number, number[]> = {};
+        for (const r of readings) {
+          const h = new Date(r.timestamp).getHours();
+          if (h >= 11 && h <= 19) {
+            if (!byHour[h]) byHour[h] = [];
+            byHour[h].push(r.stress);
+          }
+        }
+        const hourEntries = Object.entries(byHour)
+          .map(([h, vals]) => ({ hour: parseInt(h), avg: avg(vals), count: vals.length }))
+          .filter(e => e.count >= 3);
+
+        if (hourEntries.length >= 3) {
+          hourEntries.sort((a, b) => b.avg - a.avg);
+          const peak = hourEntries[0];
+          const overallStress = avg(readings.map(r => r.stress));
+          const delta = pctDelta(peak.avg, overallStress);
+          if (delta >= 15) {
+            patterns.push({
+              type: "stress_peak_hour",
+              title: `Stress spikes at ${fmt12h(peak.hour)}`,
+              description: `Stress is ${delta}% above your daily average around ${fmt12h(peak.hour)}`,
+              recommendation: `Schedule a 5-min breathing break at ${fmt12h(peak.hour - 1 < 11 ? peak.hour : peak.hour - 1)}`,
+              confidence: Math.min(0.92, 0.5 + peak.count / 60),
+              data: { hour: peak.hour, deltaPercent: delta, sampleCount: peak.count },
+            });
+          }
+        }
+      }
+
+      // ── 3. Best day of week ──────────────────────────────────────────
+      {
+        const byDay: Record<number, number[]> = {};
+        for (const r of readings) {
+          const d = new Date(r.timestamp).getDay();
+          if (!byDay[d]) byDay[d] = [];
+          byDay[d].push(r.focus);
+        }
+        const dayEntries = Object.entries(byDay)
+          .map(([d, vals]) => ({ day: parseInt(d), avg: avg(vals), count: vals.length }))
+          .filter(e => e.count >= 5);
+
+        if (dayEntries.length >= 4) {
+          dayEntries.sort((a, b) => b.avg - a.avg);
+          const best = dayEntries[0];
+          const restAvg = avg(dayEntries.slice(1).map(e => e.avg));
+          const delta = pctDelta(best.avg, restAvg);
+          if (delta >= 10) {
+            patterns.push({
+              type: "best_day_of_week",
+              title: `${DAY_NAMES[best.day]}s are your strongest`,
+              description: `Focus averages ${delta}% higher on ${DAY_NAMES[best.day]}s than other days`,
+              recommendation: `Schedule your hardest work on ${DAY_NAMES[best.day]}s`,
+              confidence: Math.min(0.9, 0.5 + best.count / 40),
+              data: { day: DAY_NAMES[best.day], dayIndex: best.day, deltaPercent: delta },
+            });
+          }
+        }
+      }
+
+      // ── 4. Sleep-focus correlation ───────────────────────────────────
+      {
+        const recentHealth = health.filter(
+          h => new Date(h.timestamp).getTime() >= from30d.getTime()
+        );
+        if (recentHealth.length >= 5) {
+          const goodSleep: number[] = [];  // focus next morning after good sleep (>6)
+          const poorSleep: number[] = [];  // focus next morning after poor sleep (≤4)
+
+          for (const hm of recentHealth) {
+            const sleepQ = hm.sleepQuality ?? 5;
+            const hmTs = new Date(hm.timestamp).getTime();
+            const nextMorningStart = hmTs + 6 * 3600_000;
+            const nextMorningEnd = hmTs + 14 * 3600_000;
+            const nextMorningReadings = readings.filter(r => {
+              const t = new Date(r.timestamp).getTime();
+              return t >= nextMorningStart && t <= nextMorningEnd;
+            });
+            if (nextMorningReadings.length === 0) continue;
+            const morningFocus = avg(nextMorningReadings.map(r => r.focus));
+            if (sleepQ > 6) goodSleep.push(morningFocus);
+            else if (sleepQ <= 4) poorSleep.push(morningFocus);
+          }
+
+          if (goodSleep.length >= 3 && poorSleep.length >= 3) {
+            const goodAvg = avg(goodSleep);
+            const poorAvg = avg(poorSleep);
+            const delta = pctDelta(goodAvg, poorAvg);
+            if (delta >= 10 && goodAvg > poorAvg) {
+              patterns.push({
+                type: "sleep_focus_correlation",
+                title: "Sleep quality predicts focus",
+                description: `On mornings after good sleep, your focus is ${delta}% higher`,
+                recommendation: "Prioritise 7h+ sleep before important days",
+                confidence: Math.min(0.88, 0.5 + (goodSleep.length + poorSleep.length) / 30),
+                data: { goodSleepSamples: goodSleep.length, poorSleepSamples: poorSleep.length, deltaPercent: delta },
+              });
+            }
+          }
+        }
+      }
+
+      // ── 5. Biofeedback effect (cross-session average) ─────────────────
+      {
+        const ML_API = process.env.ML_API_URL || "http://localhost:8000";
+        try {
+          const sessRes = await fetch(`${ML_API}/api/sessions?user_id=${userId}`, { signal: AbortSignal.timeout(3000) });
+          if (sessRes.ok) {
+            const sessions = (await sessRes.json()) as Array<{
+              session_id: string; session_type: string; start_time: number; end_time?: number;
+            }>;
+            const bfSessions = sessions.filter(s =>
+              s.session_type === "biofeedback" &&
+              s.start_time * 1000 >= from30d.getTime()
+            );
+            const windowMs = 45 * 60 * 1000; // 45-minute window
+            const beforeStress: number[] = [];
+            const afterStress: number[] = [];
+
+            for (const sess of bfSessions) {
+              const sessionMs = sess.start_time * 1000;
+              const before = readings.filter(r => {
+                const t = new Date(r.timestamp).getTime();
+                return t >= sessionMs - windowMs && t < sessionMs;
+              });
+              const after = readings.filter(r => {
+                const t = new Date(r.timestamp).getTime();
+                return t > sessionMs && t <= sessionMs + windowMs;
+              });
+              if (before.length >= 2 && after.length >= 2) {
+                beforeStress.push(avg(before.map(r => r.stress)));
+                afterStress.push(avg(after.map(r => r.stress)));
+              }
+            }
+
+            if (beforeStress.length >= 2) {
+              const avgBefore = avg(beforeStress);
+              const avgAfter = avg(afterStress);
+              if (avgBefore > avgAfter) {
+                const delta = pctDelta(avgBefore, avgAfter);
+                if (delta >= 10) {
+                  patterns.push({
+                    type: "biofeedback_effect",
+                    title: `Biofeedback cuts stress by ${delta}%`,
+                    description: `Across ${beforeStress.length} sessions, stress drops ${delta}% in the 45 min after breathing exercises`,
+                    recommendation: "Your data proves biofeedback works — keep the habit",
+                    confidence: Math.min(0.96, 0.6 + beforeStress.length / 20),
+                    data: { sessionCount: beforeStress.length, deltaPercent: delta },
+                  });
+                }
+              }
+            }
+          }
+        } catch {
+          // ML backend offline — skip biofeedback cross-correlation
+        }
+      }
+
+      // Sort by confidence descending, return top 4
+      patterns.sort((a, b) => b.confidence - a.confidence);
+
+      res.json({ userId, dataPoints: readings.length, patterns: patterns.slice(0, 4) });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to compute brain patterns" });
+    }
+  });
+
   // POST /api/emotion-readings/batch — bulk insert from ML backend on session stop
   app.post("/api/emotion-readings/batch", async (req, res) => {
     try {

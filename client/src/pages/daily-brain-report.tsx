@@ -54,6 +54,15 @@ interface ServerInsight {
   delta?: number;
 }
 
+interface BrainPattern {
+  type: string;
+  title: string;
+  description: string;
+  recommendation: string;
+  confidence: number;
+  data: Record<string, unknown>;
+}
+
 /* ── Derived / computed helpers ──────────────────────────────── */
 const CURRENT_USER = "default";
 
@@ -407,11 +416,24 @@ export default function DailyBrainReport() {
         if (!res.ok) return { userId: CURRENT_USER, insights: [] };
         return res.json();
       },
-      staleTime: 5 * 60_000,   // re-fetch every 5 minutes
+      staleTime: 5 * 60_000,
+      retry: false,
+    });
+
+  const { data: patternsData } =
+    useQuery<{ userId: string; dataPoints: number; patterns: BrainPattern[] }>({
+      queryKey: ["brain-patterns", CURRENT_USER],
+      queryFn: async () => {
+        const res = await fetch(`/api/brain/patterns/${CURRENT_USER}`);
+        if (!res.ok) return { userId: CURRENT_USER, dataPoints: 0, patterns: [] };
+        return res.json();
+      },
+      staleTime: 10 * 60_000,  // re-fetch every 10 minutes
       retry: false,
     });
 
   const serverInsights: ServerInsight[] = serverInsightsData?.insights ?? [];
+  const brainPatterns: BrainPattern[] = patternsData?.patterns ?? [];
 
   const isLoading = sessionsLoading || dreamsLoading || healthLoading;
 
@@ -742,14 +764,47 @@ export default function DailyBrainReport() {
         </Card>
       )}
 
-      {/* Pattern engine insight */}
-      {!isLoading && pattern && (
-        <Card className="glass-card p-5">
-          <div className="flex items-center gap-2 mb-2">
+      {/* Pattern engine — server-computed 30-day correlations */}
+      {!isLoading && (brainPatterns.length > 0 || pattern) && (
+        <Card className="glass-card p-6">
+          <div className="flex items-center gap-2 mb-4">
             <BarChart2 className="h-4 w-4 text-emerald-400" />
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Patterns</h2>
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+              Your patterns
+            </h2>
+            {patternsData && patternsData.dataPoints > 0 && (
+              <span className="text-[10px] text-muted-foreground/60 ml-auto">
+                {patternsData.dataPoints} readings
+              </span>
+            )}
           </div>
-          <p className="text-sm text-foreground/80 leading-relaxed">{pattern}</p>
+
+          {brainPatterns.length > 0 ? (
+            <div className="space-y-4">
+              {brainPatterns.map((p, i) => (
+                <div
+                  key={p.type}
+                  className={`${i > 0 ? "pt-4 border-t border-border/20" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <p className="text-sm font-medium leading-snug">{p.title}</p>
+                    <span className="shrink-0 text-[10px] text-muted-foreground/60 mt-0.5">
+                      {Math.round(p.confidence * 100)}% confidence
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed mb-1.5">
+                    {p.description}
+                  </p>
+                  <p className="text-xs text-emerald-400/90 leading-relaxed">
+                    → {p.recommendation}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : pattern ? (
+            /* Fallback to client-side pattern when server has no data yet */
+            <p className="text-sm text-foreground/80 leading-relaxed">{pattern}</p>
+          ) : null}
         </Card>
       )}
 
