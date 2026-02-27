@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
 import { startSession, stopSession } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
 import {
   Moon,
   BrainCircuit,
@@ -12,7 +14,10 @@ import {
   Clock,
   Play,
   Square,
+  Eye,
 } from "lucide-react";
+
+const CURRENT_USER = getParticipantId();
 
 // ─── Sleep Stage Definitions ──────────────────────────────────────────────────
 
@@ -45,15 +50,6 @@ const STAGE_DESCRIPTION: Record<SleepStage, string> = {
 // Simulation cycle: N1 → N2 → N3 → REM → N2 → ... (each ~8 minutes simplified)
 const SIM_CYCLE: SleepStage[] = ["N1", "N2", "N3", "REM", "N2", "N3", "REM", "N2"];
 const SIM_STAGE_DURATION_SEC = 8 * 60; // 8 minutes per stage in simulation
-
-// ─── Recent Sleep Stats (mock, since no persistent store yet) ─────────────────
-
-const RECENT_STATS = [
-  { label: "Last session", value: "7h 12m" },
-  { label: "Avg REM",      value: "22%" },
-  { label: "Deep sleep",   value: "18%" },
-  { label: "Sleep score",  value: "78" },
-];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -110,6 +106,12 @@ function sleepScore(tally: StageTally): number {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+interface HealthMetric {
+  sleepQuality?: number | null;
+  sleepDuration?: number | null;
+  timestamp?: string;
+}
+
 export default function SleepSession() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
@@ -123,6 +125,11 @@ export default function SleepSession() {
   const [dreamFlash, setDreamFlash] = useState(false);
   const [dreamsDetected, setDreamsDetected] = useState(0); // final summary count
 
+  // Screen dim state — activates when recording starts, tap anywhere to peek
+  const [dimmed, setDimmed] = useState(false);
+  const [peekVisible, setPeekVisible] = useState(false);
+  const peekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const startTimeRef     = useRef<number>(0);
   const elapsedRef       = useRef<number>(0);
   const tallyRef         = useRef<StageTally>({ Wake: 0, N1: 0, N2: 0, N3: 0, REM: 0 });
@@ -130,6 +137,45 @@ export default function SleepSession() {
   const dreamCountRef    = useRef<number>(0);
   const lastDreamRef     = useRef<boolean>(false);
   const intervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Real sleep stats from DB
+  const { data: healthMetrics } = useQuery<HealthMetric[]>({
+    queryKey: ["/api/health-metrics", CURRENT_USER],
+    queryFn: async () => {
+      const res = await fetch(`/api/health-metrics/${CURRENT_USER}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Compute recent sleep stats from DB records
+  const recentStats = (() => {
+    const rows = (healthMetrics ?? []).filter(m => m.sleepDuration != null || m.sleepQuality != null);
+    if (rows.length === 0) return null;
+    const latest = rows[0];
+    const avgQuality = rows.slice(0, 7).reduce((s, r) => s + (r.sleepQuality ?? 0), 0) / Math.min(rows.length, 7);
+    const lastDurH = latest.sleepDuration ? `${Math.floor(latest.sleepDuration)}h ${Math.round((latest.sleepDuration % 1) * 60)}m` : "—";
+    return [
+      { label: "Last session", value: lastDurH },
+      { label: "Sleep quality", value: latest.sleepQuality ? `${latest.sleepQuality}/9` : "—" },
+      { label: "7-day avg", value: rows.slice(0, 7).length > 0 ? `${(rows.slice(0, 7).reduce((s, r) => s + (r.sleepDuration ?? 0), 0) / rows.slice(0, 7).length).toFixed(1)}h` : "—" },
+      { label: "Avg quality", value: avgQuality > 0 ? `${avgQuality.toFixed(1)}/9` : "—" },
+    ];
+  })() ?? [
+    { label: "Last session", value: "—" },
+    { label: "Sleep quality", value: "—" },
+    { label: "7-day avg",    value: "—" },
+    { label: "Avg quality",  value: "—" },
+  ];
+
+  // Screen peek — tap anywhere to reveal controls briefly then re-dim
+  const handleScreenTap = () => {
+    if (!dimmed) return;
+    if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
+    setPeekVisible(true);
+    peekTimerRef.current = setTimeout(() => setPeekVisible(false), 8000);
+  };
 
   // Derive live stage from WebSocket frame (when device is streaming)
   const liveStage: SleepStage | null = (() => {
@@ -222,12 +268,17 @@ export default function SleepSession() {
     setCurrentStage("N1");
     setStageTimeSec(0);
     setPhase("recording");
+    // Dim screen after 15 seconds so the user can place their phone/laptop
+    setTimeout(() => setDimmed(true), 15_000);
     // Best-effort API call — don't block UI if ML backend is offline
     startSession("sleep", "default").catch(() => {});
   };
 
   const handleWakeUp = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
+    if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
+    setDimmed(false);
+    setPeekVisible(false);
     setDreamsDetected(dreamCountRef.current);
     setPhase("summary");
     stopSession().catch(() => {});
@@ -239,6 +290,8 @@ export default function SleepSession() {
     setTally({ Wake: 0, N1: 0, N2: 0, N3: 0, REM: 0 });
     setDreamCount(0);
     setDreamFlash(false);
+    setDimmed(false);
+    setPeekVisible(false);
   };
 
   const stageColor = STAGE_COLORS[currentStage];
@@ -277,7 +330,7 @@ export default function SleepSession() {
             <h3 className="text-sm font-medium">Recent Sleep</h3>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {RECENT_STATS.map(({ label, value }) => (
+            {recentStats.map(({ label, value }) => (
               <div key={label} className="text-center">
                 <p className="text-2xl font-mono font-bold text-primary">{value}</p>
                 <p className="text-[10px] text-muted-foreground mt-1">{label}</p>
@@ -320,8 +373,61 @@ export default function SleepSession() {
   // ─── Recording ────────────────────────────────────────────────────────────
 
   if (phase === "recording") {
+    // Dim overlay: tap to peek for 8 seconds
+    if (dimmed && !peekVisible) {
+      return (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center cursor-pointer select-none"
+          style={{ background: "hsl(0,0%,2%)" }}
+          onClick={handleScreenTap}
+        >
+          {/* Minimal sleep indicator */}
+          <div className="flex flex-col items-center gap-6 text-center pointer-events-none">
+            <Moon className="h-8 w-8 opacity-25" style={{ color: STAGE_COLORS[currentStage] }} />
+            <p
+              className="text-6xl font-mono font-bold opacity-30"
+              style={{ color: STAGE_COLORS[currentStage] }}
+            >
+              {currentStage}
+            </p>
+            <p className="text-xs text-white/20 uppercase tracking-widest">
+              {fmtClock(elapsed)}
+            </p>
+            {dreamCount > 0 && (
+              <p className="text-xs text-white/15">
+                {dreamCount} dream{dreamCount !== 1 ? "s" : ""} detected
+              </p>
+            )}
+          </div>
+          {/* Tap hint at bottom */}
+          <p className="absolute bottom-8 text-[10px] text-white/15 uppercase tracking-widest">
+            tap to reveal controls
+          </p>
+        </div>
+      );
+    }
+
     return (
-      <main className="p-4 md:p-6 space-y-5 max-w-3xl mx-auto">
+      <div
+        className="relative"
+        onClick={dimmed ? handleScreenTap : undefined}
+      >
+        {/* Peek banner — shown for 8s when user taps during dim mode */}
+        {dimmed && peekVisible && (
+          <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-black/80 text-white/60 text-xs">
+            <span className="flex items-center gap-1.5">
+              <Eye className="h-3 w-3" />
+              Peeking — auto-dims in 8s
+            </span>
+            <button
+              className="underline text-white/50"
+              onClick={(e) => { e.stopPropagation(); setDimmed(false); }}
+            >
+              Stay bright
+            </button>
+          </div>
+        )}
+      <main className={`p-4 md:p-6 space-y-5 max-w-3xl mx-auto ${dimmed ? "pt-10" : ""}`}>
         {/* Header with elapsed time */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -448,7 +554,23 @@ export default function SleepSession() {
             </p>
           </div>
         </Card>
+
+        {/* Dim toggle */}
+        {!dimmed && (
+          <div className="flex justify-center pt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground text-xs border border-border/20"
+              onClick={() => setDimmed(true)}
+            >
+              <Moon className="h-3.5 w-3.5 mr-1.5" />
+              Dim screen for sleep
+            </Button>
+          </div>
+        )}
       </main>
+      </div>
     );
   }
 
