@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   email: text("email"),
   age: integer("age"),                  // for research demographics
   deviceType: text("device_type"),      // "muse_2" | "openbci_cyton" | "none"
+  intent: varchar("intent", { length: 10 }), // 'study' | 'explore' | null (not yet chosen)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -447,6 +448,9 @@ export const pilotSessions = pgTable("pilot_sessions", {
   eegFeaturesJson:       jsonb("eeg_features_json"),
   surveyJson:            jsonb("survey_json"),
   interventionTriggered: boolean("intervention_triggered").default(false),
+  partial:               boolean("partial").default(false),
+  phaseLog:              jsonb("phase_log"),
+  checkpointAt:          timestamp("checkpoint_at"),
   createdAt:             timestamp("created_at").defaultNow(),
 });
 
