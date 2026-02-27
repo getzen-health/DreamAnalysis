@@ -4,17 +4,13 @@ import {
   Brain,
   Sun,
   Moon,
-  BarChart3,
-  MessageSquare,
   Settings,
   Menu,
-  Sparkles,
   Wind,
   Utensils,
-  FlaskConical,
-  Radio,
   BedDouble,
   LogOut,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -36,34 +32,15 @@ interface NavSection {
 
 const sections: NavSection[] = [
   {
-    title: "Today",
+    title: "",
     items: [
-      { path: "/brain-report",    label: "Brain Report",   icon: Sun },
-      { path: "/weekly-summary", label: "Week in Review", icon: BarChart3 },
-      { path: "/",               label: "Brain State",    icon: Brain },
-    ],
-  },
-  {
-    title: "States",
-    items: [
-      { path: "/sleep-session", label: "Sleep",         icon: BedDouble },
+      { path: "/brain-report",  label: "Today",         icon: Sun },
+      { path: "/emotions",      label: "Emotions",      icon: Brain },
+      { path: "/food",          label: "Food & Mood",   icon: Utensils },
       { path: "/dreams",        label: "Dreams",        icon: Moon },
-      { path: "/inner-energy",  label: "Spiritual",     icon: Sparkles },
-      { path: "/food",          label: "Food",          icon: Utensils },
+      { path: "/sleep-session", label: "Sleep",         icon: BedDouble },
       { path: "/biofeedback",   label: "Breathe",       icon: Wind },
-    ],
-  },
-  {
-    title: "Research",
-    items: [
-      { path: "/research",      label: "Study Hub",     icon: FlaskConical },
-    ],
-  },
-  {
-    title: "Tools",
-    items: [
-      { path: "/device-setup",  label: "Connect Device", icon: Radio },
-      { path: "/ai-companion",  label: "AI Companion",   icon: MessageSquare },
+      { path: "/research",      label: "My Day",        icon: ClipboardList },
     ],
   },
 ];
@@ -127,8 +104,8 @@ export function Sidebar() {
           {/* Navigation Sections */}
           <nav className="flex-1 px-2 pb-4">
             {sections.map((section) => (
-              <div key={section.title}>
-                <div className="nav-section-label">{section.title}</div>
+              <div key={section.title || "main"}>
+                {section.title && <div className="nav-section-label">{section.title}</div>}
                 {section.items.map((item) => {
                   const Icon = item.icon;
                   const isActive =
