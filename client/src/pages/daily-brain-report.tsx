@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { type SessionSummary } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
@@ -98,113 +97,11 @@ function currentStreak(sessions: SessionSummary[]): number {
   return streak;
 }
 
-/* ── Pattern engine ──────────────────────────────────────────── */
-function patternInsight(sessions: SessionSummary[], health: HealthEntry[]): string | null {
-  const twoWeeksMs = 14 * 86_400_000;
-  const twoWeeksAgoUnix = (Date.now() - twoWeeksMs) / 1000;
-  const twoWeeksAgoDate = new Date(Date.now() - twoWeeksMs);
-
-  const recentSessions = sessions.filter((s) => (s.start_time ?? 0) >= twoWeeksAgoUnix);
-  const biofeedbackDays = new Set(
-    recentSessions
-      .filter((s) => s.session_type === "biofeedback")
-      .map((s) => {
-        const d = new Date((s.start_time ?? 0) * 1000);
-        d.setHours(0, 0, 0, 0);
-        return d.getTime();
-      })
-  );
-
-  if (biofeedbackDays.size < 2) return null;
-
-  const recentHealth = health.filter((h) => new Date(h.timestamp) >= twoWeeksAgoDate);
-  if (recentHealth.length === 0) return null;
-
-  const bfStress: number[] = [];
-  const otherStress: number[] = [];
-
-  for (const h of recentHealth) {
-    const d = new Date(h.timestamp);
-    d.setHours(0, 0, 0, 0);
-    if (biofeedbackDays.has(d.getTime())) {
-      bfStress.push(h.stressLevel ?? 5);
-    } else {
-      otherStress.push(h.stressLevel ?? 5);
-    }
-  }
-
-  if (bfStress.length === 0 || otherStress.length === 0) return null;
-
-  const avgBf    = bfStress.reduce((a, b) => a + b, 0) / bfStress.length;
-  const avgOther = otherStress.reduce((a, b) => a + b, 0) / otherStress.length;
-  const deltaPct = Math.round(((avgOther - avgBf) / Math.max(avgOther, 0.1)) * 100);
-
-  if (deltaPct >= 8) {
-    return `${biofeedbackDays.size} breathing sessions in 2 weeks → stress ${deltaPct}% lower on those days.`;
-  }
-  if (deltaPct <= -8) {
-    return `${biofeedbackDays.size} breathing sessions tracked — stress similar to non-session days so far.`;
-  }
-  return null;
-}
-
 /** Map a stress level (0–10) to a text label. */
 function stressLabel(level: number): string {
   if (level < 3) return "low";
   if (level < 6) return "moderate";
   return "high";
-}
-
-/** Find the 2-hour window with highest avg focus across all health entries.
- *  Falls back to a circadian heuristic if there's not enough data. */
-function peakFocusWindow(health: HealthEntry[]): string {
-  if (health.length < 6) return "9:30 am – 12:00 pm";
-  const buckets: number[] = Array(24).fill(0);
-  const counts: number[] = Array(24).fill(0);
-  for (const h of health) {
-    const hour = new Date(h.timestamp).getHours();
-    buckets[hour] += h.neuralActivity ?? 5;
-    counts[hour]++;
-  }
-  let bestHour = 9;
-  let bestAvg = 0;
-  for (let hr = 5; hr <= 22; hr++) {
-    if (counts[hr] === 0) continue;
-    const avg = buckets[hr] / counts[hr];
-    if (avg > bestAvg) { bestAvg = avg; bestHour = hr; }
-  }
-  const fmt = (h: number) => {
-    const ampm = h < 12 ? "am" : "pm";
-    const h12 = h % 12 || 12;
-    return `${h12}:00 ${ampm}`;
-  };
-  return `${fmt(bestHour)} – ${fmt(bestHour + 2)}`;
-}
-
-/** Find the 1-hour window with highest avg stress (the slump).
- *  Falls back to circadian heuristic. */
-function slumpWindow(health: HealthEntry[]): string {
-  if (health.length < 6) return "2:30 pm – 3:30 pm";
-  const buckets: number[] = Array(24).fill(0);
-  const counts: number[] = Array(24).fill(0);
-  for (const h of health) {
-    const hour = new Date(h.timestamp).getHours();
-    buckets[hour] += h.stressLevel ?? 5;
-    counts[hour]++;
-  }
-  let worstHour = 14;
-  let worstAvg = 0;
-  for (let hr = 12; hr <= 18; hr++) {
-    if (counts[hr] === 0) continue;
-    const avg = buckets[hr] / counts[hr];
-    if (avg > worstAvg) { worstAvg = avg; worstHour = hr; }
-  }
-  const fmt = (h: number) => {
-    const ampm = h < 12 ? "am" : "pm";
-    const h12 = h % 12 || 12;
-    return `${h12}:00 ${ampm}`;
-  };
-  return `${fmt(worstHour)} – ${fmt(worstHour + 1)}`;
 }
 
 /** Derive recommended action from latest health data. */
@@ -320,44 +217,9 @@ function SkeletonCard() {
   );
 }
 
-/* ── Weekly summary helpers ──────────────────────────────────── */
-function weeklyStats(health: HealthEntry[], sessions: SessionSummary[]) {
-  const cutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const cutoffUnix = cutoffMs / 1000;
-  const week = health.filter((h) => new Date(h.timestamp).getTime() >= cutoffMs);
-  const weekSessions = sessions.filter(
-    (s) => (s.start_time ?? 0) >= cutoffUnix && (s.summary?.avg_focus ?? 0) > 0
-  );
-  if (week.length === 0 && weekSessions.length === 0) return null;
-
-  // Stress from health entries (frequent signal)
-  const avgStress = week.length > 0
-    ? week.reduce((s, h) => s + (h.stressLevel ?? 5), 0) / week.length
-    : 5;
-
-  // Focus: prefer EEG session avg_focus (0-1 → ×100 = %) over health proxy
-  const avgFocusPct = weekSessions.length > 0
-    ? weekSessions.reduce((s, sess) => s + (sess.summary?.avg_focus ?? 0), 0) / weekSessions.length * 100
-    : week.reduce((s, h) => s + (h.neuralActivity ?? 5), 0) / Math.max(week.length, 1) * 10;
-
-  // Sleep from health entries
-  const avgSleep = week.length > 0
-    ? week.reduce((s, h) => s + (h.sleepQuality ?? 5), 0) / week.length
-    : 5;
-
-  return {
-    days: Math.max(week.length, weekSessions.length),
-    avgStress: Math.round(avgStress * 10),
-    avgFocus: Math.round(avgFocusPct),
-    avgSleep: Math.round(avgSleep * 10),
-    focusSource: weekSessions.length > 0 ? "eeg" : "proxy",
-  };
-}
-
 /* ── Main page ───────────────────────────────────────────────── */
 export default function DailyBrainReport() {
   const [, navigate] = useLocation();
-  const [copied, setCopied] = useState(false);
 
   /* — Data fetches — */
   const { data: sessions = [], isLoading: sessionsLoading } =
@@ -444,9 +306,7 @@ export default function DailyBrainReport() {
   const action = recommendedAction(health);
   const insight = yesterdayInsight(health);
   const latestStress = latestHealth?.stressLevel ?? null;
-  const weekly = weeklyStats(health, sessions);
   const streak = currentStreak(sessions);
-  const pattern = patternInsight(sessions, health);
 
   /* — Overnight EEG session — */
   const overnightSession = sessions.find(
