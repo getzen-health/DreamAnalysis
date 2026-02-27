@@ -35,6 +35,12 @@
  *   POST   /api/study/evening
  *   GET    /api/study/history/:userId
  *   POST   /api/study/withdraw
+ *   POST   /api/study/consent              (pilot study)
+ *   POST   /api/study/session/start        (pilot study)
+ *   POST   /api/study/session/complete     (pilot study)
+ *   GET    /api/study/admin/participants   (pilot study, auth required)
+ *   GET    /api/study/admin/sessions       (pilot study, auth required)
+ *   GET    /api/study/admin/export-csv     (pilot study, auth required)
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -695,6 +701,130 @@ async function studyWithdraw(req: VercelRequest, res: VercelResponse) {
   return success(res, { daysCompleted: participant.completedDays ?? 0, message: 'You have been withdrawn from the study. Thank you for your contribution.' });
 }
 
+// ── Pilot study routes ────────────────────────────────────────────────────────
+
+async function pilotConsent(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { participant_code, age, diet_type, has_apple_watch, consent_text } = req.body;
+  if (!participant_code) return badRequest(res, 'participant_code is required');
+  const db = getDb();
+  await db.insert(schema.pilotParticipants).values({
+    participantCode:  String(participant_code),
+    age:              age != null ? Number(age) : null,
+    dietType:         diet_type ?? null,
+    hasAppleWatch:    has_apple_watch ? true : false,
+    consentText:      consent_text ?? null,
+    consentTimestamp: new Date(),
+  }).onConflictDoNothing();
+  return success(res, { success: true, participant_code });
+}
+
+async function pilotSessionStart(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { participant_code, block_type } = req.body;
+  if (!participant_code || !block_type) return badRequest(res, 'participant_code and block_type are required');
+  const db = getDb();
+  const [row] = await db.insert(schema.pilotSessions).values({
+    participantCode:       String(participant_code),
+    blockType:             String(block_type),
+    interventionTriggered: false,
+  }).returning({ id: schema.pilotSessions.id });
+  return success(res, { session_id: row.id });
+}
+
+async function pilotSessionComplete(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { session_id, pre_eeg_json, post_eeg_json, eeg_features_json, survey_json, intervention_triggered } = req.body;
+  if (session_id == null) return badRequest(res, 'session_id is required');
+  const db = getDb();
+  await db.update(schema.pilotSessions)
+    .set({
+      preEegJson:            pre_eeg_json ?? null,
+      postEegJson:           post_eeg_json ?? null,
+      eegFeaturesJson:       eeg_features_json ?? null,
+      surveyJson:            survey_json ?? null,
+      interventionTriggered: intervention_triggered ? true : false,
+    })
+    .where(eq(schema.pilotSessions.id, Number(session_id)));
+  return success(res, { success: true });
+}
+
+async function pilotAdminParticipants(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const authResult = requireAuth(req);
+  if (!authResult) return unauthorized(res);
+  const db = getDb();
+  const rows = await db.select().from(schema.pilotParticipants).orderBy(desc(schema.pilotParticipants.createdAt));
+  return success(res, rows);
+}
+
+async function pilotAdminSessions(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const authResult = requireAuth(req);
+  if (!authResult) return unauthorized(res);
+  const db = getDb();
+  const rows = await db.select().from(schema.pilotSessions).orderBy(desc(schema.pilotSessions.createdAt));
+  return success(res, rows);
+}
+
+async function pilotAdminExportCsv(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const authResult = requireAuth(req);
+  if (!authResult) return unauthorized(res);
+  const db = getDb();
+  const rows = await db
+    .select({
+      participantCode:       schema.pilotSessions.participantCode,
+      blockType:             schema.pilotSessions.blockType,
+      age:                   schema.pilotParticipants.age,
+      dietType:              schema.pilotParticipants.dietType,
+      hasAppleWatch:         schema.pilotParticipants.hasAppleWatch,
+      interventionTriggered: schema.pilotSessions.interventionTriggered,
+      preEegJson:            schema.pilotSessions.preEegJson,
+      postEegJson:           schema.pilotSessions.postEegJson,
+      surveyJson:            schema.pilotSessions.surveyJson,
+    })
+    .from(schema.pilotSessions)
+    .leftJoin(schema.pilotParticipants, eq(schema.pilotSessions.participantCode, schema.pilotParticipants.participantCode))
+    .orderBy(desc(schema.pilotSessions.createdAt));
+
+  const EEG_BANDS = ['alpha', 'beta', 'theta', 'delta', 'gamma'] as const;
+  const surveyKeys = new Set<string>();
+  for (const row of rows) {
+    const s = row.surveyJson as Record<string, unknown> | null;
+    if (s && typeof s === 'object') {
+      for (const [k, v] of Object.entries(s)) {
+        if (typeof v === 'number') surveyKeys.add(k);
+      }
+    }
+  }
+  const sortedSurveyKeys = Array.from(surveyKeys).sort();
+  const headers = [
+    'participant_code', 'block_type', 'age', 'diet_type', 'has_apple_watch', 'intervention_triggered',
+    ...EEG_BANDS.map(b => `pre_${b}`),
+    ...EEG_BANDS.map(b => `post_${b}`),
+    ...sortedSurveyKeys,
+  ];
+  const cell = (v: unknown): string => v == null ? '' : String(v).replace(/,/g, ';');
+  const csvLines = [headers.join(',')];
+  for (const row of rows) {
+    const pre = row.preEegJson as Record<string, unknown> | null;
+    const post = row.postEegJson as Record<string, unknown> | null;
+    const survey = row.surveyJson as Record<string, unknown> | null;
+    csvLines.push([
+      cell(row.participantCode), cell(row.blockType), cell(row.age), cell(row.dietType),
+      cell(row.hasAppleWatch), cell(row.interventionTriggered),
+      ...EEG_BANDS.map(b => cell(pre?.[b])),
+      ...EEG_BANDS.map(b => cell(post?.[b])),
+      ...sortedSurveyKeys.map(k => cell(survey?.[k])),
+    ].join(','));
+  }
+  const dateStr = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="study-data-${dateStr}.csv"`);
+  return res.send(csvLines.join('\n'));
+}
+
 // ── Main router ──────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -767,6 +897,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (s1 === 'withdraw')             return await studyWithdraw(req, res);
       if (s1 === 'status' && segs[2])    return await studyStatus(req, res, segs[2]);
       if (s1 === 'history' && segs[2])   return await studyHistory(req, res, segs[2]);
+      // Pilot study routes
+      if (s1 === 'consent')                                    return await pilotConsent(req, res);
+      if (s1 === 'session' && segs[2] === 'start')             return await pilotSessionStart(req, res);
+      if (s1 === 'session' && segs[2] === 'complete')          return await pilotSessionComplete(req, res);
+      if (s1 === 'admin' && segs[2] === 'participants')        return await pilotAdminParticipants(req, res);
+      if (s1 === 'admin' && segs[2] === 'sessions')            return await pilotAdminSessions(req, res);
+      if (s1 === 'admin' && segs[2] === 'export-csv')          return await pilotAdminExportCsv(req, res);
     }
 
     return error(res, 'Not found', 404);
