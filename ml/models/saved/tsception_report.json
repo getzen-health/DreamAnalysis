@@ -1,0 +1,9 @@
+{
+  "model_name": "tsception_emotion",
+  "model_type": "TSception (PyTorch)",
+  "cv_accuracy": 0.69,
+  "cv_std": 0.00362672576489703,
+  "n_samples": 20100,
+  "n_classes": 3,
+  "model_size_mb": 0.1
+}

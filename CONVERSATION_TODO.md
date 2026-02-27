@@ -102,8 +102,8 @@ Then add native features progressively. No full rewrite needed to ship v1.
 
 ## SECTION 5: Publication path
 
-- [ ] Write paper: "Food-Emotion EEG: A First Dataset and Real-Time Intervention System" — arXiv first, then IEEE EMBC 2026 or Frontiers in Neuroscience
-- [ ] Include in paper: dataset stats, model accuracy table (Muse 2 vs OpenBCI), intervention outcomes, device compatibility section
+- [x] Write paper: "Food-Emotion EEG: A First Dataset and Real-Time Intervention System" — arXiv first, then IEEE EMBC 2026 or Frontiers in Neuroscience. DONE. `docs/paper_draft.md` created: 9 sections, ablation table, Algorithm 1, full accuracy tables. Fill [CITE] placeholders before submission.
+- [x] Include in paper: dataset stats, model accuracy table (Muse 2 vs OpenBCI), intervention outcomes, device compatibility section — all included in paper_draft.md.
 - [x] STATUS.md — updated: Phase 4 + Phase 5 mobile items, Spotify, haptics, offline, ONNX
 - [x] PRODUCT.md — updated: honest assessment percentages, mobile bar added
 
