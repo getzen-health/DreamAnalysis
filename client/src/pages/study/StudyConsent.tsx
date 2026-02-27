@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -61,28 +60,20 @@ For questions about this study, contact the research team through the applicatio
 By checking the box below you confirm that you have read and understood the above,
 that you are 18 years of age or older, and that you agree to participate voluntarily.`;
 
-const PARTICIPANT_CODE_REGEX = /^P\d{3}$/;
+function generateCode(): string {
+  const n = Math.floor(Math.random() * 900) + 100; // 100–999
+  return `P${n}`;
+}
 
 export default function StudyConsent() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
   const [agreed, setAgreed] = useState(false);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(() => generateCode());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [codeError, setCodeError] = useState("");
 
-  const isCodeValid = PARTICIPANT_CODE_REGEX.test(code.trim());
-  const canSubmit = agreed && isCodeValid;
-
-  function handleCodeChange(value: string) {
-    setCode(value);
-    if (value.length > 0 && !PARTICIPANT_CODE_REGEX.test(value.trim())) {
-      setCodeError("Code must be P followed by exactly 3 digits (e.g. P001)");
-    } else {
-      setCodeError("");
-    }
-  }
+  const canSubmit = agreed;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -93,14 +84,14 @@ export default function StudyConsent() {
 
     try {
       await apiRequest("POST", "/api/study/consent", {
-        participant_code: code.trim(),
+        participant_code: code,
         consent_text: consentSnapshot,
         age: 0,
         diet_type: "omnivore",
         has_apple_watch: false,
       });
 
-      navigate(`/study/profile?code=${encodeURIComponent(code.trim())}`);
+      navigate(`/study/profile?code=${encodeURIComponent(code)}`);
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : "Submission failed — please try again";
@@ -160,40 +151,27 @@ export default function StudyConsent() {
           </CardContent>
         </Card>
 
-        {/* Participant code */}
-        <Card>
+        {/* Auto-generated participant code */}
+        <Card className="border-primary/30 bg-primary/5">
           <CardContent className="pt-5 space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="participant-code" className="text-sm font-medium">
-                Participant code
-              </Label>
+              <Label className="text-sm font-medium">Your anonymous participant code</Label>
               <p className="text-xs text-muted-foreground">
-                You should have received a code from the study coordinator (e.g. P001).
+                This code was randomly assigned to you. Write it down — you'll need it to
+                start each session. It contains no personal information.
               </p>
             </div>
-            <Input
-              id="participant-code"
-              type="text"
-              placeholder="e.g. P001"
-              value={code}
-              onChange={(e) => handleCodeChange(e.target.value)}
-              maxLength={4}
-              className="font-mono tracking-widest w-36"
-            />
-            {codeError && (
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                <p className="text-xs text-destructive">{codeError}</p>
-              </div>
-            )}
-            {isCodeValid && (
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-3xl font-bold tracking-widest text-primary">
+                {code}
+              </span>
               <Badge
                 variant="outline"
-                className="border-green-500/50 text-green-400 text-xs w-fit"
+                className="border-green-500/50 text-green-400 text-xs"
               >
-                Valid code
+                Ready
               </Badge>
-            )}
+            </div>
           </CardContent>
         </Card>
 
@@ -211,17 +189,17 @@ export default function StudyConsent() {
             </>
           ) : (
             <>
-              Continue
+              Accept &amp; Continue
               <ChevronRight className="ml-2 h-4 w-4" />
             </>
           )}
         </Button>
 
-        {!canSubmit && (agreed || code.length > 0) && (
+        {!agreed && (
           <div className="flex items-start gap-2">
             <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
             <p className="text-xs text-muted-foreground">
-              Check the agreement box and enter a valid participant code to continue.
+              Check the agreement box above to continue.
             </p>
           </div>
         )}
