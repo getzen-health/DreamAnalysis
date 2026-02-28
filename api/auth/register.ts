@@ -42,19 +42,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .where(eq(schema.users.username, username.trim()));
 
     if (existingUser) {
-      return badRequest(res, 'Username already exists');
+      return res.status(409).json({ error: 'Username already exists' });
     }
 
     // Hash password
     const hashedPassword = await hashPassword(password);
 
     // Insert user into database
+    const { age, deviceType } = req.body;
     const [newUser] = await db
       .insert(schema.users)
       .values({
         username: username.trim(),
         password: hashedPassword,
         email: email || null,
+        age: age ? Number(age) : null,
+        deviceType: deviceType || null,
       })
       .returning();
 
@@ -72,6 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return success(res, { user: userWithoutPassword, token }, 201);
   } catch (err: any) {
     console.error('Registration error:', err);
-    return error(res, 'Failed to register user');
+    const message = err?.message || 'Failed to register user';
+    return error(res, message);
   }
 }
