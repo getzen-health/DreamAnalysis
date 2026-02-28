@@ -75,7 +75,7 @@
 
 | Model | Algorithm | Accuracy | Dataset | Notes |
 |-------|-----------|----------|---------|-------|
-| Emotion Classifier | LightGBM mega (global PCA) | **74.21% CV** (9 datasets, 3-class, 85 features) | DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub | **Active live path** — 163 534 samples, scaler+PCA+LGBM in single pkl |
+| Emotion Classifier | LightGBM mega (global PCA) | **71.52% CV** (11 datasets, 3-class, 85 features) | DEAP+DREAMER+GAMEEMO+DENS+FACED+EAV+SEED-IV+EEG-ER+STEW+Muse-Sub+EmoKey | **Active live path** — 187 751 samples (303 177 after SMOTE), scaler+PCA+LGBM in single pkl |
 | Emotion Classifier | MLP (PyTorch) | 93.11% CV | 8 datasets (within-subject split — inflated) | Deleted — per-dataset PCA + one-hot indicators, not deployable |
 | Emotion Classifier | Feature heuristics | 65–75% | Live Muse 2 | Fallback when mega LGBM not loaded — FAA + DASM/RASM + FMT |
 | Emotion Classifier (DENS standalone) | LightGBM | 79.55% CV | DENS (27 subjects, 128-ch EGI) | Valence-based 3-class, 41 features |
@@ -93,7 +93,7 @@
 | Denoising Autoencoder | PyTorch | +2.29 dB SNR improvement | Synthetic paired (5000 samples) | Saved as denoiser_model.pt |
 | Food-Emotion | Feature heuristics | N/A | — | Novel — no prior benchmark exists |
 | RL Threshold Agent (PPO) | PPO Actor-Critic (PyTorch) | 67% reward rate (live) | Synthetic NeurofeedbackEnv | Flow-zone target: 40–75%; 500 ep × 3 protocols |
-| TSception Emotion | TSception CNN (PyTorch) | in training | Synthetic + DEAP (4-ch, 4-sec epochs) | Temporal-spatial CNN for AF7/AF8 asymmetry; expected 72-82% CV |
+| TSception Emotion | TSception CNN (PyTorch) | **69.00% CV** | Synthetic + DEAP (19 800 epochs, 4-ch, 4-sec epochs) | Temporal-spatial CNN for AF7/AF8 asymmetry; saved as tsception_emotion.pt |
 
 ## Needs Improvement
 
