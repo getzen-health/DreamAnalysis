@@ -10,7 +10,7 @@ const features = [
   {
     icon: Brain,
     title: "EEG Brain Monitoring",
-    description: "Real-time brain wave analysis with 64-channel electrode simulation. Track alpha, beta, theta, delta, and gamma waves.",
+    description: "Real-time brain wave analysis from Muse 2 (4-channel EEG). Track alpha, beta, theta, delta, and gamma waves.",
     color: "primary",
   },
   {
@@ -111,7 +111,7 @@ export default function Landing() {
               <div className="text-xs">Emotions</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-success font-mono">64</div>
+              <div className="text-2xl font-bold text-success font-mono">4</div>
               <div className="text-xs">EEG Channels</div>
             </div>
             <div className="text-center">

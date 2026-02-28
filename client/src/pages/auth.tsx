@@ -200,7 +200,7 @@ export default function AuthPage() {
           </p>
           <div className="grid grid-cols-3 gap-6 pt-6">
             <div className="glass-card rounded-xl p-4 border border-primary/20">
-              <div className="text-2xl font-bold text-primary font-mono">64</div>
+              <div className="text-2xl font-bold text-primary font-mono">4</div>
               <div className="text-xs text-foreground/60 mt-1">EEG Channels</div>
             </div>
             <div className="glass-card rounded-xl p-4 border border-secondary/20">
@@ -236,14 +236,14 @@ export default function AuthPage() {
               <TabsList className="grid w-full grid-cols-2 bg-card/50 border border-primary/10">
                 <TabsTrigger
                   value="login"
-                  className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
+                  className="text-foreground/70 data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Login
                 </TabsTrigger>
                 <TabsTrigger
                   value="register"
-                  className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
+                  className="text-foreground/70 data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
                   Register
