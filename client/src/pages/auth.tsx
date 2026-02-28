@@ -72,21 +72,14 @@ export default function AuthPage() {
       });
       await redirectByIntent();
     } catch (err: any) {
-      const message = err.message?.includes(':')
-        ? err.message.split(':').slice(1).join(':').trim()
-        : 'Invalid username or password.';
-      let parsed = message;
-      try {
-        const obj = JSON.parse(message);
-        if (obj.error) parsed = obj.error;
-      } catch {
-        // not JSON, use as-is
-      }
-      toast({
-        title: 'Login Failed',
-        description: parsed,
-        variant: 'destructive',
-      });
+      const status = err.status as number | undefined;
+      const description =
+        status === 401 ? 'Wrong username or password.' :
+        status === 429 ? 'Too many attempts. Please wait a moment.' :
+        status === 500 ? 'Something went wrong on our end. Please try again.' :
+        !status ? 'Cannot reach the server. Check your connection.' :
+        err.message || 'Login failed. Please try again.';
+      toast({ title: 'Login Failed', description, variant: 'destructive' });
     } finally {
       setLoginLoading(false);
     }
@@ -146,21 +139,14 @@ export default function AuthPage() {
       });
       await redirectByIntent();
     } catch (err: any) {
-      const message = err.message?.includes(':')
-        ? err.message.split(':').slice(1).join(':').trim()
-        : 'Registration failed. Please try again.';
-      let parsed = message;
-      try {
-        const obj = JSON.parse(message);
-        if (obj.error) parsed = obj.error;
-      } catch {
-        // not JSON, use as-is
-      }
-      toast({
-        title: 'Registration Failed',
-        description: parsed,
-        variant: 'destructive',
-      });
+      const status = err.status as number | undefined;
+      const description =
+        status === 409 ? 'That username is already taken. Please choose another.' :
+        status === 400 ? (err.message || 'Please check your details and try again.') :
+        status === 500 ? 'Something went wrong on our end. Please try again in a moment.' :
+        !status ? 'Cannot reach the server. Check your connection.' :
+        err.message || 'Registration failed. Please try again.';
+      toast({ title: 'Registration Failed', description, variant: 'destructive' });
     } finally {
       setRegisterLoading(false);
     }
