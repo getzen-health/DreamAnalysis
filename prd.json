@@ -119,7 +119,7 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "This story requires running Python training. May take 5-30 min depending on dataset size. DREAMER data downloaded automatically via train_dreamer.py."
     },
     {
@@ -134,7 +134,7 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "ml/training/train_tsception.py already exists. Check that n_channels=4 is configured before running."
     },
     {
@@ -148,7 +148,7 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Run after US-008 (DREAMER) completes. train_faced.py can also be run first to add FACED data before this mega retrain."
     },
     {
@@ -163,7 +163,7 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Run after US-008, US-009, US-010 complete."
     }
   ]
