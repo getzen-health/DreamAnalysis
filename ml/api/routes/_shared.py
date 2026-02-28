@@ -210,6 +210,10 @@ def _get_anomaly_detector(user_id: str = "default") -> AnomalyDetector:
     return _anomaly_detectors[user_id]
 
 
+# Legacy alias — analysis.py imports this directly for the default user
+_anomaly_detector: AnomalyDetector = _get_anomaly_detector("default")
+
+
 def _get_state_engine(user_id: str = "default") -> BrainStateEngine:
     """Return (creating if needed) the BrainStateEngine for *user_id*."""
     if user_id not in _state_engines:
