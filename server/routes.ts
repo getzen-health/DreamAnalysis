@@ -6,6 +6,8 @@ import webpush from "web-push";
 import cron from "node-cron";
 import bcrypt from "bcryptjs";
 import session from "express-session";
+import connectPg from "connect-pg-simple";
+import { Pool as NeonPool } from "@neondatabase/serverless";
 import SpotifyWebApi from "spotify-web-api-node";
 import {
   insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
@@ -95,8 +97,15 @@ async function ensureDefaultUser() {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // ── Session middleware ────────────────────────────────────────────────────
+  // ── Session middleware (PostgreSQL-backed — persists across Vercel instances) ──
+  const PgSession = connectPg(session);
+  const sessionPool = new NeonPool({ connectionString: process.env.DATABASE_URL! });
   app.use(session({
+    store: new PgSession({
+      pool: sessionPool as any,
+      createTableIfMissing: true,
+      tableName: "user_sessions",
+    }),
     secret: process.env.SESSION_SECRET ?? "svapnastra-dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
@@ -135,6 +144,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                      age: users.age, deviceType: users.deviceType, createdAt: users.createdAt });
 
       (req.session as any).userId = newUser.id;
+      await new Promise<void>((resolve, reject) =>
+        req.session.save(err => (err ? reject(err) : resolve()))
+      );
       return res.status(201).json({ user: newUser });
     } catch (err: any) {
       console.error("Register error:", err);
@@ -159,6 +171,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid username or password." });
 
       (req.session as any).userId = user.id;
+      await new Promise<void>((resolve, reject) =>
+        req.session.save(err => (err ? reject(err) : resolve()))
+      );
       const { password: _pw, ...safeUser } = user;
       return res.json({ user: safeUser });
     } catch (err) {
