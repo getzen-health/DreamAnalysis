@@ -19,12 +19,13 @@ logger = logging.getLogger(__name__)
 _connection_state: dict[str, dict] = {}
 MAX_CONNECTIONS = 200
 
-# Emotion classification window: 15 seconds at 256 Hz.
-# Reduced from 30s → 15s: first classification arrives 2× faster (15s vs 30s),
-# and results re-fresh every 15s rather than every 30s. SEED/DEAP studies show
-# that 10-15s epochs achieve accuracy within 2-3% of 30s epochs for consumer EEG.
-_EMOTION_WINDOW_SEC = 15
-_EMOTION_WINDOW_SAMPLES = 256 * _EMOTION_WINDOW_SEC  # 3 840 samples
+# Emotion classification window: 30 seconds at 256 Hz.
+# 30s is required for the REVE DETransformer (temporal DE sequence model).
+# EEGNet and mega-LGBM also benefit from longer epochs: 2024 paper found
+# 30-second segments most effective for consumer EEG emotion classification.
+# First result arrives at t=30s; after that refreshes every 30s.
+_EMOTION_WINDOW_SEC = 30
+_EMOTION_WINDOW_SAMPLES = 256 * _EMOTION_WINDOW_SEC  # 7 680 samples
 
 
 def _numpy_safe(obj):
@@ -82,6 +83,13 @@ async def eeg_stream_endpoint(websocket: WebSocket):
     conn_id = str(uuid.uuid4())
     logger.info("WebSocket connected: %s", conn_id)
     await websocket.accept()
+    try:
+        from monitoring.datadog_reporter import report_metric
+        asyncio.create_task(asyncio.to_thread(
+            report_metric, "neural_dream.ws.connections", 1.0, None, "count"
+        ))
+    except Exception:
+        pass
 
     # Per-connection state (stored in module-level dict, cleaned up on disconnect)
     _connection_state[conn_id] = {
@@ -247,6 +255,16 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                 from processing.signal_quality import SignalQualityChecker
                                 qc = SignalQualityChecker(fs=fs) if fs != 256 else quality_checker
                                 quality_result = qc.check_quality(eeg)
+                                # Datadog — SQI gauge every frame (4 Hz) — sampled 1-in-30 to avoid spam
+                                _sqi = (quality_result or {}).get("quality_score", 0)
+                                if _sqi and int(time.time()) % 30 == 0:
+                                    try:
+                                        from monitoring.datadog_reporter import report_metric
+                                        asyncio.create_task(asyncio.to_thread(
+                                            report_metric, "neural_dream.eeg.sqi", _sqi
+                                        ))
+                                    except Exception:
+                                        pass
                             except Exception as e:
                                 logger.warning("Signal quality check failed: %s", e)
 
@@ -295,14 +313,30 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                         conn_state["emotion_result"] = emotion_result
                                         conn_state["emotion_updated_at"] = now
                                         _connection_state[conn_id] = conn_state
+                                        _mtype = emotion_result.get("model_type", "?")
+                                        _emo   = emotion_result.get("emotion", "?")
+                                        _conf  = emotion_result.get("confidence", 0)
+                                        _val   = emotion_result.get("valence", 0)
+                                        _aro   = emotion_result.get("arousal", 0)
                                         logger.info(
-                                            "[emotion] user=%s model=%s emotion=%s conf=%.2f signals=%d",
-                                            ws_user_id,
-                                            emotion_result.get("model_type", "?"),
-                                            emotion_result.get("emotion", "?"),
-                                            emotion_result.get("confidence", 0),
-                                            emotion_result.get("signal_count", 0),
+                                            "[emotion] user=%s model=%s emotion=%s conf=%.2f val=%.3f aro=%.3f",
+                                            ws_user_id, _mtype, _emo, _conf, _val, _aro,
                                         )
+                                        # Datadog — fire-and-forget metrics every 30s
+                                        try:
+                                            from monitoring.datadog_reporter import report_metric
+                                            asyncio.create_task(asyncio.to_thread(
+                                                lambda: (
+                                                    report_metric("neural_dream.emotion.confidence", _conf,
+                                                                  tags=[f"model:{_mtype}", f"emotion:{_emo}"]),
+                                                    report_metric("neural_dream.emotion.valence", _val,
+                                                                  tags=[f"model:{_mtype}"]),
+                                                    report_metric("neural_dream.emotion.arousal", _aro,
+                                                                  tags=[f"model:{_mtype}"]),
+                                                )
+                                            ))
+                                        except Exception:
+                                            pass
                                     except Exception as e:
                                         logger.warning("30s emotion error: %s", e)
 

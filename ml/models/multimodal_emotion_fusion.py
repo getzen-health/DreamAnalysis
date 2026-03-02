@@ -295,6 +295,10 @@ class MultimodalEmotionFusion:
             "biometric_confidence":  round(float(biometric_confidence), 2),
             "signal_count":          n_signals,
             "signals_used":          signals_used,
+            # Preserve EEG model metadata so callers can see which model produced the result
+            "model_type":            eeg_result.get("model_type", "multimodal-fusion"),
+            "confidence":            eeg_result.get("confidence", round(float(biometric_confidence), 2)),
+            "probabilities":         eeg_result.get("probabilities", {}),
         }
 
     # ── HRV sub-model ─────────────────────────────────────────────────────
