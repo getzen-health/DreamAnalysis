@@ -120,6 +120,17 @@ def _find_model(prefix: str) -> Optional[str]:
 
 
 # ─── Model singletons ────────────────────────────────────────────────────────
+# REVE Foundation singleton — loaded once at startup, used in predict_emotion()
+try:
+    import os as _os
+    if _os.environ.get("HF_TOKEN"):
+        from models.reve_foundation import get_reve_foundation as _get_reve
+        _reve_foundation = _get_reve()
+    else:
+        _reve_foundation = None
+except Exception:
+    _reve_foundation = None
+
 sleep_model = SleepStagingModel(model_path=_find_model("sleep_staging_model"))
 emotion_model = EmotionClassifier(model_path=_find_model("emotion_classifier_model"))
 dream_model = DreamDetector(model_path=_find_model("dream_detector_model"))
@@ -278,17 +289,39 @@ def predict_emotion(
     This function is safe to call from a ThreadPoolExecutor (fully synchronous,
     releases GIL during NumPy/LightGBM computation).
     """
-    try:
-        from models.personal_model import get_personal_model as _get_pm
-        pm = _get_pm(user_id, n_channels=n_channels)
-        result = pm.predict(eeg, fs)
-        # "fallback_no_backbone" means EEGNet weights not present → use mega LGBM
-        if result.get("model_type") != "fallback_no_backbone":
-            base_result = result
-        else:
+    # REVE Foundation (NeurIPS 2025, 69.7M params pretrained on 60K+ hours) — top priority
+    # Requires HF_TOKEN env var and approved access to brain-bzh/reve-base.
+    # Needs >= 4 seconds of EEG. Falls through if not available.
+    _eeg_arr = eeg if hasattr(eeg, "ndim") else None
+    if (
+        _reve_foundation is not None
+        and _reve_foundation.is_pretrained()
+        and _eeg_arr is not None
+        and _eeg_arr.ndim == 2
+        and _eeg_arr.shape[0] >= 4
+        and _eeg_arr.shape[1] >= int(fs * 4)
+    ):
+        try:
+            base_result = _reve_foundation.predict(_eeg_arr, fs=int(fs))
+            # Skip PersonalModel and return REVE result
+            # (OnlineLearner blend below still applies)
+        except Exception:
+            base_result = None
+    else:
+        base_result = None
+
+    if base_result is None:
+        try:
+            from models.personal_model import get_personal_model as _get_pm
+            pm = _get_pm(user_id, n_channels=n_channels)
+            result = pm.predict(eeg, fs)
+            # "fallback_no_backbone" means EEGNet weights not present → use mega LGBM
+            if result.get("model_type") != "fallback_no_backbone":
+                base_result = result
+            else:
+                base_result = emotion_model.predict(eeg, fs, device_type=device_type)
+        except Exception:
             base_result = emotion_model.predict(eeg, fs, device_type=device_type)
-    except Exception:
-        base_result = emotion_model.predict(eeg, fs, device_type=device_type)
 
     # ── OnlineLearner (SGDClassifier) blend ──────────────────────────────────
     # Consults the per-user incremental model that updates on every user correction.
