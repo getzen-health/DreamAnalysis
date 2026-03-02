@@ -18,6 +18,16 @@ from processing.eeg_processor import (
 )
 from processing.channel_maps import get_channel_map
 
+# Pre-initialize PyTorch thread pool before any joblib/sklearn loading.
+# torch.nn.TransformerEncoder hangs when torch.nn is first imported AFTER
+# joblib.load() of a large pkl file (e.g. sleep_staging_model.pkl, 42 MB).
+# Importing torch here — before SleepStagingModel's joblib call — fixes the hang.
+try:
+    import torch as _torch  # noqa: F401  (side-effect: initializes thread pool)
+    import torch.nn as _torch_nn  # noqa: F401
+except ImportError:
+    pass
+
 # Amplitude threshold above which an epoch is flagged as artifact-contaminated.
 # From Krigolson (2021): 75 µV catches most blinks (100-200 µV) and EMG bursts.
 _ARTIFACT_THRESHOLD_UV = 75.0
