@@ -617,17 +617,10 @@ class EmotionClassifier:
                          channel indices for FAA/DASM computation (see
                          processing/channel_maps.py for the full registry).
         """
-        # EEGNet — device-agnostic CNN on raw EEG. Highest priority when trained.
-        # Works on any channel count (4ch Muse, 8ch OpenBCI, 16ch Cyton+Daisy).
-        # Only activates if ml/models/saved/eegnet_emotion_{n_ch}ch.pt exists
-        # AND its benchmark accuracy >= 60%.
-        if (self._eegnet is not None and eeg.ndim == 2
-                and self._eegnet.is_available(eeg.shape[0], min_accuracy=_MIN_MODEL_ACCURACY)):
-            return self._eegnet.predict(eeg, fs)
-
         # REVE DETransformer — temporal DE features over 30-sec epochs.
-        # Only activates when >= 30 seconds of EEG are available (7680 samples at 256 Hz).
-        # Falls through to mega-LGBM for shorter live windows (4-sec default).
+        # Preferred over EEGNet for long sessions: REVE models temporal dynamics
+        # across the whole 30-second sequence; EEGNet treats it as a static epoch.
+        # Falls through to EEGNet / mega-LGBM for shorter windows.
         if (self._reve is not None
                 and eeg.ndim == 2
                 and eeg.shape[0] >= 4
@@ -637,7 +630,15 @@ class EmotionClassifier:
             except Exception:
                 pass  # fall through on any inference error
 
-        # Mega cross-dataset LGBM with global PCA — second priority
+        # EEGNet — device-agnostic CNN on raw EEG. Best for short-to-medium epochs.
+        # Works on any channel count (4ch Muse, 8ch OpenBCI, 16ch Cyton+Daisy).
+        # Only activates if ml/models/saved/eegnet_emotion_{n_ch}ch.pt exists
+        # AND its benchmark accuracy >= 60%.
+        if (self._eegnet is not None and eeg.ndim == 2
+                and self._eegnet.is_available(eeg.shape[0], min_accuracy=_MIN_MODEL_ACCURACY)):
+            return self._eegnet.predict(eeg, fs)
+
+        # Mega cross-dataset LGBM with global PCA — third priority
         if (self.mega_lgbm_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
                 and self._mega_lgbm_benchmark >= _MIN_MODEL_ACCURACY):
             return self._predict_mega_lgbm(eeg, fs, device_type)
