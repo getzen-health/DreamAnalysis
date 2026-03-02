@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, Component, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -57,6 +57,39 @@ const SleepSession           = lazy(() => import("@/pages/sleep-session"));
 const WeeklyBrainSummary     = lazy(() => import("@/pages/weekly-brain-summary"));
 const PrivacyPolicy          = lazy(() => import("@/pages/privacy-policy"));
 
+// ── Error Boundary — prevents a single page crash from taking down the whole app ──
+class ErrorBoundary extends Component<
+  { children: ReactNode; fallback?: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode; fallback?: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[ErrorBoundary]", error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-muted-foreground text-sm p-8">
+          <p>Something went wrong on this page.</p>
+          <button
+            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-xs"
+            onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Minimal fallback shown while a lazy chunk loads
 function PageLoader() {
   return (
@@ -80,6 +113,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
+    <ErrorBoundary>
     <Suspense fallback={<PageLoader />}>
     <Switch>
       <Route path="/welcome" component={Landing} />
@@ -194,6 +228,7 @@ function AppRoutes() {
       <Route component={NotFound} />
     </Switch>
     </Suspense>
+    </ErrorBoundary>
   );
 }
 
