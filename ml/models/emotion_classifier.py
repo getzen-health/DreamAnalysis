@@ -82,6 +82,12 @@ class EmotionClassifier:
         except Exception:
             self._eegnet = None
 
+        # REVE-inspired DETransformer (FACED dataset, 30-sec epochs, temporal DE features)
+        # Second-highest priority — activates only when >= 30 sec of data available.
+        # Model file: models/saved/reve_emotion_4ch.pt
+        self._reve = None
+        self._try_load_reve()
+
         # Mega cross-dataset LGBM with global PCA (DEAP+DREAMER+GAMEEMO+DENS, highest priority)
         self.mega_lgbm_model  = None
         self.mega_lgbm_scaler = None  # StandardScaler (85→85)
@@ -162,6 +168,16 @@ class EmotionClassifier:
             self._mega_lgbm_benchmark = acc
             print(f"[EmotionClassifier] Loaded mega cross-dataset LGBM "
                   f"(CV acc={acc:.4f}, datasets={payload.get('datasets')})")
+        except Exception:
+            pass
+
+    def _try_load_reve(self) -> None:
+        """Load the REVE-inspired DETransformer (FACED DE, 30-sec temporal sequences)."""
+        try:
+            from models.reve_emotion_classifier import REVEEmotionClassifier
+            reve = REVEEmotionClassifier()
+            if reve.is_available():
+                self._reve = reve
         except Exception:
             pass
 
@@ -608,6 +624,18 @@ class EmotionClassifier:
         if (self._eegnet is not None and eeg.ndim == 2
                 and self._eegnet.is_available(eeg.shape[0], min_accuracy=_MIN_MODEL_ACCURACY)):
             return self._eegnet.predict(eeg, fs)
+
+        # REVE DETransformer — temporal DE features over 30-sec epochs.
+        # Only activates when >= 30 seconds of EEG are available (7680 samples at 256 Hz).
+        # Falls through to mega-LGBM for shorter live windows (4-sec default).
+        if (self._reve is not None
+                and eeg.ndim == 2
+                and eeg.shape[0] >= 4
+                and eeg.shape[1] >= int(fs * 30)):
+            try:
+                return self._reve.predict(eeg, fs, device_type)
+            except Exception:
+                pass  # fall through on any inference error
 
         # Mega cross-dataset LGBM with global PCA — second priority
         if (self.mega_lgbm_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
