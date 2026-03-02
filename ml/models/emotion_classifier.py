@@ -92,6 +92,13 @@ class EmotionClassifier:
         except Exception:
             self._eegnet = None
 
+        # REVE Foundation (brain-bzh/reve-base, NeurIPS 2025) — highest priority when available.
+        # Pre-trained on 60K+ hours of EEG from 92 datasets / 25,000 subjects.
+        # Gated on HuggingFace: request access at huggingface.co/brain-bzh/reve-base
+        # Falls through silently when access not yet granted (state=ACCESS_DENIED).
+        self._reve_foundation = None
+        self._try_load_reve_foundation()
+
         # REVE-inspired DETransformer (FACED dataset, 30-sec epochs, temporal DE features)
         # Second-highest priority — activates only when >= 30 sec of data available.
         # Model file: models/saved/reve_emotion_4ch.pt
@@ -178,6 +185,30 @@ class EmotionClassifier:
             self._mega_lgbm_benchmark = acc
             print(f"[EmotionClassifier] Loaded mega cross-dataset LGBM "
                   f"(CV acc={acc:.4f}, datasets={payload.get('datasets')})")
+        except Exception:
+            pass
+
+    def _try_load_reve_foundation(self) -> None:
+        """Load the real REVE foundation model (brain-bzh/reve-base, NeurIPS 2025).
+
+        Only activates when weights are PRETRAINED or FINETUNED (not RANDOM_INIT).
+        Requires HuggingFace approval: huggingface.co/brain-bzh/reve-base
+        Set HF_TOKEN env var with a token that has approved access.
+        Falls through silently when access not yet granted or only random weights.
+        """
+        try:
+            from models.reve_foundation import REVEFoundationWrapper
+            wrapper = REVEFoundationWrapper()
+            state = wrapper.status()
+            if state in ("PRETRAINED", "FINETUNED"):
+                self._reve_foundation = wrapper
+                print(f"[EmotionClassifier] REVE Foundation loaded (state={state})")
+            elif state == "ACCESS_DENIED":
+                print("[EmotionClassifier] REVE Foundation: access not yet approved "
+                      "— request at huggingface.co/brain-bzh/reve-base")
+            elif state == "RANDOM_INIT":
+                print("[EmotionClassifier] REVE Foundation: random init (not trained) — "
+                      "run train_reve_braindecode.py to fine-tune")
         except Exception:
             pass
 
@@ -627,6 +658,18 @@ class EmotionClassifier:
                          channel indices for FAA/DASM computation (see
                          processing/channel_maps.py for the full registry).
         """
+        # REVE Foundation (brain-bzh/reve-base) — highest priority when HF access is granted.
+        # Pre-trained on 60K+ hours, handles arbitrary channel layouts via 4D positional encoding.
+        # Requires >= 4 sec of EEG (minimum useful input for embedding extraction).
+        if (self._reve_foundation is not None
+                and eeg.ndim == 2
+                and eeg.shape[0] >= 4
+                and eeg.shape[1] >= int(fs * 4)):
+            try:
+                return self._reve_foundation.predict(eeg, fs)
+            except Exception:
+                pass  # fall through on any inference error
+
         # REVE DETransformer — temporal DE features over 30-sec epochs.
         # Preferred over EEGNet for long sessions: REVE models temporal dynamics
         # across the whole 30-second sequence; EEGNet treats it as a static epoch.
