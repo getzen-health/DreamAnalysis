@@ -1,0 +1,26 @@
+{
+  "model": "DETransformer (REVE-style temporal DE transformer)",
+  "dataset": "FACED",
+  "n_subjects": 123,
+  "n_samples": 3444,
+  "cv_accuracy": 0.5226,
+  "cv_std": 0.0094,
+  "cv_folds": [
+    0.5385,
+    0.5283,
+    0.5167,
+    0.5152,
+    0.5145
+  ],
+  "n_classes": 3,
+  "classes": [
+    "positive",
+    "neutral",
+    "negative"
+  ],
+  "seq_len": 30,
+  "input_dim": 57,
+  "architecture": "DETransformer d_model=128, n_layers=3, n_heads=4",
+  "n_params": 602883,
+  "channel_map": "T7(23)=TP9, FP1(0)=AF7, FP2(2)=AF8, T8(24)=TP10"
+}

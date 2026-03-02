@@ -227,8 +227,9 @@ def _load_faced_sequences(de_dir: Path) -> Tuple[np.ndarray, np.ndarray, int]:
         return np.array([]), np.array([]), 0
 
     log.info("Found %d FACED subject files", len(pkl_files))
-    X_list: List[np.ndarray] = []
-    y_list: List[int]        = []
+    # Collect per-subject arrays before merging so we can normalize per subject
+    all_X_subj: List[np.ndarray] = []   # each entry: (28, 30, 57)
+    all_y_subj: List[np.ndarray] = []   # each entry: (28,)
     n_ok = 0
 
     for pkl_path in pkl_files:
@@ -243,6 +244,8 @@ def _load_faced_sequences(de_dir: Path) -> Tuple[np.ndarray, np.ndarray, int]:
             log.debug("Unexpected shape %s in %s — skipping", data.shape, pkl_path.name)
             continue
 
+        subj_seqs = []
+        subj_labels = []
         for vid_idx, raw_label in enumerate(FACED_VIDEO_LABELS_28):
             label = FACED_9_TO_3[raw_label]
 
@@ -252,18 +255,28 @@ def _load_faced_sequences(de_dir: Path) -> Tuple[np.ndarray, np.ndarray, int]:
 
             # Apply _de_to_features() to each 1-second window → sequence (30, 57)
             seq = np.stack([_de_to_features(de_vid[t]) for t in range(SEQ_LEN)])  # (30, 57)
+            subj_seqs.append(seq)
+            subj_labels.append(label)
 
-            X_list.append(seq)
-            y_list.append(label)
+        # Per-subject z-score normalization (the most important step for cross-subject accuracy).
+        # Normalizes over all clips × seconds within this subject, removing inter-subject
+        # amplitude variation caused by skull thickness, electrode impedance, etc.
+        subj_arr = np.stack(subj_seqs).astype(np.float32)   # (28, 30, 57)
+        flat = subj_arr.reshape(-1, INPUT_DIM)               # (840, 57)
+        subj_mean = flat.mean(axis=0)                        # (57,)
+        subj_std  = flat.std(axis=0) + 1e-8                  # (57,)
+        subj_arr  = (subj_arr - subj_mean) / subj_std        # (28, 30, 57)
 
+        all_X_subj.append(subj_arr)
+        all_y_subj.append(np.array(subj_labels, dtype=np.int32))
         n_ok += 1
 
-    if not X_list:
+    if not all_X_subj:
         log.error("No sequences extracted — check DE directory.")
         return np.array([]), np.array([]), 0
 
-    X = np.stack(X_list).astype(np.float32)    # (n, 30, 57)
-    y = np.array(y_list, dtype=np.int32)
+    X = np.concatenate(all_X_subj, axis=0).astype(np.float32)  # (n, 30, 57)
+    y = np.concatenate(all_y_subj, axis=0)
 
     counts = {c: int((y == c).sum()) for c in range(N_CLASSES)}
     log.info(
@@ -346,16 +359,30 @@ def _convert_torcheeg_to_pkl(ds, torcheeg_root: Path) -> None:
 
 # ── Training ──────────────────────────────────────────────────────────────────
 
+def _augment_gaussian(X: np.ndarray, std: float = 0.05) -> np.ndarray:
+    """Add small Gaussian noise for EEG feature augmentation (standard technique)."""
+    return X + np.random.randn(*X.shape).astype(np.float32) * std
+
+
 def train_de_transformer(
     X: np.ndarray,
     y: np.ndarray,
-    d_model: int   = 64,
-    n_epochs: int  = 60,
-    lr: float      = 1e-3,
+    d_model: int   = 128,
+    n_layers: int  = 3,
+    n_epochs: int  = 150,
+    lr: float      = 2e-4,
     batch_size: int = 64,
     n_folds: int   = 5,
+    aug_noise: float = 0.05,
 ) -> Dict:
     """Train DETransformer with 5-fold stratified CV.
+
+    Key improvements over v1:
+    - Per-subject normalization in data loader
+    - d_model=128, n_layers=3 (3× capacity over original)
+    - Gaussian noise augmentation (aug_noise=0.05) during training
+    - lr=2e-4 with linear warmup + cosine decay
+    - label_smoothing=0.05
 
     Returns dict with 'model', 'scaler', 'cv_mean', 'cv_folds'.
     """
@@ -378,14 +405,28 @@ def train_de_transformer(
     X_t = torch.tensor(X_norm)
     y_t = torch.tensor(y.astype(np.int64))
 
+    # Log class distribution
+    class_counts = np.bincount(y, minlength=N_CLASSES)
+    log.info("Class counts: pos=%d neu=%d neg=%d", class_counts[0], class_counts[1], class_counts[2])
+
     skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
     fold_accs: List[float] = []
 
     for fold, (tr_idx, val_idx) in enumerate(skf.split(X_norm, y)):
-        model = DETransformer(d_model=d_model).to(device)
+        model = DETransformer(d_model=d_model, n_layers=n_layers).to(device)
         opt   = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-        sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs)
-        crit  = nn.CrossEntropyLoss(label_smoothing=0.10)
+        # Warmup for first 10% of epochs, then cosine decay
+        warmup_steps = max(1, int(n_epochs * 0.10))
+        sched = torch.optim.lr_scheduler.SequentialLR(
+            opt,
+            schedulers=[
+                torch.optim.lr_scheduler.LinearLR(opt, start_factor=0.1, end_factor=1.0,
+                                                   total_iters=warmup_steps),
+                torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=n_epochs - warmup_steps),
+            ],
+            milestones=[warmup_steps],
+        )
+        crit  = nn.CrossEntropyLoss(label_smoothing=0.05)
 
         tr_ds  = TensorDataset(X_t[tr_idx], y_t[tr_idx])
         tr_dl  = DataLoader(tr_ds, batch_size=batch_size, shuffle=True, drop_last=False)
@@ -397,6 +438,9 @@ def train_de_transformer(
             model.train()
             for xb, yb in tr_dl:
                 xb, yb = xb.to(device), yb.to(device)
+                # Gaussian noise augmentation during training
+                if aug_noise > 0:
+                    xb = xb + torch.randn_like(xb) * aug_noise
                 loss = crit(model(xb), yb)
                 opt.zero_grad(); loss.backward(); opt.step()
             sched.step()
@@ -416,12 +460,21 @@ def train_de_transformer(
     cv_std  = float(np.std(fold_accs))
     log.info("5-fold CV: %.2f%% ± %.2f%%", cv_mean * 100, cv_std * 100)
 
-    # Retrain on full dataset with best fold's hypers
+    # Retrain on full dataset
     log.info("Retraining final model on full dataset…")
-    final_model = DETransformer(d_model=d_model).to(device)
+    final_model = DETransformer(d_model=d_model, n_layers=n_layers).to(device)
     opt_f  = torch.optim.AdamW(final_model.parameters(), lr=lr, weight_decay=1e-4)
-    sched_f = torch.optim.lr_scheduler.CosineAnnealingLR(opt_f, T_max=n_epochs)
-    crit_f = nn.CrossEntropyLoss(label_smoothing=0.10)
+    warmup_steps_f = max(1, int(n_epochs * 0.10))
+    sched_f = torch.optim.lr_scheduler.SequentialLR(
+        opt_f,
+        schedulers=[
+            torch.optim.lr_scheduler.LinearLR(opt_f, start_factor=0.1, end_factor=1.0,
+                                               total_iters=warmup_steps_f),
+            torch.optim.lr_scheduler.CosineAnnealingLR(opt_f, T_max=n_epochs - warmup_steps_f),
+        ],
+        milestones=[warmup_steps_f],
+    )
+    crit_f = nn.CrossEntropyLoss(label_smoothing=0.05)
     full_ds = TensorDataset(X_t, y_t)
     full_dl = DataLoader(full_ds, batch_size=batch_size, shuffle=True, drop_last=False)
 
@@ -429,6 +482,8 @@ def train_de_transformer(
         final_model.train()
         for xb, yb in full_dl:
             xb, yb = xb.to(device), yb.to(device)
+            if aug_noise > 0:
+                xb = xb + torch.randn_like(xb) * aug_noise
             loss = crit_f(final_model(xb), yb)
             opt_f.zero_grad(); loss.backward(); opt_f.step()
         sched_f.step()
@@ -499,11 +554,13 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Train DETransformer on FACED DE features")
     parser.add_argument("--de-dir",       type=Path, default=DE_DIR,
                         help="Path to FACED DE directory (sub*.pkl.pkl files)")
-    parser.add_argument("--epochs",       type=int,  default=60,
-                        help="Training epochs (default 60)")
-    parser.add_argument("--d-model",      type=int,  default=64,
-                        help="Transformer hidden dim (default 64)")
-    parser.add_argument("--lr",           type=float, default=1e-3,
+    parser.add_argument("--epochs",       type=int,  default=150,
+                        help="Training epochs (default 150)")
+    parser.add_argument("--d-model",      type=int,  default=128,
+                        help="Transformer hidden dim (default 128)")
+    parser.add_argument("--n-layers",     type=int,  default=3,
+                        help="Transformer encoder layers (default 3)")
+    parser.add_argument("--lr",           type=float, default=2e-4,
                         help="Learning rate (default 1e-3)")
     parser.add_argument("--batch-size",   type=int,  default=64)
     parser.add_argument("--folds",        type=int,  default=5)
@@ -530,6 +587,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     result = train_de_transformer(
         X, y,
         d_model=args.d_model,
+        n_layers=getattr(args, "n_layers", 3),
         n_epochs=args.epochs,
         lr=args.lr,
         batch_size=args.batch_size,
