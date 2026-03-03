@@ -369,6 +369,28 @@ const models = [
     color: "pink",
   },
   {
+    id: 22,
+    name: "TSception Emotion",
+    file: "models/tsception.py / tsception_emotion.pt",
+    algo: "TSception CNN (PyTorch) — temporal + spatial convolutions on 4-ch EEG, asymmetry-aware",
+    liveAccuracy: "69.00% CV",
+    benchmarkAccuracy: "69.00% CV (synthetic + DEAP, 19 800 epochs, 4-ch, 4-sec epochs)",
+    crossSubject: "69.00% CV (cross-subject, 4-ch Muse-compatible input)",
+    classes: 3,
+    classLabels: ["positive", "neutral", "negative"],
+    primarySignals: [
+      "AF7/AF8 temporal asymmetry convolutions",
+      "4-second EEG epochs (256 Hz, 4-ch)",
+      "Spatial convolutions across hemisphere pairs",
+      "Spectral power in alpha/beta for asymmetry kernel",
+    ],
+    novelty:
+      "TSception architecture specifically designed for left/right hemisphere asymmetry — ideal for Muse 2's AF7/AF8 setup. Wired into emotion classifier fallback chain after DEAP LGBM models, before feature heuristics. Activates when epoch buffer has ≥1024 samples (4 seconds). Saved as tsception_emotion.pt. Training: 19 800 synthetic+DEAP epochs, 4-ch 4-sec input.",
+    status: "active (fallback)",
+    category: "Emotion",
+    color: "indigo",
+  },
+  {
     id: 21,
     name: "Multimodal Mega LGBM",
     file: "models/saved/multimodal_mega_lgbm.pkl",
@@ -1244,7 +1266,7 @@ export default function FormalBenchmarksDashboard() {
                 priority: "Medium", color: "sky",
                 items: [
                   "Implement EMA output smoothing (α=0.35) on emotion labels in frontend",
-                  "Add TSception architecture (asymmetry-aware CNNs, best for Muse 2)",
+                  "✅ Add TSception architecture (asymmetry-aware CNNs, best for Muse 2) — DONE (69.00% CV, active in fallback chain)",
                   "Collect 50+ labeled samples per user after 5 sessions for fine-tuning",
                   "Implement EEGPT foundation model (NeurIPS 2024 state-of-the-art)",
                 ],

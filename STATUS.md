@@ -59,6 +59,18 @@
 - [x] Muse-Subconscious dataset integrated (20 sessions, 4-ch Muse, 18 134 samples) — Mellow/Concentration labels
 - [x] mega LGBM now **74.21% CV** on 9 datasets, 163 534 samples
 
+### Connection UX & ML Reliability (thursday-launch-ready branch)
+- [x] **useMLConnection hook** (`client/src/hooks/use-ml-connection.tsx`) — state machine tracking ML backend health: idle → connecting → warming → ready | error
+- [x] **MLWarmupScreen** (`client/src/components/ml-warmup-screen.tsx`) — full-screen animated loading overlay shown during ML backend cold start (Render free-tier spin-up)
+- [x] **App.tsx integration** — MLConnectionProvider wraps all authenticated routes; MLWarmupScreen renders as overlay during warming state
+- [x] **Keep-alive ping** — AppLayout pings ML backend every 14 minutes to prevent Render free-tier sleep
+- [x] **ML status dot** — 8px indicator in sidebar (green/amber/red) with Tooltip showing latency and Reconnect button on error
+- [x] **mlFetch retry logic** — 3 retries with 1s/3s/9s exponential backoff + 30s AbortController timeout
+- [x] **SimulationModeBanner** (`client/src/components/simulation-mode-banner.tsx`) — amber banner on emotion-lab and brain-monitor pages when ML backend is unreachable; prompts simulation mode
+- [x] **TSception live inference** — TSception CNN (69.00% CV, 4-ch, 4-sec epochs) wired into emotion classifier fallback chain after DEAP models, before feature heuristics; activates when epoch ≥ 1024 samples
+- [x] **RunningNormalizer** — per-user rolling z-score normalizer in `ml/processing/eeg_processor.py`, wired into `_predict_mega_lgbm()`; thread-safe, buffer of 150 frames (~5 min); corrects within-session non-stationarity
+- [x] **Env/CORS audit** — `.env.example` updated with all required vars; `vercel.json` env block added for ML_BACKEND_URL; `render.yaml` CORS confirmed correct for production origin
+
 ### Infrastructure
 - [x] Vercel deployment config (frontend + Express)
 - [x] Render deployment (ML backend at neural-dream-ml.onrender.com)
@@ -145,6 +157,8 @@
 - [x] Personal records gamification — `longestEverStreak`, `focusTrend`, `nextMilestone` helpers; new-record celebration banner; "beat it" challenge per row; live comparison; streak + milestone countdown
 - [x] Weekly brain summary standalone page (`/weekly-summary`) — this week vs last week stress/focus/sleep with trend arrows, week-in-one-sentence, Canvas 2D PNG export (800×450, no deps)
 - [x] Intervention library Evidence tab — personal before/after stress bars from `/interventions/effectiveness/:userId`; science citations for all 7 exercises
+- [x] **Connection UX** — MLWarmupScreen overlay during cold start; keep-alive ping every 14 min; sidebar ML status dot (green/amber/red) with latency tooltip; mlFetch 3-retry exponential backoff (1s/3s/9s) + 30s timeout; SimulationModeBanner on emotion-lab and brain-monitor when ML unreachable
+- [x] **TSception fallback** — TSception CNN (69.00% CV) active in emotion classifier fallback chain; RunningNormalizer corrects within-session EEG drift per-user
 
 ### Phase 5 — Mobile 🔄 IN PROGRESS
 - [x] Capacitor 8.1.0 installed (`@capacitor/core`, `cli`, `ios`, `android`)

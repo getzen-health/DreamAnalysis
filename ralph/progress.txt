@@ -1,0 +1,17 @@
+Ralph Progress — neural-dream-workshop thursday-launch-ready
+Branch: ralph/thursday-launch-ready
+Created: 2026-03-03
+Deadline: Thursday 2026-03-06
+
+## Stories
+US-001: useMLConnection hook — DONE
+US-002: MLWarmupScreen component — DONE
+US-003: Integrate into App.tsx — DONE
+US-004: Keep-alive ping in AppLayout — DONE
+US-005: Connection status dot in sidebar — DONE
+US-006: Retry logic in mlFetch — DONE
+US-007: Simulation mode fallback banner — DONE
+US-008: TSception live inference path — DONE
+US-009: RunningNormalizer (non-stationarity) — DONE
+US-010: Vercel/CORS env audit — DONE
+US-011: STATUS.md + PRODUCT.md update — DONE

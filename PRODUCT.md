@@ -138,15 +138,17 @@ The user who has gone around it five times will never leave.
 Read this before starting any new feature. Be honest about where things are.
 
 ```
-Core ML / Signal pipeline    █████████░  94%
+Core ML / Signal pipeline    █████████░  96%
   Mastoid reref, DASM/RASM, FAA, FMT, 4-sec epochs, BaselineCalibrator all done.
   Food-Emotion module complete (6 states, 4 biomarkers, dietary guidance).
   Mega LGBM now 74.21% CV (9 datasets: DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub, 163 534 samples).
   PPO RL agent live: adaptive threshold on every /neurofeedback/evaluate call.
-    67% reward rate in flow zone (target 40–75%). 18 models total.
+    67% reward rate in flow zone (target 40–75%). 21 models total.
   PersonalModelAdapter wired into /analyze-eeg with personal_override blending. ✅
   Parallel ML inference via ThreadPoolExecutor (/analyze-eeg + /simulate-eeg). ✅
   Local ONNX inference: emotion_classifier_model.onnx (2.2 MB) + JS heuristics for sleep/dream. ✅
+  TSception CNN (69.00% CV) now active in emotion classifier fallback chain (after DEAP, before heuristics). ✅
+  RunningNormalizer: per-user rolling z-score normalizer in eeg_processor.py, 150-frame buffer (~5 min). ✅
   Missing: personalization fine-tuning after 5 sessions.
 
 Backend API                  █████████░  96%
@@ -212,13 +214,18 @@ Retention mechanics          ████████░░  82%
   Spotify auto-play: music starts automatically when stress crosses threshold. ✅
   Missing: App Store distribution, pilot user base.
 
-Infrastructure               ████████░░  80%
+Infrastructure               █████████░  88%
   Frontend on Vercel (dream-analysis.vercel.app).
   ML backend on Render free tier (neural-dream-ml.onrender.com). ✅
   Per-user isolation: fixed. No monitoring. No auth enforcement.
   Bundle optimized: Vite vendor splitting + lazy loading. ✅
   Offline: IndexedDB queue + auto-sync on reconnect. ✅
   PWA: manifest, service worker, installable. ✅
+  Cold-start handled gracefully: animated MLWarmupScreen overlay during Render spin-up;
+    keep-alive ping every 14 min prevents sleep; mlFetch 3-retry backoff (1s/3s/9s) + 30s timeout. ✅
+  ML status dot in sidebar (green/amber/red) with latency tooltip and Reconnect button. ✅
+  SimulationModeBanner on emotion-lab + brain-monitor when ML unreachable. ✅
+  .env.example + vercel.json env block updated; render.yaml CORS confirmed. ✅
   Missing: cap add ios/android, App Store, pilot data.
 ```
 
@@ -272,6 +279,29 @@ samples action (easier / hold / harder), adjusts threshold ±0.05 immediately.
 connect manually. No signal quality check before first session starts.~~
 Fixed: "Connect Device" in sidebar links to `/device-setup`. Dashboard banner
 also links there. `/device-setup` routes into `/onboarding` for guided calibration.
+
+### ~~8. ML backend cold start causes blank screen~~ ✅ Fixed
+~~Render free tier spins down after 15 min of inactivity. First request after idle
+takes 30–60 seconds — no feedback to the user, app appears broken.~~
+Fixed: `MLWarmupScreen` full-screen animated overlay shown during cold start.
+`useMLConnection` state machine (idle → connecting → warming → ready | error) manages
+the connection lifecycle. Keep-alive ping every 14 min prevents spin-down.
+`mlFetch` retries 3× with exponential backoff (1s/3s/9s) + 30s AbortController timeout.
+`SimulationModeBanner` on emotion-lab and brain-monitor pages when ML is unreachable.
+
+### ~~9. EEG signal drift not corrected within session~~ ✅ Fixed
+~~Band-power features drift as electrodes warm up and impedance shifts over a session.
+Population-average normalization from training data doesn't account for within-session drift.~~
+Fixed: `RunningNormalizer` per-user rolling z-score normalizer in `ml/processing/eeg_processor.py`,
+buffer of 150 frames (~5 min), wired into `_predict_mega_lgbm()`. Thread-safe, resets per user.
+Continuously corrects within-session non-stationarity without requiring a full baseline recalibration.
+
+### ~~10. TSception not wired into inference~~ ✅ Fixed
+~~TSception architecture (best for 4-ch asymmetry EEG) was trained and saved but never
+integrated into the live inference chain.~~
+Fixed: TSception CNN (69.00% CV, 19 800 training epochs) inserted into emotion classifier
+fallback chain after DEAP LGBM models, before feature heuristics. Activates when epoch
+buffer has ≥1024 samples (4 seconds at 256 Hz). Model file: `tsception_emotion.pt`.
 
 ---
 
