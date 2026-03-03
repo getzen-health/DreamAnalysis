@@ -18,6 +18,8 @@ import { useDevice } from "@/hooks/use-device";
 import { DeviceConnection } from "@/components/device-connection";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/hooks/use-auth";
+import { useMLConnection } from "@/hooks/use-ml-connection";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface NavItem {
   path: string;
@@ -57,6 +59,18 @@ export function Sidebar() {
 
   const isConnected =
     device.state === "streaming" || device.state === "connected";
+
+  const { status: mlStatus, latencyMs, reconnect: mlReconnect } = useMLConnection();
+
+  const mlDotColor =
+    mlStatus === "ready"   ? "bg-green-500" :
+    mlStatus === "error"   ? "bg-red-500" :
+                             "bg-amber-500 animate-pulse";
+
+  const mlLabel =
+    mlStatus === "ready"   ? `ML: Connected${latencyMs ? ` (${latencyMs}ms)` : ""}` :
+    mlStatus === "error"   ? "ML: Unreachable — click to retry" :
+                             "ML: Warming up...";
 
   return (
     <>
@@ -200,6 +214,26 @@ export function Sidebar() {
               </p>
             )}
           </button>
+
+          {/* ML Connection Status */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                onClick={mlStatus === "error" ? mlReconnect : undefined}
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${mlDotColor}`} />
+                <span>
+                  {mlStatus === "ready" ? "ML Ready" :
+                   mlStatus === "error" ? "ML Offline" :
+                                          "ML Starting"}
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p className="text-xs">{mlLabel}</p>
+            </TooltipContent>
+          </Tooltip>
 
           {/* User avatar + logout — padded above home indicator bar */}
           {user && (
