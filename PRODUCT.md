@@ -177,7 +177,7 @@ Frontend                     ██████████  96%
   Vite bundle splitting + React.lazy() on 14 pages (faster load). ✅
   Session history 24-hour timeline strip (Today view — green/orange/cyan session blocks). ✅
   Push notification service worker + Settings subscribe UI (morning reminder to /brain-report). ✅
-  97 Vitest tests across 11 files, 10 pages. ✅
+  241 Vitest tests across 27 files, 100% passing. ✅
 
 Mobile (Capacitor)           █████████░  88%
   Capacitor 8.1.0 installed. capacitor.config.ts created. ✅

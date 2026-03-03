@@ -87,35 +87,31 @@ describe("FoodEmotion page", () => {
     });
   });
 
-  it("shows Neural Biomarkers section", async () => {
+  it("shows Confidence label in Current Food State card", async () => {
     renderWithProviders(<FoodEmotion />);
     await waitFor(() => {
-      expect(screen.getByText("Neural Biomarkers")).toBeInTheDocument();
+      expect(screen.getByText("Confidence")).toBeInTheDocument();
     });
   });
 
-  it("shows FAA biomarker gauge label", async () => {
+  it("shows prefer list after data loads", async () => {
     renderWithProviders(<FoodEmotion />);
     await waitFor(() => {
-      expect(
-        screen.getByText("Frontal Alpha Asymmetry (FAA)")
-      ).toBeInTheDocument();
+      expect(screen.getByText("Prefer")).toBeInTheDocument();
     });
   });
 
-  it("shows High-Beta biomarker gauge", async () => {
+  it("shows avoid list after data loads", async () => {
     renderWithProviders(<FoodEmotion />);
     await waitFor(() => {
-      expect(
-        screen.getByText("High-Beta (Stress / Anxiety)")
-      ).toBeInTheDocument();
+      expect(screen.getByText("Avoid")).toBeInTheDocument();
     });
   });
 
-  it("shows State Probabilities chart section", async () => {
+  it("shows mindfulness tip after data loads", async () => {
     renderWithProviders(<FoodEmotion />);
     await waitFor(() => {
-      expect(screen.getByText("State Probabilities")).toBeInTheDocument();
+      expect(screen.getByText("Pause before eating")).toBeInTheDocument();
     });
   });
 

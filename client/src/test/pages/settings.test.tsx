@@ -5,6 +5,14 @@ import SettingsPage from "@/pages/settings";
 
 vi.mock("@/lib/participant", () => ({ getParticipantId: () => "test-user-123" }));
 
+vi.mock("@/hooks/use-device", () => ({
+  useDevice: () => ({
+    latestFrame: null,
+    state: "disconnected",
+    deviceStatus: null,
+  }),
+}));
+
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
 }));

@@ -8,7 +8,7 @@ vi.mock("wouter", () => ({
   Link: (props: any) => <a href={props.href}>{props.children}</a>,
 }));
 
-// Stub fetch: all three API calls return empty arrays (no data state)
+// Stub fetch: all API calls return empty arrays (no data state)
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
@@ -35,66 +35,17 @@ describe("DailyBrainReport page — no data state", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the 'Last night' section header", async () => {
+  it("shows the 'Right now' card section", async () => {
     renderWithProviders(<DailyBrainReport />);
     expect(
-      await screen.findByText("Last night", {}, { timeout: 3000 })
+      await screen.findByText("Right now", {}, { timeout: 3000 })
     ).toBeInTheDocument();
   });
 
-  it("shows no overnight session message when no data", async () => {
+  it("shows the 'Do this now' card section", async () => {
     renderWithProviders(<DailyBrainReport />);
     expect(
-      await screen.findByText(/No overnight session recorded yet/, {}, { timeout: 3000 })
-    ).toBeInTheDocument();
-  });
-
-  it("shows 'Connect your Muse 2' link in empty sleep state", async () => {
-    renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByText("Connect your Muse 2", {}, { timeout: 3000 })
-    ).toBeInTheDocument();
-  });
-
-  it("shows the Today's forecast section header", async () => {
-    renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByText("Today's forecast", {}, { timeout: 3000 })
-    ).toBeInTheDocument();
-  });
-
-  it("shows Peak focus row", async () => {
-    renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByText("Peak focus", {}, { timeout: 3000 })
-    ).toBeInTheDocument();
-  });
-
-  it("shows the peak focus time window", async () => {
-    renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByText("9:30 am – 12:00 pm", {}, { timeout: 3000 })
-    ).toBeInTheDocument();
-  });
-
-  it("shows Likely slump row", async () => {
-    renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByText("Likely slump", {}, { timeout: 3000 })
-    ).toBeInTheDocument();
-  });
-
-  it("shows the slump time window", async () => {
-    renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByText("2:30 pm – 3:30 pm", {}, { timeout: 3000 })
-    ).toBeInTheDocument();
-  });
-
-  it("shows the Recommended now section header", async () => {
-    renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByText("Recommended now", {}, { timeout: 3000 })
+      await screen.findByText("Do this now", {}, { timeout: 3000 })
     ).toBeInTheDocument();
   });
 
@@ -105,6 +56,13 @@ describe("DailyBrainReport page — no data state", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the action description when no health data", async () => {
+    renderWithProviders(<DailyBrainReport />);
+    expect(
+      await screen.findByText(/4-min session to centre your nervous system/, {}, { timeout: 3000 })
+    ).toBeInTheDocument();
+  });
+
   it("shows a Start button for the recommended action", async () => {
     renderWithProviders(<DailyBrainReport />);
     expect(
@@ -112,23 +70,34 @@ describe("DailyBrainReport page — no data state", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the View full session history footer link", async () => {
+  it("does not show 'Last night' card when no sleep data", async () => {
     renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByText("View full session history →", {}, { timeout: 3000 })
-    ).toBeInTheDocument();
+    // Wait for load to complete by finding a known post-load element
+    await screen.findByText("Do this now", {}, { timeout: 3000 });
+    expect(screen.queryByText("Last night")).not.toBeInTheDocument();
+  });
+
+  it("does not show 'Your pattern' card when no pattern data", async () => {
+    renderWithProviders(<DailyBrainReport />);
+    await screen.findByText("Do this now", {}, { timeout: 3000 });
+    expect(screen.queryByText("Your pattern")).not.toBeInTheDocument();
   });
 
   it("does not show Yesterday's insight card when health data is empty", async () => {
     renderWithProviders(<DailyBrainReport />);
-    // Wait for load to complete by finding a known post-load element
-    await screen.findByText("Recommended now", {}, { timeout: 3000 });
+    await screen.findByText("Do this now", {}, { timeout: 3000 });
     expect(screen.queryByText("Yesterday's insight")).not.toBeInTheDocument();
   });
 
-  it("does not show stress risk row when no health data", async () => {
+  it("does not show stress risk when no health data", async () => {
     renderWithProviders(<DailyBrainReport />);
-    await screen.findByText("Today's forecast", {}, { timeout: 3000 });
+    await screen.findByText("Do this now", {}, { timeout: 3000 });
     expect(screen.queryByText("Stress risk")).not.toBeInTheDocument();
+  });
+
+  it("does not show streak badge when session count is zero", async () => {
+    renderWithProviders(<DailyBrainReport />);
+    await screen.findByText("Do this now", {}, { timeout: 3000 });
+    expect(screen.queryByText(/-day streak/)).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import DreamDetection from "@/pages/dream-journal";
 
@@ -49,88 +49,62 @@ describe("DreamDetection (dream-journal) page", () => {
     });
   });
 
-  it("renders the Detection and Patterns tabs", async () => {
+  it("shows Tonight card header", () => {
     renderWithProviders(<DreamDetection />);
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Detection" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Patterns" })).toBeInTheDocument();
-    });
+    expect(screen.getByText("Tonight")).toBeInTheDocument();
   });
 
-  it("shows connection banner when device is not streaming", async () => {
+  it("shows Connect your device heading when not streaming", () => {
     renderWithProviders(<DreamDetection />);
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Connect your Muse 2 from the sidebar/)
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText("Connect your device")).toBeInTheDocument();
   });
 
-  it("shows the Sleep Stage card in detection tab", async () => {
+  it("shows Muse 2 sleep wear message when not streaming", () => {
     renderWithProviders(<DreamDetection />);
-    await waitFor(() => {
-      expect(screen.getByText("Sleep Stage")).toBeInTheDocument();
-    });
+    expect(
+      screen.getByText(/Wear your Muse 2 while you sleep/)
+    ).toBeInTheDocument();
   });
 
-  it("shows the REM & Dream Activity card in detection tab", async () => {
+  it("shows automatic dream detection message", () => {
     renderWithProviders(<DreamDetection />);
-    await waitFor(() => {
-      expect(screen.getByText("REM & Dream Activity")).toBeInTheDocument();
-    });
+    expect(
+      screen.getByText(/the app will detect your dreams automatically/)
+    ).toBeInTheDocument();
   });
 
-  it("shows the Detected Dream Episodes section with zero count", async () => {
+  it("shows Episodes tonight section", () => {
     renderWithProviders(<DreamDetection />);
-    await waitFor(() => {
-      expect(screen.getByText("Detected Dream Episodes")).toBeInTheDocument();
-      expect(screen.getByText("0 detected")).toBeInTheDocument();
-    });
+    expect(screen.getByText("Episodes tonight")).toBeInTheDocument();
   });
 
-  it("shows empty state message for dream episodes when not streaming", async () => {
+  it("shows 0 detected episode count", () => {
     renderWithProviders(<DreamDetection />);
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Connect your BCI device and sleep to begin detection/)
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText("0 detected")).toBeInTheDocument();
   });
 
-  it("shows 'Connect device to see dream activity' placeholder when no timeline data", async () => {
+  it("shows empty state message when not streaming", () => {
     renderWithProviders(<DreamDetection />);
-    await waitFor(() => {
-      expect(
-        screen.getByText("Connect device to see dream activity")
-      ).toBeInTheDocument();
-    });
+    expect(
+      screen.getByText("Start a sleep session to record dream episodes.")
+    ).toBeInTheDocument();
   });
 
-  it("switches to Patterns tab when clicked", async () => {
+  it("shows morning dream record button", () => {
     renderWithProviders(<DreamDetection />);
-    const patternsTab = await screen.findByRole("button", { name: "Patterns" });
-    fireEvent.click(patternsTab);
-    await waitFor(() => {
-      expect(screen.getByText("Dream Frames")).toBeInTheDocument();
-    });
+    expect(screen.getByText("Record this morning's dream")).toBeInTheDocument();
   });
 
-  it("shows Patterns tab summary stats when switched", async () => {
+  it("shows dream journal entry hint", () => {
     renderWithProviders(<DreamDetection />);
-    const patternsTab = await screen.findByRole("button", { name: "Patterns" });
-    fireEvent.click(patternsTab);
-    await waitFor(() => {
-      expect(screen.getByText("Avg REM %")).toBeInTheDocument();
-      expect(screen.getByText("REM Cycles")).toBeInTheDocument();
-    });
+    expect(
+      screen.getByText("Write what you remember — even a word counts")
+    ).toBeInTheDocument();
   });
 
-  it("shows Sleep Architecture section in patterns tab", async () => {
+  it("renders the full page without errors", () => {
     renderWithProviders(<DreamDetection />);
-    const patternsTab = await screen.findByRole("button", { name: "Patterns" });
-    fireEvent.click(patternsTab);
-    await waitFor(() => {
-      expect(screen.getByText("Sleep Architecture")).toBeInTheDocument();
-    });
+    expect(screen.getByText("Tonight")).toBeInTheDocument();
+    expect(screen.getByText("Episodes tonight")).toBeInTheDocument();
   });
 });
