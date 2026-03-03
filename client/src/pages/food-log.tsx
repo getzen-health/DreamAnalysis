@@ -1,5 +1,5 @@
 import { getParticipantId } from "@/lib/participant";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -135,6 +135,11 @@ export default function FoodLog() {
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<FoodAnalysis | null>(null);
+
+  // Clear result display when switching meal tabs
+  useEffect(() => {
+    setAnalysis(null);
+  }, [filterType]);
 
   // Photo mode state
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
