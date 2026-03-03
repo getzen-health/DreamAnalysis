@@ -751,7 +751,7 @@ async function pilotSessionComplete(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminParticipants(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req);
+  const authResult = requireAuth(req, res);
   if (!authResult) return unauthorized(res);
   const db = getDb();
   const rows = await db.select().from(schema.pilotParticipants).orderBy(desc(schema.pilotParticipants.createdAt));
@@ -760,7 +760,7 @@ async function pilotAdminParticipants(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminSessions(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req);
+  const authResult = requireAuth(req, res);
   if (!authResult) return unauthorized(res);
   const db = getDb();
   const rows = await db.select().from(schema.pilotSessions).orderBy(desc(schema.pilotSessions.createdAt));
@@ -769,7 +769,7 @@ async function pilotAdminSessions(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminExportCsv(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req);
+  const authResult = requireAuth(req, res);
   if (!authResult) return unauthorized(res);
   const db = getDb();
   const rows = await db
