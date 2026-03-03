@@ -11,6 +11,7 @@
     "VITE_ML_API_URL": "SET_IN_VERCEL_DASHBOARD"
   },
   "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/[...path]" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": []
