@@ -112,8 +112,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
+  const [location] = useLocation();
   return (
-    <ErrorBoundary>
+    <ErrorBoundary key={location}>
     <Suspense fallback={<PageLoader />}>
     <Switch>
       <Route path="/welcome" component={Landing} />
