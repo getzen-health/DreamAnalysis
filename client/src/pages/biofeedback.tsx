@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 // PRODUCT.md: Phase 1 — The aha moment. User watches stress drop live during breathing.
 import { useLocation } from "wouter";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
 import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Headphones, ExternalLink } from "lucide-react";
@@ -443,6 +444,22 @@ export default function Biofeedback() {
     setElapsed(0);
   };
 
+  // ── "Before you start" context card values ────────────────────────────────
+  // stress_index is 0-1 from the ML backend; keep on 0-1 for badge thresholds
+  const stressLevel: number =
+    latestFrame?.analysis?.emotions?.stress_index ??
+    latestFrame?.analysis?.stress?.stress_index ??
+    0.3; // default to moderate when offline
+
+  const bandPowers = latestFrame?.analysis?.band_powers;
+  const alphaBetaRatio: number = (() => {
+    if (!bandPowers) return 1.0;
+    const alpha = bandPowers["alpha"] ?? 0;
+    const beta = bandPowers["beta"] ?? 0;
+    if (beta === 0) return 1.0;
+    return alpha / beta;
+  })();
+
   // ── Derived display values ────────────────────────────────────────────────
   const currentPhase = exercise.phases[breathPhaseIdx];
 
@@ -639,6 +656,41 @@ export default function Biofeedback() {
       {/* ── BREATHING TAB content below ── */}
       {activeTab === "breathing" && (
       <>
+
+      {/* Before You Start context card — always visible */}
+      <Card className="mb-6">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Before You Start</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {/* Stress level indicator */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Current Stress</span>
+              <Badge variant={stressLevel > 0.6 ? "destructive" : stressLevel > 0.3 ? "secondary" : "outline"}>
+                {stressLevel > 0.6 ? "Elevated" : stressLevel > 0.3 ? "Moderate" : "Low"}
+              </Badge>
+            </div>
+            {/* Recommendation sentence */}
+            <p className="text-xs text-muted-foreground">
+              {stressLevel > 0.6
+                ? "Your stress is elevated — this session will help lower it."
+                : stressLevel > 0.3
+                ? "Some tension detected — breathing exercises will help you relax."
+                : "You're looking calm — use this session to deepen your focus."}
+            </p>
+            {/* Alpha/beta ratio — shown when we have live or any frame data */}
+            {latestFrame && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-muted-foreground">Alpha/Beta ratio</span>
+                <span className="text-xs font-mono">
+                  {alphaBetaRatio.toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* No-device banner */}
       {!isStreaming && sessionPhase === "idle" && (
