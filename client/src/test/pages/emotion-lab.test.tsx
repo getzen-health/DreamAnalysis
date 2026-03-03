@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
@@ -45,6 +46,17 @@ vi.mock("@/components/signal-quality-badge", () => ({
 
 vi.mock("@/components/chart-tooltip", () => ({
   ChartTooltip: () => null,
+}));
+
+vi.mock("@/hooks/use-ml-connection", () => ({
+  useMLConnection: () => ({
+    status: "ready",
+    latencyMs: 42,
+    warmupProgress: 100,
+    retryCount: 0,
+    reconnect: vi.fn(),
+  }),
+  MLConnectionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 describe("EmotionLab page", () => {
