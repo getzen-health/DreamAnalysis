@@ -4,11 +4,13 @@ import { MLConnectionProvider, useMLConnection } from "@/hooks/use-ml-connection
 import type { ReactNode } from "react";
 
 // ── mock pingBackend ──────────────────────────────────────────────────────────
-const mockPingBackend = vi.fn<() => Promise<boolean>>();
-
-vi.mock("@/lib/ml-api", () => ({
-  pingBackend: (...args: unknown[]) => mockPingBackend(...(args as [])),
+// vi.hoisted() runs before module imports, making mockPingBackend available
+// when vi.mock()'s hoisted factory executes.
+const { mockPingBackend } = vi.hoisted(() => ({
+  mockPingBackend: vi.fn<() => Promise<boolean>>(),
 }));
+
+vi.mock("@/lib/ml-api", () => ({ pingBackend: mockPingBackend }));
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,9 @@ describe("useMLConnection", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+
+    // After first failure the status must be 'warming' (not yet 'error')
+    expect(result.current.status).toBe("warming");
 
     // Second ping fires after 5 s
     await act(async () => {

@@ -59,6 +59,8 @@ export function MLConnectionProvider({
   );
   // Guard: ignore ping results that arrive after a reconnect() was issued.
   const reconnectGenerationRef = useRef(0);
+  // Stable ref to reconnect() so the slow-poll closure never captures a stale copy.
+  const reconnectRef = useRef<() => void>(() => {});
 
   const clearPingInterval = () => {
     if (pingIntervalRef.current !== null) {
@@ -114,7 +116,10 @@ export function MLConnectionProvider({
         clearPingInterval();
         pingIntervalRef.current = setInterval(async () => {
           if (generation !== reconnectGenerationRef.current) return;
-          await pingBackend();
+          const alive = await pingBackend();
+          if (!alive && generation === reconnectGenerationRef.current) {
+            reconnectRef.current();
+          }
         }, SLOW_PING_INTERVAL_MS);
       } else {
         failuresRef.current += 1;
@@ -131,9 +136,10 @@ export function MLConnectionProvider({
       }
     };
 
-    // Kick off the first ping immediately, then schedule repeats.
-    doPing();
+    // Assign the interval BEFORE calling doPing() so that if doPing resolves
+    // synchronously (e.g. in tests), clearPingInterval() can find and clear it.
     pingIntervalRef.current = setInterval(doPing, FAST_PING_INTERVAL_MS);
+    doPing();
   }, [stopProgressBar]);
 
   const reconnect = useCallback(() => {
@@ -155,6 +161,9 @@ export function MLConnectionProvider({
     startProgressBar();
     startPinging(gen);
   }, [startPinging, startProgressBar]);
+
+  // Keep the ref in sync so slow-poll closures always call the current reconnect.
+  reconnectRef.current = reconnect;
 
   // Mount: kick everything off
   useEffect(() => {
