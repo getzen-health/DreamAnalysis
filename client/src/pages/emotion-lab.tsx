@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useDevice } from "@/hooks/use-device";
 
 /* ---------- helpers ---------- */
@@ -185,6 +187,47 @@ export default function EmotionLab() {
               <Bar label="Focus"       value={focus}       color="hsl(152,60%,48%)" />
               <Bar label="Relaxation"  value={relaxation}  color="hsl(217,91%,60%)" />
             </div>
+
+            {/* Creativity Score */}
+            {analysis?.creativity?.creativity_score !== undefined && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-muted-foreground">Creativity</span>
+                <Badge variant="outline" className="text-xs">
+                  {Math.round((analysis.creativity.creativity_score ?? 0) * 100)}%
+                </Badge>
+              </div>
+            )}
+
+            {/* All Emotion Probabilities */}
+            {emotions?.probabilities && Object.keys(emotions.probabilities).length > 0 && (
+              <div className="space-y-2 mt-4">
+                <h4 className="text-sm font-medium text-muted-foreground">Emotion Probabilities</h4>
+                {Object.entries(emotions.probabilities).map(([emo, prob]) => (
+                  <div key={emo} className="flex items-center gap-2">
+                    <span className="text-xs w-16 capitalize">{emo}</span>
+                    <Progress value={Math.round((prob as number) * 100)} className="flex-1 h-2" />
+                    <span className="text-xs w-8 text-right">{Math.round((prob as number) * 100)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Valence & Arousal */}
+            {emotions && (
+              <div className="space-y-2 mt-4">
+                <h4 className="text-sm font-medium text-muted-foreground">Emotional State</h4>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs w-16">Valence</span>
+                  <Progress value={Math.round(((emotions.valence ?? 0) + 1) / 2 * 100)} className="flex-1 h-2" />
+                  <span className="text-xs w-8 text-right">{(emotions.valence ?? 0).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs w-16">Arousal</span>
+                  <Progress value={Math.round((emotions.arousal ?? 0) * 100)} className="flex-1 h-2" />
+                  <span className="text-xs w-8 text-right">{(emotions.arousal ?? 0).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Card>
