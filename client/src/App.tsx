@@ -7,6 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./hooks/use-theme";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { DeviceProvider } from "./hooks/use-device";
+import { MLConnectionProvider } from "@/hooks/use-ml-connection";
+import { MLWarmupScreen } from "@/components/ml-warmup-screen";
 import AppLayout from "./layouts/app-layout";
 
 // ── Core journey pages — static imports (always needed on first load) ──────
@@ -238,12 +240,15 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <DeviceProvider>
-            <TooltipProvider>
-              <Toaster />
-              <AppRoutes />
-            </TooltipProvider>
-          </DeviceProvider>
+          <MLConnectionProvider>
+            <DeviceProvider>
+              <TooltipProvider>
+                <MLWarmupScreen />
+                <AppRoutes />
+                <Toaster />
+              </TooltipProvider>
+            </DeviceProvider>
+          </MLConnectionProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
