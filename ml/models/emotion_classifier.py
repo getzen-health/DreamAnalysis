@@ -8,6 +8,7 @@ smoothing to prevent rapid state flickering. ONNX/sklearn models are
 only used when their benchmark accuracy exceeds 60%.
 """
 
+import logging
 import numpy as np
 from typing import Dict, Optional
 from collections import deque
@@ -780,8 +781,8 @@ class EmotionClassifier:
                 result = self._tsception.predict(eeg, fs=fs)
                 result["model_type"] = "tsception"
                 return result
-            except Exception:
-                pass  # fall through to feature heuristics
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("TSception inference failed, falling through: %s", exc)
 
         return self._predict_features(eeg, fs, device_type)  # pass full multichannel array for FAA
 

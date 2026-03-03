@@ -985,16 +985,15 @@ class RunningNormalizer:
         Handles near-zero std by returning 0 for those dimensions.
         """
         with self._lock:
-            if user_id not in self._buffers:
-                self._buffers[user_id] = _deque(maxlen=self._BUFFER_SIZE)
-            buf = self._buffers[user_id]
+            buf = self._buffers.setdefault(user_id, _deque(maxlen=self._BUFFER_SIZE))
             buf.append(features.copy())
             n = len(buf)
+            snapshot = list(buf) if n >= self._MIN_SAMPLES else None
 
-        if n < self._MIN_SAMPLES:
+        if snapshot is None:
             return features
 
-        matrix = np.stack(list(buf))  # (n, n_features)
+        matrix = np.stack(snapshot)  # (n, n_features)
         mean = matrix.mean(axis=0)
         std = matrix.std(axis=0)
         # Avoid division by zero: where std < 1e-8, output 0
