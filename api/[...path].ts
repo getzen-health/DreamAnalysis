@@ -48,17 +48,41 @@ import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { eq, desc, asc, and, gte, lt, sql } from 'drizzle-orm';
 
-import { getDb } from './_lib/db';
-import { getOpenAIClient } from './_lib/openai';
 import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response';
 import { generateToken, setAuthCookie, clearAuthCookie, requireAuth } from './_lib/auth';
 
-// Lazy schema load — avoids Vercel cold-start crash on large module init
+// Lazy-load heavy modules at handler runtime to avoid Vercel cold-start crash.
+// drizzle-orm/neon-http and openai can crash the Node.js process if loaded at
+// module-init time in Vercel's serverless environment.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let schema: any = null;
-async function loadSchema() {
-  if (!schema) schema = await import('../shared/schema');
-  return schema;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _dbGetter: (() => any) | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _openaiGetter: (() => any) | null = null;
+
+async function loadModules() {
+  if (schema) return;
+  const [schemaModule, dbModule, openaiModule] = await Promise.all([
+    import('../shared/schema'),
+    import('./_lib/db'),
+    import('./_lib/openai'),
+  ]);
+  schema = schemaModule;
+  _dbGetter = dbModule.getDb;
+  _openaiGetter = openaiModule.getOpenAIClient;
+}
+
+// Synchronous wrappers — safe to call after loadModules() has resolved
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getDb(): any {
+  if (!_dbGetter) throw new Error('Modules not initialized');
+  return _dbGetter();
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getOpenAIClient(): any {
+  if (!_openaiGetter) throw new Error('Modules not initialized');
+  return _openaiGetter();
 }
 
 const scryptAsync = promisify(scrypt);
@@ -879,8 +903,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // Ensure schema is loaded before any handler uses it (lazy to avoid cold-start crash)
-  await loadSchema();
+  // Lazy-load all heavy modules (schema, db, openai) before routing to avoid cold-start crash
+  await loadModules();
 
   // Extract path segments from /api/seg0/seg1/...
   const url = req.url || '';
