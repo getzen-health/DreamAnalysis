@@ -214,7 +214,7 @@ Retention mechanics          ████████░░  82%
   Spotify auto-play: music starts automatically when stress crosses threshold. ✅
   Missing: App Store distribution, pilot user base.
 
-Infrastructure               █████████░  88%
+Infrastructure               █████████░  93%
   Frontend on Vercel (dream-analysis.vercel.app).
   ML backend on Render free tier (neural-dream-ml.onrender.com). ✅
   Per-user isolation: fixed. No monitoring. No auth enforcement.
@@ -226,6 +226,9 @@ Infrastructure               █████████░  88%
   ML status dot in sidebar (green/amber/red) with latency tooltip and Reconnect button. ✅
   SimulationModeBanner on emotion-lab + brain-monitor when ML unreachable. ✅
   .env.example + vercel.json env block updated; render.yaml CORS confirmed. ✅
+  Vercel API fully working — all /api/* routes functional. ✅
+    Fixed: ESM .js extension resolution, lazy-loaded heavy packages (drizzle/openai/schema)
+    to prevent cold-start crash, explicit /api/:path* rewrite for catch-all routing.
   Missing: cap add ios/android, App Store, pilot data.
 ```
 
@@ -302,6 +305,22 @@ integrated into the live inference chain.~~
 Fixed: TSception CNN (69.00% CV, 19 800 training epochs) inserted into emotion classifier
 fallback chain after DEAP LGBM models, before feature heuristics. Activates when epoch
 buffer has ≥1024 samples (4 seconds at 256 Hz). Model file: `tsception_emotion.pt`.
+
+### ~~11. Vercel API functions crashing (FUNCTION_INVOCATION_FAILED)~~ ✅ Fixed
+~~All `/api/*` routes on dream-analysis.vercel.app returned `FUNCTION_INVOCATION_FAILED`.
+The serverless functions were crashing at cold-start before any request could be handled.~~
+Fixed three root causes:
+1. `"type": "module"` in `package.json` makes all files ESM — local relative imports
+   in `api/[...path].ts` and `api/_lib/auth.ts` needed explicit `.js` extensions.
+2. Heavy packages (`drizzle-orm/neon-http`, `openai`, `shared/schema`) were imported
+   at module level, crashing on cold start. Moved to lazy `loadModules()` with dynamic
+   `import()` called inside the request handler.
+3. Multi-segment paths (`/api/auth/register`, `/api/health-metrics/1`) returned Vercel
+   404 because specific handler stubs in `api/auth/`, `api/dreams/`, etc. registered
+   Vercel routes but weren't deployed (Hobby plan 12-function limit). Deleted all 21
+   stub files and added explicit `{ source: "/api/:path*", destination: "/api/[...path]" }`
+   rewrite in `vercel.json`.
+All endpoints verified working: ping, auth, dreams, health-metrics, emotions, ai-chat.
 
 ---
 
