@@ -48,8 +48,8 @@ import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { eq, desc, asc, and, gte, lt, sql } from 'drizzle-orm';
 
-import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response';
-import { generateToken, setAuthCookie, clearAuthCookie, requireAuth } from './_lib/auth';
+import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response.js';
+import { generateToken, setAuthCookie, clearAuthCookie, requireAuth } from './_lib/auth.js';
 
 // Lazy-load heavy modules at handler runtime to avoid Vercel cold-start crash.
 // drizzle-orm/neon-http and openai can crash the Node.js process if loaded at
@@ -64,9 +64,9 @@ let _openaiGetter: (() => any) | null = null;
 async function loadModules() {
   if (schema) return;
   const [schemaModule, dbModule, openaiModule] = await Promise.all([
-    import('../shared/schema'),
-    import('./_lib/db'),
-    import('./_lib/openai'),
+    import('../shared/schema.js'),
+    import('./_lib/db.js'),
+    import('./_lib/openai.js'),
   ]);
   schema = schemaModule;
   _dbGetter = dbModule.getDb;
