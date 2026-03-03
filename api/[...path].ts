@@ -87,6 +87,30 @@ function getOpenAIClient(): any {
 
 const scryptAsync = promisify(scrypt);
 
+// ── Body parser ──────────────────────────────────────────────────────────────
+// Vercel's ESM runtime (triggered by "type":"module" in package.json) does not
+// auto-populate req.body — its getter throws "Invalid JSON" instead of returning
+// the parsed object.  We read the raw Node.js IncomingMessage stream directly.
+async function parseRequestBody(req: VercelRequest): Promise<unknown> {
+  // Fast path: pre-parsed body already available (CJS runtime or unit tests)
+  try {
+    const b = (req as VercelRequest & { body?: unknown }).body;
+    if (b !== undefined && b !== null) return b;
+  } catch {
+    // getter threw — fall through to stream reading
+  }
+
+  return new Promise<unknown>((resolve) => {
+    let raw = '';
+    req.on('data', (chunk: Buffer) => { raw += chunk.toString('utf8'); });
+    req.on('end', () => {
+      if (!raw) { resolve({}); return; }
+      try { resolve(JSON.parse(raw)); } catch { resolve({}); }
+    });
+    req.on('error', () => resolve({}));
+  });
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 async function hashPassword(password: string): Promise<string> {
@@ -905,6 +929,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Lazy-load all heavy modules (schema, db, openai) before routing to avoid cold-start crash
   await loadModules();
+
+  // Parse body early so all route handlers can safely access req.body.
+  // Required because Vercel's ESM runtime doesn't auto-parse JSON bodies.
+  if (['POST', 'PUT', 'PATCH'].includes(req.method || '')) {
+    (req as VercelRequest & { body: unknown }).body = await parseRequestBody(req);
+  }
 
   // Extract path segments from /api/seg0/seg1/...
   const url = req.url || '';
