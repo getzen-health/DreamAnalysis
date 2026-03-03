@@ -952,3 +952,53 @@ class BaselineCalibrator:
         cal._std = data.get("std", {})
         cal._ready = bool(data.get("is_ready", False))
         return cal
+
+
+# ── RunningNormalizer — session drift correction ──────────────────────────────
+import threading as _threading
+from collections import deque as _deque
+
+
+class RunningNormalizer:
+    """Per-user rolling z-score normalizer for EEG features.
+
+    Corrects within-session EEG signal drift (non-stationarity).
+    Technique from SJTU SEED team and UESTC FACED paper:
+    rolling normalization recovers +10-20 accuracy points on
+    cross-subject emotion recognition.
+
+    Returns raw features for the first 30 frames (insufficient statistics).
+    After that, z-scores against a rolling 150-frame buffer (~5 min at 2s hop).
+    """
+
+    _MIN_SAMPLES: int = 30
+    _BUFFER_SIZE: int = 150
+
+    def __init__(self) -> None:
+        self._buffers: Dict[str, _deque] = {}
+        self._lock = _threading.Lock()
+
+    def normalize(self, features: np.ndarray, user_id: str) -> np.ndarray:
+        """Z-score features against the rolling buffer for this user.
+
+        Returns raw features when buffer is below MIN_SAMPLES.
+        Handles near-zero std by returning 0 for those dimensions.
+        """
+        with self._lock:
+            if user_id not in self._buffers:
+                self._buffers[user_id] = _deque(maxlen=self._BUFFER_SIZE)
+            buf = self._buffers[user_id]
+            buf.append(features.copy())
+            n = len(buf)
+
+        if n < self._MIN_SAMPLES:
+            return features
+
+        matrix = np.stack(list(buf))  # (n, n_features)
+        mean = matrix.mean(axis=0)
+        std = matrix.std(axis=0)
+        # Avoid division by zero: where std < 1e-8, output 0
+        safe_std = np.where(std < 1e-8, 1.0, std)
+        normed = (features - mean) / safe_std
+        normed = np.where(std < 1e-8, 0.0, normed)
+        return normed
