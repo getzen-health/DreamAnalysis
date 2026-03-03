@@ -84,20 +84,20 @@ export default function InnerEnergy() {
       sanskrit: c.sanskrit,
       meaning: c.meaning,
       wave: c.wave,
-      activation: isStreaming ? activations[i] : 0,
+      activation: isStreaming ? activations[i] : 15,
       color: CHAKRA_COLORS[c.key],
     }));
   }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming]);
 
   // Meditation depth from meditation model
   const meditationScore = meditation?.meditation_score ?? 0;
-  const meditationPercent = isStreaming ? Math.round(meditationScore * 100) : 0;
+  const meditationPercent = isStreaming ? Math.round(meditationScore * 100) : 10;
   const meditationStage = meditation?.depth ?? "—";
 
   // Consciousness level derived from attention + flow + meditation
   const consciousnessRaw = isStreaming
     ? (attention?.attention_score ?? 0) * 30 + (flowState?.flow_score ?? 0) * 40 + meditationScore * 30
-    : 0;
+    : 10;
   const consciousnessPercent = Math.round(Math.min(100, consciousnessRaw));
   const consciousnessLevels = ["Survival", "Desire", "Willpower", "Love", "Expression", "Insight", "Unity"];
   const consciousnessName = consciousnessLevels[Math.min(6, Math.floor(consciousnessPercent / 15))] || "—";
@@ -105,7 +105,7 @@ export default function InnerEnergy() {
   // Third eye activation from gamma + high beta
   const thirdEyeActivation = isStreaming
     ? Math.round(Math.min(100, ((bandPowers.gamma ?? 0) + (bandPowers.beta ?? 0) * 0.3) * 150))
-    : 0;
+    : 10;
 
   // Dominant energy center
   const dominantChakra = chakras.reduce((max, c) =>
