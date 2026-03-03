@@ -1,6 +1,5 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
-import * as schema from '../../shared/schema';
 
 let cachedDb: ReturnType<typeof drizzle> | null = null;
 
@@ -15,7 +14,8 @@ export function getDb() {
   }
 
   const sql = neon(databaseUrl);
-  cachedDb = drizzle(sql, { schema });
-  
+  // No schema passed — handlers use .from(schema.table) style, not db.query.* style
+  cachedDb = drizzle(sql);
+
   return cachedDb;
 }

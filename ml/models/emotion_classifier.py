@@ -8,6 +8,7 @@ smoothing to prevent rapid state flickering. ONNX/sklearn models are
 only used when their benchmark accuracy exceeds 60%.
 """
 
+import logging
 import numpy as np
 from typing import Dict, Optional
 from collections import deque
@@ -56,6 +57,20 @@ _CONSUMER_EEG_DEVICES: frozenset[str] = frozenset({
     "muse_2016", "muse_2016_bled", "muse",
 })
 
+# Singleton RunningNormalizer for session drift correction
+_running_normalizer: Optional[object] = None
+
+
+def _get_running_normalizer() -> Optional[object]:
+    global _running_normalizer
+    if _running_normalizer is None:
+        try:
+            from processing.eeg_processor import RunningNormalizer
+            _running_normalizer = RunningNormalizer()
+        except Exception:
+            pass
+    return _running_normalizer
+
 
 class EmotionClassifier:
     """EEG-based emotion classifier with ONNX/sklearn/feature-based inference.
@@ -91,6 +106,12 @@ class EmotionClassifier:
             self._eegnet = EEGNetEmotionClassifier()
         except Exception:
             self._eegnet = None
+
+        # TSception — asymmetry-aware spatial CNN (69% CV), fallback after LGBM models.
+        # Specifically designed for left/right hemisphere asymmetry (AF7/AF8 on Muse 2).
+        # Requires >= 4-second epoch (1024 samples @ 256 Hz). Weights: models/saved/tsception_emotion.pt
+        self._tsception = None
+        self._try_load_tsception()
 
         # REVE Foundation (brain-bzh/reve-base, NeurIPS 2025) — highest priority when available.
         # Pre-trained on 60K+ hours of EEG from 92 datasets / 25,000 subjects.
@@ -221,6 +242,33 @@ class EmotionClassifier:
                 self._reve = reve
         except Exception:
             pass
+
+    def _try_load_tsception(self) -> None:
+        """Load TSception weights from models/saved/tsception_emotion.pt.
+
+        TSception is an asymmetry-aware spatial CNN that captures left/right hemispheric
+        differences — well-suited for Muse 2's AF7/AF8 frontal pair.
+        Falls through silently if weights not found or PyTorch is unavailable.
+        If weights file is missing, self._tsception remains None and TSception is
+        skipped in the fallback chain; train via ml/training/train_tsception.py.
+        """
+        import logging
+        from pathlib import Path
+        pt_path = Path("models/saved/tsception_emotion.pt")
+        if not pt_path.exists():
+            return
+        try:
+            from models.tsception import TSceptionClassifier
+            self._tsception = TSceptionClassifier(
+                model_path=str(pt_path),
+                n_classes=3,
+                sampling_rate=256.0,
+                n_channels=4,
+                epoch_sec=4.0,
+            )
+        except Exception as exc:
+            logging.getLogger(__name__).debug(f"TSception load failed: {exc}")
+            self._tsception = None
 
     def _try_load_lgbm_muse_model(self) -> None:
         """Load the Muse-native LightGBM model (80 raw features, no PCA)."""
@@ -563,7 +611,8 @@ class EmotionClassifier:
             "model_type":            "lgbm-muse",
         }
 
-    def _predict_mega_lgbm(self, eeg: np.ndarray, fs: float, device_type: str = "muse_2") -> Dict:
+    def _predict_mega_lgbm(self, eeg: np.ndarray, fs: float, device_type: str = "muse_2",
+                            user_id: str = "default") -> Dict:
         """Run mega cross-dataset LGBM inference (85 raw → PCA 80 → 3-class → 6-class).
 
         Reuses _extract_muse_live_features() and _build_muse_result() from the
@@ -580,6 +629,11 @@ class EmotionClassifier:
         feat = self._extract_muse_live_features(eeg, fs)   # 85-dim
         if self._is_consumer_device:
             feat[_GAMMA_FEAT_IDX] = 0.0
+
+        # Apply running normalization for session drift correction
+        rn = _get_running_normalizer()
+        if rn is not None and user_id:
+            feat = rn.normalize(feat, user_id)
 
         # Global scaler → PCA → LGBM
         feat_sc  = self.mega_lgbm_scaler.transform(feat.reshape(1, -1))
@@ -648,7 +702,8 @@ class EmotionClassifier:
         result["model_type"] = "mega-lgbm-pca"
         return result
 
-    def predict(self, eeg: np.ndarray, fs: float = 256.0, device_type: str = "muse_2") -> Dict:
+    def predict(self, eeg: np.ndarray, fs: float = 256.0, device_type: str = "muse_2",
+                user_id: str = "default") -> Dict:
         """Classify emotion from EEG signal.
 
         Args:
@@ -657,6 +712,9 @@ class EmotionClassifier:
             device_type: Device name used to select correct left/right frontal
                          channel indices for FAA/DASM computation (see
                          processing/channel_maps.py for the full registry).
+            user_id:     Per-user identifier for rolling z-score normalization.
+                         Used by RunningNormalizer to maintain separate buffers
+                         per user and correct within-session EEG drift.
         """
         # REVE Foundation (brain-bzh/reve-base) — highest priority when HF access is granted.
         # Pre-trained on 60K+ hours, handles arbitrary channel layouts via 4D positional encoding.
@@ -694,7 +752,7 @@ class EmotionClassifier:
         # Mega cross-dataset LGBM with global PCA — third priority
         if (self.mega_lgbm_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
                 and self._mega_lgbm_benchmark >= _MIN_MODEL_ACCURACY):
-            return self._predict_mega_lgbm(eeg, fs, device_type)
+            return self._predict_mega_lgbm(eeg, fs, device_type, user_id=user_id)
         # Muse-native LightGBM (85 raw features, no PCA)
         if (self.lgbm_muse_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
                 and self._lgbm_muse_benchmark >= _MIN_MODEL_ACCURACY):
@@ -713,6 +771,19 @@ class EmotionClassifier:
             if self.multichannel_model and eeg.ndim == 2:
                 return self._predict_sklearn(eeg, fs)
             return self._predict_sklearn(eeg if eeg.ndim == 1 else eeg[0], fs)
+        # TSception fallback (69% CV) — asymmetry-aware spatial CNN.
+        # Requires >= 4-second epoch (1024 samples @ 256 Hz) for meaningful temporal convolution.
+        # Output is 3-class (negative/neutral/positive); passes through for downstream EMA smoothing.
+        if (self._tsception is not None
+                and eeg.ndim == 2
+                and eeg.shape[1] >= 1024):
+            try:
+                result = self._tsception.predict(eeg, fs=fs)
+                result["model_type"] = "tsception"
+                return result
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("TSception inference failed, falling through: %s", exc)
+
         return self._predict_features(eeg, fs, device_type)  # pass full multichannel array for FAA
 
     # ────────────────────────────────────────────────────────────────

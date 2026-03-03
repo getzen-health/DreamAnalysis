@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
@@ -47,39 +48,48 @@ vi.mock("@/components/chart-tooltip", () => ({
   ChartTooltip: () => null,
 }));
 
+vi.mock("@/hooks/use-ml-connection", () => ({
+  useMLConnection: () => ({
+    status: "ready",
+    latencyMs: 42,
+    warmupProgress: 100,
+    retryCount: 0,
+    reconnect: vi.fn(),
+  }),
+  MLConnectionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 describe("EmotionLab page", () => {
   it("renders without crashing", () => {
     renderWithProviders(<EmotionLab />);
   });
 
-  it("shows connect-device banner when Muse 2 not streaming", () => {
+  it("shows connect-device message when Muse 2 not streaming", () => {
     renderWithProviders(<EmotionLab />);
     expect(
-      screen.getByText(/Connect your Muse 2 from the sidebar to see live emotion data/)
+      screen.getByText(/Attach your Muse 2 from the sidebar to see live emotion detection/)
     ).toBeInTheDocument();
   });
 
-  it("shows Emotion History section header", () => {
+  it("shows Today's emotions section header", () => {
     renderWithProviders(<EmotionLab />);
-    expect(screen.getByText("Emotion History")).toBeInTheDocument();
+    expect(screen.getByText("Today's emotions")).toBeInTheDocument();
   });
 
-  it("shows all period tabs", () => {
+  it("shows Right now card section", () => {
     renderWithProviders(<EmotionLab />);
-    expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Week" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Month" })).toBeInTheDocument();
+    expect(screen.getByText("Right now")).toBeInTheDocument();
   });
 
-  it("shows the Brainwave Snapshot section", () => {
+  it("shows connect device heading when not streaming", () => {
     renderWithProviders(<EmotionLab />);
-    expect(screen.getByText("Brainwave Snapshot")).toBeInTheDocument();
+    expect(screen.getByText("Connect your device")).toBeInTheDocument();
   });
 
-  it("period tab click does not throw", () => {
+  it("shows empty session message when not streaming", () => {
     renderWithProviders(<EmotionLab />);
-    const weekTab = screen.getByRole("button", { name: "Week" });
-    fireEvent.click(weekTab);
-    expect(screen.getByRole("button", { name: "Week" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Start a session to track your emotions today.")
+    ).toBeInTheDocument();
   });
 });

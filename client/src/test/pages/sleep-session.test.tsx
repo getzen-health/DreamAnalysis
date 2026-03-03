@@ -63,21 +63,17 @@ describe("SleepSession page — idle state", () => {
     renderWithProviders(<SleepSession />);
     expect(screen.getByText("Recent Sleep")).toBeInTheDocument();
     expect(screen.getByText("Last session")).toBeInTheDocument();
-    expect(screen.getByText("7h 12m")).toBeInTheDocument();
+    expect(screen.getByText("Sleep quality")).toBeInTheDocument();
   });
 
-  it("shows the Sleep Stage Guide section", () => {
+  it("shows the 7-day avg stat in recent sleep section", () => {
     renderWithProviders(<SleepSession />);
-    expect(screen.getByText("Sleep Stage Guide")).toBeInTheDocument();
+    expect(screen.getByText("7-day avg")).toBeInTheDocument();
   });
 
-  it("shows all five sleep stage labels in the guide", () => {
+  it("shows the Avg quality stat in recent sleep section", () => {
     renderWithProviders(<SleepSession />);
-    expect(screen.getByText("Wake")).toBeInTheDocument();
-    expect(screen.getByText("N1")).toBeInTheDocument();
-    expect(screen.getByText("N2")).toBeInTheDocument();
-    expect(screen.getByText("N3")).toBeInTheDocument();
-    expect(screen.getByText("REM")).toBeInTheDocument();
+    expect(screen.getByText("Avg quality")).toBeInTheDocument();
   });
 
   it("shows the Start Sleep Session button", () => {
@@ -103,11 +99,11 @@ describe("SleepSession page — idle state", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows Stage Breakdown section while recording", () => {
+  it("shows Recording in progress label after start", () => {
     renderWithProviders(<SleepSession />);
     const startBtn = screen.getByRole("button", { name: /Start Sleep Session/i });
     fireEvent.click(startBtn);
-    expect(screen.getByText("Stage Breakdown")).toBeInTheDocument();
+    expect(screen.getByText("Recording in progress")).toBeInTheDocument();
   });
 
   it("shows the Dreams detected card while recording", () => {

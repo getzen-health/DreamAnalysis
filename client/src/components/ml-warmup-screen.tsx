@@ -1,0 +1,121 @@
+import { useEffect, useRef, useState } from "react";
+import { Brain } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useMLConnection } from "@/hooks/use-ml-connection";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface MLWarmupScreenProps {
+  onSimulationMode?: () => void;
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const ROTATING_MESSAGES = [
+  "Initializing neural engines...",
+  "Loading EEG models...",
+  "Calibrating signal pipeline...",
+  "Almost ready...",
+] as const;
+
+const MESSAGE_INTERVAL_MS = 8_000;
+const ELAPSED_TICK_MS = 1_000;
+const SIMULATION_MODE_THRESHOLD_S = 40;
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function MLWarmupScreen({ onSimulationMode }: MLWarmupScreenProps): JSX.Element | null {
+  const { status, warmupProgress } = useMLConnection();
+
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+
+  const startTimeRef = useRef<number>(Date.now());
+  const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const messageIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Only render during active warm-up phases.
+  const isVisible = status === "connecting" || status === "warming";
+
+  useEffect(() => {
+    if (!isVisible) return;
+
+    // Reset counters whenever the overlay becomes visible.
+    startTimeRef.current = Date.now();
+    setElapsed(0);
+    setMessageIndex(0);
+
+    // Elapsed counter — ticks every second.
+    elapsedIntervalRef.current = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTimeRef.current) / ELAPSED_TICK_MS));
+    }, ELAPSED_TICK_MS);
+
+    // Rotating message — cycles every 8 seconds.
+    messageIntervalRef.current = setInterval(() => {
+      setMessageIndex((prev) => (prev + 1) % ROTATING_MESSAGES.length);
+    }, MESSAGE_INTERVAL_MS);
+
+    return () => {
+      if (elapsedIntervalRef.current !== null) {
+        clearInterval(elapsedIntervalRef.current);
+        elapsedIntervalRef.current = null;
+      }
+      if (messageIntervalRef.current !== null) {
+        clearInterval(messageIntervalRef.current);
+        messageIntervalRef.current = null;
+      }
+    };
+  }, [isVisible]);
+
+  if (!isVisible) {
+    return null;
+  }
+
+  const showSimulationButton =
+    onSimulationMode !== undefined && elapsed >= SIMULATION_MODE_THRESHOLD_S;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-6 p-8">
+      {/* Animated brain icon */}
+      <Brain className="h-16 w-16 text-primary animate-pulse" aria-hidden="true" />
+
+      {/* Title */}
+      <h1 className="text-3xl font-bold text-foreground tracking-tight">
+        Neural Dream Workshop
+      </h1>
+
+      {/* Progress bar */}
+      <div className="w-full max-w-sm rounded-full bg-muted h-2 overflow-hidden">
+        <div
+          className="h-full bg-primary transition-all duration-300 ease-linear rounded-full"
+          style={{ width: `${warmupProgress}%` }}
+          role="progressbar"
+          aria-valuenow={warmupProgress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        />
+      </div>
+
+      {/* Rotating status message */}
+      <p className="text-sm text-muted-foreground text-center">
+        {ROTATING_MESSAGES[messageIndex]}
+      </p>
+
+      {/* Elapsed time */}
+      <p className="text-xs text-muted-foreground/60">
+        {elapsed}s elapsed
+      </p>
+
+      {/* Simulation mode button — appears after 40 s */}
+      {showSimulationButton && (
+        <Button
+          variant="outline"
+          onClick={onSimulationMode}
+          className="mt-4"
+        >
+          Continue in Simulation Mode
+        </Button>
+      )}
+    </div>
+  );
+}

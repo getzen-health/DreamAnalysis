@@ -48,11 +48,42 @@ import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { eq, desc, asc, and, gte, lt, sql } from 'drizzle-orm';
 
-import { getDb } from './_lib/db';
-import { getOpenAIClient } from './_lib/openai';
-import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response';
-import { generateToken, setAuthCookie, clearAuthCookie, requireAuth } from './_lib/auth';
-import * as schema from '../shared/schema';
+import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response.js';
+import { generateToken, setAuthCookie, clearAuthCookie, requireAuth } from './_lib/auth.js';
+
+// Lazy-load heavy modules at handler runtime to avoid Vercel cold-start crash.
+// drizzle-orm/neon-http and openai can crash the Node.js process if loaded at
+// module-init time in Vercel's serverless environment.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let schema: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _dbGetter: (() => any) | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _openaiGetter: (() => any) | null = null;
+
+async function loadModules() {
+  if (schema) return;
+  const [schemaModule, dbModule, openaiModule] = await Promise.all([
+    import('../shared/schema.js'),
+    import('./_lib/db.js'),
+    import('./_lib/openai.js'),
+  ]);
+  schema = schemaModule;
+  _dbGetter = dbModule.getDb;
+  _openaiGetter = openaiModule.getOpenAIClient;
+}
+
+// Synchronous wrappers — safe to call after loadModules() has resolved
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getDb(): any {
+  if (!_dbGetter) throw new Error('Modules not initialized');
+  return _dbGetter();
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getOpenAIClient(): any {
+  if (!_openaiGetter) throw new Error('Modules not initialized');
+  return _openaiGetter();
+}
 
 const scryptAsync = promisify(scrypt);
 
@@ -751,7 +782,7 @@ async function pilotSessionComplete(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminParticipants(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req);
+  const authResult = requireAuth(req, res);
   if (!authResult) return unauthorized(res);
   const db = getDb();
   const rows = await db.select().from(schema.pilotParticipants).orderBy(desc(schema.pilotParticipants.createdAt));
@@ -760,7 +791,7 @@ async function pilotAdminParticipants(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminSessions(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req);
+  const authResult = requireAuth(req, res);
   if (!authResult) return unauthorized(res);
   const db = getDb();
   const rows = await db.select().from(schema.pilotSessions).orderBy(desc(schema.pilotSessions.createdAt));
@@ -769,7 +800,7 @@ async function pilotAdminSessions(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminExportCsv(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req);
+  const authResult = requireAuth(req, res);
   if (!authResult) return unauthorized(res);
   const db = getDb();
   const rows = await db
@@ -872,6 +903,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  // Lazy-load all heavy modules (schema, db, openai) before routing to avoid cold-start crash
+  await loadModules();
+
   // Extract path segments from /api/seg0/seg1/...
   const url = req.url || '';
   const clean = url.split('?')[0].replace(/^\/api\//, '');
@@ -879,6 +913,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const [s0, s1] = segs;
+
+    if (s0 === 'ping') return res.status(200).json({ ok: true, ts: Date.now() });
 
     if (s0 === 'auth') {
       if (s1 === 'register') return await authRegister(req, res);

@@ -35,7 +35,7 @@ describe("Biofeedback page", () => {
 
   it("shows the main heading", () => {
     renderWithProviders(<Biofeedback />);
-    expect(screen.getByText("Breathing Biofeedback")).toBeInTheDocument();
+    expect(screen.getByText("Biofeedback")).toBeInTheDocument();
   });
 
   it("shows the subheading description", () => {

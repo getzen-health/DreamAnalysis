@@ -53,12 +53,9 @@ describe("Dashboard page", () => {
     expect(screen.getAllByText("Brain-Health Insights").length).toBeGreaterThan(0);
   });
 
-  it("shows all four score circle labels", () => {
+  it("shows Brain State Now card", () => {
     renderWithProviders(<Dashboard />);
-    expect(screen.getByText("Mental Health")).toBeInTheDocument();
-    expect(screen.getByText("Wellness")).toBeInTheDocument();
-    expect(screen.getByText("Sleep")).toBeInTheDocument();
-    expect(screen.getByText("Brain")).toBeInTheDocument();
+    expect(screen.getByText("Brain State Now")).toBeInTheDocument();
   });
 
   it("shows key health metric labels", () => {
@@ -91,10 +88,10 @@ describe("Dashboard page", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows empty AI insight state when not streaming", () => {
+  it("shows empty state when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Connect device for live AI insights/)
+      screen.getByText(/Connect device to see live brain state/)
     ).toBeInTheDocument();
   });
 });

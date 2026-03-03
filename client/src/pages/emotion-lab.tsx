@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useDevice } from "@/hooks/use-device";
+import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 
 /* ---------- helpers ---------- */
 
@@ -130,6 +131,7 @@ export default function EmotionLab() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-4">
+      <SimulationModeBanner />
 
       {/* ── Card 1: Right now ─────────────────────────────────────────────── */}
       <Card className="p-5">

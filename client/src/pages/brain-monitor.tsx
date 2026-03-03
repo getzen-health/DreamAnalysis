@@ -4,6 +4,7 @@ import { SpectrogramChart } from "@/components/charts/spectrogram-chart";
 import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
 import { SessionControls } from "@/components/session-controls";
+import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -216,6 +217,8 @@ export default function BrainMonitor() {
 
   return (
     <main className="p-4 md:p-6 space-y-6">
+      <SimulationModeBanner />
+
       {/* Connection Banner */}
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">

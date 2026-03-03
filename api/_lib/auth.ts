@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import jwt from 'jsonwebtoken';
-import { unauthorized } from './response';
+import { unauthorized } from './response.js';
 
 export interface JWTPayload {
   userId: string;

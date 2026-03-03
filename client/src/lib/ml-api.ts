@@ -293,28 +293,92 @@ interface CalibrationStatus {
   classes: string[];
 }
 
-async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${getMLApiUrl()}/api${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...ngrokHeaders(),
-      ...options?.headers,
-    },
-  });
-  if (!response.ok) {
-    // Extract FastAPI error detail when available
-    try {
-      const body = await response.clone().json();
-      const detail = body?.detail;
-      if (typeof detail === "string") throw new Error(detail);
-      if (Array.isArray(detail)) throw new Error(detail.map((d: { msg?: string }) => d.msg).join("; "));
-    } catch (parseErr) {
-      if (parseErr instanceof Error && parseErr.message !== "") throw parseErr;
-    }
-    throw new Error(`Request failed (${response.status})`);
+/** Exponential backoff delays (ms) between successive retries. */
+const RETRY_DELAYS = [1_000, 3_000, 9_000] as const;
+
+/** Resolves after `ms` milliseconds (uses setTimeout so fake timers can control it). */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Sentinel to signal that an error must not be retried (4xx client errors). */
+class NonRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NonRetryableError";
   }
-  return response.json();
+}
+
+/** Extracts the FastAPI error detail from a non-ok response and throws. */
+async function throwFromResponse(response: Response): Promise<never> {
+  try {
+    const body = await response.clone().json();
+    const detail = body?.detail;
+    if (typeof detail === "string") throw new Error(detail);
+    if (Array.isArray(detail)) {
+      throw new Error(detail.map((d: { msg?: string }) => d.msg).join("; "));
+    }
+  } catch (parseErr) {
+    if (parseErr instanceof Error && parseErr.message !== "") throw parseErr;
+  }
+  throw new Error(`Request failed (${response.status})`);
+}
+
+async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  let lastError: Error = new Error("mlFetch: no attempts made");
+
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    // Fresh AbortController for every attempt — 30-second hard timeout.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+    try {
+      const response = await fetch(`${getMLApiUrl()}/api${endpoint}`, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          ...ngrokHeaders(),
+          ...options?.headers,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) {
+          // 4xx — client error, extract detail and throw immediately without retry
+          let errorMsg = `Request failed (${response.status})`;
+          try {
+            const body = await response.clone().json();
+            const detail = body?.detail;
+            if (typeof detail === "string") errorMsg = detail;
+            else if (Array.isArray(detail)) {
+              errorMsg = detail.map((d: { msg?: string }) => d.msg).join("; ");
+            }
+          } catch { /* ignore parse errors, use default message */ }
+          throw new NonRetryableError(errorMsg);
+        }
+        // 5xx or other — server error, eligible for retry
+        lastError = new Error(`Request failed (${response.status})`);
+      } else {
+        return response.json() as Promise<T>;
+      }
+    } catch (err) {
+      if (err instanceof NonRetryableError) {
+        // 4xx: propagate immediately as a plain Error
+        throw new Error(err.message);
+      }
+      lastError = err instanceof Error ? err : new Error("Unknown fetch error");
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    // Wait before the next retry (skip wait after the final attempt)
+    if (attempt < RETRY_DELAYS.length) {
+      await sleep(RETRY_DELAYS[attempt]);
+    }
+  }
+
+  throw lastError;
 }
 
 async function mlFetchRaw(endpoint: string, options?: RequestInit): Promise<string> {

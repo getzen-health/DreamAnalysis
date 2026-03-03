@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
@@ -33,6 +34,17 @@ vi.mock("@/hooks/use-inference", () => ({
 
 vi.mock("@/lib/ml-api", () => ({
   analyzeWavelet: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/hooks/use-ml-connection", () => ({
+  useMLConnection: () => ({
+    status: "ready",
+    latencyMs: 42,
+    warmupProgress: 100,
+    retryCount: 0,
+    reconnect: vi.fn(),
+  }),
+  MLConnectionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("@/components/charts/eeg-waveform-canvas", () => ({
