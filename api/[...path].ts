@@ -52,7 +52,14 @@ import { getDb } from './_lib/db';
 import { getOpenAIClient } from './_lib/openai';
 import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response';
 import { generateToken, setAuthCookie, clearAuthCookie, requireAuth } from './_lib/auth';
-import * as schema from '../shared/schema';
+
+// Lazy schema load — avoids Vercel cold-start crash on large module init
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let schema: any = null;
+async function loadSchema() {
+  if (!schema) schema = await import('../shared/schema');
+  return schema;
+}
 
 const scryptAsync = promisify(scrypt);
 
@@ -871,6 +878,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // Ensure schema is loaded before any handler uses it (lazy to avoid cold-start crash)
+  await loadSchema();
 
   // Extract path segments from /api/seg0/seg1/...
   const url = req.url || '';
