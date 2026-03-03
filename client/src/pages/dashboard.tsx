@@ -2,7 +2,8 @@ import { getParticipantId } from "@/lib/participant";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Brain,
   Activity,
@@ -454,7 +455,68 @@ export default function Dashboard() {
         </Link>
       )}
 
-      {/* 3. Emotional Shift Alert */}
+      {/* 3. Capability Badges — always visible */}
+      <div className="mb-2">
+        <h3 className="text-sm font-medium text-muted-foreground mb-2">Active ML Models</h3>
+        <div className="flex flex-wrap gap-2">
+          {[
+            "Sleep", "Emotion", "Flow", "Creativity", "Spiritual", "Lucid Dream",
+            "Stress", "Focus", "Cognitive Load", "Attention", "Drowsiness", "Meditation",
+            "Memory", "Artifact", "Denoising", "Online Learning",
+          ].map((model) => (
+            <Badge key={model} variant="secondary" className="text-xs">
+              {model}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      {/* 4. Last Session Snapshot — always visible */}
+      {lastSession ? (
+        <Card className="glass-card hover-glow">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <CardTitle className="text-sm font-semibold">Last Session Snapshot</CardTitle>
+            <CardDescription className="text-xs">
+              {lastSession.start_time
+                ? relativeDay(lastSession.start_time)
+                : "Recent session"}
+              {lastSession.summary?.duration_sec
+                ? ` · ${Math.round(lastSession.summary.duration_sec / 60)}m`
+                : ""}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-5 pb-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-bold font-mono text-destructive leading-none">
+                  {Math.round((lastSession.summary?.avg_stress ?? 0) * 100)}%
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">Stress</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-bold font-mono text-primary leading-none">
+                  {Math.round((lastSession.summary?.avg_focus ?? 0) * 100)}%
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">Focus</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-bold font-mono text-success leading-none">
+                  {Math.round((lastSession.summary?.avg_flow ?? 0) * 100)}%
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">Flow</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                <p className="text-lg font-bold font-mono text-secondary leading-none capitalize">
+                  {lastSession.summary?.dominant_emotion ?? "—"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1">Emotion</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* 5. Emotional Shift Alert */}
       {shift?.detected && (
         <div
           className={
