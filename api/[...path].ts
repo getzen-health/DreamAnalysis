@@ -880,6 +880,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const [s0, s1] = segs;
 
+    if (s0 === 'ping') return res.status(200).json({ ok: true, ts: Date.now() });
+
     if (s0 === 'auth') {
       if (s1 === 'register') return await authRegister(req, res);
       if (s1 === 'login')    return await authLogin(req, res);
