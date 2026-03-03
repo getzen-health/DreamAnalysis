@@ -1,6 +1,6 @@
 import { getParticipantId } from "@/lib/participant";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -24,8 +24,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server, Bell, BellOff } from "lucide-react";
+import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Cpu, Heart } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
+import { useLocation } from "wouter";
+import { useDevice } from "@/hooks/use-device";
 const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
 import { ingestHealthData } from "@/lib/ml-api";
@@ -57,11 +59,14 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const userId = USER_ID;
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const { state: deviceState, deviceStatus } = useDevice();
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
   const [healthStatus, setHealthStatus] = useState<HealthConnectionStatus>({
     apple_health: false,
     google_fit: false,
   });
+  const [isConnectingApple, setIsConnectingApple] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [exportingHealthkit, setExportingHealthkit] = useState(false);
 
@@ -83,6 +88,35 @@ export default function SettingsPage() {
     }
     loadSettings();
   }, [userId]);
+
+  // Fetch health connection status on mount
+  const refetchHealthStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/health/status");
+      if (res.ok) {
+        const data = await res.json();
+        setHealthStatus((prev) => ({ ...prev, ...data }));
+      }
+    } catch {
+      // ignore — not critical
+    }
+  }, []);
+
+  useEffect(() => {
+    refetchHealthStatus();
+  }, [refetchHealthStatus]);
+
+  const handleAppleHealthConnect = async () => {
+    setIsConnectingApple(true);
+    try {
+      await fetch("/api/health/connect", { method: "POST" });
+      refetchHealthStatus();
+    } catch {
+      // Silently fail — not critical
+    } finally {
+      setIsConnectingApple(false);
+    }
+  };
 
   // Save settings to API
   const saveSettings = useCallback(
@@ -219,6 +253,82 @@ export default function SettingsPage() {
 
   return (
     <main className="p-4 md:p-6 space-y-6">
+      {/* Connected Devices */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Cpu className="h-5 w-5" />
+            Connected Devices
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">
+                {deviceStatus?.device_type ?? "No device connected"}
+              </p>
+              <p className="text-xs text-muted-foreground capitalize">
+                Status: {deviceState}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLocation("/device-setup")}
+            >
+              {deviceState === "disconnected" ? "Connect" : "Manage"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Health Integrations */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Heart className="h-5 w-5" />
+            Health Integrations
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {/* Apple Health */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Apple Health</p>
+                <p className="text-xs text-muted-foreground">
+                  {healthStatus.apple_health ? "Connected" : "Not connected"}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAppleHealthConnect}
+                disabled={isConnectingApple}
+              >
+                {isConnectingApple
+                  ? "Connecting..."
+                  : healthStatus.apple_health
+                  ? "Disconnect"
+                  : "Connect"}
+              </Button>
+            </div>
+            {/* Google Fit */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Google Fit</p>
+                <p className="text-xs text-muted-foreground">
+                  {healthStatus.google_fit ? "Connected" : "Not connected"}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" disabled>
+                Coming Soon
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ML Backend URL */}
       <MLBackendCard />
 
