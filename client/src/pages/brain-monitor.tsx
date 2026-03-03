@@ -4,7 +4,7 @@ import { SpectrogramChart } from "@/components/charts/spectrogram-chart";
 import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
 import { SessionControls } from "@/components/session-controls";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Radio,
@@ -118,6 +118,101 @@ export default function BrainMonitor() {
   const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 0;
   const weakCount = hasRealData ? channelQuality.filter((q) => q >= 60 && q < 80).length : 0;
   const errorCount = hasRealData ? channelQuality.filter((q) => q < 60).length : 0;
+
+  const lf = latestFrame;
+  const a = lf?.analysis as Record<string, unknown> | undefined;
+
+  const modelOutputs: { name: string; value: string }[] = [
+    {
+      name: "Emotion",
+      value: (a?.emotions as { emotion?: string } | undefined)?.emotion ?? "—",
+    },
+    {
+      name: "Stress",
+      value: lf
+        ? `${Math.round(((a?.emotions as { stress_index?: number } | undefined)?.stress_index ?? 0) * 100)}%`
+        : "—",
+    },
+    {
+      name: "Focus",
+      value: lf
+        ? `${Math.round(((a?.emotions as { focus_index?: number } | undefined)?.focus_index ?? 0) * 100)}%`
+        : "—",
+    },
+    {
+      name: "Sleep",
+      value: (a?.sleep_staging as { stage?: string } | undefined)?.stage ?? "—",
+    },
+    {
+      name: "Creativity",
+      value: lf
+        ? `${Math.round(((a?.creativity as { creativity_score?: number } | undefined)?.creativity_score ?? 0) * 100)}%`
+        : "—",
+    },
+    {
+      name: "Flow",
+      value: lf
+        ? `${Math.round(((a?.flow_state as { flow_score?: number } | undefined)?.flow_score ?? 0) * 100)}%`
+        : "—",
+    },
+    {
+      name: "Drowsiness",
+      value: lf
+        ? `${Math.round(((a?.drowsiness as { drowsiness_index?: number } | undefined)?.drowsiness_index ?? 0) * 100)}%`
+        : "—",
+    },
+    {
+      name: "Cog. Load",
+      value: (a?.cognitive_load as { level?: string } | undefined)?.level ?? "—",
+    },
+    {
+      name: "Attention",
+      value: lf
+        ? `${Math.round(((a?.attention as { attention_score?: number } | undefined)?.attention_score ?? 0) * 100)}%`
+        : "—",
+    },
+    {
+      name: "Dream",
+      value: lf
+        ? ((a?.dream_detection as { is_dreaming?: boolean } | undefined)?.is_dreaming ? "Yes" : "No")
+        : "—",
+    },
+    {
+      name: "Lucid",
+      value: lf
+        ? `${Math.round(((a?.lucid_dream as { lucid_probability?: number } | undefined)?.lucid_probability ?? 0) * 100)}%`
+        : "—",
+    },
+    {
+      name: "Meditation",
+      value: (a?.meditation as { depth?: string } | undefined)?.depth ?? "—",
+    },
+    {
+      name: "Memory",
+      value: lf
+        ? `${Math.round(((a?.memory_encoding as { encoding_quality?: number } | undefined)?.encoding_quality ?? 0) * 100)}%`
+        : "—",
+    },
+    {
+      name: "Artifact",
+      value: lf
+        ? ((a?.artifact as { artifact_detected?: boolean } | undefined)?.artifact_detected ? "Yes" : "No")
+        : "—",
+    },
+    {
+      name: "Denoising",
+      value: (() => {
+        const snr = (a?.denoising as { snr_improvement?: number } | undefined)?.snr_improvement;
+        return snr !== undefined ? `${snr.toFixed(1)}dB` : "—";
+      })(),
+    },
+    {
+      name: "Online Lrn",
+      value: lf
+        ? `${Math.round(((a?.online_learner as { adaptation_rate?: number } | undefined)?.adaptation_rate ?? 0) * 100)}%`
+        : "—",
+    },
+  ];
 
   return (
     <main className="p-4 md:p-6 space-y-6">
@@ -355,6 +450,26 @@ export default function BrainMonitor() {
           </div>
         </Card>
       )}
+
+      {/* All 16 Models Grid */}
+      <Card className="glass-card rounded-xl hover-glow">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">16 ML Models</CardTitle>
+          <CardDescription className="text-xs">
+            {lf ? "Live" : "Offline — connect device for live values"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-4 gap-2">
+            {modelOutputs.map(({ name, value }) => (
+              <div key={name} className="rounded border border-border/30 p-2 text-center">
+                <p className="text-xs text-muted-foreground truncate">{name}</p>
+                <p className="text-sm font-mono font-semibold mt-0.5 truncate">{value}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Spectrogram Panel */}
       {wavelet && (
