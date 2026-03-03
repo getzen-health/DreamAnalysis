@@ -428,31 +428,64 @@ function useDeviceInternal(): UseDeviceReturn {
   // and immediately set brainflowAvailable so the dialog doesn't flash "not installed"
   useEffect(() => {
     let cancelled = false;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const applyStatus = (status: Awaited<ReturnType<typeof getDeviceStatus>>) => {
+      // Always update brainflowAvailable — eliminates the false "not installed" banner
+      setBrainflowAvailable(status.brainflow_available ?? false);
+      setDevicesLoaded(true);
+      if (status.streaming) {
+        setDeviceStatus(status);
+        setSelectedDevice(status.device_type);
+        setState("streaming");
+        isStreamingRef.current = true;
+        reconnectRef.current = 0;
+        openWebSocket();
+        startSession("general").catch(() => {}); // resume auto-recording after page reload
+      } else if (status.connected) {
+        setDeviceStatus(status);
+        setSelectedDevice(status.device_type);
+        setState("connected");
+      }
+    };
+
     (async () => {
       try {
         const status = await getDeviceStatus();
         if (cancelled) return;
-        // Always update brainflowAvailable — eliminates the false "not installed" banner
-        setBrainflowAvailable(status.brainflow_available ?? false);
-        setDevicesLoaded(true);
-        if (status.streaming) {
-          setDeviceStatus(status);
-          setSelectedDevice(status.device_type);
-          setState("streaming");
-          isStreamingRef.current = true;
-          reconnectRef.current = 0;
-          openWebSocket();
-          startSession("general").catch(() => {}); // resume auto-recording after page reload
-        } else if (status.connected) {
-          setDeviceStatus(status);
-          setSelectedDevice(status.device_type);
-          setState("connected");
+        applyStatus(status);
+        // If first call returned disconnected (not streaming, not connected), retry once
+        // after 3 seconds to handle race conditions on page reload
+        if (!status.streaming && !status.connected) {
+          retryTimeout = setTimeout(async () => {
+            if (cancelled) return;
+            try {
+              const retryStatus = await getDeviceStatus();
+              if (cancelled) return;
+              applyStatus(retryStatus);
+            } catch {
+              // Stay disconnected
+            }
+          }, 3000);
         }
       } catch {
-        // ML service not available — refreshDevices will set proper state when dialog opens
+        // ML service not available on first attempt — retry after 3 seconds
+        retryTimeout = setTimeout(async () => {
+          if (cancelled) return;
+          try {
+            const retryStatus = await getDeviceStatus();
+            if (cancelled) return;
+            applyStatus(retryStatus);
+          } catch {
+            // ML service still not available — refreshDevices will set proper state when dialog opens
+          }
+        }, 3000);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
   }, [openWebSocket]);
 
   // Poll device status when connected
