@@ -146,6 +146,7 @@ interface UseDeviceReturn {
   error: string | null;
   brainflowAvailable: boolean;
   devicesLoaded: boolean;
+  reconnectCount: number;
   refreshDevices: () => Promise<void>;
   connect: (deviceType: string, params?: Record<string, string>) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -178,8 +179,8 @@ export function useDevice(): UseDeviceReturn {
 
 /* ── Internal implementation ──────────────────────────────────────── */
 
-const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000; // cap at 30 seconds
 
 function useDeviceInternal(): UseDeviceReturn {
   const [state, setState] = useState<DeviceState>("disconnected");
@@ -190,9 +191,11 @@ function useDeviceInternal(): UseDeviceReturn {
   const [error, setError] = useState<string | null>(null);
   const [brainflowAvailable, setBrainflowAvailable] = useState(false);
   const [devicesLoaded, setDevicesLoaded] = useState(false);
+  const [reconnectCount, setReconnectCount] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isStreamingRef = useRef(false);
   const lastFrameTimeRef = useRef(0);
   const pendingFrameRef = useRef<EEGStreamFrame | null>(null);
@@ -210,8 +213,16 @@ function useDeviceInternal(): UseDeviceReturn {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      reconnectRef.current = 0; // reset on success
+      reconnectRef.current = 0;
+      setReconnectCount(0);
       setError(null);
+      // 30-second keepalive ping to prevent server-side idle timeout
+      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = setInterval(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: "ping" }));
+        }
+      }, 30000);
     };
 
     ws.onmessage = (event) => {
@@ -251,15 +262,24 @@ function useDeviceInternal(): UseDeviceReturn {
     };
 
     ws.onerror = () => {
-      setError("WebSocket connection error");
+      if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
+      const url = getWebSocketUrl();
+      const isNgrok = url.includes("ngrok");
+      setError(
+        isNgrok
+          ? "WebSocket blocked by ngrok. Open Settings and set ML Backend URL to http://localhost:8080, then reconnect."
+          : "WebSocket connection error — is the ML backend running? Try: cd ~/NeuralDreamWorkshop/ml && ./start.sh"
+      );
     };
 
     ws.onclose = () => {
       wsRef.current = null;
-      // Auto-reconnect if still supposed to be streaming
-      if (isStreamingRef.current && reconnectRef.current < MAX_RECONNECT_ATTEMPTS) {
-        const delay = RECONNECT_BASE_MS * Math.pow(2, reconnectRef.current);
+      if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
+      // Unlimited reconnect — keep trying while device is selected and streaming
+      if (isStreamingRef.current) {
+        const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, reconnectRef.current), RECONNECT_MAX_DELAY_MS);
         reconnectRef.current += 1;
+        setReconnectCount(reconnectRef.current);
         reconnectTimerRef.current = setTimeout(() => {
           if (isStreamingRef.current) openWebSocket();
         }, delay);
@@ -267,23 +287,29 @@ function useDeviceInternal(): UseDeviceReturn {
     };
   }, []);
 
+  // Minimum static device list — always shown when backend returns empty or is unreachable
+  const STATIC_DEVICES: DeviceInfo[] = [
+    { type: "muse_2",    name: "Muse 2",           channels: 4,  sample_rate: 256, available: true },
+    { type: "muse_s",    name: "Muse S",            channels: 4,  sample_rate: 256, available: true },
+    { type: "synthetic", name: "Synthetic (demo)",  channels: 16, sample_rate: 256, available: true },
+  ];
+
   const refreshDevices = useCallback(async () => {
     try {
       const result = await listDevices();
-      setDevices(result.devices);
+      // Never leave the list empty — merge backend list with static fallbacks
+      const backendDevices = result.devices ?? [];
+      const merged = backendDevices.length > 0
+        ? backendDevices
+        : STATIC_DEVICES;
+      setDevices(merged);
       setBrainflowAvailable(result.brainflow_available);
       setError(null);
     } catch {
-      // Backend unreachable — show static Muse device list so the user can
-      // still attempt a connection (will fail fast with a clear error if truly
-      // unreachable, but works once the ngrok URL is set in Settings).
+      // Backend unreachable — always show static list so user can still connect
       setError("unreachable");
       setBrainflowAvailable(false);
-      setDevices([
-        { type: "muse_2",      name: "Muse 2",             channels: 4,  sample_rate: 256, available: true },
-        { type: "muse_s",      name: "Muse S",             channels: 4,  sample_rate: 256, available: true },
-        { type: "synthetic",   name: "Synthetic (demo)",   channels: 16, sample_rate: 256, available: true },
-      ]);
+      setDevices(STATIC_DEVICES);
     } finally {
       setDevicesLoaded(true);
     }
@@ -507,6 +533,7 @@ function useDeviceInternal(): UseDeviceReturn {
     return () => {
       isStreamingRef.current = false;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       if (wsRef.current) wsRef.current.close();
     };
   }, []);
@@ -520,6 +547,7 @@ function useDeviceInternal(): UseDeviceReturn {
     error,
     brainflowAvailable,
     devicesLoaded,
+    reconnectCount,
     refreshDevices,
     connect,
     disconnect,

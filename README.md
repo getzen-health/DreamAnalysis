@@ -253,6 +253,57 @@ npm run build
 - **ML Backend** — Docker or standalone (`uvicorn main:app`)
 - **Database** — Neon PostgreSQL (`drizzle-kit push` for migrations)
 
+### iOS Build (Capacitor)
+
+Requirements: macOS + Xcode 15+, Apple Developer account, `@capacitor/cli` installed.
+
+```bash
+# 1. Build the React app
+npm run build
+
+# 2. Sync web assets into the iOS project
+npx cap sync ios
+
+# 3. Open Xcode
+npx cap open ios
+```
+
+Inside Xcode:
+- Set **Bundle Identifier** to `com.neuraldreamworkshop.app`
+- Select your Apple Developer **Team** under Signing
+- Choose a connected iPhone or simulator as the run target
+- Press **Run** (or `⌘R`)
+
+Required Info.plist permissions (already in `ios/App/App/Info.plist`):
+- `NSBluetoothAlwaysUsageDescription` — Muse 2 BLE connection
+- `NSBluetoothPeripheralUsageDescription` — Muse BLE (iOS < 13 compat)
+- `NSHealthShareUsageDescription` — Apple Health read access
+- `NSHealthUpdateUsageDescription` — Apple Health write access
+- `NSMotionUsageDescription` — accelerometer data
+
+App ID: `com.neuraldreamworkshop.app` | Min iOS: 14.0
+
+### Railway ML Backend
+
+The ML backend (`ml/`) is pre-configured for Railway via `ml/railway.json` and `ml/Dockerfile`.
+
+**Deploy steps:**
+1. In Railway dashboard: **New Project → Deploy from GitHub Repo**
+2. Select `LakshmiSravyaVedantham/NeuralDreamWorkshop`
+3. Set **Root Directory** to `ml/`; Railway auto-detects `railway.json`
+4. Add environment variables in Railway:
+
+| Variable | Value |
+|----------|-------|
+| `CORS_ORIGINS` | `https://dream-analysis.vercel.app,https://<your-vercel-url>` |
+| `PORT` | (set automatically by Railway) |
+
+5. After first deploy, copy the Railway public URL (e.g. `https://ndw-ml.up.railway.app`)
+6. Set `VITE_ML_API_URL=https://ndw-ml.up.railway.app` in Vercel environment variables
+7. Redeploy Vercel: `vercel --prod`
+
+Railway provides always-on hosting (no cold-start spin-up unlike Render free tier).
+
 ## Tech Stack
 
 | Layer | Technology |

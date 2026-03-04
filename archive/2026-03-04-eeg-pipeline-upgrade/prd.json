@@ -1,0 +1,170 @@
+{
+  "project": "NeuralDreamWorkshop",
+  "branchName": "ralph/eeg-pipeline-upgrade",
+  "description": "Fix Muse connection for production, activate Datadog observability, and retrain stress/flow models above the 60% activation threshold so experiments can start tonight.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Fix dead ML backend URL fallback in ml-api.ts",
+      "description": "As a developer, I need the ML backend URL default to point to localhost:8000 instead of an expired ngrok URL so the app doesn't fail silently in development.",
+      "acceptanceCriteria": [
+        "In client/src/lib/ml-api.ts lines 1-3, the fallback URL changes from 'https://brendan-postanesthetic-soliloquisingly.ngrok-free.dev' to 'http://localhost:8000'",
+        "grep -r 'brendan-postanesthetic' . returns zero matches",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add pingBackend utility to ml-api.ts",
+      "description": "As a developer, I need a pingBackend() function that silently checks if the ML backend is reachable so the UI can show a warm-up spinner instead of a cryptic error.",
+      "acceptanceCriteria": [
+        "Export async function pingBackend(timeoutMs = 12000): Promise<boolean> added to client/src/lib/ml-api.ts",
+        "Function uses AbortController with the given timeout",
+        "Function calls GET /health on getMLApiUrl()",
+        "Returns true if response.ok, false on any error",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add warm-up spinner to StudySession muse-pair screen",
+      "description": "As a participant, I want to see 'Waking up ML backend…' instead of a broken connection error when the Render backend is cold-starting so I know to wait.",
+      "acceptanceCriteria": [
+        "backendReady state (boolean | null) added to StudySession component",
+        "useEffect pings backend via pingBackend() when phase === 'muse-pair'",
+        "While backendReady === null: 'Waking up ML backend…' spinner shown in Card",
+        "While backendReady === false: amber warning text shown",
+        "Pair Muse 2 button disabled while backendChecking is true",
+        "pingBackend imported from @/lib/ml-api in the import statement",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Fix Render CORS_ORIGINS to include Vercel production URL",
+      "description": "As a developer, I need the Render ML backend to accept requests from the Vercel production frontend so CORS doesn't silently block Muse connection attempts.",
+      "acceptanceCriteria": [
+        "render.yaml CORS_ORIGINS value includes 'https://dream-analysis.vercel.app'",
+        "render.yaml CORS_ORIGINS value includes 'https://dream-analysis-*.vercel.app' for preview deployments",
+        "render.yaml CORS_ORIGINS still includes all localhost variants",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add Datadog APM env vars to render.yaml",
+      "description": "As a developer, I need DD_SITE, DD_SERVICE, and DD_ENV set in render.yaml so Datadog APM activates when DD_API_KEY is added in the Render dashboard.",
+      "acceptanceCriteria": [
+        "render.yaml envVars block includes DD_SITE with value 'datadoghq.com'",
+        "render.yaml envVars block includes DD_SERVICE with value 'neural-dream-ml'",
+        "render.yaml envVars block includes DD_ENV with value 'production'",
+        "render.yaml envVars block includes DD_API_KEY with sync: false (secret)",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Wire Datadog accuracy metrics in ML backend auto-retraining loop",
+      "description": "As a developer, I need the auto-retraining loop to emit model accuracy as a Datadog metric so I can see when models improve or degrade after each retrain.",
+      "acceptanceCriteria": [
+        "In ml/main.py, the comment '# Report accuracy to Datadog' is replaced with actual statsd.gauge() calls",
+        "statsd.gauge('eeg.model.retrain_accuracy', acc * 100) called when accuracy is available in result dict",
+        "The metric emission is wrapped in try/except so it never crashes the retrain loop",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add Datadog Browser RUM SDK to client/index.html",
+      "description": "As a developer, I need Datadog Browser RUM initialized in index.html so frontend errors, failed network requests, and WebSocket drops are captured in the Datadog dashboard.",
+      "acceptanceCriteria": [
+        "Datadog Browser RUM <script> block added inside <head> of client/index.html",
+        "Script calls DD_RUM.init() with service='neural-dream-workshop', env='production'",
+        "trackUserInteractions: true, trackResources: true set",
+        "applicationId and clientToken placeholders are clearly marked as YOUR_APPLICATION_ID and YOUR_CLIENT_TOKEN",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "User must replace YOUR_APPLICATION_ID and YOUR_CLIENT_TOKEN with values from Datadog RUM Applications dashboard before this activates."
+    },
+    {
+      "id": "US-008",
+      "title": "Run DREAMER dataset training to improve stress model",
+      "description": "As a researcher, I need the stress model retrained with DREAMER (consumer Emotiv EPOC dataset, closest to Muse 2) so it exceeds the 60% activation threshold and appears in live inference.",
+      "acceptanceCriteria": [
+        "python ml/training/train_dreamer.py runs without error",
+        "Script outputs a cross-validation accuracy number",
+        "If accuracy >= 60%: ml/models/saved/stress_model.pkl is updated",
+        "Training log saved to /tmp/train_dreamer_log.txt",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "This story requires running Python training. May take 5-30 min depending on dataset size. DREAMER data downloaded automatically via train_dreamer.py."
+    },
+    {
+      "id": "US-009",
+      "title": "Run TSception 4-channel training to improve flow state model",
+      "description": "As a researcher, I need the TSception CNN trained on 4-channel EEG data so the flow state model exceeds the 60% threshold and starts showing in live inference sessions.",
+      "acceptanceCriteria": [
+        "python ml/training/train_tsception.py runs without error",
+        "Script outputs a test accuracy number",
+        "ml/models/saved/eegnet_emotion_4ch.pt is updated with new weights",
+        "Training log saved to /tmp/train_tsception_log.txt",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "ml/training/train_tsception.py already exists. Check that n_channels=4 is configured before running."
+    },
+    {
+      "id": "US-010",
+      "title": "Re-run mega LGBM unified training to incorporate new data",
+      "description": "As a researcher, I need the mega LGBM emotion model retrained after the DREAMER and FACED data are added so the unified model benefits from the larger training set.",
+      "acceptanceCriteria": [
+        "python ml/training/train_mega_lgbm_unified.py runs without error",
+        "Script outputs cross-validation accuracy (target: >= 74.21% baseline)",
+        "ml/models/saved/emotion_mega_lgbm.pkl updated",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Run after US-008 (DREAMER) completes. train_faced.py can also be run first to add FACED data before this mega retrain."
+    },
+    {
+      "id": "US-011",
+      "title": "Update STATUS.md with post-retrain model accuracy numbers",
+      "description": "As a researcher, I need STATUS.md to reflect the new model accuracy numbers after retraining so the benchmark dashboard shows accurate information.",
+      "acceptanceCriteria": [
+        "STATUS.md model accuracy table updated with new CV accuracy for stress model",
+        "STATUS.md model accuracy table updated with new CV accuracy for flow state model",
+        "STATUS.md model accuracy table updated with new CV accuracy for emotion mega LGBM",
+        "Each row shows the new accuracy number and dataset used",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Run after US-008, US-009, US-010 complete."
+    }
+  ]
+}

@@ -452,6 +452,7 @@ export default function DeviceSetup() {
     refreshDevices,
     connect,
     disconnect,
+    reconnectCount,
   } = device;
 
   const [step, setStep]                 = useState<Step>(0);
@@ -524,6 +525,12 @@ export default function DeviceSetup() {
   return (
     <main className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-6">
       <div className="w-full max-w-md space-y-6">
+
+        {deviceState === "streaming" && reconnectCount > 0 && (
+          <div className="rounded-md bg-amber-500/10 border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-400">
+            Reconnecting to EEG stream… (attempt {reconnectCount})
+          </div>
+        )}
 
         {/* Top bar */}
         <div className="flex items-center gap-3">

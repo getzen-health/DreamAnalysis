@@ -99,7 +99,7 @@ const CORRECT_OPTIONS = [
 ];
 
 export default function EmotionLab() {
-  const { latestFrame, state: deviceState } = useDevice();
+  const { latestFrame, state: deviceState, reconnectCount } = useDevice();
   const { user } = useAuth();
   const { toast } = useToast();
   const isStreaming = deviceState === "streaming";
@@ -176,6 +176,11 @@ export default function EmotionLab() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-4">
+      {isStreaming && reconnectCount > 0 && (
+        <div className="rounded-md bg-amber-500/10 border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-400">
+          Reconnecting to EEG stream… (attempt {reconnectCount})
+        </div>
+      )}
       <SimulationModeBanner />
 
       {/* ── Card 1: Right now ─────────────────────────────────────────────── */}

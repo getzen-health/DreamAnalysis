@@ -400,6 +400,22 @@ export type InsertHealthSample = z.infer<typeof insertHealthSampleSchema>;
 
 export type DatadogErrorLog = typeof datadogErrorLog.$inferSelect;
 
+// ── Password reset tokens ───────────────────────────────────────────────────
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id:        serial("id").primaryKey(),
+  userId:    varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token:     text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt:    timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("prt_user_idx").on(table.userId),
+  index("prt_token_idx").on(table.token),
+]);
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+
 // ── Food photo log ──────────────────────────────────────────────────────────
 
 export const foodLogs = pgTable("food_logs", {

@@ -14,6 +14,8 @@ import AppLayout from "./layouts/app-layout";
 // ── Core journey pages — static imports (always needed on first load) ──────
 import Landing from "@/pages/landing";
 import AuthPage from "@/pages/auth";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import Dashboard from "@/pages/dashboard";
 import EmotionLab from "@/pages/emotion-lab";
 import BrainMonitor from "@/pages/brain-monitor";
@@ -122,6 +124,8 @@ function AppRoutes() {
     <Switch>
       <Route path="/welcome" component={Landing} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/">
         <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
       </Route>

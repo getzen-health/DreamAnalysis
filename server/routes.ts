@@ -5,10 +5,12 @@ import OpenAI from "openai";
 import webpush from "web-push";
 import cron from "node-cron";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { Pool as NeonPool } from "@neondatabase/serverless";
 import SpotifyWebApi from "spotify-web-api-node";
+import { Resend } from "resend";
 import {
   insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
   insertUserSettingsSchema, insertEmotionReadingSchema,
@@ -16,6 +18,7 @@ import {
   studyDaytimeEntries, studyEveningEntries, foodLogs,
   users, pushSubscriptions,
   pilotParticipants, pilotSessions,
+  passwordResetTokens,
 } from "@shared/schema";
 import { db } from "./db";
 import { emotionReadings } from "@shared/schema";
@@ -203,6 +206,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.clearCookie("connect.sid");
       res.json({ ok: true });
     });
+  });
+
+  // POST /api/auth/forgot-password
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.json({ message: "If that email exists, a reset link was sent" });
+
+      const [user] = await db.select().from(users)
+        .where(eq(users.email, email.trim().toLowerCase())).limit(1);
+
+      if (user) {
+        const token = crypto.randomBytes(32).toString("hex");
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+        await db.insert(passwordResetTokens).values({
+          userId: user.id,
+          token,
+          expiresAt,
+        });
+
+        if (process.env.RESEND_API_KEY) {
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          const resetUrl = `https://dream-analysis.vercel.app/reset-password?token=${token}`;
+          await resend.emails.send({
+            from: "NeuralDreamWorkshop <noreply@dream-analysis.vercel.app>",
+            to: email.trim(),
+            subject: "Reset your password",
+            html: `<p>Click <a href="${resetUrl}">here</a> to reset your password. This link expires in 1 hour.</p>`,
+          });
+        }
+      }
+
+      return res.json({ message: "If that email exists, a reset link was sent" });
+    } catch (err) {
+      console.error("Forgot password error:", err);
+      return res.json({ message: "If that email exists, a reset link was sent" });
+    }
+  });
+
+  // POST /api/auth/reset-password
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      if (!token || !newPassword)
+        return res.status(400).json({ message: "Token and new password required" });
+
+      const now = new Date();
+      const [row] = await db.select().from(passwordResetTokens)
+        .where(
+          and(
+            eq(passwordResetTokens.token, token),
+            gte(passwordResetTokens.expiresAt, now),
+            sql`${passwordResetTokens.usedAt} IS NULL`
+          )
+        ).limit(1);
+
+      if (!row) return res.status(400).json({ message: "Invalid or expired reset token" });
+
+      const hashed = await bcrypt.hash(newPassword, 12);
+      await db.update(users).set({ password: hashed }).where(eq(users.id, row.userId));
+      await db.update(passwordResetTokens)
+        .set({ usedAt: now })
+        .where(eq(passwordResetTokens.id, row.id));
+
+      return res.json({ message: "Password updated successfully" });
+    } catch (err) {
+      console.error("Reset password error:", err);
+      return res.status(500).json({ message: "Reset failed" });
+    }
   });
 
   // Seed the default user so FK constraints never block self-study usage

@@ -42,7 +42,7 @@ function deriveHealthState(p: BiometricPayload) {
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
   // Stress: elevated HR relative to resting + low HRV + poor sleep
-  let stress = 0.25;
+  let stress = 0;
   if (p.current_heart_rate && p.resting_heart_rate && p.resting_heart_rate > 40) {
     stress += clamp((p.current_heart_rate - p.resting_heart_rate) / 40, -0.15, 0.45) * 0.4;
   }
@@ -55,8 +55,8 @@ function deriveHealthState(p: BiometricPayload) {
   stress = clamp(stress, 0, 1);
 
   // Focus: driven by sleep quality + physical activity, dampened by stress
-  let focus = 0.4;
-  if (p.sleep_efficiency !== undefined) focus = clamp(p.sleep_efficiency / 100, 0.1, 1) * 0.65;
+  let focus = 0;
+  if (p.sleep_efficiency !== undefined) focus = clamp(p.sleep_efficiency / 100, 0, 1) * 0.65;
   if (p.steps_today !== undefined) focus += clamp(p.steps_today / 8000, 0, 1) * 0.2;
   focus = clamp(focus * (1 - stress * 0.45), 0, 1);
 

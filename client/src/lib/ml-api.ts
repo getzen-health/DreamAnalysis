@@ -1,9 +1,18 @@
 const ML_API_URL_DEFAULT =
   import.meta.env.VITE_ML_API_URL ||
-  "http://localhost:8000";
+  "http://localhost:8080";
 
 /** Reads the ML backend URL from localStorage so the user can override it in Settings. */
 function getMLApiUrl(): string {
+  // When running the app from localhost, always use the local ML backend directly.
+  // This avoids routing WebSocket + HTTP through ngrok (ngrok blocks WS upgrades).
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    try {
+      const stored = localStorage.getItem("ml_backend_url");
+      if (stored?.trim()) return stored.trim().replace(/\/$/, "");
+    } catch { /* ignore */ }
+    return "http://localhost:8080";
+  }
   try {
     const stored = localStorage.getItem("ml_backend_url");
     if (stored?.trim()) return stored.trim().replace(/\/$/, "");
