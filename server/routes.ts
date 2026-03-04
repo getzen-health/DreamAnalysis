@@ -226,15 +226,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiresAt,
         });
 
+        const appUrl = process.env.APP_URL ?? "https://dream-analysis.vercel.app";
+        const resetUrl = `${appUrl}/reset-password?token=${token}`;
         if (process.env.RESEND_API_KEY) {
           const resend = new Resend(process.env.RESEND_API_KEY);
-          const resetUrl = `https://dream-analysis.vercel.app/reset-password?token=${token}`;
+          const fromDomain = process.env.RESEND_FROM_DOMAIN ?? "onboarding@resend.dev";
           await resend.emails.send({
-            from: "NeuralDreamWorkshop <noreply@dream-analysis.vercel.app>",
+            from: `NeuralDreamWorkshop <${fromDomain}>`,
             to: email.trim(),
-            subject: "Reset your password",
-            html: `<p>Click <a href="${resetUrl}">here</a> to reset your password. This link expires in 1 hour.</p>`,
+            subject: "Reset your password — NeuralDreamWorkshop",
+            html: `
+              <div style="font-family:sans-serif;max-width:480px;margin:auto">
+                <h2>Reset your password</h2>
+                <p>Click the button below to set a new password. This link expires in 1 hour.</p>
+                <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">
+                  Reset Password
+                </a>
+                <p style="margin-top:16px;font-size:12px;color:#888">
+                  If you didn't request this, you can ignore this email.
+                </p>
+              </div>
+            `,
           });
+        } else {
+          // No email provider configured — log URL for local dev/testing
+          console.log(`[dev] Password reset link: ${resetUrl}`);
         }
       }
 
