@@ -1,7 +1,15 @@
+from pathlib import Path
+
+_REQ = Path(__file__).resolve().parent.parent / "requirements.txt"
+
+
 def test_funasr_in_requirements():
-    req = open("requirements.txt").read()
-    assert "funasr" in req
+    """funasr must be listed in ml/requirements.txt."""
+    content = _REQ.read_text()
+    assert "funasr" in content
+
 
 def test_modelscope_in_requirements():
-    req = open("requirements.txt").read()
-    assert "modelscope" in req
+    """modelscope must be listed in ml/requirements.txt."""
+    content = _REQ.read_text()
+    assert "modelscope" in content
