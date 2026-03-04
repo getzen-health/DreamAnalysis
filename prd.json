@@ -226,6 +226,23 @@
       "priority": 14,
       "passes": false,
       "notes": "Sravya must manually complete the Xcode archive step. This story just ensures the build pipeline works and is documented."
+    },
+    {
+      "id": "US-015",
+      "title": "Migrate ML backend from Render (sleeps) to Railway (always-on WebSocket)",
+      "description": "As a user, I want the ML backend to stay awake 24/7 so WebSocket connections never drop due to cold starts and the Muse headset connects instantly every time.",
+      "acceptanceCriteria": [
+        "ml/railway.json verified: builder is DOCKERFILE, dockerfilePath is ml/Dockerfile, healthcheckPath is /health, startCommand is 'uvicorn main:app --host 0.0.0.0 --port $PORT'",
+        "ml/Dockerfile exists and builds successfully locally: docker build -f ml/Dockerfile . exits 0",
+        "CORS_ORIGINS in ml/main.py default string includes https://dream-analysis.vercel.app and https://dream-analysis-*.vercel.app",
+        "Document Railway deployment steps in CLAUDE.md under 'ML Backend URL Chain': install Railway CLI → railway login → railway link → railway up",
+        "Update VITE_ML_API_URL in Vercel env vars to Railway service URL after deployment",
+        "Update start.sh comment: note Railway as the production backend, ngrok only for local dev",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "Railway free tier: $5/mo credit. Sravya must: 1) Create account at railway.app, 2) Run 'railway login && railway link' in terminal, 3) Run 'railway up' from repo root. The railway.json already exists — deployment is one command. After deploy, copy the Railway service URL and update VITE_ML_API_URL in Vercel dashboard + run 'vercel --prod'."
     }
   ]
 }
