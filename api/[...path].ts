@@ -432,13 +432,88 @@ async function settingsHandler(req: VercelRequest, res: VercelResponse, userId: 
 
 async function exportHandler(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const type = (req.query.type as string) || 'health';
   const db = getDb();
+
+  // ── Apple Health XML ────────────────────────────────────────────────────
+  if (type === 'healthkit') {
+    const metrics = await db.select().from(schema.healthMetrics)
+      .where(eq(schema.healthMetrics.userId, userId)).orderBy(asc(schema.healthMetrics.timestamp));
+    const records = metrics.flatMap(m => {
+      const ts = new Date(m.timestamp).toISOString().replace('T', ' ').slice(0, 19) + ' +0000';
+      const rows: string[] = [];
+      if (m.heartRate)    rows.push(`  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Neural Dream Workshop" unit="count/min" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="${m.heartRate}"/>`);
+      if (m.dailySteps)   rows.push(`  <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Neural Dream Workshop" unit="count" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="${m.dailySteps}"/>`);
+      if (m.sleepDuration) rows.push(`  <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Neural Dream Workshop" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="HKCategoryValueSleepAnalysisAsleepCore"/>`);
+      return rows;
+    });
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE HealthData [\n<!ELEMENT HealthData (Record*)>\n<!ELEMENT Record EMPTY>\n<!ATTLIST Record type CDATA #REQUIRED sourceName CDATA #REQUIRED unit CDATA #IMPLIED creationDate CDATA #REQUIRED startDate CDATA #REQUIRED endDate CDATA #REQUIRED value CDATA #IMPLIED>\n]>\n<HealthData locale="en_US">\n${records.join('\n')}\n</HealthData>`;
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename=neural_dream_healthkit_${new Date().toISOString().slice(0, 10)}.xml`);
+    return res.send(xml);
+  }
+
+  // ── Dreams CSV ──────────────────────────────────────────────────────────
+  if (type === 'dreams') {
+    const dreams = await db.select().from(schema.dreamAnalysis)
+      .where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp));
+    if (dreams.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('timestamp,dreamText,symbols,aiAnalysis,lucidityScore\nNo dreams recorded yet'); }
+    const escape = (s: unknown) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+    const rows = dreams.map(d => [
+      d.timestamp, escape(d.dreamText),
+      escape((d.symbols as string[] | null)?.join('; ') ?? ''),
+      escape(d.aiAnalysis ?? ''), d.lucidityScore ?? '',
+    ].join(','));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=dream_analysis_${new Date().toISOString().slice(0, 10)}.csv`);
+    return res.send(['timestamp,dreamText,symbols,aiAnalysis,lucidityScore', ...rows].join('\n'));
+  }
+
+  // ── Emotions CSV ────────────────────────────────────────────────────────
+  if (type === 'emotions') {
+    const readings = await db.select().from(schema.emotionReadings)
+      .where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp));
+    if (readings.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('No emotion data yet'); }
+    const rows = readings.map(r => [
+      r.timestamp, r.dominantEmotion, r.stress, r.happiness, r.focus, r.energy,
+      r.valence ?? '', r.arousal ?? '', r.userCorrectedEmotion ?? '',
+    ].join(','));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=emotion_readings_${new Date().toISOString().slice(0, 10)}.csv`);
+    return res.send(['timestamp,dominantEmotion,stress,happiness,focus,energy,valence,arousal,userCorrectedEmotion', ...rows].join('\n'));
+  }
+
+  // ── All data CSV (multi-section) ────────────────────────────────────────
+  if (type === 'all') {
+    const [metrics, dreams, readings] = await Promise.all([
+      db.select().from(schema.healthMetrics).where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp)),
+      db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)),
+      db.select().from(schema.emotionReadings).where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp)),
+    ]);
+    const escape = (s: unknown) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+    const sections = [
+      '# HEALTH METRICS',
+      ['timestamp,heartRate,stressLevel,sleepQuality,neuralActivity,dailySteps,sleepDuration',
+        ...metrics.map(m => [m.timestamp, m.heartRate, m.stressLevel, m.sleepQuality, m.neuralActivity, m.dailySteps, m.sleepDuration].join(','))].join('\n'),
+      '\n# DREAM ANALYSIS',
+      ['timestamp,dreamText,symbols,aiAnalysis',
+        ...dreams.map(d => [d.timestamp, escape(d.dreamText), escape((d.symbols as string[] | null)?.join('; ') ?? ''), escape(d.aiAnalysis ?? '')].join(','))].join('\n'),
+      '\n# EMOTION READINGS',
+      ['timestamp,dominantEmotion,stress,happiness,focus,energy,userCorrectedEmotion',
+        ...readings.map(r => [r.timestamp, r.dominantEmotion, r.stress, r.happiness, r.focus, r.energy, r.userCorrectedEmotion ?? ''].join(','))].join('\n'),
+    ];
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=neural_dream_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    return res.send(sections.join('\n'));
+  }
+
+  // ── Health metrics CSV (default) ────────────────────────────────────────
   const metrics = await db.select().from(schema.healthMetrics)
     .where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp));
   if (metrics.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('No data available'); }
   const rows = metrics.map(m => [m.timestamp, m.heartRate, m.stressLevel, m.sleepQuality, m.neuralActivity, m.dailySteps, m.sleepDuration].join(','));
   res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=neural_data.csv');
+  res.setHeader('Content-Disposition', `attachment; filename=health_metrics_${new Date().toISOString().slice(0, 10)}.csv`);
   return res.send(['timestamp,heartRate,stressLevel,sleepQuality,neuralActivity,dailySteps,sleepDuration', ...rows].join('\n'));
 }
 
