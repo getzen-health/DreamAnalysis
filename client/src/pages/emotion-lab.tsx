@@ -231,7 +231,7 @@ export default function EmotionLab() {
                     className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors font-medium"
                   >
                     <Music className="h-3 w-3" />
-                    Play music for this mood
+                    Full music session
                   </Link>
                 </div>
               </div>

@@ -22,8 +22,11 @@ import {
   Flame,
   Star,
   Music,
+  Heart,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
+import { useHealthSync } from "@/hooks/use-health-sync";
+import type { BiometricPayload } from "@/lib/health-sync";
 import {
   getHealthInsights,
   listSessions,
@@ -33,6 +36,38 @@ import {
 } from "@/lib/ml-api";
 
 /* ---------- helpers ---------- */
+
+/** Derive approximate stress/focus/relaxation from health biometrics (no EEG). */
+function deriveHealthState(p: BiometricPayload) {
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+  // Stress: elevated HR relative to resting + low HRV + poor sleep
+  let stress = 0.25;
+  if (p.current_heart_rate && p.resting_heart_rate && p.resting_heart_rate > 40) {
+    stress += clamp((p.current_heart_rate - p.resting_heart_rate) / 40, -0.15, 0.45) * 0.4;
+  }
+  if (p.hrv_sdnn !== undefined && p.hrv_sdnn > 0) {
+    stress = stress * 0.65 + clamp(1 - p.hrv_sdnn / 70, 0, 1) * 0.35;
+  }
+  if (p.sleep_efficiency !== undefined) {
+    stress = stress * 0.75 + clamp(1 - p.sleep_efficiency / 100, 0, 1) * 0.25;
+  }
+  stress = clamp(stress, 0, 1);
+
+  // Focus: driven by sleep quality + physical activity, dampened by stress
+  let focus = 0.4;
+  if (p.sleep_efficiency !== undefined) focus = clamp(p.sleep_efficiency / 100, 0.1, 1) * 0.65;
+  if (p.steps_today !== undefined) focus += clamp(p.steps_today / 8000, 0, 1) * 0.2;
+  focus = clamp(focus * (1 - stress * 0.45), 0, 1);
+
+  // Relaxation: inverse of stress, boosted by good sleep
+  let relaxation = clamp((1 - stress) * 0.65, 0, 0.65);
+  if (p.sleep_efficiency !== undefined) relaxation += clamp(p.sleep_efficiency / 100, 0, 1) * 0.35;
+  relaxation = clamp(relaxation, 0, 1);
+
+  const source = p.hrv_sdnn !== undefined ? "Apple Health" : "Health data";
+  return { stress: Math.round(stress * 100), focus: Math.round(focus * 100), relaxation: Math.round(relaxation * 100), source };
+}
 
 function currentStreak(sessions: SessionSummary[]): number {
   if (sessions.length === 0) return 0;
@@ -289,6 +324,10 @@ export default function Dashboard() {
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
 
+  // Health data fallback (iOS/Android only — web returns null)
+  const { latestPayload } = useHealthSync();
+  const healthState = !isStreaming && latestPayload ? deriveHealthState(latestPayload) : null;
+
   // Extract live data
   const emotions = analysis?.emotions;
   const bandPowers = analysis?.band_powers ?? {};
@@ -434,8 +473,8 @@ export default function Dashboard() {
 
   return (
     <main className="p-6 space-y-6 max-w-6xl">
-      {/* 1. Connection Banner */}
-      {!isStreaming && (
+      {/* 1. Connection Banner — hidden when health data is available */}
+      {!isStreaming && !healthState && (
         <Link href="/device-setup">
           <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center justify-between gap-3 cursor-pointer hover:bg-warning/10 transition-colors">
             <div className="flex items-center gap-3">
@@ -445,6 +484,13 @@ export default function Dashboard() {
             <ChevronRight className="h-4 w-4 shrink-0 opacity-60" />
           </div>
         </Link>
+      )}
+      {/* Health data mode banner */}
+      {!isStreaming && healthState && (
+        <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400 flex items-center gap-2">
+          <Heart className="h-3.5 w-3.5 shrink-0" />
+          Showing estimates from {healthState.source}. Connect EEG for precise brain data.
+        </div>
       )}
 
       {/* 2. Baseline calibration prompt (shown until calibrated) */}
@@ -806,7 +852,7 @@ export default function Dashboard() {
                       className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors font-medium"
                     >
                       <Music className="h-3 w-3" />
-                      Music
+                      Full music session
                     </Link>
                     <Link href={actionHref}
                       className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">
@@ -815,10 +861,60 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+            ) : healthState ? (
+              /* Health data mode — no EEG, but Apple/Google Health connected */
+              <div className="space-y-4">
+                {/* Stress */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-foreground">Stress</span>
+                    <span className="text-sm font-mono text-muted-foreground">{healthState.stress}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${healthState.stress}%`, backgroundColor: healthState.stress > 65 ? "hsl(0,72%,55%)" : healthState.stress > 35 ? "hsl(38,85%,55%)" : "hsl(152,60%,48%)" }} />
+                  </div>
+                </div>
+                {/* Focus */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-foreground">Focus</span>
+                    <span className="text-sm font-mono text-muted-foreground">{healthState.focus}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${healthState.focus}%`, backgroundColor: "hsl(152,60%,48%)" }} />
+                  </div>
+                </div>
+                {/* Relaxation */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-foreground">Relaxation</span>
+                    <span className="text-sm font-mono text-muted-foreground">{healthState.relaxation}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${healthState.relaxation}%`, backgroundColor: "hsl(217,91%,60%)" }} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                  <span className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
+                    <Heart className="h-3 w-3" />
+                    From {healthState.source} · less precise than EEG
+                  </span>
+                  <Link
+                    href={`/biofeedback?tab=music&mood=${healthState.stress > 35 ? "calm" : "focus"}`}
+                    className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors font-medium"
+                  >
+                    <Music className="h-3 w-3" />
+                    Full music session
+                  </Link>
+                </div>
+              </div>
             ) : (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 <Brain className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-                Connect device to see live brain state
+                Connect your EEG device or Apple Health to see brain state
               </div>
             )}
           </Card>
