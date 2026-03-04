@@ -89,10 +89,13 @@ export default function FoodEmotion() {
   const isStreaming = deviceState === "streaming";
   const liveEmotions = latestFrame?.analysis?.emotions;
 
+  // Only call ML API when streaming with real signals — never simulate
   const { data, isLoading } = useQuery<FoodEmotionResult>({
     queryKey: ["food-emotion"],
     queryFn: () => predictFoodEmotion(),
-    refetchInterval: 3000,
+    // Only fetch when NOT streaming (to get calibration status); no simulation fallback
+    enabled: !isStreaming,
+    refetchInterval: false,
     retry: 1,
   });
 
@@ -103,24 +106,21 @@ export default function FoodEmotion() {
   });
 
   // --- Determine displayed state + probabilities ----------------------------
-  // When EEG is streaming, derive food states from live EEG indices.
-  // When no device, fall back to ML API simulation result.
+  // Only show real EEG-derived food states when the device is streaming.
+  // Never show simulated/hardcoded values.
   const liveProbs: Record<string, number> | null =
     isStreaming && liveEmotions
       ? deriveFoodStates(liveEmotions)
       : null;
 
-  const stateProbabilities: Record<string, number> =
-    liveProbs ?? data?.state_probabilities ?? {};
+  // Only use real EEG data — no simulation fallback
+  const stateProbabilities: Record<string, number> = liveProbs ?? {};
 
-  const state      = liveProbs ? topState(liveProbs) : (data?.food_state ?? "balanced");
+  const state      = liveProbs ? topState(liveProbs) : "balanced";
   const stateLabel = STATE_LABELS[state] ?? state;
   const stateColor = STATE_COLORS[state] ?? "#10b981";
 
-  // Confidence: from live EEG use top-state probability; from ML API use as-is
-  const confidence = liveProbs
-    ? (stateProbabilities[state] ?? 0)
-    : (data?.confidence ?? 0);
+  const confidence = liveProbs ? (stateProbabilities[state] ?? 0) : 0;
 
   // --- Chart data -----------------------------------------------------------
   const chartData = Object.entries(stateProbabilities)
@@ -133,7 +133,8 @@ export default function FoodEmotion() {
       color: STATE_COLORS[key] ?? "#888",
     }));
 
-  const hasChartData = chartData.some(d => d.value > 0);
+  const hasChartData = isStreaming && liveEmotions && chartData.some(d => d.value > 0);
+  void isLoading;
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
@@ -172,33 +173,36 @@ export default function FoodEmotion() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center gap-3">
-              <Badge
-                style={{
-                  backgroundColor: `${stateColor}20`,
-                  color: stateColor,
-                  borderColor: `${stateColor}40`,
-                }}
-                variant="outline"
-                className="text-base px-3 py-1 font-semibold"
-              >
-                {stateLabel}
-              </Badge>
-              {isLoading && !isStreaming && (
-                <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-              )}
-            </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Confidence</span>
-                <span className="font-mono">
-                  {isStreaming && !liveEmotions
-                    ? "--"
-                    : `${(confidence * 100).toFixed(1)}%`}
-                </span>
+            {!isStreaming ? (
+              <p className="text-sm text-muted-foreground">
+                Connect your Muse headset to see your real-time food state.
+              </p>
+            ) : (
+              <>
+              <div className="flex items-center gap-3">
+                <Badge
+                  style={{
+                    backgroundColor: `${stateColor}20`,
+                    color: stateColor,
+                    borderColor: `${stateColor}40`,
+                  }}
+                  variant="outline"
+                  className="text-base px-3 py-1 font-semibold"
+                >
+                  {liveEmotions ? stateLabel : "Waiting for EEG…"}
+                </Badge>
               </div>
-              <Progress value={confidence * 100} className="h-2" />
-            </div>
+              {liveEmotions && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Confidence</span>
+                  <span className="font-mono">{(confidence * 100).toFixed(1)}%</span>
+                </div>
+                <Progress value={confidence * 100} className="h-2" />
+              </div>
+              )}
+              </>
+            )}
 
             {/* Live EEG indices */}
             {isStreaming && liveEmotions && (
@@ -218,11 +222,6 @@ export default function FoodEmotion() {
               </div>
             )}
 
-            {isStreaming && !liveEmotions && (
-              <p className="text-xs text-muted-foreground">
-                Waiting for EEG data…
-              </p>
-            )}
           </CardContent>
         </Card>
 
@@ -286,8 +285,8 @@ export default function FoodEmotion() {
           {!hasChartData ? (
             <p className="text-xs text-muted-foreground py-6 text-center">
               {isStreaming
-                ? "Connect your Muse and wait for EEG data to populate the chart."
-                : "Log food sessions to see your craving patterns."}
+                ? "Waiting for EEG data — keep your Muse on for a few seconds."
+                : "Connect your Muse headset to see real-time EEG-based food state analysis."}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>

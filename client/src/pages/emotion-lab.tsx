@@ -283,6 +283,9 @@ export default function EmotionLab() {
               <Bar label="Focus"       value={focus}       color="hsl(152,60%,48%)" />
               <Bar label="Relaxation"  value={relaxation}  color="hsl(217,91%,60%)" />
             </div>
+            <p className="text-[10px] text-muted-foreground/40">
+              Emotion indices computed from 30s EEG window · updates every 30s
+            </p>
 
             {/* Creativity Score */}
             {analysis?.creativity?.creativity_score !== undefined && (

@@ -142,9 +142,12 @@ export default function FoodLog() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<FoodAnalysis | null>(null);
 
-  // Clear result display when switching meal tabs
+  // When a specific filter tab is selected, also switch the log form to that meal type
   useEffect(() => {
     setAnalysis(null);
+    if (filterType !== "all") {
+      setMealType(filterType);
+    }
   }, [filterType]);
 
   // Photo mode state
