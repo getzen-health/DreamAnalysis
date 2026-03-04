@@ -151,6 +151,11 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
             audio = audio.mean(axis=1)
         from models.voice_emotion_model import get_voice_model
         result = get_voice_model().predict(audio, sample_rate=int(sr))
+        # Validate result has all required keys
+        _required = {"emotion", "probabilities", "valence", "arousal", "confidence", "model_type"}
+        if result is not None and not _required.issubset(result.keys()):
+            log.warning("VoiceEmotionModel returned incomplete result: %s", list(result.keys()))
+            result = None
     except Exception as exc:
         log.warning("VoiceEmotionModel path failed: %s", exc)
 
