@@ -284,6 +284,14 @@ export default function AuthPage() {
                       </>
                     )}
                   </Button>
+                  <div className="text-center">
+                    <a
+                      href="/forgot-password"
+                      className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      Forgot password?
+                    </a>
+                  </div>
                 </form>
               </TabsContent>
 

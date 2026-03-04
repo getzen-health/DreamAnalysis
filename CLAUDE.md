@@ -7,12 +7,47 @@ Built as a full-stack system: React frontend, Express.js middleware, FastAPI ML 
 ## Quick Start
 
 ```bash
-# Frontend + Express middleware (port 5000)
+# Frontend + Express middleware (port 4000 — Datadog occupies 5000 on macOS)
 npm install && npm run dev
 
-# ML backend (port 8000)
-cd ml && pip install -r requirements.txt && uvicorn main:app --reload --port 8000
+# ML backend — use start.sh, NOT uvicorn directly
+cd ml && ./start.sh
+# start.sh: activates venv, installs deps, starts uvicorn on port 8080,
+# starts ngrok tunnel, and updates Vercel VITE_ML_API_URL + deploys.
+# Run this first before opening the app. Every restart regenerates the ngrok URL.
 ```
+
+## Permanent Rules (Learned from Production Bugs)
+
+### Device List Must Never Be Empty
+- `refreshDevices()` in `use-device.tsx` MUST always show a device list.
+- If the ML backend returns `devices: []` OR is unreachable, fall back to STATIC_DEVICES (Muse 2, Muse S, Synthetic).
+- The "No devices found" state should never be reachable in production.
+- **File**: `client/src/hooks/use-device.tsx` → `refreshDevices()`
+
+### Port Rules (macOS)
+- Express/Vite dev server: **port 4000** (Datadog occupies 5000, Grafana occupies 3000)
+- ML backend (uvicorn): **port 8080** (start.sh manages this)
+- Never set PORT=5000 or PORT=3000 in `.env`
+
+### ML Backend URL Chain
+- Local dev: `http://localhost:8080` (from `.env` VITE_ML_API_URL)
+- Vercel production: ngrok URL baked at build time via Vercel env var `VITE_ML_API_URL`
+- Render remote: `https://neural-dream-ml.onrender.com` (always-on fallback)
+- `localStorage("ml_backend_url")` overrides all — check Settings page if devices break
+- When ngrok URL changes (start.sh restart), must redeploy Vercel: `vercel --prod` OR run `start.sh` (auto-deploys)
+
+### WebSocket Must Never Go Through ngrok
+- ngrok intercepts WebSocket upgrades with an interstitial page → `ws.onerror` fires immediately
+- Fix: `getMLApiUrl()` in `ml-api.ts` returns `http://localhost:8080` unconditionally when `window.location.hostname === "localhost"`
+- This ensures both HTTP + WebSocket use the direct local path, never the ngrok tunnel
+- **If WebSocket error appears**: tell user to open Settings → set ML Backend URL to `http://localhost:8080`
+- `ws.onerror` message must state the cause (ngrok vs backend down), not a generic "connection error"
+
+### Vercel Hobby Plan Limits
+- Crons must be `@daily` or `0 0 * * *` — `*/14 * * * *` is Pro-only and will block ALL deploys
+- Remove any sub-daily cron from `vercel.json` before deploying
+- Use external cron (cron-job.org / UptimeRobot) to ping `/api/ping-ml` every 14 minutes instead
 
 ## Architecture
 

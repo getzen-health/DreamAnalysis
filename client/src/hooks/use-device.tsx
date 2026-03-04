@@ -251,7 +251,13 @@ function useDeviceInternal(): UseDeviceReturn {
     };
 
     ws.onerror = () => {
-      setError("WebSocket connection error");
+      const url = getWebSocketUrl();
+      const isNgrok = url.includes("ngrok");
+      setError(
+        isNgrok
+          ? "WebSocket blocked by ngrok. Open Settings and set ML Backend URL to http://localhost:8080, then reconnect."
+          : "WebSocket connection error — is the ML backend running? Try: cd ~/NeuralDreamWorkshop/ml && ./start.sh"
+      );
     };
 
     ws.onclose = () => {
@@ -267,23 +273,29 @@ function useDeviceInternal(): UseDeviceReturn {
     };
   }, []);
 
+  // Minimum static device list — always shown when backend returns empty or is unreachable
+  const STATIC_DEVICES: DeviceInfo[] = [
+    { type: "muse_2",    name: "Muse 2",           channels: 4,  sample_rate: 256, available: true },
+    { type: "muse_s",    name: "Muse S",            channels: 4,  sample_rate: 256, available: true },
+    { type: "synthetic", name: "Synthetic (demo)",  channels: 16, sample_rate: 256, available: true },
+  ];
+
   const refreshDevices = useCallback(async () => {
     try {
       const result = await listDevices();
-      setDevices(result.devices);
+      // Never leave the list empty — merge backend list with static fallbacks
+      const backendDevices = result.devices ?? [];
+      const merged = backendDevices.length > 0
+        ? backendDevices
+        : STATIC_DEVICES;
+      setDevices(merged);
       setBrainflowAvailable(result.brainflow_available);
       setError(null);
     } catch {
-      // Backend unreachable — show static Muse device list so the user can
-      // still attempt a connection (will fail fast with a clear error if truly
-      // unreachable, but works once the ngrok URL is set in Settings).
+      // Backend unreachable — always show static list so user can still connect
       setError("unreachable");
       setBrainflowAvailable(false);
-      setDevices([
-        { type: "muse_2",      name: "Muse 2",             channels: 4,  sample_rate: 256, available: true },
-        { type: "muse_s",      name: "Muse S",             channels: 4,  sample_rate: 256, available: true },
-        { type: "synthetic",   name: "Synthetic (demo)",   channels: 16, sample_rate: 256, available: true },
-      ]);
+      setDevices(STATIC_DEVICES);
     } finally {
       setDevicesLoaded(true);
     }
