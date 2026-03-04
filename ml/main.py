@@ -23,8 +23,12 @@ warnings.filterwarnings(
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import router
-from api.websocket import eeg_stream_endpoint
+
+# NOTE: api.routes and api.websocket are intentionally NOT imported here.
+# They trigger synchronous loading of all 16 ML models (~60-90 s), which
+# would block uvicorn from accepting any connections until loading finishes.
+# Instead they are imported inside _load_models_and_routes() below, which
+# runs in a thread pool after uvicorn has already started serving.
 
 # ─── Logging ────────────────────────────────────────────────────────
 log_level = os.environ.get("ML_LOG_LEVEL", "INFO").upper()
@@ -60,15 +64,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix="/api")
-
-# WebSocket for real-time EEG streaming
-app.websocket("/ws/eeg-stream")(eeg_stream_endpoint)
-
-
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "neural-dream-ml"}
+
+
+# ─── Deferred model loading ─────────────────────────────────────────
+async def _load_models_and_routes():
+    """Import api.routes in a thread (loads 16 ML models, ~60-90 s).
+    Routes are registered on the event loop after loading completes.
+    This lets uvicorn serve /health immediately on startup."""
+    def _do_blocking_import():
+        from api.routes import router as _r
+        from api.websocket import eeg_stream_endpoint as _ep
+        return _r, _ep
+
+    try:
+        logger.info("[startup] Loading ML models in background thread...")
+        router, eeg_stream_endpoint = await asyncio.to_thread(_do_blocking_import)
+        # Back on the event loop — safe to mutate app routing tables
+        app.include_router(router, prefix="/api")
+        app.websocket("/ws/eeg-stream")(eeg_stream_endpoint)
+        logger.info("[startup] ML models loaded, all routes registered.")
+    except Exception as exc:
+        logger.error(f"[startup] ML model loading failed: {exc}", exc_info=True)
 
 
 # ─── Twice-daily personal model retraining ──────────────────────────
@@ -100,6 +119,7 @@ async def _auto_train_loop():
 
 @app.on_event("startup")
 async def _start_background_tasks():
+    asyncio.create_task(_load_models_and_routes())
     asyncio.create_task(_auto_train_loop())
 
 
