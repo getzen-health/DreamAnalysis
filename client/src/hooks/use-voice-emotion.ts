@@ -6,7 +6,7 @@
  *
  * Never throws — errors are surfaced via the `error` return value.
  */
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { getMLApiUrl } from "@/lib/ml-api";
 
 export interface VoiceEmotionResult {
@@ -59,6 +59,19 @@ export function useVoiceEmotion(
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup on unmount — cancel pending timer, stop any active recording
+  useEffect(() => {
+    return () => {
+      if (stopTimerRef.current !== null) {
+        clearTimeout(stopTimerRef.current);
+        stopTimerRef.current = null;
+      }
+      if (recorderRef.current && recorderRef.current.state === "recording") {
+        recorderRef.current.stop();
+      }
+    };
+  }, []);
 
   const startRecording = useCallback(async (): Promise<void> => {
     if (isRecording || isAnalyzing) return;
