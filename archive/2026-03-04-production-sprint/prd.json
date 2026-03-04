@@ -1,0 +1,248 @@
+{
+  "project": "NeuralDreamWorkshop",
+  "branchName": "ralph/ndw-production-sprint",
+  "description": "Production sprint: forgot password, research session 20/20 fix, WebSocket stability, remove hardcoded values, food tab context, food emotion graph, iOS deployment.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add password_reset_tokens table to Drizzle schema",
+      "description": "As a developer, I need a password_reset_tokens table so users can securely reset their password via a time-limited email token.",
+      "acceptanceCriteria": [
+        "Add passwordResetTokens table to shared/schema.ts with columns: id (serial pk), userId (integer, references users), token (text, unique), expiresAt (timestamp), usedAt (timestamp nullable), createdAt (timestamp default now)",
+        "Run drizzle-kit push or generate migration file successfully",
+        "Table is exported from shared/schema.ts",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add Resend email dependency and forgot-password API endpoint",
+      "description": "As a user, I want to receive a password reset email so I can recover my account when I forget my password.",
+      "acceptanceCriteria": [
+        "resend package added to package.json dependencies",
+        "RESEND_API_KEY added to .env.example (not hardcoded)",
+        "POST /api/auth/forgot-password endpoint added to server/routes.ts",
+        "Endpoint accepts { email } body, looks up user by email, generates crypto.randomBytes(32).toString('hex') token",
+        "Token stored in passwordResetTokens table with expiresAt = now + 1 hour",
+        "Email sent via Resend with reset link: https://dream-analysis.vercel.app/reset-password?token=TOKEN",
+        "Endpoint always returns 200 with { message: 'If that email exists, a reset link was sent' } (no user enumeration)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Requires RESEND_API_KEY env var. Set in Vercel dashboard and local .env."
+    },
+    {
+      "id": "US-003",
+      "title": "Add reset-password API endpoint",
+      "description": "As a user, I want to set a new password using the token from my email so I can regain access to my account.",
+      "acceptanceCriteria": [
+        "POST /api/auth/reset-password endpoint added to server/routes.ts",
+        "Endpoint accepts { token, newPassword } body",
+        "Looks up token in passwordResetTokens where token matches AND expiresAt > now AND usedAt IS NULL",
+        "If not found or expired: returns 400 with { message: 'Invalid or expired reset token' }",
+        "If valid: hashes newPassword with bcrypt, updates users table, marks token usedAt = now",
+        "Returns 200 with { message: 'Password updated successfully' }",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add forgot-password and reset-password pages to frontend",
+      "description": "As a user, I want a 'Forgot password?' link on the login page and a flow to enter my email and then set a new password.",
+      "acceptanceCriteria": [
+        "'Forgot password?' link added below the login form in client/src/pages/auth.tsx",
+        "Link navigates to /forgot-password route",
+        "client/src/pages/forgot-password.tsx created: email input form, submits to POST /api/auth/forgot-password, shows success message after submit",
+        "client/src/pages/reset-password.tsx created: reads ?token= from URL, shows new password + confirm password inputs, submits to POST /api/auth/reset-password, redirects to /auth on success with toast",
+        "Both routes added to App.tsx (no auth required)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Flatten research stress session to 20 minutes with conditional breathing",
+      "description": "As a researcher, I want the stress session to be exactly 20 minutes with breathing only shown when the user self-reports stress, so participants aren't forced through unnecessary exercises.",
+      "acceptanceCriteria": [
+        "In client/src/pages/StudySessionStress.tsx (or equivalent), total session duration set to 20 minutes",
+        "Remove mandatory baseline (5 min) and recovery (5 min) phases \u2014 keep task phase only, padded to 20 min",
+        "Mid-session check-in asks: 'Are you feeling stressed right now?' (yes/no)",
+        "If yes \u2192 show breathing exercise component (box breathing, 3 min) then continue",
+        "If no \u2192 skip breathing exercise entirely, continue session",
+        "Timer counts down from 20:00",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Flatten research food session to 20 minutes with conditional breathing",
+      "description": "As a researcher, I want the food session to be exactly 20 minutes with the same conditional breathing logic as the stress session.",
+      "acceptanceCriteria": [
+        "In client/src/pages/StudySessionFood.tsx (or equivalent), total session duration set to 20 minutes",
+        "Remove mandatory baseline and recovery phases",
+        "Mid-session check-in: 'Are you feeling stressed right now?' \u2014 same conditional breathing logic as US-005",
+        "Timer counts down from 20:00",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Implement after US-005 to reuse the same pattern."
+    },
+    {
+      "id": "US-007",
+      "title": "Fix WebSocket reconnect \u2014 unlimited retries with keepalive ping",
+      "description": "As a user with a Muse headset, I want the app to keep trying to reconnect to the WebSocket indefinitely so I don't lose my session when the connection briefly drops.",
+      "acceptanceCriteria": [
+        "In client/src/hooks/use-device.tsx, MAX_RECONNECT_ATTEMPTS removed or set to Infinity \u2014 reconnect loop never gives up while isStreamingRef.current === true",
+        "Add 30-second WebSocket ping: send JSON {type:'ping'} every 30s when WS is open to prevent idle timeout",
+        "Clear ping interval on ws.onclose and ws.onerror",
+        "Add reconnectCount state exposed from hook (for UI display)",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add 'Reconnecting...' banner to EEG streaming pages",
+      "description": "As a user, I want to see a visible reconnecting indicator when the WebSocket drops so I know the app is trying to recover and I don't need to manually refresh.",
+      "acceptanceCriteria": [
+        "reconnectCount exposed from useDevice hook",
+        "When state === 'streaming' AND reconnectCount > 0: amber banner shown at top of brain-monitor.tsx, emotion-lab.tsx, and device-setup.tsx with text 'Reconnecting to EEG stream\u2026 (attempt N)'",
+        "Banner disappears when reconnectCount resets to 0 (connection restored)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Remove hardcoded metric baselines from dashboard \u2014 show 0 or '--' when no EEG",
+      "description": "As a user, I want dashboard metrics to show 0 or '--' when no EEG data is available, not fake simulation values like 28 or 0.25, so I can trust what I'm seeing.",
+      "acceptanceCriteria": [
+        "In client/src/pages/dashboard.tsx, remove all simulation baseline values (e.g. 0.25 stress, 0.4 focus)",
+        "When latestFrame is null: all EEG-derived metrics display '--' or 0",
+        "No metric ever shows a non-zero number unless it came from a real EEG frame",
+        "Food emotion percentages (e.g. hardcoded 17%) replaced with '--' when no live data",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Fix food log tab context \u2014 change description per meal type",
+      "description": "As a user logging food, I want the description prompt to change when I switch between Breakfast, Lunch, Dinner, and Snack tabs so the context feels relevant.",
+      "acceptanceCriteria": [
+        "In client/src/pages/food-log.tsx (or food-emotion.tsx), identify the tab component (Breakfast / Lunch / Dinner / Snack)",
+        "Each tab has its own unique description/prompt text: Breakfast='What did you have for breakfast?', Lunch='What did you eat for lunch?', Dinner='What did you have for dinner?', Snack='Any snacks today?'",
+        "Description text updates immediately when tab is changed \u2014 does not require save/submit",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Restore food emotion breakdown graph \u2014 what you wanted to eat",
+      "description": "As a user, I want to see a breakdown chart of food cravings/appetite states (like how much I wanted to eat and what kind) so I can track patterns over time.",
+      "acceptanceCriteria": [
+        "In client/src/pages/food-emotion.tsx, add a bar or radar chart below the current food state display",
+        "Chart shows the 6 food state distribution from the last 7 days of food emotion logs (from DB query)",
+        "Chart uses Recharts BarChart or RadarChart (already in dependencies)",
+        "Chart title: 'Food Craving Pattern \u2014 Last 7 Days'",
+        "If no data: shows empty state 'Log food sessions to see your craving patterns'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Wire food emotion percentages to live EEG data from latest frame",
+      "description": "As a user, I want food emotion percentages to reflect what the EEG is actually detecting in real time, not a static value like 17% that never changes.",
+      "acceptanceCriteria": [
+        "In client/src/pages/food-emotion.tsx, import useDevice hook and read latestFrame",
+        "Food state percentages derived from latestFrame.analysis.emotions.probabilities (or equivalent field)",
+        "When latestFrame is null: show '--' for all percentages",
+        "When latestFrame is present: map happy/sad/focus/stress emotion probabilities to food states (craving_carbs = high stress, balanced = high relaxation, etc.) using the existing food state enum",
+        "No hardcoded 17% or any other fixed percentage",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Food state mapping: stress_eating = stress_index > 0.6, mindful_eating = relaxation_index > 0.6, comfort_seeking = valence < -0.2, balanced = all indices in 0.3-0.6 range."
+    },
+    {
+      "id": "US-013",
+      "title": "Verify Capacitor iOS build configuration and run cap sync",
+      "description": "As a developer, I need to confirm the iOS build is configured correctly (bundle ID, signing, entitlements) so the app can be archived for TestFlight.",
+      "acceptanceCriteria": [
+        "Run npm run build \u2014 exits 0",
+        "Run npx cap sync ios \u2014 exits 0 with no errors",
+        "capacitor.config.ts appId is com.neuraldreamworkshop.app",
+        "ios/App/App.xcodeproj exists and opens correctly",
+        "Info.plist contains NSBluetoothAlwaysUsageDescription and NSBluetoothPeripheralUsageDescription for Muse BLE",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "This story is code/config only. The actual Xcode archive + TestFlight upload must be done manually by Sravya in Xcode (Product > Archive > Distribute App > TestFlight)."
+    },
+    {
+      "id": "US-014",
+      "title": "Add iOS build instructions to README and update STATUS.md",
+      "description": "As a developer, I want clear iOS build steps documented so the process is repeatable without needing to figure it out each time.",
+      "acceptanceCriteria": [
+        "README.md iOS section added: npm run build \u2192 npx cap sync ios \u2192 open Xcode \u2192 Product > Archive \u2192 Distribute App \u2192 App Store Connect \u2192 TestFlight",
+        "STATUS.md updated: iOS section marked as 'Build verified, TestFlight pending' with today's date",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "Sravya must manually complete the Xcode archive step. This story just ensures the build pipeline works and is documented."
+    },
+    {
+      "id": "US-015",
+      "title": "Migrate ML backend from Render (sleeps) to Railway (always-on WebSocket)",
+      "description": "As a user, I want the ML backend to stay awake 24/7 so WebSocket connections never drop due to cold starts and the Muse headset connects instantly every time.",
+      "acceptanceCriteria": [
+        "ml/railway.json verified: builder is DOCKERFILE, dockerfilePath is ml/Dockerfile, healthcheckPath is /health, startCommand is 'uvicorn main:app --host 0.0.0.0 --port $PORT'",
+        "ml/Dockerfile exists and builds successfully locally: docker build -f ml/Dockerfile . exits 0",
+        "CORS_ORIGINS in ml/main.py default string includes https://dream-analysis.vercel.app and https://dream-analysis-*.vercel.app",
+        "Document Railway deployment steps in CLAUDE.md under 'ML Backend URL Chain': install Railway CLI \u2192 railway login \u2192 railway link \u2192 railway up",
+        "Update VITE_ML_API_URL in Vercel env vars to Railway service URL after deployment",
+        "Update start.sh comment: note Railway as the production backend, ngrok only for local dev",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "Railway free tier: $5/mo credit. Sravya must: 1) Create account at railway.app, 2) Run 'railway login && railway link' in terminal, 3) Run 'railway up' from repo root. The railway.json already exists \u2014 deployment is one command. After deploy, copy the Railway service URL and update VITE_ML_API_URL in Vercel dashboard + run 'vercel --prod'."
+    }
+  ]
+}

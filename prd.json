@@ -1,248 +1,166 @@
 {
   "project": "NeuralDreamWorkshop",
-  "branchName": "ralph/ndw-production-sprint",
-  "description": "Production sprint: forgot password, research session 20/20 fix, WebSocket stability, remove hardcoded values, food tab context, food emotion graph, iOS deployment.",
+  "branchName": "ralph/voice-emotion-fallback",
+  "description": "Voice emotion detection as primary fallback when no EEG device is connected. Upgrades audio model to emotion2vec+ (9-class, 80%+ accuracy), wires voice as automatic no-EEG fallback across Dashboard and Emotion Lab, integrates MultimodalEmotionFusion, and surfaces voice-derived emotions in the intervention engine.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Add password_reset_tokens table to Drizzle schema",
-      "description": "As a developer, I need a password_reset_tokens table so users can securely reset their password via a time-limited email token.",
+      "title": "Add emotion2vec+ to ML backend requirements",
+      "description": "As a developer, I need funasr + emotion2vec_plus_base installed in the ML backend so voice emotion uses a 9-class SOTA model instead of 3-class LightGBM.",
       "acceptanceCriteria": [
-        "Add passwordResetTokens table to shared/schema.ts with columns: id (serial pk), userId (integer, references users), token (text, unique), expiresAt (timestamp), usedAt (timestamp nullable), createdAt (timestamp default now)",
-        "Run drizzle-kit push or generate migration file successfully",
-        "Table is exported from shared/schema.ts",
+        "Add 'funasr>=1.1.0' and 'modelscope>=1.9.0' to ml/requirements.deploy.txt",
+        "Add 'funasr>=1.1.0' and 'modelscope>=1.9.0' to ml/requirements.txt",
+        "Add model cache directory ml/models/saved/voice/ with .gitkeep",
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "emotion2vec_plus_base from iic/emotion2vec_plus_base on ModelScope. Downloads on first use to ml/models/saved/voice/. funasr is the official inference library from Alibaba DAMO."
     },
     {
       "id": "US-002",
-      "title": "Add Resend email dependency and forgot-password API endpoint",
-      "description": "As a user, I want to receive a password reset email so I can recover my account when I forget my password.",
+      "title": "Create VoiceEmotionModel class wrapping emotion2vec+",
+      "description": "As a developer, I need a VoiceEmotionModel class that wraps emotion2vec+ and returns output in the same format as EEG EmotionClassifier so both can be fused.",
       "acceptanceCriteria": [
-        "resend package added to package.json dependencies",
-        "RESEND_API_KEY added to .env.example (not hardcoded)",
-        "POST /api/auth/forgot-password endpoint added to server/routes.ts",
-        "Endpoint accepts { email } body, looks up user by email, generates crypto.randomBytes(32).toString('hex') token",
-        "Token stored in passwordResetTokens table with expiresAt = now + 1 hour",
-        "Email sent via Resend with reset link: https://dream-analysis.vercel.app/reset-password?token=TOKEN",
-        "Endpoint always returns 200 with { message: 'If that email exists, a reset link was sent' } (no user enumeration)",
+        "Create ml/models/voice_emotion_model.py with VoiceEmotionModel class",
+        "load() method: loads iic/emotion2vec_plus_base via funasr AutoModel, saves to ml/models/saved/voice/",
+        "predict(audio_bytes: bytes, sample_rate: int) -> dict method",
+        "Output: {emotion, probabilities: {happy,sad,angry,fear,surprise,neutral}, valence, arousal, confidence, model_type: 'voice_emotion2vec'}",
+        "Map emotion2vec 9-class: disgusted->angry, other->neutral, unknown->neutral",
+        "valence = (happy+surprise)*0.5 - (sad+angry+fear)*0.5, clipped to [-1,1]",
+        "arousal = (angry+fear+surprise)*0.6 + happy*0.3, clipped to [0,1]",
+        "Falls back to existing audio_emotion_lgbm.pkl if funasr import fails",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Requires RESEND_API_KEY env var. Set in Vercel dashboard and local .env."
+      "passes": false,
+      "notes": "Fallback to MFCC LightGBM is critical for Railway deploy where model download may fail. Reuse feature extraction from ml/models/audio_emotion_model.py."
     },
     {
       "id": "US-003",
-      "title": "Add reset-password API endpoint",
-      "description": "As a user, I want to set a new password using the token from my email so I can regain access to my account.",
+      "title": "Upgrade POST /voice-watch/analyze and add cache endpoints",
+      "description": "As a user, I want voice emotion to return 6-class output with valence/arousal matching EEG format, and a cache so EEG fusion can incorporate recent voice readings.",
       "acceptanceCriteria": [
-        "POST /api/auth/reset-password endpoint added to server/routes.ts",
-        "Endpoint accepts { token, newPassword } body",
-        "Looks up token in passwordResetTokens where token matches AND expiresAt > now AND usedAt IS NULL",
-        "If not found or expired: returns 400 with { message: 'Invalid or expired reset token' }",
-        "If valid: hashes newPassword with bcrypt, updates users table, marks token usedAt = now",
-        "Returns 200 with { message: 'Password updated successfully' }",
+        "In ml/api/routes/voice_watch.py, replace audio_emotion_lgbm with VoiceEmotionModel instance",
+        "POST /voice-watch/analyze returns: {emotion, probabilities: 6-class, valence, arousal, confidence, model_type, fusion: {voice_weight, watch_weight}}",
+        "Watch biometric fusion unchanged: 60% voice + 40% watch heuristics when watch data present",
+        "Add POST /voice-watch/cache: body {user_id, emotion_result} stores result in memory dict with 5-min TTL",
+        "Add GET /voice-watch/latest/{user_id}: returns last cached result or null",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "In-memory dict cache keyed by user_id. TTL enforced by checking stored timestamp."
     },
     {
       "id": "US-004",
-      "title": "Add forgot-password and reset-password pages to frontend",
-      "description": "As a user, I want a 'Forgot password?' link on the login page and a flow to enter my email and then set a new password.",
+      "title": "Create useVoiceEmotion shared hook",
+      "description": "As a developer, I need a shared hook for voice recording so Dashboard and Emotion Lab don't duplicate MediaRecorder logic.",
       "acceptanceCriteria": [
-        "'Forgot password?' link added below the login form in client/src/pages/auth.tsx",
-        "Link navigates to /forgot-password route",
-        "client/src/pages/forgot-password.tsx created: email input form, submits to POST /api/auth/forgot-password, shows success message after submit",
-        "client/src/pages/reset-password.tsx created: reads ?token= from URL, shows new password + confirm password inputs, submits to POST /api/auth/reset-password, redirects to /auth on success with toast",
-        "Both routes added to App.tsx (no auth required)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Create client/src/hooks/use-voice-emotion.ts",
+        "Exports: { isRecording, emotion, probabilities, valence, arousal, confidence, error, startRecording, lastUpdated }",
+        "startRecording(): records 7 seconds via MediaRecorder, calls POST /voice-watch/analyze, updates state",
+        "Encodes audio as base64, sends with latest biometrics from useHealthSync hook",
+        "After successful result, POSTs to POST /voice-watch/cache with user_id='default'",
+        "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Refactor recording logic from client/src/components/voice-watch-analyzer.tsx into this hook. VoiceWatchAnalyzer should then use this hook internally."
     },
     {
       "id": "US-005",
-      "title": "Flatten research stress session to 20 minutes with conditional breathing",
-      "description": "As a researcher, I want the stress session to be exactly 20 minutes with breathing only shown when the user self-reports stress, so participants aren't forced through unnecessary exercises.",
+      "title": "Wire VoiceWatchAnalyzer into Emotion Lab as no-EEG fallback",
+      "description": "As a user, when no EEG headset is connected, I want a voice emotion panel to appear automatically in Emotion Lab so I can still get emotion readings.",
       "acceptanceCriteria": [
-        "In client/src/pages/StudySessionStress.tsx (or equivalent), total session duration set to 20 minutes",
-        "Remove mandatory baseline (5 min) and recovery (5 min) phases \u2014 keep task phase only, padded to 20 min",
-        "Mid-session check-in asks: 'Are you feeling stressed right now?' (yes/no)",
-        "If yes \u2192 show breathing exercise component (box breathing, 3 min) then continue",
-        "If no \u2192 skip breathing exercise entirely, continue session",
-        "Timer counts down from 20:00",
+        "In client/src/pages/emotion-lab.tsx, import VoiceWatchAnalyzer from '@/components/voice-watch-analyzer'",
+        "When deviceState !== 'streaming': render amber banner 'No EEG device — using voice analysis' + VoiceWatchAnalyzer below it",
+        "When deviceState === 'streaming': hide VoiceWatchAnalyzer entirely",
+        "VoiceWatchAnalyzer result updates the emotion display in the page via useVoiceEmotion hook",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Flatten research food session to 20 minutes with conditional breathing",
-      "description": "As a researcher, I want the food session to be exactly 20 minutes with the same conditional breathing logic as the stress session.",
+      "title": "Add voice emotion Detect button and card to Dashboard",
+      "description": "As a user, I want a Detect Emotion button on the Dashboard when no EEG is connected so I can get a voice-derived brain state reading.",
       "acceptanceCriteria": [
-        "In client/src/pages/StudySessionFood.tsx (or equivalent), total session duration set to 20 minutes",
-        "Remove mandatory baseline and recovery phases",
-        "Mid-session check-in: 'Are you feeling stressed right now?' \u2014 same conditional breathing logic as US-005",
-        "Timer counts down from 20:00",
+        "In client/src/pages/dashboard.tsx, import useVoiceEmotion hook",
+        "When !isStreaming: show 'Detect Emotion' button (uses Mic icon) that calls startRecording()",
+        "During recording: button shows spinner + 'Listening 7s...'",
+        "After result: show Voice Brain State card with emotion label, valence bar, arousal bar, amber 'Voice Analysis' badge",
+        "When isStreaming: hide entire voice section",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Implement after US-005 to reuse the same pattern."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Fix WebSocket reconnect \u2014 unlimited retries with keepalive ping",
-      "description": "As a user with a Muse headset, I want the app to keep trying to reconnect to the WebSocket indefinitely so I don't lose my session when the connection briefly drops.",
+      "title": "Wire MultimodalEmotionFusion into WebSocket /analyze-eeg path",
+      "description": "As a user, I want EEG emotion analysis to automatically incorporate Apple Health biometrics and voice readings so accuracy improves from 74% to 85%+.",
       "acceptanceCriteria": [
-        "In client/src/hooks/use-device.tsx, MAX_RECONNECT_ATTEMPTS removed or set to Infinity \u2014 reconnect loop never gives up while isStreamingRef.current === true",
-        "Add 30-second WebSocket ping: send JSON {type:'ping'} every 30s when WS is open to prevent idle timeout",
-        "Clear ping interval on ws.onclose and ws.onerror",
-        "Add reconnectCount state exposed from hook (for UI display)",
+        "In ml/api/routes.py WebSocket handler, after predict_emotion() call, call multimodal_fusion.fuse(eeg_result, bio) with latest cached biometrics",
+        "When biometric_confidence > 0.5: override stress_index, valence, arousal, emotion in frame with fused values",
+        "Frame includes 'fusion_active': true and 'signal_count': N when fusion applied",
+        "If voice cache has result < 5min old for user: include it as additional signal in fusion",
+        "Frame includes 'voice_emotion': {emotion, confidence} key when voice was fused",
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "MultimodalEmotionFusion.fuse() already exists in ml/models/multimodal_emotion_fusion.py — just call it after EEG prediction and merge results into WebSocket frame."
     },
     {
       "id": "US-008",
-      "title": "Add 'Reconnecting...' banner to EEG streaming pages",
-      "description": "As a user, I want to see a visible reconnecting indicator when the WebSocket drops so I know the app is trying to recover and I don't need to manually refresh.",
+      "title": "Add voice emotion trigger to intervention engine",
+      "description": "As a user, I want breathing and music interventions to fire based on voice emotion when no EEG is available.",
       "acceptanceCriteria": [
-        "reconnectCount exposed from useDevice hook",
-        "When state === 'streaming' AND reconnectCount > 0: amber banner shown at top of brain-monitor.tsx, emotion-lab.tsx, and device-setup.tsx with text 'Reconnecting to EEG stream\u2026 (attempt N)'",
-        "Banner disappears when reconnectCount resets to 0 (connection restored)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "In ml/api/routes/interventions.py, POST /interventions/check accepts optional voice_emotion: {emotion, stress_index, valence} in body",
+        "When voice_emotion.stress_index > 0.6 OR emotion in ['angry','fear']: trigger breathing intervention (same 10-min cooldown)",
+        "When voice_emotion.emotion == 'sad' AND valence < -0.3: trigger music_calm intervention",
+        "In client/src/components/InterventionBanner.tsx (or equivalent), after voice analysis result: POST /interventions/check with voice_emotion payload",
+        "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Existing per-user cooldown (10 min) still applies. This adds voice as trigger source alongside EEG."
     },
     {
       "id": "US-009",
-      "title": "Remove hardcoded metric baselines from dashboard \u2014 show 0 or '--' when no EEG",
-      "description": "As a user, I want dashboard metrics to show 0 or '--' when no EEG data is available, not fake simulation values like 28 or 0.25, so I can trust what I'm seeing.",
+      "title": "Add Signal Source badge to Brain Monitor page",
+      "description": "As a user, I want a clear label showing whether my emotion reading came from EEG, voice, or Apple Health so I understand the confidence level.",
       "acceptanceCriteria": [
-        "In client/src/pages/dashboard.tsx, remove all simulation baseline values (e.g. 0.25 stress, 0.4 focus)",
-        "When latestFrame is null: all EEG-derived metrics display '--' or 0",
-        "No metric ever shows a non-zero number unless it came from a real EEG frame",
-        "Food emotion percentages (e.g. hardcoded 17%) replaced with '--' when no live data",
+        "In client/src/pages/brain-monitor.tsx, add Signal Source badge below current emotion display",
+        "Badge: 'EEG Live' green when streaming, 'Voice Analysis' amber when voice fallback, 'Health Estimate' blue when Apple Health only",
+        "When frame has fusion_active=true: badge shows 'EEG + Biometrics' purple",
+        "When frame has voice_emotion key: badge shows 'EEG + Voice' indigo",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Fix food log tab context \u2014 change description per meal type",
-      "description": "As a user logging food, I want the description prompt to change when I switch between Breakfast, Lunch, Dinner, and Snack tabs so the context feels relevant.",
+      "title": "Update STATUS.md and PRODUCT.md for voice emotion sprint",
+      "description": "As a developer, STATUS.md and PRODUCT.md should reflect the new voice emotion pipeline.",
       "acceptanceCriteria": [
-        "In client/src/pages/food-log.tsx (or food-emotion.tsx), identify the tab component (Breakfast / Lunch / Dinner / Snack)",
-        "Each tab has its own unique description/prompt text: Breakfast='What did you have for breakfast?', Lunch='What did you eat for lunch?', Dinner='What did you have for dinner?', Snack='Any snacks today?'",
-        "Description text updates immediately when tab is changed \u2014 does not require save/submit",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "STATUS.md: add Phase 6 Voice Emotion Fallback section with US-001 to US-009 all marked [x]",
+        "STATUS.md: ML Backend section notes emotion2vec+ (iic/emotion2vec_plus_base) as voice model",
+        "PRODUCT.md Honest Assessment: voice fallback ~70-80% (voice only), 85-90% (EEG + biometrics fused)",
+        "Typecheck passes"
       ],
       "priority": 10,
-      "passes": true,
+      "passes": false,
       "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "Restore food emotion breakdown graph \u2014 what you wanted to eat",
-      "description": "As a user, I want to see a breakdown chart of food cravings/appetite states (like how much I wanted to eat and what kind) so I can track patterns over time.",
-      "acceptanceCriteria": [
-        "In client/src/pages/food-emotion.tsx, add a bar or radar chart below the current food state display",
-        "Chart shows the 6 food state distribution from the last 7 days of food emotion logs (from DB query)",
-        "Chart uses Recharts BarChart or RadarChart (already in dependencies)",
-        "Chart title: 'Food Craving Pattern \u2014 Last 7 Days'",
-        "If no data: shows empty state 'Log food sessions to see your craving patterns'",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-012",
-      "title": "Wire food emotion percentages to live EEG data from latest frame",
-      "description": "As a user, I want food emotion percentages to reflect what the EEG is actually detecting in real time, not a static value like 17% that never changes.",
-      "acceptanceCriteria": [
-        "In client/src/pages/food-emotion.tsx, import useDevice hook and read latestFrame",
-        "Food state percentages derived from latestFrame.analysis.emotions.probabilities (or equivalent field)",
-        "When latestFrame is null: show '--' for all percentages",
-        "When latestFrame is present: map happy/sad/focus/stress emotion probabilities to food states (craving_carbs = high stress, balanced = high relaxation, etc.) using the existing food state enum",
-        "No hardcoded 17% or any other fixed percentage",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Food state mapping: stress_eating = stress_index > 0.6, mindful_eating = relaxation_index > 0.6, comfort_seeking = valence < -0.2, balanced = all indices in 0.3-0.6 range."
-    },
-    {
-      "id": "US-013",
-      "title": "Verify Capacitor iOS build configuration and run cap sync",
-      "description": "As a developer, I need to confirm the iOS build is configured correctly (bundle ID, signing, entitlements) so the app can be archived for TestFlight.",
-      "acceptanceCriteria": [
-        "Run npm run build \u2014 exits 0",
-        "Run npx cap sync ios \u2014 exits 0 with no errors",
-        "capacitor.config.ts appId is com.neuraldreamworkshop.app",
-        "ios/App/App.xcodeproj exists and opens correctly",
-        "Info.plist contains NSBluetoothAlwaysUsageDescription and NSBluetoothPeripheralUsageDescription for Muse BLE",
-        "Typecheck passes"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "This story is code/config only. The actual Xcode archive + TestFlight upload must be done manually by Sravya in Xcode (Product > Archive > Distribute App > TestFlight)."
-    },
-    {
-      "id": "US-014",
-      "title": "Add iOS build instructions to README and update STATUS.md",
-      "description": "As a developer, I want clear iOS build steps documented so the process is repeatable without needing to figure it out each time.",
-      "acceptanceCriteria": [
-        "README.md iOS section added: npm run build \u2192 npx cap sync ios \u2192 open Xcode \u2192 Product > Archive \u2192 Distribute App \u2192 App Store Connect \u2192 TestFlight",
-        "STATUS.md updated: iOS section marked as 'Build verified, TestFlight pending' with today's date",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Sravya must manually complete the Xcode archive step. This story just ensures the build pipeline works and is documented."
-    },
-    {
-      "id": "US-015",
-      "title": "Migrate ML backend from Render (sleeps) to Railway (always-on WebSocket)",
-      "description": "As a user, I want the ML backend to stay awake 24/7 so WebSocket connections never drop due to cold starts and the Muse headset connects instantly every time.",
-      "acceptanceCriteria": [
-        "ml/railway.json verified: builder is DOCKERFILE, dockerfilePath is ml/Dockerfile, healthcheckPath is /health, startCommand is 'uvicorn main:app --host 0.0.0.0 --port $PORT'",
-        "ml/Dockerfile exists and builds successfully locally: docker build -f ml/Dockerfile . exits 0",
-        "CORS_ORIGINS in ml/main.py default string includes https://dream-analysis.vercel.app and https://dream-analysis-*.vercel.app",
-        "Document Railway deployment steps in CLAUDE.md under 'ML Backend URL Chain': install Railway CLI \u2192 railway login \u2192 railway link \u2192 railway up",
-        "Update VITE_ML_API_URL in Vercel env vars to Railway service URL after deployment",
-        "Update start.sh comment: note Railway as the production backend, ngrok only for local dev",
-        "Typecheck passes"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Railway free tier: $5/mo credit. Sravya must: 1) Create account at railway.app, 2) Run 'railway login && railway link' in terminal, 3) Run 'railway up' from repo root. The railway.json already exists \u2014 deployment is one command. After deploy, copy the Railway service URL and update VITE_ML_API_URL in Vercel dashboard + run 'vercel --prod'."
     }
   ]
 }
