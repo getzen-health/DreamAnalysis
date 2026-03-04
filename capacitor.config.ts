@@ -6,11 +6,10 @@ const config: CapacitorConfig = {
   // Vite builds the React app to dist/public
   webDir: "dist/public",
   server: {
-    // In development, point to the local Express server so you can
-    // run `npm run dev` and `npx cap run ios` simultaneously.
-    // Comment this out for production builds.
-    // url: "http://localhost:5000",
-    // cleartext: true,
+    // Production: Vercel handles all /api routes; static assets served natively.
+    // For local device testing, uncomment and set to your machine's local IP:
+    //   url: "http://192.168.x.x:5173",
+    //   cleartext: true,
   },
   ios: {
     // Minimum iOS version — 14+ covers all iPhones since 2017
