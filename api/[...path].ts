@@ -1086,6 +1086,68 @@ async function userIntentPatch(req: VercelRequest, res: VercelResponse) {
   return success(res, { success: true, intent });
 }
 
+// ── Demo data seeder ─────────────────────────────────────────────────────────
+
+async function seedDemo(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res);
+  const db = getDb();
+  const payload = requireAuth(req, res);
+  if (!payload) return;
+  const userId = payload.userId;
+
+  const now = Date.now();
+  const day = 86_400_000;
+
+  // 7 days of health metrics (morning + evening readings)
+  const healthRows = [];
+  for (let d = 6; d >= 0; d--) {
+    const base = now - d * day;
+    healthRows.push(
+      { userId, heartRate: 62 + Math.round(Math.random() * 12), stressLevel: 3 + Math.round(Math.random() * 4), sleepQuality: 6 + Math.round(Math.random() * 3), neuralActivity: 55 + Math.round(Math.random() * 25), dailySteps: 5000 + Math.round(Math.random() * 5000), sleepDuration: 6 + Math.round(Math.random() * 2), timestamp: new Date(base - 8 * 3_600_000) },
+      { userId, heartRate: 70 + Math.round(Math.random() * 15), stressLevel: 4 + Math.round(Math.random() * 5), sleepQuality: 5 + Math.round(Math.random() * 4), neuralActivity: 60 + Math.round(Math.random() * 30), dailySteps: 5000 + Math.round(Math.random() * 5000), sleepDuration: 7, timestamp: new Date(base) },
+    );
+  }
+  await db.insert(schema.healthMetrics).values(healthRows).onConflictDoNothing();
+
+  // 5 dream entries
+  const dreamTexts = [
+    { text: "Flying over a glowing city at dusk, feeling weightless and free. The skyline pulsed with violet light.", analysis: "Flying dreams correlate with elevated theta activity — your brain entered a hypnagogic state. The violet light imagery suggests right-hemisphere alpha dominance.", symbols: ["flying","city","light"] },
+    { text: "Walking through a vast library where every book glowed from within. I could hear the thoughts inside.", analysis: "Library dreams indicate memory consolidation. Luminescent books represent knowledge your hippocampus is actively encoding during NREM sleep.", symbols: ["library","knowledge","light"] },
+    { text: "Deep in a forest, a stream ran backwards. A wolf watched from the edge but felt friendly.", analysis: "Water symbolizes emotional flow; reversed water suggests processing conflicting emotions. The wolf represents primal intelligence — your amygdala processing instinct.", symbols: ["forest","water","wolf"] },
+    { text: "Standing on a glass floor above clouds. Could see cities below. Felt completely calm.", analysis: "Height dreams with calm affect indicate strong prefrontal regulation. Glass floor represents clarity of conscious awareness during REM.", symbols: ["height","clouds","calm"] },
+    { text: "Playing piano music I had never heard but somehow knew. Every note felt inevitable.", analysis: "Creative dreams during REM show the default mode network integrating disparate memories. Procedural creativity peaks in late-cycle REM.", symbols: ["music","creativity","memory"] },
+  ];
+  const dreamRows = dreamTexts.map((d, i) => ({
+    userId, dreamText: d.text, symbols: d.symbols, aiAnalysis: d.analysis,
+    lucidityScore: 30 + i * 12,
+    sleepQuality: 6 + i,
+    timestamp: new Date(now - (6 - i) * day - 7 * 3_600_000),
+  }));
+  await db.insert(schema.dreamAnalysis).values(dreamRows).onConflictDoNothing();
+
+  // 5 emotion readings
+  const emotions = ['happy','neutral','happy','focused','relaxed'] as const;
+  const emotionRows = emotions.map((e, i) => ({
+    userId, dominantEmotion: e,
+    valence: 0.2 + i * 0.1, arousal: 0.4 + i * 0.05,
+    stressIndex: 0.2 + i * 0.05, focusIndex: 0.5 + i * 0.08,
+    relaxationIndex: 0.6 - i * 0.05,
+    emotionProbabilities: { happy: 0.5, neutral: 0.2, sad: 0.1, angry: 0.05, fear: 0.05, surprise: 0.1 },
+    bandPowers: { delta: 0.15, theta: 0.2, alpha: 0.3, beta: 0.25, gamma: 0.1 },
+    timestamp: new Date(now - (4 - i) * day),
+  }));
+  await db.insert(schema.emotionReadings).values(emotionRows).onConflictDoNothing();
+
+  return success(res, {
+    seeded: {
+      healthMetrics: healthRows.length,
+      dreams: dreamRows.length,
+      emotions: emotionRows.length,
+    },
+    message: 'Demo data loaded — refresh any page to see your data.',
+  });
+}
+
 // ── Main router ──────────────────────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -1189,6 +1251,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (s1 === 'intent' && req.method === 'GET')   return await userIntentGet(req, res);
       if (s1 === 'intent' && req.method === 'PATCH')  return await userIntentPatch(req, res);
     }
+
+    if (s0 === 'seed-demo') return await seedDemo(req, res);
 
     return error(res, 'Not found', 404);
   } catch (err: any) {

@@ -10,7 +10,14 @@
   "env": {
     "VITE_ML_API_URL": "https://neural-dream-ml.onrender.com"
   },
+  "crons": [
+    {
+      "path": "/api/ping-ml",
+      "schedule": "*/14 * * * *"
+    }
+  ],
   "rewrites": [
+    { "source": "/api/ping-ml", "destination": "/api/ping-ml" },
     { "source": "/api/:path*", "destination": "/api/[...path]" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],

@@ -69,6 +69,7 @@ export default function SettingsPage() {
   const [isConnectingApple, setIsConnectingApple] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [exportingHealthkit, setExportingHealthkit] = useState(false);
+  const [seedingDemo, setSeedingDemo] = useState(false);
 
   const appleFileRef = useRef<HTMLInputElement>(null);
   const googleFileRef = useRef<HTMLInputElement>(null);
@@ -227,6 +228,27 @@ export default function SettingsPage() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Dream export failed:", error);
+    }
+  };
+
+  const handleSeedDemo = async () => {
+    setSeedingDemo(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/seed-demo", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Demo data loaded", description: data.message });
+      } else {
+        toast({ title: "Error", description: data.error || "Failed to seed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Network error", variant: "destructive" });
+    } finally {
+      setSeedingDemo(false);
     }
   };
 
@@ -585,11 +607,21 @@ export default function SettingsPage() {
               />
             </div>
 
+            <Button
+              variant="outline"
+              className="w-full mt-6 border-primary/30 text-primary hover:bg-primary/10"
+              onClick={handleSeedDemo}
+              disabled={seedingDemo}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {seedingDemo ? "Loading demo data…" : "Load demo data"}
+            </Button>
+
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="destructive"
-                  className="w-full mt-6 bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20"
+                  className="w-full mt-2 bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20"
                   data-testid="button-clear-data"
                 >
                   <AlertTriangle className="mr-2 h-4 w-4" />
@@ -691,6 +723,15 @@ function MLBackendCard() {
     }
   }
 
+  const RENDER_DEFAULT = import.meta.env.VITE_ML_API_URL || "https://neural-dream-ml.onrender.com";
+
+  function resetToDefault() {
+    try { localStorage.removeItem("ml_backend_url"); } catch { /* ok */ }
+    setUrl("");
+    setTestResult(null);
+    toast({ title: "Reset", description: "Using the deployed Render ML backend." });
+  }
+
   return (
     <Card className="glass-card p-6 rounded-xl">
       <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
@@ -698,34 +739,20 @@ function MLBackendCard() {
         ML Backend
       </h3>
       <p className="text-sm text-muted-foreground mb-4">
-        The ML backend runs locally on your machine to read EEG from your Muse headset.
-        When using the hosted app (Vercel), you need to expose your local backend via{" "}
-        <strong>ngrok</strong> so the browser can reach it.
+        By default the app uses the deployed ML backend on Render. Leave the field below
+        blank to use it. For local development you can override with your own server
+        (expose via <strong>ngrok</strong> if needed).
       </p>
 
-      {/* ngrok instructions */}
-      <div className="mb-4 p-4 rounded-xl bg-muted/40 border border-border/40 text-sm space-y-2">
-        <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Quick setup</p>
-        <ol className="space-y-1.5 text-sm text-muted-foreground list-none">
-          {[
-            <>Install ngrok: <code className="text-xs bg-muted px-1 rounded">brew install ngrok</code> (or download from ngrok.com)</>,
-            <>Start your ML backend: <code className="text-xs bg-muted px-1 rounded">cd ~/NeuralDreamWorkshop/ml && uvicorn main:app --port 8000</code></>,
-            <>Expose it: <code className="text-xs bg-muted px-1 rounded">ngrok http 8000</code></>,
-            <>Copy the <code className="text-xs bg-muted px-1 rounded">https://xxxx.ngrok-free.app</code> URL and paste it below</>,
-          ].map((step, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
-              <span>{step}</span>
-            </li>
-          ))}
-        </ol>
+      <div className="mb-4 p-3 rounded-xl bg-muted/30 border border-border/30 text-xs text-muted-foreground font-mono">
+        Default: {RENDER_DEFAULT}
       </div>
 
       <div className="flex gap-2">
         <Input
           value={url}
           onChange={(e) => { setUrl(e.target.value); setTestResult(null); }}
-          placeholder="https://xxxx.ngrok-free.app  (leave blank for localhost:8000)"
+          placeholder={`Leave blank to use ${RENDER_DEFAULT}`}
           className="flex-1 font-mono text-sm"
         />
         <Button variant="outline" onClick={testConnection} disabled={testing}>
@@ -733,6 +760,14 @@ function MLBackendCard() {
         </Button>
         <Button onClick={save}>Save</Button>
       </div>
+      {url && (
+        <button
+          onClick={resetToDefault}
+          className="mt-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground underline"
+        >
+          Reset to Render default
+        </button>
+      )}
 
       {testResult === "ok" && (
         <p className="text-xs text-success mt-2 flex items-center gap-1">
