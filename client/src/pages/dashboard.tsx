@@ -23,7 +23,10 @@ import {
   Star,
   Music,
   Heart,
+  Mic,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { useDevice } from "@/hooks/use-device";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import type { BiometricPayload } from "@/lib/health-sync";
@@ -328,6 +331,9 @@ export default function Dashboard() {
   const { latestPayload } = useHealthSync();
   const healthState = !isStreaming && latestPayload ? deriveHealthState(latestPayload) : null;
 
+  // Voice emotion fallback — active when no EEG streaming
+  const voiceEmotion = useVoiceEmotion();
+
   // Extract live data
   const emotions = analysis?.emotions;
   const bandPowers = analysis?.band_powers ?? {};
@@ -490,6 +496,45 @@ export default function Dashboard() {
         <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400 flex items-center gap-2">
           <Heart className="h-3.5 w-3.5 shrink-0" />
           Showing estimates from {healthState.source}. Connect EEG for precise brain data.
+        </div>
+      )}
+
+      {/* Voice emotion card — shown when no EEG streaming */}
+      {!isStreaming && (
+        <div className="rounded-xl border p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Emotion via Voice</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={voiceEmotion.startRecording}
+              disabled={voiceEmotion.isRecording || voiceEmotion.isAnalyzing}
+              className="gap-1.5 text-xs h-7"
+            >
+              <Mic className="w-3 h-3" />
+              {voiceEmotion.isRecording
+                ? "Recording…"
+                : voiceEmotion.isAnalyzing
+                ? "Analyzing…"
+                : "Tap to Detect"}
+            </Button>
+          </div>
+          {voiceEmotion.lastResult ? (
+            <div className="text-sm">
+              <span className="font-semibold capitalize">
+                {voiceEmotion.lastResult.emotion}
+              </span>
+              <span className="text-muted-foreground ml-2">
+                valence {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}
+                {voiceEmotion.lastResult.valence.toFixed(2)} ·{" "}
+                {Math.round(voiceEmotion.lastResult.confidence * 100)}% confidence
+              </span>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Connect Muse 2 or tap to detect emotion via microphone
+            </p>
+          )}
         </div>
       )}
 
