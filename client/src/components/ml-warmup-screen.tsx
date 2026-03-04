@@ -20,7 +20,8 @@ const ROTATING_MESSAGES = [
 
 const MESSAGE_INTERVAL_MS = 8_000;
 const ELAPSED_TICK_MS = 1_000;
-const SIMULATION_MODE_THRESHOLD_S = 40;
+/** Show "Browse app while loading" after this many seconds */
+const SIMULATION_MODE_THRESHOLD_S = 10;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -113,7 +114,7 @@ export function MLWarmupScreen({ onSimulationMode }: MLWarmupScreenProps): JSX.E
           onClick={onSimulationMode}
           className="mt-4"
         >
-          Continue in Simulation Mode
+          Browse app while loading
         </Button>
       )}
     </div>

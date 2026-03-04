@@ -1,4 +1,4 @@
-import { lazy, Suspense, Component, type ReactNode, type ErrorInfo } from "react";
+import { lazy, Suspense, Component, useState, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -236,6 +236,8 @@ function AppRoutes() {
 }
 
 function App() {
+  const [warmupDismissed, setWarmupDismissed] = useState(false);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
@@ -243,7 +245,9 @@ function App() {
           <MLConnectionProvider>
             <DeviceProvider>
               <TooltipProvider>
-                <MLWarmupScreen />
+                {!warmupDismissed && (
+                  <MLWarmupScreen onSimulationMode={() => setWarmupDismissed(true)} />
+                )}
                 <AppRoutes />
                 <Toaster />
               </TooltipProvider>

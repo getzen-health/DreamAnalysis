@@ -29,7 +29,8 @@ const MLConnectionContext = createContext<MLConnectionState | null>(null);
 
 const FAST_PING_INTERVAL_MS = 5_000;
 const SLOW_PING_INTERVAL_MS = 30_000;
-const MAX_FAILURES = 3;
+/** Render free-tier cold start can take ~50 s — keep trying for 8 × 5s = 40 s */
+const MAX_FAILURES = 8;
 
 /** Total warmup duration over which progress climbs 0→95 */
 const WARMUP_DURATION_MS = 35_000;
@@ -127,8 +128,16 @@ export function MLConnectionProvider({
 
         if (failuresRef.current >= MAX_FAILURES) {
           setStatus("error");
-          clearPingInterval();
           clearProgressInterval();
+          // Keep slow-polling so the app auto-recovers when Render finishes starting
+          clearPingInterval();
+          pingIntervalRef.current = setInterval(async () => {
+            if (generation !== reconnectGenerationRef.current) return;
+            const alive = await pingBackend();
+            if (alive && generation === reconnectGenerationRef.current) {
+              reconnectRef.current();
+            }
+          }, SLOW_PING_INTERVAL_MS);
         } else {
           // Show warm-up in progress on first failure
           setStatus("warming");

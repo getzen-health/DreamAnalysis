@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Flame,
   BarChart2,
+  Radio,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -355,6 +356,26 @@ export default function DailyBrainReport() {
       {/* Card 1 — Right now */}
       {isLoading ? (
         <SkeletonCard />
+      ) : !latestHealth ? (
+        <Card className="glass-card p-5">
+          <div className="flex items-start gap-3">
+            <Radio className="h-4 w-4 text-muted-foreground/50 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-foreground/80">No data yet</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Connect your Muse 2 or sync Apple Health to see your live brain state here.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 h-7 px-2 text-xs text-primary"
+                onClick={() => navigate("/device-setup")}
+              >
+                Set up device <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
+          </div>
+        </Card>
       ) : (
         <Card className="glass-card p-5">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-3">Right now</p>
