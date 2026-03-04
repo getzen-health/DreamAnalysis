@@ -355,6 +355,8 @@ export class MemStorage implements IStorage {
       valence: insertReading.valence || null,
       arousal: insertReading.arousal || null,
       eegSnapshot: insertReading.eegSnapshot || null,
+      userCorrectedEmotion: insertReading.userCorrectedEmotion ?? null,
+      userCorrectedAt: insertReading.userCorrectedAt ?? null,
     };
     this.emotionReadingsMap.set(id, reading);
     return reading;
