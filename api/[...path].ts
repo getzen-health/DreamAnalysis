@@ -458,8 +458,19 @@ async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
   const { userId, title = 'Neural Dream Workshop', body = 'Good morning! Your brain report is ready.', url = '/brain-report' } = req.body;
 
   const db = getDb();
-  const webPush = await import('web-push');
-  webPush.default.setVapidDetails('mailto:noreply@dream-analysis.vercel.app', vapidPublic, vapidPrivate);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let webPush: any;
+  try {
+    const m = await import('web-push');
+    webPush = m.default ?? m;
+  } catch (e) {
+    return error(res, `web-push import failed: ${(e as Error).message}`, 500);
+  }
+  try {
+    webPush.setVapidDetails('mailto:noreply@dream-analysis.vercel.app', vapidPublic.trim(), vapidPrivate.trim());
+  } catch (e) {
+    return error(res, `VAPID setup failed: ${(e as Error).message}`, 500);
+  }
 
   // Fetch subscriptions — optionally scoped to one user
   const subs = userId
@@ -471,7 +482,7 @@ async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
   const payload = JSON.stringify({ title, body, url });
   const results = await Promise.allSettled(
     subs.map(sub =>
-      webPush.default.sendNotification(
+      webPush.sendNotification(
         { endpoint: sub.endpoint, keys: sub.keys as { p256dh: string; auth: string } },
         payload,
       )
