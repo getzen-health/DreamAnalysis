@@ -191,7 +191,7 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
     ? `\n\nRecent dream themes: ${recentDreams.map(d => (d.symbols as string[] | null)?.join(', ') || 'unknown').join('; ')}`
     : '';
   const resp = await openai.chat.completions.create({
-    model: 'gpt-5',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: `You are an expert dream analyst combining Jungian, Freudian, and neuroscience perspectives. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":"","lucidityScore":1,"themes":[],"wakingLifeConnections":"","recurringPatterns":""}${historyCtx}` },
       { role: 'user', content: `Analyze this dream: ${dreamText}` },
@@ -257,14 +257,10 @@ async function dreamsGenerateImage(req: VercelRequest, res: VercelResponse) {
   const db = getDb();
   const [dream] = await db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.id, dreamId));
   if (!dream) return error(res, 'Dream not found', 404);
-  const openai = getOpenAIClient();
-  const imgResp = await openai.images.generate({
-    model: 'dall-e-3',
-    prompt: `Surreal dreamlike digital art: ${dream.dreamText.substring(0, 500)}. Style: ethereal, mystical, glowing colors, cosmic atmosphere. No text.`,
-    n: 1, size: '1024x1024', quality: 'standard',
-  });
-  const imageUrl = imgResp.data?.[0]?.url;
-  if (imageUrl) await db.update(schema.dreamAnalysis).set({ imageUrl }).where(eq(schema.dreamAnalysis.id, dreamId));
+  // Pollinations AI — free, no API key, returns a stable URL for the prompt
+  const prompt = `Surreal dreamlike digital art: ${dream.dreamText.substring(0, 400)}. Style: ethereal, mystical, glowing colors, cosmic atmosphere. No text.`;
+  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Date.now()}`;
+  await db.update(schema.dreamAnalysis).set({ imageUrl }).where(eq(schema.dreamAnalysis.id, dreamId));
   return success(res, { imageUrl });
 }
 
@@ -274,7 +270,7 @@ async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
   if (!dreamText || !userId) return badRequest(res, 'Missing dreamText or userId');
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'gpt-5',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: 'You are a dream analysis expert. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":""}' },
       { role: 'user', content: `Analyze this dream: ${dreamText}` },
@@ -310,7 +306,7 @@ async function aiChatPost(req: VercelRequest, res: VercelResponse) {
     : '';
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'gpt-5',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: `You are an AI wellness companion for a Brain-Computer Interface system. ${ctx} Be supportive and concise.` },
       { role: 'user', content: message },
@@ -428,7 +424,7 @@ async function insightsWeekly(req: VercelRequest, res: VercelResponse) {
     dominantEmotions: emotions.slice(0, 10).map(e => e.dominantEmotion),
   };
   const resp = await openai.chat.completions.create({
-    model: 'gpt-5',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: 'You are an AI neuroscience wellness advisor. Generate 4 personalized weekly insights. Respond with JSON: {"insights":[{"title":"","description":"","type":"success|warning|info|secondary","icon":"brain|heart|moon|lightbulb"}],"weeklyScore":0,"recommendation":""}' },
       { role: 'user', content: `Generate weekly insights for: ${JSON.stringify(ctx)}` },
@@ -453,7 +449,7 @@ async function analyzeMood(req: VercelRequest, res: VercelResponse) {
   if (!text) return badRequest(res, 'Missing text to analyze');
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'gpt-5',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: 'Analyze the mood from text. Respond with JSON: {"mood":"","stressLevel":0,"emotions":[],"recommendations":[]}' },
       { role: 'user', content: text },
@@ -487,7 +483,7 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
   if (imageBase64) {
     // Vision path
     const resp = await openai.chat.completions.create({
-      model: 'gpt-5',
+      model: 'llama-3.3-70b-versatile',
       messages: [{
         role: 'user',
         content: [
@@ -501,7 +497,7 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
   } else {
     // Text path
     const resp = await openai.chat.completions.create({
-      model: 'gpt-5',
+      model: 'llama-3.3-70b-versatile',
       messages: [{
         role: 'user',
         content: `The user describes their ${mealType ?? 'meal'}: "${textDescription}"\n\nEstimate nutrition and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`,
