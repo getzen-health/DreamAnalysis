@@ -71,6 +71,8 @@ export const emotionReadings = pgTable("emotion_readings", {
   valence: real("valence"), // -1 to 1 (negative to positive)
   arousal: real("arousal"), // 0 to 1 (low to high)
   eegSnapshot: jsonb("eeg_snapshot"),
+  userCorrectedEmotion: text("user_corrected_emotion"), // null = not yet corrected
+  userCorrectedAt: timestamp("user_corrected_at"),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 }, (table) => [
   index("emotion_readings_user_ts_idx").on(table.userId, table.timestamp),

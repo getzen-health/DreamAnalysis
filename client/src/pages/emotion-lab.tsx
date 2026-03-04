@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
+import { useAuth } from "@/hooks/use-auth";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
+import { useToast } from "@/hooks/use-toast";
 
 /* ---------- helpers ---------- */
 
@@ -82,8 +85,21 @@ interface HistoryItem {
   confidence: number;
 }
 
+const CORRECT_OPTIONS = [
+  { value: "happy",   emoji: "😊", label: "Happy" },
+  { value: "relaxed", emoji: "😌", label: "Relaxed" },
+  { value: "focus",   emoji: "🎯", label: "Focused" },
+  { value: "neutral", emoji: "😶", label: "Neutral" },
+  { value: "stress",  emoji: "😬", label: "Stress" },
+  { value: "sad",     emoji: "😔", label: "Sad" },
+  { value: "angry",   emoji: "😠", label: "Angry" },
+  { value: "fear",    emoji: "😨", label: "Fear" },
+];
+
 export default function EmotionLab() {
   const { latestFrame, state: deviceState } = useDevice();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const isStreaming = deviceState === "streaming";
   const analysis    = latestFrame?.analysis;
   const emotions    = analysis?.emotions;
@@ -93,6 +109,33 @@ export default function EmotionLab() {
   const bufferedSec = emotions?.buffered_sec ?? 0;
   const windowSec   = emotions?.window_sec ?? 30;
   const emotionReady = !emotions || emotions.ready !== false || emotions.emotion != null;
+
+  // Correction state
+  const [showCorrect, setShowCorrect] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
+  const [corrected, setCorrected] = useState<string | null>(null);
+
+  // Reset correction UI when emotion changes
+  useEffect(() => { setShowCorrect(false); setCorrected(null); }, [emotions?.emotion]);
+
+  async function handleCorrect(value: string) {
+    if (!user?.id || correcting) return;
+    setCorrecting(true);
+    try {
+      await fetch(`/api/emotions/correct-latest/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userCorrectedEmotion: value }),
+      });
+      setCorrected(value);
+      setShowCorrect(false);
+      toast({ title: "Thanks for the correction!", description: "This helps improve your personal model." });
+    } catch {
+      toast({ title: "Couldn't save correction", variant: "destructive" });
+    } finally {
+      setCorrecting(false);
+    }
+  }
 
   // Current values
   const emotion      = emotionReady ? (emotions?.emotion ?? "neutral") : "neutral";
@@ -182,6 +225,41 @@ export default function EmotionLab() {
                 </p>
               </div>
             </div>
+
+            {/* ── Label correction ────────────────────────────────────────── */}
+            {corrected ? (
+              <p className="text-xs text-emerald-400">
+                ✓ Corrected to <span className="font-medium capitalize">{corrected}</span> — model will learn from this
+              </p>
+            ) : showCorrect ? (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">What were you actually feeling?</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {CORRECT_OPTIONS.map(opt => (
+                    <Button
+                      key={opt.value}
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2 gap-1"
+                      disabled={correcting}
+                      onClick={() => handleCorrect(opt.value)}
+                    >
+                      {opt.emoji} {opt.label}
+                    </Button>
+                  ))}
+                </div>
+                <button onClick={() => setShowCorrect(false)} className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground">
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowCorrect(true)}
+                className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              >
+                Not quite right? Correct it →
+              </button>
+            )}
 
             {/* Bars */}
             <div className="space-y-3">

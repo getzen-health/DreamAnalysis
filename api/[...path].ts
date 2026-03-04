@@ -338,6 +338,44 @@ async function emotionsRecord(req: VercelRequest, res: VercelResponse) {
   return success(res, reading, 201);
 }
 
+async function emotionsCorrect(req: VercelRequest, res: VercelResponse, id: string) {
+  if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
+  const { userCorrectedEmotion, userId } = req.body;
+  const validEmotions = ['happy', 'sad', 'angry', 'fear', 'surprise', 'neutral', 'stress', 'focus', 'relaxed', 'excited'];
+  if (!userCorrectedEmotion || !validEmotions.includes(userCorrectedEmotion))
+    return badRequest(res, `userCorrectedEmotion must be one of: ${validEmotions.join(', ')}`);
+  const db = getDb();
+  const [existing] = await db.select({ id: schema.emotionReadings.id, userId: schema.emotionReadings.userId })
+    .from(schema.emotionReadings).where(eq(schema.emotionReadings.id, id));
+  if (!existing) return error(res, 'Reading not found', 404);
+  if (userId && existing.userId !== userId) return unauthorized(res, 'Not your reading');
+  const [updated] = await db.update(schema.emotionReadings)
+    .set({ userCorrectedEmotion, userCorrectedAt: new Date() })
+    .where(eq(schema.emotionReadings.id, id))
+    .returning();
+  return success(res, updated);
+}
+
+async function emotionsCorrectLatest(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
+  const { userCorrectedEmotion } = req.body;
+  const validEmotions = ['happy', 'sad', 'angry', 'fear', 'surprise', 'neutral', 'stress', 'focus', 'relaxed', 'excited'];
+  if (!userCorrectedEmotion || !validEmotions.includes(userCorrectedEmotion))
+    return badRequest(res, `userCorrectedEmotion must be one of: ${validEmotions.join(', ')}`);
+  const db = getDb();
+  const [latest] = await db.select({ id: schema.emotionReadings.id })
+    .from(schema.emotionReadings)
+    .where(eq(schema.emotionReadings.userId, userId))
+    .orderBy(desc(schema.emotionReadings.timestamp))
+    .limit(1);
+  if (!latest) return error(res, 'No readings found for this user', 404);
+  const [updated] = await db.update(schema.emotionReadings)
+    .set({ userCorrectedEmotion, userCorrectedAt: new Date() })
+    .where(eq(schema.emotionReadings.id, latest.id))
+    .returning();
+  return success(res, updated);
+}
+
 async function emotionsHistory(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const userId = req.query.userId as string;
@@ -1018,6 +1056,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'emotions') {
       if (s1 === 'record')  return await emotionsRecord(req, res);
       if (s1 === 'history') return await emotionsHistory(req, res);
+      if (s1 && segs[2] === 'correct') return await emotionsCorrect(req, res, s1);
+      if (s1 === 'correct-latest' && segs[2]) return await emotionsCorrectLatest(req, res, segs[2]);
     }
 
     if (s0 === 'health-metrics') {
