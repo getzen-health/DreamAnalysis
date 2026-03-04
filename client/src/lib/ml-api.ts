@@ -3,7 +3,7 @@ const ML_API_URL_DEFAULT =
   "http://localhost:8080";
 
 /** Reads the ML backend URL from localStorage so the user can override it in Settings. */
-function getMLApiUrl(): string {
+export function getMLApiUrl(): string {
   // When running the app from localhost, always use the local ML backend directly.
   // This avoids routing WebSocket + HTTP through ngrok (ngrok blocks WS upgrades).
   if (typeof window !== "undefined" && window.location.hostname === "localhost") {
@@ -945,3 +945,42 @@ export type {
   SessionTrend,
   SessionTrends,
 };
+
+// ─── Voice + Watch emotion analysis ─────────────────────────────────────────
+
+export interface WatchBiometrics {
+  hr?: number;    // heart rate bpm
+  hrv?: number;   // HRV SDNN ms
+  spo2?: number;  // SpO2 percentage
+}
+
+export interface VoiceWatchEmotionResult {
+  emotion: "positive" | "neutral" | "negative";
+  confidence: number;
+  breakdown: {
+    audio: [number, number, number];  // [positive, neutral, negative]
+    watch: [number, number, number];
+  };
+}
+
+export interface VoiceWatchStatus {
+  audio_model_loaded: boolean;
+  librosa_available: boolean;
+  ready: boolean;
+  fusion_weights: { audio: number; watch: number };
+}
+
+export async function analyzeVoiceWatch(
+  audioBase64: string,
+  watch: WatchBiometrics = {}
+): Promise<VoiceWatchEmotionResult> {
+  return mlFetch<VoiceWatchEmotionResult>("/voice-watch/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ audio_base64: audioBase64, watch }),
+  });
+}
+
+export async function getVoiceWatchStatus(): Promise<VoiceWatchStatus> {
+  return mlFetch<VoiceWatchStatus>("/voice-watch/status");
+}
