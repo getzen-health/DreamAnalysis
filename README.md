@@ -274,6 +274,13 @@ Inside Xcode:
 - Choose a connected iPhone or simulator as the run target
 - Press **Run** (or `⌘R`)
 
+**To submit to TestFlight:**
+1. In Xcode menu: **Product → Archive**
+2. In the Organizer window that opens: click **Distribute App**
+3. Select **App Store Connect** → **Next**
+4. Choose **Upload** → follow prompts
+5. Open [App Store Connect](https://appstoreconnect.apple.com) → Your App → TestFlight → add testers
+
 Required Info.plist permissions (already in `ios/App/App/Info.plist`):
 - `NSBluetoothAlwaysUsageDescription` — Muse 2 BLE connection
 - `NSBluetoothPeripheralUsageDescription` — Muse BLE (iOS < 13 compat)

@@ -1,7 +1,10 @@
 #!/bin/bash
 # ============================================================
-#  Neural Dream Workshop — ML Backend Startup
-#  One command to start everything: venv + backend + ngrok
+#  Neural Dream Workshop — ML Backend Startup (LOCAL DEV ONLY)
+#  Starts uvicorn + ngrok tunnel for local development.
+#
+#  PRODUCTION: use Railway (always-on, no cold starts).
+#  See CLAUDE.md "ML Backend URL Chain" for Railway deploy steps.
 #
 #  Usage:  chmod +x ml/start.sh   (first time only)
 #          ./ml/start.sh

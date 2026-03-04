@@ -31,11 +31,20 @@ cd ml && ./start.sh
 - Never set PORT=5000 or PORT=3000 in `.env`
 
 ### ML Backend URL Chain
-- Local dev: `http://localhost:8080` (from `.env` VITE_ML_API_URL)
-- Vercel production: ngrok URL baked at build time via Vercel env var `VITE_ML_API_URL`
-- Render remote: `https://neural-dream-ml.onrender.com` (always-on fallback)
+- Local dev: `http://localhost:8080` (from `.env` VITE_ML_API_URL) — use start.sh
+- **Production (Railway)**: always-on WebSocket, no cold starts. Deploy once, runs forever.
+- Vercel preview: set `VITE_ML_API_URL` to Railway service URL in Vercel dashboard after deploy
 - `localStorage("ml_backend_url")` overrides all — check Settings page if devices break
-- When ngrok URL changes (start.sh restart), must redeploy Vercel: `vercel --prod` OR run `start.sh` (auto-deploys)
+- ngrok is for local dev only — never the production backend
+
+**Railway deployment steps (one-time):**
+```bash
+npm install -g @railway/cli
+railway login
+railway link        # select your Railway project
+railway up          # deploys ml/ via ml/Dockerfile
+```
+After deploy: copy the Railway service URL → set `VITE_ML_API_URL` in Vercel dashboard → run `vercel --prod`.
 
 ### WebSocket Must Never Go Through ngrok
 - ngrok intercepts WebSocket upgrades with an interstitial page → `ws.onerror` fires immediately
