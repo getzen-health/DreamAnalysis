@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +8,7 @@ import { useDevice } from "@/hooks/use-device";
 import { useAuth } from "@/hooks/use-auth";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { useToast } from "@/hooks/use-toast";
+import { Music } from "lucide-react";
 
 /* ---------- helpers ---------- */
 
@@ -220,9 +222,18 @@ export default function EmotionLab() {
               <div className="flex-1 min-w-0">
                 <p className="text-lg font-semibold leading-tight">{label}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{moodLine(valence)}</p>
-                <p className="text-[10px] text-muted-foreground/60 mt-1">
-                  {Math.round(confidence * 100)}% confidence
-                </p>
+                <div className="flex items-center gap-3 mt-1">
+                  <p className="text-[10px] text-muted-foreground/60">
+                    {Math.round(confidence * 100)}% confidence
+                  </p>
+                  <Link
+                    href={`/biofeedback?tab=music&mood=${valence < 0 || stress > 0.4 ? "calm" : "focus"}`}
+                    className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors font-medium"
+                  >
+                    <Music className="h-3 w-3" />
+                    Play music for this mood
+                  </Link>
+                </div>
               </div>
             </div>
 

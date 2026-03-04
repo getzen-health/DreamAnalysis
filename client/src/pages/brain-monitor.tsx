@@ -20,6 +20,8 @@ import {
   type AnomalyResult,
 } from "@/lib/ml-api";
 import { MoodMusicPlayer } from "@/components/mood-music-player";
+import { Link } from "wouter";
+import { Music } from "lucide-react";
 
 export default function BrainMonitor() {
   const { isLocal, latencyMs, isReady } = useInference();
@@ -270,10 +272,19 @@ export default function BrainMonitor() {
       )}
 
       {/* Mood Music Player */}
-      <MoodMusicPlayer
-        emotion={stableAnalysis?.emotions?.emotion ?? undefined}
-        isStreaming={isStreaming}
-      />
+      <div className="relative">
+        <MoodMusicPlayer
+          emotion={stableAnalysis?.emotions?.emotion ?? undefined}
+          isStreaming={isStreaming}
+        />
+        <Link
+          href="/biofeedback?tab=music"
+          className="absolute top-3.5 right-10 flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors font-medium"
+        >
+          <Music className="h-3 w-3" />
+          Full music session
+        </Link>
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* EEG Brain Waves */}

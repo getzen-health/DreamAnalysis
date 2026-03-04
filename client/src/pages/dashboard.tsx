@@ -21,6 +21,7 @@ import {
   Clock,
   Flame,
   Star,
+  Music,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import {
@@ -799,10 +800,19 @@ export default function Dashboard() {
                       ? `Feeling: ${emotionLabel} · ${Math.round(confidence * 100)}% confident`
                       : insightText || "Calibrating…"}
                   </span>
-                  <Link href={actionHref}
-                    className="text-xs text-primary hover:text-primary/80 transition-colors font-medium shrink-0 ml-3">
-                    {actionLabel}
-                  </Link>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                    <Link
+                      href={`/biofeedback?tab=music&mood=${stress > 35 ? "calm" : "focus"}`}
+                      className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors font-medium"
+                    >
+                      <Music className="h-3 w-3" />
+                      Music
+                    </Link>
+                    <Link href={actionHref}
+                      className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">
+                      {actionLabel}
+                    </Link>
+                  </div>
                 </div>
               </div>
             ) : (
