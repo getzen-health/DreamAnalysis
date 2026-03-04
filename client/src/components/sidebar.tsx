@@ -94,7 +94,8 @@ const sections: NavSection[] = [
   {
     title: "Tools",
     items: [
-      { path: "/benchmarks",   label: "Benchmarks",   icon: Trophy },
+      { path: "/records",      label: "My Records",   icon: Trophy },
+      { path: "/benchmarks",   label: "Benchmarks",   icon: BarChart2 },
       { path: "/device-setup", label: "Device Setup", icon: Bluetooth },
     ],
   },

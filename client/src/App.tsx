@@ -57,6 +57,7 @@ const ResearchEvening        = lazy(() => import("@/pages/research-evening"));
 const FoodLog                = lazy(() => import("@/pages/food-log"));
 const SleepSession           = lazy(() => import("@/pages/sleep-session"));
 const WeeklyBrainSummary     = lazy(() => import("@/pages/weekly-brain-summary"));
+const PersonalRecords        = lazy(() => import("@/pages/personal-records"));
 const PrivacyPolicy          = lazy(() => import("@/pages/privacy-policy"));
 
 // ── Error Boundary — prevents a single page crash from taking down the whole app ──
@@ -166,6 +167,9 @@ function AppRoutes() {
       </Route>
       <Route path="/benchmarks">
         <ProtectedRoute><AppLayout><FormalBenchmarksDashboard /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/records">
+        <ProtectedRoute><AppLayout><PersonalRecords /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/food">
         <ProtectedRoute><AppLayout><FoodLog /></AppLayout></ProtectedRoute>
