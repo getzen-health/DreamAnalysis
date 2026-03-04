@@ -11,6 +11,20 @@ import {
   BedDouble,
   LogOut,
   ClipboardList,
+  LayoutDashboard,
+  Activity,
+  Network,
+  Sparkles,
+  Radio,
+  SlidersHorizontal,
+  Lightbulb,
+  BarChart2,
+  History,
+  MessageCircle,
+  Leaf,
+  CalendarDays,
+  Bluetooth,
+  Trophy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -34,15 +48,54 @@ interface NavSection {
 
 const sections: NavSection[] = [
   {
-    title: "",
+    title: "Overview",
     items: [
-      { path: "/brain-report",  label: "Today",         icon: Sun },
-      { path: "/emotions",      label: "Emotions",      icon: Brain },
+      { path: "/",               label: "Dashboard",      icon: LayoutDashboard },
+      { path: "/brain-report",   label: "Today",          icon: Sun },
+      { path: "/weekly-summary", label: "Weekly Summary", icon: CalendarDays },
+    ],
+  },
+  {
+    title: "Brain",
+    items: [
+      { path: "/brain-monitor",      label: "Brain Monitor",   icon: Activity },
+      { path: "/brain-connectivity", label: "Connectivity",    icon: Network },
+      { path: "/inner-energy",       label: "Spiritual",       icon: Sparkles },
+      { path: "/neurofeedback",      label: "Neurofeedback",   icon: Radio },
+      { path: "/calibration",        label: "Calibration",     icon: SlidersHorizontal },
+    ],
+  },
+  {
+    title: "Mind",
+    items: [
+      { path: "/emotions",        label: "Emotions",         icon: Brain },
+      { path: "/insights",        label: "Insights",         icon: Lightbulb },
+      { path: "/health-analytics",label: "Health Analytics", icon: BarChart2 },
+      { path: "/sessions",        label: "Sessions",         icon: History },
+    ],
+  },
+  {
+    title: "Life",
+    items: [
       { path: "/food",          label: "Food & Mood",   icon: Utensils },
+      { path: "/food-emotion",  label: "Food-Emotion",  icon: Leaf },
       { path: "/dreams",        label: "Dreams",        icon: Moon },
       { path: "/sleep-session", label: "Sleep",         icon: BedDouble },
       { path: "/biofeedback",   label: "Breathe",       icon: Wind },
-      { path: "/research",      label: "My Day",        icon: ClipboardList },
+    ],
+  },
+  {
+    title: "AI",
+    items: [
+      { path: "/ai-companion", label: "AI Companion", icon: MessageCircle },
+      { path: "/research",     label: "My Day",       icon: ClipboardList },
+    ],
+  },
+  {
+    title: "Tools",
+    items: [
+      { path: "/benchmarks",   label: "Benchmarks",   icon: Trophy },
+      { path: "/device-setup", label: "Device Setup", icon: Bluetooth },
     ],
   },
 ];
@@ -117,9 +170,13 @@ export function Sidebar() {
 
           {/* Navigation Sections */}
           <nav className="flex-1 px-2 pb-4">
-            {sections.map((section) => (
-              <div key={section.title || "main"}>
-                {section.title && <div className="nav-section-label">{section.title}</div>}
+            {sections.map((section, si) => (
+              <div key={section.title || "main"} className={si > 0 ? "mt-1" : ""}>
+                {section.title && (
+                  <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
+                    {section.title}
+                  </div>
+                )}
                 {section.items.map((item) => {
                   const Icon = item.icon;
                   const isActive =
