@@ -1,170 +1,231 @@
 {
   "project": "NeuralDreamWorkshop",
-  "branchName": "ralph/eeg-pipeline-upgrade",
-  "description": "Fix Muse connection for production, activate Datadog observability, and retrain stress/flow models above the 60% activation threshold so experiments can start tonight.",
+  "branchName": "ralph/ndw-production-sprint",
+  "description": "Production sprint: forgot password, research session 20/20 fix, WebSocket stability, remove hardcoded values, food tab context, food emotion graph, iOS deployment.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Fix dead ML backend URL fallback in ml-api.ts",
-      "description": "As a developer, I need the ML backend URL default to point to localhost:8000 instead of an expired ngrok URL so the app doesn't fail silently in development.",
+      "title": "Add password_reset_tokens table to Drizzle schema",
+      "description": "As a developer, I need a password_reset_tokens table so users can securely reset their password via a time-limited email token.",
       "acceptanceCriteria": [
-        "In client/src/lib/ml-api.ts lines 1-3, the fallback URL changes from 'https://brendan-postanesthetic-soliloquisingly.ngrok-free.dev' to 'http://localhost:8000'",
-        "grep -r 'brendan-postanesthetic' . returns zero matches",
+        "Add passwordResetTokens table to shared/schema.ts with columns: id (serial pk), userId (integer, references users), token (text, unique), expiresAt (timestamp), usedAt (timestamp nullable), createdAt (timestamp default now)",
+        "Run drizzle-kit push or generate migration file successfully",
+        "Table is exported from shared/schema.ts",
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Add pingBackend utility to ml-api.ts",
-      "description": "As a developer, I need a pingBackend() function that silently checks if the ML backend is reachable so the UI can show a warm-up spinner instead of a cryptic error.",
+      "title": "Add Resend email dependency and forgot-password API endpoint",
+      "description": "As a user, I want to receive a password reset email so I can recover my account when I forget my password.",
       "acceptanceCriteria": [
-        "Export async function pingBackend(timeoutMs = 12000): Promise<boolean> added to client/src/lib/ml-api.ts",
-        "Function uses AbortController with the given timeout",
-        "Function calls GET /health on getMLApiUrl()",
-        "Returns true if response.ok, false on any error",
+        "resend package added to package.json dependencies",
+        "RESEND_API_KEY added to .env.example (not hardcoded)",
+        "POST /api/auth/forgot-password endpoint added to server/routes.ts",
+        "Endpoint accepts { email } body, looks up user by email, generates crypto.randomBytes(32).toString('hex') token",
+        "Token stored in passwordResetTokens table with expiresAt = now + 1 hour",
+        "Email sent via Resend with reset link: https://dream-analysis.vercel.app/reset-password?token=TOKEN",
+        "Endpoint always returns 200 with { message: 'If that email exists, a reset link was sent' } (no user enumeration)",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Requires RESEND_API_KEY env var. Set in Vercel dashboard and local .env."
     },
     {
       "id": "US-003",
-      "title": "Add warm-up spinner to StudySession muse-pair screen",
-      "description": "As a participant, I want to see 'Waking up ML backend…' instead of a broken connection error when the Render backend is cold-starting so I know to wait.",
+      "title": "Add reset-password API endpoint",
+      "description": "As a user, I want to set a new password using the token from my email so I can regain access to my account.",
       "acceptanceCriteria": [
-        "backendReady state (boolean | null) added to StudySession component",
-        "useEffect pings backend via pingBackend() when phase === 'muse-pair'",
-        "While backendReady === null: 'Waking up ML backend…' spinner shown in Card",
-        "While backendReady === false: amber warning text shown",
-        "Pair Muse 2 button disabled while backendChecking is true",
-        "pingBackend imported from @/lib/ml-api in the import statement",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "POST /api/auth/reset-password endpoint added to server/routes.ts",
+        "Endpoint accepts { token, newPassword } body",
+        "Looks up token in passwordResetTokens where token matches AND expiresAt > now AND usedAt IS NULL",
+        "If not found or expired: returns 400 with { message: 'Invalid or expired reset token' }",
+        "If valid: hashes newPassword with bcrypt, updates users table, marks token usedAt = now",
+        "Returns 200 with { message: 'Password updated successfully' }",
+        "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Fix Render CORS_ORIGINS to include Vercel production URL",
-      "description": "As a developer, I need the Render ML backend to accept requests from the Vercel production frontend so CORS doesn't silently block Muse connection attempts.",
+      "title": "Add forgot-password and reset-password pages to frontend",
+      "description": "As a user, I want a 'Forgot password?' link on the login page and a flow to enter my email and then set a new password.",
       "acceptanceCriteria": [
-        "render.yaml CORS_ORIGINS value includes 'https://dream-analysis.vercel.app'",
-        "render.yaml CORS_ORIGINS value includes 'https://dream-analysis-*.vercel.app' for preview deployments",
-        "render.yaml CORS_ORIGINS still includes all localhost variants",
-        "Typecheck passes"
+        "'Forgot password?' link added below the login form in client/src/pages/auth.tsx",
+        "Link navigates to /forgot-password route",
+        "client/src/pages/forgot-password.tsx created: email input form, submits to POST /api/auth/forgot-password, shows success message after submit",
+        "client/src/pages/reset-password.tsx created: reads ?token= from URL, shows new password + confirm password inputs, submits to POST /api/auth/reset-password, redirects to /auth on success with toast",
+        "Both routes added to App.tsx (no auth required)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Add Datadog APM env vars to render.yaml",
-      "description": "As a developer, I need DD_SITE, DD_SERVICE, and DD_ENV set in render.yaml so Datadog APM activates when DD_API_KEY is added in the Render dashboard.",
+      "title": "Flatten research stress session to 20 minutes with conditional breathing",
+      "description": "As a researcher, I want the stress session to be exactly 20 minutes with breathing only shown when the user self-reports stress, so participants aren't forced through unnecessary exercises.",
       "acceptanceCriteria": [
-        "render.yaml envVars block includes DD_SITE with value 'datadoghq.com'",
-        "render.yaml envVars block includes DD_SERVICE with value 'neural-dream-ml'",
-        "render.yaml envVars block includes DD_ENV with value 'production'",
-        "render.yaml envVars block includes DD_API_KEY with sync: false (secret)",
-        "Typecheck passes"
+        "In client/src/pages/StudySessionStress.tsx (or equivalent), total session duration set to 20 minutes",
+        "Remove mandatory baseline (5 min) and recovery (5 min) phases — keep task phase only, padded to 20 min",
+        "Mid-session check-in asks: 'Are you feeling stressed right now?' (yes/no)",
+        "If yes → show breathing exercise component (box breathing, 3 min) then continue",
+        "If no → skip breathing exercise entirely, continue session",
+        "Timer counts down from 20:00",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Wire Datadog accuracy metrics in ML backend auto-retraining loop",
-      "description": "As a developer, I need the auto-retraining loop to emit model accuracy as a Datadog metric so I can see when models improve or degrade after each retrain.",
+      "title": "Flatten research food session to 20 minutes with conditional breathing",
+      "description": "As a researcher, I want the food session to be exactly 20 minutes with the same conditional breathing logic as the stress session.",
       "acceptanceCriteria": [
-        "In ml/main.py, the comment '# Report accuracy to Datadog' is replaced with actual statsd.gauge() calls",
-        "statsd.gauge('eeg.model.retrain_accuracy', acc * 100) called when accuracy is available in result dict",
-        "The metric emission is wrapped in try/except so it never crashes the retrain loop",
-        "Typecheck passes"
+        "In client/src/pages/StudySessionFood.tsx (or equivalent), total session duration set to 20 minutes",
+        "Remove mandatory baseline and recovery phases",
+        "Mid-session check-in: 'Are you feeling stressed right now?' — same conditional breathing logic as US-005",
+        "Timer counts down from 20:00",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": ""
+      "passes": false,
+      "notes": "Implement after US-005 to reuse the same pattern."
     },
     {
       "id": "US-007",
-      "title": "Add Datadog Browser RUM SDK to client/index.html",
-      "description": "As a developer, I need Datadog Browser RUM initialized in index.html so frontend errors, failed network requests, and WebSocket drops are captured in the Datadog dashboard.",
+      "title": "Fix WebSocket reconnect — unlimited retries with keepalive ping",
+      "description": "As a user with a Muse headset, I want the app to keep trying to reconnect to the WebSocket indefinitely so I don't lose my session when the connection briefly drops.",
       "acceptanceCriteria": [
-        "Datadog Browser RUM <script> block added inside <head> of client/index.html",
-        "Script calls DD_RUM.init() with service='neural-dream-workshop', env='production'",
-        "trackUserInteractions: true, trackResources: true set",
-        "applicationId and clientToken placeholders are clearly marked as YOUR_APPLICATION_ID and YOUR_CLIENT_TOKEN",
-        "Verify in browser using dev-browser skill"
+        "In client/src/hooks/use-device.tsx, MAX_RECONNECT_ATTEMPTS removed or set to Infinity — reconnect loop never gives up while isStreamingRef.current === true",
+        "Add 30-second WebSocket ping: send JSON {type:'ping'} every 30s when WS is open to prevent idle timeout",
+        "Clear ping interval on ws.onclose and ws.onerror",
+        "Add reconnectCount state exposed from hook (for UI display)",
+        "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "User must replace YOUR_APPLICATION_ID and YOUR_CLIENT_TOKEN with values from Datadog RUM Applications dashboard before this activates."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Run DREAMER dataset training to improve stress model",
-      "description": "As a researcher, I need the stress model retrained with DREAMER (consumer Emotiv EPOC dataset, closest to Muse 2) so it exceeds the 60% activation threshold and appears in live inference.",
+      "title": "Add 'Reconnecting...' banner to EEG streaming pages",
+      "description": "As a user, I want to see a visible reconnecting indicator when the WebSocket drops so I know the app is trying to recover and I don't need to manually refresh.",
       "acceptanceCriteria": [
-        "python ml/training/train_dreamer.py runs without error",
-        "Script outputs a cross-validation accuracy number",
-        "If accuracy >= 60%: ml/models/saved/stress_model.pkl is updated",
-        "Training log saved to /tmp/train_dreamer_log.txt",
-        "Typecheck passes"
+        "reconnectCount exposed from useDevice hook",
+        "When state === 'streaming' AND reconnectCount > 0: amber banner shown at top of brain-monitor.tsx, emotion-lab.tsx, and device-setup.tsx with text 'Reconnecting to EEG stream… (attempt N)'",
+        "Banner disappears when reconnectCount resets to 0 (connection restored)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "This story requires running Python training. May take 5-30 min depending on dataset size. DREAMER data downloaded automatically via train_dreamer.py."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Run TSception 4-channel training to improve flow state model",
-      "description": "As a researcher, I need the TSception CNN trained on 4-channel EEG data so the flow state model exceeds the 60% threshold and starts showing in live inference sessions.",
+      "title": "Remove hardcoded metric baselines from dashboard — show 0 or '--' when no EEG",
+      "description": "As a user, I want dashboard metrics to show 0 or '--' when no EEG data is available, not fake simulation values like 28 or 0.25, so I can trust what I'm seeing.",
       "acceptanceCriteria": [
-        "python ml/training/train_tsception.py runs without error",
-        "Script outputs a test accuracy number",
-        "ml/models/saved/eegnet_emotion_4ch.pt is updated with new weights",
-        "Training log saved to /tmp/train_tsception_log.txt",
-        "Typecheck passes"
+        "In client/src/pages/dashboard.tsx, remove all simulation baseline values (e.g. 0.25 stress, 0.4 focus)",
+        "When latestFrame is null: all EEG-derived metrics display '--' or 0",
+        "No metric ever shows a non-zero number unless it came from a real EEG frame",
+        "Food emotion percentages (e.g. hardcoded 17%) replaced with '--' when no live data",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "ml/training/train_tsception.py already exists. Check that n_channels=4 is configured before running."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Re-run mega LGBM unified training to incorporate new data",
-      "description": "As a researcher, I need the mega LGBM emotion model retrained after the DREAMER and FACED data are added so the unified model benefits from the larger training set.",
+      "title": "Fix food log tab context — change description per meal type",
+      "description": "As a user logging food, I want the description prompt to change when I switch between Breakfast, Lunch, Dinner, and Snack tabs so the context feels relevant.",
       "acceptanceCriteria": [
-        "python ml/training/train_mega_lgbm_unified.py runs without error",
-        "Script outputs cross-validation accuracy (target: >= 74.21% baseline)",
-        "ml/models/saved/emotion_mega_lgbm.pkl updated",
-        "Typecheck passes"
+        "In client/src/pages/food-log.tsx (or food-emotion.tsx), identify the tab component (Breakfast / Lunch / Dinner / Snack)",
+        "Each tab has its own unique description/prompt text: Breakfast='What did you have for breakfast?', Lunch='What did you eat for lunch?', Dinner='What did you have for dinner?', Snack='Any snacks today?'",
+        "Description text updates immediately when tab is changed — does not require save/submit",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Run after US-008 (DREAMER) completes. train_faced.py can also be run first to add FACED data before this mega retrain."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Update STATUS.md with post-retrain model accuracy numbers",
-      "description": "As a researcher, I need STATUS.md to reflect the new model accuracy numbers after retraining so the benchmark dashboard shows accurate information.",
+      "title": "Restore food emotion breakdown graph — what you wanted to eat",
+      "description": "As a user, I want to see a breakdown chart of food cravings/appetite states (like how much I wanted to eat and what kind) so I can track patterns over time.",
       "acceptanceCriteria": [
-        "STATUS.md model accuracy table updated with new CV accuracy for stress model",
-        "STATUS.md model accuracy table updated with new CV accuracy for flow state model",
-        "STATUS.md model accuracy table updated with new CV accuracy for emotion mega LGBM",
-        "Each row shows the new accuracy number and dataset used",
-        "Typecheck passes"
+        "In client/src/pages/food-emotion.tsx, add a bar or radar chart below the current food state display",
+        "Chart shows the 6 food state distribution from the last 7 days of food emotion logs (from DB query)",
+        "Chart uses Recharts BarChart or RadarChart (already in dependencies)",
+        "Chart title: 'Food Craving Pattern — Last 7 Days'",
+        "If no data: shows empty state 'Log food sessions to see your craving patterns'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Run after US-008, US-009, US-010 complete."
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Wire food emotion percentages to live EEG data from latest frame",
+      "description": "As a user, I want food emotion percentages to reflect what the EEG is actually detecting in real time, not a static value like 17% that never changes.",
+      "acceptanceCriteria": [
+        "In client/src/pages/food-emotion.tsx, import useDevice hook and read latestFrame",
+        "Food state percentages derived from latestFrame.analysis.emotions.probabilities (or equivalent field)",
+        "When latestFrame is null: show '--' for all percentages",
+        "When latestFrame is present: map happy/sad/focus/stress emotion probabilities to food states (craving_carbs = high stress, balanced = high relaxation, etc.) using the existing food state enum",
+        "No hardcoded 17% or any other fixed percentage",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Food state mapping: stress_eating = stress_index > 0.6, mindful_eating = relaxation_index > 0.6, comfort_seeking = valence < -0.2, balanced = all indices in 0.3-0.6 range."
+    },
+    {
+      "id": "US-013",
+      "title": "Verify Capacitor iOS build configuration and run cap sync",
+      "description": "As a developer, I need to confirm the iOS build is configured correctly (bundle ID, signing, entitlements) so the app can be archived for TestFlight.",
+      "acceptanceCriteria": [
+        "Run npm run build — exits 0",
+        "Run npx cap sync ios — exits 0 with no errors",
+        "capacitor.config.ts appId is com.neuraldreamworkshop.app",
+        "ios/App/App.xcodeproj exists and opens correctly",
+        "Info.plist contains NSBluetoothAlwaysUsageDescription and NSBluetoothPeripheralUsageDescription for Muse BLE",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "This story is code/config only. The actual Xcode archive + TestFlight upload must be done manually by Sravya in Xcode (Product > Archive > Distribute App > TestFlight)."
+    },
+    {
+      "id": "US-014",
+      "title": "Add iOS build instructions to README and update STATUS.md",
+      "description": "As a developer, I want clear iOS build steps documented so the process is repeatable without needing to figure it out each time.",
+      "acceptanceCriteria": [
+        "README.md iOS section added: npm run build → npx cap sync ios → open Xcode → Product > Archive → Distribute App → App Store Connect → TestFlight",
+        "STATUS.md updated: iOS section marked as 'Build verified, TestFlight pending' with today's date",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "Sravya must manually complete the Xcode archive step. This story just ensures the build pipeline works and is documented."
     }
   ]
 }
