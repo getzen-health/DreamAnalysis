@@ -1,0 +1,31 @@
+# Training data (large)
+data/
+benchmarks/
+training/
+
+# Large saved models (keep only inference-ready ones)
+models/saved/*.joblib
+models/saved/*.pt
+models/saved/*.h5
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Dev/test
+pytest.ini
+*.test.py
+tests/
+
+# Local env
+.env
+*.env
+venv/
+.venv/
+
+# Logs
+*.log
+logs/
