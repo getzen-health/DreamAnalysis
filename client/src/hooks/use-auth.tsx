@@ -54,6 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: (data) => {
+      // Store JWT for native (Capacitor) environments where cookies don't cross origins
+      if (data.token) {
+        try { localStorage.setItem('auth_token', data.token); } catch { /* private browsing */ }
+      }
       queryClient.setQueryData(['/api/auth/me'], data.user);
     },
   });
@@ -64,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: (data) => {
+      if (data.token) {
+        try { localStorage.setItem('auth_token', data.token); } catch { /* private browsing */ }
+      }
       queryClient.setQueryData(['/api/auth/me'], data.user);
     },
   });
@@ -73,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiRequest('POST', '/api/auth/logout');
     },
     onSuccess: () => {
+      try { localStorage.removeItem('auth_token'); } catch { /* ok */ }
       queryClient.setQueryData(['/api/auth/me'], null);
       queryClient.clear();
     },
