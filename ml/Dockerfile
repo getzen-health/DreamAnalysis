@@ -6,13 +6,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy everything first (dockerignore keeps the image small)
-COPY . .
+# Build context = repo root (railway up uses git repo as reference)
+# Copy ml/ subdirectory contents into /app/ so paths resolve correctly
+COPY ml/ .
 
-# Install inference-only dependencies
 RUN pip install --no-cache-dir -r requirements.deploy.txt
 
 EXPOSE 8000
 
-# Shell form so $PORT is expanded at runtime
+# Railway injects $PORT at runtime
 CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
