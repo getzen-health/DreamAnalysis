@@ -1,14 +1,19 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
 platform :ios, '16.0'
-use_frameworks!
+
+# Static linkage avoids the "Multiple commands produce Capacitor.framework"
+# error caused by CocoaPods and SPM both trying to embed the same frameworks.
+use_frameworks! :linkage => :static
 
 def capacitor_pods
-  pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
-  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
   pod 'PerfoodCapacitorHealthkit', :path => '../../node_modules/@perfood/capacitor-healthkit'
 end
 
 target 'App' do
   capacitor_pods
+end
+
+post_install do |installer|
+  assertDeploymentTarget(installer)
 end
