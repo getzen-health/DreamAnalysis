@@ -78,6 +78,12 @@ const MEAL_ICONS: Record<string, string> = {
   dinner:    "🌙",
   snack:     "🍎",
 };
+const MEAL_PROMPTS: Record<string, string> = {
+  breakfast: "What did you have for breakfast?\ne.g. 2 scrambled eggs, whole-wheat toast with butter, orange juice",
+  lunch:     "What did you eat for lunch?\ne.g. grilled chicken salad, whole-grain roll, sparkling water",
+  dinner:    "What did you have for dinner?\ne.g. salmon with roasted vegetables, brown rice, glass of wine",
+  snack:     "Any snacks today?\ne.g. apple with almond butter, handful of almonds, yogurt",
+};
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -331,7 +337,7 @@ export default function FoodLog() {
           {inputMode === "text" && (
             <div className="space-y-3">
               <Textarea
-                placeholder={"Describe your meal…\ne.g. 2 scrambled eggs, one slice whole-wheat toast with butter, a glass of orange juice"}
+                placeholder={MEAL_PROMPTS[mealType] ?? "Describe your meal…"}
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 className="min-h-[100px] resize-none text-sm"

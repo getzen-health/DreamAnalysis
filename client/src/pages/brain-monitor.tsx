@@ -26,7 +26,7 @@ import { Music } from "lucide-react";
 export default function BrainMonitor() {
   const { isLocal, latencyMs, isReady } = useInference();
   const device = useDevice();
-  const { state: deviceState, latestFrame, deviceStatus } = device;
+  const { state: deviceState, latestFrame, deviceStatus, reconnectCount } = device;
   const isStreaming = deviceState === "streaming";
 
   const [wavelet, setWavelet] = useState<WaveletResult | null>(null);
@@ -219,6 +219,11 @@ export default function BrainMonitor() {
 
   return (
     <main className="p-4 md:p-6 space-y-6">
+      {isStreaming && reconnectCount > 0 && (
+        <div className="rounded-md bg-amber-500/10 border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-400">
+          Reconnecting to EEG stream… (attempt {reconnectCount})
+        </div>
+      )}
       <SimulationModeBanner />
 
       {/* Connection Banner */}
