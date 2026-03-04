@@ -163,7 +163,7 @@
 - [x] **Connection UX** — MLWarmupScreen overlay during cold start; keep-alive ping every 14 min; sidebar ML status dot (green/amber/red) with latency tooltip; mlFetch 3-retry exponential backoff (1s/3s/9s) + 30s timeout; SimulationModeBanner on emotion-lab and brain-monitor when ML unreachable
 - [x] **TSception fallback** — TSception CNN (69.00% CV) active in emotion classifier fallback chain; RunningNormalizer corrects within-session EEG drift per-user
 
-### Phase 5 — Mobile 🔄 IN PROGRESS
+### Phase 5 — Mobile ✅ iOS BUILD VERIFIED
 - [x] Capacitor 8.1.0 installed (`@capacitor/core`, `cli`, `ios`, `android`)
 - [x] `capacitor.config.ts` — appId, webDir=dist/public, SplashScreen/StatusBar/PushNotifications config
 - [x] Safe area insets — `viewport-fit=cover`; `env(safe-area-inset-*)` CSS vars; body padding; home indicator clearance
