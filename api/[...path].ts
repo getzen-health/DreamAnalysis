@@ -130,35 +130,46 @@ async function verifyPassword(stored: string, supplied: string): Promise<boolean
 
 async function authRegister(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { username, password, email } = req.body;
-  if (!username || typeof username !== 'string' || username.trim().length < 3)
-    return badRequest(res, 'Username must be at least 3 characters');
-  if (!password || typeof password !== 'string' || password.length < 6)
-    return badRequest(res, 'Password must be at least 6 characters');
-  const db = getDb();
-  const [existing] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
-  if (existing) return badRequest(res, 'Username already exists');
-  const [user] = await db.insert(schema.users).values({
-    username: username.trim(), password: await hashPassword(password), email: email || null,
-  }).returning();
-  const token = generateToken({ userId: user.id, username: user.username });
-  setAuthCookie(res, token);
-  const { password: _, ...safe } = user;
-  return success(res, { user: safe, token }, 201);
+  try {
+    const { username, password, email } = req.body as { username?: string; password?: string; email?: string };
+    if (!username || typeof username !== 'string' || username.trim().length < 3)
+      return badRequest(res, 'Username must be at least 3 characters');
+    if (!password || typeof password !== 'string' || password.length < 6)
+      return badRequest(res, 'Password must be at least 6 characters');
+    const db = getDb();
+    const [existing] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
+    if (existing) return badRequest(res, 'Username already exists');
+    const [user] = await db.insert(schema.users).values({
+      username: username.trim(), password: await hashPassword(password), email: email || null,
+    }).returning();
+    if (!user) throw new Error('Insert returned no rows — check DB schema/migrations');
+    const token = generateToken({ userId: user.id, username: user.username });
+    setAuthCookie(res, token);
+    const { password: _, ...safe } = user;
+    return success(res, { user: safe, token }, 201);
+  } catch (err: any) {
+    console.error('[authRegister]', err?.message ?? err);
+    return error(res, `Registration failed: ${err?.message ?? 'Unknown error'}`, 500);
+  }
 }
 
 async function authLogin(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { username, password } = req.body;
-  if (!username || !password) return badRequest(res, 'Username and password required');
-  const db = getDb();
-  const [user] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
-  if (!user || !(await verifyPassword(user.password, password)))
-    return unauthorized(res, 'Invalid username or password');
-  const token = generateToken({ userId: user.id, username: user.username });
-  setAuthCookie(res, token);
-  const { password: _, ...safe } = user;
-  return success(res, { user: safe, token });
+  try {
+    const { username, password } = req.body as { username?: string; password?: string };
+    if (!username || !password) return badRequest(res, 'Username and password required');
+    const db = getDb();
+    const [user] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
+    if (!user || !(await verifyPassword(user.password, password)))
+      return unauthorized(res, 'Invalid username or password');
+    const token = generateToken({ userId: user.id, username: user.username });
+    setAuthCookie(res, token);
+    const { password: _, ...safe } = user;
+    return success(res, { user: safe, token });
+  } catch (err: any) {
+    console.error('[authLogin]', err?.message ?? err);
+    return error(res, `Login failed: ${err?.message ?? 'Unknown error'}`, 500);
+  }
 }
 
 async function authMe(req: VercelRequest, res: VercelResponse) {

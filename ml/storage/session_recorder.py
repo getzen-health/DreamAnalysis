@@ -23,7 +23,7 @@ SESSIONS_DIR.mkdir(exist_ok=True)
 _BATCH_FLUSH_INTERVAL = 60
 
 # Express backend URL for persisting emotion readings
-_EXPRESS_URL = os.environ.get("EXPRESS_URL", "http://localhost:5000")
+_EXPRESS_URL = os.environ.get("EXPRESS_URL", "http://localhost:4000")
 
 
 def _post_emotion_batch(frames: List[Dict], user_id: str, session_id: str) -> int:
