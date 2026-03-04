@@ -50,7 +50,13 @@ from .food_emotion import router as _food_emotion
 from .multimodal import router as _multimodal
 from .parquet import router as _parquet
 from .hrv_fusion import router as _hrv_fusion
-from .personal import router as _personal
+try:
+    from .personal import router as _personal
+    _personal_available = True
+except ImportError:
+    # torch not installed in this environment (cloud/inference-only deploy)
+    _personal = None
+    _personal_available = False
 from .biometrics import router as _biometrics
 from .interventions import router as _interventions
 
@@ -78,6 +84,7 @@ router.include_router(_food_emotion)
 router.include_router(_multimodal)
 router.include_router(_parquet)
 router.include_router(_hrv_fusion)
-router.include_router(_personal)
+if _personal_available:
+    router.include_router(_personal)
 router.include_router(_biometrics)
 router.include_router(_interventions)
