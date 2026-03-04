@@ -178,33 +178,39 @@ class VoiceEmotionModel:
             import tempfile
             from pathlib import Path as _Path
 
+            # Create temp file safely (no race condition)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                tmp_path = f.name
+
             try:
-                import soundfile as sf  # type: ignore
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-                    tmp_path = f.name
-                sf.write(tmp_path, audio, sample_rate)
-            except ImportError:
-                import wave
-                import struct
+                # Write audio
+                try:
+                    import soundfile as sf  # type: ignore
+                    sf.write(tmp_path, audio, sample_rate)
+                except ImportError:
+                    import wave
+                    import struct
 
-                tmp_path = tempfile.mktemp(suffix=".wav")
-                n = len(audio)
-                pcm = struct.pack(
-                    f"<{n}h",
-                    *np.clip(audio * 32767, -32768, 32767).astype(np.int16),
+                    n = len(audio)
+                    pcm = struct.pack(
+                        f"<{n}h",
+                        *np.clip(audio * 32767, -32768, 32767).astype(np.int16),
+                    )
+                    with wave.open(tmp_path, "wb") as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)
+                        wf.setframerate(sample_rate)
+                        wf.writeframes(pcm)
+
+                # Run inference
+                res = self._e2v_model.generate(
+                    input=tmp_path,
+                    granularity="utterance",
+                    extract_embedding=False,
                 )
-                with wave.open(tmp_path, "wb") as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)
-                    wf.setframerate(sample_rate)
-                    wf.writeframes(pcm)
-
-            res = self._e2v_model.generate(
-                input=tmp_path,
-                granularity="utterance",
-                extract_embedding=False,
-            )
-            _Path(tmp_path).unlink(missing_ok=True)
+            finally:
+                # Always clean up temp file, even if generate() raises
+                _Path(tmp_path).unlink(missing_ok=True)
 
             item = res[0] if isinstance(res, list) and res else res
             labels = item.get("labels", _E2V_LABELS)
