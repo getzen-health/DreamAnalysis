@@ -180,7 +180,8 @@ export function useDevice(): UseDeviceReturn {
 /* ── Internal implementation ──────────────────────────────────────── */
 
 const RECONNECT_BASE_MS = 1000;
-const RECONNECT_MAX_DELAY_MS = 30000; // cap at 30 seconds
+const RECONNECT_MAX_DELAY_MS = 8_000;   // cap at 8 s — 30 s was too long
+const STALE_FRAME_TIMEOUT_MS = 15_000;  // reconnect WS if no frame arrives for 15 s
 
 function useDeviceInternal(): UseDeviceReturn {
   const [state, setState] = useState<DeviceState>("disconnected");
@@ -196,7 +197,9 @@ function useDeviceInternal(): UseDeviceReturn {
   const reconnectRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const staleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isStreamingRef = useRef(false);
+  const intentionalDisconnectRef = useRef(false);   // true = user clicked Disconnect
   const lastFrameTimeRef = useRef(0);
   const pendingFrameRef = useRef<EEGStreamFrame | null>(null);
   const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -332,9 +335,25 @@ function useDeviceInternal(): UseDeviceReturn {
         });
         museBle.onStatus((status) => {
           if (status.state === "idle" || status.state === "error") {
-            isStreamingRef.current = false;
-            setState("disconnected");
             if (status.error) setError(status.error);
+            if (!intentionalDisconnectRef.current) {
+              // Unexpected BLE drop — silently reconnect using saved deviceId (no picker)
+              reconnectTimerRef.current = setTimeout(async () => {
+                if (intentionalDisconnectRef.current) return;
+                try {
+                  await museBle.reconnect();
+                  setError(null);
+                } catch {
+                  // Reconnect failed (Muse may be off/out of range)
+                  isStreamingRef.current = false;
+                  setState("disconnected");
+                  setError("Muse connection lost. Tap Connect to reconnect.");
+                }
+              }, 2000);
+            } else {
+              isStreamingRef.current = false;
+              setState("disconnected");
+            }
           }
         });
         await museBle.connect();
@@ -370,6 +389,7 @@ function useDeviceInternal(): UseDeviceReturn {
   }, [openWebSocket]);
 
   const disconnect = useCallback(async () => {
+    intentionalDisconnectRef.current = true;
     isStreamingRef.current = false;
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
@@ -396,6 +416,7 @@ function useDeviceInternal(): UseDeviceReturn {
     setSelectedDevice(null);
     setDeviceStatus(null);
     setLatestFrame(null);
+    intentionalDisconnectRef.current = false; // reset for future connects
   }, []);
 
   const startStream = useCallback(async () => {
@@ -528,12 +549,47 @@ function useDeviceInternal(): UseDeviceReturn {
     return () => clearInterval(interval);
   }, [state]);
 
+  // Reconnect WebSocket immediately when the tab/app becomes visible again.
+  // Without this, a WebSocket that died in the background stays dead until the
+  // next reconnect timer fires (up to 8 s) or the user manually reconnects.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden || !isStreamingRef.current || museBle.isNative) return;
+      reconnectRef.current = 0; // reset backoff so next attempt is instant
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        openWebSocket();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [openWebSocket]);
+
+  // Stale-frames watchdog: if the WebSocket is "open" but no frame has arrived
+  // for STALE_FRAME_TIMEOUT_MS, reconnect — handles silent-death scenarios.
+  useEffect(() => {
+    if (state !== "streaming" || museBle.isNative) {
+      if (staleTimerRef.current) { clearInterval(staleTimerRef.current); staleTimerRef.current = null; }
+      return;
+    }
+    staleTimerRef.current = setInterval(() => {
+      if (!isStreamingRef.current) return;
+      const age = Date.now() - lastFrameTimeRef.current;
+      if (age > STALE_FRAME_TIMEOUT_MS) {
+        reconnectRef.current = 0;
+        openWebSocket();
+      }
+    }, 5_000);
+    return () => { if (staleTimerRef.current) { clearInterval(staleTimerRef.current); staleTimerRef.current = null; } };
+  }, [state, openWebSocket]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       isStreamingRef.current = false;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+      if (staleTimerRef.current) clearInterval(staleTimerRef.current);
       if (wsRef.current) wsRef.current.close();
     };
   }, []);

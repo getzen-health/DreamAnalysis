@@ -334,6 +334,52 @@ export class MuseBleManager {
   }
 
   /**
+   * Reconnect to the last known device without showing the BLE picker.
+   * Called automatically by use-device when an unexpected disconnection occurs.
+   * Throws if no previous deviceId is saved or the device is out of range.
+   */
+  async reconnect(): Promise<void> {
+    if (!this.isNative) throw new Error("BLE is only available on iOS/Android.");
+    if (!this.deviceId) throw new Error("No device to reconnect to — connect first.");
+
+    const ble = await this.getBleClient();
+    this.setStatus("connecting");
+
+    try {
+      await ble.connect(this.deviceId, () => {
+        this.stopEmitter();
+        this.setStatus("idle", "Device disconnected");
+      });
+    } catch (e) {
+      this.setStatus("error", `Reconnect failed: ${String(e)}`);
+      throw e;
+    }
+
+    try {
+      await ble.write(this.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
+      await ble.write(this.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
+    } catch (e) {
+      this.setStatus("error", `Failed to restart EEG stream: ${String(e)}`);
+      throw e;
+    }
+
+    // Re-subscribe to all 4 EEG characteristics
+    for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+      const charUuid = MUSE_EEG_CHARS[ch];
+      const channelIndex = ch;
+      await ble.startNotifications(
+        this.deviceId!,
+        MUSE_SERVICE,
+        charUuid,
+        (data: DataView) => this.onEegNotification(channelIndex, data)
+      );
+    }
+
+    this.startEmitter();
+    this.setStatus("streaming");
+  }
+
+  /**
    * Stop streaming and disconnect from the device.
    */
   async disconnect(): Promise<void> {
