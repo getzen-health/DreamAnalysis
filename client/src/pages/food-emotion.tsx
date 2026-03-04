@@ -15,6 +15,16 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Utensils, RefreshCw, CheckCircle } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+import { useDevice } from "@/hooks/use-device";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -38,11 +48,47 @@ const STATE_COLORS: Record<string, string> = {
   mindful_eating: "#3b82f6",
 };
 
+/** Map live EEG emotion analysis to food-state soft probabilities. */
+function deriveFoodStates(emotions: {
+  stress_index?: number;
+  relaxation_index?: number;
+  focus_index?: number;
+  valence?: number;
+}): Record<string, number> {
+  const stress     = emotions.stress_index     ?? 0;
+  const relaxation = emotions.relaxation_index ?? 0;
+  const focus      = emotions.focus_index      ?? 0;
+  const valence    = emotions.valence          ?? 0;
+
+  const raw: Record<string, number> = {
+    stress_eating:        Math.max(0, stress - 0.35) * 2.5,
+    mindful_eating:       Math.max(0, relaxation - 0.35) * 2.5,
+    comfort_seeking:      Math.max(0, -valence - 0.1) * 1.8,
+    balanced:             Math.max(0, 1 - Math.abs(stress - 0.35) * 2 - Math.abs(relaxation - 0.35) * 2),
+    craving_carbs:        Math.max(0, stress - 0.25) * Math.max(0, 0.55 - focus) * 4,
+    appetite_suppressed:  Math.max(0, focus - 0.45) * Math.max(0, 0.45 - stress) * 4,
+  };
+
+  const total = Object.values(raw).reduce((a, b) => a + b, 0) || 1;
+  return Object.fromEntries(
+    Object.entries(raw).map(([k, v]) => [k, Math.max(0, v) / total])
+  );
+}
+
+/** Pick the dominant state from a probability map. */
+function topState(probs: Record<string, number>): string {
+  return Object.entries(probs).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "balanced";
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function FoodEmotion() {
+  const { latestFrame, state: deviceState } = useDevice();
+  const isStreaming = deviceState === "streaming";
+  const liveEmotions = latestFrame?.analysis?.emotions;
+
   const { data, isLoading } = useQuery<FoodEmotionResult>({
     queryKey: ["food-emotion"],
     queryFn: () => predictFoodEmotion(),
@@ -56,9 +102,38 @@ export default function FoodEmotion() {
       queryClient.invalidateQueries({ queryKey: ["food-emotion"] }),
   });
 
-  const state = data?.food_state ?? "balanced";
+  // --- Determine displayed state + probabilities ----------------------------
+  // When EEG is streaming, derive food states from live EEG indices.
+  // When no device, fall back to ML API simulation result.
+  const liveProbs: Record<string, number> | null =
+    isStreaming && liveEmotions
+      ? deriveFoodStates(liveEmotions)
+      : null;
+
+  const stateProbabilities: Record<string, number> =
+    liveProbs ?? data?.state_probabilities ?? {};
+
+  const state      = liveProbs ? topState(liveProbs) : (data?.food_state ?? "balanced");
   const stateLabel = STATE_LABELS[state] ?? state;
   const stateColor = STATE_COLORS[state] ?? "#10b981";
+
+  // Confidence: from live EEG use top-state probability; from ML API use as-is
+  const confidence = liveProbs
+    ? (stateProbabilities[state] ?? 0)
+    : (data?.confidence ?? 0);
+
+  // --- Chart data -----------------------------------------------------------
+  const chartData = Object.entries(stateProbabilities)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, value]) => ({
+      key,
+      name: STATE_LABELS[key] ?? key,
+      value: Math.round(value * 100),
+      color: STATE_COLORS[key] ?? "#888",
+    }));
+
+  const hasChartData = chartData.some(d => d.value > 0);
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
@@ -70,9 +145,14 @@ export default function FoodEmotion() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">Food &amp; Cravings</h1>
-            {data?.simulation_mode && (
+            {!isStreaming && data?.simulation_mode && (
               <Badge variant="outline" className="text-xs border-yellow-500/40 text-yellow-400 bg-yellow-500/10">
                 Simulation Mode
+              </Badge>
+            )}
+            {isStreaming && (
+              <Badge variant="outline" className="text-xs border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                Live EEG
               </Badge>
             )}
           </div>
@@ -104,7 +184,7 @@ export default function FoodEmotion() {
               >
                 {stateLabel}
               </Badge>
-              {isLoading && (
+              {isLoading && !isStreaming && (
                 <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
             </div>
@@ -112,14 +192,37 @@ export default function FoodEmotion() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Confidence</span>
                 <span className="font-mono">
-                  {((data?.confidence ?? 0) * 100).toFixed(1)}%
+                  {isStreaming && !liveEmotions
+                    ? "--"
+                    : `${(confidence * 100).toFixed(1)}%`}
                 </span>
               </div>
-              <Progress
-                value={(data?.confidence ?? 0) * 100}
-                className="h-2"
-              />
+              <Progress value={confidence * 100} className="h-2" />
             </div>
+
+            {/* Live EEG indices */}
+            {isStreaming && liveEmotions && (
+              <div className="pt-1 space-y-1 text-xs text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>Stress index</span>
+                  <span className="font-mono">{((liveEmotions.stress_index ?? 0) * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Relaxation index</span>
+                  <span className="font-mono">{((liveEmotions.relaxation_index ?? 0) * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Focus index</span>
+                  <span className="font-mono">{((liveEmotions.focus_index ?? 0) * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+            )}
+
+            {isStreaming && !liveEmotions && (
+              <p className="text-xs text-muted-foreground">
+                Waiting for EEG data…
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -171,6 +274,62 @@ export default function FoodEmotion() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Food State Distribution Chart (US-011 / US-012) ─────────────────── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            {isStreaming ? "Live EEG Food State Distribution" : "Food Craving Pattern"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!hasChartData ? (
+            <p className="text-xs text-muted-foreground py-6 text-center">
+              {isStreaming
+                ? "Connect your Muse and wait for EEG data to populate the chart."
+                : "Log food sessions to see your craving patterns."}
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart
+                data={chartData}
+                margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+              >
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={0}
+                  angle={-25}
+                  textAnchor="end"
+                  height={48}
+                />
+                <YAxis
+                  tickFormatter={(v) => `${v}%`}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip
+                  formatter={(value: number) => [`${value}%`, "Probability"]}
+                  contentStyle={{
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                  }}
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={48}>
+                  {chartData.map((entry) => (
+                    <Cell key={entry.key} fill={entry.color} opacity={0.85} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Dietary Recommendations */}
       {data?.recommendations && (
