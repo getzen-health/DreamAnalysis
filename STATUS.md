@@ -72,7 +72,10 @@
 - [x] **Env/CORS audit** — `.env.example` updated with all required vars; `vercel.json` env block added for ML_BACKEND_URL; `render.yaml` CORS confirmed correct for production origin
 
 ### Infrastructure
-- [x] Vercel deployment config (frontend + Express)
+- [x] Vercel deployment config (frontend + API)
+- [x] **Vercel API fully working** — all `/api/*` routes functional; fixed ESM `.js` extension resolution, lazy-loaded heavy packages to prevent cold-start crash, added explicit `/api/:path*` rewrite for catch-all routing
+- [x] **Cerebras LLM** — switched from OpenAI to Cerebras (`llama3.1-8b`, 1M tokens/day free, no Vercel IP blocking); `CEREBRAS_API_KEY` env var; all AI chat + dream analysis endpoints working on production
+- [x] **Enhanced data export** — `/api/export/:userId?type=` supports `health` (default CSV), `dreams` (CSV with symbols/analysis), `emotions` (CSV with userCorrectedEmotion), `all` (multi-section), `healthkit` (Apple Health XML)
 - [x] Render deployment (ML backend at neural-dream-ml.onrender.com)
 - [x] Neon PostgreSQL (7 tables via Drizzle ORM)
 - [x] BrainFlow hardware support (Muse 2, board_id=38)
