@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
 import { useAuth } from "@/hooks/use-auth";
+import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { useToast } from "@/hooks/use-toast";
-import { Music } from "lucide-react";
+import { Music, Mic, MicOff } from "lucide-react";
 
 /* ---------- helpers ---------- */
 
@@ -102,6 +103,7 @@ export default function EmotionLab() {
   const { latestFrame, state: deviceState, reconnectCount } = useDevice();
   const { user } = useAuth();
   const { toast } = useToast();
+  const voiceEmotion = useVoiceEmotion();
   const isStreaming = deviceState === "streaming";
   const analysis    = latestFrame?.analysis;
   const emotions    = analysis?.emotions;
@@ -182,6 +184,61 @@ export default function EmotionLab() {
         </div>
       )}
       <SimulationModeBanner />
+
+      {/* Voice emotion fallback — shown when EEG not streaming */}
+      {deviceState !== "streaming" && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-400">Voice Emotion Analysis</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                No EEG headband connected — detect emotion via microphone
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={voiceEmotion.isRecording ? "destructive" : "outline"}
+              onClick={voiceEmotion.startRecording}
+              disabled={voiceEmotion.isAnalyzing}
+              className="gap-2"
+            >
+              {voiceEmotion.isRecording ? (
+                <><MicOff className="w-4 h-4" /> Recording…</>
+              ) : voiceEmotion.isAnalyzing ? (
+                <><Mic className="w-4 h-4 animate-pulse" /> Analyzing…</>
+              ) : (
+                <><Mic className="w-4 h-4" /> Detect Emotion</>
+              )}
+            </Button>
+          </div>
+
+          {voiceEmotion.lastResult && (
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded bg-background/50 p-2">
+                <div className="font-semibold capitalize">{voiceEmotion.lastResult.emotion}</div>
+                <div className="text-muted-foreground">Emotion</div>
+              </div>
+              <div className="rounded bg-background/50 p-2">
+                <div className="font-semibold">
+                  {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}
+                  {voiceEmotion.lastResult.valence.toFixed(2)}
+                </div>
+                <div className="text-muted-foreground">Valence</div>
+              </div>
+              <div className="rounded bg-background/50 p-2">
+                <div className="font-semibold">
+                  {Math.round(voiceEmotion.lastResult.confidence * 100)}%
+                </div>
+                <div className="text-muted-foreground">Confidence</div>
+              </div>
+            </div>
+          )}
+
+          {voiceEmotion.error && (
+            <p className="text-xs text-destructive">{voiceEmotion.error}</p>
+          )}
+        </div>
+      )}
 
       {/* ── Card 1: Right now ─────────────────────────────────────────────── */}
       <Card className="p-5">
