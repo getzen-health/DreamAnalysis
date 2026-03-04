@@ -2,21 +2,22 @@ import OpenAI from 'openai';
 
 let cachedClient: OpenAI | null = null;
 
-// Uses Together AI's OpenAI-compatible API to serve open-source models (Llama 3.3 70B).
-// Get a free API key at https://api.together.xyz (free $1 credit, no card required)
+// Uses Cerebras's OpenAI-compatible API — open-source Llama 3.1 70B, 1M tokens/day free,
+// no credit card required, no IP blocking from Vercel/AWS.
+// Get a free API key at https://cloud.cerebras.ai
 export function getOpenAIClient(): OpenAI {
   if (cachedClient) {
     return cachedClient;
   }
 
-  const apiKey = process.env.TOGETHER_API_KEY;
+  const apiKey = process.env.CEREBRAS_API_KEY;
   if (!apiKey) {
-    throw new Error('TOGETHER_API_KEY environment variable is not set');
+    throw new Error('CEREBRAS_API_KEY environment variable is not set');
   }
 
   cachedClient = new OpenAI({
     apiKey,
-    baseURL: 'https://api.together.xyz/v1',
+    baseURL: 'https://api.cerebras.ai/v1',
   });
 
   return cachedClient;

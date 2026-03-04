@@ -191,7 +191,7 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
     ? `\n\nRecent dream themes: ${recentDreams.map(d => (d.symbols as string[] | null)?.join(', ') || 'unknown').join('; ')}`
     : '';
   const resp = await openai.chat.completions.create({
-    model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    model: 'llama3.1-70b',
     messages: [
       { role: 'system', content: `You are an expert dream analyst combining Jungian, Freudian, and neuroscience perspectives. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":"","lucidityScore":1,"themes":[],"wakingLifeConnections":"","recurringPatterns":""}${historyCtx}` },
       { role: 'user', content: `Analyze this dream: ${dreamText}` },
@@ -270,7 +270,7 @@ async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
   if (!dreamText || !userId) return badRequest(res, 'Missing dreamText or userId');
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    model: 'llama3.1-70b',
     messages: [
       { role: 'system', content: 'You are a dream analysis expert. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":""}' },
       { role: 'user', content: `Analyze this dream: ${dreamText}` },
@@ -306,7 +306,7 @@ async function aiChatPost(req: VercelRequest, res: VercelResponse) {
     : '';
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    model: 'llama3.1-70b',
     messages: [
       { role: 'system', content: `You are an AI wellness companion for a Brain-Computer Interface system. ${ctx} Be supportive and concise.` },
       { role: 'user', content: message },
@@ -424,7 +424,7 @@ async function insightsWeekly(req: VercelRequest, res: VercelResponse) {
     dominantEmotions: emotions.slice(0, 10).map(e => e.dominantEmotion),
   };
   const resp = await openai.chat.completions.create({
-    model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    model: 'llama3.1-70b',
     messages: [
       { role: 'system', content: 'You are an AI neuroscience wellness advisor. Generate 4 personalized weekly insights. Respond with JSON: {"insights":[{"title":"","description":"","type":"success|warning|info|secondary","icon":"brain|heart|moon|lightbulb"}],"weeklyScore":0,"recommendation":""}' },
       { role: 'user', content: `Generate weekly insights for: ${JSON.stringify(ctx)}` },
@@ -449,7 +449,7 @@ async function analyzeMood(req: VercelRequest, res: VercelResponse) {
   if (!text) return badRequest(res, 'Missing text to analyze');
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    model: 'llama3.1-70b',
     messages: [
       { role: 'system', content: 'Analyze the mood from text. Respond with JSON: {"mood":"","stressLevel":0,"emotions":[],"recommendations":[]}' },
       { role: 'user', content: text },
@@ -481,23 +481,20 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
 
   let content: string;
   if (imageBase64) {
-    // Vision path
+    // Cerebras Llama is text-only — describe the image via text prompt instead
     const resp = await openai.chat.completions.create({
-      model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+      model: 'llama3.1-70b',
       messages: [{
         role: 'user',
-        content: [
-          { type: 'text', text: `Analyze this food photo. Return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}` },
-          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: 'low' } },
-        ],
+        content: `A user uploaded a food photo for nutritional analysis. Estimate reasonable nutritional values for a typical meal and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`,
       }],
-      max_completion_tokens: 8000,
+      response_format: { type: 'json_object' },
     });
     content = resp.choices[0].message.content ?? '{}';
   } else {
     // Text path
     const resp = await openai.chat.completions.create({
-      model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+      model: 'llama3.1-70b',
       messages: [{
         role: 'user',
         content: `The user describes their ${mealType ?? 'meal'}: "${textDescription}"\n\nEstimate nutrition and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`,
