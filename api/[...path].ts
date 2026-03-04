@@ -443,6 +443,46 @@ async function notificationsSubscribe(req: VercelRequest, res: VercelResponse) {
   return success(res, sub, 201);
 }
 
+async function notificationsVapidPublicKey(_req: VercelRequest, res: VercelResponse) {
+  const publicKey = process.env.VAPID_PUBLIC_KEY;
+  if (!publicKey) return error(res, 'VAPID not configured', 503);
+  return success(res, { publicKey });
+}
+
+async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const vapidPublic = process.env.VAPID_PUBLIC_KEY;
+  const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+  if (!vapidPublic || !vapidPrivate) return error(res, 'VAPID keys not configured', 503);
+
+  const { userId, title = 'Neural Dream Workshop', body = 'Good morning! Your brain report is ready.', url = '/brain-report' } = req.body;
+
+  const db = getDb();
+  const webPush = await import('web-push');
+  webPush.default.setVapidDetails('mailto:noreply@dream-analysis.vercel.app', vapidPublic, vapidPrivate);
+
+  // Fetch subscriptions — optionally scoped to one user
+  const subs = userId
+    ? await db.select().from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, userId))
+    : await db.select().from(schema.pushSubscriptions);
+
+  if (subs.length === 0) return success(res, { sent: 0, message: 'No subscriptions found' });
+
+  const payload = JSON.stringify({ title, body, url });
+  const results = await Promise.allSettled(
+    subs.map(sub =>
+      webPush.default.sendNotification(
+        { endpoint: sub.endpoint, keys: sub.keys as { p256dh: string; auth: string } },
+        payload,
+      )
+    )
+  );
+
+  const sent = results.filter(r => r.status === 'fulfilled').length;
+  const failed = results.length - sent;
+  return success(res, { sent, failed, total: subs.length });
+}
+
 async function analyzeMood(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { text } = req.body;
@@ -978,7 +1018,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'export'   && s1) return await exportHandler(req, res, s1);
 
     if (s0 === 'insights' && s1 === 'weekly') return await insightsWeekly(req, res);
-    if (s0 === 'notifications' && s1 === 'subscribe') return await notificationsSubscribe(req, res);
+    if (s0 === 'notifications') {
+      if (s1 === 'subscribe')         return await notificationsSubscribe(req, res);
+      if (s1 === 'vapid-public-key')  return await notificationsVapidPublicKey(req, res);
+      if (s1 === 'brain-state-trigger' || s1 === 'trigger') return await notificationsTrigger(req, res);
+    }
     if (s0 === 'analyze-mood') return await analyzeMood(req, res);
 
     if (s0 === 'food') {
