@@ -14,7 +14,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -32,7 +32,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Requires RESEND_API_KEY env var. Set in Vercel dashboard and local .env."
     },
     {
@@ -49,7 +49,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -66,7 +66,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -75,16 +75,16 @@
       "description": "As a researcher, I want the stress session to be exactly 20 minutes with breathing only shown when the user self-reports stress, so participants aren't forced through unnecessary exercises.",
       "acceptanceCriteria": [
         "In client/src/pages/StudySessionStress.tsx (or equivalent), total session duration set to 20 minutes",
-        "Remove mandatory baseline (5 min) and recovery (5 min) phases — keep task phase only, padded to 20 min",
+        "Remove mandatory baseline (5 min) and recovery (5 min) phases \u2014 keep task phase only, padded to 20 min",
         "Mid-session check-in asks: 'Are you feeling stressed right now?' (yes/no)",
-        "If yes → show breathing exercise component (box breathing, 3 min) then continue",
-        "If no → skip breathing exercise entirely, continue session",
+        "If yes \u2192 show breathing exercise component (box breathing, 3 min) then continue",
+        "If no \u2192 skip breathing exercise entirely, continue session",
         "Timer counts down from 20:00",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -94,28 +94,28 @@
       "acceptanceCriteria": [
         "In client/src/pages/StudySessionFood.tsx (or equivalent), total session duration set to 20 minutes",
         "Remove mandatory baseline and recovery phases",
-        "Mid-session check-in: 'Are you feeling stressed right now?' — same conditional breathing logic as US-005",
+        "Mid-session check-in: 'Are you feeling stressed right now?' \u2014 same conditional breathing logic as US-005",
         "Timer counts down from 20:00",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Implement after US-005 to reuse the same pattern."
     },
     {
       "id": "US-007",
-      "title": "Fix WebSocket reconnect — unlimited retries with keepalive ping",
+      "title": "Fix WebSocket reconnect \u2014 unlimited retries with keepalive ping",
       "description": "As a user with a Muse headset, I want the app to keep trying to reconnect to the WebSocket indefinitely so I don't lose my session when the connection briefly drops.",
       "acceptanceCriteria": [
-        "In client/src/hooks/use-device.tsx, MAX_RECONNECT_ATTEMPTS removed or set to Infinity — reconnect loop never gives up while isStreamingRef.current === true",
+        "In client/src/hooks/use-device.tsx, MAX_RECONNECT_ATTEMPTS removed or set to Infinity \u2014 reconnect loop never gives up while isStreamingRef.current === true",
         "Add 30-second WebSocket ping: send JSON {type:'ping'} every 30s when WS is open to prevent idle timeout",
         "Clear ping interval on ws.onclose and ws.onerror",
         "Add reconnectCount state exposed from hook (for UI display)",
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -124,18 +124,18 @@
       "description": "As a user, I want to see a visible reconnecting indicator when the WebSocket drops so I know the app is trying to recover and I don't need to manually refresh.",
       "acceptanceCriteria": [
         "reconnectCount exposed from useDevice hook",
-        "When state === 'streaming' AND reconnectCount > 0: amber banner shown at top of brain-monitor.tsx, emotion-lab.tsx, and device-setup.tsx with text 'Reconnecting to EEG stream… (attempt N)'",
+        "When state === 'streaming' AND reconnectCount > 0: amber banner shown at top of brain-monitor.tsx, emotion-lab.tsx, and device-setup.tsx with text 'Reconnecting to EEG stream\u2026 (attempt N)'",
         "Banner disappears when reconnectCount resets to 0 (connection restored)",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Remove hardcoded metric baselines from dashboard — show 0 or '--' when no EEG",
+      "title": "Remove hardcoded metric baselines from dashboard \u2014 show 0 or '--' when no EEG",
       "description": "As a user, I want dashboard metrics to show 0 or '--' when no EEG data is available, not fake simulation values like 28 or 0.25, so I can trust what I'm seeing.",
       "acceptanceCriteria": [
         "In client/src/pages/dashboard.tsx, remove all simulation baseline values (e.g. 0.25 stress, 0.4 focus)",
@@ -146,39 +146,39 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Fix food log tab context — change description per meal type",
+      "title": "Fix food log tab context \u2014 change description per meal type",
       "description": "As a user logging food, I want the description prompt to change when I switch between Breakfast, Lunch, Dinner, and Snack tabs so the context feels relevant.",
       "acceptanceCriteria": [
         "In client/src/pages/food-log.tsx (or food-emotion.tsx), identify the tab component (Breakfast / Lunch / Dinner / Snack)",
         "Each tab has its own unique description/prompt text: Breakfast='What did you have for breakfast?', Lunch='What did you eat for lunch?', Dinner='What did you have for dinner?', Snack='Any snacks today?'",
-        "Description text updates immediately when tab is changed — does not require save/submit",
+        "Description text updates immediately when tab is changed \u2014 does not require save/submit",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Restore food emotion breakdown graph — what you wanted to eat",
+      "title": "Restore food emotion breakdown graph \u2014 what you wanted to eat",
       "description": "As a user, I want to see a breakdown chart of food cravings/appetite states (like how much I wanted to eat and what kind) so I can track patterns over time.",
       "acceptanceCriteria": [
         "In client/src/pages/food-emotion.tsx, add a bar or radar chart below the current food state display",
         "Chart shows the 6 food state distribution from the last 7 days of food emotion logs (from DB query)",
         "Chart uses Recharts BarChart or RadarChart (already in dependencies)",
-        "Chart title: 'Food Craving Pattern — Last 7 Days'",
+        "Chart title: 'Food Craving Pattern \u2014 Last 7 Days'",
         "If no data: shows empty state 'Log food sessions to see your craving patterns'",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -195,7 +195,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Food state mapping: stress_eating = stress_index > 0.6, mindful_eating = relaxation_index > 0.6, comfort_seeking = valence < -0.2, balanced = all indices in 0.3-0.6 range."
     },
     {
@@ -203,15 +203,15 @@
       "title": "Verify Capacitor iOS build configuration and run cap sync",
       "description": "As a developer, I need to confirm the iOS build is configured correctly (bundle ID, signing, entitlements) so the app can be archived for TestFlight.",
       "acceptanceCriteria": [
-        "Run npm run build — exits 0",
-        "Run npx cap sync ios — exits 0 with no errors",
+        "Run npm run build \u2014 exits 0",
+        "Run npx cap sync ios \u2014 exits 0 with no errors",
         "capacitor.config.ts appId is com.neuraldreamworkshop.app",
         "ios/App/App.xcodeproj exists and opens correctly",
         "Info.plist contains NSBluetoothAlwaysUsageDescription and NSBluetoothPeripheralUsageDescription for Muse BLE",
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "This story is code/config only. The actual Xcode archive + TestFlight upload must be done manually by Sravya in Xcode (Product > Archive > Distribute App > TestFlight)."
     },
     {
@@ -219,12 +219,12 @@
       "title": "Add iOS build instructions to README and update STATUS.md",
       "description": "As a developer, I want clear iOS build steps documented so the process is repeatable without needing to figure it out each time.",
       "acceptanceCriteria": [
-        "README.md iOS section added: npm run build → npx cap sync ios → open Xcode → Product > Archive → Distribute App → App Store Connect → TestFlight",
+        "README.md iOS section added: npm run build \u2192 npx cap sync ios \u2192 open Xcode \u2192 Product > Archive \u2192 Distribute App \u2192 App Store Connect \u2192 TestFlight",
         "STATUS.md updated: iOS section marked as 'Build verified, TestFlight pending' with today's date",
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "Sravya must manually complete the Xcode archive step. This story just ensures the build pipeline works and is documented."
     },
     {
@@ -235,14 +235,14 @@
         "ml/railway.json verified: builder is DOCKERFILE, dockerfilePath is ml/Dockerfile, healthcheckPath is /health, startCommand is 'uvicorn main:app --host 0.0.0.0 --port $PORT'",
         "ml/Dockerfile exists and builds successfully locally: docker build -f ml/Dockerfile . exits 0",
         "CORS_ORIGINS in ml/main.py default string includes https://dream-analysis.vercel.app and https://dream-analysis-*.vercel.app",
-        "Document Railway deployment steps in CLAUDE.md under 'ML Backend URL Chain': install Railway CLI → railway login → railway link → railway up",
+        "Document Railway deployment steps in CLAUDE.md under 'ML Backend URL Chain': install Railway CLI \u2192 railway login \u2192 railway link \u2192 railway up",
         "Update VITE_ML_API_URL in Vercel env vars to Railway service URL after deployment",
         "Update start.sh comment: note Railway as the production backend, ngrok only for local dev",
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": "Railway free tier: $5/mo credit. Sravya must: 1) Create account at railway.app, 2) Run 'railway login && railway link' in terminal, 3) Run 'railway up' from repo root. The railway.json already exists — deployment is one command. After deploy, copy the Railway service URL and update VITE_ML_API_URL in Vercel dashboard + run 'vercel --prod'."
+      "passes": true,
+      "notes": "Railway free tier: $5/mo credit. Sravya must: 1) Create account at railway.app, 2) Run 'railway login && railway link' in terminal, 3) Run 'railway up' from repo root. The railway.json already exists \u2014 deployment is one command. After deploy, copy the Railway service URL and update VITE_ML_API_URL in Vercel dashboard + run 'vercel --prod'."
     }
   ]
 }
