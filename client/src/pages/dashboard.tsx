@@ -295,11 +295,18 @@ export default function Dashboard() {
   const emotionShift = latestFrame?.emotion_shift;
 
   // Live metrics from analysis sub-objects
-  const flowState = (analysis as Record<string, any>)?.flow_state;
+  const flowState  = (analysis as Record<string, any>)?.flow_state;
+  const stressModel = (analysis as Record<string, any>)?.stress;
+  const attnModel   = (analysis as Record<string, any>)?.attention;
 
-  // Current metrics
-  const stressIndex = (emotions?.stress_index ?? 0) * 100;
-  const focusIndex = (emotions?.focus_index ?? 0) * 100;
+  // Current metrics — prefer emotion-classifier values (ready after 30s buffer);
+  // fall back to dedicated stress/attention models which are available immediately.
+  const stressIndex = emotions?.stress_index
+    ? emotions.stress_index * 100
+    : (stressModel?.stress_index ?? 0) * 100;
+  const focusIndex = emotions?.focus_index
+    ? emotions.focus_index * 100
+    : (attnModel?.attention_score ?? 0) * 100;
   const relaxationIndex = (emotions?.relaxation_index ?? 0) * 100;
   // emotions?.ready is false for first 30s while buffer fills
   // ready=false only during first 30s buffer fill; undefined/true means result available
