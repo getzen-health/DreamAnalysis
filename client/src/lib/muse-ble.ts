@@ -314,10 +314,13 @@ export class MuseBleManager {
 
     const service = await server.getPrimaryService(MUSE_SERVICE);
 
-    // Write control commands
+    // Write control commands — Muse control characteristic requires writeValueWithResponse
+    // (write-with-acknowledgment). writeValueWithoutResponse silently fails on this char,
+    // causing the Muse to stream for only ~2 s then stop (firmware timeout).
     const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
-    await controlChar.writeValueWithoutResponse(CMD_PRESET_P21);
-    await controlChar.writeValueWithoutResponse(CMD_START);
+    await controlChar.writeValueWithResponse(CMD_PRESET_P21);
+    await new Promise((r) => setTimeout(r, 50)); // brief pause between commands
+    await controlChar.writeValueWithResponse(CMD_START);
 
     // Subscribe to EEG channels
     for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
@@ -342,7 +345,7 @@ export class MuseBleManager {
         // Send stop command before disconnecting
         const service = await this._webGattServer.getPrimaryService(MUSE_SERVICE);
         const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
-        await controlChar.writeValueWithoutResponse(CMD_STOP).catch(() => {});
+        await controlChar.writeValueWithResponse(CMD_STOP).catch(() => {});
       } catch { /* ignore */ }
       this._webGattServer.disconnect();
     }
