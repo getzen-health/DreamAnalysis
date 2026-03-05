@@ -613,7 +613,7 @@ export function museFrameToEegStreamFrame(f: MuseEegFrame): {
       sqi: f.signalQuality,
       artifacts_detected: f.signalQuality < 0.4 ? ["amplitude"] : [],
       clean_ratio: f.signalQuality,
-      channel_quality: f.signals.map((s) => computeSignalQuality(s)),
+      channel_quality: f.signals.map((s) => computeSignalQuality(s) * 100),
     },
     timestamp: f.timestampMs / 1000,
     n_channels: f.nChannels,
