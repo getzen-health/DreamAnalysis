@@ -121,7 +121,7 @@ export function useVoiceEmotion(
 
         const baseUrl = getMLApiUrl();
 
-        const res = await fetch(`${baseUrl}/voice-watch/analyze`, {
+        const res = await fetch(`${baseUrl}/api/voice-watch/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -142,7 +142,7 @@ export function useVoiceEmotion(
         setLastResult(result);
 
         // Cache result for WebSocket EEG fusion (fire-and-forget)
-        fetch(`${baseUrl}/voice-watch/cache`, {
+        fetch(`${baseUrl}/api/voice-watch/cache`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: userId, emotion_result: result }),
