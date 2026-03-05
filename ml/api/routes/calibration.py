@@ -1,10 +1,36 @@
 """Personal model calibration and feedback endpoints (Phase 9)."""
 
 import threading
+import logging
 import numpy as np
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List
+
+log = logging.getLogger(__name__)
+
+# Trigger fine-tune at 30 samples, then every 20 after that
+_FINE_TUNE_FIRST = 30
+_FINE_TUNE_INTERVAL = 20
+
+
+def _should_fine_tune(n: int) -> bool:
+    """True at the first milestone (30) and every 20 samples beyond."""
+    if n < _FINE_TUNE_FIRST:
+        return False
+    if n == _FINE_TUNE_FIRST:
+        return True
+    return (n - _FINE_TUNE_FIRST) % _FINE_TUNE_INTERVAL == 0
+
+
+def _fine_tune_bg(pm) -> None:
+    """Run fine_tune() + save() in a daemon thread — non-blocking."""
+    try:
+        acc = pm.fine_tune()
+        pm.save()
+        log.info("Background fine-tune complete for %s — val_acc=%.1f%%", pm.user_id, acc * 100)
+    except Exception as exc:
+        log.warning("Background fine-tune failed for %s: %s", pm.user_id, exc)
 
 from ._shared import (
     _get_personal_model,
@@ -76,8 +102,10 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
     )
 
     labeled = False
+    fine_tune_triggered = False
+
     if request.signals is not None:
-        # EEG provided — add to personal model buffer for future fine-tuning
+        # EEG provided — add to personal model buffer and maybe auto-fine-tune
         pm = _get_personal_model(request.user_id)
         if pm is not None:
             label_map = {"happy": 0, "sad": 1, "angry": 2, "fearful": 3, "relaxed": 4, "focused": 5}
@@ -86,10 +114,16 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
                 signal = np.array(request.signals)
                 pm.add_labeled_epoch(signal, label_idx)
                 labeled = True
+                n = len(pm._buffer_y)
+                if _should_fine_tune(n):
+                    fine_tune_triggered = True
+                    t = threading.Thread(target=_fine_tune_bg, args=(pm,), daemon=True)
+                    t.start()
 
     return {
         "recorded": True,
         "labeled_epoch_added": labeled,
+        "fine_tune_triggered": fine_tune_triggered,
         "user_id": request.user_id,
         "predicted": request.predicted_label,
         "corrected": request.correct_label,

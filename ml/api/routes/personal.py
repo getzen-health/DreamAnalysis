@@ -10,6 +10,7 @@ These endpoints let the dashboard:
 from __future__ import annotations
 
 import logging
+import threading
 from typing import List, Optional
 
 import numpy as np
@@ -17,6 +18,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from models.personal_model import get_personal_model, EMOTIONS
+from .calibration import _should_fine_tune, _fine_tune_bg
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -73,12 +75,17 @@ async def label_epoch(req: LabeledEpochRequest):
     pm = get_personal_model(req.user_id, n_channels=eeg.shape[0])
     pm.add_labeled_epoch(eeg, req.label)
 
+    n = len(pm._buffer_y)
+    if _should_fine_tune(n):
+        threading.Thread(target=_fine_tune_bg, args=(pm,), daemon=True).start()
+
     return {
         "status": "added",
         "user_id": req.user_id,
         "label": req.label,
         "emotion": EMOTIONS[req.label],
-        "buffer_size": len(pm._buffer_y),
+        "buffer_size": n,
+        "fine_tune_triggered": _should_fine_tune(n),
         "message": pm.status()["message"],
     }
 
