@@ -55,8 +55,14 @@ async def list_devices():
     brainflow_devices = []
     brainflow_available = False
     if bf_manager is not None:
-        brainflow_available = True
-        brainflow_devices = bf_manager.discover_devices()
+        # Also check that BrainFlow library is actually installed (not just the class)
+        try:
+            from hardware.brainflow_manager import BRAINFLOW_AVAILABLE as _BF_AVAIL
+            brainflow_available = _BF_AVAIL
+        except Exception:
+            brainflow_available = False
+        if brainflow_available:
+            brainflow_devices = bf_manager.discover_devices()
 
     emotiv_devices = []
     if emotiv_adapter is not None:
@@ -111,13 +117,21 @@ async def connect_device(request: DeviceConnectRequest):
         return result
     except RuntimeError as e:
         msg = str(e)
+        if "not installed" in msg.lower():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "EEG streaming requires a local ML backend — BrainFlow cannot run on this "
+                    "remote server. Run './ml/start.sh' on your machine and set the ML Backend "
+                    "URL in Settings to your local/ngrok address."
+                ),
+            )
         if is_ble_device:
             raise HTTPException(
                 status_code=400,
                 detail=(
                     f"{request.device_type} requires Bluetooth — not available on this "
-                    "remote server. Select 'Synthetic' board to demo the app, or run "
-                    f"the ML backend locally for real Muse data. (Detail: {msg})"
+                    "remote server. Run the ML backend locally for real Muse data."
                 ),
             )
         raise HTTPException(status_code=500, detail=msg)
