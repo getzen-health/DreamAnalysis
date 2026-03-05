@@ -34,6 +34,7 @@ def _fine_tune_bg(pm) -> None:
 
 from ._shared import (
     _get_personal_model,
+    get_last_features,
     CalibrationSubmitRequest, PersonalFeedbackRequest,
 )
 from processing.eeg_processor import BaselineCalibrator
@@ -93,12 +94,16 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
     """
     from processing.user_feedback import FeedbackCollector
 
-    # Always record the label correction (no EEG needed)
+    # Always record the label correction (no EEG needed).
+    # Attach the last cached feature vector so the k-NN PersonalizedPipeline
+    # has training data even for label-only corrections (no raw EEG submitted).
     collector = FeedbackCollector(request.user_id)
+    cached_features = get_last_features(request.user_id)
     collector.record_state_correction(
         model_name="emotion",
         predicted_state=request.predicted_label,
         corrected_state=request.correct_label,
+        features=cached_features,
     )
 
     labeled = False
