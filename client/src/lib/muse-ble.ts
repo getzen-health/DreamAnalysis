@@ -187,17 +187,27 @@ function computeIndices(bandPowers: Record<string, number>): {
   };
 }
 
-/** Returns signal quality 0–100. 80+ = Active, 60–79 = Weak, <60 = Error. */
+/** Returns signal quality 0–100. 80+ = Active, 60–79 = Weak, <60 = Error.
+ *
+ * Calibrated for real Muse 2 dry-electrode EEG:
+ *   - Relaxed alpha (~10 µV amplitude → variance ~50 µV²)  → ~88 (Active)
+ *   - Poor contact  (variance ~3 µV²)                      → ~63 (Weak)
+ *   - Disconnected  (variance < 0.5 µV²)                   → 10  (Error)
+ *   - Severe blink  (variance > 3000 µV²)                  → 30  (Error, recovers next frame)
+ *   - Floating lead (maxAmp > 400 µV)                      → 10  (Error)
+ */
 function computeSignalQuality(samples: number[]): number {
   if (samples.length === 0) return 0;
   const maxAmp = Math.max(...samples.map(Math.abs));
-  if (maxAmp > 200) return 20;
-  if (maxAmp > 100) return 50;
+  // Extreme amplitude: floating electrode or total disconnection (>400 µV)
+  if (maxAmp > 400) return 10;
   const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
   const variance = samples.reduce((a, b) => a + (b - mean) ** 2, 0) / samples.length;
-  if (variance < 0.1) return 10;   // flat line — disconnected
-  if (variance > 5000) return 30;  // excessive noise
-  return Math.min(100, 50 + variance / 10);
+  if (variance < 0.5) return 10;    // flat line — electrode not touching skin
+  if (variance > 3000) return 30;   // severe artifact or sustained noise (full eye blink etc.)
+  // Log scale: maps good EEG variance (50–500 µV²) → Active (85–98)
+  const logScore = 50 + 22 * Math.log10(variance + 1);
+  return Math.min(98, Math.max(10, Math.round(logScore)));
 }
 
 // ── Main BLE manager class ────────────────────────────────────────────────────
