@@ -77,6 +77,8 @@ export interface MuseEegFrame {
   relaxationIndex: number;
   /** Signal quality 0–100 based on amplitude variance and artifact rejection */
   signalQuality: number;
+  /** Per-channel signal quality 0–100 (includes stale-stream detection) */
+  channelQuality: number[];
   timestampMs: number;
   sampleRate: number;
   nChannels: number;
@@ -600,6 +602,7 @@ export class MuseBleManager {
       focusIndex: focus,
       relaxationIndex: relaxation,
       signalQuality,
+      channelQuality: sqiValues,
       timestampMs: Date.now(),
       sampleRate: MUSE_SAMPLE_RATE,
       nChannels: N_ACTIVE_CHANNELS,
@@ -776,7 +779,7 @@ export function museFrameToEegStreamFrame(f: MuseEegFrame): {
       sqi: sqi01,
       artifacts_detected: sqi01 < 0.4 ? ["amplitude"] : [],
       clean_ratio: sqi01,
-      channel_quality: f.signals.map((s) => computeSignalQuality(s)),
+      channel_quality: f.channelQuality ?? f.signals.map((s) => computeSignalQuality(s)),
     },
     timestamp: f.timestampMs / 1000,
     n_channels: f.nChannels,
