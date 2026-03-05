@@ -17,6 +17,18 @@ cd ml && ./start.sh
 # Run this first before opening the app. Every restart regenerates the ngrok URL.
 ```
 
+## Data Integrity Rules (ABSOLUTE — never break these)
+
+### No Fallbacks, No Hardcoded Data
+- **NEVER use placeholder/hardcoded values for real data.** If something doesn't work, find out WHY and fix the root cause.
+- No `{e: round(1/6, 4) for e in EMOTIONS_6}` uniform stubs. No `meditationPercent: 10` when not streaming. No fake stress/focus/flow values.
+- If data is unavailable, show `null`, `"—"`, or nothing. Never fabricate a number.
+- If a model fails to load, surface the error — do not silently return placeholder probabilities.
+- If an API returns an error, let the UI show "unavailable" rather than rendering fake data with high confidence.
+- **Rule: every number shown to the user must come from real computation or real sensor data.**
+
+---
+
 ## Permanent Rules (Learned from Production Bugs)
 
 ### Device List Must Never Be Empty

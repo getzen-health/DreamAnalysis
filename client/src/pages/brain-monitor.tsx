@@ -20,7 +20,6 @@ import {
   type WaveletResult,
   type AnomalyResult,
 } from "@/lib/ml-api";
-import { MoodMusicPlayer } from "@/components/mood-music-player";
 import { Link } from "wouter";
 import { Music } from "lucide-react";
 
@@ -278,20 +277,19 @@ export default function BrainMonitor() {
         </div>
       )}
 
-      {/* Mood Music Player */}
-      <div className="relative">
-        <MoodMusicPlayer
-          emotion={stableAnalysis?.emotions?.emotion ?? undefined}
-          isStreaming={isStreaming}
-        />
-        <Link
-          href="/biofeedback?tab=music"
-          className="absolute top-3.5 right-10 flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors font-medium"
-        >
-          <Music className="h-3 w-3" />
-          Full music session
-        </Link>
-      </div>
+      {/* Music Session */}
+      <Link href="/biofeedback?tab=music">
+        <div className="glass-card rounded-xl p-4 hover-glow flex items-center gap-3 cursor-pointer group">
+          <div className="h-9 w-9 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0 group-hover:bg-violet-500/30 transition-colors">
+            <Music className="h-4 w-4 text-violet-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Music Session</p>
+            <p className="text-xs text-muted-foreground">Open full binaural + focus music session</p>
+          </div>
+          <span className="ml-auto text-xs text-violet-400 group-hover:translate-x-0.5 transition-transform">→</span>
+        </div>
+      </Link>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* EEG Brain Waves */}
