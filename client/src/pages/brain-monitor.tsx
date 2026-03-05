@@ -80,7 +80,10 @@ export default function BrainMonitor() {
         sqi: ((rawQuality.sqi as number) ?? (rawQuality.quality_score as number) ?? 0) * 100,
         artifacts_detected: (rawQuality.artifacts_detected as string[]) ?? (rawQuality.rejection_reasons as string[]) ?? [],
         clean_ratio: (rawQuality.clean_ratio as number) ?? 0,
-        channel_quality: (rawQuality.channel_quality as number[]) ?? [],
+        // Normalize to 0-100 regardless of source scale (backend uses 0-100, BLE used to use 0-1)
+        channel_quality: ((rawQuality.channel_quality as number[]) ?? []).map((q) =>
+          q <= 1.0 ? Math.round(q * 100) : q
+        ),
       }
     : null;
 

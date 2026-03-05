@@ -187,18 +187,17 @@ function computeIndices(bandPowers: Record<string, number>): {
   };
 }
 
+/** Returns signal quality 0–100. 80+ = Active, 60–79 = Weak, <60 = Error. */
 function computeSignalQuality(samples: number[]): number {
   if (samples.length === 0) return 0;
-  // Amplitude check: good EEG stays within ±100 µV; artefacts hit ±200+ µV
   const maxAmp = Math.max(...samples.map(Math.abs));
-  if (maxAmp > 200) return 0.2;
-  if (maxAmp > 100) return 0.5;
-  // Variance check: flat line (disconnected electrode) has near-zero variance
+  if (maxAmp > 200) return 20;
+  if (maxAmp > 100) return 50;
   const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
   const variance = samples.reduce((a, b) => a + (b - mean) ** 2, 0) / samples.length;
-  if (variance < 0.1) return 0.1;  // flat line
-  if (variance > 5000) return 0.3; // excessive noise
-  return Math.min(1, 0.5 + variance / 1000);
+  if (variance < 0.1) return 10;   // flat line — disconnected
+  if (variance > 5000) return 30;  // excessive noise
+  return Math.min(100, 50 + variance / 10);
 }
 
 // ── Main BLE manager class ────────────────────────────────────────────────────
@@ -613,7 +612,7 @@ export function museFrameToEegStreamFrame(f: MuseEegFrame): {
       sqi: f.signalQuality,
       artifacts_detected: f.signalQuality < 0.4 ? ["amplitude"] : [],
       clean_ratio: f.signalQuality,
-      channel_quality: f.signals.map((s) => computeSignalQuality(s) * 100),
+      channel_quality: f.signals.map((s) => computeSignalQuality(s)),
     },
     timestamp: f.timestampMs / 1000,
     n_channels: f.nChannels,
