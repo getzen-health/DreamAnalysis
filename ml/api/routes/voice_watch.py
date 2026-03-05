@@ -159,7 +159,7 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
     except Exception as exc:
         log.warning("VoiceEmotionModel path failed: %s", exc)
 
-    # ── Fallback: direct LightGBM via librosa ─────────────────────────────────
+    # ── Fallback: re-load audio with librosa and retry VoiceEmotionModel ────────
     if result is None:
         if not _ensure_librosa():
             raise HTTPException(503, "No audio processing library available")
@@ -170,13 +170,21 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
             raise HTTPException(422, f"Could not decode WAV: {exc}")
         if len(y) < _SR // 4:
             raise HTTPException(422, "Audio too short — need at least 0.25s")
+        try:
+            from models.voice_emotion_model import get_voice_model
+            result = get_voice_model().predict(y, sample_rate=_SR)
+        except Exception as exc:
+            log.warning("VoiceEmotionModel librosa fallback failed: %s", exc)
+
+    # ── Last-resort placeholder if all else fails ─────────────────────────────
+    if result is None:
         result = {
             "emotion": "neutral",
             "probabilities": {e: round(1 / 6, 4) for e in EMOTIONS_6},
             "valence": 0.0,
             "arousal": 0.5,
-            "confidence": 0.4,
-            "model_type": "voice_lgbm_fallback",
+            "confidence": 0.16,
+            "model_type": "voice_unavailable",
         }
 
     # ── Blend watch biometric stress signal ───────────────────────────────────
