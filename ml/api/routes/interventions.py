@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -200,6 +200,15 @@ class CheckRequest(BaseModel):
     minutes_since_last_meal: Optional[float] = Field(
         default=None, description="Minutes since last meal (None = unknown)"
     )
+    voice_emotion: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Voice emotion reading from voice_emotion2vec or equivalent. "
+            "Expected keys: emotion (str), valence (float -1..1), "
+            "arousal (float 0..1), confidence (float 0..1), "
+            "probabilities (dict), model_type (str)."
+        ),
+    )
 
 
 class TriggerRequest(BaseModel):
@@ -224,6 +233,60 @@ class SnoozeRequest(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+VOICE_STRESS_INTERVENTION = {
+    "type": "voice_stress",
+    "title": "Your voice signals elevated stress",
+    "body": (
+        "Voice analysis detected elevated stress or negative emotion. "
+        "A short breathing exercise can reduce cortisol within minutes."
+    ),
+    "action_label": "Start breathing",
+    "action_url": "/biofeedback?protocol=coherence&auto=true",
+    "icon": "mic",
+    "evidence": (
+        "Schuller et al. (2013): Acoustic features reliably index emotional arousal "
+        "and can serve as a stress proxy when EEG is unavailable or low-confidence."
+    ),
+    "priority": 2,
+    "source": "voice",
+}
+
+
+def _check_intervention_logic(req: CheckRequest) -> Dict:
+    """Sync core of the /check endpoint — separated so tests can call it directly."""
+    intervention = _decide_intervention(
+        req.user_id,
+        req.stress_index,
+        req.focus_index,
+        req.minutes_since_last_meal,
+    )
+
+    # ── Voice emotion triggers ────────────────────────────────────────────────
+    # Only evaluate voice if no EEG-based intervention is already queued and a
+    # voice reading is present with sufficient model confidence.
+    if intervention is None and req.voice_emotion:
+        voice_valence = float(req.voice_emotion.get("valence", 0.0))
+        voice_arousal = float(req.voice_emotion.get("arousal", 0.5))
+        voice_label   = req.voice_emotion.get("emotion", "neutral")
+        voice_conf    = float(req.voice_emotion.get("confidence", 0.0))
+
+        # Only act on confident voice readings
+        if voice_conf >= 0.5:
+            if voice_arousal >= 0.70 or voice_valence <= -0.30:
+                # Build a copy of the template so callers can mutate freely
+                intervention = dict(VOICE_STRESS_INTERVENTION)
+                intervention["body"] = (
+                    f"Voice detected {voice_label} "
+                    f"(valence {voice_valence:+.2f}, arousal {voice_arousal:.2f}). "
+                    "Consider a breathing exercise."
+                )
+
+    return {
+        "intervention": intervention,
+        "has_recommendation": intervention is not None,
+    }
+
+
 @router.post("/interventions/check")
 async def check_intervention(req: CheckRequest):
     """Evaluate current brain state and return an intervention recommendation.
@@ -231,16 +294,7 @@ async def check_intervention(req: CheckRequest):
     Call this every 30 seconds from the frontend.  Returns null when no
     intervention is needed or the cooldown is active.
     """
-    intervention = _decide_intervention(
-        req.user_id,
-        req.stress_index,
-        req.focus_index,
-        req.minutes_since_last_meal,
-    )
-    return {
-        "intervention": intervention,
-        "has_recommendation": intervention is not None,
-    }
+    return _check_intervention_logic(req)
 
 
 @router.post("/interventions/trigger")
