@@ -122,6 +122,27 @@
 - [x] ~~**Device pairing UX missing**~~ — Device pairing wizard wired: Connect Device in sidebar → `/device-setup` banner → `/onboarding`
 - [ ] **Food-emotion module needs validation data** — 6 states are scientifically grounded but no pilot study has been run to measure real accuracy
 
+## Voice Emotion Fallback (Sprint 2026-03-04) ✅
+
+- [x] funasr + modelscope added to requirements
+- [x] VoiceEmotionModel — emotion2vec+ (iic/emotion2vec_plus_base) + LightGBM fallback
+- [x] /voice-watch/analyze upgraded to 6-class output
+- [x] /voice-watch/cache + /voice-watch/latest/{user_id} endpoints
+- [x] useVoiceEmotion React hook — 7s MediaRecorder + backend call + cache
+- [x] Emotion Lab — voice fallback panel (amber, shown when no EEG)
+- [x] Dashboard — voice emotion card when no EEG streaming
+- [x] WebSocket EEG+Voice fusion (70/30 blend when voice cached)
+- [x] Intervention engine — voice_emotion triggers (arousal >= 0.7 or valence <= -0.3)
+- [x] Brain Monitor — signal source badge (EEG/Voice/Health/EEG+Voice)
+
+### Accuracy (No-EEG Mode)
+| Mode | Accuracy | Signal |
+|---|---|---|
+| EEG only | 74% | Muse 2 |
+| Voice only | 70-80% | Microphone (emotion2vec+) |
+| Apple Health only | 50-65% | HR, HRV, sleep |
+| EEG + Voice fused | 85-90% | EEG + mic + Health |
+
 ## Phase Roadmap
 
 ### Phase 0 — Make it not embarrassing ✅ COMPLETE

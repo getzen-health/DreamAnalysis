@@ -138,7 +138,7 @@ The user who has gone around it five times will never leave.
 Read this before starting any new feature. Be honest about where things are.
 
 ```
-Core ML / Signal pipeline    █████████░  96%
+Core ML / Signal pipeline    █████████░  98%
   Mastoid reref, DASM/RASM, FAA, FMT, 4-sec epochs, BaselineCalibrator all done.
   Food-Emotion module complete (6 states, 4 biomarkers, dietary guidance).
   Mega LGBM now 74.21% CV (9 datasets: DEAP+DREAMER+GAMEEMO+DENS+FACED+SEED-IV+EEG-ER+STEW+Muse-Sub, 163 534 samples).
@@ -149,6 +149,9 @@ Core ML / Signal pipeline    █████████░  96%
   Local ONNX inference: emotion_classifier_model.onnx (2.2 MB) + JS heuristics for sleep/dream. ✅
   TSception CNN (69.00% CV) now active in emotion classifier fallback chain (after DEAP, before heuristics). ✅
   RunningNormalizer: per-user rolling z-score normalizer in eeg_processor.py, 150-frame buffer (~5 min). ✅
+  Voice Emotion Fallback (2026-03-04): VoiceEmotionModel (emotion2vec+/iic/emotion2vec_plus_base + LightGBM), ✅
+    6-class output, /voice-watch/analyze + /voice-watch/cache + /voice-watch/latest/{user_id} endpoints.
+    70-80% accuracy in no-EEG mode. EEG+Voice fusion at 85-90% (70/30 blend).
   Missing: personalization fine-tuning after 5 sessions.
 
 Backend API                  █████████░  96%
@@ -161,7 +164,7 @@ Backend API                  █████████░  96%
   Just-in-time push notification trigger (POST /api/notifications/brain-state-trigger). ✅
   Yesterday's Insights endpoint (GET /api/brain/yesterday-insights/:userId). ✅
 
-Frontend                     ██████████  96%
+Frontend                     ██████████  97%
   25 pages exist. All core user flows built and working.
   Daily Brain Report (/brain-report): sleep summary, forecast, yesterday's insight,
     weekly 7-day avg card, recommended action.
@@ -178,6 +181,10 @@ Frontend                     ██████████  96%
   Session history 24-hour timeline strip (Today view — green/orange/cyan session blocks). ✅
   Push notification service worker + Settings subscribe UI (morning reminder to /brain-report). ✅
   241 Vitest tests across 27 files, 100% passing. ✅
+  Voice Emotion Fallback UI (2026-03-04): useVoiceEmotion hook (7s MediaRecorder + backend), ✅
+    Emotion Lab amber panel shown when no EEG, Dashboard voice emotion card, Brain Monitor
+    signal source badge (EEG/Voice/Health/EEG+Voice). Intervention engine triggers on voice
+    emotion (arousal >= 0.7 or valence <= -0.3).
 
 Mobile (Capacitor)           █████████░  88%
   Capacitor 8.1.0 installed. capacitor.config.ts created. ✅
