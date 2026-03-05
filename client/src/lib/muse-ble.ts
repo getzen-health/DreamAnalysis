@@ -75,7 +75,7 @@ export interface MuseEegFrame {
   focusIndex: number;
   /** Relaxation proxy: alpha / (alpha + beta + theta) */
   relaxationIndex: number;
-  /** Signal quality 0–1 based on amplitude variance and artifact rejection */
+  /** Signal quality 0–100 based on amplitude variance and artifact rejection */
   signalQuality: number;
   timestampMs: number;
   sampleRate: number;
@@ -582,6 +582,49 @@ export function museFrameToEegStreamFrame(f: MuseEegFrame): {
   sample_rate: number;
 } {
   const bp = f.bandPowers;
+  const theta = bp.theta ?? 0;
+  const alpha = bp.alpha ?? 0;
+  const beta  = bp.beta  ?? 0;
+  const delta = bp.delta ?? 0;
+
+  // Derived indices from band powers + pre-computed indices
+  const thetaBetaRatio  = theta / (beta + 0.001);
+  const drowsinessIdx   = Math.min(1, thetaBetaRatio * 0.6 + (1 - f.focusIndex) * 0.4);
+  const creativityScore = Math.min(1, (alpha / (alpha + beta + 0.001)) * 0.6 + (theta / (theta + beta + 0.001)) * 0.4);
+  const meditationScore = Math.min(1, f.relaxationIndex * 0.7 + (alpha / (alpha + beta + 0.001)) * 0.3);
+  const memoryScore     = Math.min(1, f.focusIndex * 0.7 + f.relaxationIndex * 0.3);
+  const flowScore       = Math.min(1, f.focusIndex * 0.6 + f.relaxationIndex * 0.4);
+  const cogLoadIdx      = f.focusIndex;
+  const sqi01           = f.signalQuality / 100; // sqi expected 0-1 by brain-monitor (* 100 there)
+
+  // Stress level label
+  const stressLevel = f.stressIndex > 0.7 ? "high" : f.stressIndex > 0.45 ? "moderate" : f.stressIndex > 0.2 ? "mild" : "relaxed";
+  const stressLevelIdx = f.stressIndex > 0.7 ? 3 : f.stressIndex > 0.45 ? 2 : f.stressIndex > 0.2 ? 1 : 0;
+
+  // Attention state label
+  const attentionState = f.focusIndex > 0.7 ? "hyperfocused" : f.focusIndex > 0.5 ? "focused" : f.focusIndex > 0.3 ? "normal" : "distracted";
+  const attentionStateIdx = f.focusIndex > 0.7 ? 3 : f.focusIndex > 0.5 ? 2 : f.focusIndex > 0.3 ? 1 : 0;
+
+  // Meditation depth label
+  const medDepth = meditationScore > 0.75 ? "deep" : meditationScore > 0.5 ? "meditating" : "relaxed";
+  const medDepthIdx = meditationScore > 0.75 ? 2 : meditationScore > 0.5 ? 1 : 0;
+
+  // Creativity state label
+  const creativityState = creativityScore > 0.7 ? "creative" : creativityScore > 0.4 ? "receptive" : "analytical";
+
+  // Drowsiness state label
+  const drowsinessState = drowsinessIdx > 0.7 ? "sleepy" : drowsinessIdx > 0.45 ? "fatigued" : drowsinessIdx > 0.25 ? "mild" : "alert";
+
+  // Memory encoding state label
+  const memState = memoryScore > 0.7 ? "strong_encoding" : memoryScore > 0.45 ? "moderate_encoding" : "poor_encoding";
+
+  // Cog load level label
+  const cogLevel = cogLoadIdx > 0.65 ? "high" : cogLoadIdx > 0.35 ? "medium" : "low";
+  const cogLevelIdx = cogLoadIdx > 0.65 ? 2 : cogLoadIdx > 0.35 ? 1 : 0;
+
+  // Sleep: awake (delta is low relative to others when awake)
+  const sleepDelta = delta / (delta + theta + alpha + beta + 0.001);
+  const sleepStage = sleepDelta > 0.6 ? "N3" : sleepDelta > 0.45 ? "N2" : "Wake";
 
   return {
     signals: f.signals,
@@ -594,24 +637,101 @@ export function museFrameToEegStreamFrame(f: MuseEegFrame): {
         relaxation_index: f.relaxationIndex,
       },
       emotions: {
-        // Derive basic emotion from FAA + stress/focus
         emotion: f.faa > 0.1 && f.focusIndex > 0.45 ? "focused"
                : f.faa < -0.1 && f.stressIndex > 0.55 ? "stressed"
                : f.faa < -0.15 ? "sad"
                : f.relaxationIndex > 0.5 ? "relaxed"
                : "neutral",
-        confidence: f.signalQuality,
+        confidence: sqi01,
         valence: Math.max(-1, Math.min(1, f.faa * 2)),
         arousal: f.stressIndex * 0.6 + f.focusIndex * 0.4,
         stress_index: f.stressIndex,
         focus_index: f.focusIndex,
         relaxation_index: f.relaxationIndex,
       },
+      stress: {
+        level: stressLevel,
+        level_index: stressLevelIdx,
+        stress_index: f.stressIndex,
+        confidence: sqi01,
+        cortisol_proxy: f.stressIndex,
+      },
+      attention: {
+        state: attentionState,
+        state_index: attentionStateIdx,
+        attention_score: f.focusIndex,
+        confidence: sqi01,
+        theta_beta_ratio: thetaBetaRatio,
+      },
+      flow_state: {
+        state: flowScore > 0.6 ? "flow" : "no_flow",
+        state_index: flowScore > 0.6 ? 1 : 0,
+        in_flow: flowScore > 0.6,
+        flow_score: flowScore,
+        confidence: sqi01,
+        components: { focus: f.focusIndex, relaxation: f.relaxationIndex },
+      },
+      creativity: {
+        state: creativityState,
+        state_index: creativityScore > 0.7 ? 2 : creativityScore > 0.4 ? 1 : 0,
+        creativity_score: creativityScore,
+        confidence: sqi01,
+        components: { alpha, theta },
+      },
+      drowsiness: {
+        state: drowsinessState,
+        state_index: drowsinessIdx > 0.7 ? 3 : drowsinessIdx > 0.45 ? 2 : drowsinessIdx > 0.25 ? 1 : 0,
+        alertness_score: 1 - drowsinessIdx,
+        drowsiness_index: drowsinessIdx,
+        confidence: sqi01,
+      },
+      cognitive_load: {
+        level: cogLevel,
+        level_index: cogLevelIdx,
+        load_index: cogLoadIdx,
+        confidence: sqi01,
+        components: { focus: f.focusIndex },
+      },
+      meditation: {
+        depth: medDepth,
+        depth_index: medDepthIdx,
+        meditation_score: meditationScore,
+        confidence: sqi01,
+        tradition_match: medDepth,
+      },
+      memory_encoding: {
+        state: memState,
+        state_index: memoryScore > 0.7 ? 2 : memoryScore > 0.45 ? 1 : 0,
+        encoding_score: memoryScore,
+        will_remember_probability: memoryScore,
+        confidence: sqi01,
+      },
+      sleep_staging: {
+        stage: sleepStage,
+        stage_index: sleepStage === "N3" ? 3 : sleepStage === "N2" ? 2 : 0,
+        confidence: sqi01,
+        probabilities: { Wake: sleepStage === "Wake" ? 0.9 : 0.1, N1: 0.0, N2: sleepStage === "N2" ? 0.8 : 0.0, N3: sleepStage === "N3" ? 0.8 : 0.0, REM: 0.0 },
+        calibrated_confidence: sqi01,
+      },
+      dream_detection: {
+        is_dreaming: false,
+        probability: 0,
+        rem_likelihood: 0,
+        dream_intensity: 0,
+        lucidity_estimate: 0,
+      },
+      lucid_dream: {
+        state: "non_lucid",
+        state_index: 0,
+        lucidity_score: 0,
+        confidence: sqi01,
+        gamma_surge: false,
+      },
     },
     quality: {
-      sqi: f.signalQuality,
-      artifacts_detected: f.signalQuality < 0.4 ? ["amplitude"] : [],
-      clean_ratio: f.signalQuality,
+      sqi: sqi01,
+      artifacts_detected: sqi01 < 0.4 ? ["amplitude"] : [],
+      clean_ratio: sqi01,
       channel_quality: f.signals.map((s) => computeSignalQuality(s)),
     },
     timestamp: f.timestampMs / 1000,
