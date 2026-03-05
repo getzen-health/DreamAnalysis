@@ -314,13 +314,20 @@ export class MuseBleManager {
 
     const service = await server.getPrimaryService(MUSE_SERVICE);
 
-    // Write control commands — Muse control characteristic requires writeValueWithResponse
-    // (write-with-acknowledgment). writeValueWithoutResponse silently fails on this char,
-    // causing the Muse to stream for only ~2 s then stop (firmware timeout).
+    // Write control commands — Muse control characteristic requires write-with-response.
+    // writeValueWithoutResponse silently fails, causing ~2 s streaming timeout.
+    // Fall back to deprecated writeValue() for older Chrome/Edge versions.
     const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
-    await controlChar.writeValueWithResponse(CMD_PRESET_P21);
-    await new Promise((r) => setTimeout(r, 50)); // brief pause between commands
-    await controlChar.writeValueWithResponse(CMD_START);
+    const writeCommand = async (dv: DataView) => {
+      if (typeof controlChar.writeValueWithResponse === "function") {
+        await controlChar.writeValueWithResponse(dv);
+      } else {
+        await (controlChar as BluetoothRemoteGATTCharacteristic & { writeValue: (v: DataView) => Promise<void> }).writeValue(dv);
+      }
+    };
+    await writeCommand(CMD_PRESET_P21);
+    await new Promise((r) => setTimeout(r, 50));
+    await writeCommand(CMD_START);
 
     // Subscribe to EEG channels
     for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
