@@ -254,7 +254,10 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                             try:
                                 from processing.signal_quality import SignalQualityChecker
                                 qc = SignalQualityChecker(fs=fs) if fs != 256 else quality_checker
-                                quality_result = qc.check_quality(eeg)
+                                if signals.ndim == 2 and signals.shape[0] >= 2:
+                                    quality_result = qc.check_multichannel(signals)
+                                else:
+                                    quality_result = qc.check_quality(eeg)
                                 # Datadog — SQI gauge every frame (4 Hz) — sampled 1-in-30 to avoid spam
                                 _sqi = (quality_result or {}).get("quality_score", 0)
                                 if _sqi and int(time.time()) % 30 == 0:

@@ -31,7 +31,7 @@ export default function BrainMonitor() {
   const voiceEmotion = useVoiceEmotion();
 
   const [wavelet, setWavelet] = useState<WaveletResult | null>(null);
-  const [anomaly] = useState<AnomalyResult | null>(null);
+  const anomaly = (latestFrame?.analysis as { anomaly?: AnomalyResult } | undefined)?.anomaly ?? null;
   const [isRecording, setIsRecording] = useState(false);
   const waveletTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -184,7 +184,7 @@ export default function BrainMonitor() {
     {
       name: "Lucid",
       value: lf
-        ? `${Math.round(((a?.lucid_dream as { lucid_probability?: number } | undefined)?.lucid_probability ?? 0) * 100)}%`
+        ? `${Math.round(((a?.lucid_dream as { lucidity_score?: number } | undefined)?.lucidity_score ?? 0) * 100)}%`
         : "—",
     },
     {
@@ -194,7 +194,7 @@ export default function BrainMonitor() {
     {
       name: "Memory",
       value: lf
-        ? `${Math.round(((a?.memory_encoding as { encoding_quality?: number } | undefined)?.encoding_quality ?? 0) * 100)}%`
+        ? `${Math.round(((a?.memory_encoding as { encoding_score?: number } | undefined)?.encoding_score ?? 0) * 100)}%`
         : "—",
     },
     {
@@ -567,9 +567,15 @@ export default function BrainMonitor() {
               ))}
             </div>
             <div className="flex justify-between text-xs">
-              <span className="text-success">{activeCount} Active</span>
-              <span className="text-warning">{weakCount} Weak</span>
-              <span className="text-destructive">{errorCount} Error</span>
+              {hasRealData ? (
+                <>
+                  <span className="text-success">{activeCount} Active</span>
+                  <span className="text-warning">{weakCount} Weak</span>
+                  <span className="text-destructive">{errorCount} Error</span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">Quality data not available for this device</span>
+              )}
             </div>
           </>
         ) : (

@@ -134,14 +134,18 @@ class SignalQualityChecker:
             for reason in r["rejection_reasons"]:
                 all_reasons.append(f"Ch{i}: {reason}")
 
+        channel_quality = [round(s * 100, 1) for s in channel_scores]  # 0-100 scale for UI
         return {
             "quality_score": round(overall_score, 3),
+            "sqi": round(overall_score, 3),
             "is_usable": usable_channels >= max(1, n_channels // 2),
             "usable_channels": usable_channels,
             "total_channels": n_channels,
             "channel_scores": [round(s, 3) for s in channel_scores],
+            "channel_quality": channel_quality,  # 0-100 per channel for electrode status UI
             "channel_details": channel_results,
             "rejection_reasons": all_reasons,
+            "clean_ratio": round(usable_channels / max(n_channels, 1), 3),
         }
 
     def _check_amplitude(self, signal: np.ndarray) -> Tuple[float, List[str]]:
