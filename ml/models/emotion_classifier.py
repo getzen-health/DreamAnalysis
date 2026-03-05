@@ -924,30 +924,20 @@ class EmotionClassifier:
         """
         # ── Artifact rejection ───────────────────────────────────
         # Reject epochs with extreme amplitude (eye blinks: 100-200 µV, EMG bursts).
-        # Return the last EMA-smoothed state rather than a noisy artifact-driven result.
+        # ONLY freeze EMA if we have prior history — on the first epoch, run the model
+        # regardless, otherwise _ema_probs stays at uniform 1/6 forever.
         max_amp = float(np.max(np.abs(eeg)))
-        if max_amp > _ARTIFACT_THRESHOLD_UV:
-            if self._ema_probs is not None:
-                smoothed = self._ema_probs / (self._ema_probs.sum() + 1e-10)
-                emotion_idx = int(np.argmax(smoothed))
-                top_conf = float(smoothed[emotion_idx])
-                emotion_label = EMOTIONS[emotion_idx] if top_conf >= 0.25 else "neutral"
-                result = {e: float(smoothed[i]) for i, e in enumerate(EMOTIONS)}
-                # Return frozen EMA state — do not update with artifact epoch
-                return {
-                    "emotion": emotion_label, "emotion_index": emotion_idx,
-                    "confidence": top_conf, "probabilities": result,
-                    "valence": 0.0, "arousal": 0.5,
-                    "stress_index": 0.5, "focus_index": 0.5,
-                    "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
-                    "band_powers": {}, "differential_entropy": {},
-                    "dasm_rasm": {}, "frontal_midline_theta": {}, "artifact_detected": True,
-                }
-            # No prior EMA — return neutral with artifact flag
-            neutral = {e: 1.0 / 6 for e in EMOTIONS}
+        _artifact_now = max_amp > _ARTIFACT_THRESHOLD_UV
+        if _artifact_now and self._ema_probs is not None:
+            smoothed = self._ema_probs / (self._ema_probs.sum() + 1e-10)
+            emotion_idx = int(np.argmax(smoothed))
+            top_conf = float(smoothed[emotion_idx])
+            emotion_label = EMOTIONS[emotion_idx] if top_conf >= 0.25 else "neutral"
+            result = {e: float(smoothed[i]) for i, e in enumerate(EMOTIONS)}
+            # Return frozen EMA state — do not update with artifact epoch
             return {
-                "emotion": "neutral", "emotion_index": 5,
-                "confidence": 1.0 / 6, "probabilities": neutral,
+                "emotion": emotion_label, "emotion_index": emotion_idx,
+                "confidence": top_conf, "probabilities": result,
                 "valence": 0.0, "arousal": 0.5,
                 "stress_index": 0.5, "focus_index": 0.5,
                 "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
@@ -1229,7 +1219,7 @@ class EmotionClassifier:
             "differential_entropy": de,
             "dasm_rasm": dasm_rasm,
             "frontal_midline_theta": fmt,
-            "artifact_detected": False,
+            "artifact_detected": _artifact_now,
         }
 
     # ────────────────────────────────────────────────────────────────
