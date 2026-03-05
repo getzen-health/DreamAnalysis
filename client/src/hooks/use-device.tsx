@@ -327,8 +327,8 @@ function useDeviceInternal(): UseDeviceReturn {
     setError(null);
     setState("connecting");
 
-    // ── Mobile BLE path (iOS / Android via Capacitor) ──────────────────────
-    if (museBle.isNative && (deviceType === "muse_2" || deviceType === "muse_s")) {
+    // ── BLE path: native Capacitor (iOS/Android) OR Web Bluetooth (Chrome) ──
+    if (museBle.isAvailable && (deviceType === "muse_2" || deviceType === "muse_s")) {
       try {
         museBle.onEegFrame((frame) => {
           const eegFrame = museFrameToEegStreamFrame(frame);
@@ -559,7 +559,7 @@ function useDeviceInternal(): UseDeviceReturn {
   // next reconnect timer fires (up to 8 s) or the user manually reconnects.
   useEffect(() => {
     const onVisible = () => {
-      if (document.hidden || !isStreamingRef.current || museBle.isNative) return;
+      if (document.hidden || !isStreamingRef.current || museBle.isAvailable) return;
       reconnectRef.current = 0; // reset backoff so next attempt is instant
       const ws = wsRef.current;
       if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
@@ -573,7 +573,7 @@ function useDeviceInternal(): UseDeviceReturn {
   // Stale-frames watchdog: if the WebSocket is "open" but no frame has arrived
   // for STALE_FRAME_TIMEOUT_MS, reconnect — handles silent-death scenarios.
   useEffect(() => {
-    if (state !== "streaming" || museBle.isNative) {
+    if (state !== "streaming" || museBle.isAvailable) {
       if (staleTimerRef.current) { clearInterval(staleTimerRef.current); staleTimerRef.current = null; }
       return;
     }

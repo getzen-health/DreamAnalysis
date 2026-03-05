@@ -221,6 +221,16 @@ export class MuseBleManager {
     return Capacitor.isNativePlatform();
   }
 
+  /** True when the browser exposes the Web Bluetooth API (Chrome desktop/Android). */
+  get isWebBluetooth(): boolean {
+    return !this.isNative && typeof navigator !== "undefined" && "bluetooth" in navigator;
+  }
+
+  /** True if any BLE path is available (native Capacitor OR Web Bluetooth). */
+  get isAvailable(): boolean {
+    return this.isNative || this.isWebBluetooth;
+  }
+
   getStatus(): MuseBleStatus {
     return {
       state: this.state,
@@ -257,17 +267,102 @@ export class MuseBleManager {
     return this.BleClient;
   }
 
+  // ── Web Bluetooth internals ─────────────────────────────────────────────────
+  private _webGattServer: BluetoothRemoteGATTServer | null = null;
+
+  private async _connectWebBluetooth(): Promise<void> {
+    const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
+    this.setStatus("scanning");
+
+    let device: BluetoothDevice;
+    try {
+      device = await bt.requestDevice({
+        filters: [{ services: [MUSE_SERVICE] }],
+        optionalServices: [MUSE_SERVICE],
+      });
+    } catch (e) {
+      this.setStatus("idle", "Device selection cancelled");
+      throw e;
+    }
+
+    this.deviceName = device.name ?? "Muse";
+    this.setStatus("connecting");
+
+    device.addEventListener("gattserverdisconnected", () => {
+      this._webGattServer = null;
+      this.stopEmitter();
+      this.setStatus("idle", "Device disconnected");
+    });
+
+    let server: BluetoothRemoteGATTServer;
+    try {
+      server = await device.gatt!.connect();
+      this._webGattServer = server;
+    } catch (e) {
+      this.setStatus("error", `GATT connect failed: ${String(e)}`);
+      throw e;
+    }
+
+    const service = await server.getPrimaryService(MUSE_SERVICE);
+
+    // Write control commands
+    const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
+    await controlChar.writeValueWithoutResponse(CMD_PRESET_P21);
+    await controlChar.writeValueWithoutResponse(CMD_START);
+
+    // Subscribe to EEG channels
+    for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+      const charUuid = MUSE_EEG_CHARS[ch];
+      const characteristic = await service.getCharacteristic(charUuid);
+      await characteristic.startNotifications();
+      const channelIndex = ch;
+      characteristic.addEventListener("characteristicvaluechanged", (ev: Event) => {
+        const target = ev.target as BluetoothRemoteGATTCharacteristic;
+        if (target.value) this.onEegNotification(channelIndex, target.value);
+      });
+    }
+
+    this.startEmitter();
+    this.setStatus("streaming");
+  }
+
+  private async _disconnectWebBluetooth(): Promise<void> {
+    this.stopEmitter();
+    if (this._webGattServer?.connected) {
+      try {
+        // Send stop command before disconnecting
+        const service = await this._webGattServer.getPrimaryService(MUSE_SERVICE);
+        const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
+        await controlChar.writeValueWithoutResponse(CMD_STOP).catch(() => {});
+      } catch { /* ignore */ }
+      this._webGattServer.disconnect();
+    }
+    this._webGattServer = null;
+    this.deviceName = null;
+    this.setStatus("idle");
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /**
    * Scan for Muse devices and prompt the user to select one.
    * Automatically connects and starts streaming.
    *
-   * Throws if BLE is unavailable (non-native context or permissions denied).
+   * Works on:
+   *   - iOS / Android via @capacitor-community/bluetooth-le
+   *   - Desktop / Android Chrome via Web Bluetooth API (navigator.bluetooth)
+   *
+   * Throws if BLE is unavailable (no native + no Web Bluetooth support).
    */
   async connect(): Promise<void> {
-    if (!this.isNative) {
-      throw new Error("BLE is only available on iOS/Android. Use BrainFlow on desktop.");
+    if (!this.isNative && !this.isWebBluetooth) {
+      throw new Error(
+        "Bluetooth not available. Use Chrome on desktop/Android, or the iOS app."
+      );
+    }
+
+    if (this.isWebBluetooth) {
+      return this._connectWebBluetooth();
     }
 
     const ble = await this.getBleClient();
@@ -339,7 +434,9 @@ export class MuseBleManager {
    * Throws if no previous deviceId is saved or the device is out of range.
    */
   async reconnect(): Promise<void> {
-    if (!this.isNative) throw new Error("BLE is only available on iOS/Android.");
+    if (!this.isNative && !this.isWebBluetooth) throw new Error("BLE not available.");
+    // Web Bluetooth reconnect = show picker again (no saved deviceId path)
+    if (this.isWebBluetooth) return this._connectWebBluetooth();
     if (!this.deviceId) throw new Error("No device to reconnect to — connect first.");
 
     const ble = await this.getBleClient();
@@ -383,6 +480,8 @@ export class MuseBleManager {
    * Stop streaming and disconnect from the device.
    */
   async disconnect(): Promise<void> {
+    if (this.isWebBluetooth) return this._disconnectWebBluetooth();
+
     this.stopEmitter();
     if (!this.deviceId) return;
 
