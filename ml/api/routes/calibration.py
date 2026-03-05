@@ -39,6 +39,21 @@ from ._shared import (
 )
 from processing.eeg_processor import BaselineCalibrator
 
+
+def _get_personal_model_for_feedback(user_id: str, n_channels: int = 4):
+    """Return the PersonalModel (EEGNet-backed, fine-tunable) for a user.
+
+    Distinct from _get_personal_model() which returns the SGD-based
+    PersonalModelAdapter used for the online-learner blend in predict_emotion().
+    The PersonalModel has add_labeled_epoch(), fine_tune(), and save() which
+    are required by the /feedback and /calibration/status endpoints.
+    """
+    try:
+        from models.personal_model import get_personal_model as _gpm
+        return _gpm(user_id, n_channels=n_channels)
+    except Exception:
+        return None
+
 router = APIRouter()
 
 # Per-user BaselineCalibrator instances, keyed by user_id
@@ -110,8 +125,10 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
     fine_tune_triggered = False
 
     if request.signals is not None:
-        # EEG provided — add to personal model buffer and maybe auto-fine-tune
-        pm = _get_personal_model(request.user_id)
+        # EEG provided — add to personal model buffer and maybe auto-fine-tune.
+        # Uses PersonalModel (EEGNet-backed) which has add_labeled_epoch() + fine_tune().
+        n_channels = len(request.signals) if request.signals else 4
+        pm = _get_personal_model_for_feedback(request.user_id, n_channels=n_channels)
         if pm is not None:
             label_map = {"happy": 0, "sad": 1, "angry": 2, "fearful": 3, "relaxed": 4, "focused": 5}
             label_idx = label_map.get(request.correct_label, -1)
@@ -137,11 +154,21 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
 
 @router.get("/calibration/status")
 async def calibration_status(user_id: str = "default"):
-    """Check personal model calibration status."""
-    pm = _get_personal_model(user_id)
+    """Check personal model calibration status.
+
+    Returns PersonalModel.status() — includes buffer size, head accuracy,
+    session count, and whether the personal head is active.
+    """
+    pm = _get_personal_model_for_feedback(user_id)
     if pm is None:
-        return {"calibrated": False, "n_samples": 0, "personal_accuracy": 0.0, "classes": []}
-    return pm.get_calibration_status()
+        return {
+            "calibrated": False,
+            "personal_model_active": False,
+            "n_samples": 0,
+            "personal_accuracy": 0.0,
+            "classes": [],
+        }
+    return pm.status()
 
 
 # ─── Baseline calibration endpoints ─────────────────────────────────────────
