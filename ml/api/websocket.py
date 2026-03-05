@@ -304,10 +304,23 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                         n_ch = eeg_30s.shape[0] if eeg_30s.ndim == 2 else 1
                                         # Personal model → EEGNet central → mega LGBM fallback
                                         emotion_result = predict_emotion(ws_user_id, eeg_30s, fs, n_ch)
-                                        # Multimodal fusion: blend with any cached biometrics
+                                        # Multimodal fusion: blend EEG with biometrics + cached voice
                                         try:
                                             bio = get_biometric_snapshot(ws_user_id)
-                                            emotion_result = fusion_model.fuse(emotion_result, bio)
+                                            # Pull cached voice result (< 5 min) for multimodal fusion
+                                            voice_result = None
+                                            try:
+                                                from api.routes.voice_watch import get_latest_voice
+                                                voice_result = get_latest_voice(ws_user_id)
+                                            except Exception:
+                                                pass
+                                            emotion_result = fusion_model.fuse(
+                                                emotion_result, bio,
+                                                voice_result=voice_result,
+                                            )
+                                            if voice_result:
+                                                emotion_result["fusion_active"] = True
+                                                emotion_result["signal_source"] = "eeg+voice"
                                         except Exception:
                                             pass  # keep raw result if fusion fails
                                         conn_state["emotion_result"] = emotion_result

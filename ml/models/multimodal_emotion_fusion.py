@@ -177,6 +177,7 @@ class MultimodalEmotionFusion:
         self,
         eeg_result: Dict[str, Any],
         bio: BiometricSnapshot,
+        voice_result: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Return fused emotion + biometric state dict.
 
@@ -187,6 +188,10 @@ class MultimodalEmotionFusion:
             ``stress_index``, ``valence``, ``arousal``.
         bio:
             Snapshot of all available biometric readings.
+        voice_result:
+            Optional cached voice emotion result (from voice_watch cache).
+            When present and confidence > 0.3, blended at 30% weight
+            against EEG (70%) for valence and arousal.
 
         Returns
         -------
@@ -274,6 +279,24 @@ class MultimodalEmotionFusion:
             (activity_arousal, 0.05),
         ])
 
+        # ── 8. Voice layer (30% EEG / 70% weight blend when present) ────────
+        if voice_result and voice_result.get("confidence", 0) > 0.3:
+            voice_weight = 0.30
+            eeg_weight = 0.70
+            # Blend valence
+            if "valence" in voice_result:
+                valence = (
+                    valence * eeg_weight + float(voice_result["valence"]) * voice_weight
+                )
+                valence = max(-1.0, min(1.0, valence))
+            # Blend arousal (voice arousal is 0-1 scale, same as EEG)
+            if "arousal" in voice_result:
+                arousal = (
+                    arousal * eeg_weight + float(voice_result["arousal"]) * voice_weight
+                )
+                arousal = max(0.0, min(1.0, arousal))
+            signals_used.append("voice")
+
         # ── Dream readiness (for sleep-mode sessions) ─────────────────────
         dream_readiness = self._dream_readiness_score(bio, eeg_result)
 
@@ -299,6 +322,9 @@ class MultimodalEmotionFusion:
             "model_type":            eeg_result.get("model_type", "multimodal-fusion"),
             "confidence":            eeg_result.get("confidence", round(float(biometric_confidence), 2)),
             "probabilities":         eeg_result.get("probabilities", {}),
+            # Voice fusion metadata (populated when voice cache was available)
+            "voice_emotion":         voice_result.get("emotion") if voice_result else None,
+            "voice_confidence":      voice_result.get("confidence") if voice_result else None,
         }
 
     # ── HRV sub-model ─────────────────────────────────────────────────────
