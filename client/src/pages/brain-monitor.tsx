@@ -95,14 +95,21 @@ export default function BrainMonitor() {
   const sourceColor = isStreaming ? "text-primary" : "text-muted-foreground";
   const alertLevel: AlertLevel = anomaly?.alert_level || "normal";
 
-  // Electrode grid
+  // Electrode grid — suppress quality data for synthetic board (non-physiological signals)
+  const isSynthetic = deviceStatus?.device_type === "synthetic";
+  const channelQuality = isSynthetic ? [] : (signalQuality?.channel_quality || []);
+  const hasRealData = channelQuality.length > 0;
+  const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 0;
+  const weakCount = hasRealData ? channelQuality.filter((q) => q >= 60 && q < 80).length : 0;
+  const errorCount = hasRealData ? channelQuality.filter((q) => q < 60).length : 0;
+
   const electrodeStatuses = useMemo(() => {
-    const channelQuality = signalQuality?.channel_quality;
-    const nChannels = deviceStatus?.n_channels ?? (channelQuality?.length || 4);
+    const qualityData = isSynthetic ? undefined : signalQuality?.channel_quality;
+    const nChannels = deviceStatus?.n_channels ?? (qualityData?.length || 4);
     return Array.from({ length: nChannels }, (_, i) => {
       let statusClass: string;
-      if (channelQuality && i < channelQuality.length) {
-        const q = channelQuality[i];
+      if (qualityData && i < qualityData.length) {
+        const q = qualityData[i];
         statusClass =
           q < 60
             ? "border-destructive/30 bg-destructive/20"
@@ -115,13 +122,7 @@ export default function BrainMonitor() {
       const label = `${String.fromCharCode(65 + Math.floor(i / 8))}${(i % 8) + 1}`;
       return { statusClass, label };
     });
-  }, [signalQuality?.channel_quality, deviceStatus?.n_channels]);
-
-  const channelQuality = signalQuality?.channel_quality || [];
-  const hasRealData = channelQuality.length > 0;
-  const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 0;
-  const weakCount = hasRealData ? channelQuality.filter((q) => q >= 60 && q < 80).length : 0;
-  const errorCount = hasRealData ? channelQuality.filter((q) => q < 60).length : 0;
+  }, [isSynthetic, signalQuality?.channel_quality, deviceStatus?.n_channels]);
 
   const lf = latestFrame;
   const a = lf?.analysis as Record<string, unknown> | undefined;
@@ -574,7 +575,9 @@ export default function BrainMonitor() {
                   <span className="text-destructive">{errorCount} Error</span>
                 </>
               ) : (
-                <span className="text-muted-foreground">Quality data not available for this device</span>
+                <span className="text-muted-foreground">
+                  {isSynthetic ? "Simulated data — electrode quality n/a" : "Quality data not available for this device"}
+                </span>
               )}
             </div>
           </>

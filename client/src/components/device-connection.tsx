@@ -132,7 +132,7 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
             <Card className="p-4 bg-card/50 border-primary/20">
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <span className="text-foreground/60">Device:</span>
-                <span className="font-mono">{deviceStatus.device_type || "Unknown"}</span>
+                <span className="font-mono">{deviceStatus.device_type || selectedDevice || "Unknown"}</span>
                 <span className="text-foreground/60">Channels:</span>
                 <span className="font-mono">{deviceStatus.n_channels}</span>
                 <span className="text-foreground/60">Sample Rate:</span>

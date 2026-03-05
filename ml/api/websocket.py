@@ -290,7 +290,11 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                         m = _init_models()
                         if m:
                             try:
-                                sleep_pred = m["sleep"].predict(eeg, fs) if "sleep" in m else {}
+                                try:
+                                    sleep_pred = m["sleep"].predict(eeg, fs) if "sleep" in m else {}
+                                except Exception as _e:
+                                    logger.warning("Model sleep error: %s", _e)
+                                    sleep_pred = {}
                                 analysis["sleep_staging"] = sleep_pred
 
                                 # ── Emotion: 30s window only ──────────────────────────────
