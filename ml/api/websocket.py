@@ -247,8 +247,14 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                     }
 
                     # Signal quality check
+                    # Skip for synthetic board — its signals are non-physiological and
+                    # will always fail quality checks, producing misleading "4 Error" in UI.
+                    _is_synthetic = (
+                        device_manager.current_device_type == "synthetic"
+                        if device_manager else False
+                    )
                     quality_result = None
-                    if run_quality:
+                    if run_quality and not _is_synthetic:
                         _init_accuracy_pipeline()
                         if quality_checker:
                             try:
