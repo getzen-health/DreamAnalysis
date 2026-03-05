@@ -182,6 +182,10 @@ export function useDevice(): UseDeviceReturn {
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 8_000;   // cap at 8 s — 30 s was too long
 const STALE_FRAME_TIMEOUT_MS = 15_000;  // reconnect WS if no frame arrives for 15 s
+// On production (non-localhost) the ML backend is remote — Muse BLE can't reach it.
+// Cap reconnects to 2 attempts then stop, to avoid infinite retry noise.
+const IS_REMOTE_BACKEND = typeof window !== "undefined" && window.location.hostname !== "localhost";
+const RECONNECT_MAX_ATTEMPTS = IS_REMOTE_BACKEND ? 2 : Infinity;
 
 function useDeviceInternal(): UseDeviceReturn {
   const [state, setState] = useState<DeviceState>("disconnected");
@@ -266,26 +270,27 @@ function useDeviceInternal(): UseDeviceReturn {
 
     ws.onerror = () => {
       if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
-      const url = getWebSocketUrl();
-      const isNgrok = url.includes("ngrok");
-      setError(
-        isNgrok
-          ? "WebSocket blocked by ngrok. Open Settings and set ML Backend URL to http://localhost:8080, then reconnect."
-          : "WebSocket connection error — is the ML backend running? Try: cd ~/NeuralDreamWorkshop/ml && ./start.sh"
-      );
+      if (IS_REMOTE_BACKEND) {
+        setError("Live EEG streaming requires a local ML backend. Simulation mode is active — EEG data is simulated.");
+      } else {
+        setError("WebSocket connection error — is the ML backend running? Try: cd ~/NeuralDreamWorkshop/ml && ./start.sh");
+      }
     };
 
     ws.onclose = () => {
       wsRef.current = null;
       if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
-      // Unlimited reconnect — keep trying while device is selected and streaming
-      if (isStreamingRef.current) {
+      if (isStreamingRef.current && reconnectRef.current < RECONNECT_MAX_ATTEMPTS) {
         const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, reconnectRef.current), RECONNECT_MAX_DELAY_MS);
         reconnectRef.current += 1;
         setReconnectCount(reconnectRef.current);
         reconnectTimerRef.current = setTimeout(() => {
           if (isStreamingRef.current) openWebSocket();
         }, delay);
+      } else if (reconnectRef.current >= RECONNECT_MAX_ATTEMPTS) {
+        // Gave up — switch to simulation automatically on remote backend
+        isStreamingRef.current = false;
+        setState("disconnected");
       }
     };
   }, []);
