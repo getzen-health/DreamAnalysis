@@ -25,6 +25,7 @@ import { Slider } from "@/components/ui/slider";
 import { Loader2, Bluetooth, CheckCircle2, Wind, Utensils, Brain } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { pingBackend } from "@/lib/ml-api";
+import { VoiceWatchAnalyzer } from "@/components/voice-watch-analyzer";
 import { useToast } from "@/hooks/use-toast";
 import { useDevice } from "@/hooks/use-device";
 
@@ -418,7 +419,7 @@ export default function StudySession() {
 
   // Timers
   const baselineRemaining   = useCountdown(5 * 60,  baselineActive,    onBaselineDone);
-  const taskRemaining       = useCountdown(15 * 60, taskActive,        onTaskDone);
+  const taskRemaining       = useCountdown(20 * 60, taskActive,        onTaskDone);
   const interventionRemaining = useCountdown(3 * 60, phase === "intervention", onInterventionDone);
   const recoveryRemaining   = useCountdown(5 * 60,  recoveryActive,    onRecoveryDone);
 
@@ -480,7 +481,7 @@ export default function StudySession() {
                 <Brain className="w-10 h-10 mx-auto text-primary" />
                 <div>
                   <p className="font-semibold">Stress Block</p>
-                  <p className="text-xs text-muted-foreground mt-1">15 min work task + breathing</p>
+                  <p className="text-xs text-muted-foreground mt-1">20 min work task + breathing</p>
                 </div>
               </CardContent>
             </Card>
@@ -561,6 +562,18 @@ export default function StudySession() {
               Continue without Muse (simulation mode)
             </button>
           </div>
+
+          {/* Headband-free alternative: voice + watch */}
+          {!isConnected && (
+            <div className="space-y-2">
+              <p className="text-xs text-center text-muted-foreground">
+                — or use voice + Apple Watch instead —
+              </p>
+              <div className="flex justify-center">
+                <VoiceWatchAnalyzer userId="default" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -647,7 +660,7 @@ export default function StudySession() {
               </p>
               <div className="flex flex-col items-center gap-3">
                 <span className="text-5xl font-mono font-bold tracking-tight">{formatTime(taskRemaining)}</span>
-                <Progress value={((15*60 - taskRemaining) / (15*60)) * 100} className="h-2" />
+                <Progress value={((20*60 - taskRemaining) / (20*60)) * 100} className="h-2" />
               </div>
 
               {/* Optional stress bar */}
