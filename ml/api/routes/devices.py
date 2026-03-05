@@ -97,14 +97,14 @@ async def connect_device(request: DeviceConnectRequest):
     if manager is None:
         if is_ble_device:
             raise HTTPException(
-                status_code=503,
+                status_code=400,
                 detail=(
-                    f"{request.device_type} requires Bluetooth hardware which is not "
-                    "available on this remote server. Select 'Synthetic' board to demo "
-                    "the app, or run the ML backend locally for real Muse data."
+                    f"{request.device_type} requires Bluetooth — not available on this "
+                    "remote server. Select 'Synthetic' board to demo the app, or run "
+                    "the ML backend locally for real Muse data."
                 ),
             )
-        raise HTTPException(status_code=503, detail="BrainFlow not available")
+        raise HTTPException(status_code=400, detail="BrainFlow not available on this server.")
     try:
         result = manager.connect(request.device_type, request.params or {})
         emotion_model.set_device_type(request.device_type)
@@ -113,12 +113,11 @@ async def connect_device(request: DeviceConnectRequest):
         msg = str(e)
         if is_ble_device:
             raise HTTPException(
-                status_code=503,
+                status_code=400,
                 detail=(
-                    f"{request.device_type} requires Bluetooth hardware which is not "
-                    "available on this remote server. Select 'Synthetic' board to demo "
-                    "the app, or run the ML backend locally for real Muse data. "
-                    f"(Detail: {msg})"
+                    f"{request.device_type} requires Bluetooth — not available on this "
+                    "remote server. Select 'Synthetic' board to demo the app, or run "
+                    f"the ML backend locally for real Muse data. (Detail: {msg})"
                 ),
             )
         raise HTTPException(status_code=500, detail=msg)
