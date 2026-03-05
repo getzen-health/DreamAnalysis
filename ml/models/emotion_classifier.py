@@ -1127,6 +1127,42 @@ class EmotionClassifier:
             + 0.25 * max(0, 1 - theta_beta_ratio * 0.40)      # low theta/beta (adjusted multiplier)
         )
 
+        # If all raw scores are near zero (degenerate case — e.g. synthetic board
+        # data with features in the neutral zone), don't emit uniform 17% for each
+        # emotion. Instead return empty probabilities so the UI shows "—" rather
+        # than six bars all frozen at 17%.
+        if probs.max() < 1e-4:
+            return {
+                "emotion": "neutral",
+                "emotion_index": 5,
+                "confidence": 0.0,
+                "probabilities": {},
+                "classification_confidence": "low",
+                "valence": valence,
+                "arousal": arousal,
+                "stress_index": float(np.clip(
+                    0.40 * min(1, beta_alpha_ratio * 0.3)
+                    + 0.25 * max(0, 1 - alpha * 2.5)
+                    + 0.25 * min(1, high_beta * 4)
+                    + 0.10 * dasm_beta_stress,
+                    0, 1
+                )),
+                "focus_index": float(np.clip(
+                    0.45 * min(1, beta * 3.5)
+                    + 0.40 * max(0, 1 - theta_beta_ratio * 0.40)
+                    + 0.15 * min(1, low_beta * 5),
+                    0, 1
+                )),
+                "relaxation_index": float(np.clip(alpha * 2.0, 0, 1)),
+                "anger_index": 0.0,
+                "fear_index": 0.0,
+                "band_powers": bands,
+                "differential_entropy": de,
+                "dasm_rasm": dasm_rasm,
+                "frontal_midline_theta": fmt,
+                "artifact_detected": _artifact_now,
+            }
+
         # Softmax-like normalization (temperature=2.5 for clear sharpness).
         # Subtract max before exp to prevent overflow (numerically stable softmax).
         temp = 2.5
