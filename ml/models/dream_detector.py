@@ -64,7 +64,7 @@ class DreamDetector:
         processed = preprocess(eeg, fs)
         bands = extract_band_powers(processed, fs)
         features = extract_features(processed, fs)
-        feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+        feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
 
         probs = self.sklearn_model.predict_proba(feature_vector)[0]
         # probs[0] = not_dreaming, probs[1] = dreaming

@@ -168,7 +168,7 @@ class CreativityDetector:
         processed = preprocess(eeg, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
-        feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+        feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
 
         if self.scaler is not None:
             feature_vector = self.scaler.transform(feature_vector)
@@ -341,7 +341,7 @@ class MemoryEncodingPredictor:
         processed = preprocess(eeg, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
-        feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+        feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
 
         if self.scaler is not None:
             feature_vector = self.scaler.transform(feature_vector)

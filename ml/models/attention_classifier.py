@@ -188,7 +188,7 @@ class AttentionClassifier:
         processed = preprocess(eeg, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
-        fv = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+        fv = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
         if self.scaler is not None:
             fv = self.scaler.transform(fv)
 

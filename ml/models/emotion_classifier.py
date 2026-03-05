@@ -1370,7 +1370,7 @@ class EmotionClassifier:
             processed = preprocess(signal_for_bands, fs)
             features = extract_features(processed, fs)
             try:
-                feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+                feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
             except KeyError:
                 return self._predict_features(eeg, fs)
             if self.scaler is not None:

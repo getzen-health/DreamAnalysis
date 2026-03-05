@@ -374,23 +374,38 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                         "window_sec": _EMOTION_WINDOW_SEC,
                                     }
 
-                                analysis["dream_detection"] = m["dream"].predict(eeg, fs) if "dream" in m else {}
-                                analysis["flow_state"] = m["flow"].predict(eeg, fs) if "flow" in m else {}
-                                analysis["creativity"] = m["creativity"].predict(eeg, fs) if "creativity" in m else {}
-                                analysis["memory_encoding"] = m["memory"].predict(eeg, fs) if "memory" in m else {}
-                                analysis["drowsiness"] = m["drowsiness"].predict(eeg, fs) if "drowsiness" in m else {}
-                                analysis["cognitive_load"] = m["cognitive_load"].predict(eeg, fs) if "cognitive_load" in m else {}
-                                analysis["attention"] = m["attention"].predict(eeg, fs) if "attention" in m else {}
-                                analysis["stress"] = m["stress"].predict(eeg, fs) if "stress" in m else {}
+                                _model_calls = [
+                                    ("dream_detection", "dream", lambda: m["dream"].predict(eeg, fs)),
+                                    ("flow_state", "flow", lambda: m["flow"].predict(eeg, fs)),
+                                    ("creativity", "creativity", lambda: m["creativity"].predict(eeg, fs)),
+                                    ("memory_encoding", "memory", lambda: m["memory"].predict(eeg, fs)),
+                                    ("drowsiness", "drowsiness", lambda: m["drowsiness"].predict(eeg, fs)),
+                                    ("cognitive_load", "cognitive_load", lambda: m["cognitive_load"].predict(eeg, fs)),
+                                    ("attention", "attention", lambda: m["attention"].predict(eeg, fs)),
+                                    ("stress", "stress", lambda: m["stress"].predict(eeg, fs)),
+                                    ("meditation", "meditation", lambda: m["meditation"].predict(eeg, fs)),
+                                ]
+                                for _akey, _mkey, _fn in _model_calls:
+                                    if _mkey in m:
+                                        try:
+                                            analysis[_akey] = _fn()
+                                        except Exception as _e:
+                                            logger.warning("Model %s error: %s", _mkey, _e)
+                                            analysis[_akey] = {}
+                                    else:
+                                        analysis[_akey] = {}
                                 if "lucid_dream" in m:
-                                    analysis["lucid_dream"] = m["lucid_dream"].predict(
-                                        eeg, fs,
-                                        is_rem=(sleep_pred.get("stage") == "REM"),
-                                        sleep_stage=sleep_pred.get("stage_index", 0),
-                                    )
-                                analysis["meditation"] = m["meditation"].predict(eeg, fs) if "meditation" in m else {}
+                                    try:
+                                        analysis["lucid_dream"] = m["lucid_dream"].predict(
+                                            eeg, fs,
+                                            is_rem=(sleep_pred.get("stage") == "REM"),
+                                            sleep_stage=sleep_pred.get("stage_index", 0),
+                                        )
+                                    except Exception as _e:
+                                        logger.warning("Model lucid_dream error: %s", _e)
+                                        analysis["lucid_dream"] = {}
                             except Exception as e:
-                                logger.warning("Model inference error: %s", e)
+                                logger.warning("Model inference setup error: %s", e)
 
                     # Confidence calibration
                     conf_summary = None

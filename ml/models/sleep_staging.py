@@ -74,7 +74,7 @@ class SleepStagingModel:
         """Sklearn model inference using extracted features."""
         processed = preprocess(eeg_epoch, fs)
         features = extract_features(processed, fs)
-        feature_vector = np.array([features[k] for k in self.feature_names]).reshape(1, -1)
+        feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
 
         probs = self.sklearn_model.predict_proba(feature_vector)[0]
         stage_idx = int(np.argmax(probs))
