@@ -1,18 +1,8 @@
 /**
  * Unified study session page.
  *
- * Handles both stress and food blocks in one page.
- * Flow:
- *   block-pick  → (if not pre-selected via URL ?block=)
- *   muse-pair   → Bluetooth connect OR skip to simulation
- *   baseline    → 5 min resting EEG
- *   task        → 15 min work/food task; stress > 0.65 auto-advances
- *   intervention → 3 min box breathing
- *   recovery    → 5 min post-intervention EEG
- *   survey      → 3 short questions, submit → /study/complete
- *
+ * Flow: block-pick → muse-pair → eeg (20 min recording) → survey → /study/complete
  * EEG is checkpointed to DB every 30 seconds.
- * Muse disconnect mid-session saves partial data and shows reconnect overlay.
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -22,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Bluetooth, CheckCircle2, Wind, Utensils, Brain } from "lucide-react";
+import { Loader2, Bluetooth, CheckCircle2, Utensils, Brain } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { pingBackend } from "@/lib/ml-api";
 import { VoiceWatchAnalyzer } from "@/components/voice-watch-analyzer";
@@ -32,7 +22,7 @@ import { useDevice } from "@/hooks/use-device";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type BlockType = "stress" | "food";
-type Phase = "block-pick" | "muse-pair" | "baseline" | "task" | "intervention" | "recovery" | "survey";
+type Phase = "block-pick" | "muse-pair" | "eeg" | "survey";
 
 interface EEGSnapshot {
   alpha: number;
@@ -86,12 +76,6 @@ function formatTime(sec: number): string {
   return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
 }
 
-function stressColor(level: number): string {
-  if (level < 0.4) return "bg-green-500";
-  if (level <= 0.65) return "bg-yellow-400";
-  return "bg-red-500";
-}
-
 // ── Countdown hook ────────────────────────────────────────────────────────────
 
 function useCountdown(totalSec: number, active: boolean, onDone: () => void) {
@@ -125,17 +109,15 @@ function useCountdown(totalSec: number, active: boolean, onDone: () => void) {
 
 // ── Stepper ───────────────────────────────────────────────────────────────────
 
-const PHASE_STEPS: Phase[] = ["baseline", "task", "intervention", "recovery", "survey"];
-const PHASE_LABELS: Record<string, string> = {
-  baseline: "Baseline", task: "Task", intervention: "Breathing", recovery: "Recovery", survey: "Survey",
-};
+const PHASE_STEPS: Phase[] = ["eeg", "survey"];
+const PHASE_LABELS: Record<string, string> = { eeg: "EEG Recording", survey: "Survey" };
 
 function Stepper({ phase }: { phase: Phase }) {
   const idx = PHASE_STEPS.indexOf(phase);
   if (idx === -1) return null;
   return (
     <div className="w-full">
-      <p className="text-xs text-muted-foreground mb-3 text-center">Step {idx + 1} of 5</p>
+      <p className="text-xs text-muted-foreground mb-3 text-center">Step {idx + 1} of 2</p>
       <div className="flex items-center gap-0">
         {PHASE_STEPS.map((p, i) => (
           <div key={p} className="flex items-center flex-1">
@@ -159,34 +141,6 @@ function Stepper({ phase }: { phase: Phase }) {
   );
 }
 
-// ── Box breathing animation ───────────────────────────────────────────────────
-
-function BoxBreathing() {
-  const labels = ["Inhale 4 counts", "Hold 4 counts", "Exhale 4 counts", "Hold 4 counts"];
-  const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setStep((p) => (p + 1) % 4), 4000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center gap-6 py-4">
-      <div className="relative flex items-center justify-center transition-all duration-[3800ms] ease-in-out"
-        style={{ width: step === 0 || step === 2 ? 160 : 120, height: step === 0 || step === 2 ? 160 : 120 }}>
-        <div className="rounded-2xl bg-primary/20 border-2 border-primary/60 absolute inset-0 transition-all duration-[3800ms] ease-in-out" />
-        <span className="text-sm font-semibold text-primary z-10">{["Inhale","Hold","Exhale","Hold"][step]}</span>
-      </div>
-      <p className="text-base font-medium text-foreground">{labels[step]}</p>
-      <div className="flex gap-2">
-        {[0,1,2,3].map(i => (
-          <div key={i} className={`h-1.5 w-8 rounded-full transition-colors ${i === step ? "bg-primary" : "bg-muted"}`} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function StudySession() {
@@ -198,41 +152,24 @@ export default function StudySession() {
   const participantCode = params.get("code") ?? localStorage.getItem("ndw_study_code") ?? "";
   const preBlock = params.get("block") as BlockType | null;
 
-  // Device (Muse BLE)
   const { state: deviceState, connect, latestFrame } = useDevice();
 
-  // Phase state
   const [blockType, setBlockType] = useState<BlockType | null>(preBlock);
   const [phase, setPhase] = useState<Phase>(preBlock ? "muse-pair" : "block-pick");
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [useSimulation, setUseSimulation] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [eegActive, setEegActive] = useState(false);
+  const [backendReady, setBackendReady] = useState<boolean | null>(null);
 
-  // EEG accumulation
-  const preReadings = useRef<EEGSnapshot[]>([]);
-  const postReadings = useRef<EEGSnapshot[]>([]);
-  const phaseLog = useRef<{ phase: string; at: number }[]>([]);
-
-  // Derived EEG snapshots
-  const [liveStress, setLiveStress] = useState(0);
-  const [showStress, setShowStress] = useState(false);
-  const [interventionTriggered, setInterventionTriggered] = useState(false);
-  const [preEegJson, setPreEegJson] = useState<EEGSnapshot | null>(null);
-  const [postEegJson, setPostEegJson] = useState<EEGSnapshot | null>(null);
+  const readings = useRef<EEGSnapshot[]>([]);
+  const [eegJson, setEegJson] = useState<EEGSnapshot | null>(null);
 
   // Survey
   const [surveyQ1, setSurveyQ1] = useState<number | null>(null);
   const [surveyQ2, setSurveyQ2] = useState<number | null>(null);
-  const [surveyQ3, setSurveyQ3] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [backendReady, setBackendReady] = useState<boolean | null>(null);
 
-  // Phase timer flags
-  const [baselineActive, setBaselineActive] = useState(false);
-  const [taskActive, setTaskActive] = useState(false);
-  const [recoveryActive, setRecoveryActive] = useState(false);
-
-  // 30s checkpoint interval
   const checkpointTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Session start ─────────────────────────────────────────────────────────
@@ -246,22 +183,19 @@ export default function StudySession() {
       });
       const data = (await res.json()) as { session_id: number };
       setSessionId(data.session_id);
-      phaseLog.current.push({ phase: "baseline", at: Date.now() });
-      setPhase("baseline");
-      setBaselineActive(true);
+      setPhase("eeg");
+      setEegActive(true);
       startCheckpointLoop(data.session_id);
     } catch {
-      // Offline fallback — run session locally with mock ID
       setSessionId(-1);
-      phaseLog.current.push({ phase: "baseline", at: Date.now() });
-      setPhase("baseline");
-      setBaselineActive(true);
+      setPhase("eeg");
+      setEegActive(true);
     } finally {
       setIsStarting(false);
     }
   }, [participantCode]);
 
-  // ── Warm up ML backend when muse-pair screen appears ─────────────────────
+  // ── Warm up ML backend ────────────────────────────────────────────────────
 
   useEffect(() => {
     if (phase !== "muse-pair") return;
@@ -280,15 +214,15 @@ export default function StudySession() {
   // ── Muse disconnect mid-session ───────────────────────────────────────────
 
   useEffect(() => {
-    if (!useSimulation && deviceState === "disconnected" && sessionId && !["block-pick","muse-pair","survey"].includes(phase)) {
+    if (!useSimulation && deviceState === "disconnected" && sessionId && phase === "eeg") {
       if (checkpointTimer.current) clearInterval(checkpointTimer.current);
       saveCheckpoint(sessionId, false);
       toast({ title: "Muse disconnected", description: "Reconnect to continue, or save and exit.", variant: "destructive" });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceState]);
 
-  // ── 30s checkpoint loop ───────────────────────────────────────────────────
+  // ── Checkpoint loop ───────────────────────────────────────────────────────
 
   function startCheckpointLoop(sid: number) {
     if (checkpointTimer.current) clearInterval(checkpointTimer.current);
@@ -296,21 +230,15 @@ export default function StudySession() {
   }
 
   async function saveCheckpoint(sid: number, isFinal: boolean) {
-    if (sid < 0) return; // offline session
-    const pre = avgSnapshots(preReadings.current);
-    const post = avgSnapshots(postReadings.current);
+    if (sid < 0) return;
+    const snap = avgSnapshots(readings.current);
     try {
       await apiRequest("PATCH", `/api/study/session/${sid}/checkpoint`, {
-        ...(pre  && { pre_eeg_json: pre }),
-        ...(post && { post_eeg_json: post }),
-        eeg_features_json: { frame_count: preReadings.current.length + postReadings.current.length, last_stress: liveStress },
-        intervention_triggered: interventionTriggered,
-        phase_log: phaseLog.current,
+        ...(snap && { pre_eeg_json: snap }),
+        eeg_features_json: { frame_count: readings.current.length },
         ...(isFinal && { partial: false }),
       });
-    } catch {
-      // non-fatal
-    }
+    } catch { /* non-fatal */ }
   }
 
   async function saveAndExit() {
@@ -320,140 +248,67 @@ export default function StudySession() {
     navigate(`/study/complete?code=${participantCode}&partial=true`);
   }
 
-  // ── EEG polling (simulation mode) ────────────────────────────────────────
+  // ── EEG polling (simulation) ──────────────────────────────────────────────
 
   useEffect(() => {
-    if (!useSimulation || !baselineActive) return;
+    if (!useSimulation || !eegActive) return;
     const id = setInterval(async () => {
       const r = await fetchSimEEG();
-      preReadings.current.push(r);
+      readings.current.push(r);
     }, 4000);
     return () => clearInterval(id);
-  }, [useSimulation, baselineActive]);
+  }, [useSimulation, eegActive]);
+
+  // ── EEG from live Muse ────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!useSimulation || !taskActive) return;
-    const id = setInterval(async () => {
-      const r = await fetchSimEEG();
-      preReadings.current.push(r);
-      setLiveStress(r.stress_level);
-      if (r.stress_level > 0.65 && !interventionTriggered) {
-        setInterventionTriggered(true);
-        setTaskActive(false);
-        phaseLog.current.push({ phase: "intervention", at: Date.now() });
-        setPhase("intervention");
-      }
-    }, 4000);
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useSimulation, taskActive]);
-
-  useEffect(() => {
-    if (!useSimulation || !recoveryActive) return;
-    const id = setInterval(async () => {
-      const r = await fetchSimEEG();
-      postReadings.current.push(r);
-    }, 4000);
-    return () => clearInterval(id);
-  }, [useSimulation, recoveryActive]);
-
-  // ── EEG from live Muse device ─────────────────────────────────────────────
-
-  useEffect(() => {
-    if (useSimulation || !latestFrame || !sessionId) return;
-    const stress = latestFrame.analysis?.emotions?.stress_index ?? 0;
-    setLiveStress(stress);
-
+    if (useSimulation || !latestFrame || !sessionId || phase !== "eeg") return;
     const snap: EEGSnapshot = {
       alpha: latestFrame.analysis?.band_powers?.alpha ?? 0,
       beta: latestFrame.analysis?.band_powers?.beta ?? 0,
       theta: latestFrame.analysis?.band_powers?.theta ?? 0,
       delta: latestFrame.analysis?.band_powers?.delta ?? 0,
       gamma: latestFrame.analysis?.band_powers?.gamma ?? 0,
-      stress_level: stress,
+      stress_level: latestFrame.analysis?.emotions?.stress_index ?? 0,
     };
-
-    if (phase === "baseline") preReadings.current.push(snap);
-    if (phase === "recovery") postReadings.current.push(snap);
-
-    if (phase === "task" && stress > 0.65 && !interventionTriggered) {
-      setInterventionTriggered(true);
-      setTaskActive(false);
-      phaseLog.current.push({ phase: "intervention", at: Date.now() });
-      setPhase("intervention");
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    readings.current.push(snap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame]);
 
-  // ── Phase transitions ─────────────────────────────────────────────────────
+  // ── EEG done → survey ─────────────────────────────────────────────────────
 
-  const onBaselineDone = useCallback(() => {
-    setBaselineActive(false);
-    setPreEegJson(avgSnapshots(preReadings.current));
-    phaseLog.current.push({ phase: "task", at: Date.now() });
-    setPhase("task");
-    setTaskActive(true);
-  }, []);
-
-  const onTaskDone = useCallback(() => {
-    setTaskActive(false);
-    phaseLog.current.push({ phase: "intervention", at: Date.now() });
-    setPhase("intervention");
-  }, []);
-
-  const onInterventionDone = useCallback(() => {
-    phaseLog.current.push({ phase: "recovery", at: Date.now() });
-    setPhase("recovery");
-    setRecoveryActive(true);
-  }, []);
-
-  const onRecoveryDone = useCallback(() => {
-    setRecoveryActive(false);
-    setPostEegJson(avgSnapshots(postReadings.current));
+  const onEegDone = useCallback(() => {
+    setEegActive(false);
+    const snap = avgSnapshots(readings.current);
+    setEegJson(snap);
     if (checkpointTimer.current) clearInterval(checkpointTimer.current);
     if (sessionId) saveCheckpoint(sessionId, true);
-    phaseLog.current.push({ phase: "survey", at: Date.now() });
     setPhase("survey");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // Timers
-  const baselineRemaining   = useCountdown(5 * 60,  baselineActive,    onBaselineDone);
-  const taskRemaining       = useCountdown(20 * 60, taskActive,        onTaskDone);
-  const interventionRemaining = useCountdown(3 * 60, phase === "intervention", onInterventionDone);
-  const recoveryRemaining   = useCountdown(5 * 60,  recoveryActive,    onRecoveryDone);
+  const eegRemaining = useCountdown(20 * 60, eegActive, onEegDone);
 
   // ── Survey submit ─────────────────────────────────────────────────────────
 
-  // Track peak stress across the whole session
-  const peakStressRef = useRef(0);
-  useEffect(() => {
-    if (liveStress > peakStressRef.current) peakStressRef.current = liveStress;
-  }, [liveStress]);
-
-  const canSubmitSurvey = surveyQ1 !== null && surveyQ2 !== null && surveyQ3 !== null;
+  const canSubmit = surveyQ1 !== null && surveyQ2 !== null;
 
   async function handleSurveySubmit() {
-    if (!canSubmitSurvey || isSubmitting) return;
+    if (!canSubmit || isSubmitting) return;
     setIsSubmitting(true);
-    const finalPre  = preEegJson  ?? avgSnapshots(preReadings.current);
-    const finalPost = postEegJson ?? avgSnapshots(postReadings.current);
-    const surveyData = { q1: surveyQ1, q2: surveyQ2, q3: surveyQ3 };
+    const snap = eegJson ?? avgSnapshots(readings.current);
     try {
       await apiRequest("POST", "/api/study/session/complete", {
         session_id: sessionId,
-        pre_eeg_json:  finalPre,
-        post_eeg_json: finalPost,
-        eeg_features_json: { frame_count: preReadings.current.length + postReadings.current.length },
-        survey_json: surveyData,
-        intervention_triggered: interventionTriggered,
+        pre_eeg_json: snap,
+        post_eeg_json: snap,
+        eeg_features_json: { frame_count: readings.current.length },
+        survey_json: { q1: surveyQ1, q2: surveyQ2 },
+        intervention_triggered: false,
       });
-      const preS  = (finalPre?.stress_level  ?? 0).toFixed(2);
-      const postS = (finalPost?.stress_level ?? 0).toFixed(2);
-      const peak  = peakStressRef.current.toFixed(2);
+      const avg = (snap?.stress_level ?? 0).toFixed(2);
       navigate(
-        `/study/complete?code=${encodeURIComponent(participantCode)}&done=${blockType}` +
-        `&pre_stress=${preS}&peak_stress=${peak}&post_stress=${postS}`
+        `/study/complete?code=${encodeURIComponent(participantCode)}&done=${blockType}&pre_stress=${avg}&peak_stress=${avg}&post_stress=${avg}`
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Submit failed — try again";
@@ -481,7 +336,7 @@ export default function StudySession() {
                 <Brain className="w-10 h-10 mx-auto text-primary" />
                 <div>
                   <p className="font-semibold">Stress Block</p>
-                  <p className="text-xs text-muted-foreground mt-1">20 min work task + breathing</p>
+                  <p className="text-xs text-muted-foreground mt-1">20 min EEG + survey</p>
                 </div>
               </CardContent>
             </Card>
@@ -491,7 +346,7 @@ export default function StudySession() {
                 <Utensils className="w-10 h-10 mx-auto text-violet-400" />
                 <div>
                   <p className="font-semibold">Food Block</p>
-                  <p className="text-xs text-muted-foreground mt-1">Food cue task + breathing</p>
+                  <p className="text-xs text-muted-foreground mt-1">20 min EEG + survey</p>
                 </div>
               </CardContent>
             </Card>
@@ -503,9 +358,8 @@ export default function StudySession() {
 
   // Muse pair screen
   if (phase === "muse-pair") {
-    const isConnecting   = deviceState === "connecting";
-    const isConnected    = deviceState === "connected" || deviceState === "streaming";
-    const backendChecking = backendReady === null;
+    const isConnecting = deviceState === "connecting";
+    const isConnected  = deviceState === "connected" || deviceState === "streaming";
 
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
@@ -520,8 +374,7 @@ export default function StudySession() {
 
           <Card>
             <CardContent className="pt-6 space-y-4">
-              {/* Backend warm-up status */}
-              {backendChecking && (
+              {backendReady === null && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Waking up ML backend…
@@ -529,7 +382,7 @@ export default function StudySession() {
               )}
               {backendReady === false && (
                 <p className="text-xs text-amber-400">
-                  ML backend unreachable. Check your backend URL in Settings or start it locally.
+                  ML backend unreachable. Check Settings or start it locally.
                 </p>
               )}
 
@@ -541,7 +394,7 @@ export default function StudySession() {
               </div>
 
               {!isConnected && (
-                <Button className="w-full" disabled={isConnecting || backendChecking}
+                <Button className="w-full" disabled={isConnecting || backendReady === null}
                   onClick={() => connect("muse_2")}>
                   {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting…</> : <><Bluetooth className="mr-2 h-4 w-4" />Pair Muse 2</>}
                 </Button>
@@ -563,12 +416,9 @@ export default function StudySession() {
             </button>
           </div>
 
-          {/* Headband-free alternative: voice + watch */}
           {!isConnected && (
             <div className="space-y-2">
-              <p className="text-xs text-center text-muted-foreground">
-                — or use voice + Apple Watch instead —
-              </p>
+              <p className="text-xs text-center text-muted-foreground">— or use voice + Apple Watch instead —</p>
               <div className="flex justify-center">
                 <VoiceWatchAnalyzer userId="default" />
               </div>
@@ -591,11 +441,8 @@ export default function StudySession() {
     );
   }
 
-  // Disconnected mid-session overlay
   const showDisconnectOverlay = !useSimulation && deviceState === "disconnected" &&
-    sessionId !== null && !["block-pick","muse-pair","survey"].includes(phase);
-
-  // ── Active session render ─────────────────────────────────────────────────
+    sessionId !== null && phase === "eeg";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -617,19 +464,21 @@ export default function StudySession() {
           </Card>
         )}
 
-        {/* ── Baseline ── */}
-        {phase === "baseline" && (
+        {/* ── EEG Recording ── */}
+        {phase === "eeg" && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Resting Baseline</CardTitle>
+              <CardTitle className="text-lg">EEG Recording</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Sit comfortably with eyes closed. Breathe naturally.
+                {blockType === "stress"
+                  ? "Sit comfortably. You may work, read, or simply rest while wearing the headband."
+                  : "Sit comfortably. You may eat your meal or think about food while wearing the headband."}
               </p>
               <div className="flex flex-col items-center gap-3">
-                <span className="text-5xl font-mono font-bold tracking-tight">{formatTime(baselineRemaining)}</span>
-                <Progress value={((5*60 - baselineRemaining) / (5*60)) * 100} className="h-2" />
+                <span className="text-5xl font-mono font-bold tracking-tight">{formatTime(eegRemaining)}</span>
+                <Progress value={((20 * 60 - eegRemaining) / (20 * 60)) * 100} className="h-2" />
               </div>
               <div className="flex items-center justify-center gap-2">
                 <span className="relative flex h-2.5 w-2.5">
@@ -637,107 +486,12 @@ export default function StudySession() {
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  Recording… <span className="font-medium text-foreground">{preReadings.current.length} samples</span>
+                  Recording… <span className="font-medium text-foreground">{readings.current.length} samples</span>
                 </span>
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Task ── */}
-        {phase === "task" && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">
-                {blockType === "stress" ? "Work Session" : "Food Cue Task"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {blockType === "stress"
-                  ? "Work on a challenging task. The breathing exercise will begin automatically when needed."
-                  : "Think about your favourite food or look at the food images. Stay relaxed."}
-              </p>
-              <div className="flex flex-col items-center gap-3">
-                <span className="text-5xl font-mono font-bold tracking-tight">{formatTime(taskRemaining)}</span>
-                <Progress value={((20*60 - taskRemaining) / (20*60)) * 100} className="h-2" />
-              </div>
-
-              {/* Optional stress bar */}
-              <div className="space-y-2">
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground underline"
-                  onClick={() => setShowStress((v) => !v)}
-                >
-                  {showStress ? "Hide stress level" : "Show my stress level"}
-                </button>
-                {showStress && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Stress</span>
-                      <span>{Math.round(liveStress * 100)}%</span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div className={`h-full rounded-full transition-all ${stressColor(liveStress)}`}
-                        style={{ width: `${Math.round(liveStress * 100)}%` }} />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <Button variant="outline" size="sm" className="w-full"
-                onClick={() => { setTaskActive(false); phaseLog.current.push({ phase: "intervention", at: Date.now() }); setPhase("intervention"); }}>
-                End task early
+              <Button variant="outline" size="sm" className="w-full" onClick={onEegDone}>
+                End early & go to survey
               </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Intervention ── */}
-        {phase === "intervention" && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Wind className="h-5 w-5 text-primary" />
-                Breathing Exercise
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {interventionTriggered && (
-                <p className="text-xs text-amber-400 font-medium">Stress threshold reached — intervention started automatically.</p>
-              )}
-              <BoxBreathing />
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-2xl font-mono font-bold">{formatTime(interventionRemaining)}</span>
-                <Progress value={((3*60 - interventionRemaining) / (3*60)) * 100} className="h-1.5 w-full" />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Recovery ── */}
-        {phase === "recovery" && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Recovery Baseline</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Great work! Sit quietly with eyes closed while we record your post-session EEG.
-              </p>
-              <div className="flex flex-col items-center gap-3">
-                <span className="text-5xl font-mono font-bold tracking-tight">{formatTime(recoveryRemaining)}</span>
-                <Progress value={((5*60 - recoveryRemaining) / (5*60)) * 100} className="h-2" />
-              </div>
-              <div className="flex items-center justify-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  Recording… <span className="font-medium text-foreground">{postReadings.current.length} samples</span>
-                </span>
-              </div>
             </CardContent>
           </Card>
         )}
@@ -752,9 +506,18 @@ export default function StudySession() {
               <p className="text-sm text-muted-foreground">Rate each on a scale from 1 (low) to 10 (high).</p>
 
               {[
-                { label: blockType === "stress" ? "How stressed did you feel during the task?" : "How strong were your food cravings?", value: surveyQ1, set: setSurveyQ1 },
-                { label: "How helpful was the breathing exercise?", value: surveyQ2, set: setSurveyQ2 },
-                { label: "How calm do you feel right now?", value: surveyQ3, set: setSurveyQ3 },
+                {
+                  label: blockType === "stress"
+                    ? "How stressed did you feel during this session?"
+                    : "How strong were your food cravings during this session?",
+                  value: surveyQ1,
+                  set: setSurveyQ1,
+                },
+                {
+                  label: "How calm do you feel right now?",
+                  value: surveyQ2,
+                  set: setSurveyQ2,
+                },
               ].map(({ label, value, set }, i) => (
                 <div key={i} className="space-y-3">
                   <p className="text-sm font-medium">{label}</p>
@@ -772,12 +535,13 @@ export default function StudySession() {
                 </div>
               ))}
 
-              <Button className="w-full" disabled={!canSubmitSurvey || isSubmitting} onClick={handleSurveySubmit}>
+              <Button className="w-full" disabled={!canSubmit || isSubmitting} onClick={handleSurveySubmit}>
                 {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Complete Session"}
               </Button>
             </CardContent>
           </Card>
         )}
+
       </div>
     </div>
   );
