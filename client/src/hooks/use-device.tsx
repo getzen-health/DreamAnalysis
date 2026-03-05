@@ -363,6 +363,14 @@ function useDeviceInternal(): UseDeviceReturn {
         });
         await museBle.connect();
         setSelectedDevice(deviceType);
+        setDeviceStatus({
+          connected: true,
+          streaming: true,
+          device_type: deviceType,
+          n_channels: 4,
+          sample_rate: 256,
+          brainflow_available: false,
+        });
         setState("streaming");
         isStreamingRef.current = true;
         startSession("general").catch(() => {});
