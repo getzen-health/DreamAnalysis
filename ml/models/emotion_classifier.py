@@ -422,10 +422,11 @@ class EmotionClassifier:
         Expands the 3-class LGBM output (positive/neutral/negative)
         to the 6-class EMOTIONS list using ancillary EEG features.
         """
-        # Artifact rejection — freeze EMA on bad epoch
-        if np.any(np.abs(eeg) > _ARTIFACT_THRESHOLD_UV):
-            if self._ema_probs is None:
-                self._ema_probs = np.ones(6, dtype=np.float32) / 6
+        # Artifact rejection — freeze EMA on bad epoch, but ONLY if we have prior history.
+        # On the very first epoch we must run the model regardless, otherwise _ema_probs
+        # gets stuck at uniform 1/6 forever whenever the first epoch contains a blink/spike.
+        _artifact_now = bool(np.any(np.abs(eeg) > _ARTIFACT_THRESHOLD_UV))
+        if _artifact_now and self._ema_probs is not None:
             return self._build_muse_result(
                 int(np.argmax(self._ema_probs)), self._ema_probs,
                 eeg, fs, artifact_detected=True, device_type=device_type
@@ -505,7 +506,8 @@ class EmotionClassifier:
 
         smoothed = self._ema_probs
         emotion_idx = int(np.argmax(smoothed))
-        return self._build_muse_result(emotion_idx, smoothed, eeg, fs, artifact_detected=False,
+        return self._build_muse_result(emotion_idx, smoothed, eeg, fs,
+                                       artifact_detected=_artifact_now,
                                        device_type=device_type)
 
     def _build_muse_result(self, emotion_idx: int, smoothed: np.ndarray,
@@ -618,9 +620,9 @@ class EmotionClassifier:
         Reuses _extract_muse_live_features() and _build_muse_result() from the
         Muse-native LGBM path for identical output format.
         """
-        if np.any(np.abs(eeg) > _ARTIFACT_THRESHOLD_UV):
-            if self._ema_probs is None:
-                self._ema_probs = np.ones(6, dtype=np.float32) / 6
+        # Same logic as _predict_lgbm_muse: only freeze EMA if we have prior history.
+        _artifact_now = bool(np.any(np.abs(eeg) > _ARTIFACT_THRESHOLD_UV))
+        if _artifact_now and self._ema_probs is not None:
             return self._build_muse_result(
                 int(np.argmax(self._ema_probs)), self._ema_probs,
                 eeg, fs, artifact_detected=True, device_type=device_type
@@ -697,7 +699,8 @@ class EmotionClassifier:
                                + (1 - self._ema_alpha) * self._ema_probs)
         smoothed    = self._ema_probs
         emotion_idx = int(np.argmax(smoothed))
-        result = self._build_muse_result(emotion_idx, smoothed, eeg, fs, artifact_detected=False,
+        result = self._build_muse_result(emotion_idx, smoothed, eeg, fs,
+                                         artifact_detected=_artifact_now,
                                          device_type=device_type)
         result["model_type"] = "mega-lgbm-pca"
         return result
