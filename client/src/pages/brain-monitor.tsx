@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useInference } from "@/hooks/use-inference";
 import { useDevice } from "@/hooks/use-device";
+import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import {
   analyzeWavelet,
   type WaveletResult,
@@ -28,6 +29,7 @@ export default function BrainMonitor() {
   const device = useDevice();
   const { state: deviceState, latestFrame, deviceStatus, reconnectCount } = device;
   const isStreaming = deviceState === "streaming";
+  const voiceEmotion = useVoiceEmotion();
 
   const [wavelet, setWavelet] = useState<WaveletResult | null>(null);
   const [anomaly] = useState<AnomalyResult | null>(null);
@@ -307,6 +309,26 @@ export default function BrainMonitor() {
                   compact
                 />
               )}
+              {/* Signal source badge */}
+              {(() => {
+                const source: string =
+                  (a?.emotions as { signal_source?: string } | undefined)?.signal_source ??
+                  (isStreaming ? "eeg" : voiceEmotion.lastResult ? "voice" : "health");
+
+                const config: Record<string, { label: string; className: string }> = {
+                  "eeg":       { label: "EEG",          className: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
+                  "voice":     { label: "Voice",         className: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
+                  "health":    { label: "Health Est.",   className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+                  "eeg+voice": { label: "EEG + Voice",   className: "bg-green-500/20 text-green-400 border-green-500/30" },
+                  "eeg+bio":   { label: "EEG + Bio",     className: "bg-green-500/20 text-green-400 border-green-500/30" },
+                };
+                const cfg = config[source] ?? config["health"];
+                return (
+                  <Badge className={`text-xs border ${cfg.className}`}>
+                    {cfg.label}
+                  </Badge>
+                );
+              })()}
               {isStreaming && (
                 <Radio className="h-4 w-4 text-primary animate-pulse" />
               )}
