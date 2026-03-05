@@ -374,7 +374,20 @@ async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
           } catch { /* ignore parse errors, use default message */ }
           throw new NonRetryableError(errorMsg);
         }
-        // 5xx or other — server error, eligible for retry
+        // 5xx — extract detail message if available (e.g. 503 "Bluetooth not available")
+        // then store as lastError for retry logic; 503 with a detail message means
+        // the server understood the request but can't fulfill it — no point retrying.
+        let serverMsg: string | null = null;
+        try {
+          const body = await response.clone().json();
+          const detail = body?.detail;
+          if (typeof detail === "string") serverMsg = detail;
+          else if (Array.isArray(detail)) serverMsg = detail.map((d: { msg?: string }) => d.msg).join("; ");
+        } catch { /* ignore */ }
+        if (serverMsg) {
+          // A descriptive server error — surface immediately, don't retry.
+          throw new NonRetryableError(serverMsg);
+        }
         lastError = new Error(`Request failed (${response.status})`);
       } else {
         return response.json() as Promise<T>;

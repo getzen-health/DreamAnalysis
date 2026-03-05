@@ -171,6 +171,33 @@ _calibration_runners: Dict[str, CalibrationRunner] = {}
 # Per-user biometric snapshots — updated via POST /biometrics/update
 _biometric_snapshots: Dict[str, BiometricSnapshot] = {}
 
+# ── Personalized k-NN pipeline cache ─────────────────────────────────────────
+# PersonalizedPipeline is refreshed at most once per 60 seconds per user so
+# the JSONL file isn't re-read on every WebSocket frame.
+import time as _time
+_personalized_pipelines: Dict[str, "tuple[PersonalizedPipeline, float]"] = {}
+_PIPELINE_REFRESH_SECS = 60.0
+
+# Last extracted 17-dim feature vector per user — attached to label-only corrections
+# so the k-NN has training data even when no raw EEG is submitted with the correction.
+_last_features: Dict[str, np.ndarray] = {}
+
+
+def get_last_features(user_id: str) -> Optional[np.ndarray]:
+    """Return the most recently cached feature vector for *user_id*, or None."""
+    return _last_features.get(user_id)
+
+
+def _get_personalized_pipeline(user_id: str) -> PersonalizedPipeline:
+    """Return a k-NN PersonalizedPipeline for *user_id*, refreshing if stale."""
+    now = _time.monotonic()
+    cached = _personalized_pipelines.get(user_id)
+    if cached is None or (now - cached[1]) > _PIPELINE_REFRESH_SECS:
+        pipeline = PersonalizedPipeline(user_id)
+        pipeline.update_from_feedback()
+        _personalized_pipelines[user_id] = (pipeline, now)
+    return _personalized_pipelines[user_id][0]
+
 
 def get_biometric_snapshot(user_id: str) -> BiometricSnapshot:
     """Return the cached BiometricSnapshot for *user_id*, creating one if absent."""
@@ -323,17 +350,25 @@ def predict_emotion(
         except Exception:
             base_result = emotion_model.predict(eeg, fs, device_type=device_type)
 
+    # ── Extract features (used by both OnlineLearner and k-NN pipeline) ─────────
+    _feats_dict: dict = {}
+    try:
+        _sig = eeg[0] if (hasattr(eeg, "ndim") and eeg.ndim == 2) else eeg
+        _proc = preprocess(_sig, fs)
+        _feats_dict = extract_features(_proc, fs)
+        # Cache as numpy array for k-NN and for attaching to label-only corrections
+        _feats_arr = np.array(list(_feats_dict.values()), dtype=np.float32)
+        _last_features[user_id] = _feats_arr
+    except Exception:
+        _feats_arr = None
+
     # ── OnlineLearner (SGDClassifier) blend ──────────────────────────────────
     # Consults the per-user incremental model that updates on every user correction.
     # Only overrides the emotion label; numeric indices come from the base model.
     try:
         pma = _get_personal_model(user_id)
-        if pma is not None:
-            # Extract 1D features for the SGDClassifier (needs feature dict)
-            _sig = eeg[0] if (hasattr(eeg, "ndim") and eeg.ndim == 2) else eeg
-            _proc = preprocess(_sig, fs)
-            _feats = extract_features(_proc, fs)
-            ol_result = pma.predict(_feats)
+        if pma is not None and _feats_dict:
+            ol_result = pma.predict(_feats_dict)
             if ol_result.get("has_personal") and ol_result.get("personal_confidence", 0) > 0.6:
                 base_result = {
                     **base_result,
@@ -345,6 +380,17 @@ def predict_emotion(
                 base_result["online_learner_active"] = False
     except Exception:
         pass  # OnlineLearner failure never breaks main prediction
+
+    # ── k-NN PersonalizedPipeline blend ──────────────────────────────────────
+    # Uses label corrections stored as (features, label) in the user's JSONL file.
+    # Needs ≥15 corrections WITH features to activate. Refreshes every 60s.
+    # Runs AFTER OnlineLearner so it can confirm or override that result too.
+    try:
+        if _feats_arr is not None:
+            pipeline = _get_personalized_pipeline(user_id)
+            base_result = pipeline.blend("emotion", base_result, _feats_arr)
+    except Exception:
+        pass  # k-NN failure never breaks main prediction
 
     return base_result
 
