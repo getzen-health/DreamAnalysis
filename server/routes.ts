@@ -1833,6 +1833,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ ok: true });
   });
 
+  // PATCH /api/emotions/correct-latest/:userId
+  // Called by emotion-lab.tsx correction UI — updates the most recent emotion
+  // reading for the user and forwards the label to the ML backend for learning.
+  app.patch("/api/emotions/correct-latest/:userId", async (req, res) => {
+    const { userId } = req.params;
+    const { userCorrectedEmotion } = req.body as { userCorrectedEmotion: string };
+    if (!userId || !userCorrectedEmotion) {
+      return res.status(400).json({ error: "userId and userCorrectedEmotion are required" });
+    }
+
+    // Find the most recent reading for this user
+    let detectedEmotion = "unknown";
+    try {
+      const [latest] = await db
+        .select({ id: emotionReadings.id, dominantEmotion: emotionReadings.dominantEmotion })
+        .from(emotionReadings)
+        .where(eq(emotionReadings.userId, userId))
+        .orderBy(sql`timestamp desc`)
+        .limit(1);
+
+      if (latest) {
+        detectedEmotion = latest.dominantEmotion;
+        // Update in place
+        await db
+          .update(emotionReadings)
+          .set({
+            userCorrectedEmotion,
+            userCorrectedAt: new Date(),
+          })
+          .where(eq(emotionReadings.id, latest.id));
+      } else {
+        // No prior reading — insert a stub so correction is at least recorded
+        await db.insert(emotionReadings).values({
+          userId,
+          dominantEmotion: userCorrectedEmotion,
+          stress: 0, focus: 0, happiness: 0, energy: 0, valence: 0, arousal: 0,
+          userCorrectedEmotion,
+          userCorrectedAt: new Date(),
+          timestamp: new Date(),
+          eegSnapshot: { userCorrected: true },
+        });
+      }
+    } catch { /* best-effort */ }
+
+    // Forward to ML backend for online learning (fire-and-forget)
+    try {
+      const mlBase = process.env.ML_BACKEND_URL ?? "http://localhost:8000";
+      fetch(`${mlBase}/api/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          predicted_label: detectedEmotion,
+          correct_label: userCorrectedEmotion,
+        }),
+        signal: AbortSignal.timeout(3000),
+      }).catch(() => {});
+    } catch { /* best-effort */ }
+
+    res.json({ ok: true });
+  });
+
   // ── Daily 8 am morning brain report push ─────────────────────────────────
 
   if (VAPID_PUBLIC && VAPID_PRIVATE) {

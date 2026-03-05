@@ -412,7 +412,7 @@ class CalibrationSubmitRequest(BaseModel):
 # Renamed from FeedbackRequest to avoid collision with accuracy pipeline's FeedbackRequest
 class PersonalFeedbackRequest(BaseModel):
     user_id: str = Field(default="default")
-    signals: List[List[float]] = Field(..., description="EEG signals")
+    signals: Optional[List[List[float]]] = Field(default=None, description="EEG signals (optional — label-only corrections accepted)")
     predicted_label: str = Field(...)
     correct_label: str = Field(...)
     fs: float = Field(default=256.0)

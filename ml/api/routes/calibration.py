@@ -58,13 +58,42 @@ async def submit_calibration(request: CalibrationSubmitRequest):
 
 @router.post("/feedback")
 async def submit_personal_feedback(request: PersonalFeedbackRequest):
-    """User corrects a prediction — triggers incremental personal model update."""
-    pm = _get_personal_model(request.user_id)
-    if pm is None:
-        raise HTTPException(status_code=500, detail="Failed to initialize personal model")
+    """User corrects a prediction — records correction and optionally adds labeled epoch.
 
-    signal = np.array(request.signals)
-    return pm.adapt(signal, request.predicted_label, request.correct_label, request.fs)
+    Signals are optional: label-only corrections (from the web UI) are recorded
+    in the FeedbackCollector JSONL store and count toward the correction log.
+    When signals ARE provided (e.g. from a live session), the labeled epoch is
+    also added to the PersonalModel buffer so fine-tuning can use it.
+    """
+    from processing.user_feedback import FeedbackCollector
+
+    # Always record the label correction (no EEG needed)
+    collector = FeedbackCollector(request.user_id)
+    collector.record_state_correction(
+        model_name="emotion",
+        predicted_state=request.predicted_label,
+        corrected_state=request.correct_label,
+    )
+
+    labeled = False
+    if request.signals is not None:
+        # EEG provided — add to personal model buffer for future fine-tuning
+        pm = _get_personal_model(request.user_id)
+        if pm is not None:
+            label_map = {"happy": 0, "sad": 1, "angry": 2, "fearful": 3, "relaxed": 4, "focused": 5}
+            label_idx = label_map.get(request.correct_label, -1)
+            if label_idx >= 0:
+                signal = np.array(request.signals)
+                pm.add_labeled_epoch(signal, label_idx)
+                labeled = True
+
+    return {
+        "recorded": True,
+        "labeled_epoch_added": labeled,
+        "user_id": request.user_id,
+        "predicted": request.predicted_label,
+        "corrected": request.correct_label,
+    }
 
 
 @router.get("/calibration/status")
