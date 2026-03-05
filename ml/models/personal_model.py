@@ -240,13 +240,16 @@ class PersonalModel:
         # Extract features from frozen backbone
         features = self._extract_features(eeg, fs)
 
-        # Use personal head if it has enough data, else central head
+        # Use personal head if it has enough data.
+        # Central head is a stub that returns uniform distribution — signal fallback
+        # so predict_emotion() routes to EmotionClassifier (mega LGBM) instead.
         if self._personal_head_ready():
             probs = self._personal_predict(features)
             model_tag = f"personal_{self.n_channels}ch"
         else:
-            probs = self._central_predict(features)
-            model_tag = f"central_{self.n_channels}ch"
+            return {"emotion": "neutral", "model_type": "fallback_no_backbone",
+                    "stress_index": 0.5, "valence": 0.0, "arousal": 0.5,
+                    "focus_index": 0.5, "relaxation_index": 0.5}
 
         # EMA smoothing
         if self._ema_probs is None:
