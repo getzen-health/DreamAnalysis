@@ -10,8 +10,41 @@ const BANDS: Record<string, [number, number]> = {
   theta: [4.0, 8.0],
   alpha: [8.0, 12.0],
   beta: [12.0, 30.0],
-  gamma: [30.0, 100.0],
+  gamma: [30.0, 50.0],  // cap at 50 Hz — Muse 2 hardware bandwidth limit; above 50 Hz is aliasing
 };
+
+/**
+ * Simple FIR low-pass filter via convolution with a Hanning-window sinc kernel.
+ * Cuts frequencies above cutoffHz to match the Muse 2 hardware bandwidth (~50 Hz)
+ * and reduce high-frequency noise inflation in band-power estimates.
+ */
+function lowPassFilter(signal: number[], fs: number, cutoffHz = 50): number[] {
+  const numTaps = 31; // odd number → symmetric, linear phase
+  const fc = cutoffHz / fs;
+  const kernel: number[] = new Array(numTaps);
+  const mid = Math.floor(numTaps / 2);
+  let kernelSum = 0;
+  for (let i = 0; i < numTaps; i++) {
+    const n = i - mid;
+    const sinc = n === 0 ? 2 * fc : Math.sin(2 * Math.PI * fc * n) / (Math.PI * n);
+    const window = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (numTaps - 1));
+    kernel[i] = sinc * window;
+    kernelSum += kernel[i];
+  }
+  // Normalise so DC gain = 1
+  for (let i = 0; i < numTaps; i++) kernel[i] /= kernelSum;
+
+  const out: number[] = new Array(signal.length).fill(0);
+  for (let i = 0; i < signal.length; i++) {
+    let acc = 0;
+    for (let k = 0; k < numTaps; k++) {
+      const si = i - k + mid;
+      if (si >= 0 && si < signal.length) acc += kernel[k] * signal[si];
+    }
+    out[i] = acc;
+  }
+  return out;
+}
 
 /**
  * Compute the power spectral density using a simplified periodogram (FFT).
@@ -94,7 +127,10 @@ export function extractBandPowers(
   signal: number[],
   fs: number = 256
 ): Record<string, number> {
-  const { freqs, psd } = computePSD(signal, fs);
+  // Apply low-pass filter at 50 Hz before PSD to match Muse 2 hardware bandwidth.
+  // Without this, high-frequency noise inflates gamma to near-100% even with good contact.
+  const filtered = signal.length >= 63 ? lowPassFilter(signal, fs, 50) : signal;
+  const { freqs, psd } = computePSD(filtered, fs);
 
   // Total power (trapezoidal integration)
   let totalPower = 0;
