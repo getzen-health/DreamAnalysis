@@ -90,8 +90,20 @@ async def connect_device(request: DeviceConnectRequest):
             raise HTTPException(status_code=500, detail=str(e))
 
     # BrainFlow path
+    is_ble_device = request.device_type.startswith("muse_") or request.device_type in (
+        "openbci_ganglion",
+    )
     manager = _get_device_manager()
     if manager is None:
+        if is_ble_device:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"{request.device_type} requires Bluetooth hardware which is not "
+                    "available on this remote server. Select 'Synthetic' board to demo "
+                    "the app, or run the ML backend locally for real Muse data."
+                ),
+            )
         raise HTTPException(status_code=503, detail="BrainFlow not available")
     try:
         result = manager.connect(request.device_type, request.params or {})
@@ -99,10 +111,17 @@ async def connect_device(request: DeviceConnectRequest):
         return result
     except RuntimeError as e:
         msg = str(e)
-        # BLE failures on remote backends (Railway/cloud) — 503 so UI shows a clear message
-        is_ble_error = "Bluetooth" in msg or "Bluetooth scan" in msg
-        status = 503 if is_ble_error else 500
-        raise HTTPException(status_code=status, detail=msg)
+        if is_ble_device:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"{request.device_type} requires Bluetooth hardware which is not "
+                    "available on this remote server. Select 'Synthetic' board to demo "
+                    "the app, or run the ML backend locally for real Muse data. "
+                    f"(Detail: {msg})"
+                ),
+            )
+        raise HTTPException(status_code=500, detail=msg)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
