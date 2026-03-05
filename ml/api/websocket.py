@@ -247,14 +247,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                     }
 
                     # Signal quality check
-                    # Skip for synthetic board — its signals are non-physiological and
-                    # will always fail quality checks, producing misleading "4 Error" in UI.
-                    _is_synthetic = (
-                        device_manager.current_device_type == "synthetic"
-                        if device_manager else False
-                    )
                     quality_result = None
-                    if run_quality and not _is_synthetic:
+                    if run_quality:
                         _init_accuracy_pipeline()
                         if quality_checker:
                             try:
@@ -456,6 +450,16 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                     }
 
                     if quality_result is not None:
+                        # Only include per-channel quality breakdown for real Muse devices.
+                        # For synthetic/other boards it reflects signal statistics, not
+                        # real electrode contact, and causes misleading "4 Error" in the UI.
+                        _dev_type = (device_manager.current_device_type or "") if device_manager else ""
+                        _is_muse = _dev_type.startswith("muse_")
+                        if not _is_muse:
+                            quality_result = {
+                                k: v for k, v in quality_result.items()
+                                if k not in ("channel_quality", "channel_scores", "channel_details")
+                            }
                         frame["quality"] = quality_result
                     if smoothed is not None:
                         frame["smoothed_states"] = smoothed
