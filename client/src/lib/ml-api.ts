@@ -998,7 +998,12 @@ export async function analyzeVoiceWatch(
   return mlFetch<VoiceWatchEmotionResult>("/voice-watch/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ audio_base64: audioBase64, watch }),
+    body: JSON.stringify({
+      audio_b64: audioBase64,
+      hr:   watch.hr,
+      hrv:  watch.hrv,
+      spo2: watch.spo2,
+    }),
   });
 }
 
