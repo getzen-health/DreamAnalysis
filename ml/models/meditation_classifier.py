@@ -76,7 +76,10 @@ class MeditationClassifier:
             'confidence', 'tradition_match', and component scores.
         """
         if self.sklearn_model is not None:
-            return self._predict_sklearn(eeg, fs)
+            try:
+                return self._predict_sklearn(eeg, fs)
+            except Exception:
+                pass  # fall through to feature-based
 
         processed = preprocess(eeg, fs)
         bands = extract_band_powers(processed, fs)

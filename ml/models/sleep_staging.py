@@ -67,7 +67,10 @@ class SleepStagingModel:
         if self.onnx_session is not None:
             return self._predict_onnx(eeg_epoch, fs)
         if self.sklearn_model is not None:
-            return self._predict_sklearn(eeg_epoch, fs)
+            try:
+                return self._predict_sklearn(eeg_epoch, fs)
+            except Exception:
+                pass  # fall through to feature-based
         return self._predict_features(eeg_epoch, fs)
 
     def _predict_sklearn(self, eeg_epoch: np.ndarray, fs: float) -> Dict:

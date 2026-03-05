@@ -70,7 +70,10 @@ class CreativityDetector:
             'associative_richness'
         """
         if self.sklearn_model is not None:
-            return self._predict_sklearn(eeg, fs)
+            try:
+                return self._predict_sklearn(eeg, fs)
+            except Exception:
+                pass  # fall through to feature-based
 
         processed = preprocess(eeg, fs)
         bands = extract_band_powers(processed, fs)
@@ -240,7 +243,10 @@ class MemoryEncodingPredictor:
             'will_remember_probability'
         """
         if self.sklearn_model is not None:
-            return self._predict_sklearn(eeg, fs)
+            try:
+                return self._predict_sklearn(eeg, fs)
+            except Exception:
+                pass  # fall through to feature-based
 
         processed = preprocess(eeg, fs)
         bands = extract_band_powers(processed, fs)

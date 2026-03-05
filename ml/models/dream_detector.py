@@ -56,7 +56,10 @@ class DreamDetector:
         if self.onnx_session is not None:
             return self._predict_onnx(eeg, fs)
         if self.sklearn_model is not None:
-            return self._predict_sklearn(eeg, fs)
+            try:
+                return self._predict_sklearn(eeg, fs)
+            except Exception:
+                pass  # fall through to feature-based
         return self._predict_features(eeg, fs)
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
