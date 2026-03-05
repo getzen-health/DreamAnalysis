@@ -121,7 +121,19 @@ class BrainFlowManager:
             BoardShim.enable_dev_board_logger()
 
         self.board = BoardShim(board_id, bf_params)
-        self.board.prepare_session()
+        try:
+            self.board.prepare_session()
+        except Exception as e:
+            # Clean up so subsequent connect() calls start fresh
+            self.board = None
+            if is_ble:
+                raise RuntimeError(
+                    f"Bluetooth scan failed for {device_type}. "
+                    "If you're using the remote (Railway) backend, Bluetooth is unavailable — "
+                    "select 'Synthetic' board instead. "
+                    f"Original error: {e}"
+                ) from e
+            raise RuntimeError(f"BrainFlow session error: {e}") from e
 
         self.is_connected = True
         self.current_device_type = device_type

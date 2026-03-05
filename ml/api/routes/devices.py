@@ -97,6 +97,12 @@ async def connect_device(request: DeviceConnectRequest):
         result = manager.connect(request.device_type, request.params or {})
         emotion_model.set_device_type(request.device_type)
         return result
+    except RuntimeError as e:
+        msg = str(e)
+        # BLE failures on remote backends (Railway/cloud) — 503 so UI shows a clear message
+        is_ble_error = "Bluetooth" in msg or "Bluetooth scan" in msg
+        status = 503 if is_ble_error else 500
+        raise HTTPException(status_code=status, detail=msg)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
