@@ -222,6 +222,9 @@ export class MuseBleManager {
     () => new RingBuffer(RING_BUFFER_SAMPLES)
   );
   private emitTimer: ReturnType<typeof setInterval> | null = null;
+  private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private lastNotificationTime: number[] = [0, 0, 0, 0];
+  private _controlChar: BluetoothRemoteGATTCharacteristic | null = null;
   private onFrame: ((frame: MuseEegFrame) => void) | null = null;
   private onStatusChange: ((status: MuseBleStatus) => void) | null = null;
   private BleClient: typeof import("@capacitor-community/bluetooth-le").BleClient | null = null;
@@ -318,6 +321,7 @@ export class MuseBleManager {
     // writeValueWithoutResponse silently fails, causing ~2 s streaming timeout.
     // Fall back to deprecated writeValue() for older Chrome/Edge versions.
     const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
+    this._controlChar = controlChar;
     const writeCommand = async (dv: DataView) => {
       if (typeof controlChar.writeValueWithResponse === "function") {
         await controlChar.writeValueWithResponse(dv);
@@ -357,6 +361,7 @@ export class MuseBleManager {
       this._webGattServer.disconnect();
     }
     this._webGattServer = null;
+    this._controlChar = null;
     this.deviceName = null;
     this.setStatus("idle");
   }
@@ -522,6 +527,7 @@ export class MuseBleManager {
 
   private onEegNotification(channel: number, data: DataView): void {
     if (channel >= N_ACTIVE_CHANNELS || data.byteLength < 20) return;
+    this.lastNotificationTime[channel] = Date.now();
     const samples = decodeEegPacket(data);
     for (const s of samples) {
       this.rings[channel].push(s);
@@ -530,12 +536,23 @@ export class MuseBleManager {
 
   private startEmitter(): void {
     this.emitTimer = setInterval(() => this.emitFrame(), EMIT_INTERVAL_MS);
+    if (this.isWebBluetooth && this._controlChar) {
+      this.keepaliveTimer = setInterval(async () => {
+        if (this.state === "streaming" && this._controlChar) {
+          try { await this._controlChar.writeValueWithResponse(CMD_START); } catch {}
+        }
+      }, 15_000);
+    }
   }
 
   private stopEmitter(): void {
     if (this.emitTimer !== null) {
       clearInterval(this.emitTimer);
       this.emitTimer = null;
+    }
+    if (this.keepaliveTimer !== null) {
+      clearInterval(this.keepaliveTimer);
+      this.keepaliveTimer = null;
     }
   }
 
@@ -565,7 +582,14 @@ export class MuseBleManager {
     const { stress, focus, relaxation } = computeIndices(avgBandPowers);
     // ch1 = AF7, ch2 = AF8 (BrainFlow Muse 2 ordering)
     const faa = computeFaa(signals[1], signals[2], MUSE_SAMPLE_RATE);
-    const sqiValues = signals.map((s) => computeSignalQuality(s));
+    const now = Date.now();
+    const STALE_THRESHOLD_MS = 2500;
+    const sqiValues = signals.map((s, ch) => {
+      if (this.lastNotificationTime[ch] > 0 && now - this.lastNotificationTime[ch] > STALE_THRESHOLD_MS) {
+        return 0; // stream stale — no notifications received for this channel
+      }
+      return computeSignalQuality(s);
+    });
     const signalQuality = sqiValues.reduce((a, b) => a + b, 0) / sqiValues.length;
 
     const frame: MuseEegFrame = {
