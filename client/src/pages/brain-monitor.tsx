@@ -26,7 +26,7 @@ import { Music } from "lucide-react";
 export default function BrainMonitor() {
   const { isLocal, latencyMs, isReady } = useInference();
   const device = useDevice();
-  const { state: deviceState, latestFrame, deviceStatus, reconnectCount } = device;
+  const { state: deviceState, latestFrame, deviceStatus, selectedDevice, reconnectCount } = device;
   const isStreaming = deviceState === "streaming";
   const voiceEmotion = useVoiceEmotion();
 
@@ -96,7 +96,7 @@ export default function BrainMonitor() {
   const alertLevel: AlertLevel = anomaly?.alert_level || "normal";
 
   // Electrode grid — suppress quality data for synthetic board (non-physiological signals)
-  const isSynthetic = deviceStatus?.device_type === "synthetic";
+  const isSynthetic = deviceStatus?.device_type === "synthetic" || selectedDevice === "synthetic";
   const channelQuality = isSynthetic ? [] : (signalQuality?.channel_quality || []);
   const hasRealData = channelQuality.length > 0;
   const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 0;
