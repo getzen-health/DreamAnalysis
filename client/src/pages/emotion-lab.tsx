@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { useToast } from "@/hooks/use-toast";
+import { submitFeedback } from "@/lib/ml-api";
 import { Music, Mic, MicOff } from "lucide-react";
 
 /* ---------- helpers ---------- */
@@ -126,11 +127,20 @@ export default function EmotionLab() {
     if (!user?.id || correcting) return;
     setCorrecting(true);
     try {
+      // Save correction to Express DB for history
       await fetch(`/api/emotions/correct-latest/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userCorrectedEmotion: value }),
       });
+      // Send to ML backend for personal model training (SGDClassifier + k-NN)
+      const signals = latestFrame?.signals;
+      submitFeedback(
+        signals ?? [],
+        emotion,
+        value,
+        user.id.toString(),
+      ).catch(() => {}); // fire-and-forget, don't block UI
       setCorrected(value);
       setShowCorrect(false);
       toast({ title: "Thanks for the correction!", description: "This helps improve your personal model." });
