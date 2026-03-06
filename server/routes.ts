@@ -231,10 +231,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (process.env.RESEND_API_KEY) {
           const resend = new Resend(process.env.RESEND_API_KEY);
           const fromDomain = process.env.RESEND_FROM_DOMAIN ?? "onboarding@resend.dev";
-          await resend.emails.send({
-            from: `NeuralDreamWorkshop <${fromDomain}>`,
+          const { error: sendError } = await resend.emails.send({
+            from: `Neural Dream <${fromDomain}>`,
             to: email.trim(),
-            subject: "Reset your password — NeuralDreamWorkshop",
+            subject: "Reset your password — Neural Dream",
             html: `
               <div style="font-family:sans-serif;max-width:480px;margin:auto">
                 <h2>Reset your password</h2>
@@ -248,6 +248,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
             `,
           });
+          if (sendError) {
+            console.error("Resend email error:", sendError);
+            return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
+          }
         } else {
           // No email provider configured — log URL for local dev/testing
           console.log(`[dev] Password reset link: ${resetUrl}`);
