@@ -329,27 +329,29 @@ function useDeviceInternal(): UseDeviceReturn {
 
     // ── BLE path: native Capacitor (iOS/Android) OR Web Bluetooth (Chrome desktop) ──
     if (museBle.isAvailable && (deviceType === "muse_2" || deviceType === "muse_s")) {
+      // Suppress BLE status errors during initial connection — they fire before
+      // the catch block can handle them and fall through to BrainFlow.
+      museBle.onStatus(() => {});
       try {
         museBle.onEegFrame((frame) => {
           const eegFrame = museFrameToEegStreamFrame(frame);
-          // Dispatch raw signals for waveform canvas
           window.dispatchEvent(
             new CustomEvent("eeg-signals", { detail: eegFrame.signals })
           );
           setLatestFrame(eegFrame as EEGStreamFrame);
         });
+        await museBle.connect();
+        // BLE succeeded — NOW register the status callback for disconnect handling
         museBle.onStatus((status) => {
           if (status.state === "idle" || status.state === "error") {
             if (status.error) setError(status.error);
             if (!intentionalDisconnectRef.current) {
-              // Unexpected BLE drop — silently reconnect using saved deviceId (no picker)
               reconnectTimerRef.current = setTimeout(async () => {
                 if (intentionalDisconnectRef.current) return;
                 try {
                   await museBle.reconnect();
                   setError(null);
                 } catch {
-                  // Reconnect failed (Muse may be off/out of range)
                   isStreamingRef.current = false;
                   setState("disconnected");
                   setError("Muse connection lost. Tap Connect to reconnect.");
@@ -361,7 +363,6 @@ function useDeviceInternal(): UseDeviceReturn {
             }
           }
         });
-        await museBle.connect();
         setSelectedDevice(deviceType);
         setDeviceStatus({
           connected: true,
@@ -374,10 +375,12 @@ function useDeviceInternal(): UseDeviceReturn {
         setState("streaming");
         isStreamingRef.current = true;
         startSession("general").catch(() => {});
+        return; // BLE succeeded, done
       } catch (e) {
-        // BLE failed — on desktop, fall through to BrainFlow path instead of giving up
+        // BLE failed — on desktop, fall through to BrainFlow path
         if (!museBle.isNative) {
           console.warn("Web Bluetooth GATT failed, falling back to BrainFlow:", e);
+          museBle.onStatus(() => {}); // clear any stale callback
           setState("connecting");
           setError(null);
           // Fall through to BrainFlow path below
@@ -387,7 +390,6 @@ function useDeviceInternal(): UseDeviceReturn {
           return;
         }
       }
-      if (museBle.isNative) return; // native BLE succeeded above
     }
 
     // ── Desktop path (BrainFlow via ML backend WebSocket) ──────────────────
