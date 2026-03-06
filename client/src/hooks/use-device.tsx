@@ -403,15 +403,18 @@ function useDeviceInternal(): UseDeviceReturn {
         startSession("general").catch(() => {});
         return; // BLE succeeded, done
       } catch (e) {
-        // BLE failed — on desktop, fall through to BrainFlow path
-        if (!museBle.isNative) {
+        const bleErr = e instanceof Error ? e.message : "BLE connection failed";
+        // BLE failed — only fall through to BrainFlow if running locally
+        // (BrainFlow on Railway/cloud has no Bluetooth hardware)
+        const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        if (!museBle.isNative && isLocal) {
           console.warn("Web Bluetooth GATT failed, falling back to BrainFlow:", e);
           museBle.onStatus(() => {}); // clear any stale callback
           setState("connecting");
           setError(null);
           // Fall through to BrainFlow path below
         } else {
-          setError(e instanceof Error ? e.message : "BLE connection failed");
+          setError(bleErr);
           setState("disconnected");
           return;
         }
