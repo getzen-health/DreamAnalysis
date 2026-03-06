@@ -36,6 +36,8 @@ interface AdminSession {
   checkpointAt: string | null;
   createdAt: string;
   participantCode: string;
+  dataQualityScore: number | null;
+  durationSeconds: number | null;
 }
 
 type SessionStatus = "recording" | "complete" | "partial";
@@ -44,6 +46,18 @@ function sessionStatus(s: AdminSession): SessionStatus {
   if (s.partial) return "partial";
   if (s.surveyJson) return "complete";
   return "recording";
+}
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${s}s`;
+}
+
+function qualityBadgeClass(score: number): string {
+  if (score >= 70) return "border-green-500/50 text-green-400 text-xs";
+  if (score >= 40) return "border-yellow-500/50 text-yellow-400 text-xs";
+  return "border-red-500/50 text-red-400 text-xs";
 }
 
 function StressBar({ pre, post }: { pre: number | undefined; post: number | undefined }) {
@@ -204,6 +218,16 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
                       >
                         Intervention: {session.interventionTriggered ? "yes" : "no"}
                       </Badge>
+                      {session.dataQualityScore != null && (
+                        <Badge variant="outline" className={qualityBadgeClass(session.dataQualityScore)}>
+                          Quality: {session.dataQualityScore}
+                        </Badge>
+                      )}
+                      {session.durationSeconds != null && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatDuration(session.durationSeconds)}
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground ml-auto">
                         {new Date(session.createdAt).toLocaleString()}
                       </span>
