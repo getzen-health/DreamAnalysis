@@ -44,18 +44,20 @@ async function fetchEEG(): Promise<EEGSample> {
     const res = await fetch(`${mlUrl}/api/simulate-eeg`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ state: "relaxed", duration: 4, fs: 256 }),
+      body: JSON.stringify({ state: "rest", duration: 4, fs: 256 }),
     });
     if (!res.ok) throw new Error("fetch failed");
     const data = await res.json();
-    const bp = data.band_powers ?? data.features?.band_powers ?? {};
+    // ML backend returns: { analysis: { emotions: { band_powers, stress_index, ... } } }
+    const emotions = data.analysis?.emotions ?? {};
+    const bp = emotions.band_powers ?? {};
     return {
       alpha: bp.alpha ?? 0.3,
       beta: bp.beta ?? 0.25,
       theta: bp.theta ?? 0.15,
       delta: bp.delta ?? 0.1,
       gamma: bp.gamma ?? 0.03,
-      stress_level: data.emotions?.stress_index ?? data.stress_index ?? 0.3,
+      stress_level: emotions.stress_index ?? 0.3,
     };
   } catch {
     return {
