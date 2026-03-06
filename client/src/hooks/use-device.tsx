@@ -417,8 +417,8 @@ function useDeviceInternal(): UseDeviceReturn {
           setError(null);
           // Fall through to BrainFlow path below
         } else {
-          // Friendly error for remote users — guide them to Synthetic
-          setError("No Muse headband detected. Try the Synthetic (demo) device to explore with simulated EEG data.");
+          // Friendly error for remote users
+          setError("No Muse headband detected. Make sure your Muse is turned on and Bluetooth is enabled.");
           setState("disconnected");
           return;
         }
@@ -442,7 +442,7 @@ function useDeviceInternal(): UseDeviceReturn {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Connection failed";
       if (IS_REMOTE_BACKEND && deviceType !== "synthetic") {
-        setError("Could not connect to device. Try the Synthetic (demo) device to explore with simulated EEG data.");
+        setError("Could not connect to device. Make sure your Muse is turned on and Bluetooth is enabled.");
       } else {
         setError(msg);
       }
