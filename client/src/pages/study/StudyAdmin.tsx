@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, RefreshCw, Download, ChevronDown, ChevronUp, Lock, Radio, Users, Activity, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, RefreshCw, Download, ChevronDown, ChevronUp, Lock, Radio, Users, Activity, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,8 +136,10 @@ function extractScores(session: AdminSession): SurveyScore[] {
 
 // ── Expandable participant row ────────────────────────────────────────────────
 
-function ParticipantRow({ participant }: { participant: AdminParticipant }) {
+function ParticipantRow({ participant, onDeleteSession }: { participant: AdminParticipant; onDeleteSession: (sessionId: number) => void }) {
   const [expanded, setExpanded] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [notes, setNotes] = useState(participant.researcherNotes ?? "");
   const [savedNotes, setSavedNotes] = useState(participant.researcherNotes ?? "");
   const [showSaved, setShowSaved] = useState(false);
@@ -162,6 +164,24 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
       savedTimerRef.current = setTimeout(() => setShowSaved(false), 2000);
     } catch {
       // silently ignore network errors
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: number) => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/study/admin/session/${sessionId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        onDeleteSession(sessionId);
+      }
+    } catch {
+      // silently ignore network errors
+    } finally {
+      setDeleting(false);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -225,6 +245,29 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
                     key={session.id}
                     className="rounded-md border border-border/50 bg-background p-3 space-y-2"
                   >
+                    {confirmDeleteId === session.id ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-red-400">Delete this session?</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-muted-foreground"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                          disabled={deleting}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                          onClick={(e) => { e.stopPropagation(); void handleDeleteSession(session.id); }}
+                          disabled={deleting}
+                        >
+                          {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete"}
+                        </Button>
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge
                         variant="outline"
@@ -271,7 +314,16 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
                       <span className="text-xs text-muted-foreground ml-auto">
                         {new Date(session.createdAt).toLocaleString()}
                       </span>
+                      <button
+                        type="button"
+                        className="p-1 rounded text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(session.id); }}
+                        title="Delete session"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
+                    )}
 
                     {/* Stress sparkline */}
                     {(session.preEegJson?.stress_level !== undefined || session.postEegJson?.stress_level !== undefined) && (
@@ -653,7 +705,18 @@ export default function StudyAdmin() {
                   </TableHeader>
                   <TableBody>
                     {participants.map((p) => (
-                      <ParticipantRow key={p.participantCode} participant={p} />
+                      <ParticipantRow
+                        key={p.participantCode}
+                        participant={p}
+                        onDeleteSession={(sessionId) =>
+                          setParticipants((prev) =>
+                            prev.map((pt) => ({
+                              ...pt,
+                              sessions: pt.sessions.filter((s) => s.id !== sessionId),
+                            }))
+                          )
+                        }
+                      />
                     ))}
                   </TableBody>
                 </Table>
