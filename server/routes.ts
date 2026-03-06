@@ -2284,6 +2284,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH /api/study/admin/participant/:code/notes
+  app.patch("/api/study/admin/participant/:code/notes", requireStudyAdmin, async (req, res) => {
+    try {
+      const { notes } = req.body as { notes?: string };
+      if (typeof notes !== "string") {
+        return res.status(400).json({ error: "notes (string) is required" });
+      }
+      const [updated] = await db
+        .update(pilotParticipants)
+        .set({ researcherNotes: notes })
+        .where(eq(pilotParticipants.participantCode, req.params.code))
+        .returning({ id: pilotParticipants.id });
+      if (!updated) {
+        return res.status(404).json({ error: "Participant not found" });
+      }
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("PATCH /api/study/admin/participant/:code/notes error:", err);
+      return res.status(500).json({ error: "Failed to update researcher notes" });
+    }
+  });
+
   // GET /api/study/admin/sessions
   app.get("/api/study/admin/sessions", requireStudyAdmin, async (_req, res) => {
     try {

@@ -454,6 +454,7 @@ export const pilotParticipants = pgTable("pilot_participants", {
   hasAppleWatch:      boolean("has_apple_watch").default(false),
   consentText:        text("consent_text"),
   consentTimestamp:   timestamp("consent_timestamp"),
+  researcherNotes:   text("researcher_notes"),
   createdAt:          timestamp("created_at").defaultNow(),
 });
 
