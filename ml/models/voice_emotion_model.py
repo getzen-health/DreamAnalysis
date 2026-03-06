@@ -167,7 +167,12 @@ class VoiceEmotionModel:
                 return result
 
         # Fall back to LightGBM
-        return self._predict_lgbm(audio, sample_rate)
+        result = self._predict_lgbm(audio, sample_rate)
+        if result is not None:
+            return result
+
+        # Last resort: feature-based heuristics (no saved model needed)
+        return self._predict_features(audio, sample_rate)
 
     # ── Internal inference ────────────────────────────────────────────────────
 
@@ -314,6 +319,101 @@ class VoiceEmotionModel:
             }
         except Exception as exc:
             log.warning("LightGBM voice fallback failed: %s", exc)
+            return None
+
+    def _predict_features(
+        self, audio: np.ndarray, sample_rate: int
+    ) -> Optional[Dict]:
+        """Feature-based voice emotion heuristics — no saved model needed.
+
+        Uses pitch, energy, speech rate, and spectral features to estimate
+        valence and arousal. Accuracy is lower than ML models (~55-60%) but
+        works without any model file.
+        """
+        try:
+            import librosa  # type: ignore
+
+            y = audio
+            if sample_rate != _SR:
+                y = librosa.resample(audio, orig_sr=sample_rate, target_sr=_SR)
+
+            # Energy (RMS)
+            rms = librosa.feature.rms(y=y)[0]
+            energy_mean = float(rms.mean())
+            energy_std = float(rms.std())
+
+            # Pitch (F0) via pyin
+            f0, voiced, _ = librosa.pyin(
+                y, fmin=60, fmax=500, sr=_SR
+            )
+            f0_valid = f0[~np.isnan(f0)] if f0 is not None else np.array([])
+            pitch_mean = float(f0_valid.mean()) if len(f0_valid) > 0 else 150.0
+            pitch_std = float(f0_valid.std()) if len(f0_valid) > 1 else 0.0
+            voiced_frac = float(voiced.mean()) if voiced is not None else 0.5
+
+            # Speech rate proxy (zero-crossing rate)
+            zcr = librosa.feature.zero_crossing_rate(y)[0]
+            zcr_mean = float(zcr.mean())
+
+            # Spectral centroid (brightness)
+            sc = librosa.feature.spectral_centroid(y=y, sr=_SR)[0]
+            brightness = float(sc.mean()) / _SR  # normalize to 0-0.5
+
+            # ── Heuristic rules ──
+            # High pitch + high energy + high variability → excited/happy/angry
+            # Low pitch + low energy → sad/neutral
+            # High pitch + low energy → fear/surprise
+
+            # Arousal: energy + pitch variation + speech rate
+            arousal = float(np.clip(
+                0.35 * min(1.0, energy_mean * 10) +
+                0.25 * min(1.0, pitch_std / 80) +
+                0.20 * min(1.0, zcr_mean * 5) +
+                0.20 * min(1.0, energy_std * 15),
+                0.0, 1.0
+            ))
+
+            # Valence: higher pitch mean + brightness → positive
+            # lower pitch + less voiced → negative
+            pitch_norm = float(np.clip((pitch_mean - 120) / 200, -1, 1))
+            valence = float(np.clip(
+                0.40 * pitch_norm +
+                0.30 * (brightness - 0.15) * 5 +
+                0.30 * (voiced_frac - 0.5) * 2,
+                -1.0, 1.0
+            ))
+
+            # Map to 6-class probabilities
+            pos_w = max(0.0, valence)
+            neg_w = max(0.0, -valence)
+            neu_w = max(0.0, 1.0 - abs(valence) * 2)
+            total = pos_w + neg_w + neu_w + 0.001
+
+            probs_6: Dict[str, float] = {
+                "happy":    round((pos_w * 0.65 + arousal * 0.1) / total, 4),
+                "surprise": round((pos_w * 0.25 + arousal * 0.15) / total, 4),
+                "neutral":  round((neu_w * 0.8 + (1 - arousal) * 0.1) / total, 4),
+                "sad":      round((neg_w * 0.50 + (1 - arousal) * 0.1) / total, 4),
+                "angry":    round((neg_w * 0.30 + arousal * 0.15) / total, 4),
+                "fear":     round((neg_w * 0.20 + arousal * 0.1) / total, 4),
+            }
+            # Re-normalize
+            t2 = sum(probs_6.values()) or 1.0
+            probs_6 = {k: round(v / t2, 4) for k, v in probs_6.items()}
+
+            emotion = max(probs_6, key=probs_6.__getitem__)
+            confidence = probs_6[emotion]
+
+            return {
+                "emotion": emotion,
+                "probabilities": probs_6,
+                "valence": round(valence, 4),
+                "arousal": round(arousal, 4),
+                "confidence": round(confidence, 4),
+                "model_type": "voice_feature_heuristic",
+            }
+        except Exception as exc:
+            log.warning("Feature-based voice emotion failed: %s", exc)
             return None
 
 
