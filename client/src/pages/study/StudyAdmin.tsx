@@ -85,6 +85,18 @@ function StressBar({ pre, post }: { pre: number | undefined; post: number | unde
   );
 }
 
+interface AdminStats {
+  total_participants: number;
+  total_sessions: number;
+  stress_sessions: number;
+  food_sessions: number;
+  complete_sessions: number;
+  partial_sessions: number;
+  avg_quality_score: number;
+  avg_duration_seconds: number;
+  avg_stress_reduction: number;
+}
+
 interface AdminParticipant {
   participantCode: string;
   age: number | null;
@@ -343,6 +355,7 @@ export default function StudyAdmin() {
   const [, navigate] = useLocation();
 
   const [participants, setParticipants] = useState<AdminParticipant[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -355,12 +368,13 @@ export default function StudyAdmin() {
     setIsUnauthorized(false);
 
     try {
-      const [pRes, sRes] = await Promise.all([
+      const [pRes, sRes, stRes] = await Promise.all([
         fetch("/api/study/admin/participants", { credentials: "include" }),
         fetch("/api/study/admin/sessions", { credentials: "include" }),
+        fetch("/api/study/admin/stats", { credentials: "include" }),
       ]);
 
-      if (pRes.status === 401 || sRes.status === 401) {
+      if (pRes.status === 401 || sRes.status === 401 || stRes.status === 401) {
         setIsUnauthorized(true);
         unauthorizedRef.current = true;
         return;
@@ -372,9 +386,14 @@ export default function StudyAdmin() {
       if (!sRes.ok) {
         throw new Error(`Sessions fetch failed: ${sRes.status}`);
       }
+      if (!stRes.ok) {
+        throw new Error(`Stats fetch failed: ${stRes.status}`);
+      }
 
       const pData: Omit<AdminParticipant, "sessions">[] = await pRes.json();
       const sData: AdminSession[] = await sRes.json();
+      const stData: AdminStats = await stRes.json();
+      setStats(stData);
 
       // Merge sessions into participants
       const sessionsByCode: Record<string, AdminSession[]> = {};
@@ -545,6 +564,55 @@ export default function StudyAdmin() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Aggregate stats */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card>
+              <CardContent className="pt-3 pb-3 text-center">
+                <p className={`text-lg font-bold tabular-nums ${
+                  Math.round(stats.avg_quality_score) >= 70
+                    ? "text-green-400"
+                    : Math.round(stats.avg_quality_score) >= 40
+                      ? "text-yellow-400"
+                      : "text-red-400"
+                }`}>
+                  {Math.round(stats.avg_quality_score)}
+                </p>
+                <p className="text-xs text-muted-foreground">avg quality</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-3 pb-3 text-center">
+                <p className="text-lg font-bold tabular-nums">
+                  {formatDuration(Math.round(stats.avg_duration_seconds))}
+                </p>
+                <p className="text-xs text-muted-foreground">avg duration</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-3 pb-3 text-center">
+                <p className={`text-lg font-bold tabular-nums ${
+                  stats.avg_stress_reduction > 0 ? "text-green-400" : "text-muted-foreground"
+                }`}>
+                  {stats.avg_stress_reduction > 0 ? "" : ""}
+                  {Math.round(stats.avg_stress_reduction * 100)}%
+                </p>
+                <p className="text-xs text-muted-foreground">stress reduction</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-3 pb-3 text-center">
+                <p className="text-lg font-bold tabular-nums">
+                  <span className="text-green-400">{stats.complete_sessions}</span>
+                  <span className="text-muted-foreground"> / </span>
+                  <span className="text-amber-400">{stats.partial_sessions}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">complete / partial</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Error */}
         {error && (
