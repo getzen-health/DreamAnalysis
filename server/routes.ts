@@ -2116,6 +2116,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   }
 
+  // GET /api/study/check-code — check if a participant code is available
+  app.get("/api/study/check-code", async (req, res) => {
+    try {
+      const code = req.query.code as string | undefined;
+      if (!code) {
+        return res.status(400).json({ error: "code query parameter is required" });
+      }
+      const [existing] = await db
+        .select({ id: pilotParticipants.id })
+        .from(pilotParticipants)
+        .where(eq(pilotParticipants.participantCode, code))
+        .limit(1);
+      return res.json({ available: !existing });
+    } catch (err) {
+      console.error("GET /api/study/check-code error:", err);
+      return res.status(500).json({ error: "Failed to check code availability" });
+    }
+  });
+
   // POST /api/study/consent
   app.post("/api/study/consent", async (req, res) => {
     try {

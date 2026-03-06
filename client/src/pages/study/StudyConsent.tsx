@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,13 +62,41 @@ that you are 18 years of age or older, and that you agree to participate volunta
 
 const STUDY_CODE_KEY = "ndw_study_code";
 
-function getOrCreateCode(): string {
+function generateCode(): string {
+  const n = Math.floor(Math.random() * 9000) + 1000; // 1000–9999
+  return `P${n}`;
+}
+
+function getStoredCode(): string | null {
   const stored = localStorage.getItem(STUDY_CODE_KEY);
-  if (stored && /^P\d{3}$/.test(stored)) return stored;
-  const n = Math.floor(Math.random() * 900) + 100; // 100–999
-  const code = `P${n}`;
-  localStorage.setItem(STUDY_CODE_KEY, code);
-  return code;
+  if (stored && /^P\d{4}$/.test(stored)) return stored;
+  return null;
+}
+
+async function checkCodeAvailable(code: string): Promise<boolean> {
+  const resp = await fetch(`/api/study/check-code?code=${encodeURIComponent(code)}`);
+  if (!resp.ok) return false;
+  const data = await resp.json() as { available: boolean };
+  return data.available;
+}
+
+async function getOrCreateCode(): Promise<string> {
+  const stored = getStoredCode();
+  if (stored) return stored;
+
+  const MAX_ATTEMPTS = 5;
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const candidate = generateCode();
+    const available = await checkCodeAvailable(candidate);
+    if (available) {
+      localStorage.setItem(STUDY_CODE_KEY, candidate);
+      return candidate;
+    }
+  }
+  // Fallback: use last generated code even if check failed
+  const fallback = generateCode();
+  localStorage.setItem(STUDY_CODE_KEY, fallback);
+  return fallback;
 }
 
 export default function StudyConsent() {
@@ -76,10 +104,20 @@ export default function StudyConsent() {
   const { toast } = useToast();
 
   const [agreed, setAgreed] = useState(false);
-  const [code] = useState(() => getOrCreateCode());
+  const [code, setCode] = useState<string | null>(getStoredCode);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canSubmit = agreed;
+  const initCode = useCallback(async () => {
+    if (code) return;
+    const newCode = await getOrCreateCode();
+    setCode(newCode);
+  }, [code]);
+
+  useEffect(() => {
+    void initCode();
+  }, [initCode]);
+
+  const canSubmit = agreed && code !== null;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -165,15 +203,24 @@ export default function StudyConsent() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-3xl font-bold tracking-widest text-primary select-all">
-                {code}
-              </span>
-              <Badge
-                variant="outline"
-                className="border-green-500/50 text-green-400 text-xs"
-              >
-                Saved to device
-              </Badge>
+              {code ? (
+                <>
+                  <span className="font-mono text-3xl font-bold tracking-widest text-primary select-all">
+                    {code}
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="border-green-500/50 text-green-400 text-xs"
+                  >
+                    Saved to device
+                  </Badge>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Generating code…</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
