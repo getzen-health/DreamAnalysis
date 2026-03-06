@@ -2207,6 +2207,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         intervention_triggered,
         phase_log,
         data_quality_score,
+        voice_emotion_json,
+        watch_biometrics_json,
       } = req.body;
       if (session_id == null || Number(session_id) <= 0) {
         return res.status(400).json({ error: "session_id is required" });
@@ -2232,6 +2234,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...(phase_log !== undefined && { phaseLog: phase_log }),
           ...(data_quality_score != null && { dataQualityScore: Number(data_quality_score) }),
           ...(durationSeconds != null && { durationSeconds }),
+          ...(voice_emotion_json !== undefined && { voiceEmotionJson: voice_emotion_json }),
+          ...(watch_biometrics_json !== undefined && { watchBiometricsJson: watch_biometrics_json }),
         })
         .where(eq(pilotSessions.id, Number(session_id)));
       return res.json({ success: true });
@@ -2246,7 +2250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const sessionId = Number(req.params.id);
       if (isNaN(sessionId)) return res.status(400).json({ error: "invalid session id" });
-      const { pre_eeg_json, post_eeg_json, eeg_features_json, intervention_triggered, partial, phase_log } = req.body;
+      const { pre_eeg_json, post_eeg_json, eeg_features_json, intervention_triggered, partial, phase_log, voice_emotion_json, watch_biometrics_json } = req.body;
       await db.update(pilotSessions)
         .set({
           ...(pre_eeg_json !== undefined   && { preEegJson: pre_eeg_json }),
@@ -2255,6 +2259,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...(intervention_triggered !== undefined && { interventionTriggered: !!intervention_triggered }),
           ...(partial !== undefined        && { partial: !!partial }),
           ...(phase_log !== undefined      && { phaseLog: phase_log }),
+          ...(voice_emotion_json !== undefined && { voiceEmotionJson: voice_emotion_json }),
+          ...(watch_biometrics_json !== undefined && { watchBiometricsJson: watch_biometrics_json }),
           checkpointAt: new Date(),
         })
         .where(eq(pilotSessions.id, sessionId));

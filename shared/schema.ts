@@ -472,6 +472,8 @@ export const pilotSessions = pgTable("pilot_sessions", {
   checkpointAt:          timestamp("checkpoint_at"),
   dataQualityScore:      integer("data_quality_score"),
   durationSeconds:       integer("duration_seconds"),
+  voiceEmotionJson:      jsonb("voice_emotion_json"),
+  watchBiometricsJson:   jsonb("watch_biometrics_json"),
   startedAt:             timestamp("started_at"),
   createdAt:             timestamp("created_at").defaultNow(),
 });

@@ -14,8 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, Bluetooth, CheckCircle2, Utensils, Brain, AlertCircle, Watch, Mic } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { pingBackend, getMLApiUrl } from "@/lib/ml-api";
+import { pingBackend, getMLApiUrl, type VoiceWatchEmotionResult } from "@/lib/ml-api";
 import { VoiceWatchAnalyzer } from "@/components/voice-watch-analyzer";
+import { healthSync } from "@/lib/health-sync";
 import { useToast } from "@/hooks/use-toast";
 import { useDevice } from "@/hooks/use-device";
 
@@ -165,6 +166,9 @@ export default function StudySession() {
   const readings = useRef<EEGSnapshot[]>([]);
   const [eegJson, setEegJson] = useState<EEGSnapshot | null>(null);
 
+  // Voice emotion results (accumulated across session)
+  const voiceResults = useRef<VoiceWatchEmotionResult[]>([]);
+
   // Survey
   const [surveyQ1, setSurveyQ1] = useState<number | null>(null);
   const [surveyQ2, setSurveyQ2] = useState<number | null>(null);
@@ -229,16 +233,32 @@ export default function StudySession() {
     checkpointTimer.current = setInterval(() => saveCheckpoint(sid, false), 30_000);
   }
 
+  function getWatchBiometrics() {
+    const state = healthSync.getState();
+    return state.latestPayload ?? null;
+  }
+
   async function saveCheckpoint(sid: number, isFinal: boolean) {
     if (sid < 0) return;
     const snap = avgSnapshots(readings.current);
+    const watchData = getWatchBiometrics();
     try {
       await apiRequest("PATCH", `/api/study/session/${sid}/checkpoint`, {
         ...(snap && { pre_eeg_json: snap }),
         eeg_features_json: { frame_count: readings.current.length },
         ...(isFinal && { partial: false }),
+        ...(voiceResults.current.length > 0 && { voice_emotion_json: voiceResults.current }),
+        ...(watchData && { watch_biometrics_json: watchData }),
       });
     } catch { /* non-fatal */ }
+  }
+
+  function onVoiceResult(result: VoiceWatchEmotionResult) {
+    voiceResults.current.push(result);
+    // Save immediately to DB
+    if (sessionId && sessionId > 0) {
+      saveCheckpoint(sessionId, false);
+    }
   }
 
   async function saveAndExit() {
@@ -305,6 +325,7 @@ export default function StudySession() {
     setIsSubmitting(true);
     const snap = eegJson ?? avgSnapshots(readings.current);
     try {
+      const watchData = getWatchBiometrics();
       await apiRequest("POST", "/api/study/session/complete", {
         session_id: sessionId,
         pre_eeg_json: snap,
@@ -312,6 +333,8 @@ export default function StudySession() {
         eeg_features_json: { frame_count: readings.current.length },
         survey_json: { q1: surveyQ1, q2: surveyQ2 },
         intervention_triggered: false,
+        voice_emotion_json: voiceResults.current.length > 0 ? voiceResults.current : null,
+        watch_biometrics_json: watchData,
       });
       const avg = (snap?.stress_level ?? 0).toFixed(2);
       navigate(
@@ -480,7 +503,7 @@ export default function StudySession() {
                 Record 30 seconds of voice to detect emotion from speech patterns.
                 If Apple Watch data is available, it blends heart rate and HRV for better accuracy.
               </p>
-              <VoiceWatchAnalyzer userId={participantCode || "default"} />
+              <VoiceWatchAnalyzer userId={participantCode || "default"} onResult={onVoiceResult} />
             </CardContent>
           </Card>
 
@@ -581,6 +604,12 @@ export default function StudySession() {
               <Button variant="outline" size="sm" className="w-full" onClick={onEegDone}>
                 End early & go to survey
               </Button>
+
+              {/* Voice emotion during recording */}
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground mb-2">Record voice emotion (optional — saves to database)</p>
+                <VoiceWatchAnalyzer userId={participantCode || "default"} onResult={onVoiceResult} />
+              </div>
             </CardContent>
           </Card>
         )}
