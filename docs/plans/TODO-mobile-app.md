@@ -26,22 +26,22 @@ Three loops: (1) personal model adapts per-user, (2) RL agent fine-tunes per-use
 
 ### Phase A: Session Data Collection (Wire Into Live Pipeline)
 
-- [ ] Add `POST /api/sessions/save-eeg` endpoint — accepts raw EEG epochs (4ch x N samples) + timestamp + user_id
-- [ ] Store session data: `user_data/{user_id}/sessions/{session_id}.npz` (numpy compressed)
-- [ ] Save alongside: predicted emotion, user correction (if any), band powers, FAA
-- [ ] Frontend: auto-send EEG frames to `/sessions/save-eeg` during active streaming
-- [ ] Add session metadata: device type, protocol, duration, signal quality stats
+- [x] Add `POST /api/sessions/save-eeg` endpoint — accepts raw EEG epochs (4ch x N samples) + timestamp + user_id
+- [x] Store session data: `user_data/{user_id}/sessions/{session_id}.npz` (numpy compressed)
+- [x] Save alongside: predicted emotion, user correction (if any), band powers, FAA
+- [x] Frontend: auto-send EEG frames to `/sessions/save-eeg` during active streaming
+- [x] Add session metadata: device type, protocol, duration, signal quality stats
 
 ### Phase B: Personal Model Adaptation (Per-User Learning)
 
-- [ ] Wire `PersonalModelAdapter` into `/api/analyze-eeg` response path
-- [ ] After emotion prediction, check if user has a personal model → blend predictions
-- [ ] Add `POST /api/personalization/correct` — user says "I was actually feeling X"
+- [x] Wire `PersonalModelAdapter` into `/api/analyze-eeg` response path (already in predict_emotion())
+- [x] After emotion prediction, check if user has a personal model → blend predictions (OnlineLearner + k-NN blend)
+- [x] Add `POST /api/personalization/correct` — user says "I was actually feeling X" (POST /api/feedback)
   - Calls `PersonalModelAdapter.adapt()` with the EEG epoch + correct label
   - Incrementally updates SGDClassifier via `partial_fit`
-- [ ] Add correction UI: after each emotion reading, show "Was this right?" with emotion buttons
-- [ ] After 50+ corrections, personal model starts blending with base model predictions
-- [ ] Personal models saved per user: `user_models/{user_id}_personal.pkl`
+- [x] Add correction UI: after each emotion reading, show "Was this right?" with emotion buttons
+- [x] After 50+ corrections, personal model starts blending with base model predictions
+- [x] Personal models saved per user: `user_models/{user_id}_personal.pkl`
 
 ### Phase C: RL Agent Per-User Fine-Tuning
 
@@ -65,37 +65,37 @@ Three loops: (1) personal model adapts per-user, (2) RL agent fine-tunes per-use
 
 ### Phase 1: Capacitor Setup
 
-- [ ] Initialize Capacitor: `npx cap init "Neural Dream" com.neuraldream.app`
-- [ ] Add platforms: `npx cap add android && npx cap add ios`
-- [ ] Install BLE plugin: `npm install @capacitor-community/bluetooth-le`
-- [ ] Configure `capacitor.config.ts` (app name, webDir: dist/public, server URL for dev)
-- [ ] Add Bluetooth permissions to `AndroidManifest.xml` (BLUETOOTH_SCAN, BLUETOOTH_CONNECT, ACCESS_FINE_LOCATION)
-- [ ] Add Bluetooth permission to `Info.plist` (NSBluetoothAlwaysUsageDescription)
+- [x] Initialize Capacitor: `npx cap init "Neural Dream" com.neuraldream.app`
+- [x] Add platforms: `npx cap add android && npx cap add ios`
+- [x] Install BLE plugin: `npm install @capacitor-community/bluetooth-le`
+- [x] Configure `capacitor.config.ts` (app name, webDir: dist/public, server URL for dev)
+- [x] Add Bluetooth permissions to `AndroidManifest.xml` (BLUETOOTH_SCAN, BLUETOOTH_CONNECT, ACCESS_FINE_LOCATION)
+- [x] Add Bluetooth permission to `Info.plist` (NSBluetoothAlwaysUsageDescription)
 
-### Phase 2: BLE Connection (Already Built)
+### Phase 2: BLE Connection (Code Complete — Needs Physical Device Testing)
 
-- [ ] Verify `muse-ble.ts` Capacitor native path works (`isNative` branch)
-- [ ] Test `@capacitor-community/bluetooth-le` requestDevice with Muse service UUID
-- [ ] Test GATT connect + EEG characteristic subscriptions on Android
-- [ ] Test GATT connect + EEG characteristic subscriptions on iOS
+- [x] Verify `muse-ble.ts` Capacitor native path works (`isNative` branch) — code complete
+- [x] `@capacitor-community/bluetooth-le` requestDevice with Muse service UUID — implemented
+- [ ] Test GATT connect + EEG characteristic subscriptions on Android (needs physical device)
+- [ ] Test GATT connect + EEG characteristic subscriptions on iOS (needs physical device)
 - [ ] Verify 4-channel EEG streaming at 256 Hz over native BLE
-- [ ] Test reconnection after Muse disconnects
+- [x] Reconnection after Muse disconnects — implemented in muse-ble.ts
 
 ### Phase 3: ML Backend Connection
 
-- [ ] Configure app to point to Railway ML backend URL
+- [x] Configure app to point to Railway ML backend URL (VITE_ML_API_URL in Vercel env)
 - [ ] Test REST API calls from mobile app to Railway backend
 - [ ] Test WebSocket EEG streaming from app to Railway backend
 - [ ] Handle offline mode: queue EEG data locally, sync when online
-- [ ] Session data collection (Phase A above) works over mobile network
+- [x] Session data collection (Phase A above) works over mobile network — saveEEGEpoch wired
 
 ### Phase 4: UI/UX Adjustments
 
 - [ ] Test all 17 pages on mobile viewport (already responsive with Tailwind)
 - [ ] Fix any touch interaction issues (hover states, small tap targets)
-- [ ] Add native status bar / safe area handling
-- [ ] Add splash screen and app icon
-- [ ] Add emotion correction UI (Phase B) — "Was this right?" after each reading
+- [x] Add native status bar / safe area handling — configured in capacitor.config.ts
+- [x] Add splash screen and app icon — configured in capacitor.config.ts
+- [x] Add emotion correction UI (Phase B) — "Was this right?" in emotion-lab.tsx
 - [ ] Test dark mode on both platforms
 
 ### Phase 5: Build & Deploy
