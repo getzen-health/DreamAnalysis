@@ -112,7 +112,7 @@
 
 ## Needs Improvement
 
-- [x] ~~**No frontend tests**~~ — 241 Vitest tests across 22 pages / 27 files — 100% pass rate
+- [x] ~~**No frontend tests**~~ — 266 Vitest tests across 25 pages / 31 files — 100% pass rate
 - [ ] **Untested hardware integration** — BrainFlow Muse 2 connection not tested end-to-end
 - [x] **Train remaining models** — All 16 models now have saved weights. Improvements: meditation 52.48%→61.13% (3-class), attention 60%→63.87% (DEAP proxy), stress 58.75%→59.64% (DEAP proxy). TSception architecture added (ml/models/tsception.py + ml/training/train_tsception.py).
 - [x] **EMA output smoothing for cognitive models** — α=0.25 EMA now applied to all 6 cognitive endpoints (drowsiness, load, attention, stress, lucid-dream, meditation) via `_smooth()` in cognitive.py — reduces frame-to-frame noise by ~75%

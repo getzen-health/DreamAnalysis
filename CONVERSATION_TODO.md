@@ -48,6 +48,22 @@ Work through sections in order: ML Gaps → App Gaps → Mobile App.
 
 ---
 
+## SECTION 2b: Pilot Study App (2-week human pilot — all PRD user stories)
+
+- [x] US-001: Database tables — `pilot_participants` + `pilot_sessions` in Drizzle schema
+- [x] US-002: API routes — 7 endpoints (consent, session start/complete/checkpoint, admin participants/sessions/export-csv)
+- [x] US-003: `/study` landing page — study info, join button, mobile-responsive
+- [x] US-004: `/study/consent` — informed consent text, checkbox, auto-generated participant code
+- [x] US-005: `/study/profile` — age, diet type, Apple Watch toggle, session picker
+- [x] US-006: `/study/session/stress` — UPDATED. 5-phase: Baseline (5 min, eyes closed, pre_eeg_json) → Work (15 min, live stress bar) → Breathing (auto-triggers at stress > 0.65 OR at 15-min mark) → Post-session (5 min, post_eeg_json) → Survey (3 questions). ~28 min total. Separate pre/post EEG capture.
+- [x] US-007: `/study/session/food` — UPDATED. 5-phase: Pre-survey (hunger + mood + eating duration selector) → Baseline (5 min, eyes closed, pre_eeg_json) → Eat (user-set 15–30 min, headband off) → Post-EEG (10 min, post_eeg_json) → Post-survey (5 questions). ~35 min total. Separate pre/post EEG capture.
+- [x] US-008: `/study/complete` — session confirmation, block status, next steps
+- [x] US-009: `/study/admin` — participant table, session details, export CSV, auth-gated
+- [x] Routing fix — StudyProfile now navigates to `/study/session/stress` and `/study/session/food` (was going to generic `/study/session`)
+- [x] Tests — 24 tests across 3 new test files (study-profile, study-session-stress, study-session-food)
+
+---
+
 ## SECTION 3: Data Collection (pilot study — start today)
 
 - [ ] Pilot study — collect food-emotion EEG data from yourself + 20 people. Timing per session:

@@ -1,196 +1,237 @@
 {
   "project": "NeuralDreamWorkshop",
-  "branchName": "ralph/thursday-launch-ready",
-  "description": "Make NeuralDreamWorkshop fully functional on localhost and Vercel by Thursday — cold-start loading UX, keep-alive, retry logic, simulation fallback, connection status, TSception live path, and env/CORS fixes",
+  "branchName": "ralph/research-study-mode",
+  "description": "Research Study Mode - Add /study flow for a 2-week human pilot study (N=20-30) with stress and food-emotion EEG sessions, anonymous data collection, and admin CSV export",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Create useMLConnection hook",
-      "description": "As a developer, I need a React hook that tracks the ML backend connection lifecycle: idle → connecting → warming → ready | error. It must expose status, latencyMs, warmupProgress (0-100), and retryCount. It pings /health on mount, retries 3 times with exponential backoff (1s, 3s, 9s), increments warmupProgress by ~3 per second during the warm-up wait, and marks ready when /health returns 200. Store hook in client/src/hooks/use-ml-connection.ts. Export the context provider as MLConnectionProvider.",
+      "title": "Add study_participants and study_sessions tables",
+      "description": "As a developer, I need database tables to store participant consent and session data for the research study.",
       "acceptanceCriteria": [
-        "Hook exported from client/src/hooks/use-ml-connection.ts",
-        "Status type is 'idle' | 'connecting' | 'warming' | 'ready' | 'error'",
-        "On mount: immediately sets status='connecting', starts pinging /health every 5s",
-        "warmupProgress increments from 0→95 over 35 seconds while status is 'warming'/'connecting'",
-        "On first successful /health 200: sets status='ready', latencyMs to measured value",
-        "On 3 consecutive failures: sets status='error'",
-        "MLConnectionProvider wraps children and exposes context via useMLConnection()",
+        "Add study_participants table to shared/schema.ts: id (serial PK), participant_code (varchar, unique), age (int), diet_type (varchar), has_apple_watch (boolean), consent_text (text), consent_timestamp (timestamp), created_at (timestamp default now())",
+        "Add study_sessions table to shared/schema.ts: id (serial PK), participant_code (varchar), block_type (varchar: 'stress' | 'food' | 'sleep'), eeg_features_json (jsonb), pre_eeg_json (jsonb), post_eeg_json (jsonb), survey_json (jsonb), intervention_triggered (boolean default false), status (varchar default 'pending'), created_at (timestamp default now())",
+        "Run drizzle-kit push successfully against Neon PostgreSQL",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": false,
-      "notes": "This is the foundation for US-002, US-003, US-004. Must be done first."
+      "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Build MLWarmupScreen full-screen overlay component",
-      "description": "As a user, when I open the app and the ML backend is cold-starting (status='connecting' or 'warming'), I want to see a beautiful full-screen loading screen instead of errors or blank pages. The screen should show an animated pulsing brain icon (SVG), a progress bar that fills over ~35 seconds, rotating status messages ('Initializing neural engines...', 'Loading EEG models...', 'Calibrating signal pipeline...', 'Almost ready...'), and the actual elapsed time in seconds. After 40 seconds if still not ready, show a 'Continue in Simulation Mode' button that lets users proceed without ML backend. Create this component at client/src/components/ml-warmup-screen.tsx.",
+      "title": "Add study consent and registration API routes",
+      "description": "As a developer, I need API endpoints to handle participant consent and registration.",
       "acceptanceCriteria": [
-        "Component created at client/src/components/ml-warmup-screen.tsx",
-        "Full-screen overlay (fixed, z-50, dark background matching app theme)",
-        "Animated pulsing brain SVG or Lucide Brain icon with CSS pulse animation",
-        "Progress bar uses warmupProgress from useMLConnection hook",
-        "Status messages rotate every 8 seconds through at least 4 messages",
-        "Elapsed time counter shows seconds since connection attempt started",
-        "'Continue in Simulation Mode' button appears after 40 seconds",
-        "Smooth fade-out transition when status changes to 'ready'",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "POST /api/study/consent — accepts { participant_code, consent_text, age, diet_type, has_apple_watch }, saves to study_participants, returns { success: true, participant_code }",
+        "Returns 400 if participant_code already exists or is missing",
+        "Routes added to server/routes.ts",
+        "Typecheck passes"
       ],
       "priority": 2,
       "passes": false,
-      "notes": "Depends on US-001 for useMLConnection hook"
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Integrate MLConnectionProvider and warmup screen into App.tsx",
-      "description": "As a user, the warmup screen should automatically appear when I visit any page that needs the ML backend, if the backend is cold-starting. Wrap the authenticated route tree with MLConnectionProvider in App.tsx. Import MLWarmupScreen and render it conditionally when status is 'connecting' or 'warming' (only for authenticated users — unauthenticated pages like /welcome, /auth, /privacy should never show the warmup screen). The warmup should only appear once per session if the backend was already warmed by a previous ping.",
+      "title": "Add study session start and complete API routes",
+      "description": "As a developer, I need API endpoints to create and complete study sessions.",
       "acceptanceCriteria": [
-        "MLConnectionProvider added to App.tsx wrapping authenticated routes",
-        "MLWarmupScreen renders over the page content when status is 'connecting' or 'warming'",
-        "Unauthenticated routes (/welcome, /auth, /privacy, /study/*) bypass warmup screen",
-        "If status is 'ready' on mount (backend was already up), warmup screen never shown",
-        "If status is 'error', warmup screen shows 'Continue in Simulation Mode' option",
-        "No TypeScript errors in App.tsx",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "POST /api/study/session/start — accepts { participant_code, block_type }, creates pending session record, returns { session_id }",
+        "POST /api/study/session/complete — accepts { session_id, eeg_features_json, pre_eeg_json, post_eeg_json, survey_json, intervention_triggered }, updates session status to 'completed'",
+        "Returns 400 if participant_code not found or session_id invalid",
+        "Routes added to server/routes.ts",
+        "Typecheck passes"
       ],
       "priority": 3,
       "passes": false,
-      "notes": "Depends on US-001 and US-002"
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Add keep-alive ping service in AppLayout to prevent Render sleep",
-      "description": "As a developer, I need a background service that pings the ML backend every 14 minutes while the user is active, preventing Render's free-tier 15-minute idle timeout from putting the backend to sleep. Add this to client/src/layouts/app-layout.tsx. Only ping when document.visibilityState is 'visible' and user is authenticated. Use navigator.sendBeacon('/health') if available, otherwise use a simple fetch. This is a fire-and-forget operation — do not show UI for it or block anything.",
+      "title": "Add study admin API routes with CSV export",
+      "description": "As Sravya, I need admin-only API endpoints to view participants, sessions, and export CSV.",
       "acceptanceCriteria": [
-        "useEffect in AppLayout pings ML backend /health every 14 minutes (840000ms)",
-        "Ping only fires when document.visibilityState === 'visible'",
-        "Ping only fires when user is authenticated (useAuth().user exists)",
-        "Uses navigator.sendBeacon if available, falls back to fetch with {keepalive: true}",
-        "No console.log or UI shown for keep-alive pings",
-        "Interval is cleared on component unmount",
+        "GET /api/study/admin/participants — returns all participants (requires existing auth middleware)",
+        "GET /api/study/admin/sessions — returns all sessions with participant codes (requires auth)",
+        "GET /api/study/admin/export-csv — returns CSV file with columns: participant_code, block_type, pre_alpha, pre_beta, pre_theta, post_alpha, post_beta, post_theta, intervention_triggered, and all survey numeric fields",
+        "Unauthenticated requests to admin routes return 401",
         "Typecheck passes"
       ],
       "priority": 4,
       "passes": false,
-      "notes": "Depends on nothing — independent from warmup screen. Critical for preventing cold starts after first load."
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Add ML connection status indicator in app sidebar",
-      "description": "As a user, I want to see a small status dot in the app sidebar or header that shows whether the ML backend is connected (green), warming up (yellow/amber, pulsing), or unreachable (red). On hover or click, show a tooltip/popover with: status text, latency in ms (when ready), and a 'Reconnect' button (when error). Add this to client/src/components/sidebar.tsx or the top of the sidebar nav section.",
+      "title": "Build /study landing page",
+      "description": "As a potential participant, I want to understand the study and join it from a single page.",
       "acceptanceCriteria": [
-        "Status dot appears in sidebar — green (ready), amber pulsing (connecting/warming), red (error)",
-        "Dot is 8px circle using Tailwind classes (w-2 h-2 rounded-full + appropriate bg-color)",
-        "Tooltip shows: 'ML Backend: Connected (32ms)' or 'ML Backend: Warming up...' or 'ML Backend: Unreachable'",
-        "When status is 'error', tooltip shows a Reconnect button that re-triggers the ping loop",
-        "Uses Radix Tooltip (from shadcn/ui) for the popover",
+        "New file: client/src/pages/study/StudyLanding.tsx",
+        "Route added to App.tsx at /study",
+        "Page shows: study title, description, time required (25-40 min), that it is anonymous",
+        "Join the Study button navigates to /study/consent",
+        "Page is mobile-responsive with Tailwind",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
       "passes": false,
-      "notes": "Depends on US-001. Visual feedback for ML connection state throughout the session."
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Add retry logic with exponential backoff to mlFetch in ml-api.ts",
-      "description": "As a developer, I need mlFetch (in client/src/lib/ml-api.ts) to automatically retry failed requests instead of immediately throwing. Add a wrapper that retries up to 3 times with delays of 1s, 3s, 9s (exponential backoff). Only retry on network errors or 5xx status codes — do NOT retry on 4xx errors (client errors should fail fast). Also add a 30-second request timeout (AbortController) to every mlFetch call so it never hangs indefinitely.",
+      "title": "Build /study/consent page",
+      "description": "As a participant, I want to read and digitally sign the consent form before starting.",
       "acceptanceCriteria": [
-        "mlFetch retries up to 3 times on network errors or 5xx responses",
-        "Delays between retries: 1000ms, 3000ms, 9000ms",
-        "Does NOT retry on 4xx errors (400, 401, 403, 404, 422 all fail immediately)",
-        "AbortController timeout of 30000ms added to every fetch call",
-        "Existing function signature unchanged (no breaking changes to callers)",
-        "Typecheck passes"
+        "New file: client/src/pages/study/StudyConsent.tsx (or update existing if present)",
+        "Route at /study/consent",
+        "Shows full informed consent text (what data is collected, how used, voluntary, right to withdraw)",
+        "Checkbox: I have read and agree to participate voluntarily",
+        "Text input for participant code (e.g. P001)",
+        "Continue button disabled until checkbox checked and code entered",
+        "On submit: POST to /api/study/consent with participant data",
+        "On success: navigate to /study/profile",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
       "passes": false,
-      "notes": "No UI changes — pure logic improvement in ml-api.ts. Independent from other stories."
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Add simulation mode fallback banner when ML backend is unreachable",
-      "description": "As a user, when the ML backend is unreachable after all retries (status='error'), I should be able to continue using the app in simulation mode. The emotion-lab and brain-monitor pages already support simulation — they just need to know to use it. Add a SimulationModeBanner component that appears at the top of ML-dependent pages when status='error'. The banner should say 'ML backend unreachable — running in simulation mode' with a Reconnect button. The existing simulateEEG() function in ml-api.ts should be used automatically when real EEG analysis fails. File: client/src/components/simulation-mode-banner.tsx",
+      "title": "Build /study/profile page",
+      "description": "As a participant, I want to enter basic demographic info before starting sessions.",
       "acceptanceCriteria": [
-        "SimulationModeBanner component created at client/src/components/simulation-mode-banner.tsx",
-        "Banner shows amber/yellow background with warning icon and text 'Running in simulation mode'",
-        "Reconnect button in banner triggers re-ping of /health endpoint",
-        "Banner is rendered at the top of EmotionLab page (client/src/pages/emotion-lab.tsx) when status='error'",
-        "Banner is rendered at the top of BrainMonitor page when status='error'",
+        "New file: client/src/pages/study/StudyProfile.tsx",
+        "Route at /study/profile",
+        "Fields: age (number), diet type (dropdown: omnivore/vegetarian/vegan/other), Apple Watch ownership (yes/no toggle)",
+        "Start Session button navigates to /study/session/stress",
+        "Profile data saved by updating study_participants record via PATCH /api/study/consent or inline on consent POST",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
       "passes": false,
-      "notes": "Depends on US-001 for status. Depends on US-002 being done (users know about simulation mode from warmup screen)."
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Wire TSception model into live emotion inference path in emotion_classifier.py",
-      "description": "As a system, I want to use the TSception model (69% CV — better than feature heuristics at 65%) as a fallback when the mega LightGBM model is not loaded. TSception model is already trained and saved at ml/models/saved/tsception_emotion.pt and the class is in ml/models/tsception.py. Add TSception to the inference fallback chain in ml/models/emotion_classifier.py: mega_lgbm (74.21%) → TSception (69.0%) → feature heuristics (65%). TSception requires epoch_ready=True (4-second window). When TSception runs, set model_type='tsception' in the response.",
+      "title": "Build stress session step UI shell with progress indicator",
+      "description": "As a participant, I want to see a step-by-step interface for the stress session with a progress bar.",
       "acceptanceCriteria": [
-        "TSceptionEmotionClassifier imported in emotion_classifier.py",
-        "TSception instance initialized in EmotionClassifier.__init__() with model_path='models/saved/tsception_emotion.pt'",
-        "Inference chain: if mega_lgbm loaded and CV>=60%: use it; elif tsception loaded and epoch has 4s data: use tsception; else: use _predict_features heuristics",
-        "model_type key in response is 'tsception' when TSception path is taken",
-        "TSception path only taken when input signals have >= 4*256=1024 samples (4-second epoch)",
-        "No regression in existing mega_lgbm or heuristic paths",
-        "ml/main.py starts without ImportError",
-        "Typecheck passes (run mypy ml/ or equivalent)"
+        "New file: client/src/pages/study/StudySessionStress.tsx",
+        "Route at /study/session/stress",
+        "Shows 5-step progress indicator at top (Baseline, Work Task, Intervention, Post-session, Survey)",
+        "Each step renders different content based on current step state",
+        "Navigation between steps via Next button (no skipping)",
+        "Participant code read from URL param or localStorage",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
       "passes": false,
-      "notes": "Pure ML backend change. No frontend changes needed — model_type is already in API response schema."
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Add running feature normalization (non-stationarity correction) to emotion pipeline",
-      "description": "As an ML engineer, I want to add online feature normalization to the emotion pipeline to correct for EEG non-stationarity (signal drift within a session). This is what Chinese BCI research (SJTU SEED team, UESTC FACED paper) identifies as a key improvement over naive ML. Add a per-user RunningNormalizer class to ml/processing/eeg_processor.py that maintains a rolling mean and std over the last 5 minutes of feature vectors (150 frames at 2s hop), and normalizes incoming features against this rolling window. Wire it into EmotionClassifier._predict_mega_lgbm() when a user_id is provided. This is separate from BaselineCalibrator (which uses resting state) — RunningNormalizer adapts continuously during the session.",
+      "title": "Implement stress session Step 1 (Baseline) and Step 2 (Work Task)",
+      "description": "As a participant, I want a timed baseline EEG recording and work task phase.",
       "acceptanceCriteria": [
-        "RunningNormalizer class added to ml/processing/eeg_processor.py",
-        "Maintains circular buffer of last 150 feature vectors per user_id",
-        "normalize(features, user_id) returns z-scored features against rolling mean/std",
-        "Falls back to raw features when buffer has fewer than 30 samples",
-        "EmotionClassifier._predict_mega_lgbm() calls RunningNormalizer when user_id passed in context",
-        "RunningNormalizer is thread-safe (uses threading.Lock)",
+        "Step 1 Baseline: 5-min countdown timer, instructional text (sit still, eyes closed), captures EEG features from /api/analyze-eeg, stores as pre_eeg_json",
+        "Step 2 Work Task: 15-min countdown timer, text 'Continue your normal work', shows live stress indicator from existing stress classification",
+        "Timers show minutes:seconds countdown with visual progress ring or bar",
+        "Auto-advances to next step when timer completes",
         "Typecheck passes"
       ],
       "priority": 9,
       "passes": false,
-      "notes": "Inspired by SJTU/UESTC approach. Addresses the largest fixable accuracy problem (non-stationarity = -10 to -20 pts). Independent from US-008."
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Audit and fix Vercel environment variables and CORS configuration",
-      "description": "As a developer, I need to ensure the app works correctly when deployed to Vercel production. Three things to fix: (1) Verify VITE_ML_API_URL is set to the Render ML backend URL in vercel.json or document it in .env.example. (2) Update render.yaml CORS_ORIGINS to include the actual production Vercel URL (check if dream-analysis.vercel.app is correct or needs updating). (3) Update .env.example with all required variables for a new developer to get started. Also check that the Express server build (esbuild server/index.ts) is producing dist/index.js correctly and the Vercel build command includes it.",
+      "title": "Implement stress session Step 3 (Intervention) and Step 4 (Post-session)",
+      "description": "As a participant, I want the breathing exercise to trigger and post-session EEG capture.",
       "acceptanceCriteria": [
-        ".env.example updated with all required variables: DATABASE_URL, OPENAI_API_KEY, SESSION_SECRET, VITE_ML_API_URL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_EMAIL",
-        "vercel.json has VITE_ML_API_URL set to Render URL OR comment documents where to set it",
-        "render.yaml CORS_ORIGINS includes https://dream-analysis.vercel.app (verify this is the real URL)",
-        "README.md or DEPLOYMENT.md has clear 3-step instructions for new developer setup",
-        "package.json build script produces both dist/public (frontend) and dist/index.js (Express)",
+        "Step 3 Intervention: auto-triggers when stress_index > 0.65 during work task OR at 15-min mark, shows breathing exercise (Box Breathing or Physio Sigh), sets intervention_triggered = true",
+        "Step 4 Post-session: 5-min countdown timer, captures post-intervention EEG as post_eeg_json",
+        "If stress never exceeds threshold, intervention still triggers at end of work task",
         "Typecheck passes"
       ],
       "priority": 10,
       "passes": false,
-      "notes": "Critical for Vercel deployment to actually work. Not glamorous but essential."
+      "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Update STATUS.md and PRODUCT.md to reflect launch-ready state",
-      "description": "After all other stories are complete, update STATUS.md to mark the new features as complete and update PRODUCT.md's 'Honest Assessment' section to reflect the improved connection experience and TSception integration. Also update the benchmark dashboard page (client/src/pages/formal-benchmarks-dashboard.tsx) to show TSception at 69.00% CV as 'Active (fallback)' instead of 'Trained'.",
+      "title": "Implement stress session Step 5 (Survey) and session completion",
+      "description": "As a participant, I want to answer the post-session survey and have my data saved.",
       "acceptanceCriteria": [
-        "STATUS.md has new entries under Completed Features for: MLWarmupScreen, keep-alive service, retry logic, simulation mode banner, TSception live path, RunningNormalizer",
-        "STATUS.md Phase 4 Growth has connection UX items checked",
-        "PRODUCT.md Honest Assessment section updated if present",
-        "Formal benchmarks dashboard shows TSception as active fallback",
-        "Typecheck passes"
+        "Step 5 Survey: three 1-10 slider questions — Did you feel stressed? Did the breathing help? How do you feel now?",
+        "Submit button POSTs to /api/study/session/complete with all collected data",
+        "On success: navigates to /study/complete",
+        "Stores survey responses as survey_json",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
       "passes": false,
-      "notes": "Do this last. Documentation cleanup after all code is working."
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Build food-emotion session page with all steps",
+      "description": "As a participant, I want to complete the food-emotion session: pre-meal EEG, eat, post-meal EEG, survey.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudySessionFood.tsx",
+        "Route at /study/session/food",
+        "Step 1 Pre-meal survey: hunger (1-10), current mood (1-10)",
+        "Step 2 Pre-meal baseline: 5-min timer with Muse 2, captures EEG as pre_eeg_json",
+        "Step 3 Eat your meal: instruction to remove headband, user-controlled timer (15-20 min default)",
+        "Step 4 Post-meal EEG: 10-min timer, captures EEG as post_eeg_json",
+        "Step 5 Post-meal survey: what did you eat (text), how healthy (1-10), energy (1-10), mood (1-10), satisfaction (1-10)",
+        "On complete: POST to /api/study/session/complete, navigate to /study/complete",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Build /study/complete confirmation page",
+      "description": "As a participant, I want confirmation that my session was saved and know what to do next.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudyComplete.tsx",
+        "Route at /study/complete",
+        "Shows 'Session complete — thank you!' message",
+        "Shows which blocks are done vs remaining (reads from API or localStorage)",
+        "If food block not done: button to /study/session/food",
+        "If both done: final thank-you message",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Build /study/admin dashboard with participant table and CSV export",
+      "description": "As Sravya, I want to see all participants and sessions, and export data as CSV.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudyAdmin.tsx",
+        "Route at /study/admin, guarded by existing auth (redirect to /auth if not logged in)",
+        "Table showing: participant_code, age, diet_type, has_apple_watch, sessions_completed count, last_session_date",
+        "Clickable row expands to show session details (block type, survey scores, intervention_triggered)",
+        "Export CSV button triggers download of /api/study/admin/export-csv",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
     }
   ]
 }
