@@ -469,6 +469,9 @@ export const pilotSessions = pgTable("pilot_sessions", {
   partial:               boolean("partial").default(false),
   phaseLog:              jsonb("phase_log"),
   checkpointAt:          timestamp("checkpoint_at"),
+  dataQualityScore:      integer("data_quality_score"),
+  durationSeconds:       integer("duration_seconds"),
+  startedAt:             timestamp("started_at"),
   createdAt:             timestamp("created_at").defaultNow(),
 });
 
