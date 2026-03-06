@@ -59,7 +59,7 @@ describe("useMLConnection", () => {
     expect(result.current.warmupProgress).toBe(100);
   });
 
-  it("transitions to 'error' after 3 consecutive false pings", async () => {
+  it("transitions to 'error' after MAX_FAILURES (8) consecutive false pings", async () => {
     mockPingBackend.mockResolvedValue(false);
 
     const { result } = renderHook(() => useMLConnection(), { wrapper });
@@ -72,18 +72,15 @@ describe("useMLConnection", () => {
     // After first failure the status must be 'warming' (not yet 'error')
     expect(result.current.status).toBe("warming");
 
-    // Second ping fires after 5 s
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(5_000);
-    });
-
-    // Third ping fires after another 5 s
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(5_000);
-    });
+    // Failures 2–8: each fires after a 5 s interval tick
+    for (let i = 2; i <= 8; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+    }
 
     expect(result.current.status).toBe("error");
-    expect(result.current.retryCount).toBeGreaterThanOrEqual(3);
+    expect(result.current.retryCount).toBeGreaterThanOrEqual(8);
   });
 
   it("reconnect() resets to 'connecting' and then 'ready'", async () => {

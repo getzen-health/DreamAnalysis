@@ -35,10 +35,10 @@ describe("DailyBrainReport page — no data state", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the 'Right now' card section", async () => {
+  it("shows the 'No data yet' card when no health data", async () => {
     renderWithProviders(<DailyBrainReport />);
     expect(
-      await screen.findByText("Right now", {}, { timeout: 3000 })
+      await screen.findByText("No data yet", {}, { timeout: 3000 })
     ).toBeInTheDocument();
   });
 

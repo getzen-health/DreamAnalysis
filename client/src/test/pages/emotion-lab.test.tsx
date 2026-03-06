@@ -24,6 +24,28 @@ vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
 }));
 
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => ({ user: null, login: vi.fn(), logout: vi.fn() }),
+}));
+
+vi.mock("@/hooks/use-voice-emotion", () => ({
+  useVoiceEmotion: () => ({
+    startRecording: vi.fn(),
+    isRecording: false,
+    isAnalyzing: false,
+    lastResult: null,
+    error: null,
+  }),
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: vi.fn(), dismiss: vi.fn(), toasts: [] }),
+}));
+
+vi.mock("@/components/simulation-mode-banner", () => ({
+  SimulationModeBanner: () => <div data-testid="simulation-mode-banner" />,
+}));
+
 vi.mock("wouter", () => ({
   useLocation: () => ["/emotions", vi.fn()],
   Link: (props: any) => <a href={props.href}>{props.children}</a>,

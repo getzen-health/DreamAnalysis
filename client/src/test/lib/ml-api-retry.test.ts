@@ -19,15 +19,20 @@ function okResponse(body: unknown = {}) {
   };
 }
 
-// Helper: build a failing Response-like object
-function failResponse(status: number) {
+// Helper: build a failing Response-like object.
+// When `detail` is provided the response body includes a `detail` field;
+// mlFetch treats 5xx responses with a detail string as non-retryable
+// (descriptive server error like "Bluetooth not available").
+// Omit `detail` (the default for 5xx) to exercise the retry path.
+function failResponse(status: number, detail?: string) {
+  const body = detail !== undefined ? { detail } : {};
   return {
     ok: false,
     status,
     statusText: String(status),
-    clone: () => failResponse(status),
-    json: async () => ({ detail: `error ${status}` }),
-    text: async () => `error ${status}`,
+    clone: function () { return failResponse(status, detail); },
+    json: async () => body,
+    text: async () => JSON.stringify(body),
   };
 }
 
@@ -62,7 +67,7 @@ describe("mlFetch retry logic", () => {
   });
 
   it("does NOT retry on 422 (total 1 fetch call)", async () => {
-    mockFetch.mockResolvedValueOnce(failResponse(422));
+    mockFetch.mockResolvedValueOnce(failResponse(422, "Unprocessable Entity"));
 
     const promise = simulateEEG("rest", 2, 256, 1);
 

@@ -64,38 +64,38 @@ describe("MLWarmupScreen", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("shows simulation mode button after 40 seconds when prop is provided", () => {
+  it("shows simulation mode button after threshold seconds when prop is provided", () => {
     mockHook(makeState({ status: "connecting" }));
     const onSimulationMode = vi.fn();
     renderWithProviders(<MLWarmupScreen onSimulationMode={onSimulationMode} />);
 
     // Button must not be visible yet
     expect(
-      screen.queryByRole("button", { name: /simulation mode/i })
+      screen.queryByRole("button", { name: /browse app while loading/i })
     ).not.toBeInTheDocument();
 
-    // Advance 40 seconds — wrap in act so React flushes the state update.
+    // Advance past SIMULATION_MODE_THRESHOLD_S (10s) — wrap in act so React flushes the state update.
     act(() => {
-      vi.advanceTimersByTime(40_000);
+      vi.advanceTimersByTime(10_000);
     });
 
     // Button should now appear (synchronous query — no findBy needed with fake timers).
     expect(
-      screen.getByRole("button", { name: /simulation mode/i })
+      screen.getByRole("button", { name: /browse app while loading/i })
     ).toBeInTheDocument();
   });
 
-  it("does not show simulation mode button after 40s when prop is absent", () => {
+  it("does not show simulation mode button after threshold when prop is absent", () => {
     mockHook(makeState({ status: "connecting" }));
     renderWithProviders(<MLWarmupScreen />);
 
     act(() => {
-      vi.advanceTimersByTime(40_000);
+      vi.advanceTimersByTime(10_000);
     });
 
     // Still no button — prop was not provided
     expect(
-      screen.queryByRole("button", { name: /simulation mode/i })
+      screen.queryByRole("button", { name: /browse app while loading/i })
     ).not.toBeInTheDocument();
   });
 
@@ -105,10 +105,10 @@ describe("MLWarmupScreen", () => {
     renderWithProviders(<MLWarmupScreen onSimulationMode={onSimulationMode} />);
 
     act(() => {
-      vi.advanceTimersByTime(40_000);
+      vi.advanceTimersByTime(10_000);
     });
 
-    const button = screen.getByRole("button", { name: /simulation mode/i });
+    const button = screen.getByRole("button", { name: /browse app while loading/i });
     fireEvent.click(button);
 
     expect(onSimulationMode).toHaveBeenCalledOnce();

@@ -91,7 +91,7 @@ describe("Dashboard page", () => {
   it("shows empty state when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Connect device to see live brain state/)
+      screen.getByText(/Connect your EEG device or Apple Health to see brain state/)
     ).toBeInTheDocument();
   });
 });
