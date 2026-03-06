@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, Wind, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { getMLApiUrl } from "@/lib/ml-api";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,10 +26,26 @@ type Phase = "baseline" | "work" | "breathing" | "post" | "survey";
 
 async function fetchEEG(): Promise<EEGReading> {
   try {
-    const res = await fetch("/api/simulate-eeg", { credentials: "include" });
+    const mlUrl = getMLApiUrl();
+    const res = await fetch(`${mlUrl}/api/simulate-eeg`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: "stressed", duration: 4, fs: 256 }),
+    });
     if (!res.ok) throw new Error("EEG fetch failed");
-    return (await res.json()) as EEGReading;
+    const data = await res.json();
+    // Map ML backend response to our EEGReading shape
+    const bp = data.band_powers ?? data.features?.band_powers ?? {};
+    return {
+      alpha: bp.alpha ?? 0.3,
+      beta: bp.beta ?? 0.25,
+      theta: bp.theta ?? 0.15,
+      delta: bp.delta ?? 0.1,
+      gamma: bp.gamma ?? 0.03,
+      stress_level: data.emotions?.stress_index ?? data.stress_index ?? 0.4,
+    };
   } catch {
+    // Fallback: generate plausible simulated EEG data
     return {
       alpha: 0.3 + Math.random() * 0.2,
       beta: 0.2 + Math.random() * 0.3,
