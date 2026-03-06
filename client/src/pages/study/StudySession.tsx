@@ -294,7 +294,7 @@ export default function StudySession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  const eegRemaining = useCountdown(2 * 60, eegActive, onEegDone);
+  const eegRemaining = useCountdown(20 * 60, eegActive, onEegDone);
 
   // ── Survey submit ─────────────────────────────────────────────────────────
 
@@ -343,7 +343,7 @@ export default function StudySession() {
                 <Brain className="w-10 h-10 mx-auto text-primary" />
                 <div>
                   <p className="font-semibold">Stress Block</p>
-                  <p className="text-xs text-muted-foreground mt-1">2 min EEG + survey</p>
+                  <p className="text-xs text-muted-foreground mt-1">20 min EEG + survey</p>
                 </div>
               </CardContent>
             </Card>
@@ -353,7 +353,7 @@ export default function StudySession() {
                 <Utensils className="w-10 h-10 mx-auto text-violet-400" />
                 <div>
                   <p className="font-semibold">Food Block</p>
-                  <p className="text-xs text-muted-foreground mt-1">2 min EEG + survey</p>
+                  <p className="text-xs text-muted-foreground mt-1">20 min EEG + survey</p>
                 </div>
               </CardContent>
             </Card>
@@ -501,7 +501,7 @@ export default function StudySession() {
               </p>
               <div className="flex flex-col items-center gap-3">
                 <span className="text-5xl font-mono font-bold tracking-tight">{formatTime(eegRemaining)}</span>
-                <Progress value={((2 * 60 - eegRemaining) / (2 * 60)) * 100} className="h-2" />
+                <Progress value={((20 * 60 - eegRemaining) / (20 * 60)) * 100} className="h-2" />
               </div>
               <div className="flex items-center justify-center gap-2">
                 <span className="relative flex h-2.5 w-2.5">

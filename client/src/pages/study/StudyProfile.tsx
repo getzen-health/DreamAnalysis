@@ -171,7 +171,7 @@ export default function StudyProfile() {
                 <Zap className="mr-2 h-4 w-4" />
               )}
               Start Stress Session
-              <span className="ml-auto text-xs opacity-70">~5 min</span>
+              <span className="ml-auto text-xs opacity-70">~20 min</span>
             </Button>
 
             <Button
@@ -187,7 +187,7 @@ export default function StudyProfile() {
                 <Brain className="mr-2 h-4 w-4" />
               )}
               Start Food Session
-              <span className="ml-auto text-xs opacity-70">~5 min</span>
+              <span className="ml-auto text-xs opacity-70">~20 min</span>
             </Button>
 
             {!canSubmit && age.length > 0 && (

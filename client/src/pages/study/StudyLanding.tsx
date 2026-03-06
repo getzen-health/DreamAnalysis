@@ -95,9 +95,9 @@ export default function StudyLanding() {
                   <Zap className="h-4 w-4 text-orange-400" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">Complete a stress session — 5 min</p>
+                  <p className="font-medium text-sm">Complete a stress session — 20 min</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Connect your Muse 2, a quick 2-minute EEG recording, and a short survey.
+                    Connect your Muse 2, a 20-minute EEG recording, and a short survey.
                   </p>
                 </div>
               </div>
@@ -107,9 +107,9 @@ export default function StudyLanding() {
                   <Brain className="h-4 w-4 text-secondary" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">Complete a food session — 5 min</p>
+                  <p className="font-medium text-sm">Complete a food session — 20 min</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Connect your Muse 2, a quick 2-minute EEG recording, and a food survey.
+                    Connect your Muse 2, a 20-minute EEG recording, and a food survey.
                   </p>
                 </div>
               </div>
@@ -123,7 +123,7 @@ export default function StudyLanding() {
             <div className="flex items-center gap-3">
               <Clock className="h-5 w-5 text-muted-foreground shrink-0" />
               <div>
-                <p className="font-medium text-sm">Time required: ~5 min per session</p>
+                <p className="font-medium text-sm">Time required: ~20 min per session</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Sessions can be done on different days. You do not need to complete both
                   in one sitting.
