@@ -54,7 +54,7 @@ interface PhaseLog {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function fetchEEG(): Promise<EEGReading> {
+async function fetchEEG(): Promise<{ reading: EEGReading; ok: boolean }> {
   try {
     const mlUrl = getMLApiUrl();
     const res = await fetch(`${mlUrl}/api/simulate-eeg`, {
@@ -67,21 +67,27 @@ async function fetchEEG(): Promise<EEGReading> {
     const emotions = data.analysis?.emotions ?? {};
     const bp = emotions.band_powers ?? {};
     return {
-      alpha: bp.alpha ?? 0.3,
-      beta: bp.beta ?? 0.25,
-      theta: bp.theta ?? 0.15,
-      delta: bp.delta ?? 0.1,
-      gamma: bp.gamma ?? 0.03,
-      stress_level: emotions.stress_index ?? 0.4,
+      reading: {
+        alpha: bp.alpha ?? 0.3,
+        beta: bp.beta ?? 0.25,
+        theta: bp.theta ?? 0.15,
+        delta: bp.delta ?? 0.1,
+        gamma: bp.gamma ?? 0.03,
+        stress_level: emotions.stress_index ?? 0.4,
+      },
+      ok: true,
     };
   } catch {
     return {
-      alpha: 0.3 + Math.random() * 0.2,
-      beta: 0.2 + Math.random() * 0.3,
-      theta: 0.1 + Math.random() * 0.15,
-      delta: 0.05 + Math.random() * 0.1,
-      gamma: 0.02 + Math.random() * 0.05,
-      stress_level: 0.3 + Math.random() * 0.5,
+      reading: {
+        alpha: 0.3 + Math.random() * 0.2,
+        beta: 0.2 + Math.random() * 0.3,
+        theta: 0.1 + Math.random() * 0.15,
+        delta: 0.05 + Math.random() * 0.1,
+        gamma: 0.02 + Math.random() * 0.05,
+        stress_level: 0.3 + Math.random() * 0.5,
+      },
+      ok: false,
     };
   }
 }
@@ -338,6 +344,10 @@ export default function StudySessionStress() {
   const [interventionTriggered, setInterventionTriggered] = useState(false);
   const interventionFiredRef = useRef(false);
 
+  // ML connection status
+  const [lastSuccessTime, setLastSuccessTime] = useState<number>(0);
+  const [connectionOk, setConnectionOk] = useState(false);
+
   // Timer active flags
   const [baselineActive, setBaselineActive] = useState(false);
   const [workActive, setWorkActive] = useState(false);
@@ -495,7 +505,11 @@ export default function StudySessionStress() {
   // ── EEG polling ───────────────────────────────────────────────────────────────
 
   const pollEEG = useCallback(async () => {
-    const reading = await fetchEEG();
+    const { reading, ok } = await fetchEEG();
+    if (ok) {
+      setLastSuccessTime(Date.now());
+    }
+    setConnectionOk(ok || Date.now() - lastSuccessTime < 10_000);
     setLiveStress(reading.stress_level);
 
     if (baselineActive) {
@@ -514,7 +528,7 @@ export default function StudySessionStress() {
     } else if (postActive) {
       setPostReadings((prev) => [...prev, reading]);
     }
-  }, [baselineActive, workActive, postActive]);
+  }, [baselineActive, workActive, postActive, lastSuccessTime]);
 
   useEffect(() => {
     if (!baselineActive && !workActive && !postActive) return;
@@ -712,7 +726,17 @@ export default function StudySessionStress() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground relative">
+      <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
+        <div
+          className={`w-2 h-2 rounded-full ${connectionOk ? "bg-green-400" : "bg-red-400"}`}
+        />
+        <span
+          className={`text-[10px] ${connectionOk ? "text-green-400" : "text-red-400"}`}
+        >
+          {connectionOk ? "Connected" : "EEG connection lost"}
+        </span>
+      </div>
       <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
 
         {devMode && (
