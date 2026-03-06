@@ -1,0 +1,237 @@
+{
+  "project": "NeuralDreamWorkshop",
+  "branchName": "ralph/research-study-mode",
+  "description": "Research Study Mode - Add /study flow for a 2-week human pilot study (N=20-30) with stress and food-emotion EEG sessions, anonymous data collection, and admin CSV export",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add study_participants and study_sessions tables",
+      "description": "As a developer, I need database tables to store participant consent and session data for the research study.",
+      "acceptanceCriteria": [
+        "Add study_participants table to shared/schema.ts: id (serial PK), participant_code (varchar, unique), age (int), diet_type (varchar), has_apple_watch (boolean), consent_text (text), consent_timestamp (timestamp), created_at (timestamp default now())",
+        "Add study_sessions table to shared/schema.ts: id (serial PK), participant_code (varchar), block_type (varchar: 'stress' | 'food' | 'sleep'), eeg_features_json (jsonb), pre_eeg_json (jsonb), post_eeg_json (jsonb), survey_json (jsonb), intervention_triggered (boolean default false), status (varchar default 'pending'), created_at (timestamp default now())",
+        "Run drizzle-kit push successfully against Neon PostgreSQL",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add study consent and registration API routes",
+      "description": "As a developer, I need API endpoints to handle participant consent and registration.",
+      "acceptanceCriteria": [
+        "POST /api/study/consent — accepts { participant_code, consent_text, age, diet_type, has_apple_watch }, saves to study_participants, returns { success: true, participant_code }",
+        "Returns 400 if participant_code already exists or is missing",
+        "Routes added to server/routes.ts",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add study session start and complete API routes",
+      "description": "As a developer, I need API endpoints to create and complete study sessions.",
+      "acceptanceCriteria": [
+        "POST /api/study/session/start — accepts { participant_code, block_type }, creates pending session record, returns { session_id }",
+        "POST /api/study/session/complete — accepts { session_id, eeg_features_json, pre_eeg_json, post_eeg_json, survey_json, intervention_triggered }, updates session status to 'completed'",
+        "Returns 400 if participant_code not found or session_id invalid",
+        "Routes added to server/routes.ts",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add study admin API routes with CSV export",
+      "description": "As Sravya, I need admin-only API endpoints to view participants, sessions, and export CSV.",
+      "acceptanceCriteria": [
+        "GET /api/study/admin/participants — returns all participants (requires existing auth middleware)",
+        "GET /api/study/admin/sessions — returns all sessions with participant codes (requires auth)",
+        "GET /api/study/admin/export-csv — returns CSV file with columns: participant_code, block_type, pre_alpha, pre_beta, pre_theta, post_alpha, post_beta, post_theta, intervention_triggered, and all survey numeric fields",
+        "Unauthenticated requests to admin routes return 401",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Build /study landing page",
+      "description": "As a potential participant, I want to understand the study and join it from a single page.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudyLanding.tsx",
+        "Route added to App.tsx at /study",
+        "Page shows: study title, description, time required (25-40 min), that it is anonymous",
+        "Join the Study button navigates to /study/consent",
+        "Page is mobile-responsive with Tailwind",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Build /study/consent page",
+      "description": "As a participant, I want to read and digitally sign the consent form before starting.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudyConsent.tsx (or update existing if present)",
+        "Route at /study/consent",
+        "Shows full informed consent text (what data is collected, how used, voluntary, right to withdraw)",
+        "Checkbox: I have read and agree to participate voluntarily",
+        "Text input for participant code (e.g. P001)",
+        "Continue button disabled until checkbox checked and code entered",
+        "On submit: POST to /api/study/consent with participant data",
+        "On success: navigate to /study/profile",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Build /study/profile page",
+      "description": "As a participant, I want to enter basic demographic info before starting sessions.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudyProfile.tsx",
+        "Route at /study/profile",
+        "Fields: age (number), diet type (dropdown: omnivore/vegetarian/vegan/other), Apple Watch ownership (yes/no toggle)",
+        "Start Session button navigates to /study/session/stress",
+        "Profile data saved by updating study_participants record via PATCH /api/study/consent or inline on consent POST",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Build stress session step UI shell with progress indicator",
+      "description": "As a participant, I want to see a step-by-step interface for the stress session with a progress bar.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudySessionStress.tsx",
+        "Route at /study/session/stress",
+        "Shows 5-step progress indicator at top (Baseline, Work Task, Intervention, Post-session, Survey)",
+        "Each step renders different content based on current step state",
+        "Navigation between steps via Next button (no skipping)",
+        "Participant code read from URL param or localStorage",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Implement stress session Step 1 (Baseline) and Step 2 (Work Task)",
+      "description": "As a participant, I want a timed baseline EEG recording and work task phase.",
+      "acceptanceCriteria": [
+        "Step 1 Baseline: 5-min countdown timer, instructional text (sit still, eyes closed), captures EEG features from /api/analyze-eeg, stores as pre_eeg_json",
+        "Step 2 Work Task: 15-min countdown timer, text 'Continue your normal work', shows live stress indicator from existing stress classification",
+        "Timers show minutes:seconds countdown with visual progress ring or bar",
+        "Auto-advances to next step when timer completes",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Implement stress session Step 3 (Intervention) and Step 4 (Post-session)",
+      "description": "As a participant, I want the breathing exercise to trigger and post-session EEG capture.",
+      "acceptanceCriteria": [
+        "Step 3 Intervention: auto-triggers when stress_index > 0.65 during work task OR at 15-min mark, shows breathing exercise (Box Breathing or Physio Sigh), sets intervention_triggered = true",
+        "Step 4 Post-session: 5-min countdown timer, captures post-intervention EEG as post_eeg_json",
+        "If stress never exceeds threshold, intervention still triggers at end of work task",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Implement stress session Step 5 (Survey) and session completion",
+      "description": "As a participant, I want to answer the post-session survey and have my data saved.",
+      "acceptanceCriteria": [
+        "Step 5 Survey: three 1-10 slider questions — Did you feel stressed? Did the breathing help? How do you feel now?",
+        "Submit button POSTs to /api/study/session/complete with all collected data",
+        "On success: navigates to /study/complete",
+        "Stores survey responses as survey_json",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Build food-emotion session page with all steps",
+      "description": "As a participant, I want to complete the food-emotion session: pre-meal EEG, eat, post-meal EEG, survey.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudySessionFood.tsx",
+        "Route at /study/session/food",
+        "Step 1 Pre-meal survey: hunger (1-10), current mood (1-10)",
+        "Step 2 Pre-meal baseline: 5-min timer with Muse 2, captures EEG as pre_eeg_json",
+        "Step 3 Eat your meal: instruction to remove headband, user-controlled timer (15-20 min default)",
+        "Step 4 Post-meal EEG: 10-min timer, captures EEG as post_eeg_json",
+        "Step 5 Post-meal survey: what did you eat (text), how healthy (1-10), energy (1-10), mood (1-10), satisfaction (1-10)",
+        "On complete: POST to /api/study/session/complete, navigate to /study/complete",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Build /study/complete confirmation page",
+      "description": "As a participant, I want confirmation that my session was saved and know what to do next.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudyComplete.tsx",
+        "Route at /study/complete",
+        "Shows 'Session complete — thank you!' message",
+        "Shows which blocks are done vs remaining (reads from API or localStorage)",
+        "If food block not done: button to /study/session/food",
+        "If both done: final thank-you message",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Build /study/admin dashboard with participant table and CSV export",
+      "description": "As Sravya, I want to see all participants and sessions, and export data as CSV.",
+      "acceptanceCriteria": [
+        "New file: client/src/pages/study/StudyAdmin.tsx",
+        "Route at /study/admin, guarded by existing auth (redirect to /auth if not logged in)",
+        "Table showing: participant_code, age, diet_type, has_apple_watch, sessions_completed count, last_session_date",
+        "Clickable row expands to show session details (block type, survey scores, intervention_triggered)",
+        "Export CSV button triggers download of /api/study/admin/export-csv",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

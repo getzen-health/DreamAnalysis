@@ -1,0 +1,308 @@
+{
+  "project": "NeuralDreamWorkshop",
+  "branchName": "ralph/study-hardening",
+  "description": "Study Hardening — Fix remaining bugs, improve data quality, harden the pilot study app for real participant use, and add research-ready export features",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Remove mockEEG fallback from StudySession.tsx",
+      "description": "As a researcher, I need the unified study session page to use real ML backend data only, never fake mock data.",
+      "acceptanceCriteria": [
+        "In client/src/pages/study/StudySession.tsx, remove the mockEEG() function entirely",
+        "fetchSimEEG() must call getMLApiUrl() + '/api/simulate-eeg' (not a relative path)",
+        "If ML backend is unreachable, show an error banner instead of falling back to mockEEG",
+        "Import getMLApiUrl from '@/lib/ml-api'",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Add data_quality_score and duration_seconds columns to pilot_sessions",
+      "description": "As a researcher, I need to track session data quality and duration in the database for analysis.",
+      "acceptanceCriteria": [
+        "Add dataQualityScore integer('data_quality_score') column to pilotSessions in shared/schema.ts (nullable)",
+        "Add durationSeconds integer('duration_seconds') column to pilotSessions in shared/schema.ts (nullable)",
+        "Add startedAt timestamp('started_at') column to pilotSessions in shared/schema.ts (nullable)",
+        "Run drizzle-kit push successfully (npx drizzle-kit push)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Server: save duration and quality score on session complete",
+      "description": "As a developer, I need the complete endpoint to compute and store duration and quality.",
+      "acceptanceCriteria": [
+        "POST /api/study/session/complete now accepts data_quality_score (integer 0-100) from the client",
+        "Server computes duration_seconds = floor((now - startedAt) / 1000) if startedAt is set",
+        "Both fields saved to pilotSessions row on complete",
+        "POST /api/study/session/start now sets startedAt: new Date() when creating the session",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Client: send data quality score from stress session to complete endpoint",
+      "description": "As a researcher, I want the computed quality score from StudySessionStress.tsx saved to the database.",
+      "acceptanceCriteria": [
+        "In StudySessionStress.tsx, the POST /api/study/session/complete call includes data_quality_score field",
+        "Quality score is computed from the existing computeQualityScore function in the component",
+        "Score is an integer 0-100",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Client: send data quality score from food session to complete endpoint",
+      "description": "As a researcher, I want the computed quality score from StudySessionFood.tsx saved to the database.",
+      "acceptanceCriteria": [
+        "In StudySessionFood.tsx, the POST /api/study/session/complete call includes data_quality_score field",
+        "Quality score is computed from the existing computeQualityScore function in the component",
+        "Score is an integer 0-100",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Admin: show data quality and duration in session details",
+      "description": "As Sravya, I want to see data quality score and session duration in the admin dashboard.",
+      "acceptanceCriteria": [
+        "AdminSession interface in StudyAdmin.tsx includes dataQualityScore (number|null) and durationSeconds (number|null)",
+        "Session detail card shows quality score as a colored badge (green >=70, yellow >=40, red <40)",
+        "Session detail card shows duration formatted as Xm Ys",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "CSV export: add quality score, duration, and phase_log columns",
+      "description": "As a researcher, I want the CSV export to include quality and timing data for analysis.",
+      "acceptanceCriteria": [
+        "GET /api/study/admin/export-csv includes data_quality_score column",
+        "GET /api/study/admin/export-csv includes duration_seconds column",
+        "GET /api/study/admin/export-csv includes phase_log as a JSON string column",
+        "Existing columns (EEG bands, survey fields) are preserved",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add session error recovery with localStorage backup",
+      "description": "As a participant, if my browser crashes mid-session, I want partial data to be recoverable.",
+      "acceptanceCriteria": [
+        "In StudySessionStress.tsx, save session state to localStorage every 30 seconds (same interval as checkpoint)",
+        "localStorage key: study_session_backup_{participantCode}_{blockType}",
+        "On component mount, check for existing backup and offer to resume or start fresh",
+        "On successful session complete, clear the backup",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add session error recovery to food session",
+      "description": "As a participant, if my browser crashes mid-food-session, I want partial data to be recoverable.",
+      "acceptanceCriteria": [
+        "In StudySessionFood.tsx, save session state to localStorage every 30 seconds",
+        "localStorage key: study_session_backup_{participantCode}_food",
+        "On component mount, check for existing backup and offer to resume or start fresh",
+        "On successful session complete, clear the backup",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add connection status indicator to stress session page",
+      "description": "As a participant, I want to see if the EEG backend is connected or failing during my session.",
+      "acceptanceCriteria": [
+        "Add a small status dot (green/red) in the top-right corner of StudySessionStress.tsx",
+        "Green when last ML API call succeeded within 10 seconds",
+        "Red with 'EEG connection lost' text when last call failed or timed out",
+        "Status updates on each EEG poll cycle",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add connection status indicator to food session page",
+      "description": "As a participant, I want to see ML backend connection status during the food session.",
+      "acceptanceCriteria": [
+        "Add a small status dot (green/red) in the top-right corner of StudySessionFood.tsx",
+        "Green when last ML API call succeeded within 10 seconds",
+        "Red with 'EEG connection lost' text when last call failed or timed out",
+        "Status updates on each EEG poll cycle",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add participant code validation with collision check",
+      "description": "As a developer, I need the consent endpoint to handle participant code collisions properly.",
+      "acceptanceCriteria": [
+        "In StudyConsent.tsx, generate a code with 4 random digits (P1000-P9999) instead of 3 (P100-P999)",
+        "After generating code, call GET /api/study/check-code?code=PXXXX to check availability",
+        "Add GET /api/study/check-code endpoint in server/routes.ts that returns { available: boolean }",
+        "If code is taken, auto-generate a new one and re-check (max 5 attempts)",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Add researcher notes field to admin participant view",
+      "description": "As Sravya, I want to add notes to participants for tracking issues during the study.",
+      "acceptanceCriteria": [
+        "Add researcherNotes text('researcher_notes') column to pilotParticipants in shared/schema.ts",
+        "Add PATCH /api/study/admin/participant/:code/notes endpoint that accepts { notes: string }",
+        "Endpoint requires study admin auth",
+        "Run drizzle-kit push successfully",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Admin UI: inline notes editing for participants",
+      "description": "As Sravya, I want to click on a participant and add/edit notes directly in the admin dashboard.",
+      "acceptanceCriteria": [
+        "In StudyAdmin.tsx ParticipantRow expanded view, add a text area for researcher notes",
+        "Notes auto-save on blur via PATCH /api/study/admin/participant/:code/notes",
+        "Show a small 'Saved' indicator after successful save",
+        "AdminParticipant interface includes researcherNotes (string|null)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add aggregate statistics API endpoint",
+      "description": "As a researcher, I need an API that returns summary statistics across all sessions.",
+      "acceptanceCriteria": [
+        "GET /api/study/admin/stats returns JSON with: total_participants, total_sessions, stress_sessions, food_sessions, complete_sessions, partial_sessions, avg_quality_score, avg_duration_seconds, avg_stress_reduction (pre - post stress for stress sessions)",
+        "Endpoint requires study admin auth",
+        "Returns 0 values if no data exists (never errors on empty database)",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Admin: show aggregate statistics cards",
+      "description": "As Sravya, I want summary statistics displayed at the top of the admin dashboard.",
+      "acceptanceCriteria": [
+        "Add a new row of stat cards above the participant table in StudyAdmin.tsx",
+        "Show: avg quality score, avg session duration, avg stress reduction, total complete vs partial",
+        "Data fetched from GET /api/study/admin/stats (polled every 15s with existing refresh)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Add study session deletion endpoint for admin",
+      "description": "As Sravya, I need to delete bad or test sessions from the admin dashboard.",
+      "acceptanceCriteria": [
+        "DELETE /api/study/admin/session/:id endpoint removes a session from pilotSessions",
+        "Endpoint requires study admin auth",
+        "Returns 404 if session not found",
+        "Returns { success: true, deleted_id: number }",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Admin UI: delete session button with confirmation",
+      "description": "As Sravya, I want to delete a session from the expanded participant view with a confirmation step.",
+      "acceptanceCriteria": [
+        "Add a small red trash icon button on each session card in StudyAdmin.tsx expanded view",
+        "Clicking shows 'Delete this session?' confirmation with Cancel and Delete buttons",
+        "Delete calls DELETE /api/study/admin/session/:id",
+        "On success, remove session from local state without full refetch",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Add stress session EEG band power averages to complete payload",
+      "description": "As a researcher, I want averaged EEG band powers across the session saved for analysis.",
+      "acceptanceCriteria": [
+        "In StudySessionStress.tsx, compute average alpha, beta, theta, delta, gamma across all baseline readings",
+        "Compute same averages for post-intervention readings",
+        "Include pre_avg_bands and post_avg_bands objects in the complete POST body",
+        "Server saves these in pre_eeg_json and post_eeg_json respectively (merge with existing data)",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Add food session EEG band power averages to complete payload",
+      "description": "As a researcher, I want averaged EEG band powers from the food session saved for analysis.",
+      "acceptanceCriteria": [
+        "In StudySessionFood.tsx, compute average alpha, beta, theta, delta, gamma across all pre-meal readings",
+        "Compute same averages for post-meal readings",
+        "Include pre_avg_bands and post_avg_bands objects in the complete POST body",
+        "Server saves these in pre_eeg_json and post_eeg_json respectively (merge with existing data)",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

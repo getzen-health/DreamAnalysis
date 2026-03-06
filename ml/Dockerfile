@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl \
+    build-essential curl libsndfile1-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Build context = repo root (railway up uses git repo as reference)

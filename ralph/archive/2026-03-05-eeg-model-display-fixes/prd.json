@@ -1,0 +1,77 @@
+{
+  "project": "NeuralDreamWorkshop",
+  "branchName": "ralph/eeg-model-display-fixes",
+  "description": "Fix all ML model display issues on brain-monitor page: electrode 4 Error, Sleep/Cog.Load/Meditation showing —, model sklearn fallback failures",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Strip channel_quality from non-Muse websocket frames",
+      "description": "As a user, I should not see '4 Error' on the Electrode Status Grid when using the Synthetic board. channel_quality is derived from signal statistics, not real electrode impedance — it is only meaningful for Muse devices. For all other boards (synthetic, OpenBCI, unknown), the websocket should not include channel_quality in the frame.",
+      "acceptanceCriteria": [
+        "In ml/api/websocket.py, when building frame['quality'], strip keys channel_quality, channel_scores, channel_details when device is not muse_*",
+        "Strip also applies when device_manager.current_device_type is None (backend restarted)",
+        "Muse devices (device_type starts with 'muse_') still receive channel_quality",
+        "Electrode Status Grid shows 'Quality data not available for this device' for Synthetic board",
+        "Electrode Status Grid still shows per-channel quality circles for Muse 2",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Implemented in commit 50f8676. Deployed to Railway."
+    },
+    {
+      "id": "US-002",
+      "title": "Add sklearn-to-feature-based fallback in all 10 ML model files",
+      "description": "As a user, I should see real values for Cog. Load, Meditation, Sleep, Creativity, Attention, Flow, Dream, Drowsiness, Stress, and Lucid Dream instead of — or 0%. When a model's sklearn .pkl fails (version mismatch, corrupt scaler, missing feature keys), the predict() method should fall through to the feature-based heuristic path instead of propagating an exception that the websocket catches as {}.",
+      "acceptanceCriteria": [
+        "All 10 model files wrap _predict_sklearn() call in try/except with pass to fall through",
+        "Files: cognitive_load_estimator.py, meditation_classifier.py, attention_classifier.py, creativity_detector.py, dream_detector.py, drowsiness_detector.py, flow_state_detector.py, lucid_dream_detector.py, sleep_staging.py, stress_detector.py",
+        "Cog. Load shows 'low'/'moderate'/'high' instead of — when streaming",
+        "Meditation shows 'relaxed'/'meditating'/'deep' instead of — when streaming",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Implemented in commit f00e135. Deployed to Railway."
+    },
+    {
+      "id": "US-003",
+      "title": "Wrap sleep model predict in inner try/except in websocket.py",
+      "description": "As a user, Sleep staging should show a value (e.g. 'Wake') instead of — when streaming. The sleep model predict() was not wrapped in its own try/except inside the outer analysis block, so a crash would prevent subsequent code from running.",
+      "acceptanceCriteria": [
+        "In websocket.py, sleep model predict() is wrapped in try/except that logs warning and sets sleep_pred = {}",
+        "Sleep showing 'Wake' or other stage when Synthetic board is streaming",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Implemented in commit 0988f1e. Deployed to Railway."
+    },
+    {
+      "id": "US-004",
+      "title": "Verify all model outputs show real values in live UI",
+      "description": "As a user, after all backend fixes are deployed, I should see real values across all model cards on the brain-monitor page when the Synthetic board is streaming. No card should show — unless no frame has been received yet.",
+      "acceptanceCriteria": [
+        "Emotion: shows an emotion name (e.g. 'neutral', 'sad')",
+        "Stress: shows a percentage",
+        "Focus: shows a percentage",
+        "Sleep: shows a stage ('Wake', 'N1', 'N2', 'N3', 'REM')",
+        "Creativity: shows a percentage",
+        "Flow: shows a percentage",
+        "Drowsiness: shows a percentage",
+        "Cog. Load: shows a level ('low', 'moderate', 'high')",
+        "Attention: shows a percentage",
+        "Dream: shows 'Yes' or 'No'",
+        "Lucid: shows a percentage",
+        "Meditation: shows a depth ('relaxed', 'meditating', 'deep')",
+        "Memory: shows a percentage",
+        "Artifact: shows 'Yes' or 'No'",
+        "Electrode grid shows 'Simulated data' or 'Quality data not available' (no '4 Error')",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Verification story — run after Railway deploy completes (~2 min after each commit)."
+    }
+  ]
+}

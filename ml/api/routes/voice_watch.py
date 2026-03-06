@@ -176,16 +176,9 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
         except Exception as exc:
             log.warning("VoiceEmotionModel librosa fallback failed: %s", exc)
 
-    # ── Last-resort placeholder if all else fails ─────────────────────────────
+    # ── Fail honestly if all paths failed ───────────────────────────────────────
     if result is None:
-        result = {
-            "emotion": "neutral",
-            "probabilities": {e: round(1 / 6, 4) for e in EMOTIONS_6},
-            "valence": 0.0,
-            "arousal": 0.5,
-            "confidence": 0.16,
-            "model_type": "voice_unavailable",
-        }
+        raise HTTPException(503, "Voice emotion analysis failed — model could not process audio")
 
     # ── Blend watch biometric stress signal ───────────────────────────────────
     has_watch = any(v is not None for v in [req.hr, req.hrv, req.spo2])

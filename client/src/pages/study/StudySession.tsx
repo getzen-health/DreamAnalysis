@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Bluetooth, CheckCircle2, Utensils, Brain, AlertCircle } from "lucide-react";
+import { Loader2, Bluetooth, CheckCircle2, Utensils, Brain, AlertCircle, Watch, Mic } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { pingBackend, getMLApiUrl } from "@/lib/ml-api";
 import { VoiceWatchAnalyzer } from "@/components/voice-watch-analyzer";
@@ -367,20 +367,27 @@ export default function StudySession() {
   if (phase === "muse-pair") {
     const isConnecting = deviceState === "connecting";
     const isConnected  = deviceState === "connected" || deviceState === "streaming";
+    const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+    const hasWebBluetooth = typeof navigator !== "undefined" && "bluetooth" in navigator;
 
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="max-w-md w-full space-y-6">
+        <div className="max-w-md w-full space-y-5">
           <div className="text-center space-y-2">
-            <Bluetooth className="w-10 h-10 mx-auto text-primary" />
-            <h1 className="text-2xl font-bold">Connect your Muse 2</h1>
+            <h1 className="text-2xl font-bold">Connect Devices</h1>
             <p className="text-sm text-muted-foreground">
-              Put on the headband, then tap Pair. The session starts automatically.
+              Connect your EEG headband and/or Apple Watch to start collecting data.
             </p>
           </div>
 
+          {/* ── Option 1: Muse EEG ── */}
           <Card>
-            <CardContent className="pt-6 space-y-4">
+            <CardContent className="pt-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <Bluetooth className="h-5 w-5 text-primary" />
+                <p className="font-semibold text-sm">Muse 2 EEG Headband</p>
+              </div>
+
               {backendReady === null && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -389,20 +396,33 @@ export default function StudySession() {
               )}
               {backendReady === false && (
                 <p className="text-xs text-amber-400">
-                  ML backend unreachable. Check Settings or start it locally.
+                  ML backend unreachable — EEG analysis will not work until it is online.
                 </p>
               )}
 
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Device status</span>
+                <span className="text-muted-foreground">Status</span>
                 <Badge variant="outline" className={isConnected ? "border-green-500/50 text-green-400" : "border-muted"}>
                   {isConnected ? "Connected" : isConnecting ? "Connecting…" : "Not connected"}
                 </Badge>
               </div>
 
-              {!isConnected && (
+              {!hasWebBluetooth && (
+                <p className="text-xs text-amber-400">
+                  Web Bluetooth is not supported in this browser. Use Chrome on desktop or Android.
+                </p>
+              )}
+
+              {!isConnected && hasWebBluetooth && (
                 <Button className="w-full" disabled={isConnecting || backendReady === null}
-                  onClick={() => connect("muse_2")}>
+                  onClick={async () => {
+                    try {
+                      await connect("muse_2");
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : "Connection failed";
+                      toast({ title: "Muse connection failed", description: msg, variant: "destructive" });
+                    }
+                  }}>
                   {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting…</> : <><Bluetooth className="mr-2 h-4 w-4" />Pair Muse 2</>}
                 </Button>
               )}
@@ -413,24 +433,70 @@ export default function StudySession() {
                   Starting session…
                 </div>
               )}
+
+              {/* Android tips */}
+              {isAndroid && !isConnected && (
+                <div className="rounded-md bg-muted/50 p-3 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Android tips:</p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
+                    <li>Turn on Location Services (required for BLE)</li>
+                    <li>Unpair Muse from Android Bluetooth settings first</li>
+                    <li>Use Chrome browser</li>
+                  </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          <div className="text-center">
-            <button className="text-xs text-muted-foreground hover:text-foreground underline"
-              onClick={() => { if (blockType) startSession(blockType); }}>
-              Continue without Muse
-            </button>
-          </div>
-
-          {!isConnected && (
-            <div className="space-y-2">
-              <p className="text-xs text-center text-muted-foreground">— or use voice + Apple Watch instead —</p>
-              <div className="flex justify-center">
-                <VoiceWatchAnalyzer userId="default" />
+          {/* ── Option 2: Apple Watch / Health Data ── */}
+          <Card>
+            <CardContent className="pt-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Watch className="h-5 w-5 text-green-400" />
+                <p className="font-semibold text-sm">Apple Watch / Health Data</p>
               </div>
-            </div>
-          )}
+              <p className="text-xs text-muted-foreground">
+                Apple Health data (heart rate, HRV, SpO2) is automatically read if you are
+                using the native iOS app. On the web, the Voice + Watch analyzer below can
+                read biometric data from your paired watch.
+              </p>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Status</span>
+                <Badge variant="outline" className="border-muted">
+                  Web — use Voice + Watch below
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Option 3: Voice + Watch (headband-free) ── */}
+          <Card>
+            <CardContent className="pt-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Mic className="h-5 w-5 text-violet-400" />
+                <p className="font-semibold text-sm">Voice + Watch Emotion (no headband)</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Record 30 seconds of voice to detect emotion from speech patterns.
+                If Apple Watch data is available, it blends heart rate and HRV for better accuracy.
+              </p>
+              <VoiceWatchAnalyzer userId={participantCode || "default"} />
+            </CardContent>
+          </Card>
+
+          {/* ── Start session ── */}
+          <div className="space-y-2">
+            {isConnected ? (
+              <p className="text-xs text-center text-green-400">
+                Muse connected — session will start automatically.
+              </p>
+            ) : (
+              <Button className="w-full" variant="outline" size="lg"
+                onClick={() => { if (blockType) startSession(blockType); }}>
+                Start Session Without Muse
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     );

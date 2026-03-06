@@ -1,0 +1,196 @@
+{
+  "project": "NeuralDreamWorkshop",
+  "branchName": "ralph/thursday-launch-ready",
+  "description": "Make NeuralDreamWorkshop fully functional on localhost and Vercel by Thursday — cold-start loading UX, keep-alive, retry logic, simulation fallback, connection status, TSception live path, and env/CORS fixes",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create useMLConnection hook",
+      "description": "As a developer, I need a React hook that tracks the ML backend connection lifecycle: idle → connecting → warming → ready | error. It must expose status, latencyMs, warmupProgress (0-100), and retryCount. It pings /health on mount, retries 3 times with exponential backoff (1s, 3s, 9s), increments warmupProgress by ~3 per second during the warm-up wait, and marks ready when /health returns 200. Store hook in client/src/hooks/use-ml-connection.ts. Export the context provider as MLConnectionProvider.",
+      "acceptanceCriteria": [
+        "Hook exported from client/src/hooks/use-ml-connection.ts",
+        "Status type is 'idle' | 'connecting' | 'warming' | 'ready' | 'error'",
+        "On mount: immediately sets status='connecting', starts pinging /health every 5s",
+        "warmupProgress increments from 0→95 over 35 seconds while status is 'warming'/'connecting'",
+        "On first successful /health 200: sets status='ready', latencyMs to measured value",
+        "On 3 consecutive failures: sets status='error'",
+        "MLConnectionProvider wraps children and exposes context via useMLConnection()",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "This is the foundation for US-002, US-003, US-004. Must be done first."
+    },
+    {
+      "id": "US-002",
+      "title": "Build MLWarmupScreen full-screen overlay component",
+      "description": "As a user, when I open the app and the ML backend is cold-starting (status='connecting' or 'warming'), I want to see a beautiful full-screen loading screen instead of errors or blank pages. The screen should show an animated pulsing brain icon (SVG), a progress bar that fills over ~35 seconds, rotating status messages ('Initializing neural engines...', 'Loading EEG models...', 'Calibrating signal pipeline...', 'Almost ready...'), and the actual elapsed time in seconds. After 40 seconds if still not ready, show a 'Continue in Simulation Mode' button that lets users proceed without ML backend. Create this component at client/src/components/ml-warmup-screen.tsx.",
+      "acceptanceCriteria": [
+        "Component created at client/src/components/ml-warmup-screen.tsx",
+        "Full-screen overlay (fixed, z-50, dark background matching app theme)",
+        "Animated pulsing brain SVG or Lucide Brain icon with CSS pulse animation",
+        "Progress bar uses warmupProgress from useMLConnection hook",
+        "Status messages rotate every 8 seconds through at least 4 messages",
+        "Elapsed time counter shows seconds since connection attempt started",
+        "'Continue in Simulation Mode' button appears after 40 seconds",
+        "Smooth fade-out transition when status changes to 'ready'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Depends on US-001 for useMLConnection hook"
+    },
+    {
+      "id": "US-003",
+      "title": "Integrate MLConnectionProvider and warmup screen into App.tsx",
+      "description": "As a user, the warmup screen should automatically appear when I visit any page that needs the ML backend, if the backend is cold-starting. Wrap the authenticated route tree with MLConnectionProvider in App.tsx. Import MLWarmupScreen and render it conditionally when status is 'connecting' or 'warming' (only for authenticated users — unauthenticated pages like /welcome, /auth, /privacy should never show the warmup screen). The warmup should only appear once per session if the backend was already warmed by a previous ping.",
+      "acceptanceCriteria": [
+        "MLConnectionProvider added to App.tsx wrapping authenticated routes",
+        "MLWarmupScreen renders over the page content when status is 'connecting' or 'warming'",
+        "Unauthenticated routes (/welcome, /auth, /privacy, /study/*) bypass warmup screen",
+        "If status is 'ready' on mount (backend was already up), warmup screen never shown",
+        "If status is 'error', warmup screen shows 'Continue in Simulation Mode' option",
+        "No TypeScript errors in App.tsx",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Depends on US-001 and US-002"
+    },
+    {
+      "id": "US-004",
+      "title": "Add keep-alive ping service in AppLayout to prevent Render sleep",
+      "description": "As a developer, I need a background service that pings the ML backend every 14 minutes while the user is active, preventing Render's free-tier 15-minute idle timeout from putting the backend to sleep. Add this to client/src/layouts/app-layout.tsx. Only ping when document.visibilityState is 'visible' and user is authenticated. Use navigator.sendBeacon('/health') if available, otherwise use a simple fetch. This is a fire-and-forget operation — do not show UI for it or block anything.",
+      "acceptanceCriteria": [
+        "useEffect in AppLayout pings ML backend /health every 14 minutes (840000ms)",
+        "Ping only fires when document.visibilityState === 'visible'",
+        "Ping only fires when user is authenticated (useAuth().user exists)",
+        "Uses navigator.sendBeacon if available, falls back to fetch with {keepalive: true}",
+        "No console.log or UI shown for keep-alive pings",
+        "Interval is cleared on component unmount",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Depends on nothing — independent from warmup screen. Critical for preventing cold starts after first load."
+    },
+    {
+      "id": "US-005",
+      "title": "Add ML connection status indicator in app sidebar",
+      "description": "As a user, I want to see a small status dot in the app sidebar or header that shows whether the ML backend is connected (green), warming up (yellow/amber, pulsing), or unreachable (red). On hover or click, show a tooltip/popover with: status text, latency in ms (when ready), and a 'Reconnect' button (when error). Add this to client/src/components/sidebar.tsx or the top of the sidebar nav section.",
+      "acceptanceCriteria": [
+        "Status dot appears in sidebar — green (ready), amber pulsing (connecting/warming), red (error)",
+        "Dot is 8px circle using Tailwind classes (w-2 h-2 rounded-full + appropriate bg-color)",
+        "Tooltip shows: 'ML Backend: Connected (32ms)' or 'ML Backend: Warming up...' or 'ML Backend: Unreachable'",
+        "When status is 'error', tooltip shows a Reconnect button that re-triggers the ping loop",
+        "Uses Radix Tooltip (from shadcn/ui) for the popover",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Depends on US-001. Visual feedback for ML connection state throughout the session."
+    },
+    {
+      "id": "US-006",
+      "title": "Add retry logic with exponential backoff to mlFetch in ml-api.ts",
+      "description": "As a developer, I need mlFetch (in client/src/lib/ml-api.ts) to automatically retry failed requests instead of immediately throwing. Add a wrapper that retries up to 3 times with delays of 1s, 3s, 9s (exponential backoff). Only retry on network errors or 5xx status codes — do NOT retry on 4xx errors (client errors should fail fast). Also add a 30-second request timeout (AbortController) to every mlFetch call so it never hangs indefinitely.",
+      "acceptanceCriteria": [
+        "mlFetch retries up to 3 times on network errors or 5xx responses",
+        "Delays between retries: 1000ms, 3000ms, 9000ms",
+        "Does NOT retry on 4xx errors (400, 401, 403, 404, 422 all fail immediately)",
+        "AbortController timeout of 30000ms added to every fetch call",
+        "Existing function signature unchanged (no breaking changes to callers)",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "No UI changes — pure logic improvement in ml-api.ts. Independent from other stories."
+    },
+    {
+      "id": "US-007",
+      "title": "Add simulation mode fallback banner when ML backend is unreachable",
+      "description": "As a user, when the ML backend is unreachable after all retries (status='error'), I should be able to continue using the app in simulation mode. The emotion-lab and brain-monitor pages already support simulation — they just need to know to use it. Add a SimulationModeBanner component that appears at the top of ML-dependent pages when status='error'. The banner should say 'ML backend unreachable — running in simulation mode' with a Reconnect button. The existing simulateEEG() function in ml-api.ts should be used automatically when real EEG analysis fails. File: client/src/components/simulation-mode-banner.tsx",
+      "acceptanceCriteria": [
+        "SimulationModeBanner component created at client/src/components/simulation-mode-banner.tsx",
+        "Banner shows amber/yellow background with warning icon and text 'Running in simulation mode'",
+        "Reconnect button in banner triggers re-ping of /health endpoint",
+        "Banner is rendered at the top of EmotionLab page (client/src/pages/emotion-lab.tsx) when status='error'",
+        "Banner is rendered at the top of BrainMonitor page when status='error'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Depends on US-001 for status. Depends on US-002 being done (users know about simulation mode from warmup screen)."
+    },
+    {
+      "id": "US-008",
+      "title": "Wire TSception model into live emotion inference path in emotion_classifier.py",
+      "description": "As a system, I want to use the TSception model (69% CV — better than feature heuristics at 65%) as a fallback when the mega LightGBM model is not loaded. TSception model is already trained and saved at ml/models/saved/tsception_emotion.pt and the class is in ml/models/tsception.py. Add TSception to the inference fallback chain in ml/models/emotion_classifier.py: mega_lgbm (74.21%) → TSception (69.0%) → feature heuristics (65%). TSception requires epoch_ready=True (4-second window). When TSception runs, set model_type='tsception' in the response.",
+      "acceptanceCriteria": [
+        "TSceptionEmotionClassifier imported in emotion_classifier.py",
+        "TSception instance initialized in EmotionClassifier.__init__() with model_path='models/saved/tsception_emotion.pt'",
+        "Inference chain: if mega_lgbm loaded and CV>=60%: use it; elif tsception loaded and epoch has 4s data: use tsception; else: use _predict_features heuristics",
+        "model_type key in response is 'tsception' when TSception path is taken",
+        "TSception path only taken when input signals have >= 4*256=1024 samples (4-second epoch)",
+        "No regression in existing mega_lgbm or heuristic paths",
+        "ml/main.py starts without ImportError",
+        "Typecheck passes (run mypy ml/ or equivalent)"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Pure ML backend change. No frontend changes needed — model_type is already in API response schema."
+    },
+    {
+      "id": "US-009",
+      "title": "Add running feature normalization (non-stationarity correction) to emotion pipeline",
+      "description": "As an ML engineer, I want to add online feature normalization to the emotion pipeline to correct for EEG non-stationarity (signal drift within a session). This is what Chinese BCI research (SJTU SEED team, UESTC FACED paper) identifies as a key improvement over naive ML. Add a per-user RunningNormalizer class to ml/processing/eeg_processor.py that maintains a rolling mean and std over the last 5 minutes of feature vectors (150 frames at 2s hop), and normalizes incoming features against this rolling window. Wire it into EmotionClassifier._predict_mega_lgbm() when a user_id is provided. This is separate from BaselineCalibrator (which uses resting state) — RunningNormalizer adapts continuously during the session.",
+      "acceptanceCriteria": [
+        "RunningNormalizer class added to ml/processing/eeg_processor.py",
+        "Maintains circular buffer of last 150 feature vectors per user_id",
+        "normalize(features, user_id) returns z-scored features against rolling mean/std",
+        "Falls back to raw features when buffer has fewer than 30 samples",
+        "EmotionClassifier._predict_mega_lgbm() calls RunningNormalizer when user_id passed in context",
+        "RunningNormalizer is thread-safe (uses threading.Lock)",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Inspired by SJTU/UESTC approach. Addresses the largest fixable accuracy problem (non-stationarity = -10 to -20 pts). Independent from US-008."
+    },
+    {
+      "id": "US-010",
+      "title": "Audit and fix Vercel environment variables and CORS configuration",
+      "description": "As a developer, I need to ensure the app works correctly when deployed to Vercel production. Three things to fix: (1) Verify VITE_ML_API_URL is set to the Render ML backend URL in vercel.json or document it in .env.example. (2) Update render.yaml CORS_ORIGINS to include the actual production Vercel URL (check if dream-analysis.vercel.app is correct or needs updating). (3) Update .env.example with all required variables for a new developer to get started. Also check that the Express server build (esbuild server/index.ts) is producing dist/index.js correctly and the Vercel build command includes it.",
+      "acceptanceCriteria": [
+        ".env.example updated with all required variables: DATABASE_URL, OPENAI_API_KEY, SESSION_SECRET, VITE_ML_API_URL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_EMAIL",
+        "vercel.json has VITE_ML_API_URL set to Render URL OR comment documents where to set it",
+        "render.yaml CORS_ORIGINS includes https://dream-analysis.vercel.app (verify this is the real URL)",
+        "README.md or DEPLOYMENT.md has clear 3-step instructions for new developer setup",
+        "package.json build script produces both dist/public (frontend) and dist/index.js (Express)",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Critical for Vercel deployment to actually work. Not glamorous but essential."
+    },
+    {
+      "id": "US-011",
+      "title": "Update STATUS.md and PRODUCT.md to reflect launch-ready state",
+      "description": "After all other stories are complete, update STATUS.md to mark the new features as complete and update PRODUCT.md's 'Honest Assessment' section to reflect the improved connection experience and TSception integration. Also update the benchmark dashboard page (client/src/pages/formal-benchmarks-dashboard.tsx) to show TSception at 69.00% CV as 'Active (fallback)' instead of 'Trained'.",
+      "acceptanceCriteria": [
+        "STATUS.md has new entries under Completed Features for: MLWarmupScreen, keep-alive service, retry logic, simulation mode banner, TSception live path, RunningNormalizer",
+        "STATUS.md Phase 4 Growth has connection UX items checked",
+        "PRODUCT.md Honest Assessment section updated if present",
+        "Formal benchmarks dashboard shows TSception as active fallback",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Do this last. Documentation cleanup after all code is working."
+    }
+  ]
+}

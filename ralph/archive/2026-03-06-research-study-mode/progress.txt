@@ -1,0 +1,11 @@
+Ralph Progress — NeuralDreamWorkshop eeg-model-display-fixes
+Branch: ralph/eeg-model-display-fixes
+Created: 2026-03-05
+
+## Stories
+US-001: Strip channel_quality from non-Muse websocket frames — DONE (commit 50f8676)
+US-002: sklearn-to-feature-based fallback in all 10 models — DONE (commit f00e135)
+US-003: Wrap sleep model in inner try/except — DONE (commit 0988f1e)
+US-004: Verify all model outputs in live UI — DONE (verified via WebSocket loop on port 8080)
+US-005: Fix brainflow_available false-positive on Railway — DONE (commit 4047b66)
+US-006: Calibrate computeSignalQuality for real Muse 2 EEG — DONE (commit b926d2f)

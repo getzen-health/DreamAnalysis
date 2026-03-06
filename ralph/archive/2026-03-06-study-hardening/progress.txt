@@ -1,0 +1,28 @@
+Ralph Progress — NeuralDreamWorkshop study-hardening
+Branch: ralph/study-hardening
+Created: 2026-03-06
+
+## Stories
+US-001: Remove mockEEG fallback from StudySession.tsx — DONE (commit 338a801)
+US-002: Add quality score and duration columns to pilot_sessions — DONE (commit 645224c)
+US-003: Server: save duration and quality score on session complete — DONE (commit 327ad22)
+US-004: Client: send quality score from stress session — DONE (commit 5686d80)
+US-005: Client: send quality score from food session — DONE (commit eee0145)
+US-006: Admin: show quality and duration in session details — DONE (commit ed847db)
+US-007: CSV export: add quality, duration, phase_log columns — DONE (commit a05ebeb)
+US-008: Stress session crash recovery with localStorage backup — DONE (commit d3c4461)
+US-009: Food session crash recovery with localStorage backup — DONE (commit 3e80219)
+US-010: Connection status indicator on stress session — DONE (commit 89599d3)
+US-011: Connection status indicator on food session — DONE (commit 8926a60)
+US-012: Participant code collision check with 4-digit codes — DONE (commit e872ba0)
+US-013: Researcher notes column and PATCH endpoint — DONE (commit a883b12)
+US-014: Admin inline researcher notes editing — DONE (commit dd408aa)
+US-015: Aggregate statistics API endpoint — DONE (commit df5fcaa)
+US-016: Admin aggregate statistics cards — DONE (commit cbcabe6)
+US-017: Session deletion API endpoint — DONE (commit dd030b0)
+US-018: Admin delete session button with confirmation — DONE (commit 2323f60)
+US-019: Stress session EEG band power averages in complete payload — DONE (commit 478d90f)
+US-020: Food session EEG band power averages in complete payload — DONE (commit 219cf31)
+
+## Summary
+All 20 stories completed. 20 commits pushed to main. Vercel auto-deploying.
