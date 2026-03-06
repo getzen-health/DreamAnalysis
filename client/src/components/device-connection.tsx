@@ -100,25 +100,8 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
             </div>
           )}
 
-          {/* ── BrainFlow not installed ── */}
-          {devicesLoaded && !brainflowAvailable && error !== "unreachable" && error !== "Failed to fetch" && (
-            <div className="p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm space-y-2">
-              <p className="font-medium text-warning flex items-center gap-1.5">
-                <Terminal className="h-3.5 w-3.5 shrink-0" />
-                BrainFlow not installed in backend
-              </p>
-              <p className="text-xs text-muted-foreground">
-                The ML server is reachable but BrainFlow is missing. Fix it with:
-              </p>
-              <code className="block text-[11px] bg-black/30 text-green-400 px-3 py-2 rounded font-mono">
-                cd ~/NeuralDreamWorkshop/ml &amp;&amp; ./start.sh
-              </code>
-              <p className="text-xs text-muted-foreground">
-                The startup script installs BrainFlow automatically. Until then, use{" "}
-                <strong>Synthetic (demo)</strong> mode below to test without a headset.
-              </p>
-            </div>
-          )}
+          {/* ── BrainFlow not installed (only shown if user has non-Muse devices) ── */}
+          {/* Muse connects via Web Bluetooth directly — BrainFlow is irrelevant for it */}
 
           {/* ── Other errors ── */}
           {error && error !== "unreachable" && error !== "Failed to fetch" && (

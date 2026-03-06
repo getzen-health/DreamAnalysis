@@ -66,7 +66,10 @@ async def list_devices():
 
     emotiv_devices = []
     if emotiv_adapter is not None:
-        emotiv_devices = emotiv_adapter.discover_devices()
+        try:
+            emotiv_devices = emotiv_adapter.discover_devices()
+        except Exception:
+            pass  # Emotiv Cortex not available — don't surface error
 
     return {
         "brainflow_available": brainflow_available,

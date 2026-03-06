@@ -312,9 +312,14 @@ function useDeviceInternal(): UseDeviceReturn {
   const refreshDevices = useCallback(async () => {
     try {
       const result = await listDevices();
-      const backendDevices = (result.devices ?? []).filter(
-        (d) => d.type !== "muse_2" && d.type !== "muse_s"
-      );
+      // Only include backend devices if BrainFlow is actually installed.
+      // On Railway (cloud), BrainFlow/Emotiv can't work (no Bluetooth hardware),
+      // so showing those devices just confuses the user.
+      const backendDevices = result.brainflow_available
+        ? (result.devices ?? []).filter(
+            (d) => d.type !== "muse_2" && d.type !== "muse_s" && d.type !== "synthetic"
+          )
+        : [];
       // Always: Muse first (BLE), then backend devices (BrainFlow), then synthetic
       const merged = [
         ...MUSE_DEVICES,
