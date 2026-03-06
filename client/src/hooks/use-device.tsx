@@ -17,6 +17,7 @@ import {
   getWebSocketUrl,
   startSession,
   stopSession,
+  saveEEGEpoch,
   type DeviceInfo,
   type DeviceStatusResponse,
 } from "@/lib/ml-api";
@@ -635,6 +636,33 @@ function useDeviceInternal(): UseDeviceReturn {
     }, 5_000);
     return () => { if (staleTimerRef.current) { clearInterval(staleTimerRef.current); staleTimerRef.current = null; } };
   }, [state, openWebSocket]);
+
+  // ── Auto-save EEG epochs for training pipeline ──────────────────────
+  // Every SAVE_INTERVAL_MS, send the latest frame's signals + analysis
+  // to POST /sessions/save-eeg so user data accumulates for model training.
+  const SAVE_INTERVAL_MS = 4_000; // 4 seconds = ~1024 samples at 256 Hz
+  const lastSaveRef = useRef(0);
+
+  useEffect(() => {
+    if (state !== "streaming" || !latestFrame?.signals) return;
+
+    const now = Date.now();
+    if (now - lastSaveRef.current < SAVE_INTERVAL_MS) return;
+    lastSaveRef.current = now;
+
+    const emotions = latestFrame.analysis?.emotions;
+    saveEEGEpoch({
+      signals: latestFrame.signals,
+      device_type: selectedDevice || "muse_2",
+      predicted_emotion: emotions?.emotion ?? undefined,
+      band_powers: emotions?.band_powers ?? latestFrame.analysis?.band_powers ?? undefined,
+      frontal_asymmetry: (latestFrame.analysis as Record<string, unknown>)?.frontal_asymmetry as number | undefined,
+      valence: emotions?.valence,
+      arousal: emotions?.arousal,
+    }).catch(() => {
+      // Non-critical — don't disrupt streaming if save fails
+    });
+  }, [state, latestFrame, selectedDevice]);
 
   // Cleanup on unmount
   useEffect(() => {

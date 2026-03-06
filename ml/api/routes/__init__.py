@@ -60,6 +60,7 @@ except ImportError:
 from .biometrics import router as _biometrics
 from .interventions import router as _interventions
 from .voice_watch import router as _voice_watch
+from .eeg_storage import router as _eeg_storage
 
 router = APIRouter()
 
@@ -90,3 +91,4 @@ if _personal_available:
 router.include_router(_biometrics)
 router.include_router(_interventions)
 router.include_router(_voice_watch)
+router.include_router(_eeg_storage)

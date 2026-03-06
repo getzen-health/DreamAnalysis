@@ -1010,3 +1010,50 @@ export async function analyzeVoiceWatch(
 export async function getVoiceWatchStatus(): Promise<VoiceWatchStatus> {
   return mlFetch<VoiceWatchStatus>("/voice-watch/status");
 }
+
+// ─── EEG Session Data Storage (Training Pipeline) ────────────────────────
+
+export interface SaveEEGResult {
+  saved: string;
+  session_id: string;
+  user_id: string;
+  total_epochs: number;
+  shape: number[];
+}
+
+export async function saveEEGEpoch(params: {
+  signals: number[][];
+  user_id?: string;
+  session_id?: string;
+  sample_rate?: number;
+  device_type?: string;
+  predicted_emotion?: string;
+  band_powers?: Record<string, number>;
+  frontal_asymmetry?: number;
+  valence?: number;
+  arousal?: number;
+  signal_quality?: number;
+}): Promise<SaveEEGResult> {
+  return mlFetch<SaveEEGResult>("/sessions/save-eeg", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export interface TrainingDataStats {
+  total_epochs: number;
+  users: Record<string, {
+    total_epochs: number;
+    labeled_epochs: number;
+    n_sessions: number;
+    emotion_distribution: Record<string, number>;
+  }>;
+  ready_to_train: boolean;
+}
+
+export async function getTrainingDataStats(
+  userId?: string
+): Promise<TrainingDataStats> {
+  const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
+  return mlFetch<TrainingDataStats>(`/sessions/training-data/stats${qs}`);
+}

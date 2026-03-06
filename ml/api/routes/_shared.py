@@ -277,7 +277,9 @@ def _get_device_manager():
         try:
             from hardware.brainflow_manager import BrainFlowManager
             _device_manager = BrainFlowManager()
-        except Exception:
+        except Exception as e:
+            import logging
+            logging.getLogger("api").error(f"BrainFlowManager init failed: {e}")
             _device_manager = None
     return _device_manager
 
