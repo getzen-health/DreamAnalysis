@@ -2317,6 +2317,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // DELETE /api/study/admin/session/:id
+  app.delete("/api/study/admin/session/:id", requireStudyAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) {
+        return res.status(400).json({ error: "Invalid session id" });
+      }
+      const deleted = await db
+        .delete(pilotSessions)
+        .where(eq(pilotSessions.id, id))
+        .returning({ id: pilotSessions.id });
+      if (deleted.length === 0) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      return res.json({ success: true, deleted_id: deleted[0].id });
+    } catch (err) {
+      console.error("DELETE /api/study/admin/session/:id error:", err);
+      return res.status(500).json({ error: "Failed to delete session" });
+    }
+  });
+
   // GET /api/study/admin/stats
   app.get("/api/study/admin/stats", requireStudyAdmin, async (_req, res) => {
     try {
