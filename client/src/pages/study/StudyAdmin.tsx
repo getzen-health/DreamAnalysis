@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2, RefreshCw, Download, ChevronDown, ChevronUp, Lock, Radio, Users, Activity, CheckCircle2, AlertCircle } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -91,6 +92,7 @@ interface AdminParticipant {
   hasAppleWatch: boolean;
   createdAt: string;
   sessions: AdminSession[];
+  researcherNotes: string | null;
 }
 
 // ── Survey score extractor ────────────────────────────────────────────────────
@@ -124,6 +126,32 @@ function extractScores(session: AdminSession): SurveyScore[] {
 
 function ParticipantRow({ participant }: { participant: AdminParticipant }) {
   const [expanded, setExpanded] = useState(false);
+  const [notes, setNotes] = useState(participant.researcherNotes ?? "");
+  const [savedNotes, setSavedNotes] = useState(participant.researcherNotes ?? "");
+  const [showSaved, setShowSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleNotesBlur = async () => {
+    if (notes === savedNotes) return;
+    try {
+      const res = await fetch(
+        `/api/study/admin/participant/${participant.participantCode}/notes`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ notes }),
+        }
+      );
+      if (!res.ok) return;
+      setSavedNotes(notes);
+      setShowSaved(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setShowSaved(false), 2000);
+    } catch {
+      // silently ignore network errors
+    }
+  };
 
   const stressSessions = participant.sessions.filter((s) => s.blockType === "stress");
   const foodSessions = participant.sessions.filter((s) => s.blockType === "food");
@@ -257,6 +285,24 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
                   </div>
                 );
               })}
+
+              {/* Researcher notes */}
+              <div className="pt-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-medium text-muted-foreground">Researcher Notes</span>
+                  {showSaved && (
+                    <span className="text-xs text-green-400 animate-in fade-in duration-200">Saved</span>
+                  )}
+                </div>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  onBlur={handleNotesBlur}
+                  placeholder="Add researcher notes..."
+                  rows={3}
+                  className="min-h-0 text-xs resize-y bg-background"
+                />
+              </div>
             </div>
           </TableCell>
         </TableRow>
@@ -264,8 +310,26 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
 
       {expanded && participant.sessions.length === 0 && (
         <TableRow className="bg-muted/20">
-          <TableCell colSpan={7} className="py-3 text-center text-xs text-muted-foreground">
-            No sessions recorded yet.
+          <TableCell colSpan={7} className="py-3 px-6">
+            <p className="text-center text-xs text-muted-foreground mb-3">
+              No sessions recorded yet.
+            </p>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-medium text-muted-foreground">Researcher Notes</span>
+                {showSaved && (
+                  <span className="text-xs text-green-400 animate-in fade-in duration-200">Saved</span>
+                )}
+              </div>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={handleNotesBlur}
+                placeholder="Add researcher notes..."
+                rows={3}
+                className="min-h-0 text-xs resize-y bg-background"
+              />
+            </div>
           </TableCell>
         </TableRow>
       )}
