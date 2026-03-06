@@ -385,6 +385,7 @@ export default function StudySessionFood() {
         survey_json,
         intervention_triggered: false,
         phase_log: phaseLogRef.current,
+        data_quality_score: quality,
       });
       navigate(`/study/complete?code=${encodeURIComponent(participantCode)}&done=food`);
     } catch (err: unknown) {
