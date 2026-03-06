@@ -407,6 +407,7 @@ function useDeviceInternal(): UseDeviceReturn {
         return; // BLE succeeded, done
       } catch (e) {
         const bleErr = e instanceof Error ? e.message : "BLE connection failed";
+        console.error("BLE connection error:", bleErr, e);
         // BLE failed — only fall through to BrainFlow if running locally
         // (BrainFlow on Railway/cloud has no Bluetooth hardware)
         const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -417,8 +418,7 @@ function useDeviceInternal(): UseDeviceReturn {
           setError(null);
           // Fall through to BrainFlow path below
         } else {
-          // Friendly error for remote users
-          setError("No Muse headband detected. Make sure your Muse is turned on and Bluetooth is enabled.");
+          setError(bleErr || "No Muse headband detected. Make sure your Muse is turned on and Bluetooth is enabled.");
           setState("disconnected");
           return;
         }
