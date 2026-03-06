@@ -510,6 +510,7 @@ export default function StudySessionStress() {
         survey_json: surveyData,
         intervention_triggered: interventionTriggered,
         phase_log: phaseLogRef.current,
+        data_quality_score: Math.round(quality),
       });
       navigate(`/study/complete?code=${encodeURIComponent(participantCode)}&done=stress`);
     } catch (err: unknown) {
