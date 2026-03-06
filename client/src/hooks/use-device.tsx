@@ -535,8 +535,6 @@ function useDeviceInternal(): UseDeviceReturn {
 
   // On mount: check if backend device is still connected/streaming (survives refresh)
   // and immediately set brainflowAvailable so the dialog doesn't flash "not installed"
-  const autoConnectAttemptedRef = useRef(false);
-
   useEffect(() => {
     let cancelled = false;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -557,10 +555,6 @@ function useDeviceInternal(): UseDeviceReturn {
         setDeviceStatus(status);
         setSelectedDevice(status.device_type);
         setState("connected");
-      } else if (IS_REMOTE_BACKEND && !autoConnectAttemptedRef.current) {
-        // On production with no device connected — auto-connect to Synthetic demo
-        autoConnectAttemptedRef.current = true;
-        connect("synthetic");
       }
     };
 
@@ -571,7 +565,7 @@ function useDeviceInternal(): UseDeviceReturn {
         applyStatus(status);
         // If first call returned disconnected (not streaming, not connected), retry once
         // after 3 seconds to handle race conditions on page reload
-        if (!status.streaming && !status.connected && !IS_REMOTE_BACKEND) {
+        if (!status.streaming && !status.connected) {
           retryTimeout = setTimeout(async () => {
             if (cancelled) return;
             try {
@@ -579,37 +573,32 @@ function useDeviceInternal(): UseDeviceReturn {
               if (cancelled) return;
               applyStatus(retryStatus);
             } catch {
-              // Stay disconnected
+              // Stay disconnected — user needs to connect their Muse headband
+              if (IS_REMOTE_BACKEND) setDevicesLoaded(true);
             }
           }, 3000);
         }
       } catch {
-        if (cancelled) return;
-        if (IS_REMOTE_BACKEND && !autoConnectAttemptedRef.current) {
-          // ML backend unreachable on production — auto-connect to Synthetic
-          autoConnectAttemptedRef.current = true;
-          setDevicesLoaded(true);
-          connect("synthetic");
-        } else {
-          // ML service not available on first attempt — retry after 3 seconds
-          retryTimeout = setTimeout(async () => {
+        // ML service not available on first attempt — retry after 3 seconds
+        if (IS_REMOTE_BACKEND) setDevicesLoaded(true);
+        retryTimeout = setTimeout(async () => {
+          if (cancelled) return;
+          try {
+            const retryStatus = await getDeviceStatus();
             if (cancelled) return;
-            try {
-              const retryStatus = await getDeviceStatus();
-              if (cancelled) return;
-              applyStatus(retryStatus);
-            } catch {
-              // ML service still not available — refreshDevices will set proper state when dialog opens
-            }
-          }, 3000);
-        }
+            applyStatus(retryStatus);
+          } catch {
+            // ML service still not available — user needs local setup for EEG
+            setDevicesLoaded(true);
+          }
+        }, 3000);
       }
     })();
     return () => {
       cancelled = true;
       if (retryTimeout) clearTimeout(retryTimeout);
     };
-  }, [openWebSocket, connect]);
+  }, [openWebSocket]);
 
   // Poll device status when connected
   useEffect(() => {
