@@ -374,7 +374,10 @@ export class MuseBleManager {
           await forgetFn.call(device);
           // Device forgotten — must re-request from picker
           device = await bt.requestDevice({
-            filters: [{ services: [MUSE_SERVICE] }],
+            filters: [
+              { services: [MUSE_SERVICE] },
+              { namePrefix: "Muse" },
+            ],
             optionalServices: [MUSE_SERVICE],
           });
           this.deviceName = device.name ?? "Muse";
@@ -388,8 +391,8 @@ export class MuseBleManager {
         }
       }
 
-      // Retry with increasing delays: 1500ms then 3000ms
-      const retryDelays = [1500, 3000];
+      // Retry with increasing delays — macOS bluetoothd can take 3-5s to release GATT
+      const retryDelays = [2000, 4000, 6000];
       let lastErr: unknown = firstErr;
       for (const delay of retryDelays) {
         await new Promise((r) => setTimeout(r, delay));
@@ -407,20 +410,21 @@ export class MuseBleManager {
       if (lastErr) {
         const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
         const isMac = /Mac/i.test(navigator.userAgent);
+        let detail: string;
         if (msg.includes("unknown reason")) {
-          const steps = isMac
-            ? [
-                "1. System Settings > Privacy & Security > Bluetooth — make sure Chrome is listed and enabled",
-                "2. System Settings > Bluetooth — if Muse is listed, click (i) and Forget This Device",
-                "3. Turn Muse off (hold power 5s), wait 5s, turn back on",
-                "4. Try connecting again in Chrome",
-              ].join("\n")
-            : "Open System Bluetooth settings, remove/forget the Muse device, then try again.";
-          this.setStatus("error", `GATT connection failed.\n${steps}`);
+          detail = isMac
+            ? "GATT connection failed. Try these steps:\n" +
+              "1. System Settings > Privacy & Security > Bluetooth — make sure Chrome is listed and enabled\n" +
+              "2. System Settings > Bluetooth — if Muse is listed, click (i) and Forget This Device\n" +
+              "3. Turn Muse off (hold power 5s), wait 5s, turn back on\n" +
+              "4. Try connecting again in Chrome"
+            : "GATT connection failed. Open System Bluetooth settings, remove/forget the Muse device, then try again.";
         } else {
-          this.setStatus("error", `Connection failed: ${msg}`);
+          detail = `Connection failed: ${msg}`;
         }
-        throw lastErr;
+        this.setStatus("error", detail);
+        // Throw with the detailed message so the UI catch block gets it
+        throw new Error(detail);
       }
     }
 
