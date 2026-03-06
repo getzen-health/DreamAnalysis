@@ -92,9 +92,6 @@ export default function StudyConsent() {
       await apiRequest("POST", "/api/study/consent", {
         participant_code: code,
         consent_text: consentSnapshot,
-        age: 0,
-        diet_type: "omnivore",
-        has_apple_watch: false,
       });
 
       navigate(`/study/profile?code=${encodeURIComponent(code)}`);

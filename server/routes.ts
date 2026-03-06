@@ -2130,7 +2130,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasAppleWatch:    has_apple_watch ? true : false,
         consentText:      consent_text ?? null,
         consentTimestamp: new Date(),
-      }).onConflictDoNothing();
+      }).onConflictDoUpdate({
+        target: pilotParticipants.participantCode,
+        set: {
+          ...(age != null && { age: Number(age) }),
+          ...(diet_type != null && { dietType: diet_type }),
+          ...(has_apple_watch !== undefined && { hasAppleWatch: has_apple_watch ? true : false }),
+          ...(consent_text != null && { consentText: consent_text }),
+        },
+      });
       return res.json({ success: true, participant_code });
     } catch (err) {
       console.error("POST /api/study/consent error:", err);
@@ -2167,6 +2175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eeg_features_json,
         survey_json,
         intervention_triggered,
+        phase_log,
       } = req.body;
       if (session_id == null) {
         return res.status(400).json({ error: "session_id is required" });
@@ -2178,6 +2187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eegFeaturesJson:       eeg_features_json ?? null,
           surveyJson:            survey_json ?? null,
           interventionTriggered: intervention_triggered ? true : false,
+          partial:               false,
+          ...(phase_log !== undefined && { phaseLog: phase_log }),
         })
         .where(eq(pilotSessions.id, Number(session_id)));
       return res.json({ success: true });

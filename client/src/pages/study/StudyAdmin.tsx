@@ -27,21 +27,22 @@ interface EegSnapshot {
 
 interface AdminSession {
   id: number;
-  block_type: "stress" | "food";
-  intervention_triggered: boolean;
+  blockType: "stress" | "food";
+  interventionTriggered: boolean;
   partial: boolean;
-  survey_json: Record<string, unknown> | null;
-  pre_eeg_json: EegSnapshot | null;
-  post_eeg_json: EegSnapshot | null;
-  checkpoint_at: string | null;
-  created_at: string;
+  surveyJson: Record<string, unknown> | null;
+  preEegJson: EegSnapshot | null;
+  postEegJson: EegSnapshot | null;
+  checkpointAt: string | null;
+  createdAt: string;
+  participantCode: string;
 }
 
 type SessionStatus = "recording" | "complete" | "partial";
 
 function sessionStatus(s: AdminSession): SessionStatus {
   if (s.partial) return "partial";
-  if (s.survey_json) return "complete";
+  if (s.surveyJson) return "complete";
   return "recording";
 }
 
@@ -70,22 +71,22 @@ function StressBar({ pre, post }: { pre: number | undefined; post: number | unde
 }
 
 interface AdminParticipant {
-  participant_code: string;
+  participantCode: string;
   age: number | null;
-  diet_type: string | null;
-  has_apple_watch: boolean;
-  joined_at: string;
+  dietType: string | null;
+  hasAppleWatch: boolean;
+  createdAt: string;
   sessions: AdminSession[];
 }
 
 // ── Survey score extractor ────────────────────────────────────────────────────
 
 function extractScores(session: AdminSession): SurveyScore[] {
-  if (!session.survey_json) return [];
-  const s = session.survey_json;
+  if (!session.surveyJson) return [];
+  const s = session.surveyJson;
   const scores: SurveyScore[] = [];
 
-  if (session.block_type === "food") {
+  if (session.blockType === "food") {
     if (typeof s.what_ate === "string") scores.push({ label: "Ate", value: s.what_ate });
     if (typeof s.pre_hunger === "number") scores.push({ label: "Pre-hunger", value: s.pre_hunger });
     if (typeof s.pre_mood === "number") scores.push({ label: "Pre-mood", value: s.pre_mood });
@@ -110,8 +111,8 @@ function extractScores(session: AdminSession): SurveyScore[] {
 function ParticipantRow({ participant }: { participant: AdminParticipant }) {
   const [expanded, setExpanded] = useState(false);
 
-  const stressSessions = participant.sessions.filter((s) => s.block_type === "stress");
-  const foodSessions = participant.sessions.filter((s) => s.block_type === "food");
+  const stressSessions = participant.sessions.filter((s) => s.blockType === "stress");
+  const foodSessions = participant.sessions.filter((s) => s.blockType === "food");
   const totalSessions = participant.sessions.length;
 
   return (
@@ -121,16 +122,16 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
         onClick={() => setExpanded((e) => !e)}
       >
         <TableCell className="font-mono font-semibold text-primary whitespace-nowrap">
-          {participant.participant_code}
+          {participant.participantCode}
         </TableCell>
         <TableCell className="tabular-nums text-sm">
           {participant.age ?? "—"}
         </TableCell>
         <TableCell className="text-sm capitalize">
-          {participant.diet_type ?? "—"}
+          {participant.dietType ?? "—"}
         </TableCell>
         <TableCell>
-          {participant.has_apple_watch ? (
+          {participant.hasAppleWatch ? (
             <Badge variant="outline" className="border-blue-500/50 text-blue-400 text-xs">Yes</Badge>
           ) : (
             <span className="text-xs text-muted-foreground">No</span>
@@ -147,7 +148,7 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
           </div>
         </TableCell>
         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-          {new Date(participant.joined_at).toLocaleDateString()}
+          {new Date(participant.createdAt).toLocaleDateString()}
         </TableCell>
         <TableCell>
           {expanded ? (
@@ -174,12 +175,12 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
                       <Badge
                         variant="outline"
                         className={
-                          session.block_type === "stress"
+                          session.blockType === "stress"
                             ? "border-orange-500/50 text-orange-400 text-xs capitalize"
                             : "border-blue-500/50 text-blue-400 text-xs capitalize"
                         }
                       >
-                        {session.block_type}
+                        {session.blockType}
                       </Badge>
                       {/* Status badge */}
                       {sessionStatus(session) === "recording" && (
@@ -196,23 +197,23 @@ function ParticipantRow({ participant }: { participant: AdminParticipant }) {
                       <Badge
                         variant="outline"
                         className={
-                          session.intervention_triggered
+                          session.interventionTriggered
                             ? "border-red-500/50 text-red-400 text-xs"
                             : "border-muted text-muted-foreground text-xs"
                         }
                       >
-                        Intervention: {session.intervention_triggered ? "yes" : "no"}
+                        Intervention: {session.interventionTriggered ? "yes" : "no"}
                       </Badge>
                       <span className="text-xs text-muted-foreground ml-auto">
-                        {new Date(session.created_at).toLocaleString()}
+                        {new Date(session.createdAt).toLocaleString()}
                       </span>
                     </div>
 
                     {/* Stress sparkline */}
-                    {(session.pre_eeg_json?.stress_level !== undefined || session.post_eeg_json?.stress_level !== undefined) && (
+                    {(session.preEegJson?.stress_level !== undefined || session.postEegJson?.stress_level !== undefined) && (
                       <StressBar
-                        pre={session.pre_eeg_json?.stress_level}
-                        post={session.post_eeg_json?.stress_level}
+                        pre={session.preEegJson?.stress_level}
+                        post={session.postEegJson?.stress_level}
                       />
                     )}
 
@@ -285,20 +286,20 @@ export default function StudyAdmin() {
       }
 
       const pData: Omit<AdminParticipant, "sessions">[] = await pRes.json();
-      const sData: (AdminSession & { participant_code: string })[] = await sRes.json();
+      const sData: AdminSession[] = await sRes.json();
 
       // Merge sessions into participants
       const sessionsByCode: Record<string, AdminSession[]> = {};
       for (const s of sData) {
-        if (!sessionsByCode[s.participant_code]) {
-          sessionsByCode[s.participant_code] = [];
+        if (!sessionsByCode[s.participantCode]) {
+          sessionsByCode[s.participantCode] = [];
         }
-        sessionsByCode[s.participant_code].push(s);
+        sessionsByCode[s.participantCode].push(s);
       }
 
       const merged: AdminParticipant[] = pData.map((p) => ({
         ...p,
-        sessions: sessionsByCode[p.participant_code] ?? [],
+        sessions: sessionsByCode[p.participantCode] ?? [],
       }));
 
       setParticipants(merged);
@@ -322,14 +323,14 @@ export default function StudyAdmin() {
   // ── Derived stats ────────────────────────────────────────────────────────────
 
   const allSessions = participants.flatMap((p) => p.sessions);
-  const stressCount = allSessions.filter((s) => s.block_type === "stress").length;
-  const foodCount = allSessions.filter((s) => s.block_type === "food").length;
+  const stressCount = allSessions.filter((s) => s.blockType === "stress").length;
+  const foodCount = allSessions.filter((s) => s.blockType === "food").length;
   const completeSessions = allSessions.filter((s) => sessionStatus(s) === "complete").length;
   const partialSessions = allSessions.filter((s) => sessionStatus(s) === "partial").length;
   const activeSessions = allSessions.filter((s) => sessionStatus(s) === "recording").length;
   const completionRate = allSessions.length > 0 ? Math.round((completeSessions / allSessions.length) * 100) : 0;
   const bothDone = participants.filter((p) => {
-    const types = new Set(p.sessions.filter((s) => sessionStatus(s) === "complete").map((s) => s.block_type));
+    const types = new Set(p.sessions.filter((s) => sessionStatus(s) === "complete").map((s) => s.blockType));
     return types.has("stress") && types.has("food");
   }).length;
 
@@ -496,7 +497,7 @@ export default function StudyAdmin() {
                   </TableHeader>
                   <TableBody>
                     {participants.map((p) => (
-                      <ParticipantRow key={p.participant_code} participant={p} />
+                      <ParticipantRow key={p.participantCode} participant={p} />
                     ))}
                   </TableBody>
                 </Table>
