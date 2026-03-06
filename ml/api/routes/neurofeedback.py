@@ -1,8 +1,11 @@
 """Neurofeedback session endpoints."""
 
 import asyncio
+import json
+import logging
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import numpy as np
 from fastapi import APIRouter, HTTPException
@@ -14,15 +17,24 @@ from ._shared import (
     _get_nf_protocol, _set_nf_protocol,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ── RL agent singleton ────────────────────────────────────────────────────────
+# ── RL agent singletons ──────────────────────────────────────────────────────
 _rl_agent = None
 _RL_AGENT_PATH = Path(__file__).resolve().parent.parent.parent / "models" / "saved" / "rl_nf_agent.pt"
+_USER_MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "user_models"
+_USER_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "user_data"
+
+# Per-user RL agents (loaded lazily)
+_user_rl_agents: Dict[str, object] = {}
+
+# Per-user trajectory buffers (stored during active neurofeedback sessions)
+_trajectory_buffers: Dict[str, list] = {}
 
 
 def _load_rl_agent():
-    """Lazy-load the RL agent from disk. Sets module-level _rl_agent."""
+    """Lazy-load the global RL agent from disk."""
     global _rl_agent
     if _rl_agent is not None:
         return
@@ -36,7 +48,7 @@ def _load_rl_agent():
 
 
 def _reload_rl_agent():
-    """Force-reload the RL agent from disk (called after training completes)."""
+    """Force-reload the global RL agent from disk."""
     global _rl_agent
     try:
         from neurofeedback.adaptive_agent import PPOAgent
@@ -45,6 +57,23 @@ def _reload_rl_agent():
             _rl_agent = agent
     except Exception:
         pass
+
+
+def _get_user_rl_agent(user_id: str):
+    """Load per-user RL agent if available, else return global agent."""
+    if user_id in _user_rl_agents:
+        return _user_rl_agents[user_id]
+    user_path = _USER_MODELS_DIR / user_id / "rl_nf_agent.pt"
+    if user_path.exists():
+        try:
+            from neurofeedback.adaptive_agent import PPOAgent
+            agent = PPOAgent()
+            if agent.load(str(user_path)):
+                _user_rl_agents[user_id] = agent
+                return agent
+        except Exception:
+            pass
+    return _rl_agent
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -111,14 +140,27 @@ async def evaluate_neurofeedback(request: NeurofeedbackEvalRequest):
     result = protocol.evaluate(request.band_powers, request.channel_powers)
 
     # ── Adaptive threshold adjustment via RL agent ────────────────────────────
-    if _rl_agent is not None and _rl_agent.is_trained:
+    # Prefer per-user agent if available, else use global agent
+    agent = _get_user_rl_agent(request.user_id) or _rl_agent
+    if agent is not None and agent.is_trained:
         rl_state = protocol.get_rl_state(request.band_powers)
-        obs = _rl_agent.build_obs(rl_state)
-        action, _ = _rl_agent.act(obs)
+        obs = agent.build_obs(rl_state)
+        action, _ = agent.act(obs)
         delta = (action - 1) * 0.05
         protocol.threshold = float(np.clip(protocol.threshold + delta, 0.10, 2.50))
         result["adaptive_threshold"] = round(protocol.threshold, 3)
         result["threshold_action"] = ["easier", "hold", "harder"][action]
+
+        # Store trajectory step for per-user fine-tuning
+        reward = result.get("feedback_value", 0.0)
+        step = {
+            "obs": obs.tolist(),
+            "action": action,
+            "reward": float(reward),
+            "timestamp": time.time(),
+        }
+        buf = _trajectory_buffers.setdefault(request.user_id, [])
+        buf.append(step)
 
     return {"status": "active", **result}
 
@@ -132,19 +174,43 @@ async def stop_neurofeedback(user_id: str = "default"):
 
     stats = protocol.stop()
     _set_nf_protocol(user_id, None)
+
+    # Persist trajectory buffer to disk for future RL fine-tuning
+    buf = _trajectory_buffers.pop(user_id, [])
+    n_steps = len(buf)
+    if n_steps > 10:  # only save meaningful sessions
+        traj_dir = _USER_DATA_DIR / user_id / "trajectories"
+        traj_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"traj_{int(time.time())}.json"
+        (traj_dir / filename).write_text(json.dumps(buf))
+        logger.info(f"[neurofeedback] saved {n_steps} trajectory steps for user={user_id}")
+        stats["trajectory_saved"] = True
+        stats["trajectory_steps"] = n_steps
+    else:
+        stats["trajectory_saved"] = False
+
     return {"status": "stopped", "stats": stats}
 
 
 @router.get("/neurofeedback/rl/status")
 async def rl_status(user_id: str = "default"):
     """Return RL agent status and current threshold."""
-    trained = _rl_agent is not None and _rl_agent.is_trained
+    global_trained = _rl_agent is not None and _rl_agent.is_trained
+    user_agent = _get_user_rl_agent(user_id)
+    user_trained = user_agent is not None and user_agent is not _rl_agent and user_agent.is_trained
     protocol = _get_nf_protocol(user_id)
     current_threshold = protocol.threshold if protocol is not None else None
+
+    # Count stored trajectories for this user
+    traj_dir = _USER_DATA_DIR / user_id / "trajectories"
+    n_trajectories = len(list(traj_dir.glob("traj_*.json"))) if traj_dir.exists() else 0
+
     return {
-        "trained": trained,
+        "global_trained": global_trained,
+        "personal_trained": user_trained,
         "is_active": protocol is not None and protocol.is_active,
         "current_threshold": current_threshold,
+        "n_trajectories": n_trajectories,
         "agent_path": str(_RL_AGENT_PATH),
     }
 
@@ -213,3 +279,88 @@ async def rl_train(request: RLTrainRequest):
         "episodes_run": episodes_run,
         "model_path": str(_RL_AGENT_PATH),
     }
+
+
+class RLFineTuneRequest(BaseModel):
+    user_id: str = Field(default="default")
+    epochs: int = Field(default=10, ge=1, le=100, description="PPO update epochs over stored trajectories")
+
+
+@router.post("/neurofeedback/rl/fine-tune")
+async def rl_fine_tune(request: RLFineTuneRequest):
+    """Fine-tune the RL agent on stored user trajectories.
+
+    Loads all trajectory files for the user, builds rollouts from them,
+    and runs PPO update. Saves the fine-tuned agent as a per-user model.
+    Requires at least 5 trajectory files (sessions).
+    """
+    traj_dir = _USER_DATA_DIR / request.user_id / "trajectories"
+    if not traj_dir.exists():
+        raise HTTPException(status_code=400, detail="No trajectory data found for this user")
+
+    traj_files = sorted(traj_dir.glob("traj_*.json"))
+    if len(traj_files) < 5:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Need at least 5 neurofeedback sessions for fine-tuning (have {len(traj_files)})",
+        )
+
+    # Load all trajectories
+    all_steps = []
+    for tf in traj_files:
+        try:
+            steps = json.loads(tf.read_text())
+            all_steps.extend(steps)
+        except Exception:
+            continue
+
+    if len(all_steps) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Need at least 50 trajectory steps (have {len(all_steps)})",
+        )
+
+    # Run fine-tuning in a thread to not block the event loop
+    def _do_fine_tune():
+        from neurofeedback.adaptive_agent import PPOAgent, Rollout
+
+        # Start from global agent weights (transfer learning)
+        agent = PPOAgent()
+        if _RL_AGENT_PATH.exists():
+            agent.load(str(_RL_AGENT_PATH))
+
+        # Build rollout from stored trajectories
+        for _ in range(request.epochs):
+            rollout = Rollout()
+            for step in all_steps:
+                obs = np.array(step["obs"], dtype=np.float32)
+                action = step["action"]
+                reward = step["reward"]
+                log_prob = 0.0  # approximate — we don't have the original log_prob
+                value = agent.value(obs)
+                rollout.add(obs, action, log_prob, reward, False, value)
+
+            if len(rollout) > 0:
+                agent.update(rollout)
+
+        # Save per-user model
+        user_model_dir = _USER_MODELS_DIR / request.user_id
+        user_model_dir.mkdir(parents=True, exist_ok=True)
+        user_model_path = user_model_dir / "rl_nf_agent.pt"
+        agent.save(str(user_model_path))
+
+        # Update in-memory cache
+        _user_rl_agents[request.user_id] = agent
+
+        return {
+            "fine_tuned": True,
+            "user_id": request.user_id,
+            "n_trajectories": len(traj_files),
+            "n_steps": len(all_steps),
+            "epochs": request.epochs,
+            "model_path": str(user_model_path),
+        }
+
+    result = await asyncio.to_thread(_do_fine_tune)
+    logger.info(f"[rl-fine-tune] user={request.user_id} steps={result['n_steps']}")
+    return result

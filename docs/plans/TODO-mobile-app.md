@@ -45,11 +45,11 @@ Three loops: (1) personal model adapts per-user, (2) RL agent fine-tunes per-use
 
 ### Phase C: RL Agent Per-User Fine-Tuning
 
-- [ ] Store neurofeedback session trajectories: (observation, action, reward) tuples
-- [ ] After 5+ neurofeedback sessions, fine-tune PPO agent on real user data
-- [ ] Add `POST /api/neurofeedback/rl/fine-tune` — trains on stored trajectories
-- [ ] Save per-user RL models: `user_models/{user_id}_rl_agent.pt`
-- [ ] Load user-specific RL agent in `/api/neurofeedback/evaluate` if available
+- [x] Store neurofeedback session trajectories: (observation, action, reward) tuples
+- [x] After 5+ neurofeedback sessions, fine-tune PPO agent on real user data
+- [x] Add `POST /api/neurofeedback/rl/fine-tune` — trains on stored trajectories
+- [x] Save per-user RL models: `user_models/{user_id}/rl_nf_agent.pt`
+- [x] Load user-specific RL agent in `/api/neurofeedback/evaluate` if available
 
 ### Phase D: Aggregate Model Improvement (Cross-User)
 
