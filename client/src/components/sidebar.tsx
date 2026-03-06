@@ -260,7 +260,7 @@ export function Sidebar() {
               />
               <span className="text-xs text-muted-foreground">
                 {device.state === "streaming"
-                  ? "Streaming"
+                  ? (device.selectedDevice === "synthetic" ? "Demo Mode" : "Streaming")
                   : isConnected
                     ? "Connected"
                     : "Connect Device"}
