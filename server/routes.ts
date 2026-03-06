@@ -2157,6 +2157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         participantCode:       String(participant_code),
         blockType:             String(block_type),
         interventionTriggered: false,
+        startedAt:             new Date(),
       }).returning({ id: pilotSessions.id });
       return res.json({ session_id: row.id });
     } catch (err) {
@@ -2176,10 +2177,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         survey_json,
         intervention_triggered,
         phase_log,
+        data_quality_score,
       } = req.body;
       if (session_id == null) {
         return res.status(400).json({ error: "session_id is required" });
       }
+
+      // Compute duration from startedAt
+      let durationSeconds: number | null = null;
+      const [existing] = await db.select({ startedAt: pilotSessions.startedAt })
+        .from(pilotSessions)
+        .where(eq(pilotSessions.id, Number(session_id)));
+      if (existing?.startedAt) {
+        durationSeconds = Math.floor((Date.now() - existing.startedAt.getTime()) / 1000);
+      }
+
       await db.update(pilotSessions)
         .set({
           preEegJson:            pre_eeg_json ?? null,
@@ -2189,6 +2201,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           interventionTriggered: intervention_triggered ? true : false,
           partial:               false,
           ...(phase_log !== undefined && { phaseLog: phase_log }),
+          ...(data_quality_score != null && { dataQualityScore: Number(data_quality_score) }),
+          ...(durationSeconds != null && { durationSeconds }),
         })
         .where(eq(pilotSessions.id, Number(session_id)));
       return res.json({ success: true });
