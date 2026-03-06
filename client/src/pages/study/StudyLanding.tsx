@@ -2,7 +2,49 @@ import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Clock, Shield, ChevronRight, Headphones, Zap } from "lucide-react";
+import { Brain, Clock, Shield, ChevronRight, Headphones, Zap, QrCode, Copy, Check } from "lucide-react";
+import { useState } from "react";
+
+const STUDY_URL = "https://dream-analysis.vercel.app/study";
+
+function QRCodeSection() {
+  const [copied, setCopied] = useState(false);
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(STUDY_URL)}`;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(STUDY_URL);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardContent className="pt-6 flex flex-col items-center gap-4">
+        <div className="flex items-center gap-2">
+          <QrCode className="h-4 w-4 text-primary" />
+          <p className="font-medium text-sm">Scan to join on your phone</p>
+        </div>
+        <img
+          src={qrSrc}
+          alt="QR code to join the study"
+          width={160}
+          height={160}
+          className="rounded-lg border border-border"
+        />
+        <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-1.5 text-xs font-mono max-w-full overflow-hidden">
+          <span className="truncate">{STUDY_URL}</span>
+          <button
+            onClick={handleCopy}
+            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            title="Copy URL"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function StudyLanding() {
   const [, navigate] = useLocation();
@@ -107,6 +149,9 @@ export default function StudyLanding() {
             </ul>
           </CardContent>
         </Card>
+
+        {/* QR Code for mobile participants */}
+        <QRCodeSection />
 
         {/* CTA */}
         <div className="flex justify-center">

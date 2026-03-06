@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ChevronRight, Utensils, EyeOff, Eye, CheckCircle2 } from "lucide-react";
+import { Loader2, ChevronRight, Utensils, EyeOff, Eye, CheckCircle2, SkipForward, AlertTriangle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { useToast } from "@/hooks/use-toast";
@@ -25,16 +25,31 @@ interface EEGSample {
 
 type Phase = "pre_survey" | "baseline" | "eating" | "post_eeg" | "post_survey";
 
+interface PhaseLog {
+  pre_survey_start?: string;
+  baseline_start?: string;
+  eating_start?: string;
+  post_eeg_start?: string;
+  post_survey_start?: string;
+  completed?: string;
+  skipped_to_survey?: boolean;
+  skip_from_phase?: string;
+}
+
 // ── Durations (seconds) ──────────────────────────────────────────────────────
 
-const BASELINE_SEC = 5 * 60;   // 5 min pre-meal baseline
-const POST_EEG_SEC = 10 * 60;  // 10 min post-meal EEG
+const FULL_DURATIONS = { baseline: 5 * 60, post_eeg: 10 * 60 };
+const DEV_DURATIONS = { baseline: 15, post_eeg: 20 };
+
 const EATING_OPTIONS = [
   { label: "15 min", seconds: 15 * 60 },
   { label: "20 min", seconds: 20 * 60 },
   { label: "25 min", seconds: 25 * 60 },
   { label: "30 min", seconds: 30 * 60 },
 ];
+const DEV_EATING_SEC = 15;
+
+const CHECKPOINT_INTERVAL_MS = 30_000;
 
 // ── EEG helpers ───────────────────────────────────────────────────────────────
 
@@ -48,7 +63,6 @@ async function fetchEEG(): Promise<EEGSample> {
     });
     if (!res.ok) throw new Error("fetch failed");
     const data = await res.json();
-    // ML backend returns: { analysis: { emotions: { band_powers, stress_index, ... } } }
     const emotions = data.analysis?.emotions ?? {};
     const bp = emotions.band_powers ?? {};
     return {
@@ -75,12 +89,8 @@ function averageEEG(samples: EEGSample[]): EEGSample | null {
   if (samples.length === 0) return null;
   const sum = samples.reduce(
     (acc, s) => ({
-      alpha: acc.alpha + s.alpha,
-      beta: acc.beta + s.beta,
-      theta: acc.theta + s.theta,
-      delta: acc.delta + s.delta,
-      gamma: acc.gamma + s.gamma,
-      stress_level: acc.stress_level + s.stress_level,
+      alpha: acc.alpha + s.alpha, beta: acc.beta + s.beta, theta: acc.theta + s.theta,
+      delta: acc.delta + s.delta, gamma: acc.gamma + s.gamma, stress_level: acc.stress_level + s.stress_level,
     }),
     { alpha: 0, beta: 0, theta: 0, delta: 0, gamma: 0, stress_level: 0 }
   );
@@ -89,6 +99,18 @@ function averageEEG(samples: EEGSample[]): EEGSample | null {
     alpha: sum.alpha / n, beta: sum.beta / n, theta: sum.theta / n,
     delta: sum.delta / n, gamma: sum.gamma / n, stress_level: sum.stress_level / n,
   };
+}
+
+function computeQualityScore(readings: EEGSample[]): number {
+  if (readings.length < 3) return 0;
+  const alphas = readings.map((r) => r.alpha);
+  const mean = alphas.reduce((a, b) => a + b, 0) / alphas.length;
+  const variance = alphas.reduce((a, v) => a + (v - mean) ** 2, 0) / alphas.length;
+  const hasVariance = variance > 0.0001 ? 30 : 0;
+  const allInRange = readings.every((r) => r.alpha >= 0 && r.alpha <= 1 && r.beta >= 0 && r.beta <= 1);
+  const rangeScore = allInRange ? 30 : 10;
+  const sampleScore = Math.min(40, (readings.length / 30) * 40);
+  return Math.round(hasVariance + rangeScore + sampleScore);
 }
 
 function formatTime(seconds: number): string {
@@ -139,11 +161,16 @@ const PHASE_LABELS: Record<Phase, string> = {
   post_survey: "Post-survey",
 };
 
-function SessionStepper({ phase }: { phase: Phase }) {
+function SessionStepper({ phase, devMode }: { phase: Phase; devMode: boolean }) {
   const current = PHASE_ORDER.indexOf(phase);
   return (
     <div className="w-full">
-      <p className="text-xs text-muted-foreground mb-3 text-center">Food-Emotion Session</p>
+      <div className="flex items-center justify-center gap-2 mb-3">
+        <p className="text-xs text-muted-foreground text-center">Food-Emotion Session</p>
+        {devMode && (
+          <Badge variant="outline" className="border-yellow-500/50 text-yellow-400 text-[10px]">DEV</Badge>
+        )}
+      </div>
       <div className="flex items-center gap-0">
         {PHASE_ORDER.map((p, idx) => {
           const done = idx < current;
@@ -197,10 +224,16 @@ export default function StudySessionFood() {
 
   const params = new URLSearchParams(search);
   const participantCode = params.get("code") ?? "";
+  const devMode = params.get("dev") === "1" || params.get("test") === "1";
+
+  const durations = devMode ? DEV_DURATIONS : FULL_DURATIONS;
 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [phase, setPhase] = useState<Phase>("pre_survey");
+
+  // Phase timestamp log
+  const phaseLogRef = useRef<PhaseLog>({ pre_survey_start: new Date().toISOString() });
 
   // Separate EEG buffers
   const [baselineReadings, setBaselineReadings] = useState<EEGSample[]>([]);
@@ -212,7 +245,7 @@ export default function StudySessionFood() {
   const [postEegActive, setPostEegActive] = useState(false);
 
   // Eating duration (user-selectable)
-  const [eatingDuration, setEatingDuration] = useState(20 * 60); // default 20 min
+  const [eatingDuration, setEatingDuration] = useState(devMode ? DEV_EATING_SEC : 20 * 60);
 
   // Pre-survey
   const [preHunger, setPreHunger] = useState(5);
@@ -239,7 +272,29 @@ export default function StudySessionFood() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participantCode]);
 
-  // ── EEG polling (only during baseline and post-eeg phases) ────────────────
+  // ── Auto-checkpoint every 30s ──────────────────────────────────────────────
+
+  useEffect(() => {
+    if (sessionId == null || sessionId < 0) return;
+    if (phase === "pre_survey" || phase === "post_survey") return;
+
+    const id = setInterval(() => {
+      const preEeg = averageEEG(baselineReadings);
+      const postEeg = averageEEG(postReadings);
+      const features = averageEEG([...baselineReadings, ...postReadings]);
+      apiRequest("PATCH", `/api/study/session/${sessionId}/checkpoint`, {
+        pre_eeg_json: preEeg,
+        post_eeg_json: postEeg,
+        eeg_features_json: features,
+        partial: true,
+        phase_log: phaseLogRef.current,
+      }).catch(() => {});
+    }, CHECKPOINT_INTERVAL_MS);
+
+    return () => clearInterval(id);
+  }, [sessionId, phase, baselineReadings, postReadings]);
+
+  // ── EEG polling ────────────────────────────────────────────────────────────
 
   const pollEEG = useCallback(async () => {
     const sample = await fetchEEG();
@@ -263,24 +318,39 @@ export default function StudySessionFood() {
     setBaselineActive(false);
     setPhase("eating");
     setEatingActive(true);
+    phaseLogRef.current.eating_start = new Date().toISOString();
   }, []);
 
   const onEatingDone = useCallback(() => {
     setEatingActive(false);
     setPhase("post_eeg");
     setPostEegActive(true);
+    phaseLogRef.current.post_eeg_start = new Date().toISOString();
   }, []);
 
   const onPostEegDone = useCallback(() => {
     setPostEegActive(false);
     setPhase("post_survey");
+    phaseLogRef.current.post_survey_start = new Date().toISOString();
   }, []);
+
+  // ── Skip to survey ─────────────────────────────────────────────────────────
+
+  function handleSkipToSurvey() {
+    setBaselineActive(false);
+    setEatingActive(false);
+    setPostEegActive(false);
+    phaseLogRef.current.skipped_to_survey = true;
+    phaseLogRef.current.skip_from_phase = phase;
+    phaseLogRef.current.post_survey_start = new Date().toISOString();
+    setPhase("post_survey");
+  }
 
   // ── Timers ────────────────────────────────────────────────────────────────
 
-  const remainingBaseline = useCountdown(BASELINE_SEC, baselineActive, onBaselineDone);
+  const remainingBaseline = useCountdown(durations.baseline, baselineActive, onBaselineDone);
   const remainingEating = useCountdown(eatingDuration, eatingActive, onEatingDone);
-  const remainingPostEeg = useCountdown(POST_EEG_SEC, postEegActive, onPostEegDone);
+  const remainingPostEeg = useCountdown(durations.post_eeg, postEegActive, onPostEegDone);
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -292,6 +362,9 @@ export default function StudySessionFood() {
     const postEeg = averageEEG(postReadings);
     const allReadings = [...baselineReadings, ...postReadings];
     const features = averageEEG(allReadings);
+    const quality = computeQualityScore(allReadings);
+
+    phaseLogRef.current.completed = new Date().toISOString();
 
     const survey_json = {
       pre_hunger: preHunger,
@@ -308,9 +381,10 @@ export default function StudySessionFood() {
         session_id: sessionId,
         pre_eeg_json: preEeg,
         post_eeg_json: postEeg,
-        eeg_features_json: features,
+        eeg_features_json: { ...features, quality_score: quality, sample_count: allReadings.length },
         survey_json,
         intervention_triggered: false,
+        phase_log: phaseLogRef.current,
       });
       navigate(`/study/complete?code=${encodeURIComponent(participantCode)}&done=food`);
     } catch (err: unknown) {
@@ -349,11 +423,32 @@ export default function StudySessionFood() {
     </div>
   );
 
+  const skipButton = phase !== "pre_survey" && phase !== "post_survey" && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-xs text-muted-foreground hover:text-yellow-400"
+      onClick={handleSkipToSurvey}
+    >
+      <SkipForward className="h-3.5 w-3.5 mr-1" />
+      Skip to Survey
+    </Button>
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-lg mx-auto px-4 py-10 space-y-6">
+
+        {devMode && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+            <AlertTriangle className="h-4 w-4 text-yellow-400 shrink-0" />
+            <p className="text-xs text-yellow-400">
+              Dev mode — timers shortened. Add <code>?dev=1</code> to URL.
+            </p>
+          </div>
+        )}
 
         {/* Header */}
         <div className="space-y-1">
@@ -366,7 +461,7 @@ export default function StudySessionFood() {
               </Badge>
             )}
           </div>
-          <SessionStepper phase={phase} />
+          <SessionStepper phase={phase} devMode={devMode} />
         </div>
 
         {/* ── Step 1: Pre-meal survey ── */}
@@ -379,23 +474,29 @@ export default function StudySessionFood() {
               <SliderRow label="How hungry are you right now?" value={preHunger} onChange={setPreHunger} left="Not hungry" right="Starving" />
               <SliderRow label="What is your current mood?" value={preMood} onChange={setPreMood} left="Very low" right="Excellent" />
 
-              <div className="space-y-2">
-                <Label className="text-sm">How long will you need to eat?</Label>
-                <div className="grid grid-cols-4 gap-2">
-                  {EATING_OPTIONS.map((opt) => (
-                    <Button
-                      key={opt.seconds}
-                      variant={eatingDuration === opt.seconds ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setEatingDuration(opt.seconds)}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
+              {!devMode && (
+                <div className="space-y-2">
+                  <Label className="text-sm">How long will you need to eat?</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {EATING_OPTIONS.map((opt) => (
+                      <Button
+                        key={opt.seconds}
+                        variant={eatingDuration === opt.seconds ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setEatingDuration(opt.seconds)}
+                      >
+                        {opt.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <Button className="w-full" size="lg" onClick={() => { setPhase("baseline"); setBaselineActive(true); }}>
+              <Button className="w-full" size="lg" onClick={() => {
+                setPhase("baseline");
+                setBaselineActive(true);
+                phaseLogRef.current.baseline_start = new Date().toISOString();
+              }}>
                 Start Baseline Recording
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
@@ -403,7 +504,7 @@ export default function StudySessionFood() {
           </Card>
         )}
 
-        {/* ── Step 2: Pre-meal baseline (5 min, eyes closed) ── */}
+        {/* ── Step 2: Pre-meal baseline ── */}
         {phase === "baseline" && (
           <Card>
             <CardHeader className="pb-3">
@@ -421,16 +522,19 @@ export default function StudySessionFood() {
                 <span className="text-5xl font-mono font-bold tracking-tight">
                   {formatTime(remainingBaseline)}
                 </span>
-                <Progress value={((BASELINE_SEC - remainingBaseline) / BASELINE_SEC) * 100} className="h-2" />
-                <p className="text-xs text-muted-foreground">5 minutes — eyes closed</p>
+                <Progress value={((durations.baseline - remainingBaseline) / durations.baseline) * 100} className="h-2" />
+                <p className="text-xs text-muted-foreground">
+                  {devMode ? "15 sec (dev)" : "5 minutes"} — eyes closed
+                </p>
               </div>
 
               {recordingDot}
+              <div className="flex justify-center">{skipButton}</div>
             </CardContent>
           </Card>
         )}
 
-        {/* ── Step 3: Eat your meal (headband off, user-set timer) ── */}
+        {/* ── Step 3: Eat your meal ── */}
         {phase === "eating" && (
           <Card>
             <CardHeader className="pb-3">
@@ -449,26 +553,28 @@ export default function StudySessionFood() {
                   {formatTime(remainingEating)}
                 </span>
                 <Progress value={((eatingDuration - remainingEating) / eatingDuration) * 100} className="h-2" />
-                <p className="text-xs text-muted-foreground">{eatingDuration / 60} minutes</p>
+                <p className="text-xs text-muted-foreground">
+                  {devMode ? "15 sec (dev)" : `${eatingDuration / 60} minutes`}
+                </p>
               </div>
 
               <Button
-                className="w-full"
-                size="lg"
-                variant="outline"
+                className="w-full" size="lg" variant="outline"
                 onClick={() => {
                   setEatingActive(false);
                   setPhase("post_eeg");
                   setPostEegActive(true);
+                  phaseLogRef.current.post_eeg_start = new Date().toISOString();
                 }}
               >
                 I'm done eating — Continue
               </Button>
+              <div className="flex justify-center">{skipButton}</div>
             </CardContent>
           </Card>
         )}
 
-        {/* ── Step 4: Post-meal EEG (10 min) ── */}
+        {/* ── Step 4: Post-meal EEG ── */}
         {phase === "post_eeg" && (
           <Card>
             <CardHeader className="pb-3">
@@ -486,11 +592,14 @@ export default function StudySessionFood() {
                 <span className="text-5xl font-mono font-bold tracking-tight">
                   {formatTime(remainingPostEeg)}
                 </span>
-                <Progress value={((POST_EEG_SEC - remainingPostEeg) / POST_EEG_SEC) * 100} className="h-2" />
-                <p className="text-xs text-muted-foreground">10 minutes</p>
+                <Progress value={((durations.post_eeg - remainingPostEeg) / durations.post_eeg) * 100} className="h-2" />
+                <p className="text-xs text-muted-foreground">
+                  {devMode ? "20 sec (dev)" : "10 minutes"}
+                </p>
               </div>
 
               {recordingDot}
+              <div className="flex justify-center">{skipButton}</div>
             </CardContent>
           </Card>
         )}

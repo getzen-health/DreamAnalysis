@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, RefreshCw, Download, ChevronDown, ChevronUp, Lock, Radio } from "lucide-react";
+import { Loader2, RefreshCw, Download, ChevronDown, ChevronUp, Lock, Radio, Users, Activity, CheckCircle2, AlertCircle } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -315,7 +315,7 @@ export default function StudyAdmin() {
     void fetchData();
     const interval = setInterval(() => {
       if (!unauthorizedRef.current) void fetchData();
-    }, 60_000);
+    }, 15_000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -324,6 +324,14 @@ export default function StudyAdmin() {
   const allSessions = participants.flatMap((p) => p.sessions);
   const stressCount = allSessions.filter((s) => s.block_type === "stress").length;
   const foodCount = allSessions.filter((s) => s.block_type === "food").length;
+  const completeSessions = allSessions.filter((s) => sessionStatus(s) === "complete").length;
+  const partialSessions = allSessions.filter((s) => sessionStatus(s) === "partial").length;
+  const activeSessions = allSessions.filter((s) => sessionStatus(s) === "recording").length;
+  const completionRate = allSessions.length > 0 ? Math.round((completeSessions / allSessions.length) * 100) : 0;
+  const bothDone = participants.filter((p) => {
+    const types = new Set(p.sessions.filter((s) => sessionStatus(s) === "complete").map((s) => s.block_type));
+    return types.has("stress") && types.has("food");
+  }).length;
 
   // ── Unauthorized ───────────────────────────────────────────────────────────
 
@@ -360,7 +368,7 @@ export default function StudyAdmin() {
             {lastRefreshed && (
               <span className="text-xs text-muted-foreground hidden sm:inline">
                 Updated {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                {" "}· auto-refresh 60s
+                {" "}· auto-refresh 15s
               </span>
             )}
             <Button
@@ -387,24 +395,64 @@ export default function StudyAdmin() {
           </div>
         </div>
 
-        {/* Summary row */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* Real-time tracker */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card>
             <CardContent className="pt-4 pb-4 text-center">
+              <Users className="h-4 w-4 text-primary mx-auto mb-1" />
               <p className="text-2xl font-bold tabular-nums">{participants.length}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">participants enrolled</p>
+              <p className="text-xs text-muted-foreground mt-0.5">enrolled</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-2xl font-bold tabular-nums text-orange-400">{stressCount}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">stress sessions</p>
+              <CheckCircle2 className="h-4 w-4 text-green-400 mx-auto mb-1" />
+              <p className="text-2xl font-bold tabular-nums text-green-400">{bothDone}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">both sessions done</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-2xl font-bold tabular-nums text-blue-400">{foodCount}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">food sessions</p>
+              <Activity className="h-4 w-4 text-yellow-400 mx-auto mb-1" />
+              <p className="text-2xl font-bold tabular-nums text-yellow-400">{activeSessions}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">recording now</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4 text-center">
+              <p className="text-2xl font-bold tabular-nums">{completionRate}%</p>
+              <p className="text-xs text-muted-foreground mt-0.5">completion rate</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Session breakdown */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="border-orange-500/20">
+            <CardContent className="pt-3 pb-3 text-center">
+              <p className="text-lg font-bold tabular-nums text-orange-400">{stressCount}</p>
+              <p className="text-xs text-muted-foreground">stress sessions</p>
+            </CardContent>
+          </Card>
+          <Card className="border-blue-500/20">
+            <CardContent className="pt-3 pb-3 text-center">
+              <p className="text-lg font-bold tabular-nums text-blue-400">{foodCount}</p>
+              <p className="text-xs text-muted-foreground">food sessions</p>
+            </CardContent>
+          </Card>
+          <Card className="border-green-500/20">
+            <CardContent className="pt-3 pb-3 text-center">
+              <p className="text-lg font-bold tabular-nums text-green-400">{completeSessions}</p>
+              <p className="text-xs text-muted-foreground">completed</p>
+            </CardContent>
+          </Card>
+          <Card className="border-amber-500/20">
+            <CardContent className="pt-3 pb-3 text-center">
+              <div className="flex items-center justify-center gap-1">
+                <p className="text-lg font-bold tabular-nums text-amber-400">{partialSessions}</p>
+                {partialSessions > 0 && <AlertCircle className="h-3.5 w-3.5 text-amber-400" />}
+              </div>
+              <p className="text-xs text-muted-foreground">partial/dropped</p>
             </CardContent>
           </Card>
         </div>

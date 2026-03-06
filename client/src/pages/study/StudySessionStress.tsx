@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Wind, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Wind, CheckCircle2, Eye, EyeOff, SkipForward, AlertTriangle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,18 @@ interface EEGReading {
 
 type Phase = "baseline" | "work" | "breathing" | "post" | "survey";
 
+interface PhaseLog {
+  baseline_start?: string;
+  work_start?: string;
+  intervention_trigger?: string;
+  breathing_start?: string;
+  post_start?: string;
+  survey_start?: string;
+  completed?: string;
+  skipped_to_survey?: boolean;
+  skip_from_phase?: string;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function fetchEEG(): Promise<EEGReading> {
@@ -34,7 +47,6 @@ async function fetchEEG(): Promise<EEGReading> {
     });
     if (!res.ok) throw new Error("EEG fetch failed");
     const data = await res.json();
-    // ML backend returns: { analysis: { emotions: { band_powers, stress_index, ... } } }
     const emotions = data.analysis?.emotions ?? {};
     const bp = emotions.band_powers ?? {};
     return {
@@ -46,7 +58,6 @@ async function fetchEEG(): Promise<EEGReading> {
       stress_level: emotions.stress_index ?? 0.4,
     };
   } catch {
-    // Fallback: generate plausible simulated EEG data
     return {
       alpha: 0.3 + Math.random() * 0.2,
       beta: 0.2 + Math.random() * 0.3,
@@ -82,6 +93,24 @@ function averageReadings(readings: EEGReading[]): EEGReading | null {
   };
 }
 
+/** Compute data quality score (0-100) from EEG readings */
+function computeQualityScore(readings: EEGReading[]): number {
+  if (readings.length < 3) return 0;
+  // Check variance — flat data is suspicious
+  const alphas = readings.map((r) => r.alpha);
+  const mean = alphas.reduce((a, b) => a + b, 0) / alphas.length;
+  const variance = alphas.reduce((a, v) => a + (v - mean) ** 2, 0) / alphas.length;
+  const hasVariance = variance > 0.0001 ? 30 : 0;
+  // Check range — values should be in plausible range
+  const allInRange = readings.every(
+    (r) => r.alpha >= 0 && r.alpha <= 1 && r.beta >= 0 && r.beta <= 1
+  );
+  const rangeScore = allInRange ? 30 : 10;
+  // Check sample count — more samples = better
+  const sampleScore = Math.min(40, (readings.length / 30) * 40);
+  return Math.round(hasVariance + rangeScore + sampleScore);
+}
+
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -108,11 +137,22 @@ function stressLabel(level: number): string {
 
 // ── Durations (seconds) ──────────────────────────────────────────────────────
 
-const BASELINE_SEC = 5 * 60;  // 5 min baseline
-const WORK_SEC = 15 * 60;     // 15 min work
-const BREATHING_SEC = 3 * 60; // 3 min breathing
-const POST_SEC = 5 * 60;      // 5 min post-session
+const FULL_DURATIONS = {
+  baseline: 5 * 60,
+  work: 15 * 60,
+  breathing: 3 * 60,
+  post: 5 * 60,
+};
+
+const DEV_DURATIONS = {
+  baseline: 15,
+  work: 20,
+  breathing: 10,
+  post: 15,
+};
+
 const STRESS_THRESHOLD = 0.65;
+const CHECKPOINT_INTERVAL_MS = 30_000;
 
 // ── Session stepper ───────────────────────────────────────────────────────────
 
@@ -124,15 +164,22 @@ const PHASE_LABELS: Record<Phase, string> = {
   survey:    "Survey",
 };
 
-function SessionStepper({ phase }: { phase: Phase }) {
+function SessionStepper({ phase, devMode }: { phase: Phase; devMode: boolean }) {
   const visible: Phase[] = ["baseline", "work", "breathing", "post", "survey"];
   const current = visible.indexOf(phase);
 
   return (
     <div className="w-full">
-      <p className="text-xs text-muted-foreground mb-3 text-center">
-        ~28 minute session
-      </p>
+      <div className="flex items-center justify-center gap-2 mb-3">
+        <p className="text-xs text-muted-foreground text-center">
+          {devMode ? "~1 min (dev mode)" : "~28 minute session"}
+        </p>
+        {devMode && (
+          <Badge variant="outline" className="border-yellow-500/50 text-yellow-400 text-[10px]">
+            DEV
+          </Badge>
+        )}
+      </div>
       <div className="flex items-center gap-0">
         {visible.map((p, idx) => {
           const done = idx < current;
@@ -254,10 +301,17 @@ export default function StudySessionStress() {
 
   const params = new URLSearchParams(search);
   const participantCode = params.get("code") ?? "";
+  const devMode = params.get("dev") === "1" || params.get("test") === "1";
+
+  // Pick durations based on mode
+  const durations = devMode ? DEV_DURATIONS : FULL_DURATIONS;
 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>("baseline");
   const [isStarting, setIsStarting] = useState(true);
+
+  // Phase timestamp log (enhancement #3)
+  const phaseLogRef = useRef<PhaseLog>({});
 
   // Separate EEG buffers for pre (baseline) and post phases
   const [baselineReadings, setBaselineReadings] = useState<EEGReading[]>([]);
@@ -294,12 +348,14 @@ export default function StudySessionStress() {
           setSessionId(data.session_id);
           setIsStarting(false);
           setBaselineActive(true);
+          phaseLogRef.current.baseline_start = new Date().toISOString();
         }
       } catch {
         if (!cancelled) {
           setSessionId(-1);
           setIsStarting(false);
           setBaselineActive(true);
+          phaseLogRef.current.baseline_start = new Date().toISOString();
         }
       }
     }
@@ -307,6 +363,29 @@ export default function StudySessionStress() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Auto-checkpoint every 30s (enhancement #1) ──────────────────────────────
+
+  useEffect(() => {
+    if (sessionId == null || sessionId < 0) return;
+    if (phase === "survey") return; // don't checkpoint during survey
+
+    const id = setInterval(() => {
+      const preEeg = averageReadings(baselineReadings);
+      const postEeg = averageReadings(postReadings);
+      const features = averageReadings([...baselineReadings, ...workReadings, ...postReadings]);
+      apiRequest("PATCH", `/api/study/session/${sessionId}/checkpoint`, {
+        pre_eeg_json: preEeg,
+        post_eeg_json: postEeg,
+        eeg_features_json: features,
+        intervention_triggered: interventionTriggered,
+        partial: true,
+        phase_log: phaseLogRef.current,
+      }).catch(() => {}); // fire-and-forget
+    }, CHECKPOINT_INTERVAL_MS);
+
+    return () => clearInterval(id);
+  }, [sessionId, phase, baselineReadings, workReadings, postReadings, interventionTriggered]);
 
   // ── EEG polling ───────────────────────────────────────────────────────────────
 
@@ -318,13 +397,14 @@ export default function StudySessionStress() {
       setBaselineReadings((prev) => [...prev, reading]);
     } else if (workActive) {
       setWorkReadings((prev) => [...prev, reading]);
-      // Auto-trigger intervention when stress exceeds threshold
       if (reading.stress_level > STRESS_THRESHOLD && !interventionFiredRef.current) {
         interventionFiredRef.current = true;
         setInterventionTriggered(true);
         setWorkActive(false);
         setPhase("breathing");
         setBreathActive(true);
+        phaseLogRef.current.intervention_trigger = new Date().toISOString();
+        phaseLogRef.current.breathing_start = new Date().toISOString();
       }
     } else if (postActive) {
       setPostReadings((prev) => [...prev, reading]);
@@ -334,7 +414,7 @@ export default function StudySessionStress() {
   useEffect(() => {
     if (!baselineActive && !workActive && !postActive) return;
     const id = setInterval(pollEEG, 4000);
-    pollEEG(); // immediate first poll
+    pollEEG();
     return () => clearInterval(id);
   }, [baselineActive, workActive, postActive, pollEEG]);
 
@@ -344,16 +424,18 @@ export default function StudySessionStress() {
     setBaselineActive(false);
     setPhase("work");
     setWorkActive(true);
+    phaseLogRef.current.work_start = new Date().toISOString();
   }, []);
 
   const onWorkDone = useCallback(() => {
     setWorkActive(false);
-    // If stress never crossed threshold, go to breathing anyway (per PRD: OR at 15 min mark)
     if (!interventionFiredRef.current) {
       interventionFiredRef.current = true;
       setInterventionTriggered(true);
       setPhase("breathing");
       setBreathActive(true);
+      phaseLogRef.current.intervention_trigger = new Date().toISOString();
+      phaseLogRef.current.breathing_start = new Date().toISOString();
     }
   }, []);
 
@@ -361,19 +443,38 @@ export default function StudySessionStress() {
     setBreathActive(false);
     setPhase("post");
     setPostActive(true);
+    phaseLogRef.current.post_start = new Date().toISOString();
   }, []);
 
   const onPostDone = useCallback(() => {
     setPostActive(false);
     setPhase("survey");
+    phaseLogRef.current.survey_start = new Date().toISOString();
   }, []);
+
+  // ── Skip to survey (enhancement #7) ────────────────────────────────────────
+
+  function handleSkipToSurvey() {
+    setBaselineActive(false);
+    setWorkActive(false);
+    setBreathActive(false);
+    setPostActive(false);
+    phaseLogRef.current.skipped_to_survey = true;
+    phaseLogRef.current.skip_from_phase = phase;
+    phaseLogRef.current.survey_start = new Date().toISOString();
+    if (!interventionFiredRef.current) {
+      interventionFiredRef.current = true;
+      setInterventionTriggered(true);
+    }
+    setPhase("survey");
+  }
 
   // ── Timers ────────────────────────────────────────────────────────────────────
 
-  const remainingBaseline = useCountdown(BASELINE_SEC, baselineActive, onBaselineDone);
-  const remainingWork = useCountdown(WORK_SEC, workActive, onWorkDone);
-  const remainingBreath = useCountdown(BREATHING_SEC, breathActive, onBreathDone);
-  const remainingPost = useCountdown(POST_SEC, postActive, onPostDone);
+  const remainingBaseline = useCountdown(durations.baseline, baselineActive, onBaselineDone);
+  const remainingWork = useCountdown(durations.work, workActive, onWorkDone);
+  const remainingBreath = useCountdown(durations.breathing, breathActive, onBreathDone);
+  const remainingPost = useCountdown(durations.post, postActive, onPostDone);
 
   // ── Survey submit ─────────────────────────────────────────────────────────────
 
@@ -390,6 +491,9 @@ export default function StudySessionStress() {
     const postEeg = averageReadings(postReadings);
     const allReadings = [...baselineReadings, ...workReadings, ...postReadings];
     const features = averageReadings(allReadings);
+    const quality = computeQualityScore(allReadings);
+
+    phaseLogRef.current.completed = new Date().toISOString();
 
     const surveyData = {
       stressed_during: surveyStressed ?? 5,
@@ -402,9 +506,10 @@ export default function StudySessionStress() {
         session_id: sessionId,
         pre_eeg_json: preEeg,
         post_eeg_json: postEeg,
-        eeg_features_json: features,
+        eeg_features_json: { ...features, quality_score: quality, sample_count: allReadings.length },
         survey_json: surveyData,
         intervention_triggered: interventionTriggered,
+        phase_log: phaseLogRef.current,
       });
       navigate(`/study/complete?code=${encodeURIComponent(participantCode)}&done=stress`);
     } catch (err: unknown) {
@@ -444,13 +549,36 @@ export default function StudySessionStress() {
     </div>
   );
 
+  // ── Skip button (shown during timed phases) ────────────────────────────────
+
+  const skipButton = phase !== "survey" && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-xs text-muted-foreground hover:text-yellow-400"
+      onClick={handleSkipToSurvey}
+    >
+      <SkipForward className="h-3.5 w-3.5 mr-1" />
+      Skip to Survey
+    </Button>
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
 
-        <SessionStepper phase={phase} />
+        {devMode && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+            <AlertTriangle className="h-4 w-4 text-yellow-400 shrink-0" />
+            <p className="text-xs text-yellow-400">
+              Dev mode — timers shortened to ~15 seconds each. Add <code>?dev=1</code> to URL.
+            </p>
+          </div>
+        )}
+
+        <SessionStepper phase={phase} devMode={devMode} />
 
         {/* ── Baseline phase ── */}
         {phase === "baseline" && (
@@ -471,13 +599,16 @@ export default function StudySessionStress() {
                   {formatTime(remainingBaseline)}
                 </span>
                 <Progress
-                  value={((BASELINE_SEC - remainingBaseline) / BASELINE_SEC) * 100}
+                  value={((durations.baseline - remainingBaseline) / durations.baseline) * 100}
                   className="h-2"
                 />
-                <p className="text-xs text-muted-foreground">5 minutes — eyes closed</p>
+                <p className="text-xs text-muted-foreground">
+                  {devMode ? "15 sec (dev)" : "5 minutes"} — eyes closed
+                </p>
               </div>
 
               {recordingDot}
+              <div className="flex justify-center">{skipButton}</div>
             </CardContent>
           </Card>
         )}
@@ -499,10 +630,10 @@ export default function StudySessionStress() {
                   {formatTime(remainingWork)}
                 </span>
                 <Progress
-                  value={((WORK_SEC - remainingWork) / WORK_SEC) * 100}
+                  value={((durations.work - remainingWork) / durations.work) * 100}
                   className="h-2"
                 />
-                <p className="text-xs text-muted-foreground">15 minutes</p>
+                <p className="text-xs text-muted-foreground">{devMode ? "20 sec (dev)" : "15 minutes"}</p>
               </div>
 
               {/* Live stress bar */}
@@ -529,6 +660,7 @@ export default function StudySessionStress() {
               </div>
 
               {recordingDot}
+              <div className="flex justify-center">{skipButton}</div>
             </CardContent>
           </Card>
         )}
@@ -563,14 +695,18 @@ export default function StudySessionStress() {
                   setBreathActive(false);
                   setPhase("post");
                   setPostActive(true);
+                  phaseLogRef.current.post_start = new Date().toISOString();
                 }}
               >
                 I feel calmer — Continue
               </Button>
 
-              <p className="text-xs text-muted-foreground text-center">
-                Do at least 3 rounds (1 min). You can continue whenever ready.
-              </p>
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-muted-foreground">
+                  Do at least 3 rounds (1 min). You can continue whenever ready.
+                </p>
+                {skipButton}
+              </div>
             </CardContent>
           </Card>
         )}
@@ -594,13 +730,14 @@ export default function StudySessionStress() {
                   {formatTime(remainingPost)}
                 </span>
                 <Progress
-                  value={((POST_SEC - remainingPost) / POST_SEC) * 100}
+                  value={((durations.post - remainingPost) / durations.post) * 100}
                   className="h-2"
                 />
-                <p className="text-xs text-muted-foreground">5 minutes — sit still</p>
+                <p className="text-xs text-muted-foreground">
+                  {devMode ? "15 sec (dev)" : "5 minutes"} — sit still
+                </p>
               </div>
 
-              {/* Live stress (should be lower after breathing) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground uppercase tracking-wide">
@@ -619,6 +756,7 @@ export default function StudySessionStress() {
               </div>
 
               {recordingDot}
+              <div className="flex justify-center">{skipButton}</div>
             </CardContent>
           </Card>
         )}
