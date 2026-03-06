@@ -318,20 +318,64 @@ export class MuseBleManager {
     });
 
     // If Muse is already paired at OS level, gatt.connect() may fail.
-    // Disconnect first to release the OS GATT lock, then retry once.
-    let server: BluetoothRemoteGATTServer;
+    // The OS GATT stack needs 1.5-3s to fully release resources after disconnect.
+    // Strategy: first attempt as-is, then forget+re-request if available, then
+    // two retries with increasing delays (1500ms, 3000ms).
+    let server!: BluetoothRemoteGATTServer;
     try {
       server = await device.gatt!.connect();
       this._webGattServer = server;
-    } catch {
-      try {
-        device.gatt!.disconnect();
-        await new Promise((r) => setTimeout(r, 500));
-        server = await device.gatt!.connect();
-        this._webGattServer = server;
-      } catch (e2) {
-        this.setStatus("error", `Connection failed — go to System Bluetooth settings, disconnect Muse, then try again`);
-        throw e2;
+    } catch (firstErr) {
+      // First failure — disconnect and try forget() to clear stale OS pairing
+      device.gatt!.disconnect();
+
+      const forgetFn = (device as BluetoothDevice & { forget?: () => Promise<void> }).forget;
+      if (typeof forgetFn === "function") {
+        try {
+          await forgetFn.call(device);
+          // Device forgotten — must re-request from picker
+          device = await bt.requestDevice({
+            filters: [{ services: [MUSE_SERVICE] }],
+            optionalServices: [MUSE_SERVICE],
+          });
+          this.deviceName = device.name ?? "Muse";
+          device.addEventListener("gattserverdisconnected", () => {
+            this._webGattServer = null;
+            this.stopEmitter();
+            this.setStatus("idle", "Device disconnected");
+          });
+        } catch {
+          // forget() or re-request failed — continue with existing device
+        }
+      }
+
+      // Retry with increasing delays: 1500ms then 3000ms
+      const retryDelays = [1500, 3000];
+      let lastErr: unknown = firstErr;
+      for (const delay of retryDelays) {
+        await new Promise((r) => setTimeout(r, delay));
+        try {
+          server = await device.gatt!.connect();
+          this._webGattServer = server;
+          lastErr = null;
+          break;
+        } catch (retryErr) {
+          lastErr = retryErr;
+          device.gatt!.disconnect();
+        }
+      }
+
+      if (lastErr) {
+        const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+        if (msg.includes("unknown reason")) {
+          this.setStatus(
+            "error",
+            "GATT lock held by OS. Open System Bluetooth settings, click (i) next to Muse, tap Forget This Device, then try again.",
+          );
+        } else {
+          this.setStatus("error", `Connection failed: ${msg}`);
+        }
+        throw lastErr;
       }
     }
 
