@@ -288,15 +288,24 @@ export class MuseBleManager {
     const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
     this.setStatus("scanning");
 
-    let device: BluetoothDevice;
+    let device: BluetoothDevice | null = null;
+
+    // Try getDevices() first — reconnects to already-paired Muse without picker
     try {
-      device = await bt.requestDevice({
-        filters: [{ services: [MUSE_SERVICE] }],
-        optionalServices: [MUSE_SERVICE],
-      });
-    } catch (e) {
-      this.setStatus("idle", "Device selection cancelled");
-      throw e;
+      const known = await (bt as typeof bt & { getDevices?: () => Promise<BluetoothDevice[]> }).getDevices?.() ?? [];
+      device = known.find((d) => d.name?.toLowerCase().includes("muse")) ?? null;
+    } catch { /* getDevices() not available in all browsers */ }
+
+    if (!device) {
+      try {
+        device = await bt.requestDevice({
+          filters: [{ services: [MUSE_SERVICE] }],
+          optionalServices: [MUSE_SERVICE],
+        });
+      } catch (e) {
+        this.setStatus("idle", "Device selection cancelled");
+        throw e;
+      }
     }
 
     this.deviceName = device.name ?? "Muse";
@@ -308,13 +317,22 @@ export class MuseBleManager {
       this.setStatus("idle", "Device disconnected");
     });
 
+    // If Muse is already paired at OS level, gatt.connect() may fail.
+    // Disconnect first to release the OS GATT lock, then retry once.
     let server: BluetoothRemoteGATTServer;
     try {
       server = await device.gatt!.connect();
       this._webGattServer = server;
-    } catch (e) {
-      this.setStatus("error", `GATT connect failed: ${String(e)}`);
-      throw e;
+    } catch {
+      try {
+        device.gatt!.disconnect();
+        await new Promise((r) => setTimeout(r, 500));
+        server = await device.gatt!.connect();
+        this._webGattServer = server;
+      } catch (e2) {
+        this.setStatus("error", `Connection failed — go to System Bluetooth settings, disconnect Muse, then try again`);
+        throw e2;
+      }
     }
 
     const service = await server.getPrimaryService(MUSE_SERVICE);
