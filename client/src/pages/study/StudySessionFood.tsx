@@ -36,6 +36,23 @@ interface PhaseLog {
   skip_from_phase?: string;
 }
 
+interface SessionBackup {
+  phase: Phase;
+  sessionId: number | null;
+  baselineReadings: EEGSample[];
+  postReadings: EEGSample[];
+  preSurvey: { hunger: number; mood: number };
+  interventionTriggered: boolean;
+  phaseLog: PhaseLog;
+  timestamp: number;
+}
+
+const BACKUP_MAX_AGE_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+function getBackupKey(participantCode: string): string {
+  return `study_session_backup_${participantCode}_food`;
+}
+
 // ── Durations (seconds) ──────────────────────────────────────────────────────
 
 const FULL_DURATIONS = { baseline: 5 * 60, post_eeg: 10 * 60 };
@@ -259,9 +276,95 @@ export default function StudySessionFood() {
   const [postSatisfied, setPostSatisfied] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Recovery
+  const [pendingBackup, setPendingBackup] = useState<SessionBackup | null>(null);
+  const [showRecovery, setShowRecovery] = useState(false);
+
+  // ── Check for existing backup on mount ─────────────────────────────────────
+
+  useEffect(() => {
+    if (!participantCode) return;
+    try {
+      const raw = localStorage.getItem(getBackupKey(participantCode));
+      if (!raw) return;
+      const backup: SessionBackup = JSON.parse(raw);
+      const age = Date.now() - backup.timestamp;
+      if (age < BACKUP_MAX_AGE_MS) {
+        setPendingBackup(backup);
+        setShowRecovery(true);
+      } else {
+        localStorage.removeItem(getBackupKey(participantCode));
+      }
+    } catch {
+      localStorage.removeItem(getBackupKey(participantCode));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleResume() {
+    if (!pendingBackup) return;
+    setPhase(pendingBackup.phase);
+    setSessionId(pendingBackup.sessionId);
+    setBaselineReadings(pendingBackup.baselineReadings);
+    setPostReadings(pendingBackup.postReadings);
+    setPreHunger(pendingBackup.preSurvey.hunger);
+    setPreMood(pendingBackup.preSurvey.mood);
+    phaseLogRef.current = pendingBackup.phaseLog;
+    setIsStarting(false);
+
+    // Re-activate the correct timer for the restored phase
+    switch (pendingBackup.phase) {
+      case "baseline": setBaselineActive(true); break;
+      case "eating":   setEatingActive(true); break;
+      case "post_eeg": setPostEegActive(true); break;
+      case "pre_survey":
+      case "post_survey":
+        break; // no timer needed
+    }
+
+    setShowRecovery(false);
+    setPendingBackup(null);
+  }
+
+  function handleStartFresh() {
+    if (participantCode) {
+      localStorage.removeItem(getBackupKey(participantCode));
+    }
+    setShowRecovery(false);
+    setPendingBackup(null);
+  }
+
+  // ── Save backup to localStorage every 30s ──────────────────────────────────
+
+  useEffect(() => {
+    if (!participantCode || showRecovery) return;
+    if (isStarting) return;
+
+    const id = setInterval(() => {
+      const backup: SessionBackup = {
+        phase,
+        sessionId,
+        baselineReadings,
+        postReadings,
+        preSurvey: { hunger: preHunger, mood: preMood },
+        interventionTriggered: false,
+        phaseLog: { ...phaseLogRef.current },
+        timestamp: Date.now(),
+      };
+      try {
+        localStorage.setItem(getBackupKey(participantCode), JSON.stringify(backup));
+      } catch {
+        // localStorage full or unavailable — ignore
+      }
+    }, CHECKPOINT_INTERVAL_MS);
+
+    return () => clearInterval(id);
+  }, [participantCode, showRecovery, isStarting, phase, sessionId, baselineReadings, postReadings, preHunger, preMood]);
+
   // ── Session start ─────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (showRecovery) return; // wait for user to choose resume or start fresh
     if (!participantCode) return;
     setIsStarting(true);
     apiRequest("POST", "/api/study/session/start", { participant_code: participantCode, block_type: "food" })
@@ -270,7 +373,7 @@ export default function StudySessionFood() {
       .catch(() => setSessionId(-1))
       .finally(() => setIsStarting(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participantCode]);
+  }, [showRecovery, participantCode]);
 
   // ── Auto-checkpoint every 30s ──────────────────────────────────────────────
 
@@ -387,6 +490,8 @@ export default function StudySessionFood() {
         phase_log: phaseLogRef.current,
         data_quality_score: quality,
       });
+      // Clear backup on successful completion
+      localStorage.removeItem(getBackupKey(participantCode));
       navigate(`/study/complete?code=${encodeURIComponent(participantCode)}&done=food`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Submission failed";
@@ -405,6 +510,44 @@ export default function StudySessionFood() {
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <p className="text-sm text-muted-foreground">Starting session...</p>
         </div>
+      </div>
+    );
+  }
+
+  // ── Recovery prompt ──────────────────────────────────────────────────────────
+
+  if (showRecovery && pendingBackup) {
+    const backupAge = Math.round((Date.now() - pendingBackup.timestamp) / 60_000);
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md mx-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-400" />
+              Resume Previous Session?
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              A previous food session was found from{" "}
+              <span className="font-medium text-foreground">
+                {backupAge < 1 ? "less than a minute" : `${backupAge} minute${backupAge === 1 ? "" : "s"}`}
+              </span>{" "}
+              ago (phase: <Badge variant="outline" className="ml-1">{PHASE_LABELS[pendingBackup.phase]}</Badge>).
+            </p>
+            <p className="text-sm text-muted-foreground">
+              You can resume where you left off or start a fresh session.
+            </p>
+            <div className="flex gap-3">
+              <Button className="flex-1" onClick={handleResume}>
+                Resume
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={handleStartFresh}>
+                Start Fresh
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
