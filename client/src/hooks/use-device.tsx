@@ -302,22 +302,33 @@ function useDeviceInternal(): UseDeviceReturn {
     { type: "synthetic", name: "Synthetic (demo)",  channels: 16, sample_rate: 256, available: true },
   ];
 
+  // Muse devices connect via Web Bluetooth — they MUST always appear in the list
+  // regardless of whether the ML backend or BrainFlow is available.
+  const MUSE_DEVICES: DeviceInfo[] = [
+    { type: "muse_2", name: "Muse 2", channels: 4, sample_rate: 256, available: true },
+    { type: "muse_s", name: "Muse S", channels: 4, sample_rate: 256, available: true },
+  ];
+
   const refreshDevices = useCallback(async () => {
     try {
       const result = await listDevices();
-      // Never leave the list empty — merge backend list with static fallbacks
-      const backendDevices = result.devices ?? [];
-      const merged = backendDevices.length > 0
-        ? backendDevices
-        : STATIC_DEVICES;
+      const backendDevices = (result.devices ?? []).filter(
+        (d) => d.type !== "muse_2" && d.type !== "muse_s"
+      );
+      // Always: Muse first (BLE), then backend devices (BrainFlow), then synthetic
+      const merged = [
+        ...MUSE_DEVICES,
+        ...backendDevices,
+        { type: "synthetic", name: "Synthetic (demo)", channels: 16, sample_rate: 256, available: true },
+      ];
       setDevices(merged);
       setBrainflowAvailable(result.brainflow_available);
       setError(null);
     } catch {
-      // Backend unreachable — always show static list so user can still connect
+      // Backend unreachable — show Muse + synthetic so user can still connect
       setError("unreachable");
       setBrainflowAvailable(false);
-      setDevices(STATIC_DEVICES);
+      setDevices([...MUSE_DEVICES, { type: "synthetic", name: "Synthetic (demo)", channels: 16, sample_rate: 256, available: true }]);
     } finally {
       setDevicesLoaded(true);
     }
