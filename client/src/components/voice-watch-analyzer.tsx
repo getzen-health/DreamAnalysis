@@ -17,7 +17,7 @@ import {
 import { healthSync } from "@/lib/health-sync";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const RECORD_SECONDS = 7;
+const RECORD_SECONDS = 30;
 const SAMPLE_RATE    = 22050;
 const EMOTIONS       = ["positive", "neutral", "negative"] as const;
 

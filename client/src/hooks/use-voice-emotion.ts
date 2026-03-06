@@ -1,5 +1,5 @@
 /**
- * useVoiceEmotion — 7-second microphone recording + voice emotion detection.
+ * useVoiceEmotion — 30-second microphone recording + voice emotion detection.
  *
  * Records audio via MediaRecorder, sends to /voice-watch/analyze,
  * caches the result via /voice-watch/cache for WebSocket EEG fusion.
@@ -20,7 +20,7 @@ export interface VoiceEmotionResult {
 }
 
 export interface UseVoiceEmotionOptions {
-  /** Recording duration in milliseconds. Default: 7000 */
+  /** Recording duration in milliseconds. Default: 30000 */
   durationMs?: number;
   /** User ID for cache keying. Default: "default" */
   userId?: string;
@@ -44,7 +44,7 @@ export function useVoiceEmotion(
   options: UseVoiceEmotionOptions = {}
 ): UseVoiceEmotionReturn {
   const {
-    durationMs = 7000,
+    durationMs = 30000,
     userId = "default",
     hr = null,
     hrv = null,

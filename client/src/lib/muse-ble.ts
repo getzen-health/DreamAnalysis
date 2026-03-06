@@ -356,43 +356,47 @@ export class MuseBleManager {
       this.setStatus("idle", "Device disconnected");
     });
 
-    // If Muse is already paired at OS level, gatt.connect() may fail.
-    // The OS GATT stack needs 1.5-3s to fully release resources after disconnect.
-    // Strategy: first attempt as-is, then forget+re-request if available, then
-    // two retries with increasing delays (1500ms, 3000ms).
+    // GATT connection — try direct connect first, then retry with short delay.
+    // Android: direct connect usually works; avoid forget()/re-request which breaks Android BLE.
+    // macOS: bluetoothd may hold GATT resources for 1-3s after disconnect, so retry with delay.
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isMac = /Mac/i.test(navigator.userAgent);
+
     let server!: BluetoothRemoteGATTServer;
     try {
       server = await device.gatt!.connect();
       this._webGattServer = server;
     } catch (firstErr) {
-      // First failure — disconnect and try forget() to clear stale OS pairing
-      device.gatt!.disconnect();
+      console.warn("GATT first connect failed:", firstErr);
+      try { device.gatt!.disconnect(); } catch { /* ignore */ }
 
-      const forgetFn = (device as BluetoothDevice & { forget?: () => Promise<void> }).forget;
-      if (typeof forgetFn === "function") {
-        try {
-          await forgetFn.call(device);
-          // Device forgotten — must re-request from picker
-          device = await bt.requestDevice({
-            filters: [
-              { services: [MUSE_SERVICE] },
-              { namePrefix: "Muse" },
-            ],
-            optionalServices: [MUSE_SERVICE],
-          });
-          this.deviceName = device.name ?? "Muse";
-          device.addEventListener("gattserverdisconnected", () => {
-            this._webGattServer = null;
-            this.stopEmitter();
-            this.setStatus("idle", "Device disconnected");
-          });
-        } catch {
-          // forget() or re-request failed — continue with existing device
+      // On macOS only: try forget+re-request (clears stale OS pairing cache)
+      if (isMac) {
+        const forgetFn = (device as BluetoothDevice & { forget?: () => Promise<void> }).forget;
+        if (typeof forgetFn === "function") {
+          try {
+            await forgetFn.call(device);
+            device = await bt.requestDevice({
+              filters: [
+                { services: [MUSE_SERVICE] },
+                { namePrefix: "Muse" },
+              ],
+              optionalServices: [MUSE_SERVICE],
+            });
+            this.deviceName = device.name ?? "Muse";
+            device.addEventListener("gattserverdisconnected", () => {
+              this._webGattServer = null;
+              this.stopEmitter();
+              this.setStatus("idle", "Device disconnected");
+            });
+          } catch {
+            // forget() or re-request failed — continue with existing device
+          }
         }
       }
 
-      // Retry with increasing delays — macOS bluetoothd can take 3-5s to release GATT
-      const retryDelays = [2000, 4000, 6000];
+      // Retry: Android needs shorter delays (500ms, 1s); macOS needs longer (2s, 4s)
+      const retryDelays = isAndroid ? [500, 1000, 2000] : [2000, 4000, 6000];
       let lastErr: unknown = firstErr;
       for (const delay of retryDelays) {
         await new Promise((r) => setTimeout(r, delay));
@@ -403,27 +407,30 @@ export class MuseBleManager {
           break;
         } catch (retryErr) {
           lastErr = retryErr;
-          device.gatt!.disconnect();
+          try { device.gatt!.disconnect(); } catch { /* ignore */ }
         }
       }
 
       if (lastErr) {
         const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
-        const isMac = /Mac/i.test(navigator.userAgent);
         let detail: string;
-        if (msg.includes("unknown reason")) {
-          detail = isMac
-            ? "GATT connection failed. Try these steps:\n" +
-              "1. System Settings > Privacy & Security > Bluetooth — make sure Chrome is listed and enabled\n" +
-              "2. System Settings > Bluetooth — if Muse is listed, click (i) and Forget This Device\n" +
-              "3. Turn Muse off (hold power 5s), wait 5s, turn back on\n" +
-              "4. Try connecting again in Chrome"
-            : "GATT connection failed. Open System Bluetooth settings, remove/forget the Muse device, then try again.";
+        if (isAndroid) {
+          detail = "Bluetooth connection failed. Try these steps:\n" +
+            "1. Turn off Bluetooth, wait 3 seconds, turn it back on\n" +
+            "2. In Android Settings > Bluetooth > Paired Devices — unpair the Muse\n" +
+            "3. Make sure Location Services are ON (required for BLE on Android)\n" +
+            "4. Turn Muse off (hold power 5s), wait 5s, turn back on\n" +
+            "5. Try connecting again";
+        } else if (isMac) {
+          detail = "GATT connection failed. Try these steps:\n" +
+            "1. System Settings > Privacy & Security > Bluetooth — make sure Chrome is listed and enabled\n" +
+            "2. System Settings > Bluetooth — if Muse is listed, click (i) and Forget This Device\n" +
+            "3. Turn Muse off (hold power 5s), wait 5s, turn back on\n" +
+            "4. Try connecting again in Chrome";
         } else {
-          detail = `Connection failed: ${msg}`;
+          detail = `Connection failed: ${msg}. Try turning Bluetooth off and on, then reconnect.`;
         }
         this.setStatus("error", detail);
-        // Throw with the detailed message so the UI catch block gets it
         throw new Error(detail);
       }
     }
