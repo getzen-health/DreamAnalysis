@@ -2317,6 +2317,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/study/admin/stats
+  app.get("/api/study/admin/stats", requireStudyAdmin, async (_req, res) => {
+    try {
+      const participants = await db.select().from(pilotParticipants);
+      const sessions = await db.select().from(pilotSessions);
+
+      const total_participants = participants.length;
+      const total_sessions = sessions.length;
+      const stress_sessions = sessions.filter((s) => s.blockType === "stress").length;
+      const food_sessions = sessions.filter((s) => s.blockType === "food").length;
+      const complete_sessions = sessions.filter((s) => !s.partial && s.surveyJson !== null).length;
+      const partial_sessions = sessions.filter((s) => s.partial === true).length;
+
+      const qualityScores = sessions
+        .map((s) => s.dataQualityScore)
+        .filter((v): v is number => v != null);
+      const avg_quality_score =
+        qualityScores.length > 0
+          ? qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length
+          : 0;
+
+      const durations = sessions
+        .map((s) => s.durationSeconds)
+        .filter((v): v is number => v != null);
+      const avg_duration_seconds =
+        durations.length > 0
+          ? durations.reduce((a, b) => a + b, 0) / durations.length
+          : 0;
+
+      // avg_stress_reduction: for stress sessions with both pre and post EEG,
+      // compute average of (pre.stress_level - post.stress_level)
+      const stressReductions: number[] = [];
+      for (const s of sessions) {
+        if (s.blockType !== "stress") continue;
+        const pre = s.preEegJson as Record<string, unknown> | null;
+        const post = s.postEegJson as Record<string, unknown> | null;
+        if (
+          pre && typeof pre === "object" && typeof pre.stress_level === "number" &&
+          post && typeof post === "object" && typeof post.stress_level === "number"
+        ) {
+          stressReductions.push(pre.stress_level - post.stress_level);
+        }
+      }
+      const avg_stress_reduction =
+        stressReductions.length > 0
+          ? stressReductions.reduce((a, b) => a + b, 0) / stressReductions.length
+          : 0;
+
+      return res.json({
+        total_participants,
+        total_sessions,
+        stress_sessions,
+        food_sessions,
+        complete_sessions,
+        partial_sessions,
+        avg_quality_score,
+        avg_duration_seconds,
+        avg_stress_reduction,
+      });
+    } catch (err) {
+      console.error("GET /api/study/admin/stats error:", err);
+      return res.status(500).json({ error: "Failed to compute stats" });
+    }
+  });
+
   // GET /api/study/admin/export-csv
   app.get("/api/study/admin/export-csv", requireStudyAdmin, async (_req, res) => {
     try {
