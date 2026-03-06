@@ -2155,7 +2155,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...(age != null && { age: Number(age) }),
           ...(diet_type != null && { dietType: diet_type }),
           ...(has_apple_watch !== undefined && { hasAppleWatch: has_apple_watch ? true : false }),
-          ...(consent_text != null && { consentText: consent_text }),
         },
       });
       return res.json({ success: true, participant_code });
@@ -2198,7 +2197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phase_log,
         data_quality_score,
       } = req.body;
-      if (session_id == null) {
+      if (session_id == null || Number(session_id) <= 0) {
         return res.status(400).json({ error: "session_id is required" });
       }
 

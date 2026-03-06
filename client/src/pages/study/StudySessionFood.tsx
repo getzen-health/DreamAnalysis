@@ -277,7 +277,7 @@ export default function StudySessionFood() {
   const durations = devMode ? DEV_DURATIONS : FULL_DURATIONS;
 
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [isStarting, setIsStarting] = useState(false);
+  const [isStarting, setIsStarting] = useState(true);
   const [phase, setPhase] = useState<Phase>("pre_survey");
 
   // Phase timestamp log
@@ -287,6 +287,12 @@ export default function StudySessionFood() {
   const [baselineReadings, setBaselineReadings] = useState<EEGSample[]>([]);
   const [postReadings, setPostReadings] = useState<EEGSample[]>([]);
 
+  // Refs for checkpoint access (avoid resetting interval on every reading)
+  const baselineRef = useRef(baselineReadings);
+  baselineRef.current = baselineReadings;
+  const postRef = useRef(postReadings);
+  postRef.current = postReadings;
+
   // Timer flags
   const [baselineActive, setBaselineActive] = useState(false);
   const [eatingActive, setEatingActive] = useState(false);
@@ -294,6 +300,8 @@ export default function StudySessionFood() {
 
   // ML connection status
   const [lastSuccessTime, setLastSuccessTime] = useState<number>(0);
+  const lastSuccessRef = useRef(0);
+  lastSuccessRef.current = lastSuccessTime;
   const [connectionOk, setConnectionOk] = useState(false);
 
   // Eating duration (user-selectable)
@@ -417,9 +425,9 @@ export default function StudySessionFood() {
     if (phase === "pre_survey" || phase === "post_survey") return;
 
     const id = setInterval(() => {
-      const preEeg = averageEEG(baselineReadings);
-      const postEeg = averageEEG(postReadings);
-      const features = averageEEG([...baselineReadings, ...postReadings]);
+      const preEeg = averageEEG(baselineRef.current);
+      const postEeg = averageEEG(postRef.current);
+      const features = averageEEG([...baselineRef.current, ...postRef.current]);
       apiRequest("PATCH", `/api/study/session/${sessionId}/checkpoint`, {
         pre_eeg_json: preEeg,
         post_eeg_json: postEeg,
@@ -430,7 +438,7 @@ export default function StudySessionFood() {
     }, CHECKPOINT_INTERVAL_MS);
 
     return () => clearInterval(id);
-  }, [sessionId, phase, baselineReadings, postReadings]);
+  }, [sessionId, phase]); // eslint-disable-line react-hooks/exhaustive-deps -- reads from refs
 
   // ── EEG polling ────────────────────────────────────────────────────────────
 
@@ -439,13 +447,13 @@ export default function StudySessionFood() {
     if (ok) {
       setLastSuccessTime(Date.now());
     }
-    setConnectionOk(ok || Date.now() - lastSuccessTime < 10_000);
+    setConnectionOk(ok || Date.now() - lastSuccessRef.current < 10_000);
     if (baselineActive) {
       setBaselineReadings((prev) => [...prev, reading]);
     } else if (postEegActive) {
       setPostReadings((prev) => [...prev, reading]);
     }
-  }, [baselineActive, postEegActive, lastSuccessTime]);
+  }, [baselineActive, postEegActive]); // eslint-disable-line react-hooks/exhaustive-deps -- uses refs
 
   useEffect(() => {
     if (!baselineActive && !postEegActive) return;

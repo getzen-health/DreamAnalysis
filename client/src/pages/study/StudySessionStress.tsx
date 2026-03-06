@@ -50,6 +50,7 @@ interface PhaseLog {
   completed?: string;
   skipped_to_survey?: boolean;
   skip_from_phase?: string;
+  work_timer_expired?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -369,8 +370,20 @@ export default function StudySessionStress() {
   const [interventionTriggered, setInterventionTriggered] = useState(false);
   const interventionFiredRef = useRef(false);
 
+  // Refs for checkpoint access (avoid resetting interval on every reading)
+  const baselineRef = useRef(baselineReadings);
+  baselineRef.current = baselineReadings;
+  const workRef = useRef(workReadings);
+  workRef.current = workReadings;
+  const postRef = useRef(postReadings);
+  postRef.current = postReadings;
+  const interventionRef = useRef(interventionTriggered);
+  interventionRef.current = interventionTriggered;
+
   // ML connection status
   const [lastSuccessTime, setLastSuccessTime] = useState<number>(0);
+  const lastSuccessRef = useRef(0);
+  lastSuccessRef.current = lastSuccessTime;
   const [connectionOk, setConnectionOk] = useState(false);
 
   // Timer active flags
@@ -511,21 +524,21 @@ export default function StudySessionStress() {
     if (phase === "survey") return; // don't checkpoint during survey
 
     const id = setInterval(() => {
-      const preEeg = averageReadings(baselineReadings);
-      const postEeg = averageReadings(postReadings);
-      const features = averageReadings([...baselineReadings, ...workReadings, ...postReadings]);
+      const preEeg = averageReadings(baselineRef.current);
+      const postEeg = averageReadings(postRef.current);
+      const features = averageReadings([...baselineRef.current, ...workRef.current, ...postRef.current]);
       apiRequest("PATCH", `/api/study/session/${sessionId}/checkpoint`, {
         pre_eeg_json: preEeg,
         post_eeg_json: postEeg,
         eeg_features_json: features,
-        intervention_triggered: interventionTriggered,
+        intervention_triggered: interventionRef.current,
         partial: true,
         phase_log: phaseLogRef.current,
       }).catch(() => {}); // fire-and-forget
     }, CHECKPOINT_INTERVAL_MS);
 
     return () => clearInterval(id);
-  }, [sessionId, phase, baselineReadings, workReadings, postReadings, interventionTriggered]);
+  }, [sessionId, phase]); // eslint-disable-line react-hooks/exhaustive-deps -- reads from refs
 
   // ── EEG polling ───────────────────────────────────────────────────────────────
 
@@ -534,7 +547,7 @@ export default function StudySessionStress() {
     if (ok) {
       setLastSuccessTime(Date.now());
     }
-    setConnectionOk(ok || Date.now() - lastSuccessTime < 10_000);
+    setConnectionOk(ok || Date.now() - lastSuccessRef.current < 10_000);
     setLiveStress(reading.stress_level);
 
     if (baselineActive) {
@@ -553,7 +566,7 @@ export default function StudySessionStress() {
     } else if (postActive) {
       setPostReadings((prev) => [...prev, reading]);
     }
-  }, [baselineActive, workActive, postActive, lastSuccessTime]);
+  }, [baselineActive, workActive, postActive]); // eslint-disable-line react-hooks/exhaustive-deps -- uses refs
 
   useEffect(() => {
     if (!baselineActive && !workActive && !postActive) return;
@@ -574,11 +587,13 @@ export default function StudySessionStress() {
   const onWorkDone = useCallback(() => {
     setWorkActive(false);
     if (!interventionFiredRef.current) {
+      // Work timer expired naturally — stress never exceeded threshold
+      // Still do breathing (protocol requires it), but mark intervention as NOT triggered
       interventionFiredRef.current = true;
-      setInterventionTriggered(true);
+      // interventionTriggered stays false — stress didn't trigger it
       setPhase("breathing");
       setBreathActive(true);
-      phaseLogRef.current.intervention_trigger = new Date().toISOString();
+      phaseLogRef.current.work_timer_expired = new Date().toISOString();
       phaseLogRef.current.breathing_start = new Date().toISOString();
     }
   }, []);
@@ -608,7 +623,7 @@ export default function StudySessionStress() {
     phaseLogRef.current.survey_start = new Date().toISOString();
     if (!interventionFiredRef.current) {
       interventionFiredRef.current = true;
-      setInterventionTriggered(true);
+      // Skip doesn't count as stress-triggered intervention
     }
     setPhase("survey");
   }
