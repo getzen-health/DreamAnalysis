@@ -116,6 +116,31 @@ function averageReadings(readings: EEGReading[]): EEGReading | null {
   };
 }
 
+/** Compute average band powers (alpha, beta, theta, delta, gamma) across readings */
+function avgBands(readings: EEGReading[]): { alpha: number; beta: number; theta: number; delta: number; gamma: number } {
+  if (readings.length === 0) {
+    return { alpha: 0, beta: 0, theta: 0, delta: 0, gamma: 0 };
+  }
+  const sum = readings.reduce(
+    (acc, r) => ({
+      alpha: acc.alpha + r.alpha,
+      beta: acc.beta + r.beta,
+      theta: acc.theta + r.theta,
+      delta: acc.delta + r.delta,
+      gamma: acc.gamma + r.gamma,
+    }),
+    { alpha: 0, beta: 0, theta: 0, delta: 0, gamma: 0 }
+  );
+  const n = readings.length;
+  return {
+    alpha: sum.alpha / n,
+    beta: sum.beta / n,
+    theta: sum.theta / n,
+    delta: sum.delta / n,
+    gamma: sum.gamma / n,
+  };
+}
+
 /** Compute data quality score (0-100) from EEG readings */
 function computeQualityScore(readings: EEGReading[]): number {
   if (readings.length < 3) return 0;
@@ -608,6 +633,8 @@ export default function StudySessionStress() {
 
     const preEeg = averageReadings(baselineReadings);
     const postEeg = averageReadings(postReadings);
+    const preAvg = avgBands(baselineReadings);
+    const postAvg = avgBands(postReadings);
     const allReadings = [...baselineReadings, ...workReadings, ...postReadings];
     const features = averageReadings(allReadings);
     const quality = computeQualityScore(allReadings);
@@ -623,8 +650,8 @@ export default function StudySessionStress() {
     try {
       await apiRequest("POST", "/api/study/session/complete", {
         session_id: sessionId,
-        pre_eeg_json: preEeg,
-        post_eeg_json: postEeg,
+        pre_eeg_json: { ...preEeg, avg_bands: preAvg },
+        post_eeg_json: { ...postEeg, avg_bands: postAvg },
         eeg_features_json: { ...features, quality_score: quality, sample_count: allReadings.length },
         survey_json: surveyData,
         intervention_triggered: interventionTriggered,
