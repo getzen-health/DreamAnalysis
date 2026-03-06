@@ -51,7 +51,7 @@ export default function StudyProfile() {
       });
 
       navigate(
-        `/study/session/${sessionType}?code=${encodeURIComponent(participantCode)}`
+        `/study/session?code=${encodeURIComponent(participantCode)}&block=${sessionType}`
       );
     } catch (err: unknown) {
       const msg =
@@ -171,7 +171,7 @@ export default function StudyProfile() {
                 <Zap className="mr-2 h-4 w-4" />
               )}
               Start Stress Session
-              <span className="ml-auto text-xs opacity-70">~28 min</span>
+              <span className="ml-auto text-xs opacity-70">~5 min</span>
             </Button>
 
             <Button
@@ -187,7 +187,7 @@ export default function StudyProfile() {
                 <Brain className="mr-2 h-4 w-4" />
               )}
               Start Food Session
-              <span className="ml-auto text-xs opacity-70">~35 min</span>
+              <span className="ml-auto text-xs opacity-70">~5 min</span>
             </Button>
 
             {!canSubmit && age.length > 0 && (
