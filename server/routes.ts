@@ -10,7 +10,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { Pool as NeonPool } from "@neondatabase/serverless";
 import SpotifyWebApi from "spotify-web-api-node";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import {
   insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
   insertUserSettingsSchema, insertEmotionReadingSchema,
@@ -228,28 +228,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const appUrl = process.env.APP_URL ?? "https://dream-analysis.vercel.app";
         const resetUrl = `${appUrl}/reset-password?token=${token}`;
-        if (process.env.RESEND_API_KEY) {
-          const resend = new Resend(process.env.RESEND_API_KEY);
-          const fromDomain = process.env.RESEND_FROM_DOMAIN ?? "onboarding@resend.dev";
-          const { error: sendError } = await resend.emails.send({
-            from: `Neural Dream <${fromDomain}>`,
-            to: email.trim(),
-            subject: "Reset your password — Neural Dream",
-            html: `
-              <div style="font-family:sans-serif;max-width:480px;margin:auto">
-                <h2>Reset your password</h2>
-                <p>Click the button below to set a new password. This link expires in 1 hour.</p>
-                <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">
-                  Reset Password
-                </a>
-                <p style="margin-top:16px;font-size:12px;color:#888">
-                  If you didn't request this, you can ignore this email.
-                </p>
-              </div>
-            `,
+        if (process.env.GMAIL_APP_PASSWORD) {
+          const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+              user: process.env.GMAIL_USER ?? "lakshmisravya.vedantham@gmail.com",
+              pass: process.env.GMAIL_APP_PASSWORD,
+            },
           });
-          if (sendError) {
-            console.error("Resend email error:", sendError);
+
+          try {
+            await transporter.sendMail({
+              from: `Neural Dream <${process.env.GMAIL_USER ?? "lakshmisravya.vedantham@gmail.com"}>`,
+              to: email.trim(),
+              subject: "Reset your password — Neural Dream",
+              html: `
+                <div style="font-family:sans-serif;max-width:480px;margin:auto">
+                  <h2>Reset your password</h2>
+                  <p>Click the button below to set a new password. This link expires in 1 hour.</p>
+                  <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">
+                    Reset Password
+                  </a>
+                  <p style="margin-top:16px;font-size:12px;color:#888">
+                    If you didn't request this, you can ignore this email.
+                  </p>
+                </div>
+              `,
+            });
+          } catch (emailErr) {
+            console.error("Gmail SMTP error:", emailErr);
             return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
           }
         } else {
