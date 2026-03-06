@@ -327,8 +327,12 @@ function useDeviceInternal(): UseDeviceReturn {
     setError(null);
     setState("connecting");
 
-    // ── BLE path: native Capacitor (iOS/Android) OR Web Bluetooth (Chrome) ──
-    if (museBle.isAvailable && (deviceType === "muse_2" || deviceType === "muse_s")) {
+    // ── BLE path: native Capacitor (iOS/Android) only ──
+    // On desktop, prefer the BrainFlow/WebSocket path — Web Bluetooth GATT on
+    // macOS is unreliable ("GATT operation failed for unknown reason" when the
+    // OS holds a stale pairing lock). Only use BLE on native mobile platforms.
+    const useBlePath = museBle.isNative && (deviceType === "muse_2" || deviceType === "muse_s");
+    if (useBlePath) {
       try {
         museBle.onEegFrame((frame) => {
           const eegFrame = museFrameToEegStreamFrame(frame);
