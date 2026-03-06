@@ -327,12 +327,8 @@ function useDeviceInternal(): UseDeviceReturn {
     setError(null);
     setState("connecting");
 
-    // ── BLE path: native Capacitor (iOS/Android) only ──
-    // On desktop, prefer the BrainFlow/WebSocket path — Web Bluetooth GATT on
-    // macOS is unreliable ("GATT operation failed for unknown reason" when the
-    // OS holds a stale pairing lock). Only use BLE on native mobile platforms.
-    const useBlePath = museBle.isNative && (deviceType === "muse_2" || deviceType === "muse_s");
-    if (useBlePath) {
+    // ── BLE path: native Capacitor (iOS/Android) OR Web Bluetooth (Chrome desktop) ──
+    if (museBle.isAvailable && (deviceType === "muse_2" || deviceType === "muse_s")) {
       try {
         museBle.onEegFrame((frame) => {
           const eegFrame = museFrameToEegStreamFrame(frame);
@@ -379,10 +375,19 @@ function useDeviceInternal(): UseDeviceReturn {
         isStreamingRef.current = true;
         startSession("general").catch(() => {});
       } catch (e) {
-        setError(e instanceof Error ? e.message : "BLE connection failed");
-        setState("disconnected");
+        // BLE failed — on desktop, fall through to BrainFlow path instead of giving up
+        if (!museBle.isNative) {
+          console.warn("Web Bluetooth GATT failed, falling back to BrainFlow:", e);
+          setState("connecting");
+          setError(null);
+          // Fall through to BrainFlow path below
+        } else {
+          setError(e instanceof Error ? e.message : "BLE connection failed");
+          setState("disconnected");
+          return;
+        }
       }
-      return;
+      if (museBle.isNative) return; // native BLE succeeded above
     }
 
     // ── Desktop path (BrainFlow via ML backend WebSocket) ──────────────────
