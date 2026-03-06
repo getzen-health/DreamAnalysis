@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Bluetooth, CheckCircle2, Utensils, Brain } from "lucide-react";
+import { Loader2, Bluetooth, CheckCircle2, Utensils, Brain, AlertCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { pingBackend } from "@/lib/ml-api";
+import { pingBackend, getMLApiUrl } from "@/lib/ml-api";
 import { VoiceWatchAnalyzer } from "@/components/voice-watch-analyzer";
 import { useToast } from "@/hooks/use-toast";
 import { useDevice } from "@/hooks/use-device";
@@ -35,25 +35,24 @@ interface EEGSnapshot {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function mockEEG(): EEGSnapshot {
-  return {
-    alpha: 0.3 + Math.random() * 0.2,
-    beta: 0.2 + Math.random() * 0.3,
-    theta: 0.1 + Math.random() * 0.15,
-    delta: 0.05 + Math.random() * 0.1,
-    gamma: 0.02 + Math.random() * 0.05,
-    stress_level: 0.3 + Math.random() * 0.4,
-  };
-}
-
 async function fetchSimEEG(): Promise<EEGSnapshot> {
-  try {
-    const res = await fetch("/api/simulate-eeg", { credentials: "include" });
-    if (!res.ok) throw new Error("sim failed");
-    return (await res.json()) as EEGSnapshot;
-  } catch {
-    return mockEEG();
-  }
+  const res = await fetch(`${getMLApiUrl()}/api/simulate-eeg`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state: "rest", duration: 4 }),
+  });
+  if (!res.ok) throw new Error(`ML backend returned ${res.status}`);
+  const data = await res.json();
+  const emotions = data?.analysis?.emotions;
+  const bands = emotions?.band_powers ?? {};
+  return {
+    alpha: bands.alpha ?? 0,
+    beta: bands.beta ?? 0,
+    theta: bands.theta ?? 0,
+    delta: bands.delta ?? 0,
+    gamma: bands.gamma ?? 0,
+    stress_level: emotions?.stress_index ?? 0,
+  };
 }
 
 function avgSnapshots(snaps: EEGSnapshot[]): EEGSnapshot | null {
@@ -161,6 +160,7 @@ export default function StudySession() {
   const [isStarting, setIsStarting] = useState(false);
   const [eegActive, setEegActive] = useState(false);
   const [backendReady, setBackendReady] = useState<boolean | null>(null);
+  const [simError, setSimError] = useState<string | null>(null);
 
   const readings = useRef<EEGSnapshot[]>([]);
   const [eegJson, setEegJson] = useState<EEGSnapshot | null>(null);
@@ -252,9 +252,16 @@ export default function StudySession() {
 
   useEffect(() => {
     if (!useSimulation || !eegActive) return;
+    setSimError(null);
     const id = setInterval(async () => {
-      const r = await fetchSimEEG();
-      readings.current.push(r);
+      try {
+        const r = await fetchSimEEG();
+        readings.current.push(r);
+        setSimError(null);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "ML backend unreachable";
+        setSimError(msg);
+      }
     }, 4000);
     return () => clearInterval(id);
   }, [useSimulation, eegActive]);
@@ -459,6 +466,22 @@ export default function StudySession() {
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => connect("muse_2")}>Reconnect</Button>
                 <Button size="sm" variant="outline" onClick={saveAndExit}>Save & Exit</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Simulation error banner ── */}
+        {simError && phase === "eeg" && (
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardContent className="pt-5 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-destructive">ML backend unreachable</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Simulated EEG data cannot be fetched. Check that the ML backend is running or update the URL in Settings.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1 font-mono">{simError}</p>
               </div>
             </CardContent>
           </Card>
