@@ -286,6 +286,24 @@ export class MuseBleManager {
 
   private async _connectWebBluetooth(): Promise<void> {
     const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
+
+    // Pre-flight: check if Bluetooth adapter is available at all.
+    // On macOS, if Chrome doesn't have Bluetooth permission, getAvailability() returns false.
+    try {
+      const available = await bt.getAvailability();
+      if (!available) {
+        const isMac = /Mac/i.test(navigator.userAgent);
+        const hint = isMac
+          ? "Go to System Settings > Privacy & Security > Bluetooth and enable Chrome."
+          : "Check that your Bluetooth adapter is turned on.";
+        this.setStatus("error", `Bluetooth not available. ${hint}`);
+        throw new Error(`Bluetooth adapter not available. ${hint}`);
+      }
+    } catch (e) {
+      // getAvailability() may not exist in all browsers — continue anyway
+      if (e instanceof Error && e.message.includes("Bluetooth adapter")) throw e;
+    }
+
     this.setStatus("scanning");
 
     let device: BluetoothDevice | null = null;
@@ -297,14 +315,35 @@ export class MuseBleManager {
     } catch { /* getDevices() not available in all browsers */ }
 
     if (!device) {
+      // Strategy: try service UUID filter first, then namePrefix, then acceptAllDevices.
+      // Muse BLE advertisements may not always include the service UUID, but always
+      // include the device name "Muse-XXXX". Fall back progressively.
       try {
         device = await bt.requestDevice({
-          filters: [{ services: [MUSE_SERVICE] }],
+          filters: [
+            { services: [MUSE_SERVICE] },
+            { namePrefix: "Muse" },
+          ],
           optionalServices: [MUSE_SERVICE],
         });
       } catch (e) {
-        this.setStatus("idle", "Device selection cancelled");
-        throw e;
+        // User cancelled the picker or no devices matched filters.
+        // If the error message suggests "no devices", try acceptAllDevices as last resort.
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("cancel")) {
+          this.setStatus("idle", "Device selection cancelled");
+          throw e;
+        }
+        // Try broader scan — shows all BLE devices (user must pick Muse manually)
+        try {
+          device = await bt.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: [MUSE_SERVICE],
+          });
+        } catch (e2) {
+          this.setStatus("idle", "Device selection cancelled");
+          throw e2;
+        }
       }
     }
 
@@ -367,11 +406,17 @@ export class MuseBleManager {
 
       if (lastErr) {
         const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+        const isMac = /Mac/i.test(navigator.userAgent);
         if (msg.includes("unknown reason")) {
-          this.setStatus(
-            "error",
-            "GATT lock held by OS. Open System Bluetooth settings, click (i) next to Muse, tap Forget This Device, then try again.",
-          );
+          const steps = isMac
+            ? [
+                "1. System Settings > Privacy & Security > Bluetooth — make sure Chrome is listed and enabled",
+                "2. System Settings > Bluetooth — if Muse is listed, click (i) and Forget This Device",
+                "3. Turn Muse off (hold power 5s), wait 5s, turn back on",
+                "4. Try connecting again in Chrome",
+              ].join("\n")
+            : "Open System Bluetooth settings, remove/forget the Muse device, then try again.";
+          this.setStatus("error", `GATT connection failed.\n${steps}`);
         } else {
           this.setStatus("error", `Connection failed: ${msg}`);
         }
@@ -431,6 +476,55 @@ export class MuseBleManager {
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
+
+  /**
+   * Check Bluetooth availability and return diagnostic info.
+   * Useful for showing troubleshooting guidance before the user tries to connect.
+   */
+  async checkBluetoothReady(): Promise<{
+    apiPresent: boolean;
+    adapterAvailable: boolean | null;
+    platform: "mac" | "windows" | "linux" | "android" | "ios" | "unknown";
+    hints: string[];
+  }> {
+    const ua = navigator.userAgent;
+    const platform: "mac" | "windows" | "linux" | "android" | "ios" | "unknown" =
+      /Mac/i.test(ua) ? "mac"
+      : /Win/i.test(ua) ? "windows"
+      : /Linux/i.test(ua) && !/Android/i.test(ua) ? "linux"
+      : /Android/i.test(ua) ? "android"
+      : /iPhone|iPad/i.test(ua) ? "ios"
+      : "unknown";
+
+    const apiPresent = this.isWebBluetooth || this.isNative;
+    let adapterAvailable: boolean | null = null;
+    const hints: string[] = [];
+
+    if (!apiPresent) {
+      hints.push("Web Bluetooth API not found. Use Chrome (not Safari/Firefox).");
+      return { apiPresent, adapterAvailable, platform, hints };
+    }
+
+    if (this.isWebBluetooth) {
+      try {
+        const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
+        adapterAvailable = await bt.getAvailability();
+      } catch {
+        adapterAvailable = null; // getAvailability not supported
+      }
+
+      if (adapterAvailable === false) {
+        if (platform === "mac") {
+          hints.push("Chrome doesn't have Bluetooth permission on macOS.");
+          hints.push("Go to System Settings > Privacy & Security > Bluetooth and enable Chrome.");
+        } else {
+          hints.push("Bluetooth adapter is off or unavailable. Turn on Bluetooth in system settings.");
+        }
+      }
+    }
+
+    return { apiPresent, adapterAvailable, platform, hints };
+  }
 
   /**
    * Scan for Muse devices and prompt the user to select one.
