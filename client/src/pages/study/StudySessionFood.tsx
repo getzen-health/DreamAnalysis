@@ -70,7 +70,7 @@ const CHECKPOINT_INTERVAL_MS = 30_000;
 
 // ── EEG helpers ───────────────────────────────────────────────────────────────
 
-async function fetchEEG(): Promise<EEGSample> {
+async function fetchEEG(): Promise<{ reading: EEGSample; ok: boolean }> {
   try {
     const mlUrl = getMLApiUrl();
     const res = await fetch(`${mlUrl}/api/simulate-eeg`, {
@@ -83,21 +83,27 @@ async function fetchEEG(): Promise<EEGSample> {
     const emotions = data.analysis?.emotions ?? {};
     const bp = emotions.band_powers ?? {};
     return {
-      alpha: bp.alpha ?? 0.3,
-      beta: bp.beta ?? 0.25,
-      theta: bp.theta ?? 0.15,
-      delta: bp.delta ?? 0.1,
-      gamma: bp.gamma ?? 0.03,
-      stress_level: emotions.stress_index ?? 0.3,
+      reading: {
+        alpha: bp.alpha ?? 0.3,
+        beta: bp.beta ?? 0.25,
+        theta: bp.theta ?? 0.15,
+        delta: bp.delta ?? 0.1,
+        gamma: bp.gamma ?? 0.03,
+        stress_level: emotions.stress_index ?? 0.3,
+      },
+      ok: true,
     };
   } catch {
     return {
-      alpha: 0.3 + Math.random() * 0.2,
-      beta: 0.2 + Math.random() * 0.3,
-      theta: 0.1 + Math.random() * 0.15,
-      delta: 0.05 + Math.random() * 0.1,
-      gamma: 0.02 + Math.random() * 0.05,
-      stress_level: 0.3 + Math.random() * 0.4,
+      reading: {
+        alpha: 0.3 + Math.random() * 0.2,
+        beta: 0.2 + Math.random() * 0.3,
+        theta: 0.1 + Math.random() * 0.15,
+        delta: 0.05 + Math.random() * 0.1,
+        gamma: 0.02 + Math.random() * 0.05,
+        stress_level: 0.3 + Math.random() * 0.4,
+      },
+      ok: false,
     };
   }
 }
@@ -261,6 +267,10 @@ export default function StudySessionFood() {
   const [eatingActive, setEatingActive] = useState(false);
   const [postEegActive, setPostEegActive] = useState(false);
 
+  // ML connection status
+  const [lastSuccessTime, setLastSuccessTime] = useState<number>(0);
+  const [connectionOk, setConnectionOk] = useState(false);
+
   // Eating duration (user-selectable)
   const [eatingDuration, setEatingDuration] = useState(devMode ? DEV_EATING_SEC : 20 * 60);
 
@@ -400,13 +410,17 @@ export default function StudySessionFood() {
   // ── EEG polling ────────────────────────────────────────────────────────────
 
   const pollEEG = useCallback(async () => {
-    const sample = await fetchEEG();
-    if (baselineActive) {
-      setBaselineReadings((prev) => [...prev, sample]);
-    } else if (postEegActive) {
-      setPostReadings((prev) => [...prev, sample]);
+    const { reading, ok } = await fetchEEG();
+    if (ok) {
+      setLastSuccessTime(Date.now());
     }
-  }, [baselineActive, postEegActive]);
+    setConnectionOk(ok || Date.now() - lastSuccessTime < 10_000);
+    if (baselineActive) {
+      setBaselineReadings((prev) => [...prev, reading]);
+    } else if (postEegActive) {
+      setPostReadings((prev) => [...prev, reading]);
+    }
+  }, [baselineActive, postEegActive, lastSuccessTime]);
 
   useEffect(() => {
     if (!baselineActive && !postEegActive) return;
@@ -582,7 +596,17 @@ export default function StudySessionFood() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground relative">
+      <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
+        <div
+          className={`w-2 h-2 rounded-full ${connectionOk ? "bg-green-400" : "bg-red-400"}`}
+        />
+        <span
+          className={`text-[10px] ${connectionOk ? "text-green-400" : "text-red-400"}`}
+        >
+          {connectionOk ? "Connected" : "EEG connection lost"}
+        </span>
+      </div>
       <div className="max-w-lg mx-auto px-4 py-10 space-y-6">
 
         {devMode && (
