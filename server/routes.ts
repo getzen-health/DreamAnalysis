@@ -2291,6 +2291,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           preEegJson:            pilotSessions.preEegJson,
           postEegJson:           pilotSessions.postEegJson,
           surveyJson:            pilotSessions.surveyJson,
+          dataQualityScore:      pilotSessions.dataQualityScore,
+          durationSeconds:       pilotSessions.durationSeconds,
+          phaseLog:              pilotSessions.phaseLog,
         })
         .from(pilotSessions)
         .leftJoin(
@@ -2320,6 +2323,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...EEG_BANDS.map((b) => `pre_${b}`),
         ...EEG_BANDS.map((b) => `post_${b}`),
         ...sortedSurveyKeys,
+        "data_quality_score",
+        "duration_seconds",
+        "phase_log",
       ];
 
       const csvLines: string[] = [baseHeaders.join(",")];
@@ -2344,6 +2350,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...EEG_BANDS.map((b) => cell(pre?.[b])),
           ...EEG_BANDS.map((b) => cell(post?.[b])),
           ...sortedSurveyKeys.map((k) => cell(survey?.[k])),
+          cell(row.dataQualityScore),
+          cell(row.durationSeconds),
+          cell(JSON.stringify(row.phaseLog ?? null)),
         ];
         csvLines.push(csvRow.join(","));
       }
