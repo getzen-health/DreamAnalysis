@@ -5,7 +5,7 @@
  * EEG is checkpointed to DB every 30 seconds.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { VoiceWatchAnalyzer } from "@/components/voice-watch-analyzer";
 import { healthSync } from "@/lib/health-sync";
 import { useToast } from "@/hooks/use-toast";
 import { useDevice } from "@/hooks/use-device";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -176,6 +177,10 @@ export default function StudySession() {
 
   const checkpointTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Live chart data for emotion & stress during EEG recording
+  interface ChartPoint { t: number; stress: number; alpha: number; beta: number; theta: number; }
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+
   // ── Session start ─────────────────────────────────────────────────────────
 
   const startSession = useCallback(async (block: BlockType) => {
@@ -277,6 +282,9 @@ export default function StudySession() {
       try {
         const r = await fetchSimEEG();
         readings.current.push(r);
+        setChartData((prev) => [...prev.slice(-149), {
+          t: prev.length, stress: r.stress_level, alpha: r.alpha, beta: r.beta, theta: r.theta,
+        }]);
         setSimError(null);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "ML backend unreachable";
@@ -299,6 +307,12 @@ export default function StudySession() {
       stress_level: latestFrame.analysis?.emotions?.stress_index ?? 0,
     };
     readings.current.push(snap);
+    // Throttle chart updates to ~every 4th frame to avoid excessive re-renders
+    if (readings.current.length % 4 === 0) {
+      setChartData((prev) => [...prev.slice(-149), {
+        t: prev.length, stress: snap.stress_level, alpha: snap.alpha, beta: snap.beta, theta: snap.theta,
+      }]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame]);
 
@@ -601,6 +615,29 @@ export default function StudySession() {
                   Recording… <span className="font-medium text-foreground">{readings.current.length} samples</span>
                 </span>
               </div>
+              {/* Live emotion & stress chart */}
+              {chartData.length > 1 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Emotion & Stress (live)</p>
+                  <div className="h-40 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                        <XAxis dataKey="t" hide />
+                        <YAxis domain={[0, 1]} tickCount={3} tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 11, background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                          formatter={(v: number, name: string) => [`${(v * 100).toFixed(0)}%`, name]}
+                        />
+                        <Area type="monotone" dataKey="stress" stroke="#ef4444" fill="#ef444433" name="Stress" strokeWidth={2} dot={false} />
+                        <Area type="monotone" dataKey="alpha" stroke="#22c55e" fill="#22c55e22" name="Alpha" strokeWidth={1.5} dot={false} />
+                        <Area type="monotone" dataKey="beta" stroke="#3b82f6" fill="#3b82f622" name="Beta" strokeWidth={1.5} dot={false} />
+                        <Area type="monotone" dataKey="theta" stroke="#a855f7" fill="#a855f722" name="Theta" strokeWidth={1.5} dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
               <Button variant="outline" size="sm" className="w-full" onClick={onEegDone}>
                 End early & go to survey
               </Button>
