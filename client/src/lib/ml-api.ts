@@ -976,12 +976,13 @@ export interface WatchBiometrics {
 }
 
 export interface VoiceWatchEmotionResult {
-  emotion: "positive" | "neutral" | "negative";
+  emotion: string;
+  probabilities: Record<string, number>;
+  valence: number;
+  arousal: number;
   confidence: number;
-  breakdown: {
-    audio: [number, number, number];  // [positive, neutral, negative]
-    watch: [number, number, number];
-  };
+  model_type: string;
+  stress_from_watch: number | null;
 }
 
 export interface VoiceWatchStatus {

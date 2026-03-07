@@ -19,20 +19,26 @@ import { healthSync } from "@/lib/health-sync";
 // ── Constants ─────────────────────────────────────────────────────────────────
 const RECORD_SECONDS = 30;
 const SAMPLE_RATE    = 22050;
-const EMOTIONS       = ["positive", "neutral", "negative"] as const;
+const EMOTIONS = ["happy", "sad", "angry", "fear", "surprise", "neutral"] as const;
 
 type EmotionLabel = (typeof EMOTIONS)[number];
 
-const EMOTION_COLOR: Record<EmotionLabel, string> = {
-  positive: "text-green-400",
-  neutral:  "text-blue-400",
-  negative: "text-rose-400",
+const EMOTION_COLOR: Record<string, string> = {
+  happy:    "text-green-400",
+  sad:      "text-blue-400",
+  angry:    "text-rose-400",
+  fear:     "text-amber-400",
+  surprise: "text-purple-400",
+  neutral:  "text-slate-400",
 };
 
-const EMOTION_BG: Record<EmotionLabel, string> = {
-  positive: "bg-green-500",
-  neutral:  "bg-blue-500",
-  negative: "bg-rose-500",
+const EMOTION_BG: Record<string, string> = {
+  happy:    "bg-green-500",
+  sad:      "bg-blue-500",
+  angry:    "bg-rose-500",
+  fear:     "bg-amber-500",
+  surprise: "bg-purple-500",
+  neutral:  "bg-slate-500",
 };
 
 // ── WAV encoding ──────────────────────────────────────────────────────────────
@@ -275,7 +281,7 @@ export function VoiceWatchAnalyzer({ userId: _userId, onResult }: Props) {
         <div className="space-y-3">
           {/* Dominant emotion */}
           <div className="flex items-center justify-between">
-            <span className={`text-lg font-bold capitalize ${EMOTION_COLOR[result.emotion as EmotionLabel]}`}>
+            <span className={`text-lg font-bold capitalize ${EMOTION_COLOR[result.emotion] ?? "text-foreground"}`}>
               {result.emotion}
             </span>
             <span className="text-xs text-muted-foreground">
@@ -286,30 +292,34 @@ export function VoiceWatchAnalyzer({ userId: _userId, onResult }: Props) {
           {/* Confidence bar */}
           <div className="h-2 rounded-full bg-muted overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${EMOTION_BG[result.emotion as EmotionLabel]}`}
+              className={`h-full rounded-full transition-all duration-500 ${EMOTION_BG[result.emotion] ?? "bg-primary"}`}
               style={{ width: `${result.confidence * 100}%` }}
             />
           </div>
 
-          {/* Breakdown: audio + watch probabilities */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            {(["audio", "watch"] as const).map((src) => (
-              <div key={src} className="space-y-1">
-                <p className="text-muted-foreground capitalize font-medium">{src}</p>
-                {EMOTIONS.map((em, i) => (
-                  <div key={em} className="flex items-center gap-1.5">
-                    <div
-                      className={`h-1.5 rounded-full flex-shrink-0 ${EMOTION_BG[em]}`}
-                      style={{ width: `${result.breakdown[src][i] * 60}px` }}
-                    />
-                    <span className="capitalize text-muted-foreground">{em}</span>
-                    <span className="ml-auto tabular-nums">
-                      {Math.round(result.breakdown[src][i] * 100)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ))}
+          {/* Valence / Arousal */}
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            <span>Valence: <span className="text-foreground font-medium">{result.valence > 0 ? "+" : ""}{result.valence.toFixed(2)}</span></span>
+            <span>Arousal: <span className="text-foreground font-medium">{result.arousal.toFixed(2)}</span></span>
+          </div>
+
+          {/* Probability breakdown */}
+          <div className="space-y-1">
+            {EMOTIONS.map((em) => {
+              const prob = result.probabilities[em] ?? 0;
+              return (
+                <div key={em} className="flex items-center gap-1.5 text-xs">
+                  <div
+                    className={`h-1.5 rounded-full flex-shrink-0 ${EMOTION_BG[em]}`}
+                    style={{ width: `${prob * 80}px` }}
+                  />
+                  <span className="capitalize text-muted-foreground w-16">{em}</span>
+                  <span className="ml-auto tabular-nums">
+                    {Math.round(prob * 100)}%
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
