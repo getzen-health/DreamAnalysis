@@ -229,5 +229,5 @@ def voice_watch_status() -> Dict[str, Any]:
         "emotion2vec_available": e2v_ok,
         "lgbm_fallback_available": lgbm_ok,
         "librosa_available": librosa_ok,
-        "ready": e2v_ok or (lgbm_ok and librosa_ok),
+        "ready": e2v_ok or lgbm_ok or librosa_ok,
     }
