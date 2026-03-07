@@ -286,65 +286,17 @@ export class MuseBleManager {
 
   private async _connectWebBluetooth(): Promise<void> {
     const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
-
-    // Pre-flight: check if Bluetooth adapter is available at all.
-    // On macOS, if Chrome doesn't have Bluetooth permission, getAvailability() returns false.
-    try {
-      const available = await bt.getAvailability();
-      if (!available) {
-        const isMac = /Mac/i.test(navigator.userAgent);
-        const hint = isMac
-          ? "Go to System Settings > Privacy & Security > Bluetooth and enable Chrome."
-          : "Check that your Bluetooth adapter is turned on.";
-        this.setStatus("error", `Bluetooth not available. ${hint}`);
-        throw new Error(`Bluetooth adapter not available. ${hint}`);
-      }
-    } catch (e) {
-      // getAvailability() may not exist in all browsers — continue anyway
-      if (e instanceof Error && e.message.includes("Bluetooth adapter")) throw e;
-    }
-
     this.setStatus("scanning");
 
-    let device: BluetoothDevice | null = null;
-
-    // Try getDevices() first — reconnects to already-paired Muse without picker
+    let device: BluetoothDevice;
     try {
-      const known = await (bt as typeof bt & { getDevices?: () => Promise<BluetoothDevice[]> }).getDevices?.() ?? [];
-      device = known.find((d) => d.name?.toLowerCase().includes("muse")) ?? null;
-    } catch { /* getDevices() not available in all browsers */ }
-
-    if (!device) {
-      // Strategy: try service UUID filter first, then namePrefix, then acceptAllDevices.
-      // Muse BLE advertisements may not always include the service UUID, but always
-      // include the device name "Muse-XXXX". Fall back progressively.
-      try {
-        device = await bt.requestDevice({
-          filters: [
-            { services: [MUSE_SERVICE] },
-            { namePrefix: "Muse" },
-          ],
-          optionalServices: [MUSE_SERVICE],
-        });
-      } catch (e) {
-        // User cancelled the picker or no devices matched filters.
-        // If the error message suggests "no devices", try acceptAllDevices as last resort.
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("cancel")) {
-          this.setStatus("idle", "Device selection cancelled");
-          throw e;
-        }
-        // Try broader scan — shows all BLE devices (user must pick Muse manually)
-        try {
-          device = await bt.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: [MUSE_SERVICE],
-          });
-        } catch (e2) {
-          this.setStatus("idle", "Device selection cancelled");
-          throw e2;
-        }
-      }
+      device = await bt.requestDevice({
+        filters: [{ services: [MUSE_SERVICE] }],
+        optionalServices: [MUSE_SERVICE],
+      });
+    } catch (e) {
+      this.setStatus("idle", "Device selection cancelled");
+      throw e;
     }
 
     this.deviceName = device.name ?? "Muse";
@@ -356,97 +308,42 @@ export class MuseBleManager {
       this.setStatus("idle", "Device disconnected");
     });
 
-    // GATT connection — try direct connect first, then retry with short delay.
-    // Android: direct connect usually works; avoid forget()/re-request which breaks Android BLE.
-    // macOS: bluetoothd may hold GATT resources for 1-3s after disconnect, so retry with delay.
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const isMac = /Mac/i.test(navigator.userAgent);
-
-    let server!: BluetoothRemoteGATTServer;
+    // GATT connect with one retry after 2s delay
+    let server: BluetoothRemoteGATTServer;
     try {
       server = await device.gatt!.connect();
-      this._webGattServer = server;
     } catch (firstErr) {
-      console.warn("GATT first connect failed:", firstErr);
+      console.warn("GATT first connect attempt failed, retrying in 2s:", firstErr);
       try { device.gatt!.disconnect(); } catch { /* ignore */ }
-
-      // On macOS only: try forget+re-request (clears stale OS pairing cache)
-      if (isMac) {
-        const forgetFn = (device as BluetoothDevice & { forget?: () => Promise<void> }).forget;
-        if (typeof forgetFn === "function") {
-          try {
-            await forgetFn.call(device);
-            device = await bt.requestDevice({
-              filters: [
-                { services: [MUSE_SERVICE] },
-                { namePrefix: "Muse" },
-              ],
-              optionalServices: [MUSE_SERVICE],
-            });
-            this.deviceName = device.name ?? "Muse";
-            device.addEventListener("gattserverdisconnected", () => {
-              this._webGattServer = null;
-              this.stopEmitter();
-              this.setStatus("idle", "Device disconnected");
-            });
-          } catch {
-            // forget() or re-request failed — continue with existing device
-          }
-        }
-      }
-
-      // Retry: Android needs shorter delays (500ms, 1s); macOS needs longer (2s, 4s)
-      const retryDelays = isAndroid ? [500, 1000, 2000] : [2000, 4000, 6000];
-      let lastErr: unknown = firstErr;
-      for (const delay of retryDelays) {
-        await new Promise((r) => setTimeout(r, delay));
-        try {
-          server = await device.gatt!.connect();
-          this._webGattServer = server;
-          lastErr = null;
-          break;
-        } catch (retryErr) {
-          lastErr = retryErr;
-          try { device.gatt!.disconnect(); } catch { /* ignore */ }
-        }
-      }
-
-      if (lastErr) {
-        const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
-        let detail: string;
-        if (isAndroid) {
-          detail = "Bluetooth connection failed. Try these steps:\n" +
-            "1. Turn off Bluetooth, wait 3 seconds, turn it back on\n" +
-            "2. In Android Settings > Bluetooth > Paired Devices — unpair the Muse\n" +
-            "3. Make sure Location Services are ON (required for BLE on Android)\n" +
-            "4. Turn Muse off (hold power 5s), wait 5s, turn back on\n" +
-            "5. Try connecting again";
-        } else if (isMac) {
-          detail = "GATT connection failed. Try these steps:\n" +
-            "1. System Settings > Privacy & Security > Bluetooth — make sure Chrome is listed and enabled\n" +
-            "2. System Settings > Bluetooth — if Muse is listed, click (i) and Forget This Device\n" +
-            "3. Turn Muse off (hold power 5s), wait 5s, turn back on\n" +
-            "4. Try connecting again in Chrome";
-        } else {
-          detail = `Connection failed: ${msg}. Try turning Bluetooth off and on, then reconnect.`;
-        }
-        this.setStatus("error", detail);
-        throw new Error(detail);
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        server = await device.gatt!.connect();
+      } catch (retryErr) {
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        const hint = isAndroid
+          ? "Turn off Bluetooth, wait 3s, turn back on. Unpair Muse in Settings > Bluetooth. Make sure Location is ON."
+          : "In System Settings > Bluetooth, forget the Muse device. Turn Muse off (hold 5s), turn back on, then retry.";
+        this.setStatus("error", `GATT connection failed. ${hint}`);
+        throw retryErr;
       }
     }
+    this._webGattServer = server;
 
     const service = await server.getPrimaryService(MUSE_SERVICE);
-
-    // Write control commands — Muse control characteristic requires write-with-response.
-    // writeValueWithoutResponse silently fails, causing ~2 s streaming timeout.
-    // Fall back to deprecated writeValue() for older Chrome/Edge versions.
     const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
     this._controlChar = controlChar;
+
+    // Muse control char supports Write Without Response.
+    // Try writeValueWithoutResponse first, fall back to writeValueWithResponse.
     const writeCommand = async (dv: DataView) => {
-      if (typeof controlChar.writeValueWithResponse === "function") {
-        await controlChar.writeValueWithResponse(dv);
-      } else {
-        await (controlChar as BluetoothRemoteGATTCharacteristic & { writeValue: (v: DataView) => Promise<void> }).writeValue(dv);
+      try {
+        await controlChar.writeValueWithoutResponse(dv);
+      } catch {
+        if (typeof controlChar.writeValueWithResponse === "function") {
+          await controlChar.writeValueWithResponse(dv);
+        } else {
+          await (controlChar as BluetoothRemoteGATTCharacteristic & { writeValue: (v: DataView) => Promise<void> }).writeValue(dv);
+        }
       }
     };
     await writeCommand(CMD_PRESET_P21);
