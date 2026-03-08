@@ -275,6 +275,33 @@ async def analyze_eeg(input_data: EEGInput):
             emotion_result["ema_alpha"] = _EMA_ALPHA
         # ─────────────────────────────────────────────────────────────────────
 
+        # ── Simple amplitude-threshold signal quality for dashboard badge ────────
+        # Computes a 0-100 score and detects artifact type from raw amplitude alone.
+        # This is intentionally simple — the detailed signal_quality dict above is
+        # for the advanced signal quality panel; this is for the recording area badge.
+        _max_amp = float(np.max(np.abs(signals))) if signals.size > 0 else 0.0
+        if _max_amp > 100.0:
+            _sq_score = max(0, 100 - int((_max_amp - 100.0) / 5.0))
+            _artifact_detected = True
+            # Determine artifact type from heuristics on the averaged signal
+            _diff_max = float(np.max(np.abs(np.diff(eeg)))) if len(eeg) > 1 else 0.0
+            _high_freq = float(np.mean(np.abs(eeg - np.mean(eeg))))
+            if _diff_max > 50.0:
+                _artifact_type = "electrode_pop"
+            elif _high_freq > 30.0:
+                _artifact_type = "muscle"
+            else:
+                _artifact_type = "blink"
+        elif _max_amp > 75.0:
+            # Amplitude in warning zone — quality degrades linearly 100→70
+            _sq_score = 100 - int((_max_amp - 75.0) / 25.0 * 30.0)
+            _artifact_detected = False
+            _artifact_type = "clean"
+        else:
+            _sq_score = 100
+            _artifact_detected = False
+            _artifact_type = "clean"
+
         return AnalysisResponse(
             sleep_stage=sleep_result,
             emotions=emotion_result,
@@ -286,6 +313,9 @@ async def analyze_eeg(input_data: EEGInput):
             anomaly=anomaly,
             personal=personal,
             epoch_ready=epoch_ready,
+            signal_quality_score=_sq_score,
+            artifact_detected=_artifact_detected,
+            artifact_type=_artifact_type,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

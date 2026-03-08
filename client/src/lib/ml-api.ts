@@ -160,6 +160,10 @@ interface EEGAnalysisResult {
   signal_quality?: SignalQuality;
   anomaly?: AnomalyResult;
   personal?: PersonalModelResult;
+  // Simple signal quality fields for dashboard badge
+  signal_quality_score?: number;   // 0-100
+  artifact_detected?: boolean;
+  artifact_type?: "clean" | "blink" | "muscle" | "electrode_pop";
 }
 
 interface SimulationResult {

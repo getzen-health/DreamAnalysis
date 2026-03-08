@@ -87,6 +87,26 @@ export default function BrainMonitor() {
       }
     : null;
 
+  // Simple amplitude-threshold signal quality fields from /analyze-eeg
+  const sqScore: number = (latestFrame as Record<string, unknown> | null)?.signal_quality_score as number ?? 100;
+  const artifactDetected: boolean = (latestFrame as Record<string, unknown> | null)?.artifact_detected as boolean ?? false;
+  const artifactType: "clean" | "blink" | "muscle" | "electrode_pop" =
+    ((latestFrame as Record<string, unknown> | null)?.artifact_type as "clean" | "blink" | "muscle" | "electrode_pop") ?? "clean";
+
+  // Badge label and color based on 0-100 quality score
+  const sqLabel =
+    sqScore > 70
+      ? "Good signal"
+      : sqScore >= 40
+        ? "Fair signal — reduce movement"
+        : "Poor signal — check headset & minimize jaw tension";
+  const sqBadgeColor =
+    sqScore > 70
+      ? "text-success border-success/30 bg-success/10"
+      : sqScore >= 40
+        ? "text-warning border-warning/30 bg-warning/10"
+        : "text-destructive border-destructive/30 bg-destructive/10";
+
   const alphaHz = analysis?.band_powers?.alpha
     ? `${(analysis.band_powers.alpha * 12).toFixed(1)} Hz`
     : "—";
@@ -304,10 +324,20 @@ export default function BrainMonitor() {
             </h3>
             <div className="flex items-center space-x-3">
               {isStreaming && <SessionControls onRecordingChange={setIsRecording} />}
+              {isStreaming && (
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${sqBadgeColor}`}
+                  title={artifactDetected ? artifactType : sqLabel}
+                >
+                  {sqLabel}
+                </span>
+              )}
               {signalQuality && (
                 <SignalQualityBadge
                   sqi={signalQuality.sqi}
                   artifacts={signalQuality.artifacts_detected}
+                  artifactDetected={artifactDetected}
+                  artifactType={artifactType}
                   compact
                 />
               )}

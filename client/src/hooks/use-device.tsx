@@ -53,6 +53,8 @@ interface EEGStreamFrame {
       buffered_sec?: number;   // seconds of EEG buffered so far
       window_sec?: number;     // target window length (30)
     };
+    // Epoch-ready flag from /analyze-eeg REST endpoint (true when >= 4s buffered)
+    epoch_ready?: boolean;
     dream_detection?: {
       is_dreaming: boolean;
       probability: number;
@@ -113,6 +115,10 @@ interface EEGStreamFrame {
     clean_ratio: number;
     channel_quality: number[];
   };
+  // Simple amplitude-threshold signal quality for dashboard badge
+  signal_quality_score?: number;   // 0-100
+  artifact_detected?: boolean;
+  artifact_type?: "clean" | "blink" | "muscle" | "electrode_pop";
   smoothed_states?: Record<string, unknown>;
   confidence_summary?: Record<string, unknown>;
   coherence?: Record<string, unknown>;
@@ -144,6 +150,8 @@ interface UseDeviceReturn {
   selectedDevice: string | null;
   deviceStatus: DeviceStatusResponse | null;
   latestFrame: EEGStreamFrame | null;
+  /** True once >= 4 seconds of EEG has been buffered; emotion accuracy is degraded below this. */
+  epochReady: boolean;
   error: string | null;
   brainflowAvailable: boolean;
   devicesLoaded: boolean;
@@ -686,12 +694,20 @@ function useDeviceInternal(): UseDeviceReturn {
     };
   }, []);
 
+  // epochReady: true once the 4-second buffer has filled (from epoch_ready in WS analysis,
+  // or from analysis.emotions.ready which tracks the longer 30s window).
+  // Defaults to false while buffering; once true it stays true for the session.
+  const epochReady =
+    (latestFrame?.analysis as Record<string, unknown> | undefined)?.epoch_ready === true ||
+    latestFrame?.analysis?.emotions?.ready === true;
+
   return {
     state,
     devices,
     selectedDevice,
     deviceStatus,
     latestFrame,
+    epochReady,
     error,
     brainflowAvailable,
     devicesLoaded,

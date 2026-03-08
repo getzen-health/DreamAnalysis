@@ -423,6 +423,10 @@ class AnalysisResponse(BaseModel):
     anomaly: Optional[Dict] = None
     personal: Optional[Dict] = None
     epoch_ready: bool = False  # True when >= 4 sec buffered; accuracy is degraded below this
+    # Simplified signal quality fields for the dashboard badge
+    signal_quality_score: int = 100  # 0-100; drops when amplitude thresholds exceeded
+    artifact_detected: bool = False
+    artifact_type: str = "clean"  # "clean" | "blink" | "muscle" | "electrode_pop"
 
 
 class DeviceConnectRequest(BaseModel):
