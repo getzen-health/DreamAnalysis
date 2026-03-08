@@ -6,7 +6,13 @@ Output format matches EEG EmotionClassifier (6-class):
     valence: -1.0 to 1.0
     arousal: 0.0 to 1.0
     confidence: 0.0 to 1.0
-    model_type: "voice_emotion2vec" | "voice_lgbm_fallback"
+    model_type: "voice_emotion2vec" | "voice_distilhubert" | "voice_lgbm_fallback"
+
+Fallback chain (highest to lowest priority):
+    1. emotion2vec_plus_base (funasr) — 9-class, most accurate
+    2. DistilHuBERT SUPERB-ER (transformers) — 4-class, 23 MB, 34 ms, no funasr needed
+    3. LightGBM MFCC (pkl) — 3-class, requires audio_emotion_lgbm.pkl
+    4. Feature-based heuristics — no model file needed
 """
 from __future__ import annotations
 
@@ -41,6 +47,20 @@ _E2V_MAP: Dict[str, str] = {
 _6CLASS: List[str] = ["happy", "sad", "angry", "fear", "surprise", "neutral"]
 
 _MIN_SAMPLES = 8000  # ~0.5s at 16 kHz minimum
+
+# DistilHuBERT SUPERB-ER label schema → 6-class mapping
+# SUPERB uses 4 classes: hap, sad, ang, neu (no fear/surprise)
+_DISTILHUBERT_MODEL = "superb/distilhubert-base-superb-er"
+_SUPERB_MAP: Dict[str, str] = {
+    "hap": "happy",
+    "sad": "sad",
+    "ang": "angry",
+    "fea": "fear",
+    "sur": "surprise",
+    "neu": "neutral",
+    # Defensive: map any unexpected labels to neutral
+}
+_DISTILHUBERT_SR = 16000  # model expects 16 kHz audio
 
 # MFCC feature extraction constants (mirrors train_audio_emotion.py)
 _SR = 22050
@@ -108,6 +128,9 @@ class VoiceEmotionModel:
         # emotion2vec+ funasr model
         self._e2v_model = None
         self._e2v_tried = False
+        # DistilHuBERT SUPERB-ER (transformers pipeline)
+        self._distilhubert_pipe = None
+        self._distilhubert_tried = False
         # LightGBM fallback — stores entire pkl dict
         self._lgbm_bundle: Optional[Dict] = None
         self._lgbm_tried = False
@@ -129,6 +152,29 @@ class VoiceEmotionModel:
         except Exception as exc:
             log.warning(
                 "emotion2vec+ load failed (%s) — using LightGBM fallback", exc
+            )
+            return False
+
+    def _load_distilhubert(self) -> bool:
+        if self._distilhubert_tried:
+            return self._distilhubert_pipe is not None
+        self._distilhubert_tried = True
+        try:
+            from transformers import pipeline  # type: ignore
+            self._distilhubert_pipe = pipeline(
+                "audio-classification",
+                model=_DISTILHUBERT_MODEL,
+            )
+            log.info("DistilHuBERT SUPERB-ER loaded successfully")
+            return True
+        except ImportError:
+            log.warning(
+                "transformers not installed — DistilHuBERT unavailable"
+            )
+            return False
+        except Exception as exc:
+            log.warning(
+                "DistilHuBERT load failed (%s) — falling through to LightGBM", exc
             )
             return False
 
@@ -163,6 +209,12 @@ class VoiceEmotionModel:
         # Try emotion2vec+ first
         if self._load_e2v():
             result = self._predict_e2v(audio, sample_rate)
+            if result is not None:
+                return result
+
+        # Try DistilHuBERT (SUPERB-ER) as secondary tier
+        if self._load_distilhubert():
+            result = self._predict_distilhubert(audio, sample_rate)
             if result is not None:
                 return result
 
@@ -246,6 +298,58 @@ class VoiceEmotionModel:
             }
         except Exception as exc:
             log.warning("emotion2vec predict failed: %s", exc)
+            return None
+
+    def _predict_distilhubert(
+        self, audio: np.ndarray, sample_rate: int
+    ) -> Optional[Dict]:
+        """Run DistilHuBERT SUPERB-ER inference and map to 6-class schema."""
+        try:
+            # Resample to 16 kHz if necessary (model hard-requires 16 kHz)
+            y = audio.astype(np.float32)
+            sr = sample_rate
+            if sr != _DISTILHUBERT_SR:
+                try:
+                    import librosa  # type: ignore
+                    y = librosa.resample(y, orig_sr=sr, target_sr=_DISTILHUBERT_SR)
+                    sr = _DISTILHUBERT_SR
+                except Exception as exc:
+                    log.warning("DistilHuBERT resample failed: %s", exc)
+                    return None
+
+            # transformers pipeline accepts a numpy array + sampling_rate dict
+            raw_results = self._distilhubert_pipe(
+                {"array": y, "sampling_rate": sr},
+                top_k=None,
+            )
+
+            if not raw_results:
+                return None
+
+            # Map SUPERB labels → 6-class and accumulate scores
+            probs_6: Dict[str, float] = {c: 0.0 for c in _6CLASS}
+            for item in raw_results:
+                label_raw: str = item.get("label", "").lower()
+                score: float = float(item.get("score", 0.0))
+                target = _SUPERB_MAP.get(label_raw, "neutral")
+                probs_6[target] = probs_6[target] + score
+
+            total = sum(probs_6.values()) or 1.0
+            probs_6 = {k: v / total for k, v in probs_6.items()}
+
+            emotion = max(probs_6, key=probs_6.__getitem__)
+            confidence = probs_6[emotion]
+            valence, arousal = _valence_arousal(probs_6)
+            return {
+                "emotion": emotion,
+                "probabilities": {k: round(v, 4) for k, v in probs_6.items()},
+                "valence": round(valence, 4),
+                "arousal": round(arousal, 4),
+                "confidence": round(confidence, 4),
+                "model_type": "voice_distilhubert",
+            }
+        except Exception as exc:
+            log.warning("DistilHuBERT predict failed: %s", exc)
             return None
 
     def _predict_lgbm(
