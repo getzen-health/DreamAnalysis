@@ -71,78 +71,58 @@ _N_FEATS = 92
 def _extract_prosodic_features(y: np.ndarray, sr: int) -> dict:
     """Extract jitter, shimmer, F0, pause, and GFCC features from audio.
 
-    All external dependencies (parselmouth, gammatone) are optional —
-    falls back to zero-value placeholders if not installed.
+    Delegates to VoiceBiomarkerExtractor (numpy/librosa only — no
+    parselmouth or gammatone needed).  Falls back to zero-value dict
+    if the extractor is unavailable or audio is too short.
     """
-    # ── Jitter, Shimmer, F0 via parselmouth/praat ──────────────────────────
-    jitter_local: float = 0.0
-    shimmer_local: float = 0.0
-    f0_mean: float = 0.0
-    f0_std: float = 0.0
-    voiced_fraction: float = 0.0
     try:
-        import parselmouth  # type: ignore
-        from parselmouth.praat import call  # type: ignore
+        from models.voice_biomarkers import get_biomarker_extractor
 
-        snd = parselmouth.Sound(y, sampling_frequency=sr)
-        pitch = snd.to_pitch()
-        point_process = call(snd, "To PointProcess (periodic, cc)", 75, 500)
-        jitter_local = call(
-            point_process, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3
-        )
-        shimmer_local = call(
-            [snd, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6
-        )
-        f0_values = pitch.selected_array["frequency"]
-        f0_values = f0_values[f0_values > 0]
-        f0_mean = float(np.mean(f0_values)) if len(f0_values) > 0 else 0.0
-        f0_std = float(np.std(f0_values)) if len(f0_values) > 0 else 0.0
-        voiced_fraction = len(f0_values) / max(len(pitch.xs()), 1)
-    except Exception:
-        pass  # parselmouth unavailable — keep zeros
+        extractor = get_biomarker_extractor()
+        bio = extractor.extract(y, sr=sr)
+        if bio.get("error"):
+            return _empty_prosodic()
 
-    # ── Pause metrics (numpy only) ─────────────────────────────────────────
-    pause_rate: float = 0.0
-    try:
-        frame_len = int(sr * 0.025)
-        hop = int(sr * 0.010)
-        rms = np.array(
-            [
-                np.sqrt(np.mean(y[i : i + frame_len] ** 2))
-                for i in range(0, len(y) - frame_len, hop)
-            ]
-        )
-        if len(rms) > 0:
-            threshold = np.percentile(rms, 20)
-            is_silent = rms < threshold
-            pause_rate = float(np.mean(is_silent))
-    except Exception:
-        pass
+        # Map to the legacy key names expected by _predict_features()
+        return {
+            "jitter_local": bio.get("jitter_local", 0.0),
+            "shimmer_local": bio.get("shimmer_local", 0.0),
+            "f0_mean": bio.get("f0_mean", 0.0),
+            "f0_std": bio.get("f0_std", 0.0),
+            "voiced_fraction": 0.0,  # not directly in new extractor
+            "pause_rate": bio.get("silence_ratio", 0.0),
+            "gfcc_mean": bio.get("gfcc_mean", [0.0] * 13),
+            "gfcc_std": bio.get("gfcc_std", [0.0] * 13),
+            # New fields available for enrichment
+            "jitter_rap": bio.get("jitter_rap", 0.0),
+            "jitter_ppq5": bio.get("jitter_ppq5", 0.0),
+            "shimmer_apq3": bio.get("shimmer_apq3", 0.0),
+            "hnr": bio.get("hnr", 0.0),
+            "f0_range": bio.get("f0_range", 0.0),
+            "pause_count": bio.get("pause_count", 0),
+            "mean_pause_duration": bio.get("mean_pause_duration", 0.0),
+            "max_pause_duration": bio.get("max_pause_duration", 0.0),
+            "speech_rate": bio.get("speech_rate", 0.0),
+            "articulation_rate": bio.get("articulation_rate", 0.0),
+            "energy_mean": bio.get("energy_mean", 0.0),
+            "energy_std": bio.get("energy_std", 0.0),
+        }
+    except Exception as exc:
+        log.warning("Prosodic feature extraction failed: %s", exc)
+        return _empty_prosodic()
 
-    # ── GFCC features (gammatone cepstral coefficients) ───────────────────
-    gfcc_mean: List[float] = [0.0] * 13
-    gfcc_std: List[float] = [0.0] * 13
-    try:
-        from gammatone.gtgram import gtgram  # type: ignore
-        from scipy.fft import dct  # type: ignore
 
-        gt = gtgram(y.astype(float), sr, 0.025, 0.010, 32, 50)
-        gt_log = np.log(gt + 1e-8)
-        gfcc = dct(gt_log, type=2, axis=0, norm="ortho")[:13]
-        gfcc_mean = gfcc.mean(axis=1).tolist()
-        gfcc_std = gfcc.std(axis=1).tolist()
-    except Exception:
-        pass  # gammatone unavailable — keep zero-value fallback
-
+def _empty_prosodic() -> dict:
+    """Return zeroed prosodic feature dict."""
     return {
-        "jitter_local": float(jitter_local) if np.isfinite(jitter_local) else 0.0,
-        "shimmer_local": float(shimmer_local) if np.isfinite(shimmer_local) else 0.0,
-        "f0_mean": f0_mean,
-        "f0_std": f0_std,
-        "voiced_fraction": voiced_fraction,
-        "pause_rate": pause_rate,
-        "gfcc_mean": gfcc_mean,  # list of 13 floats
-        "gfcc_std": gfcc_std,    # list of 13 floats
+        "jitter_local": 0.0,
+        "shimmer_local": 0.0,
+        "f0_mean": 0.0,
+        "f0_std": 0.0,
+        "voiced_fraction": 0.0,
+        "pause_rate": 0.0,
+        "gfcc_mean": [0.0] * 13,
+        "gfcc_std": [0.0] * 13,
     }
 
 
@@ -303,6 +283,39 @@ class VoiceEmotionModel:
 
         # Last resort: feature-based heuristics (no saved model needed)
         return self._predict_features(audio, sample_rate)
+
+    def predict_with_biomarkers(
+        self, audio: np.ndarray, sample_rate: int = 22050
+    ) -> Optional[Dict]:
+        """Predict emotion AND extract mental-health biomarkers.
+
+        Returns the standard emotion dict enriched with:
+          - biomarkers: raw jitter/shimmer/HNR/pause/GFCC values
+          - mental_health: depression, anxiety, and stress screening scores
+
+        This is an opt-in enrichment — callers who only need emotion
+        should use ``predict()`` for lower latency.
+        """
+        result = self.predict(audio, sample_rate)
+        if result is None:
+            return None
+
+        try:
+            from models.voice_biomarkers import get_biomarker_extractor
+
+            extractor = get_biomarker_extractor()
+            biomarkers = extractor.extract(audio, sr=sample_rate)
+            if not biomarkers.get("error"):
+                result["biomarkers"] = biomarkers
+                result["mental_health"] = {
+                    "depression": extractor.screen_depression(biomarkers),
+                    "anxiety": extractor.screen_anxiety(biomarkers),
+                    "stress": extractor.screen_stress(biomarkers),
+                }
+        except Exception as exc:
+            log.warning("Biomarker enrichment failed: %s", exc)
+
+        return result
 
     # ── Internal inference ────────────────────────────────────────────────────
 
