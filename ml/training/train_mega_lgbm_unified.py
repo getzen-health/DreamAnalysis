@@ -1383,6 +1383,14 @@ def main() -> None:
     class_counts = {EMOTIONS_3[i]: int((y == i).sum()) for i in range(3)}
     log.info("Class counts: %s", class_counts)
 
+    # ── 1b. Channel reflection augmentation (doubles data for free) ──
+    try:
+        from training.augmentation import augment_features_with_reflection
+        log.info("Channel reflection: %d -> %d samples", len(X), len(X) * 2)
+        X, y = augment_features_with_reflection(X, y)
+    except Exception as exc:
+        log.warning("Channel reflection skipped: %s", exc)
+
     # ── 2. SMOTE ──
     X_bal, y_bal = _smote(X, y)
     log.info("After SMOTE: %d samples", len(y_bal))
