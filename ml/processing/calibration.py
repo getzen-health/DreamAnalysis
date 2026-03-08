@@ -23,7 +23,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Optional
 
-from processing.eeg_processor import extract_band_powers, extract_features, preprocess
+from processing.eeg_processor import extract_band_powers, extract_features, preprocess, estimate_iaf
 
 
 CALIBRATION_DIR = Path(__file__).parent.parent / "data" / "calibrations"
@@ -171,6 +171,8 @@ class CalibrationRunner:
         """Add a 4-second epoch of EEG data for a calibration condition.
 
         Call this repeatedly as data comes in during each calibration step.
+        For eyes_closed epochs, also estimates Individual Alpha Frequency (IAF)
+        from the raw signal and stores per-epoch estimates for averaging.
         """
         if condition not in self.condition_data:
             self.condition_data[condition] = {"bands": [], "features": []}
@@ -183,6 +185,13 @@ class CalibrationRunner:
 
         self.condition_data[condition]["bands"].append(bands)
         self.condition_data[condition]["features"].append(feature_values)
+
+        # Estimate IAF from eyes-closed epochs (strongest alpha peak)
+        if condition == "eyes_closed":
+            if "_iaf_estimates" not in self.condition_data[condition]:
+                self.condition_data[condition]["_iaf_estimates"] = []
+            iaf = estimate_iaf(processed, fs=self.fs)
+            self.condition_data[condition]["_iaf_estimates"].append(iaf)
 
     def compute_calibration(self, user_id: str) -> UserCalibration:
         """Compute calibration from collected epochs.
@@ -259,6 +268,29 @@ class CalibrationRunner:
             cal.theta_alpha_ratio_rest = eo_theta / eo_alpha
         else:
             cal.theta_alpha_ratio_rest = 1.0
+
+        # Individual Alpha Frequency (IAF) — estimated from eyes-closed epochs
+        # Eyes-closed produces the strongest alpha peak, giving the most reliable IAF.
+        ec_data = self.condition_data.get("eyes_closed")
+        if ec_data and ec_data.get("bands"):
+            try:
+                # Reconstruct a combined signal from all eyes-closed feature arrays.
+                # Each feature array was extracted from a 4-second preprocessed epoch.
+                # We use band power data to find the epoch count, then re-use the
+                # stored raw signals if available. Since CalibrationRunner.add_epoch
+                # only stores extracted features (not raw signals), we estimate IAF
+                # from a synthetic signal that exhibits the observed band power
+                # distribution. However, this is imprecise -- a better approach is
+                # to compute IAF during add_epoch when raw signal is available.
+                #
+                # For now, add IAF computation directly in add_epoch by storing
+                # per-epoch IAF estimates and averaging them here.
+                if "_iaf_estimates" in self.condition_data["eyes_closed"]:
+                    iaf_values = self.condition_data["eyes_closed"]["_iaf_estimates"]
+                    if iaf_values:
+                        cal.alpha_peak_freq = float(np.mean(iaf_values))
+            except Exception:
+                pass  # IAF computation failure should never break calibration
 
         cal.is_calibrated = True
         cal.calibrated_at = time.time()
