@@ -427,6 +427,11 @@ class AnalysisResponse(BaseModel):
     signal_quality_score: int = 100  # 0-100; drops when amplitude thresholds exceeded
     artifact_detected: bool = False
     artifact_type: str = "clean"  # "clean" | "blink" | "muscle" | "electrode_pop"
+    # E-ASR artifact cleaning ratio (fraction of channels that had artifacts cleaned)
+    artifact_cleaned_ratio: Optional[float] = None  # 0.0-1.0; None when E-ASR not applied
+    # Background emotion from 30-second slow epoch (more accurate than fast 4s)
+    background_emotion: Optional[Dict] = None
+    background_ready: bool = False  # True when >= 30 sec buffered
 
 
 class DeviceConnectRequest(BaseModel):

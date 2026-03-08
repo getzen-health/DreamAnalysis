@@ -23,8 +23,25 @@ from ._shared import (
     AnomalyDetector,
     fusion_model, get_biometric_snapshot, predict_emotion,
 )
+from processing.e_asr import EmbeddedASR
 
 router = APIRouter()
+
+# ─── Per-user E-ASR instances ────────────────────────────────────────────────
+# Each user gets an independent EmbeddedASR so baseline calibration is per-session.
+# Instances are created lazily on first use. Baseline is fitted via the
+# /calibration/baseline/add-frame endpoint (BaselineCalibrator) — E-ASR does
+# not require separate calibration; it uses the same resting-state data.
+_easr_instances: Dict[str, EmbeddedASR] = {}
+_easr_instances_lock = threading.Lock()
+
+
+def _get_easr(user_id: str, fs: int = 256) -> EmbeddedASR:
+    """Return (creating if needed) the per-user EmbeddedASR instance."""
+    with _easr_instances_lock:
+        if user_id not in _easr_instances:
+            _easr_instances[user_id] = EmbeddedASR(fs=fs)
+        return _easr_instances[user_id]
 
 # Shared thread-pool for parallel ML inference.
 # LightGBM, NumPy and SciPy release the GIL during native computation,
@@ -32,53 +49,80 @@ router = APIRouter()
 _MODEL_EXECUTOR = ThreadPoolExecutor(max_workers=8, thread_name_prefix="ml_inference")
 
 
-# ─── 4-second epoch buffer (sliding window, 50% overlap) ─────────────────────
+# ─── Dual epoch buffer (4s fast + 30s slow, sliding windows) ─────────────────
 # Research consensus: 4-8 sec epochs are needed for stable Welch PSD estimates.
 # Below 4 seconds, theta/alpha power estimates have high variance.
-# Buffer accumulates frames and exposes the last 4 seconds on each call.
-_EPOCH_SECONDS = 4          # seconds of EEG to accumulate before classifying
-_EPOCH_HOP_SECONDS = 2      # slide by 2 seconds (50% overlap)
+# 30-second epochs produce the most accurate emotion classification (2024 paper).
+#
+# Fast buffer (4s, 2s hop): real-time display, updates every 2 seconds.
+# Slow buffer (30s, 15s hop): background emotion state, higher accuracy.
+_EPOCH_SECONDS = 4          # fast epoch: seconds of EEG to classify in real-time
+_EPOCH_HOP_SECONDS = 2      # fast epoch: slide by 2 seconds (50% overlap)
+_SLOW_EPOCH_SECONDS = 30    # slow epoch: seconds of EEG for accurate background state
+_SLOW_EPOCH_HOP_SECONDS = 15  # slow epoch: slide by 15 seconds (50% overlap)
 _DEFAULT_FS = 256
 
 class _EpochBuffer:
-    """Thread-safe ring buffer that accumulates EEG frames.
+    """Thread-safe dual ring buffer that accumulates EEG frames.
 
-    When fewer than _EPOCH_SECONDS of data has been collected, the buffer
-    returns whatever is available so the API still responds (degraded accuracy,
-    flagged with epoch_ready=False).  Once full, it slides by _EPOCH_HOP_SECONDS.
+    Maintains two parallel windows:
+      - Fast buffer (4s): for real-time emotion display. Returns whatever is
+        available, flagged with epoch_ready=False until 4 seconds are buffered.
+      - Slow buffer (30s): for accurate background emotion state. Only emits
+        when 30 seconds are accumulated, producing more stable classification.
+
+    The slow buffer is independent -- it accumulates all incoming data up to 30s
+    and trims to that cap.
     """
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._buf: np.ndarray | None = None   # (n_channels, n_accumulated)
+        self._fast_buf: np.ndarray | None = None   # (n_channels, n_accumulated) -- max 4s
+        self._slow_buf: np.ndarray | None = None   # (n_channels, n_accumulated) -- max 30s
         self._n_channels: int = 0
 
-    def push_and_get(self, signals: np.ndarray, fs: float) -> tuple[np.ndarray, bool]:
-        """Add new samples and return the best epoch available.
+    def push_and_get(
+        self, signals: np.ndarray, fs: float
+    ) -> tuple[np.ndarray, bool, np.ndarray | None, bool]:
+        """Add new samples and return both fast and slow epochs.
 
         Returns:
-            (epoch, epoch_ready) where epoch_ready=True means >= 4 seconds.
+            (fast_epoch, fast_ready, slow_epoch, slow_ready)
+            - fast_epoch: up to 4 seconds of buffered data (always returned).
+            - fast_ready: True when fast_epoch contains >= 4 seconds.
+            - slow_epoch: 30 seconds of buffered data, or None if not ready.
+            - slow_ready: True when slow buffer contains >= 30 seconds.
         """
-        epoch_samples = int(_EPOCH_SECONDS * fs)
-        hop_samples = int(_EPOCH_HOP_SECONDS * fs)
+        fast_samples = int(_EPOCH_SECONDS * fs)
+        slow_samples = int(_SLOW_EPOCH_SECONDS * fs)
         n_channels = signals.shape[0]
 
         with self._lock:
-            # Reset buffer if channel count changed
-            if self._buf is None or self._n_channels != n_channels:
-                self._buf = signals.copy()
+            # Reset both buffers if channel count changed
+            if self._fast_buf is None or self._n_channels != n_channels:
+                self._fast_buf = signals.copy()
+                self._slow_buf = signals.copy()
                 self._n_channels = n_channels
             else:
-                self._buf = np.concatenate([self._buf, signals], axis=1)
+                self._fast_buf = np.concatenate([self._fast_buf, signals], axis=1)
+                self._slow_buf = np.concatenate([self._slow_buf, signals], axis=1)
 
-            # Trim buffer to maximum needed size (4 seconds)
-            if self._buf.shape[1] > epoch_samples:
-                self._buf = self._buf[:, -epoch_samples:]
+            # Trim fast buffer to 4 seconds
+            if self._fast_buf.shape[1] > fast_samples:
+                self._fast_buf = self._fast_buf[:, -fast_samples:]
 
-            buf_copy = self._buf.copy()
+            # Trim slow buffer to 30 seconds
+            if self._slow_buf.shape[1] > slow_samples:
+                self._slow_buf = self._slow_buf[:, -slow_samples:]
 
-        epoch_ready = buf_copy.shape[1] >= epoch_samples
-        return buf_copy, epoch_ready
+            fast_copy = self._fast_buf.copy()
+            slow_copy = self._slow_buf.copy()
+
+        fast_ready = fast_copy.shape[1] >= fast_samples
+        slow_ready = slow_copy.shape[1] >= slow_samples
+        slow_epoch = slow_copy if slow_ready else None
+
+        return fast_copy, fast_ready, slow_epoch, slow_ready
 
 
 _epoch_buffers: Dict[str, _EpochBuffer] = {}
@@ -149,8 +193,15 @@ async def analyze_eeg(input_data: EEGInput):
         n_channels = signals.shape[0]
 
         # Accumulate into per-user epoch buffer; use 4-second window when available
-        signals, epoch_ready = _get_epoch_buffer(user_id).push_and_get(signals, fs)
+        signals, epoch_ready, slow_epoch, slow_ready = _get_epoch_buffer(user_id).push_and_get(signals, fs)
         n_channels = signals.shape[0]   # re-read after buffer update
+
+        # ── E-ASR artifact cleaning (preserves data instead of discarding) ─────
+        # Applied per-channel before model inference. If the per-user E-ASR
+        # instance has a fitted baseline, full subspace reconstruction is used;
+        # otherwise falls back to simple interpolation of extreme amplitudes.
+        easr = _get_easr(user_id, fs=int(fs))
+        signals, artifact_cleaned_ratio = easr.clean_multichannel(signals)
 
         if n_channels > 1:
             avg_signal = np.mean(signals, axis=0)
@@ -275,6 +326,26 @@ async def analyze_eeg(input_data: EEGInput):
             emotion_result["ema_alpha"] = _EMA_ALPHA
         # ─────────────────────────────────────────────────────────────────────
 
+        # ── Background emotion from 30s slow epoch ────────────────────────────
+        # When the slow buffer has accumulated 30 seconds, run a second emotion
+        # prediction on the longer window for more accurate background state.
+        background_emotion = None
+        if slow_ready and slow_epoch is not None:
+            try:
+                slow_n_channels = slow_epoch.shape[0]
+                slow_emotion_input = slow_epoch if slow_n_channels >= 2 else slow_epoch[0]
+                background_emotion = await loop.run_in_executor(
+                    _MODEL_EXECUTOR,
+                    predict_emotion,
+                    user_id,
+                    slow_emotion_input,
+                    fs,
+                    slow_n_channels,
+                    device_type,
+                )
+            except Exception:
+                pass  # slow-path failure must never break the fast path
+
         # ── Simple amplitude-threshold signal quality for dashboard badge ────────
         # Computes a 0-100 score and detects artifact type from raw amplitude alone.
         # This is intentionally simple — the detailed signal_quality dict above is
@@ -316,6 +387,9 @@ async def analyze_eeg(input_data: EEGInput):
             signal_quality_score=_sq_score,
             artifact_detected=_artifact_detected,
             artifact_type=_artifact_type,
+            artifact_cleaned_ratio=round(artifact_cleaned_ratio, 4),
+            background_emotion=background_emotion,
+            background_ready=slow_ready,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

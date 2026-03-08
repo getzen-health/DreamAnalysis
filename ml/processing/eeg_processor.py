@@ -9,7 +9,10 @@ import numpy as np
 import pywt
 from scipy import signal as scipy_signal
 from scipy.stats import entropy
-from typing import Dict, List
+from typing import Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from processing.e_asr import EmbeddedASR
 
 # NumPy 2.0 renamed np.trapz → np.trapezoid; 1.x only has np.trapz
 # Use the safe two-step lookup to avoid AttributeError on either version
@@ -85,12 +88,68 @@ def rereference_to_mastoid(
     return signals - mastoid_ref[np.newaxis, :]
 
 
-def preprocess(raw_eeg: np.ndarray, fs: float = 256.0) -> np.ndarray:
-    """Full preprocessing pipeline: bandpass 1-50Hz + notch 50/60Hz."""
+def preprocess(
+    raw_eeg: np.ndarray,
+    fs: float = 256.0,
+    clean_artifacts: bool = False,
+    easr_instance: Optional["EmbeddedASR"] = None,
+) -> np.ndarray:
+    """Full preprocessing pipeline: bandpass 1-50Hz + notch 50/60Hz.
+
+    Args:
+        raw_eeg: 1D EEG signal array.
+        fs: Sampling frequency in Hz.
+        clean_artifacts: If True, apply E-ASR artifact cleaning after filtering.
+            This preserves data instead of discarding epochs. Off by default
+            to avoid breaking existing callers.
+        easr_instance: Optional pre-configured EmbeddedASR instance. If None
+            and clean_artifacts is True, a default instance is created (without
+            baseline fitting, which uses the simple interpolation fallback).
+
+    Returns:
+        Filtered (and optionally artifact-cleaned) signal.
+    """
     filtered = bandpass_filter(raw_eeg, 1.0, 50.0, fs)
     filtered = notch_filter(filtered, 50.0, fs)
     filtered = notch_filter(filtered, 60.0, fs)
+
+    if clean_artifacts:
+        filtered = clean_artifacts_easr(filtered, fs=fs, easr_instance=easr_instance)
+
     return filtered
+
+
+def clean_artifacts_easr(
+    signal: np.ndarray,
+    fs: float = 256.0,
+    easr_instance: Optional["EmbeddedASR"] = None,
+) -> np.ndarray:
+    """Clean artifacts using E-ASR (preserves data instead of discarding).
+
+    E-ASR (Embedded Artifact Subspace Reconstruction) adapts the standard
+    multi-channel ASR algorithm to work on single channels via time-delay
+    embedding. Artifact components are projected back to baseline variance
+    levels instead of being zeroed out or having the entire epoch discarded.
+
+    Falls back to simple amplitude-threshold interpolation if the E-ASR
+    instance has no fitted baseline.
+
+    Args:
+        signal: 1D EEG signal array.
+        fs: Sampling frequency in Hz.
+        easr_instance: Pre-configured EmbeddedASR instance. If None, a
+            default (unfitted) instance is created, which will use the
+            simple interpolation fallback.
+
+    Returns:
+        Cleaned signal (same length as input).
+    """
+    from processing.e_asr import EmbeddedASR
+
+    if easr_instance is None:
+        easr_instance = EmbeddedASR(fs=int(fs))
+
+    return easr_instance.clean(signal)
 
 
 # Cached instances for ML-based preprocessing (lazy loaded)
@@ -186,19 +245,74 @@ def preprocess_robust(
     return filtered
 
 
+def estimate_iaf(
+    signal: np.ndarray, fs: float = 256.0, search_range: tuple = (7.0, 14.0)
+) -> float:
+    """Estimate Individual Alpha Frequency from EEG signal.
+
+    Finds the spectral peak in the 7-14 Hz range using Welch PSD.
+    Typical IAF is 9-11 Hz for healthy adults.
+
+    Args:
+        signal: 1D EEG signal (preprocessed).
+        fs: Sampling rate in Hz.
+        search_range: Hz range to search for alpha peak.
+
+    Returns:
+        IAF in Hz (default 10.0 if no clear peak found or signal too short).
+    """
+    nperseg = min(int(fs * 2), len(signal))
+    if nperseg < int(fs * 0.5):
+        return 10.0  # signal too short for reliable PSD
+    freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=nperseg)
+    mask = (freqs >= search_range[0]) & (freqs <= search_range[1])
+    if not np.any(mask):
+        return 10.0
+    alpha_psd = psd[mask]
+    alpha_freqs = freqs[mask]
+    return float(alpha_freqs[np.argmax(alpha_psd)])
+
+
+def get_personalized_bands(iaf: float) -> Dict[str, tuple]:
+    """Return frequency band boundaries personalized to user's IAF.
+
+    Standard bands assume alpha = 8-12 Hz (IAF = 10 Hz).
+    This shifts theta/alpha/beta/low_beta boundaries relative to the
+    user's actual IAF while keeping delta, high_beta, and gamma fixed.
+
+    Args:
+        iaf: Individual Alpha Frequency in Hz.
+
+    Returns:
+        Dict mapping band names to (low_hz, high_hz) tuples.
+    """
+    return {
+        "delta": (0.5, 4.0),
+        "theta": (4.0, iaf - 2.0),
+        "alpha": (iaf - 2.0, iaf + 2.0),
+        "beta": (iaf + 2.0, 30.0),
+        "low_beta": (iaf + 2.0, 20.0),
+        "high_beta": (20.0, 30.0),
+        "gamma": (30.0, 100.0),
+    }
+
+
 def _compute_psd(eeg: np.ndarray, fs: float = 256.0):
     """Compute Welch PSD once, to be shared across feature extractors."""
     return scipy_signal.welch(eeg, fs=fs, nperseg=min(len(eeg), int(fs * 2)))
 
 
 def extract_band_powers(eeg: np.ndarray, fs: float = 256.0,
-                        psd_cache: tuple = None) -> Dict[str, float]:
+                        psd_cache: tuple = None,
+                        bands: Dict[str, tuple] = None) -> Dict[str, float]:
     """Extract power spectral density for each EEG frequency band.
 
     Args:
         eeg: 1D EEG signal.
         fs: Sampling frequency.
         psd_cache: Optional pre-computed (freqs, psd) tuple to avoid re-computing Welch.
+        bands: Optional custom band definitions (e.g. from get_personalized_bands).
+               Falls back to module-level BANDS if not provided.
     """
     if psd_cache is not None:
         freqs, psd = psd_cache
@@ -209,8 +323,9 @@ def extract_band_powers(eeg: np.ndarray, fs: float = 256.0,
     if total_power == 0:
         total_power = 1e-10
 
+    use_bands = bands if bands is not None else BANDS
     band_powers = {}
-    for band_name, (low, high) in BANDS.items():
+    for band_name, (low, high) in use_bands.items():
         mask = (freqs >= low) & (freqs <= high)
         band_power = _trapezoid(psd[mask], freqs[mask])
         band_powers[band_name] = float(band_power / total_power)
