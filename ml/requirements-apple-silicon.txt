@@ -1,0 +1,26 @@
+# Apple Silicon (M1/M2/M3) accelerated training
+#
+# This file is for TRAINING on Apple Silicon Macs only.
+# It uses MLX which runs on Metal + Apple Neural Engine — no CUDA or GPU needed.
+# Requires Apple Silicon (M1/M2/M3). Will NOT work on Intel Macs.
+#
+# Install INSTEAD OF (or alongside) the cpu-only torch from requirements.txt.
+#
+# Usage:
+#   cd ml
+#   pip install -r requirements-apple-silicon.txt
+#   python -m training.train_eegnet_mlx --synthetic
+#
+# After training, weights are saved as .npz (MLX) and optionally .pt + .onnx
+# (PyTorch bridge) so they can be used for inference on any platform.
+
+mlx>=0.18.0
+mlx-data>=0.0.4
+
+# Optional: export trained models to CoreML for on-device iOS/macOS inference
+# coremltools>=8.0
+
+# Note: torch is NOT required for MLX training.
+# The existing requirements.txt torch (cpu-only) is only needed for ONNX export
+# after training. Install it separately if you want ONNX export:
+#   pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
