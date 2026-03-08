@@ -23,6 +23,9 @@ vi.mock("@/hooks/use-toast", () => ({
 
 vi.mock("@/lib/ml-api", () => ({
   ingestHealthData: vi.fn().mockResolvedValue({ stored: 10, metrics: ["heart_rate"] }),
+  getBaselineStatus: vi.fn().mockResolvedValue({ is_ready: false, frames_collected: 0 }),
+  addBaselineFrame: vi.fn().mockResolvedValue({ ok: true }),
+  resetBaselineCalibration: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 describe("Settings page", () => {
