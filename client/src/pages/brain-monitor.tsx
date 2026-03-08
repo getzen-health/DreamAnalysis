@@ -26,7 +26,7 @@ import { Music } from "lucide-react";
 export default function BrainMonitor() {
   const { isLocal, latencyMs, isReady } = useInference();
   const device = useDevice();
-  const { state: deviceState, latestFrame, deviceStatus, selectedDevice, reconnectCount } = device;
+  const { state: deviceState, latestFrame, deviceStatus, selectedDevice, reconnectCount, epochReady } = device;
   const isStreaming = deviceState === "streaming";
   const voiceEmotion = useVoiceEmotion();
 
@@ -150,22 +150,27 @@ export default function BrainMonitor() {
   const lf = latestFrame;
   const a = lf?.analysis as Record<string, unknown> | undefined;
 
+  // Placeholder shown while the 4-second epoch buffer is filling
+  const COLLECTING = isStreaming && !epochReady ? "Collecting…" : "—";
+
   const modelOutputs: { name: string; value: string }[] = [
     {
       name: "Emotion",
-      value: (a?.emotions as { emotion?: string } | undefined)?.emotion ?? "—",
+      value: epochReady
+        ? ((a?.emotions as { emotion?: string } | undefined)?.emotion ?? "—")
+        : COLLECTING,
     },
     {
       name: "Stress",
-      value: lf
+      value: epochReady && lf
         ? `${Math.round(((a?.emotions as { stress_index?: number } | undefined)?.stress_index ?? 0) * 100)}%`
-        : "—",
+        : COLLECTING,
     },
     {
       name: "Focus",
-      value: lf
+      value: epochReady && lf
         ? `${Math.round(((a?.emotions as { focus_index?: number } | undefined)?.focus_index ?? 0) * 100)}%`
-        : "—",
+        : COLLECTING,
     },
     {
       name: "Sleep",
@@ -438,7 +443,7 @@ export default function BrainMonitor() {
                 <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/30">
                   {[
                     { label: "Sleep", value: stableAnalysis.sleep_staging?.stage ?? "Wake", sub: `${Math.round((stableAnalysis.sleep_staging?.confidence ?? 0) * 100)}% conf` },
-                    { label: "Emotion", value: stableAnalysis.emotions?.emotion ?? "—", sub: `V:${((stableAnalysis.emotions?.valence ?? 0) * 100).toFixed(0)}%` },
+                    { label: "Emotion", value: epochReady ? (stableAnalysis.emotions?.emotion ?? "—") : "Collecting signal…", sub: epochReady ? `V:${((stableAnalysis.emotions?.valence ?? 0) * 100).toFixed(0)}%` : "4s needed" },
                     { label: "Stress", value: stableAnalysis.stress?.level ?? "—", sub: `${Math.round((stableAnalysis.stress?.stress_index ?? 0) * 100)}%` },
                     { label: "Flow", value: stableAnalysis.flow_state?.in_flow ? "In Flow" : "Normal", sub: `${Math.round((stableAnalysis.flow_state?.flow_score ?? 0) * 100)}%` },
                   ].map(({ label, value, sub }) => (
@@ -469,7 +474,7 @@ export default function BrainMonitor() {
                 {stableAnalysis.cognitive_load && (
                   <div className="text-[11px] text-muted-foreground pt-2 border-t border-border/20">
                     Cognitive load: <span className="font-medium text-foreground/80 capitalize">{stableAnalysis.cognitive_load.level}</span>
-                    {stableAnalysis.emotions?.probabilities && (
+                    {epochReady && stableAnalysis.emotions?.probabilities ? (
                       <div className="mt-2 space-y-1">
                         {Object.entries(stableAnalysis.emotions.probabilities as Record<string, number>)
                           .sort((a, b) => b[1] - a[1])
@@ -484,7 +489,9 @@ export default function BrainMonitor() {
                             </div>
                           ))}
                       </div>
-                    )}
+                    ) : !epochReady ? (
+                      <p className="mt-2 text-muted-foreground/60 italic">Collecting signal…</p>
+                    ) : null}
                   </div>
                 )}
               </div>

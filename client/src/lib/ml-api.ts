@@ -164,6 +164,8 @@ interface EEGAnalysisResult {
   signal_quality_score?: number;   // 0-100
   artifact_detected?: boolean;
   artifact_type?: "clean" | "blink" | "muscle" | "electrode_pop";
+  /** True when >= 4 seconds of EEG have been buffered; emotion accuracy is degraded below this. */
+  epoch_ready?: boolean;
 }
 
 interface SimulationResult {
