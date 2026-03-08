@@ -381,9 +381,11 @@ def main() -> None:
     parser.add_argument("--channels",      type=int,   default=4,     help="EEG channels (4/8/16)")
     parser.add_argument("--data-dir",      type=Path,  default=None,  help="Parquet/NPZ data directory")
     parser.add_argument("--npz",           type=Path,  default=None,  help="Single NPZ file (X, y)")
+    parser.add_argument("--emokey",        action="store_true",       help="Train on EmoKey Muse S dataset (45 subjects, real data)")
+    parser.add_argument("--emokey-subjects", type=int, default=None,  help="Limit EmoKey subjects (default: all 45)")
     parser.add_argument("--synthetic",     action="store_true",       help="Use synthetic data (smoke-test)")
     parser.add_argument("--epochs",        type=int,   default=150,   help="Max training epochs")
-    parser.add_argument("--batch-size",    type=int,   default=32)
+    parser.add_argument("--batch-size",    type=int,   default=64,    help="Batch size (64 works well for EmoKey)")
     parser.add_argument("--lr",            type=float, default=1e-3)
     parser.add_argument("--patience",      type=int,   default=20,    help="Early stopping patience")
     parser.add_argument("--fs",            type=float, default=256.0, help="EEG sampling rate Hz")
@@ -398,7 +400,20 @@ def main() -> None:
     # ── Load data ─────────────────────────────────────────────────────────
     X, y = None, None
 
-    if args.npz:
+    if args.emokey:
+        from training.loaders_emokey import load_emokey, FS as EMOKEY_FS, EPOCH_SAMPLES, N_CLASSES as EMOKEY_CLASSES, LABEL_NAMES
+        log.info("Loading EmoKey Muse S dataset (45 subjects, 4-ch, real data)...")
+        X, y = load_emokey(max_subjects=args.emokey_subjects)
+        # EmoKey uses 128 Hz / 512 samples — override CLI defaults
+        args.fs = EMOKEY_FS
+        n_samples = EPOCH_SAMPLES
+        log.info("EmoKey loaded: X=%s y=%s | classes: %s", X.shape, y.shape, LABEL_NAMES)
+        # Remap to 5-class (EmoKey has no surprise)
+        global EMOTIONS, N_CLASSES
+        EMOTIONS = LABEL_NAMES
+        N_CLASSES = EMOKEY_CLASSES
+
+    elif args.npz:
         X, y = load_npz(args.npz, args.channels)
         log.info("NPZ loaded: X=%s y=%s", X.shape, y.shape)
 
@@ -412,7 +427,7 @@ def main() -> None:
         log.info("Synthetic data: X=%s y=%s", X.shape, y.shape)
 
     else:
-        parser.error("Provide --data-dir, --npz, or --synthetic")
+        parser.error("Provide --emokey, --data-dir, --npz, or --synthetic")
 
     if X is None or len(y) == 0:
         print("ERROR: No training data found. Check your --data-dir path.")
