@@ -68,6 +68,84 @@ _N_MFCC = 40
 _N_FEATS = 92
 
 
+def _extract_prosodic_features(y: np.ndarray, sr: int) -> dict:
+    """Extract jitter, shimmer, F0, pause, and GFCC features from audio.
+
+    All external dependencies (parselmouth, gammatone) are optional —
+    falls back to zero-value placeholders if not installed.
+    """
+    # ── Jitter, Shimmer, F0 via parselmouth/praat ──────────────────────────
+    jitter_local: float = 0.0
+    shimmer_local: float = 0.0
+    f0_mean: float = 0.0
+    f0_std: float = 0.0
+    voiced_fraction: float = 0.0
+    try:
+        import parselmouth  # type: ignore
+        from parselmouth.praat import call  # type: ignore
+
+        snd = parselmouth.Sound(y, sampling_frequency=sr)
+        pitch = snd.to_pitch()
+        point_process = call(snd, "To PointProcess (periodic, cc)", 75, 500)
+        jitter_local = call(
+            point_process, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3
+        )
+        shimmer_local = call(
+            [snd, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6
+        )
+        f0_values = pitch.selected_array["frequency"]
+        f0_values = f0_values[f0_values > 0]
+        f0_mean = float(np.mean(f0_values)) if len(f0_values) > 0 else 0.0
+        f0_std = float(np.std(f0_values)) if len(f0_values) > 0 else 0.0
+        voiced_fraction = len(f0_values) / max(len(pitch.xs()), 1)
+    except Exception:
+        pass  # parselmouth unavailable — keep zeros
+
+    # ── Pause metrics (numpy only) ─────────────────────────────────────────
+    pause_rate: float = 0.0
+    try:
+        frame_len = int(sr * 0.025)
+        hop = int(sr * 0.010)
+        rms = np.array(
+            [
+                np.sqrt(np.mean(y[i : i + frame_len] ** 2))
+                for i in range(0, len(y) - frame_len, hop)
+            ]
+        )
+        if len(rms) > 0:
+            threshold = np.percentile(rms, 20)
+            is_silent = rms < threshold
+            pause_rate = float(np.mean(is_silent))
+    except Exception:
+        pass
+
+    # ── GFCC features (gammatone cepstral coefficients) ───────────────────
+    gfcc_mean: List[float] = [0.0] * 13
+    gfcc_std: List[float] = [0.0] * 13
+    try:
+        from gammatone.gtgram import gtgram  # type: ignore
+        from scipy.fft import dct  # type: ignore
+
+        gt = gtgram(y.astype(float), sr, 0.025, 0.010, 32, 50)
+        gt_log = np.log(gt + 1e-8)
+        gfcc = dct(gt_log, type=2, axis=0, norm="ortho")[:13]
+        gfcc_mean = gfcc.mean(axis=1).tolist()
+        gfcc_std = gfcc.std(axis=1).tolist()
+    except Exception:
+        pass  # gammatone unavailable — keep zero-value fallback
+
+    return {
+        "jitter_local": float(jitter_local) if np.isfinite(jitter_local) else 0.0,
+        "shimmer_local": float(shimmer_local) if np.isfinite(shimmer_local) else 0.0,
+        "f0_mean": f0_mean,
+        "f0_std": f0_std,
+        "voiced_fraction": voiced_fraction,
+        "pause_rate": pause_rate,
+        "gfcc_mean": gfcc_mean,  # list of 13 floats
+        "gfcc_std": gfcc_std,    # list of 13 floats
+    }
+
+
 def _valence_arousal(probs: Dict[str, float]) -> tuple[float, float]:
     """Design-doc formulas for valence + arousal from 6-class probabilities."""
     happy    = probs.get("happy",    0.0)
@@ -508,6 +586,25 @@ class VoiceEmotionModel:
             emotion = max(probs_6, key=probs_6.__getitem__)
             confidence = probs_6[emotion]
 
+            # ── Prosodic features: jitter/shimmer/GFCC/pause ──────────────
+            prosodic = _extract_prosodic_features(y, _SR)
+
+            # High jitter + high pause_rate → stress signal → boost fear/angry
+            stress_boost = min(
+                0.15,
+                prosodic["jitter_local"] * 5 + prosodic["pause_rate"] * 0.1,
+            )
+            if stress_boost > 0.05:
+                probs_6["fear"] = min(1.0, probs_6.get("fear", 0) + stress_boost * 0.5)
+                probs_6["angry"] = min(1.0, probs_6.get("angry", 0) + stress_boost * 0.3)
+                # Re-normalize
+                total_p = sum(probs_6.values())
+                probs_6 = {k: v / total_p for k, v in probs_6.items()}
+                # Re-round
+                probs_6 = {k: round(v, 4) for k, v in probs_6.items()}
+                emotion = max(probs_6, key=probs_6.__getitem__)
+                confidence = probs_6[emotion]
+
             return {
                 "emotion": emotion,
                 "probabilities": probs_6,
@@ -515,6 +612,8 @@ class VoiceEmotionModel:
                 "arousal": round(arousal, 4),
                 "confidence": round(confidence, 4),
                 "model_type": "voice_feature_heuristic",
+                "prosodic_features": prosodic,
+                "stress_signal": round(stress_boost, 4),
             }
         except Exception as exc:
             log.warning("Feature-based voice emotion failed: %s", exc)
