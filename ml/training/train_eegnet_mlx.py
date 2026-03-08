@@ -191,7 +191,7 @@ def train_mlx(
     )
 
     decay_steps = epochs * max(1, len(y_train) // batch_size)
-    lr_schedule = optim.cosine_decay(lr, decay_steps, end_value=1e-5)
+    lr_schedule = optim.cosine_decay(lr, decay_steps, end=1e-5)
     optimizer = optim.Adam(learning_rate=lr_schedule)
 
     # Build the value-and-grad function
