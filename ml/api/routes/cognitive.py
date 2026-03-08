@@ -18,6 +18,9 @@ from ._shared import (
     EEGInput, LucidDreamRequest,
 )
 from .calibration import _get_baseline_cal
+from models.voice_cognitive_load import VoiceCognitiveLoadEstimator
+
+_voice_cog_load = VoiceCognitiveLoadEstimator()
 
 router = APIRouter()
 
@@ -158,3 +161,34 @@ async def cognitive_session_stats():
     if hasattr(meditation_model, "get_session_stats"):
         stats["meditation"] = meditation_model.get_session_stats()
     return _numpy_safe(stats)
+
+
+@router.post("/voice-cognitive-load")
+async def voice_cognitive_load(request: dict):
+    """Estimate cognitive load from voice prosodic features.
+
+    Accepts base64-encoded audio and returns a voice-based cognitive load
+    estimate using F0 variation, intensity variation, and voice activity ratio.
+    """
+    import base64
+    import io
+
+    try:
+        import librosa
+    except ImportError:
+        return {"error": "librosa not available"}
+
+    audio_b64 = request.get("audio_base64", "")
+    sr = request.get("sr", 16000)
+
+    if not audio_b64:
+        return _voice_cog_load._empty_result()
+
+    try:
+        audio_bytes = base64.b64decode(audio_b64)
+        audio, sr = librosa.load(io.BytesIO(audio_bytes), sr=sr)
+    except Exception as e:
+        return {"error": f"Could not decode audio: {e}"}
+
+    result = _voice_cog_load.predict(audio, sr)
+    return _numpy_safe(result)
