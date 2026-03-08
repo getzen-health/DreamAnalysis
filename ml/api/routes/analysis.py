@@ -84,6 +84,48 @@ class _EpochBuffer:
 _epoch_buffers: Dict[str, _EpochBuffer] = {}
 _epoch_buffers_lock = threading.Lock()
 
+# ─── EMA smoothing state (per user/session) ───────────────────────────────────
+# Stores the previous smoothed probability dict for each user_id.
+# alpha=0.3 means: smoothed = 0.3 * new + 0.7 * previous
+# This reduces label flips from momentary signal noise without adding latency.
+_EMA_ALPHA = 0.3
+_ema_state: Dict[str, Dict[str, float]] = {}
+_ema_state_lock = threading.Lock()
+
+
+def _apply_ema(user_id: str, raw_probs: Dict[str, float]) -> Dict[str, float]:
+    """Apply exponential moving average to emotion probabilities.
+
+    On first call for a user, returns raw_probs unchanged (no prior state).
+    On subsequent calls, blends: smoothed = EMA_ALPHA * raw + (1 - EMA_ALPHA) * prev.
+    After blending, normalizes so probabilities sum to 1.0.
+
+    Args:
+        user_id: Key used to isolate per-session EMA state.
+        raw_probs: Dict mapping emotion labels to probability values [0.0, 1.0].
+
+    Returns:
+        Smoothed, normalized probability dict.
+    """
+    with _ema_state_lock:
+        prev = _ema_state.get(user_id)
+        if prev is None:
+            # First frame — no smoothing, store as initial state
+            smoothed = {k: float(v) for k, v in raw_probs.items()}
+        else:
+            smoothed = {
+                k: _EMA_ALPHA * float(raw_probs.get(k, 0.0)) + (1 - _EMA_ALPHA) * float(prev.get(k, 0.0))
+                for k in raw_probs
+            }
+        # Normalize to ensure probabilities sum to 1.0
+        total = sum(smoothed.values())
+        if total > 0:
+            smoothed = {k: v / total for k, v in smoothed.items()}
+        _ema_state[user_id] = smoothed
+    return smoothed
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def _get_epoch_buffer(user_id: str) -> _EpochBuffer:
     """Return the per-user epoch buffer, creating it on first use."""
     with _epoch_buffers_lock:
@@ -219,6 +261,19 @@ async def analyze_eeg(input_data: EEGInput):
                     emotion_result["personal_override"] = False
         except Exception:
             pass
+
+        # ── EMA smoothing on emotion probabilities ────────────────────────────
+        # Reduces frame-to-frame label jitter without altering model weights.
+        # Applied after all blending (personal model, fusion) so the smoothing
+        # operates on the final output values seen by the client.
+        raw_probs = emotion_result.get("probabilities")
+        if isinstance(raw_probs, dict) and raw_probs:
+            smoothed_probs = _apply_ema(user_id, raw_probs)
+            emotion_result = dict(emotion_result)
+            emotion_result["probabilities"] = smoothed_probs
+            emotion_result["ema_smoothing"] = True
+            emotion_result["ema_alpha"] = _EMA_ALPHA
+        # ─────────────────────────────────────────────────────────────────────
 
         return AnalysisResponse(
             sleep_stage=sleep_result,
