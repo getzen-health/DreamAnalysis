@@ -891,6 +891,31 @@ class EmotionClassifier:
                          Used by RunningNormalizer to maintain separate buffers
                          per user and correct within-session EEG drift.
         """
+        # Centralized artifact check — runs before every model path so no path bypasses it.
+        # TSception and EEGNet return early without updating _ema_probs, so we must check
+        # here (after TSception seeds EMA on its first run) rather than relying on each
+        # model to have its own check. On the very first epoch we must run the model even
+        # with an artifact so that _ema_probs gets seeded for future freeze decisions.
+        _artifact_now = bool(np.any(np.abs(eeg) > _ARTIFACT_THRESHOLD_UV))
+        if _artifact_now and self._ema_probs is not None:
+            # Freeze EMA — return prior state with artifact flag.
+            smoothed = self._ema_probs / (self._ema_probs.sum() + 1e-10)
+            n = len(smoothed)
+            # Pad/truncate to 6-class if EMA comes from a 3-class model (TSception).
+            if n < 6:
+                smoothed6 = np.zeros(6)
+                smoothed6[:n] = smoothed
+                smoothed6 /= smoothed6.sum() + 1e-10
+            else:
+                smoothed6 = smoothed[:6]
+            emotion_idx = int(np.argmax(smoothed6))
+            result = self._build_muse_result(
+                emotion_idx, smoothed6, eeg, fs,
+                artifact_detected=True, device_type=device_type,
+            )
+            result["explanation"] = []
+            return result
+
         # REVE Foundation (brain-bzh/reve-base) — highest priority when HF access is granted.
         # Pre-trained on 60K+ hours, handles arbitrary channel layouts via 4D positional encoding.
         # Requires >= 4 sec of EEG (minimum useful input for embedding extraction).
@@ -955,6 +980,16 @@ class EmotionClassifier:
             try:
                 result = self._tsception.predict(eeg, fs=fs)
                 result["model_type"] = "tsception"
+                # Seed _ema_probs so the centralized artifact check can freeze on
+                # subsequent high-amplitude epochs (TSception has no own artifact gate).
+                probs_dict = result.get("probabilities", {})
+                if probs_dict:
+                    probs_arr = np.array(list(probs_dict.values()), dtype=float)
+                    if self._ema_probs is None or len(self._ema_probs) != len(probs_arr):
+                        self._ema_probs = probs_arr.copy()
+                    else:
+                        self._ema_probs = (self._ema_alpha * probs_arr
+                                           + (1 - self._ema_alpha) * self._ema_probs)
                 return self._ensure_explanation(result)
             except Exception as exc:  # noqa: BLE001
                 logging.warning("TSception inference failed, falling through: %s", exc)
