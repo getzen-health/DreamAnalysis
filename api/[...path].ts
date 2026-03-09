@@ -7,6 +7,8 @@
  *   POST   /api/auth/login
  *   GET    /api/auth/me
  *   POST   /api/auth/logout
+ *   POST   /api/auth/forgot-password
+ *   POST   /api/auth/reset-password
  *   POST   /api/dreams/create
  *   GET    /api/dreams/list
  *   GET    /api/dreams/analytics
@@ -46,7 +48,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
-import { eq, desc, asc, and, gte, lt, sql } from 'drizzle-orm';
+import { eq, desc, asc, and, gte, lt, sql, isNull } from 'drizzle-orm';
 
 import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response.js';
 import { generateToken, setAuthCookie, clearAuthCookie, requireAuth } from './_lib/auth.js';
@@ -187,6 +189,91 @@ async function authLogout(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   clearAuthCookie(res);
   return success(res, { message: 'Logged out successfully' });
+}
+
+async function authForgotPassword(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const GENERIC = 'If that email exists, a reset link was sent';
+  try {
+    const body = await parseRequestBody(req) as Record<string, unknown>;
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    if (!email) return res.status(200).json({ message: GENERIC });
+
+    const db = getDb();
+    const [user] = await db.select().from(schema.users)
+      .where(eq(schema.users.email, email)).limit(1);
+
+    if (user) {
+      const token = randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await db.insert(schema.passwordResetTokens).values({ userId: user.id, token, expiresAt });
+
+      const appUrl = process.env.APP_URL ?? 'https://dream-analysis.vercel.app';
+      const resetUrl = `${appUrl}/reset-password?token=${token}`;
+
+      if (process.env.GMAIL_APP_PASSWORD) {
+        const nodemailer = (await import('nodemailer')).default;
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            user: process.env.GMAIL_USER ?? 'lakshmisravya.vedantham@gmail.com',
+            pass: process.env.GMAIL_APP_PASSWORD,
+          },
+        });
+        try {
+          await transporter.sendMail({
+            from: `"Neural Dream Workshop" <${process.env.GMAIL_USER ?? 'lakshmisravya.vedantham@gmail.com'}>`,
+            to: user.email ?? email,
+            subject: 'Reset your password',
+            text: `Click the link to reset your password (valid 1 hour):\n\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
+            html: `<p>Click the link below to reset your password (valid 1 hour):</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If you did not request this, ignore this email.</p>`,
+          });
+        } catch (mailErr: any) {
+          console.error('[authForgotPassword] email send failed:', mailErr?.message ?? mailErr);
+        }
+      }
+    }
+
+    return res.status(200).json({ message: GENERIC });
+  } catch (err: any) {
+    console.error('[authForgotPassword]', err?.message ?? err);
+    return res.status(200).json({ message: GENERIC });
+  }
+}
+
+async function authResetPassword(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  try {
+    const body = await parseRequestBody(req) as Record<string, unknown>;
+    const token = typeof body.token === 'string' ? body.token : '';
+    const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+    if (!token || !newPassword)
+      return badRequest(res, 'Token and new password required');
+
+    const db = getDb();
+    const now = new Date();
+    const [row] = await db.select().from(schema.passwordResetTokens)
+      .where(
+        and(
+          eq(schema.passwordResetTokens.token, token),
+          gte(schema.passwordResetTokens.expiresAt, now),
+          isNull(schema.passwordResetTokens.usedAt),
+        )
+      ).limit(1);
+
+    if (!row) return res.status(400).json({ message: 'Invalid or expired reset token' });
+
+    const hashed = await hashPassword(newPassword);
+    await db.update(schema.users).set({ password: hashed }).where(eq(schema.users.id, row.userId));
+    await db.update(schema.passwordResetTokens)
+      .set({ usedAt: now })
+      .where(eq(schema.passwordResetTokens.id, row.id));
+
+    return success(res, { message: 'Password updated successfully' });
+  } catch (err: any) {
+    console.error('[authResetPassword]', err?.message ?? err);
+    return error(res, 'Reset failed', 500);
+  }
 }
 
 async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
@@ -1177,10 +1264,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'ping') return res.status(200).json({ ok: true, ts: Date.now() });
 
     if (s0 === 'auth') {
-      if (s1 === 'register') return await authRegister(req, res);
-      if (s1 === 'login')    return await authLogin(req, res);
-      if (s1 === 'me')       return await authMe(req, res);
-      if (s1 === 'logout')   return await authLogout(req, res);
+      if (s1 === 'register')        return await authRegister(req, res);
+      if (s1 === 'login')           return await authLogin(req, res);
+      if (s1 === 'me')              return await authMe(req, res);
+      if (s1 === 'logout')          return await authLogout(req, res);
+      if (s1 === 'forgot-password') return await authForgotPassword(req, res);
+      if (s1 === 'reset-password')  return await authResetPassword(req, res);
     }
 
     if (s0 === 'dreams') {
