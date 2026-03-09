@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from ml.models.pain_detector import PainDetector
+from models.pain_detector import PainDetector
 
 
 @pytest.fixture

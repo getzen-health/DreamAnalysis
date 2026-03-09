@@ -27,7 +27,7 @@ class PainDetector:
         Returns:
             Dict with pain_biomarker_score, components, pain_level, disclaimer
         """
-        from ml.processing.eeg_processor import extract_band_powers, differential_entropy
+        from processing.eeg_processor import extract_band_powers, differential_entropy
 
         if signals.ndim == 1:
             return self._no_multichannel_result()

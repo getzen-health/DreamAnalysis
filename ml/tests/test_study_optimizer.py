@@ -2,7 +2,7 @@
 
 import pytest
 
-from ml.models.study_optimizer import StudyOptimizer
+from models.study_optimizer import StudyOptimizer
 
 
 @pytest.fixture
