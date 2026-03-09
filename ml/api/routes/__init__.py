@@ -62,6 +62,7 @@ from .interventions import router as _interventions
 from .voice_watch import router as _voice_watch
 from .voice_biomarkers import router as _voice_biomarkers
 from .eeg_storage import router as _eeg_storage
+from .trauma_resilience import router as _trauma_resilience
 
 router = APIRouter()
 
@@ -94,3 +95,4 @@ router.include_router(_interventions)
 router.include_router(_voice_watch)
 router.include_router(_voice_biomarkers)
 router.include_router(_eeg_storage)
+router.include_router(_trauma_resilience)
