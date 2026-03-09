@@ -93,6 +93,7 @@ from .meditation_depth_route import router as _meditation_depth
 from .neurogame import router as _neurogame
 from .deception import router as _deception
 from .engagement import router as _engagement
+from .parkinsons_screener import router as _parkinsons_screener
 
 router = APIRouter()
 
@@ -156,3 +157,4 @@ router.include_router(_meditation_depth)
 router.include_router(_neurogame)
 router.include_router(_deception)
 router.include_router(_engagement)
+router.include_router(_parkinsons_screener)
