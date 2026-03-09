@@ -30,10 +30,14 @@ def _make_stub_module(*names):
     return mod
 
 
+# Track which modules we stub (only those not already loaded) so we can
+# remove them after the import — prevents polluting other test files.
+_stubs_added: list = []
 for mod_name in ("brainflow", "lightgbm", "onnxruntime", "mne", "torch",
                  "sklearn", "sklearn.preprocessing", "sklearn.pipeline"):
     if mod_name not in sys.modules:
         sys.modules[mod_name] = _make_stub_module(mod_name)
+        _stubs_added.append(mod_name)
 
 # Stub eeg_processor so imports don't fail if scipy absent
 import types as _types
@@ -79,6 +83,10 @@ from models.lucid_dream_inducer import (
 sys.modules["scipy.signal"] = _ss_real
 # Remove the eeg_processor stub so the real module can be imported later
 sys.modules.pop("processing.eeg_processor", None)
+# Remove all stubs we added so that other test files can import the real modules.
+# Modules that were already present before (e.g. torch is installed) are left alone.
+for _mod in _stubs_added:
+    sys.modules.pop(_mod, None)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
