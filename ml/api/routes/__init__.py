@@ -63,6 +63,8 @@ from .voice_watch import router as _voice_watch
 from .voice_biomarkers import router as _voice_biomarkers
 from .eeg_storage import router as _eeg_storage
 from .trauma_resilience import router as _trauma_resilience
+from .ppg import router as _ppg
+from .binaural import router as _binaural
 
 router = APIRouter()
 
@@ -96,3 +98,5 @@ router.include_router(_voice_watch)
 router.include_router(_voice_biomarkers)
 router.include_router(_eeg_storage)
 router.include_router(_trauma_resilience)
+router.include_router(_ppg)
+router.include_router(_binaural)

@@ -4,8 +4,13 @@ Supports: OpenBCI Cyton/Ganglion, Muse 2/S, Emotiv EPOC, NeuroSky, Synthetic.
 Gracefully degrades if brainflow is not installed.
 """
 
+import logging
 import threading
 from typing import Dict, List, Optional, Callable
+
+import numpy as np
+
+log = logging.getLogger(__name__)
 
 try:
     from brainflow.board_shim import BoardShim, BrainFlowInputParams, BoardIds  # noqa: F401
@@ -243,4 +248,29 @@ class BrainFlowManager:
                 "channel_names": self.eeg_channel_names,
             }
         except Exception:
+            return None
+
+    def get_ppg_data(self) -> Optional[np.ndarray]:
+        """Get latest PPG data from Muse 2 ANCILLARY preset.
+
+        Returns 1D numpy array of PPG samples, or None if unavailable.
+        Note: requires board started with ANCILLARY preset (config 'p50').
+        """
+        try:
+            if not self.is_connected or self.board is None:
+                return None
+            if not BRAINFLOW_AVAILABLE or self._board_id is None:
+                return None
+            from brainflow.board_shim import BoardShim, BoardIds
+            # PPG channels for Muse 2
+            ppg_channels = BoardShim.get_ppg_channels(BoardIds.MUSE_2_BOARD.value)
+            if not ppg_channels:
+                return None
+            data = self.board.get_current_board_data(256)
+            if data.shape[1] == 0:
+                return None
+            # Return first PPG channel
+            return data[ppg_channels[0], :]
+        except Exception as e:
+            log.debug("PPG data unavailable: %s", e)
             return None
