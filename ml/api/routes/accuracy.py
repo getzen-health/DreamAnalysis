@@ -146,13 +146,13 @@ async def get_calibration_status(user_id: str):
 @router.get("/state-engine/summary")
 async def get_state_engine_summary():
     """Get current state of all temporal smoothing trackers."""
-    return _state_engine.get_summary()
+    return _get_state_engine().get_summary()
 
 
 @router.get("/state-engine/coherence")
 async def get_state_coherence():
     """Check if current brain states are physiologically coherent."""
-    return _state_engine.get_cross_state_coherence()
+    return _get_state_engine().get_cross_state_coherence()
 
 
 # ── User Feedback & Personalization ────────────────────────────────────────

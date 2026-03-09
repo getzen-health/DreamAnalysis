@@ -1306,6 +1306,9 @@ class EmotionClassifier:
         # emotion. Instead return empty probabilities so the UI shows "—" rather
         # than six bars all frozen at 17%.
         if probs.max() < 1e-4:
+            # Degenerate: initialize EMA to uniform so future artifact calls can freeze
+            if self._ema_probs is None:
+                self._ema_probs = np.ones(len(probs)) / len(probs)
             return {
                 "emotion": "neutral",
                 "emotion_index": 5,

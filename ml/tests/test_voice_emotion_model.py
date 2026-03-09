@@ -2,7 +2,6 @@
 from __future__ import annotations
 import sys
 import numpy as np
-import pytest
 
 
 def _get_model():
@@ -38,7 +37,10 @@ def test_output_has_required_keys():
         assert "arousal" in result
         assert "confidence" in result
         assert "model_type" in result
-        assert result["model_type"] in {"voice_lgbm_fallback", "voice_emotion2vec"}
+        assert result["model_type"] in {
+            "voice_lgbm_fallback", "voice_emotion2vec",
+            "voice_feature_heuristic", "voice_distilhubert", "sensevoice",
+        }
 
 
 def test_valence_arousal_range():
