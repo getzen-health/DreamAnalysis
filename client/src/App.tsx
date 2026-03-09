@@ -63,6 +63,7 @@ const WeeklyBrainSummary     = lazy(() => import("@/pages/weekly-brain-summary")
 const PersonalRecords        = lazy(() => import("@/pages/personal-records"));
 const PrivacyPolicy          = lazy(() => import("@/pages/privacy-policy"));
 const ArchitectureGuide      = lazy(() => import("@/pages/architecture-guide"));
+const SupplementsPage        = lazy(() => import("@/pages/supplements"));
 
 // ── Error Boundary — prevents a single page crash from taking down the whole app ──
 class ErrorBoundary extends Component<
@@ -233,6 +234,11 @@ function AppRoutes() {
       <Route path="/intent">
         <Suspense fallback={<PageLoader />}>
           <IntentSelect />
+        </Suspense>
+      </Route>
+      <Route path="/supplements">
+        <Suspense fallback={<PageLoader />}>
+          <AppLayout><SupplementsPage /></AppLayout>
         </Suspense>
       </Route>
       {/* Public route — no auth required (needed for App Store / HealthKit) */}
