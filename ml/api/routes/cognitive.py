@@ -9,7 +9,7 @@ Improvements over baseline version:
 import threading
 import numpy as np
 from fastapi import APIRouter
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ._shared import (
     _numpy_safe,
@@ -165,7 +165,7 @@ async def cognitive_session_stats():
 
 # ── Brain Age Estimation ──────────────────────────────────────────────────────
 
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from models.brain_age_estimator import get_brain_age_estimator
@@ -543,3 +543,55 @@ async def eegnet_lite_fine_tune(req: EEGNetFinetuneRequest):
 async def eegnet_lite_info():
     """Get EEGNet-Lite model architecture info and parameter count."""
     return _numpy_safe(_eegnet_lite.get_model_info())
+
+
+# ── Self-Supervised Contrastive EEG Encoder ──────────────────────────────────
+
+from training.self_supervised_pretrain import EEGContrastivePretrainer, EEGAugmentor
+
+_contrastive_pretrainer = EEGContrastivePretrainer()
+_eeg_augmentor = EEGAugmentor()
+
+
+class ContrastivePretrainRequest(BaseModel):
+    epochs: List[List[List[float]]] = Field(
+        ...,
+        description="List of EEG epochs, each (n_channels, n_samples)",
+    )
+    n_train_epochs: int = Field(default=5, ge=1, le=50, description="Number of pretraining passes")
+    batch_size: int = Field(default=16, ge=2, le=64)
+    lr: float = Field(default=3e-4)
+
+
+@router.post("/contrastive-pretrain/step")
+async def contrastive_pretrain_step(req: ContrastivePretrainRequest):
+    """Run one contrastive pretraining step on a batch of unlabeled EEG epochs.
+
+    No emotion labels required. Returns NT-Xent loss for monitoring.
+    """
+    epochs = np.array(req.epochs)
+    result = _contrastive_pretrainer.pretrain_step(epochs)
+    return _numpy_safe(result)
+
+
+@router.post("/contrastive-pretrain/extract-features")
+async def contrastive_extract_features(data: EEGInput):
+    """Extract learned EEG representations from pretrained encoder.
+
+    Returns 128-dim embedding vector for downstream classification.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    embedding = _contrastive_pretrainer.extract_features(signals)
+    return {
+        "embedding": embedding.tolist(),
+        "embed_dim": len(embedding),
+        "torch_available": bool(len(embedding) > 0),
+    }
+
+
+@router.get("/contrastive-pretrain/info")
+async def contrastive_pretrain_info():
+    """Get contrastive pretrainer architecture info."""
+    return _numpy_safe(_contrastive_pretrainer.get_pretrainer_info())
