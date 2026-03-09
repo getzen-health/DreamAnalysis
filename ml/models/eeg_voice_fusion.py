@@ -661,3 +661,248 @@ def get_eeg_voice_fusion(user_id: str = "default") -> EEGVoiceFusionClassifier:
         if user_id not in _fusion_registry:
             _fusion_registry[user_id] = EEGVoiceFusionClassifier()
         return _fusion_registry[user_id]
+
+
+# ── Decision-Level EEG+Voice Fusion ──────────────────────────────────────────
+#
+# Unlike EEGVoiceFusionClassifier (feature-level OT fusion above), this class
+# operates on pre-computed probability vectors from separate EEG and voice
+# emotion classifiers.  It performs decision-level fusion: weighted combination
+# of probability vectors with adaptive quality-based weighting and conflict
+# detection.
+#
+# Reference: Wagner et al. (2011), Soleymani et al. (2012) multimodal emotion.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_CONFLICT_THRESHOLD = 0.35  # cosine distance above which modalities conflict
+
+
+class EEGVoiceFusion:
+    """Decision-level fusion of EEG and voice emotion probability vectors.
+
+    Takes pre-computed 6-class probability distributions from an EEG emotion
+    classifier and a voice emotion classifier, and produces a fused prediction
+    using quality-adaptive weighted combination.
+
+    Default base weights: EEG 0.6, voice 0.4.  Actual weights are adjusted
+    per-call by signal quality scalars.
+
+    Scientific basis:
+        - Wagner et al. (2011): late fusion of EEG + peripheral physiology
+        - Soleymani et al. (2012): multimodal emotion recognition fusion
+        - Decision-level fusion chosen because EEG and voice classifiers
+          operate at different temporal resolutions and feature spaces.
+
+    Args:
+        eeg_weight: Base weight for EEG modality (default 0.6).
+        voice_weight: Base weight for voice modality (default 0.4).
+    """
+
+    def __init__(
+        self,
+        eeg_weight: float = 0.6,
+        voice_weight: float = 0.4,
+    ) -> None:
+        self._eeg_base: float = 0.0
+        self._voice_base: float = 0.0
+        self.set_weights(eeg_weight, voice_weight)
+        self._history: list[Dict[str, Any]] = []
+        self._fusion_count: int = 0
+        self._conflict_count: int = 0
+
+    # ── Public API ───────────────────────────────────────────────────────────
+
+    def set_weights(self, eeg_weight: float, voice_weight: float) -> None:
+        """Set base fusion weights for EEG and voice modalities.
+
+        Weights are normalized to sum to 1.0.
+
+        Args:
+            eeg_weight: Unnormalized weight for EEG modality (must be > 0).
+            voice_weight: Unnormalized weight for voice modality (must be > 0).
+        """
+        total = abs(eeg_weight) + abs(voice_weight)
+        if total < 1e-10:
+            total = 1.0
+        self._eeg_base = abs(eeg_weight) / total
+        self._voice_base = abs(voice_weight) / total
+
+    def fuse(
+        self,
+        eeg_probs: Dict[str, float],
+        voice_probs: Dict[str, float],
+        eeg_quality: float = 1.0,
+        voice_quality: float = 1.0,
+    ) -> Dict[str, Any]:
+        """Fuse EEG and voice emotion probability vectors.
+
+        Performs quality-adjusted weighted combination of the two probability
+        distributions.  Detects conflicts when modalities disagree
+        significantly (cosine distance > threshold).
+
+        Args:
+            eeg_probs: EEG emotion probabilities, dict mapping each of the
+                6 emotion labels to a float in [0, 1].
+            voice_probs: Voice emotion probabilities, same format.
+            eeg_quality: EEG signal quality scalar in [0, 1].
+                1.0 = perfect quality, 0.0 = no usable signal.
+            voice_quality: Voice signal quality / SNR scalar in [0, 1].
+
+        Returns:
+            dict with keys:
+                fused_probabilities (dict) -- per-emotion float, sums to 1
+                fused_emotion       (str)  -- argmax of fused_probabilities
+                confidence          (float) -- max fused probability [0, 1]
+                agreement_score     (float) -- cosine similarity [0, 1]
+                conflict_detected   (bool)  -- True if modalities disagree
+                modality_weights    (dict)  -- base and effective weights
+                dominant_modality   (str)   -- "eeg" or "voice"
+        """
+        # Clip quality to [0, 1]
+        eeg_q = float(np.clip(eeg_quality, 0.0, 1.0))
+        voice_q = float(np.clip(voice_quality, 0.0, 1.0))
+
+        # Build numpy vectors in canonical emotion order
+        eeg_vec = np.array(
+            [float(eeg_probs.get(e, 0.0)) for e in EMOTIONS_6], dtype=np.float64
+        )
+        voice_vec = np.array(
+            [float(voice_probs.get(e, 0.0)) for e in EMOTIONS_6], dtype=np.float64
+        )
+
+        # Normalize input vectors to valid probability distributions
+        eeg_vec = self._normalize_probs(eeg_vec)
+        voice_vec = self._normalize_probs(voice_vec)
+
+        # Compute agreement score (cosine similarity)
+        agreement_score = self._cosine_similarity(eeg_vec, voice_vec)
+        conflict_detected = (1.0 - agreement_score) > _CONFLICT_THRESHOLD
+
+        # Compute effective weights: base_weight * quality
+        raw_eeg_w = self._eeg_base * eeg_q
+        raw_voice_w = self._voice_base * voice_q
+        total_w = raw_eeg_w + raw_voice_w
+
+        # Fallback: if both qualities are zero, blend equally
+        if total_w < 1e-10:
+            eeg_eff = 0.5
+            voice_eff = 0.5
+        else:
+            eeg_eff = raw_eeg_w / total_w
+            voice_eff = raw_voice_w / total_w
+
+        # Weighted combination of probability vectors
+        fused_vec = eeg_eff * eeg_vec + voice_eff * voice_vec
+        fused_vec = self._normalize_probs(fused_vec)
+
+        # Determine outputs
+        emotion_idx = int(np.argmax(fused_vec))
+        fused_emotion = EMOTIONS_6[emotion_idx]
+        confidence = float(fused_vec[emotion_idx])
+        dominant = "eeg" if eeg_eff >= voice_eff else "voice"
+
+        result: Dict[str, Any] = {
+            "fused_probabilities": dict(zip(EMOTIONS_6, fused_vec.tolist())),
+            "fused_emotion": fused_emotion,
+            "confidence": round(confidence, 4),
+            "agreement_score": round(agreement_score, 4),
+            "conflict_detected": conflict_detected,
+            "modality_weights": {
+                "eeg_base": round(self._eeg_base, 4),
+                "voice_base": round(self._voice_base, 4),
+                "eeg_effective": round(eeg_eff, 4),
+                "voice_effective": round(voice_eff, 4),
+            },
+            "dominant_modality": dominant,
+        }
+
+        # Track session statistics
+        self._fusion_count += 1
+        if conflict_detected:
+            self._conflict_count += 1
+        self._history.append({
+            "fused_emotion": fused_emotion,
+            "confidence": round(confidence, 4),
+            "agreement_score": round(agreement_score, 4),
+            "conflict_detected": conflict_detected,
+        })
+
+        return result
+
+    def get_session_stats(self) -> Dict[str, Any]:
+        """Return cumulative session statistics.
+
+        Returns:
+            dict with:
+                fusion_count    (int)   -- total fuse() calls this session
+                conflict_count  (int)   -- how many had conflict_detected=True
+                conflict_rate   (float) -- conflict_count / fusion_count
+                mean_agreement  (float) -- average agreement_score
+                mean_confidence (float) -- average confidence
+        """
+        stats: Dict[str, Any] = {
+            "fusion_count": self._fusion_count,
+            "conflict_count": self._conflict_count,
+            "conflict_rate": 0.0,
+            "mean_agreement": 0.0,
+            "mean_confidence": 0.0,
+        }
+        if self._fusion_count > 0:
+            stats["conflict_rate"] = round(
+                self._conflict_count / self._fusion_count, 4
+            )
+            agreements = [h["agreement_score"] for h in self._history]
+            confidences = [h["confidence"] for h in self._history]
+            stats["mean_agreement"] = round(
+                float(np.mean(agreements)), 4
+            )
+            stats["mean_confidence"] = round(
+                float(np.mean(confidences)), 4
+            )
+        return stats
+
+    def get_history(self) -> list[Dict[str, Any]]:
+        """Return list of all fusion results from this session.
+
+        Each entry is a dict with: fused_emotion, confidence,
+        agreement_score, conflict_detected.
+        """
+        return list(self._history)
+
+    def reset(self) -> None:
+        """Clear session history and statistics.
+
+        Base weights are preserved.
+        """
+        self._history.clear()
+        self._fusion_count = 0
+        self._conflict_count = 0
+
+    # ── Internal helpers ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def _normalize_probs(vec: np.ndarray) -> np.ndarray:
+        """Normalize a vector to a valid probability distribution.
+
+        Clips negatives to zero, ensures sum = 1.  Falls back to uniform
+        if the input sums to zero.
+        """
+        v = np.clip(vec, 0.0, None)
+        total = v.sum()
+        if total < 1e-10:
+            return np.ones(len(v)) / len(v)
+        return v / total
+
+    @staticmethod
+    def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+        """Cosine similarity between two vectors, clipped to [0, 1].
+
+        Probability vectors are non-negative so cosine is in [0, 1].
+        """
+        dot = float(np.dot(a, b))
+        norm_a = float(np.linalg.norm(a))
+        norm_b = float(np.linalg.norm(b))
+        denom = norm_a * norm_b
+        if denom < 1e-10:
+            return 0.0
+        return float(np.clip(dot / denom, 0.0, 1.0))

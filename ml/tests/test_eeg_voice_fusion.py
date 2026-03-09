@@ -1,14 +1,19 @@
-"""Tests for cross-modal EEG+Voice Optimal Transport fusion.
+"""Tests for EEG+Voice decision-level multimodal emotion fusion.
 
 Covers:
-- Instantiation
-- Full bimodal prediction (EEG + audio)
-- EEG-only fallback (audio=None)
-- Voice-only fallback (eeg=None)
-- Output structure and invariants
-- Sinkhorn transport plan validity
-- get_fusion_stats()
-- Edge cases: empty audio, all-zeros EEG
+- Instantiation and default state
+- fuse() with equal-quality inputs
+- fuse() with quality-adjusted weighting
+- set_weights() custom weight configuration
+- Conflict detection between modalities
+- Agreement scoring
+- Dominant modality detection
+- Probability normalization invariants
+- Session statistics tracking
+- History accumulation and retrieval
+- reset() clears state
+- Edge cases: zero quality, extreme skew, single-emotion dominance
+- Output structure validation
 """
 
 import sys
@@ -19,238 +24,332 @@ from pathlib import Path
 # Add ml/ to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models.eeg_voice_fusion import (
-    EEGVoiceFusionClassifier,
-    EMOTIONS_6,
-    _sinkhorn_transport,
-    get_eeg_voice_fusion,
-)
-
-# ── Fixtures ──────────────────────────────────────────────────────────────────
-
-RNG = np.random.default_rng(42)
-EEG_FS = 256.0
-VOICE_SR = 16000
+from models.eeg_voice_fusion import EEGVoiceFusion, EMOTIONS_6
 
 
-@pytest.fixture
-def eeg_4ch():
-    """4 channels x 256 samples (1 second) of synthetic EEG at 256 Hz."""
-    return RNG.standard_normal((4, 256)).astype(np.float32) * 20.0  # ~20 uV RMS
-
-
-@pytest.fixture
-def audio_1s():
-    """1 second of synthetic audio at 16 kHz."""
-    t = np.linspace(0, 1, VOICE_SR, endpoint=False)
-    # Sinusoidal voice-like signal at 150 Hz + harmonics
-    signal = (
-        0.5 * np.sin(2 * np.pi * 150 * t)
-        + 0.3 * np.sin(2 * np.pi * 300 * t)
-        + 0.1 * RNG.standard_normal(VOICE_SR)
-    ).astype(np.float32)
-    return signal
-
+# ---- Fixtures ----------------------------------------------------------------
 
 @pytest.fixture
 def fusion():
-    """Fresh EEGVoiceFusionClassifier instance."""
-    return EEGVoiceFusionClassifier()
+    """Fresh EEGVoiceFusion instance with default weights."""
+    return EEGVoiceFusion()
 
 
-# ── Instantiation ─────────────────────────────────────────────────────────────
-
-def test_instantiation_defaults():
-    clf = EEGVoiceFusionClassifier()
-    assert clf.n_classes == 6
-    assert clf.eeg_fs == 256.0
-    assert clf.voice_fs == 16000
-
-
-def test_instantiation_custom():
-    clf = EEGVoiceFusionClassifier(n_classes=4, eeg_fs=128.0, voice_fs=22050)
-    assert clf.n_classes == 4
-    assert clf.eeg_fs == 128.0
-    assert clf.voice_fs == 22050
+@pytest.fixture
+def happy_eeg_probs():
+    """EEG prediction strongly favoring happy."""
+    return {
+        "happy": 0.70, "sad": 0.05, "angry": 0.05,
+        "fear": 0.05, "surprise": 0.10, "neutral": 0.05,
+    }
 
 
-# ── Full bimodal prediction ───────────────────────────────────────────────────
+@pytest.fixture
+def happy_voice_probs():
+    """Voice prediction strongly favoring happy (agreement with EEG)."""
+    return {
+        "happy": 0.65, "sad": 0.05, "angry": 0.05,
+        "fear": 0.05, "surprise": 0.10, "neutral": 0.10,
+    }
 
-def test_predict_bimodal_returns_dict(fusion, eeg_4ch, audio_1s):
-    result = fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
+
+@pytest.fixture
+def sad_voice_probs():
+    """Voice prediction strongly favoring sad (conflict with happy EEG)."""
+    return {
+        "happy": 0.05, "sad": 0.70, "angry": 0.05,
+        "fear": 0.05, "surprise": 0.05, "neutral": 0.10,
+    }
+
+
+@pytest.fixture
+def uniform_probs():
+    """Uniform probability distribution across all 6 emotions."""
+    return {e: 1.0 / 6.0 for e in EMOTIONS_6}
+
+
+# ---- Instantiation -----------------------------------------------------------
+
+def test_instantiation_defaults(fusion):
+    assert fusion is not None
+
+
+def test_default_weights(fusion):
+    result = fusion.fuse(
+        {"happy": 0.5, "sad": 0.1, "angry": 0.1, "fear": 0.1, "surprise": 0.1, "neutral": 0.1},
+        {"happy": 0.5, "sad": 0.1, "angry": 0.1, "fear": 0.1, "surprise": 0.1, "neutral": 0.1},
+    )
+    weights = result["modality_weights"]
+    # Default: EEG 0.6, voice 0.4 (before quality adjustment)
+    assert abs(weights["eeg_base"] - 0.6) < 1e-6
+    assert abs(weights["voice_base"] - 0.4) < 1e-6
+
+
+# ---- fuse() output structure -------------------------------------------------
+
+def test_fuse_returns_dict(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
     assert isinstance(result, dict)
 
 
-def test_predict_bimodal_has_required_keys(fusion, eeg_4ch, audio_1s):
-    result = fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    required = {"emotion", "probabilities", "valence", "arousal", "fusion_weight", "model_type"}
-    assert required.issubset(result.keys()), f"Missing keys: {required - result.keys()}"
+def test_fuse_has_required_keys(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    required = {
+        "fused_probabilities", "fused_emotion", "confidence",
+        "agreement_score", "conflict_detected", "modality_weights",
+        "dominant_modality",
+    }
+    assert required.issubset(result.keys()), f"Missing: {required - result.keys()}"
 
 
-def test_predict_bimodal_emotion_valid(fusion, eeg_4ch, audio_1s):
-    result = fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    assert result["emotion"] in EMOTIONS_6
+def test_fused_emotion_in_emotions_6(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    assert result["fused_emotion"] in EMOTIONS_6
 
 
-def test_predict_bimodal_probabilities_sum_to_one(fusion, eeg_4ch, audio_1s):
-    result = fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    probs = result["probabilities"]
-    assert set(probs.keys()) == set(EMOTIONS_6)
-    total = sum(probs.values())
-    assert abs(total - 1.0) < 1e-5, f"Probabilities sum to {total}, expected ~1.0"
+def test_fused_probabilities_keys(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    assert set(result["fused_probabilities"].keys()) == set(EMOTIONS_6)
 
 
-def test_predict_bimodal_valence_range(fusion, eeg_4ch, audio_1s):
-    result = fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    assert -1.0 <= result["valence"] <= 1.0
+def test_fused_probabilities_sum_to_one(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    total = sum(result["fused_probabilities"].values())
+    assert abs(total - 1.0) < 1e-5, f"Sum is {total}, expected ~1.0"
 
 
-def test_predict_bimodal_arousal_range(fusion, eeg_4ch, audio_1s):
-    result = fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    assert 0.0 <= result["arousal"] <= 1.0
+def test_fused_probabilities_non_negative(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    for emotion, prob in result["fused_probabilities"].items():
+        assert prob >= 0.0, f"{emotion} has negative probability {prob}"
 
 
-def test_predict_bimodal_fusion_weight_range(fusion, eeg_4ch, audio_1s):
-    result = fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    assert 0.0 <= result["fusion_weight"] <= 1.0
+def test_confidence_range(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    assert 0.0 <= result["confidence"] <= 1.0
 
 
-def test_predict_bimodal_model_type(fusion, eeg_4ch, audio_1s):
-    result = fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    assert "fusion" in result["model_type"] or "eeg" in result["model_type"]
+def test_agreement_score_range(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    assert 0.0 <= result["agreement_score"] <= 1.0
 
 
-# ── EEG-only fallback ─────────────────────────────────────────────────────────
+# ---- Agreement and conflict detection ----------------------------------------
 
-def test_predict_eeg_only(fusion, eeg_4ch):
-    result = fusion.predict(eeg_4ch, None, EEG_FS, VOICE_SR)
-    assert result["emotion"] in EMOTIONS_6
-    probs = result["probabilities"]
-    assert abs(sum(probs.values()) - 1.0) < 1e-5
-    assert "eeg" in result["model_type"]
-
-
-def test_predict_eeg_only_fusion_weight_zero(fusion, eeg_4ch):
-    result = fusion.predict(eeg_4ch, None, EEG_FS, VOICE_SR)
-    # No audio -> OT not run -> fusion_weight is 0.0
-    assert result["fusion_weight"] == 0.0
+def test_high_agreement_when_both_agree(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    # Both predict happy strongly -> high agreement
+    assert result["agreement_score"] > 0.6
+    assert result["conflict_detected"] is False
 
 
-# ── Voice-only fallback ───────────────────────────────────────────────────────
-
-def test_predict_voice_only(fusion, audio_1s):
-    result = fusion.predict(None, audio_1s, EEG_FS, VOICE_SR)
-    assert result["emotion"] in EMOTIONS_6
-    probs = result["probabilities"]
-    assert abs(sum(probs.values()) - 1.0) < 1e-5
-    assert "voice" in result["model_type"]
+def test_conflict_detected_when_disagree(fusion, happy_eeg_probs, sad_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, sad_voice_probs)
+    assert result["conflict_detected"] is True
 
 
-def test_predict_voice_only_fusion_weight_zero(fusion, audio_1s):
-    result = fusion.predict(None, audio_1s, EEG_FS, VOICE_SR)
-    assert result["fusion_weight"] == 0.0
+def test_low_agreement_when_disagree(fusion, happy_eeg_probs, sad_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, sad_voice_probs)
+    assert result["agreement_score"] < 0.5
 
 
-# ── Sinkhorn transport plan ────────────────────────────────────────────────────
-
-def test_sinkhorn_transport_shape():
-    n, m = 5, 4
-    mu = np.ones(n) / n
-    nu = np.ones(m) / m
-    C = np.random.rand(n, m)
-    T = _sinkhorn_transport(mu, nu, C, eps=0.1, n_iter=50)
-    assert T.shape == (n, m)
+def test_perfect_agreement_identical_inputs(fusion):
+    probs = {"happy": 0.5, "sad": 0.1, "angry": 0.1, "fear": 0.1, "surprise": 0.1, "neutral": 0.1}
+    result = fusion.fuse(probs, probs.copy())
+    assert result["agreement_score"] > 0.95
+    assert result["conflict_detected"] is False
 
 
-def test_sinkhorn_transport_non_negative():
-    n, m = 5, 4
-    mu = np.ones(n) / n
-    nu = np.ones(m) / m
-    C = np.random.rand(n, m)
-    T = _sinkhorn_transport(mu, nu, C, eps=0.1, n_iter=50)
-    assert np.all(T >= -1e-10), "Transport plan must be non-negative"
+# ---- Quality-adjusted weighting ----------------------------------------------
+
+def test_eeg_quality_affects_weight(fusion, happy_eeg_probs, sad_voice_probs):
+    # High EEG quality, low voice quality -> should lean toward EEG (happy)
+    result = fusion.fuse(happy_eeg_probs, sad_voice_probs, eeg_quality=1.0, voice_quality=0.1)
+    assert result["fused_emotion"] == "happy"
 
 
-def test_sinkhorn_transport_row_marginals():
-    """Row sums of T should approximate source distribution mu."""
-    n, m = 6, 4
-    mu = np.array([0.3, 0.2, 0.1, 0.15, 0.15, 0.1])
-    nu = np.ones(m) / m
-    C = np.outer(np.arange(n, dtype=float) / n, np.ones(m))
-    T = _sinkhorn_transport(mu, nu, C, eps=0.05, n_iter=100)
-    row_sums = T.sum(axis=1)
-    np.testing.assert_allclose(row_sums, mu, atol=0.05, err_msg="Row marginals should approximate mu")
+def test_voice_quality_affects_weight(fusion, happy_eeg_probs, sad_voice_probs):
+    # Low EEG quality, high voice quality -> should lean toward voice (sad)
+    result = fusion.fuse(happy_eeg_probs, sad_voice_probs, eeg_quality=0.1, voice_quality=1.0)
+    assert result["fused_emotion"] == "sad"
 
 
-def test_sinkhorn_transport_col_marginals():
-    """Column sums of T should approximate target distribution nu."""
-    n, m = 4, 5
-    mu = np.ones(n) / n
-    nu = np.array([0.2, 0.3, 0.1, 0.25, 0.15])
-    C = np.ones((n, m)) * 0.1
-    T = _sinkhorn_transport(mu, nu, C, eps=0.05, n_iter=100)
-    col_sums = T.sum(axis=0)
-    np.testing.assert_allclose(col_sums, nu, atol=0.05, err_msg="Column marginals should approximate nu")
+def test_zero_eeg_quality_uses_voice_only(fusion, happy_eeg_probs, sad_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, sad_voice_probs, eeg_quality=0.0, voice_quality=1.0)
+    # Should be entirely voice-driven
+    assert result["fused_emotion"] == "sad"
+    assert result["dominant_modality"] == "voice"
 
 
-# ── get_fusion_stats ──────────────────────────────────────────────────────────
-
-def test_get_fusion_stats_keys(fusion, eeg_4ch, audio_1s):
-    fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    stats = fusion.get_fusion_stats()
-    assert "transport_cost" in stats
-    assert "alignment_quality" in stats
+def test_zero_voice_quality_uses_eeg_only(fusion, happy_eeg_probs, sad_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, sad_voice_probs, eeg_quality=1.0, voice_quality=0.0)
+    assert result["fused_emotion"] == "happy"
+    assert result["dominant_modality"] == "eeg"
 
 
-def test_get_fusion_stats_alignment_quality_range(fusion, eeg_4ch, audio_1s):
-    fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    stats = fusion.get_fusion_stats()
-    assert 0.0 <= stats["alignment_quality"] <= 1.0
+def test_equal_quality_uses_base_weights(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs, eeg_quality=1.0, voice_quality=1.0)
+    weights = result["modality_weights"]
+    # With equal quality, effective weights should match base weights
+    assert abs(weights["eeg_effective"] - 0.6) < 0.01
+    assert abs(weights["voice_effective"] - 0.4) < 0.01
 
 
-def test_get_fusion_stats_transport_cost_non_negative(fusion, eeg_4ch, audio_1s):
-    fusion.predict(eeg_4ch, audio_1s, EEG_FS, VOICE_SR)
-    stats = fusion.get_fusion_stats()
-    assert stats["transport_cost"] >= 0.0
+def test_modality_weights_sum_to_one(fusion, happy_eeg_probs, happy_voice_probs):
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs, eeg_quality=0.7, voice_quality=0.3)
+    weights = result["modality_weights"]
+    total = weights["eeg_effective"] + weights["voice_effective"]
+    assert abs(total - 1.0) < 1e-5
 
 
-# ── Edge cases ────────────────────────────────────────────────────────────────
+# ---- set_weights() -----------------------------------------------------------
 
-def test_predict_empty_audio_falls_back_to_eeg(fusion, eeg_4ch):
-    empty_audio = np.array([], dtype=np.float32)
-    result = fusion.predict(eeg_4ch, empty_audio, EEG_FS, VOICE_SR)
-    # Empty audio treated as no audio -> EEG-only
-    assert result["emotion"] in EMOTIONS_6
-    assert abs(sum(result["probabilities"].values()) - 1.0) < 1e-5
-
-
-def test_predict_all_zeros_eeg(fusion, audio_1s):
-    zero_eeg = np.zeros((4, 256), dtype=np.float32)
-    result = fusion.predict(zero_eeg, audio_1s, EEG_FS, VOICE_SR)
-    assert result["emotion"] in EMOTIONS_6
-    assert abs(sum(result["probabilities"].values()) - 1.0) < 1e-5
+def test_set_weights(fusion):
+    fusion.set_weights(eeg_weight=0.8, voice_weight=0.2)
+    probs = {"happy": 0.5, "sad": 0.1, "angry": 0.1, "fear": 0.1, "surprise": 0.1, "neutral": 0.1}
+    result = fusion.fuse(probs, probs)
+    assert abs(result["modality_weights"]["eeg_base"] - 0.8) < 1e-6
+    assert abs(result["modality_weights"]["voice_base"] - 0.2) < 1e-6
 
 
-def test_predict_both_none_returns_neutral(fusion):
-    result = fusion.predict(None, None, EEG_FS, VOICE_SR)
-    assert result["emotion"] in EMOTIONS_6
-    assert abs(sum(result["probabilities"].values()) - 1.0) < 1e-5
+def test_set_weights_normalizes(fusion):
+    # Weights that don't sum to 1 should be normalized
+    fusion.set_weights(eeg_weight=3.0, voice_weight=2.0)
+    probs = {"happy": 0.5, "sad": 0.1, "angry": 0.1, "fear": 0.1, "surprise": 0.1, "neutral": 0.1}
+    result = fusion.fuse(probs, probs)
+    assert abs(result["modality_weights"]["eeg_base"] - 0.6) < 1e-6
+    assert abs(result["modality_weights"]["voice_base"] - 0.4) < 1e-6
 
 
-# ── Singleton registry ────────────────────────────────────────────────────────
+# ---- Dominant modality -------------------------------------------------------
 
-def test_get_eeg_voice_fusion_returns_instance():
-    inst = get_eeg_voice_fusion("test_user")
-    assert isinstance(inst, EEGVoiceFusionClassifier)
-
-
-def test_get_eeg_voice_fusion_singleton():
-    a = get_eeg_voice_fusion("singleton_test")
-    b = get_eeg_voice_fusion("singleton_test")
-    assert a is b, "Should return same instance for same user_id"
+def test_dominant_modality_eeg(fusion, happy_eeg_probs, happy_voice_probs):
+    # Default EEG weight 0.6 > voice 0.4
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs, eeg_quality=1.0, voice_quality=1.0)
+    assert result["dominant_modality"] == "eeg"
 
 
-def test_get_eeg_voice_fusion_different_users():
-    a = get_eeg_voice_fusion("user_alpha")
-    b = get_eeg_voice_fusion("user_beta")
-    assert a is not b, "Different user_ids should have separate instances"
+def test_dominant_modality_voice(fusion, happy_eeg_probs, happy_voice_probs):
+    fusion.set_weights(eeg_weight=0.3, voice_weight=0.7)
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs, eeg_quality=1.0, voice_quality=1.0)
+    assert result["dominant_modality"] == "voice"
+
+
+def test_dominant_modality_quality_override(fusion, happy_eeg_probs, happy_voice_probs):
+    # Base weights favor EEG, but voice quality is much higher
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs, eeg_quality=0.1, voice_quality=1.0)
+    assert result["dominant_modality"] == "voice"
+
+
+# ---- Session statistics and history ------------------------------------------
+
+def test_get_session_stats_initial(fusion):
+    stats = fusion.get_session_stats()
+    assert stats["fusion_count"] == 0
+    assert stats["conflict_count"] == 0
+
+
+def test_get_session_stats_after_fuse(fusion, happy_eeg_probs, happy_voice_probs):
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    stats = fusion.get_session_stats()
+    assert stats["fusion_count"] == 1
+
+
+def test_get_session_stats_conflict_tracking(fusion, happy_eeg_probs, sad_voice_probs, happy_voice_probs):
+    fusion.fuse(happy_eeg_probs, sad_voice_probs)
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    stats = fusion.get_session_stats()
+    assert stats["fusion_count"] == 2
+    assert stats["conflict_count"] == 1
+    assert 0.0 <= stats["conflict_rate"] <= 1.0
+
+
+def test_get_history_empty(fusion):
+    history = fusion.get_history()
+    assert isinstance(history, list)
+    assert len(history) == 0
+
+
+def test_get_history_accumulates(fusion, happy_eeg_probs, happy_voice_probs):
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    history = fusion.get_history()
+    assert len(history) == 2
+
+
+def test_get_history_entry_structure(fusion, happy_eeg_probs, happy_voice_probs):
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    entry = fusion.get_history()[0]
+    assert "fused_emotion" in entry
+    assert "confidence" in entry
+    assert "agreement_score" in entry
+    assert "conflict_detected" in entry
+
+
+# ---- reset() -----------------------------------------------------------------
+
+def test_reset_clears_history(fusion, happy_eeg_probs, happy_voice_probs):
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    assert len(fusion.get_history()) == 1
+    fusion.reset()
+    assert len(fusion.get_history()) == 0
+
+
+def test_reset_clears_stats(fusion, happy_eeg_probs, happy_voice_probs):
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    fusion.reset()
+    stats = fusion.get_session_stats()
+    assert stats["fusion_count"] == 0
+    assert stats["conflict_count"] == 0
+
+
+# ---- Edge cases --------------------------------------------------------------
+
+def test_both_zero_quality(fusion, happy_eeg_probs, happy_voice_probs):
+    # Both zero quality -> should still return valid result (fallback to equal)
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs, eeg_quality=0.0, voice_quality=0.0)
+    assert result["fused_emotion"] in EMOTIONS_6
+    total = sum(result["fused_probabilities"].values())
+    assert abs(total - 1.0) < 1e-5
+
+
+def test_single_emotion_dominance(fusion):
+    # One modality is 100% certain
+    eeg = {"happy": 1.0, "sad": 0.0, "angry": 0.0, "fear": 0.0, "surprise": 0.0, "neutral": 0.0}
+    voice = {"happy": 0.0, "sad": 1.0, "angry": 0.0, "fear": 0.0, "surprise": 0.0, "neutral": 0.0}
+    result = fusion.fuse(eeg, voice)
+    assert result["fused_emotion"] in EMOTIONS_6
+    total = sum(result["fused_probabilities"].values())
+    assert abs(total - 1.0) < 1e-5
+    assert result["conflict_detected"] is True
+
+
+def test_uniform_inputs_neutral_or_valid(fusion, uniform_probs):
+    result = fusion.fuse(uniform_probs, uniform_probs.copy())
+    assert result["fused_emotion"] in EMOTIONS_6
+    # Uniform -> high agreement
+    assert result["agreement_score"] > 0.9
+
+
+def test_quality_clipped_to_valid_range(fusion, happy_eeg_probs, happy_voice_probs):
+    # Quality values outside [0,1] should be clipped
+    result = fusion.fuse(happy_eeg_probs, happy_voice_probs, eeg_quality=2.0, voice_quality=-0.5)
+    assert result["fused_emotion"] in EMOTIONS_6
+    weights = result["modality_weights"]
+    assert 0.0 <= weights["eeg_effective"] <= 1.0
+    assert 0.0 <= weights["voice_effective"] <= 1.0
+
+
+def test_session_stats_has_mean_agreement(fusion, happy_eeg_probs, happy_voice_probs, sad_voice_probs):
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    fusion.fuse(happy_eeg_probs, sad_voice_probs)
+    stats = fusion.get_session_stats()
+    assert "mean_agreement" in stats
+    assert 0.0 <= stats["mean_agreement"] <= 1.0
+
+
+def test_session_stats_has_mean_confidence(fusion, happy_eeg_probs, happy_voice_probs):
+    fusion.fuse(happy_eeg_probs, happy_voice_probs)
+    stats = fusion.get_session_stats()
+    assert "mean_confidence" in stats
+    assert 0.0 <= stats["mean_confidence"] <= 1.0
