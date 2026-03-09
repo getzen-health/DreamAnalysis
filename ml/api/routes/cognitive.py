@@ -353,3 +353,45 @@ async def record_attention_rest(data: EEGInput):
     signals = np.array(data.signals)
     screener = _get_screener(data.user_id)
     return screener.record_rest_baseline(signals, data.fs)
+
+
+# ── Emotion Trajectory Prediction ────────────────────────────────────────────
+from pydantic import BaseModel, Field
+from models.emotion_trajectory_predictor import get_trajectory_predictor
+
+
+class TrajectoryUpdateRequest(BaseModel):
+    valence: float = Field(..., description="Current valence (-1 to 1)")
+    arousal: float = Field(..., description="Current arousal (0 to 1)")
+    user_id: str = Field(default="default")
+
+
+@router.post("/emotion-trajectory/update")
+async def update_emotion_trajectory(req: TrajectoryUpdateRequest):
+    """Add current emotion reading to trajectory buffer."""
+    predictor = get_trajectory_predictor(req.user_id)
+    predictor.update(req.valence, req.arousal)
+    return {"status": "updated", "history_length": len(predictor._valence_history)}
+
+
+@router.get("/emotion-trajectory/predict/{user_id}")
+async def predict_emotion_trajectory(user_id: str, horizon_steps: int = 5):
+    """Predict future emotion state from recent history."""
+    predictor = get_trajectory_predictor(user_id)
+    result = predictor.predict(horizon_steps)
+    return _numpy_safe(result)
+
+
+@router.get("/emotion-trajectory/history/{user_id}")
+async def get_emotion_trajectory(user_id: str):
+    """Get full emotion trajectory history and trends."""
+    predictor = get_trajectory_predictor(user_id)
+    return _numpy_safe(predictor.get_trajectory())
+
+
+@router.post("/emotion-trajectory/reset/{user_id}")
+async def reset_emotion_trajectory(user_id: str):
+    """Reset trajectory buffer for a user."""
+    predictor = get_trajectory_predictor(user_id)
+    predictor.reset()
+    return {"status": "reset"}
