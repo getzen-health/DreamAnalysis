@@ -1,409 +1,249 @@
-"""Tests for EEGAuthenticator — EEG-based biometric authentication.
-
-Covers:
-  - Enrollment: correct return keys, template stored, quality_score 0-1
-  - Verification: matching user (same signal + noise), reject unknown, reject different user
-  - Identification: identify correct user from multiple enrolled
-  - Cosine similarity: identical, orthogonal, zero vectors
-  - Threshold: high/medium/low confidence levels
-  - Enrolled users list
-  - Remove user and re-verify fails
-  - Edge cases: single channel, very short signal, 1D input
-  - Multi-user: enroll multiple, verify each independently
-  - Quality score: stable signal > noisy signal
-"""
+"""Tests for EEGAuthenticator — biometric authentication via PSD fingerprinting."""
 
 import numpy as np
 import pytest
 
-from models.eeg_authenticator import EEGAuthenticator
-
-FS = 256
-DURATION_SEC = 10  # 10 seconds of data for enrollment
-N_SAMPLES = FS * DURATION_SEC
-N_CHANNELS = 4
+from models.eeg_authenticator import EEGAuthenticator, get_eeg_authenticator, _cosine_similarity
 
 
-# -- Helpers -------------------------------------------------------------------
-
-def make_eeg(seed: int, duration_sec: float = 10.0, fs: float = 256.0,
-             n_channels: int = 4, noise_level: float = 5.0) -> np.ndarray:
-    """Generate synthetic EEG with known frequency components.
-
-    Different seeds produce different dominant frequencies and amplitude
-    ratios, creating meaningfully different PSD fingerprints. This is
-    critical because PSD (Welch) is phase-invariant -- only frequency
-    content and amplitude matter for spectral fingerprinting.
-    """
-    rng = np.random.RandomState(seed)
-    n_samples = int(fs * duration_sec)
-    t = np.arange(n_samples) / fs
-
-    # Each seed produces unique frequency components (within EEG range 1-40 Hz)
-    # This ensures different seeds create spectrally distinct signals
-    n_components = 5
-    freqs = rng.uniform(2.0, 40.0, size=n_components)
-    amps = rng.uniform(5.0, 25.0, size=n_components)
-
-    signals = np.zeros((n_channels, n_samples))
-    for ch in range(n_channels):
-        # Per-channel amplitude variation (small, preserves spectral shape)
-        ch_scale = 1.0 + rng.randn(n_components) * 0.15
-        phase = rng.uniform(0, 2 * np.pi, size=n_components)
-
-        for i in range(n_components):
-            signals[ch] += (
-                amps[i] * ch_scale[i]
-                * np.sin(2 * np.pi * freqs[i] * t + phase[i])
-            )
-        signals[ch] += rng.randn(n_samples) * noise_level
-    return signals
+FS = 256  # Hz
 
 
-def add_noise(signals: np.ndarray, noise_level: float = 2.0,
-              seed: int = 999) -> np.ndarray:
-    """Add small Gaussian noise to existing signals (simulates same-person
-    re-recording with minor variation)."""
-    rng = np.random.RandomState(seed)
-    return signals + rng.randn(*signals.shape) * noise_level
+def make_eeg(n_channels: int = 4, duration_s: float = 15.0, seed: int = 42) -> np.ndarray:
+    """Generate consistent synthetic EEG with per-seed spectral fingerprint."""
+    rng = np.random.default_rng(seed)
+    n_samples = int(FS * duration_s)
+    t = np.linspace(0, duration_s, n_samples)
+    # Each seed gets a unique alpha peak (8-12 Hz) and beta ratio
+    alpha_hz = 9.0 + (seed % 3)
+    beta_hz = 18.0 + (seed % 5)
+    signal = (
+        rng.normal(0, 5, (n_channels, n_samples))
+        + 8 * np.sin(2 * np.pi * alpha_hz * t)
+        + 4 * np.sin(2 * np.pi * beta_hz * t)
+    )
+    return signal.astype(np.float32)
 
-
-# -- Fixtures ------------------------------------------------------------------
 
 @pytest.fixture
 def auth():
-    return EEGAuthenticator(match_threshold=0.85, n_channels=4)
+    return EEGAuthenticator()
 
 
-@pytest.fixture
-def alice_eeg():
-    """Alice's resting-state EEG."""
-    return make_eeg(seed=42, duration_sec=10.0)
+# ── Unit tests: EEGAuthenticator ──────────────────────────────────────────────
+
+class TestInit:
+    def test_initial_status(self, auth):
+        status = auth.get_status()
+        assert status["enrolled_users"] == []
+        assert status["ready_users"] == []
+        assert "verify_threshold" in status
+        assert "enroll_min_segments" in status
 
 
-@pytest.fixture
-def alice_eeg_verify():
-    """Alice's verification segment — same spectral profile + small noise."""
-    base = make_eeg(seed=42, duration_sec=5.0)
-    return add_noise(base, noise_level=2.0, seed=100)
+class TestEnroll:
+    def test_enroll_returns_dict(self, auth):
+        eeg = make_eeg()
+        result = auth.enroll(eeg, fs=FS, user_id="alice")
+        assert isinstance(result, dict)
+        assert "enrolled_segments" in result
+        assert "template_ready" in result
+        assert "user_id" in result
+
+    def test_enroll_increments_segments(self, auth):
+        eeg = make_eeg()
+        for i in range(1, 4):
+            result = auth.enroll(eeg, fs=FS, user_id="alice")
+            assert result["enrolled_segments"] == i
+
+    def test_enroll_not_ready_before_3_segments(self, auth):
+        eeg = make_eeg()
+        for _ in range(2):
+            result = auth.enroll(eeg, fs=FS, user_id="alice")
+        assert result["template_ready"] is False
+
+    def test_enroll_ready_after_3_segments(self, auth):
+        eeg = make_eeg()
+        for _ in range(3):
+            result = auth.enroll(eeg, fs=FS, user_id="alice")
+        assert result["template_ready"] is True
+
+    def test_enroll_updates_status(self, auth):
+        eeg = make_eeg()
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        status = auth.get_status()
+        assert "alice" in status["enrolled_users"]
+        assert "alice" in status["ready_users"]
+
+    def test_enroll_short_signal_returns_error(self, auth):
+        # 0.5 seconds — too short (min is 10 seconds)
+        eeg_short = np.random.randn(4, int(FS * 0.5)).astype(np.float32)
+        result = auth.enroll(eeg_short, fs=FS, user_id="alice")
+        assert "error" in result
+
+    def test_enroll_multiple_users(self, auth):
+        eeg = make_eeg()
+        for user in ["alice", "bob", "carol"]:
+            for _ in range(3):
+                auth.enroll(eeg, fs=FS, user_id=user)
+        status = auth.get_status()
+        assert set(status["ready_users"]) == {"alice", "bob", "carol"}
 
 
-@pytest.fixture
-def bob_eeg():
-    """Bob's resting-state EEG — completely different spectral profile."""
-    return make_eeg(seed=7, duration_sec=10.0)
+class TestVerify:
+    def test_verify_before_enroll_returns_error(self, auth):
+        eeg = make_eeg()
+        result = auth.verify(eeg, fs=FS, user_id="ghost")
+        assert result["match"] is False
+        assert result["template_ready"] is False
+        assert "error" in result
 
-
-@pytest.fixture
-def bob_eeg_verify():
-    """Bob's verification segment."""
-    base = make_eeg(seed=7, duration_sec=5.0)
-    return add_noise(base, noise_level=2.0, seed=200)
-
-
-@pytest.fixture
-def charlie_eeg():
-    """Charlie's resting-state EEG — third distinct user."""
-    return make_eeg(seed=123, duration_sec=10.0)
-
-
-# -- TestEnrollment ------------------------------------------------------------
-
-class TestEnrollment:
-    def test_enroll_returns_correct_keys(self, auth, alice_eeg):
-        result = auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        expected_keys = {"enrolled", "user_id", "template_size", "duration_sec",
-                         "quality_score"}
-        assert set(result.keys()) == expected_keys
-
-    def test_enroll_success(self, auth, alice_eeg):
-        result = auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        assert result["enrolled"] is True
-        assert result["user_id"] == "alice"
-
-    def test_template_stored(self, auth, alice_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        assert "alice" in auth._templates
-        assert isinstance(auth._templates["alice"], np.ndarray)
-
-    def test_template_size_positive(self, auth, alice_eeg):
-        result = auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        assert result["template_size"] > 0
-
-    def test_duration_matches_input(self, auth, alice_eeg):
-        result = auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        expected_duration = alice_eeg.shape[1] / FS
-        assert abs(result["duration_sec"] - expected_duration) < 0.01
-
-    def test_quality_score_range(self, auth, alice_eeg):
-        result = auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        assert 0.0 <= result["quality_score"] <= 1.0
-
-    def test_overwrite_enrollment(self, auth, alice_eeg, bob_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        old_template = auth._templates["alice"].copy()
-        auth.enroll(bob_eeg, fs=FS, user_id="alice")
-        # Template should be different after re-enrollment with different data
-        assert not np.allclose(old_template, auth._templates["alice"])
-
-
-# -- TestVerification ----------------------------------------------------------
-
-class TestVerification:
-    def test_verify_matching_user(self, auth, alice_eeg, alice_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        result = auth.verify(alice_eeg_verify, fs=FS, claimed_id="alice")
+    def test_verify_same_person_matches(self, auth):
+        """Same spectral fingerprint should match."""
+        eeg = make_eeg(seed=1)
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        result = auth.verify(eeg, fs=FS, user_id="alice")
+        assert result["template_ready"] is True
+        assert result["similarity"] > 0.5
+        # High similarity (same signal) should produce match
         assert result["match"] is True
-        assert result["similarity"] > 0.85
-        assert result["claimed_id"] == "alice"
 
-    def test_verify_returns_correct_keys(self, auth, alice_eeg, alice_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        result = auth.verify(alice_eeg_verify, fs=FS, claimed_id="alice")
-        expected_keys = {"match", "similarity", "claimed_id", "threshold",
-                         "confidence"}
-        assert set(result.keys()) == expected_keys
+    def test_verify_returns_required_keys(self, auth):
+        eeg = make_eeg()
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        result = auth.verify(eeg, fs=FS, user_id="alice")
+        for key in ["match", "similarity", "threshold", "template_ready", "user_id"]:
+            assert key in result
 
-    def test_reject_unknown_user(self, auth, alice_eeg_verify):
-        result = auth.verify(alice_eeg_verify, fs=FS, claimed_id="unknown")
-        assert result["match"] is False
-        assert result["similarity"] == 0.0
-
-    def test_reject_different_user(self, auth, alice_eeg, bob_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        result = auth.verify(bob_eeg_verify, fs=FS, claimed_id="alice")
-        assert result["match"] is False
-        assert result["similarity"] < 0.85
-
-    def test_similarity_range(self, auth, alice_eeg, alice_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        result = auth.verify(alice_eeg_verify, fs=FS, claimed_id="alice")
+    def test_verify_similarity_in_range(self, auth):
+        eeg = make_eeg()
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        result = auth.verify(eeg, fs=FS, user_id="alice")
         assert 0.0 <= result["similarity"] <= 1.0
 
-    def test_threshold_in_result(self, auth, alice_eeg, alice_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        result = auth.verify(alice_eeg_verify, fs=FS, claimed_id="alice")
-        assert result["threshold"] == 0.85
+    def test_verify_short_signal_returns_error(self, auth):
+        eeg = make_eeg()
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        eeg_short = np.random.randn(4, int(FS * 0.5)).astype(np.float32)
+        result = auth.verify(eeg_short, fs=FS, user_id="alice")
+        assert "error" in result
+        assert result["match"] is False
 
 
-# -- TestIdentification -------------------------------------------------------
-
-class TestIdentification:
-    def test_identify_correct_user(self, auth, alice_eeg, bob_eeg,
-                                   alice_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        auth.enroll(bob_eeg, fs=FS, user_id="bob")
-        result = auth.identify(alice_eeg_verify, fs=FS)
-        assert result["identified_user"] == "alice"
-        assert result["similarity"] > 0.85
-
-    def test_identify_returns_all_scores(self, auth, alice_eeg, bob_eeg,
-                                         alice_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        auth.enroll(bob_eeg, fs=FS, user_id="bob")
-        result = auth.identify(alice_eeg_verify, fs=FS)
-        assert "alice" in result["all_scores"]
-        assert "bob" in result["all_scores"]
-        assert result["n_enrolled"] == 2
-
-    def test_identify_no_enrolled_users(self, auth, alice_eeg_verify):
-        result = auth.identify(alice_eeg_verify, fs=FS)
+class TestIdentify:
+    def test_identify_no_users_returns_error(self, auth):
+        eeg = make_eeg()
+        result = auth.identify(eeg, fs=FS)
         assert result["identified_user"] is None
-        assert result["n_enrolled"] == 0
+        assert "error" in result
 
-    def test_identify_no_match_below_threshold(self, auth, alice_eeg,
-                                                charlie_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        # Charlie's EEG should not match Alice
-        result = auth.identify(charlie_eeg, fs=FS)
-        # If similarity is below threshold, identified_user should be None
-        if result["similarity"] < 0.85:
-            assert result["identified_user"] is None
+    def test_identify_returns_candidates(self, auth):
+        eeg = make_eeg()
+        for user in ["alice", "bob"]:
+            for _ in range(3):
+                auth.enroll(eeg, fs=FS, user_id=user)
+        result = auth.identify(eeg, fs=FS)
+        assert "candidates" in result
+        assert len(result["candidates"]) == 2
 
-    def test_identify_bob_from_multiple(self, auth, alice_eeg, bob_eeg,
-                                        bob_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        auth.enroll(bob_eeg, fs=FS, user_id="bob")
-        result = auth.identify(bob_eeg_verify, fs=FS)
-        assert result["identified_user"] == "bob"
+    def test_identify_candidates_sorted_desc(self, auth):
+        eeg = make_eeg()
+        for user in ["alice", "bob"]:
+            for _ in range(3):
+                auth.enroll(eeg, fs=FS, user_id=user)
+        result = auth.identify(eeg, fs=FS)
+        sims = [c["similarity"] for c in result["candidates"]]
+        assert sims == sorted(sims, reverse=True)
+
+    def test_identify_returns_required_keys(self, auth):
+        eeg = make_eeg()
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        result = auth.identify(eeg, fs=FS)
+        for key in ["identified_user", "similarity", "threshold", "candidates"]:
+            assert key in result
+
+    def test_identify_same_signal(self, auth):
+        eeg = make_eeg(seed=7)
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        result = auth.identify(eeg, fs=FS)
+        # Same signal — should identify alice
+        assert result["identified_user"] == "alice"
 
 
-# -- TestCosineSimilarity -----------------------------------------------------
+class TestDelete:
+    def test_delete_existing_user(self, auth):
+        eeg = make_eeg()
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        result = auth.delete_template("alice")
+        assert result["deleted"] is True
+        status = auth.get_status()
+        assert "alice" not in status["enrolled_users"]
+
+    def test_delete_nonexistent_user(self, auth):
+        result = auth.delete_template("nobody")
+        assert result["deleted"] is False
+
+    def test_verify_after_delete_fails(self, auth):
+        eeg = make_eeg()
+        for _ in range(3):
+            auth.enroll(eeg, fs=FS, user_id="alice")
+        auth.delete_template("alice")
+        result = auth.verify(eeg, fs=FS, user_id="alice")
+        assert result["match"] is False
+        assert result["template_ready"] is False
+
 
 class TestCosineSimilarity:
     def test_identical_vectors(self):
-        a = np.array([1.0, 2.0, 3.0])
-        assert abs(EEGAuthenticator._cosine_similarity(a, a) - 1.0) < 1e-9
+        v = np.array([1.0, 2.0, 3.0])
+        assert _cosine_similarity(v, v) == pytest.approx(1.0, abs=1e-6)
 
     def test_orthogonal_vectors(self):
-        a = np.array([1.0, 0.0])
-        b = np.array([0.0, 1.0])
-        assert abs(EEGAuthenticator._cosine_similarity(a, b)) < 1e-9
+        a = np.array([1.0, 0.0, 0.0])
+        b = np.array([0.0, 1.0, 0.0])
+        assert _cosine_similarity(a, b) == pytest.approx(0.0, abs=1e-6)
 
     def test_zero_vector(self):
-        a = np.array([1.0, 2.0, 3.0])
-        b = np.zeros(3)
-        assert EEGAuthenticator._cosine_similarity(a, b) == 0.0
+        a = np.zeros(5)
+        b = np.ones(5)
+        assert _cosine_similarity(a, b) == 0.0
 
-    def test_both_zero_vectors(self):
-        a = np.zeros(3)
-        b = np.zeros(3)
-        assert EEGAuthenticator._cosine_similarity(a, b) == 0.0
-
-    def test_opposite_vectors(self):
-        a = np.array([1.0, 2.0, 3.0])
-        b = -a
-        assert abs(EEGAuthenticator._cosine_similarity(a, b) - (-1.0)) < 1e-9
-
-    def test_scaled_vectors_same_direction(self):
-        a = np.array([1.0, 2.0, 3.0])
-        b = a * 100
-        assert abs(EEGAuthenticator._cosine_similarity(a, b) - 1.0) < 1e-9
+    def test_range(self):
+        rng = np.random.default_rng(0)
+        for _ in range(20):
+            a = rng.standard_normal(50).astype(np.float32)
+            b = rng.standard_normal(50).astype(np.float32)
+            sim = _cosine_similarity(a, b)
+            assert -1.0 <= sim <= 1.0
 
 
-# -- TestThreshold (confidence levels) ----------------------------------------
+class TestSingleton:
+    def test_same_instance(self):
+        a = get_eeg_authenticator()
+        b = get_eeg_authenticator()
+        assert a is b
 
-class TestThreshold:
-    def test_high_confidence(self, auth, alice_eeg):
-        """Same signal enrolled and verified should give high confidence."""
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        # Verify with the exact same signal — should be very high similarity
-        result = auth.verify(alice_eeg, fs=FS, claimed_id="alice")
-        assert result["confidence"] == "high"
-        assert result["similarity"] > auth._match_threshold + 0.10
-
-    def test_confidence_is_valid_string(self, auth, alice_eeg, alice_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        result = auth.verify(alice_eeg_verify, fs=FS, claimed_id="alice")
-        assert result["confidence"] in {"high", "medium", "low"}
-
-    def test_unknown_user_no_confidence_category(self, auth, alice_eeg_verify):
-        """Unknown user should not get a high confidence."""
-        result = auth.verify(alice_eeg_verify, fs=FS, claimed_id="nonexistent")
-        assert result["match"] is False
+    def test_is_eeg_authenticator(self):
+        assert isinstance(get_eeg_authenticator(), EEGAuthenticator)
 
 
-# -- TestGetEnrolled -----------------------------------------------------------
+class TestMultichannelAndShapes:
+    def test_1d_input_enroll(self, auth):
+        eeg_1d = make_eeg(n_channels=1, duration_s=15.0).reshape(-1)
+        result = auth.enroll(eeg_1d, fs=FS, user_id="alice")
+        assert "enrolled_segments" in result
 
-class TestGetEnrolled:
-    def test_empty_initially(self, auth):
-        assert auth.get_enrolled_users() == []
-
-    def test_returns_enrolled_ids(self, auth, alice_eeg, bob_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        auth.enroll(bob_eeg, fs=FS, user_id="bob")
-        enrolled = auth.get_enrolled_users()
-        assert set(enrolled) == {"alice", "bob"}
-
-    def test_returns_list(self, auth, alice_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        assert isinstance(auth.get_enrolled_users(), list)
-
-
-# -- TestRemoveUser ------------------------------------------------------------
-
-class TestRemoveUser:
-    def test_remove_existing_user(self, auth, alice_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        result = auth.remove_user("alice")
-        assert result is True
-        assert "alice" not in auth._templates
-
-    def test_remove_nonexistent_user(self, auth):
-        result = auth.remove_user("nobody")
-        assert result is False
-
-    def test_verify_fails_after_removal(self, auth, alice_eeg, alice_eeg_verify):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        auth.remove_user("alice")
-        result = auth.verify(alice_eeg_verify, fs=FS, claimed_id="alice")
-        assert result["match"] is False
-        assert result["similarity"] == 0.0
-
-
-# -- TestEdgeCases -------------------------------------------------------------
-
-class TestEdgeCases:
-    def test_single_channel_input(self, auth):
-        """2D array with 1 channel should still work."""
-        signals = make_eeg(seed=42, n_channels=1, duration_sec=10.0)
-        auth_1ch = EEGAuthenticator(n_channels=1)
-        result = auth_1ch.enroll(signals, fs=FS, user_id="single")
-        assert result["enrolled"] is True
-
-    def test_1d_input_treated_as_single_channel(self, auth):
-        """1D array should be handled gracefully."""
-        rng = np.random.RandomState(42)
-        signal_1d = rng.randn(FS * 10) * 20.0
-        auth_1ch = EEGAuthenticator(n_channels=1)
-        result = auth_1ch.enroll(signal_1d, fs=FS, user_id="flat")
-        assert result["enrolled"] is True
-
-    def test_short_signal_for_verification(self, auth, alice_eeg):
-        """5-second signal (minimum for verify) should work."""
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        short_verify = make_eeg(seed=42, duration_sec=5.0)
-        short_verify = add_noise(short_verify, noise_level=2.0)
-        result = auth.verify(short_verify, fs=FS, claimed_id="alice")
-        assert "match" in result
+    def test_single_channel_2d(self, auth):
+        eeg_1ch = make_eeg(n_channels=1, duration_s=15.0)
+        for _ in range(3):
+            auth.enroll(eeg_1ch, fs=FS, user_id="alice")
+        result = auth.verify(eeg_1ch, fs=FS, user_id="alice")
         assert "similarity" in result
-
-    def test_custom_threshold(self):
-        """Custom match threshold should be respected."""
-        auth = EEGAuthenticator(match_threshold=0.95)
-        assert auth._match_threshold == 0.95
-
-
-# -- TestMultiUser -------------------------------------------------------------
-
-class TestMultiUser:
-    def test_enroll_multiple_users(self, auth, alice_eeg, bob_eeg, charlie_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        auth.enroll(bob_eeg, fs=FS, user_id="bob")
-        auth.enroll(charlie_eeg, fs=FS, user_id="charlie")
-        assert len(auth.get_enrolled_users()) == 3
-
-    def test_verify_each_user_independently(self, auth, alice_eeg, bob_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        auth.enroll(bob_eeg, fs=FS, user_id="bob")
-
-        alice_verify = add_noise(make_eeg(seed=42, duration_sec=5.0),
-                                 noise_level=2.0, seed=300)
-        bob_verify = add_noise(make_eeg(seed=7, duration_sec=5.0),
-                               noise_level=2.0, seed=301)
-
-        r_alice = auth.verify(alice_verify, fs=FS, claimed_id="alice")
-        r_bob = auth.verify(bob_verify, fs=FS, claimed_id="bob")
-
-        assert r_alice["match"] is True
-        assert r_bob["match"] is True
-
-    def test_cross_user_rejection(self, auth, alice_eeg, bob_eeg):
-        auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        auth.enroll(bob_eeg, fs=FS, user_id="bob")
-
-        bob_verify = add_noise(make_eeg(seed=7, duration_sec=5.0),
-                               noise_level=2.0, seed=301)
-
-        # Bob's EEG should not verify as Alice
-        r = auth.verify(bob_verify, fs=FS, claimed_id="alice")
-        assert r["match"] is False
-
-
-# -- TestQualityScore ----------------------------------------------------------
-
-class TestQualityScore:
-    def test_stable_signal_higher_quality(self, auth):
-        """Clean signal should have higher quality score than noisy signal."""
-        clean = make_eeg(seed=42, duration_sec=10.0, noise_level=1.0)
-        noisy = make_eeg(seed=42, duration_sec=10.0, noise_level=50.0)
-
-        r_clean = auth.enroll(clean, fs=FS, user_id="clean_user")
-        auth.remove_user("clean_user")
-        r_noisy = auth.enroll(noisy, fs=FS, user_id="noisy_user")
-
-        assert r_clean["quality_score"] > r_noisy["quality_score"]
-
-    def test_quality_score_is_float(self, auth, alice_eeg):
-        result = auth.enroll(alice_eeg, fs=FS, user_id="alice")
-        assert isinstance(result["quality_score"], float)

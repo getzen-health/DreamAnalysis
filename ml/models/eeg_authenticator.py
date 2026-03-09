@@ -1,274 +1,330 @@
-"""EEG-based biometric authentication via spectral fingerprinting.
+"""EEG-based passive biometric authentication via spectral fingerprinting.
 
-Enrollment: record resting-state EEG, extract PSD template per channel.
-Verification: extract PSD from a segment, cosine similarity to template.
+Each person's resting EEG has highly stable spectral characteristics — especially
+alpha peak frequency and beta/alpha band-power ratios. These serve as a biometric
+signature that cannot be forged unlike passwords or physical biometrics.
 
-Scientific basis:
-  - EEG spectral features are individually unique and temporally stable
-  - PSD (Power Spectral Density) across channels forms a biometric fingerprint
-  - Cosine similarity in log-PSD space is robust to amplitude scaling
+Accuracy (feature-based PSD cosine similarity):
+- 4-channel systems: 92-95% (MDPI Sensors, 2025 review)
+- Deep learning variants: 99.73% (Expert Systems, 2024)
+
+Key biomarkers:
+- Alpha peak frequency: individually stable (r=0.53-0.66 test-retest)
+- PSD shape 0.5-45 Hz: unique fingerprint per person
+- Theta/alpha/beta band power ratios: low intra-subject variance
+
+Privacy: only frequency-domain templates stored, never raw EEG.
 
 References:
-    MDPI Sensors (2025) -- PSD features from resting EEG
-    Expert Systems (2024) -- 99.73% EEG identification accuracy
-
-Architecture:
-    1. Extract PSD via Welch's method (2-sec windows) per channel
-    2. Keep freq bins in 0.5-45 Hz range
-    3. Log-transform power for better normality
-    4. Concatenate across channels into single template vector
-    5. Cosine similarity for verification/identification
+- MDPI Sensors 2025 (PMC12390388): PSD alpha/beta for passive authentication
+- Expert Systems 2024: Wavelet-ResNet 99.73% accuracy
 """
 
-import numpy as np
-from typing import Dict, List, Optional
-from scipy.signal import welch
+import logging
+import threading
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+TEMPLATE_MIN_SECONDS = 10     # minimum enrollment data per segment
+ENROLL_MIN_SEGMENTS = 3       # need ≥3 segments to build stable template
+VERIFY_THRESHOLD = 0.75       # cosine similarity threshold for match
+PSD_FREQ_LO = 0.5             # Hz — lowest frequency in PSD fingerprint
+PSD_FREQ_HI = 45.0            # Hz — highest frequency
+PSD_RESOLUTION = 0.5          # Hz per bin → 89 bins per channel (0.5-45 Hz)
+
+
+# ── EEGAuthenticator ──────────────────────────────────────────────────────────
 
 class EEGAuthenticator:
-    """EEG-based biometric authentication via spectral fingerprinting.
+    """Passive EEG biometric authentication via PSD template matching.
 
-    Enrollment: record 2-min resting EEG, extract PSD template per channel.
-    Verification: extract PSD from 5-sec segment, cosine similarity to template.
+    Usage:
+        auth = EEGAuthenticator()
 
-    References:
-        MDPI Sensors (2025) -- PSD features from resting EEG
-        Expert Systems (2024) -- 99.73% EEG identification
+        # Enrollment (call 3+ times with resting EEG segments):
+        auth.enroll(eeg_4ch, fs=256, user_id="alice")
+        # ...repeat for ≥3 two-minute epochs...
+
+        # Verification:
+        result = auth.verify(eeg_4ch, fs=256, user_id="alice")
+        # → {"match": True, "similarity": 0.912, "threshold": 0.75}
     """
 
-    def __init__(self, match_threshold: float = 0.85, n_channels: int = 4):
-        self._templates: Dict[str, np.ndarray] = {}  # user_id -> PSD template
-        self._match_threshold = match_threshold
-        self._n_channels = n_channels
-        self._freq_range = (0.5, 45.0)  # Hz
+    def __init__(self):
+        self._lock = threading.Lock()
+        # user_id → list of PSD vectors (enrollment templates)
+        self._templates: Dict[str, List[np.ndarray]] = {}
+        # user_id → averaged template (set after finalize_enrollment)
+        self._mean_templates: Dict[str, np.ndarray] = {}
+
+    # ── Public API ─────────────────────────────────────────────────────────────
 
     def enroll(
         self,
-        signals: np.ndarray,
+        eeg: np.ndarray,
         fs: float = 256.0,
         user_id: str = "default",
-    ) -> dict:
-        """Enroll a user with resting-state EEG.
+    ) -> Dict:
+        """Add one EEG segment to the enrollment template for user_id.
+
+        Call ≥3 times with fresh resting-state epochs (eyes closed, relaxed).
+        After the 3rd call, the template is finalized automatically.
 
         Args:
-            signals: (n_channels, n_samples) EEG array, or 1D for single channel
-            fs: Sampling rate in Hz
-            user_id: User identifier
+            eeg: shape (4, n_samples) or (n_samples,) — raw µV
+            fs: sampling rate in Hz
+            user_id: unique user identifier
 
         Returns:
-            dict with keys: enrolled, user_id, template_size, duration_sec,
-            quality_score
+            {"enrolled_segments": int, "template_ready": bool, "user_id": str}
         """
-        signals = self._ensure_2d(signals)
-        n_channels, n_samples = signals.shape
-        duration_sec = n_samples / fs
+        psd = self._extract_psd_vector(eeg, fs)
+        if psd is None:
+            return {
+                "enrolled_segments": self._segment_count(user_id),
+                "template_ready": self._is_ready(user_id),
+                "user_id": user_id,
+                "error": "Signal too short for reliable PSD",
+            }
 
-        template = self._extract_psd_template(signals, fs)
-        self._templates[user_id] = template
+        with self._lock:
+            if user_id not in self._templates:
+                self._templates[user_id] = []
+            self._templates[user_id].append(psd)
+            n_segs = len(self._templates[user_id])
 
-        quality_score = self._compute_quality(signals)
+            # Finalize template as soon as we have ≥3 segments
+            if n_segs >= ENROLL_MIN_SEGMENTS:
+                self._mean_templates[user_id] = np.mean(
+                    self._templates[user_id], axis=0
+                )
+                logger.info(
+                    "EEG biometric template finalized for user=%s (%d segments)",
+                    user_id,
+                    n_segs,
+                )
 
         return {
-            "enrolled": True,
+            "enrolled_segments": n_segs,
+            "template_ready": n_segs >= ENROLL_MIN_SEGMENTS,
             "user_id": user_id,
-            "template_size": len(template),
-            "duration_sec": float(duration_sec),
-            "quality_score": float(quality_score),
         }
 
     def verify(
         self,
-        signals: np.ndarray,
+        eeg: np.ndarray,
         fs: float = 256.0,
-        claimed_id: str = "default",
-    ) -> dict:
-        """Verify identity against enrolled template.
+        user_id: str = "default",
+    ) -> Dict:
+        """Verify whether the EEG matches the enrolled template for user_id.
 
         Args:
-            signals: (n_channels, n_samples) EEG array (min 5 sec recommended)
-            fs: Sampling rate in Hz
-            claimed_id: User ID to verify against
+            eeg: shape (4, n_samples) or (n_samples,) — raw µV
+            fs: sampling rate in Hz
+            user_id: user to verify against
 
         Returns:
-            dict with keys: match, similarity, claimed_id, threshold, confidence
+            {
+              "match": bool,
+              "similarity": float (0-1, cosine similarity),
+              "threshold": float,
+              "template_ready": bool,
+              "user_id": str
+            }
         """
-        if claimed_id not in self._templates:
+        if not self._is_ready(user_id):
             return {
                 "match": False,
                 "similarity": 0.0,
-                "claimed_id": claimed_id,
-                "threshold": self._match_threshold,
-                "confidence": "low",
+                "threshold": VERIFY_THRESHOLD,
+                "template_ready": False,
+                "user_id": user_id,
+                "error": f"No template for user '{user_id}'. Enroll first.",
             }
 
-        signals = self._ensure_2d(signals)
-        probe_template = self._extract_psd_template(signals, fs)
-        enrolled_template = self._templates[claimed_id]
+        psd = self._extract_psd_vector(eeg, fs)
+        if psd is None:
+            return {
+                "match": False,
+                "similarity": 0.0,
+                "threshold": VERIFY_THRESHOLD,
+                "template_ready": True,
+                "user_id": user_id,
+                "error": "Signal too short for verification",
+            }
 
-        similarity = self._cosine_similarity(probe_template, enrolled_template)
-        match = similarity >= self._match_threshold
+        with self._lock:
+            template = self._mean_templates[user_id]
 
-        confidence = self._classify_confidence(similarity)
+        similarity = float(_cosine_similarity(psd, template))
+        match = similarity >= VERIFY_THRESHOLD
 
         return {
             "match": match,
-            "similarity": float(similarity),
-            "claimed_id": claimed_id,
-            "threshold": self._match_threshold,
-            "confidence": confidence,
+            "similarity": round(similarity, 4),
+            "threshold": VERIFY_THRESHOLD,
+            "template_ready": True,
+            "user_id": user_id,
         }
 
-    def identify(self, signals: np.ndarray, fs: float = 256.0) -> dict:
-        """Identify user from all enrolled templates.
+    def identify(
+        self,
+        eeg: np.ndarray,
+        fs: float = 256.0,
+    ) -> Dict:
+        """1-of-N identification: find the best-matching enrolled user.
 
         Returns:
-            dict with keys: identified_user, similarity, all_scores, n_enrolled
+            {
+              "identified_user": str or None,
+              "similarity": float,
+              "threshold": float,
+              "candidates": [{user_id, similarity}, ...] sorted desc
+            }
         """
-        if not self._templates:
+        psd = self._extract_psd_vector(eeg, fs)
+        if psd is None:
             return {
                 "identified_user": None,
                 "similarity": 0.0,
-                "all_scores": {},
-                "n_enrolled": 0,
+                "threshold": VERIFY_THRESHOLD,
+                "candidates": [],
+                "error": "Signal too short",
             }
 
-        signals = self._ensure_2d(signals)
-        probe_template = self._extract_psd_template(signals, fs)
+        with self._lock:
+            if not self._mean_templates:
+                return {
+                    "identified_user": None,
+                    "similarity": 0.0,
+                    "threshold": VERIFY_THRESHOLD,
+                    "candidates": [],
+                    "error": "No enrolled users",
+                }
+            scores = [
+                {"user_id": uid, "similarity": round(float(_cosine_similarity(psd, tmpl)), 4)}
+                for uid, tmpl in self._mean_templates.items()
+            ]
 
-        all_scores: Dict[str, float] = {}
-        for uid, enrolled_template in self._templates.items():
-            all_scores[uid] = float(
-                self._cosine_similarity(probe_template, enrolled_template)
-            )
-
-        best_user = max(all_scores, key=all_scores.get)  # type: ignore[arg-type]
-        best_score = all_scores[best_user]
-
-        identified = best_user if best_score >= self._match_threshold else None
+        scores.sort(key=lambda x: x["similarity"], reverse=True)
+        best = scores[0]
+        identified = best["user_id"] if best["similarity"] >= VERIFY_THRESHOLD else None
 
         return {
             "identified_user": identified,
-            "similarity": float(best_score),
-            "all_scores": all_scores,
-            "n_enrolled": len(self._templates),
+            "similarity": best["similarity"],
+            "threshold": VERIFY_THRESHOLD,
+            "candidates": scores,
         }
 
-    def get_enrolled_users(self) -> List[str]:
-        """Return list of enrolled user IDs."""
-        return list(self._templates.keys())
+    def delete_template(self, user_id: str) -> Dict:
+        """Remove all stored templates for user_id (GDPR right-to-erasure)."""
+        with self._lock:
+            removed = user_id in self._templates
+            self._templates.pop(user_id, None)
+            self._mean_templates.pop(user_id, None)
+        return {"user_id": user_id, "deleted": removed}
 
-    def remove_user(self, user_id: str) -> bool:
-        """Remove enrolled user template. Returns True if found and removed."""
-        if user_id in self._templates:
-            del self._templates[user_id]
-            return True
-        return False
+    def get_status(self) -> Dict:
+        """Return overview of enrolled users and template readiness."""
+        with self._lock:
+            return {
+                "enrolled_users": list(self._templates.keys()),
+                "ready_users": list(self._mean_templates.keys()),
+                "verify_threshold": VERIFY_THRESHOLD,
+                "enroll_min_segments": ENROLL_MIN_SEGMENTS,
+            }
 
-    def _extract_psd_template(
-        self, signals: np.ndarray, fs: float
-    ) -> np.ndarray:
-        """Extract flattened PSD template from multichannel EEG.
+    # ── Internal helpers ──────────────────────────────────────────────────────
 
-        Uses scipy.signal.welch with 2-sec windows.
-        Keeps only freq bins within self._freq_range.
-        Log-transforms power for better normality.
-        Returns: 1D array of log-PSD values across channels.
+    def _extract_psd_vector(
+        self, eeg: np.ndarray, fs: float
+    ) -> Optional[np.ndarray]:
+        """Extract flattened PSD vector across all channels.
+
+        Returns a 1-D feature vector: n_channels × n_bins, log-domain.
+        Uses numpy-only Welch approximation (averaged periodogram).
         """
-        signals = self._ensure_2d(signals)
-        n_channels, n_samples = signals.shape
+        try:
+            # Normalise shape
+            if eeg.ndim == 1:
+                channels = [eeg]
+            elif eeg.ndim == 2:
+                channels = [eeg[i] for i in range(eeg.shape[0])]
+            else:
+                return None
 
-        # Welch parameters: 2-second window, 50% overlap
-        nperseg = min(int(2.0 * fs), n_samples)
-        noverlap = nperseg // 2
+            n_samples = len(channels[0])
+            min_samples = int(fs * TEMPLATE_MIN_SECONDS)
+            if n_samples < min_samples:
+                logger.debug(
+                    "Signal too short: %d < %d samples", n_samples, min_samples
+                )
+                return None
 
-        all_psd = []
-        for ch in range(n_channels):
-            freqs, psd = welch(
-                signals[ch],
-                fs=fs,
-                nperseg=nperseg,
-                noverlap=noverlap,
-                window="hann",
-            )
-            # Keep only frequency bins within range
-            freq_mask = (freqs >= self._freq_range[0]) & (
-                freqs <= self._freq_range[1]
-            )
-            psd_band = psd[freq_mask]
+            # Hann-windowed averaged periodogram (Welch-like)
+            seg_len = min(int(fs * 4), n_samples)  # 4-second segments
+            hop = seg_len // 2
+            freqs = np.fft.rfftfreq(seg_len, d=1.0 / fs)
+            mask = (freqs >= PSD_FREQ_LO) & (freqs <= PSD_FREQ_HI)
 
-            # Log-transform (add small epsilon to avoid log(0))
-            log_psd = np.log10(psd_band + 1e-20)
-            all_psd.append(log_psd)
+            psds = []
+            for ch in channels:
+                ch = ch.astype(np.float32)
+                segments = []
+                start = 0
+                while start + seg_len <= n_samples:
+                    window = np.hanning(seg_len)
+                    seg = ch[start : start + seg_len] * window
+                    psd_seg = np.abs(np.fft.rfft(seg)) ** 2
+                    segments.append(psd_seg[mask])
+                    start += hop
+                if not segments:
+                    return None
+                ch_psd = np.mean(segments, axis=0)
+                # Log-domain: better normality, reduces outlier influence
+                ch_psd = np.log1p(ch_psd)
+                psds.append(ch_psd)
 
-        return np.concatenate(all_psd)
+            return np.concatenate(psds).astype(np.float32)
 
-    def _compute_quality(self, signals: np.ndarray) -> float:
-        """Compute enrollment quality score (0-1).
+        except Exception as exc:
+            logger.debug("PSD extraction failed: %s", exc)
+            return None
 
-        Measures spectral concentration: ratio of power in dominant frequency
-        bins vs total broadband power. A clean signal with strong spectral
-        peaks has high concentration; a noisy signal has flat (uniform) PSD
-        and lower concentration.
+    def _segment_count(self, user_id: str) -> int:
+        with self._lock:
+            return len(self._templates.get(user_id, []))
 
-        Technically: 1 - (spectral_entropy / max_entropy). Clean signals
-        have low spectral entropy (peaky PSD), noisy signals have high
-        spectral entropy (flat PSD).
-        """
-        signals = self._ensure_2d(signals)
-        n_channels, n_samples = signals.shape
+    def _is_ready(self, user_id: str) -> bool:
+        with self._lock:
+            return user_id in self._mean_templates
 
-        nperseg = min(int(2.0 * 256), n_samples)
-        noverlap = nperseg // 2
 
-        entropies = []
-        for ch in range(n_channels):
-            _, psd = welch(signals[ch], fs=256.0, nperseg=nperseg,
-                           noverlap=noverlap, window="hann")
-            # Normalize PSD to probability distribution
-            psd_sum = psd.sum()
-            if psd_sum < 1e-20:
-                entropies.append(1.0)  # flat/dead signal = max entropy
-                continue
-            p = psd / psd_sum
-            # Shannon entropy (avoid log(0))
-            p_safe = p[p > 1e-20]
-            entropy = -np.sum(p_safe * np.log(p_safe))
-            max_entropy = np.log(len(psd))
-            # Normalize to 0-1
-            norm_entropy = entropy / max_entropy if max_entropy > 0 else 1.0
-            entropies.append(norm_entropy)
+# ── Math helpers ──────────────────────────────────────────────────────────────
 
-        mean_entropy = np.mean(entropies)
-        # Quality = 1 - normalized entropy: peaky PSD = high quality
-        quality = float(1.0 - mean_entropy)
-        return float(np.clip(quality, 0.0, 1.0))
+def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    """Cosine similarity between two 1-D vectors."""
+    denom = np.linalg.norm(a) * np.linalg.norm(b)
+    if denom < 1e-12:
+        return 0.0
+    return float(np.dot(a, b) / denom)
 
-    def _classify_confidence(self, similarity: float) -> str:
-        """Classify verification confidence level.
 
-        high: similarity > threshold + 0.10
-        medium: similarity >= threshold
-        low: everything else (including marginal matches)
-        """
-        if similarity > self._match_threshold + 0.10:
-            return "high"
-        elif similarity >= self._match_threshold:
-            return "medium"
-        else:
-            return "low"
+# ── Singleton ─────────────────────────────────────────────────────────────────
 
-    def _ensure_2d(self, signals: np.ndarray) -> np.ndarray:
-        """Ensure signals are 2D (n_channels, n_samples)."""
-        if signals.ndim == 1:
-            return signals.reshape(1, -1)
-        return signals
+_authenticator: Optional[EEGAuthenticator] = None
+_auth_lock = threading.Lock()
 
-    @staticmethod
-    def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-        """Cosine similarity between two vectors."""
-        dot = np.dot(a, b)
-        norm_a = np.linalg.norm(a)
-        norm_b = np.linalg.norm(b)
-        if norm_a < 1e-10 or norm_b < 1e-10:
-            return 0.0
-        return float(dot / (norm_a * norm_b))
+
+def get_eeg_authenticator() -> EEGAuthenticator:
+    global _authenticator
+    with _auth_lock:
+        if _authenticator is None:
+            _authenticator = EEGAuthenticator()
+    return _authenticator
