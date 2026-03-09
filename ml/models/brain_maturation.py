@@ -19,6 +19,7 @@ References:
 from typing import Dict, List, Optional
 
 import numpy as np
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 from scipy import signal as scipy_signal
 
 
@@ -172,7 +173,7 @@ class BrainMaturationTracker:
             mask = (freqs >= lo) & (freqs <= hi)
             if not np.any(mask):
                 return 0.0
-            return float(np.trapezoid(psd[mask], freqs[mask]) if hasattr(np, 'trapezoid')
+            return float(_trapezoid(psd[mask], freqs[mask]) if hasattr(np, 'trapezoid')
                          else np.trapz(psd[mask], freqs[mask]))
 
         total = bp(0.5, 45) + 1e-10

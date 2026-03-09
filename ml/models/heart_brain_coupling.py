@@ -21,6 +21,7 @@ References:
 from typing import Dict, List, Optional
 
 import numpy as np
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 from scipy import signal as scipy_signal
 
 from processing.ppg_features import PPGFeatureExtractor
@@ -285,7 +286,7 @@ class HeartBrainCoupling:
                 if not np.any(mask):
                     continue
                 power = float(
-                    np.trapezoid(psd[mask], freqs[mask])
+                    _trapezoid(psd[mask], freqs[mask])
                     if hasattr(np, "trapezoid")
                     else np.trapz(psd[mask], freqs[mask])
                 )

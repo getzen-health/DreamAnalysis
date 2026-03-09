@@ -33,6 +33,7 @@ professional for PTSD treatment.
 from typing import Dict, List, Optional
 
 import numpy as np
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 from scipy import signal as scipy_signal
 
 # FAA threshold: values above this indicate right-frontal excess
@@ -428,7 +429,7 @@ class PTSDProtocol:
             return 0.0
 
         if hasattr(np, "trapezoid"):
-            return float(np.trapezoid(psd[mask], freqs[mask]))
+            return float(_trapezoid(psd[mask], freqs[mask]))
         return float(np.trapz(psd[mask], freqs[mask]))
 
     def _assess_hyperarousal(

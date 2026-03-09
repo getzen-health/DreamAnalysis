@@ -25,6 +25,7 @@ References:
 from typing import Dict, List, Optional
 
 import numpy as np
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 from scipy import signal as scipy_signal
 
 CLASSES = ("left_hand", "right_hand", "both_feet", "rest")
@@ -310,7 +311,7 @@ class MotorImageryClassifier:
         if not np.any(mask):
             return 0.0
         if hasattr(np, "trapezoid"):
-            return float(np.trapezoid(psd[mask], freqs[mask]))
+            return float(_trapezoid(psd[mask], freqs[mask]))
         return float(np.trapz(psd[mask], freqs[mask]))
 
     @staticmethod

@@ -21,6 +21,7 @@ References:
 from typing import Dict, List, Optional
 
 import numpy as np
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 
 DISCLAIMER = (
     "Research tool only. Not validated for forensic or legal use. "
@@ -241,5 +242,5 @@ class DeceptionDetector:
         mask = (freqs >= 4) & (freqs <= 8)
         if not np.any(mask):
             return 0.0
-        return float(np.trapezoid(psd[mask], freqs[mask]) if hasattr(np, 'trapezoid')
+        return float(_trapezoid(psd[mask], freqs[mask]) if hasattr(np, 'trapezoid')
                      else np.trapz(psd[mask], freqs[mask]))

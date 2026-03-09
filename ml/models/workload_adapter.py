@@ -18,6 +18,7 @@ References:
 from typing import Dict, List, Optional
 
 import numpy as np
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 from scipy import signal as scipy_signal
 
 
@@ -231,7 +232,7 @@ class WorkloadAdapter:
                     mask = (freqs >= low) & (freqs <= high)
                     if np.any(mask):
                         if hasattr(np, "trapezoid"):
-                            powers.append(float(np.trapezoid(psd[mask], freqs[mask])))
+                            powers.append(float(_trapezoid(psd[mask], freqs[mask])))
                         else:
                             powers.append(float(np.trapz(psd[mask], freqs[mask])))
                 except Exception:

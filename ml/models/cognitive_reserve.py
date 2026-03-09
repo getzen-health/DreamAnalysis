@@ -20,6 +20,7 @@ References:
 from typing import Dict, List, Optional
 
 import numpy as np
+_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 from scipy import signal as scipy_signal
 
 
@@ -263,12 +264,12 @@ class CognitiveReserveEstimator:
             beta_mask = (freqs >= 13) & (freqs <= 30)
             if np.any(theta_mask):
                 if hasattr(np, "trapezoid"):
-                    theta_powers.append(float(np.trapezoid(psd[theta_mask], freqs[theta_mask])))
+                    theta_powers.append(float(_trapezoid(psd[theta_mask], freqs[theta_mask])))
                 else:
                     theta_powers.append(float(np.trapz(psd[theta_mask], freqs[theta_mask])))
             if np.any(beta_mask):
                 if hasattr(np, "trapezoid"):
-                    beta_powers.append(float(np.trapezoid(psd[beta_mask], freqs[beta_mask])))
+                    beta_powers.append(float(_trapezoid(psd[beta_mask], freqs[beta_mask])))
                 else:
                     beta_powers.append(float(np.trapz(psd[beta_mask], freqs[beta_mask])))
 
