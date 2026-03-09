@@ -28,6 +28,7 @@ import SettingsPage from "@/pages/settings";
 import CalibrationPage from "@/pages/calibration";
 import DailyBrainReport from "@/pages/daily-brain-report";
 import Onboarding from "@/pages/onboarding";
+import OnboardingNew from "@/pages/onboarding-new";
 import NotFound from "@/pages/not-found";
 
 // ── Intent selection page — lazy loaded ────────────────────────────────────
@@ -230,6 +231,8 @@ function AppRoutes() {
       <Route path="/study"><StudyLanding /></Route>
       {/* Fullscreen onboarding — no sidebar */}
       <Route path="/onboarding" component={Onboarding} />
+      {/* New onboarding — voice+health first, EEG optional */}
+      <Route path="/onboarding-new" component={OnboardingNew} />
       {/* Intent selection — study vs explore, shown after first login */}
       <Route path="/intent">
         <Suspense fallback={<PageLoader />}>

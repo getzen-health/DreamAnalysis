@@ -1135,3 +1135,30 @@ export async function getActiveSupplements(
 ): Promise<{ user_id: string; hours: number; count: number; supplements: ActiveSupplement[] }> {
   return mlFetch(`/supplements/active/${encodeURIComponent(userId)}?hours=${hours}`);
 }
+
+/* ── Voice Check-In ────────────────────────────────────────────────────── */
+
+export interface CheckinResult {
+  checkin_id: string;
+  user_id: string;
+  timestamp: number;
+  slot: "morning" | "afternoon" | "evening" | "manual";
+  emotion: string;
+  probabilities: Record<string, number>;
+  valence: number;
+  arousal: number;
+  stress_index: number;
+  note?: string | null;
+}
+
+export async function submitVoiceCheckin(params: {
+  user_id: string;
+  audio_b64: string;
+  sample_rate?: number;
+  note?: string;
+}): Promise<CheckinResult> {
+  return mlFetch("/voice-checkin/submit", {
+    method: "POST",
+    body: JSON.stringify({ sample_rate: 16000, ...params }),
+  });
+}
