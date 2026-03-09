@@ -716,3 +716,30 @@ async def eeg_voice_fusion_stats(user_id: str = "default"):
     """Get last OT transport plan stats (cost, alignment quality)."""
     fusion = get_eeg_voice_fusion(user_id)
     return _numpy_safe(fusion.get_fusion_stats())
+
+
+# ── GNN Spatial-Temporal Graph Emotion ───────────────────────────────────────
+
+from models.graph_emotion_classifier import get_graph_emotion_classifier
+
+
+@router.post("/graph-emotion/predict")
+async def predict_graph_emotion(data: EEGInput):
+    """Classify emotion using GNN spatial-temporal graph (4-node Muse 2 graph).
+
+    Models the 4 Muse 2 channels (TP9, AF7, AF8, TP10) as a static + learnable
+    adjacency graph and applies two GAT-style message-passing layers (NumPy-only,
+    no torch-geometric). Node features: 5 DE bands + 3 Hjorth = 8 per node.
+    Returns 6-class emotion + graph edge weights for visualisation.
+    """
+    signals = np.array(data.signals)
+    clf = get_graph_emotion_classifier(data.user_id)
+    result = clf.predict(signals, fs=int(data.fs))
+    return _numpy_safe(result)
+
+
+@router.get("/graph-emotion/info")
+async def graph_emotion_info():
+    """Return GNN model info: node count, edge list, feature dimensions."""
+    clf = get_graph_emotion_classifier()
+    return _numpy_safe(clf.get_model_info())
