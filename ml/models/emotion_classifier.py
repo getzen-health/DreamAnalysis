@@ -57,6 +57,24 @@ _CONSUMER_EEG_DEVICES: frozenset[str] = frozenset({
     "muse_2016", "muse_2016_bled", "muse",
 })
 
+# ── 85-feature human-readable names ────────────────────────────────────────
+# Layout matches _extract_muse_live_features() and train_cross_dataset_lgbm.py:
+#   80 band-power stats: 5 bands x 4 channels x 4 stats (mean, std, median, IQR)
+#    5 DASM features:    mean(AF8_band) - mean(AF7_band) per band
+# Channel order: TP9=0, AF7=1, AF8=2, TP10=3
+_BANDS_5 = ["delta", "theta", "alpha", "beta", "gamma"]
+_CHANNELS_4 = ["TP9", "AF7", "AF8", "TP10"]
+_STATS_4 = ["mean", "std", "median", "iqr"]
+
+_FEATURE_NAMES_85: list[str] = []
+for _band in _BANDS_5:
+    for _ch in _CHANNELS_4:
+        for _stat in _STATS_4:
+            _FEATURE_NAMES_85.append(f"{_band}_{_ch}_{_stat}")
+for _band in _BANDS_5:
+    _FEATURE_NAMES_85.append(f"DASM_{_band}")
+assert len(_FEATURE_NAMES_85) == 85, f"Expected 85 feature names, got {len(_FEATURE_NAMES_85)}"
+
 # Singleton RunningNormalizer for session drift correction
 _running_normalizer: Optional[object] = None
 
@@ -94,6 +112,10 @@ class EmotionClassifier:
         self._ema_alpha = 0.35  # smoothing factor — 0.35 gives slightly faster response
         #                         than 0.30 while still suppressing rapid noise bursts
         self._history = deque(maxlen=10)  # recent band power snapshots
+
+        # SHAP explainers — lazily initialised on first use (one per LGBM model)
+        self._shap_explainer_mega: Optional[object] = None
+        self._shap_explainer_muse: Optional[object] = None
 
         # Device-aware gamma masking — set via set_device_type() on connect/disconnect
         self.device_type: Optional[str] = None
@@ -160,6 +182,130 @@ class EmotionClassifier:
         if self.device_type is None:
             return False
         return self.device_type.lower() in _CONSUMER_EEG_DEVICES
+
+    # ── SHAP Explainability ────────────────────────────────────────────────────
+
+    def _get_shap_explainer(self, model, cache_attr: str):
+        """Lazily create and cache a SHAP TreeExplainer for a LightGBM model.
+
+        Returns None if shap is not installed or explainer creation fails.
+        """
+        cached = getattr(self, cache_attr, None)
+        if cached is not None:
+            return cached
+        try:
+            import shap
+            explainer = shap.TreeExplainer(model)
+            setattr(self, cache_attr, explainer)
+            return explainer
+        except Exception as exc:
+            logging.getLogger(__name__).debug("SHAP explainer init failed: %s", exc)
+            return None
+
+    def _compute_shap_explanation_lgbm(
+        self,
+        model,
+        feat_input: np.ndarray,
+        predicted_class_idx: int,
+        cache_attr: str,
+        feature_names: list,
+        pca=None,
+        feat_pre_pca: Optional[np.ndarray] = None,
+    ) -> list:
+        """Compute SHAP explanation for a LightGBM prediction.
+
+        For PCA models: projects SHAP values back to the original 85-feature
+        space using pca.components_ so explanations reference real EEG features
+        (e.g. "alpha_AF7_mean") rather than opaque PCA component indices.
+
+        Returns a list of top-3 contributing features, each:
+            {"feature": str, "impact": float, "direction": "increases"/"decreases"}
+
+        Returns [] on any failure — SHAP must never break prediction.
+        """
+        try:
+            explainer = self._get_shap_explainer(model, cache_attr)
+            if explainer is None:
+                return []
+
+            # shap_values format varies by shap version:
+            #   Old (list): list of arrays, one per class, each (n_samples, n_features)
+            #   New (3D ndarray): shape (n_samples, n_features, n_classes)
+            shap_values = explainer.shap_values(feat_input)
+
+            # Extract SHAP values for the predicted class
+            if isinstance(shap_values, list):
+                # Old format: list[class_idx] -> (n_samples, n_features)
+                sv_row = shap_values[predicted_class_idx][0]
+            elif isinstance(shap_values, np.ndarray) and shap_values.ndim == 3:
+                # New format: (n_samples, n_features, n_classes)
+                sv_row = shap_values[0, :, predicted_class_idx]
+            elif isinstance(shap_values, np.ndarray) and shap_values.ndim == 2:
+                # Binary or single output: (n_samples, n_features)
+                sv_row = shap_values[0]
+            else:
+                sv_row = np.asarray(shap_values).ravel()
+
+            # Project back from PCA space to original 85-feature space
+            if pca is not None and feat_pre_pca is not None:
+                # pca.components_ shape: (n_components, n_original_features)
+                # sv_row shape: (n_components,)
+                # original_importance = components_.T @ sv_row → (n_original_features,)
+                original_importance = pca.components_.T @ sv_row
+                names = feature_names
+            else:
+                original_importance = sv_row
+                names = feature_names
+
+            # Top 3 by absolute impact
+            top_k = min(3, len(original_importance))
+            top_indices = np.argsort(np.abs(original_importance))[-top_k:][::-1]
+
+            explanation = []
+            for i in top_indices:
+                impact = float(original_importance[i])
+                explanation.append({
+                    "feature": names[i] if i < len(names) else f"feature_{i}",
+                    "impact": round(impact, 6),
+                    "direction": "increases" if impact > 0 else "decreases",
+                })
+            return explanation
+
+        except Exception as exc:
+            logging.getLogger(__name__).debug("SHAP explanation failed: %s", exc)
+            return []
+
+    @staticmethod
+    def _compute_heuristic_explanation(contributions: list) -> list:
+        """Build top-3 explanation from explicit heuristic formula contributions.
+
+        Each entry in *contributions* is a (name, value) tuple where *value*
+        is the signed contribution of that feature to the predicted emotion.
+        """
+        try:
+            sorted_contribs = sorted(contributions, key=lambda x: abs(x[1]), reverse=True)
+            explanation = []
+            for name, value in sorted_contribs[:3]:
+                explanation.append({
+                    "feature": name,
+                    "impact": round(float(value), 6),
+                    "direction": "increases" if value > 0 else "decreases",
+                })
+            return explanation
+        except Exception:
+            return []
+
+    @staticmethod
+    def _ensure_explanation(result: Dict) -> Dict:
+        """Guarantee the result dict contains an 'explanation' key.
+
+        External model paths (EEGNet, REVE, TSception) do not compute SHAP
+        explanations. This method injects an empty list so the API contract
+        is always satisfied.
+        """
+        if "explanation" not in result:
+            result["explanation"] = []
+        return result
 
     def _try_load_deap_model(self):
         """Try loading the DEAP-trained Muse 2 model (best accuracy)."""
@@ -443,6 +589,16 @@ class EmotionClassifier:
         proba3 = self.lgbm_muse_model.predict_proba(feat_scaled)[0]
         p_pos, p_neu, p_neg = float(proba3[0]), float(proba3[1]), float(proba3[2])
 
+        # SHAP explanation — direct on 85 features (no PCA in this path)
+        predicted_3class_idx = int(np.argmax(proba3))
+        shap_explanation = self._compute_shap_explanation_lgbm(
+            model=self.lgbm_muse_model,
+            feat_input=feat_scaled,
+            predicted_class_idx=predicted_3class_idx,
+            cache_attr="_shap_explainer_muse",
+            feature_names=_FEATURE_NAMES_85,
+        )
+
         # Ancillary features for 3→6 expansion
         try:
             proc_af7 = preprocess(eeg[1], fs)
@@ -508,13 +664,15 @@ class EmotionClassifier:
         emotion_idx = int(np.argmax(smoothed))
         return self._build_muse_result(emotion_idx, smoothed, eeg, fs,
                                        artifact_detected=_artifact_now,
-                                       device_type=device_type)
+                                       device_type=device_type,
+                                       explanation=shap_explanation)
 
     def _build_muse_result(self, emotion_idx: int, smoothed: np.ndarray,
                            eeg: np.ndarray, fs: float,
                            artifact_detected: bool,
-                           device_type: str = "muse_2") -> Dict:
-        """Build the standard 15-key return dict for the Muse-native LGBM path."""
+                           device_type: str = "muse_2",
+                           explanation: Optional[list] = None) -> Dict:
+        """Build the standard return dict for the Muse-native LGBM path."""
         n_ch = eeg.shape[0] if eeg.ndim == 2 else 1
         cmap = get_channel_map(device_type, n_ch)
         lf   = cmap["left_frontal"]   # left-frontal channel index
@@ -611,6 +769,7 @@ class EmotionClassifier:
             "frontal_midline_theta": fmt,
             "artifact_detected":     artifact_detected,
             "model_type":            "lgbm-muse",
+            "explanation":           explanation if explanation else [],
         }
 
     def _predict_mega_lgbm(self, eeg: np.ndarray, fs: float, device_type: str = "muse_2",
@@ -642,6 +801,18 @@ class EmotionClassifier:
         feat_pca = self.mega_lgbm_pca.transform(feat_sc)
         proba3   = self.mega_lgbm_model.predict_proba(feat_pca)[0]
         p_pos, p_neu, p_neg = float(proba3[0]), float(proba3[1]), float(proba3[2])
+
+        # SHAP explanation — projects PCA-space values back to original 85 features
+        predicted_3class_idx = int(np.argmax(proba3))
+        shap_explanation = self._compute_shap_explanation_lgbm(
+            model=self.mega_lgbm_model,
+            feat_input=feat_pca,
+            predicted_class_idx=predicted_3class_idx,
+            cache_attr="_shap_explainer_mega",
+            feature_names=_FEATURE_NAMES_85,
+            pca=self.mega_lgbm_pca,
+            feat_pre_pca=feat_sc,
+        )
 
         # Ancillary features for 3→6 expansion (identical to _predict_lgbm_muse)
         cmap = get_channel_map(device_type, eeg.shape[0])
@@ -701,7 +872,8 @@ class EmotionClassifier:
         emotion_idx = int(np.argmax(smoothed))
         result = self._build_muse_result(emotion_idx, smoothed, eeg, fs,
                                          artifact_detected=_artifact_now,
-                                         device_type=device_type)
+                                         device_type=device_type,
+                                         explanation=shap_explanation)
         result["model_type"] = "mega-lgbm-pca"
         return result
 
@@ -727,7 +899,7 @@ class EmotionClassifier:
                 and eeg.shape[0] >= 4
                 and eeg.shape[1] >= int(fs * 4)):
             try:
-                return self._reve_foundation.predict(eeg, fs)
+                return self._ensure_explanation(self._reve_foundation.predict(eeg, fs))
             except Exception:
                 pass  # fall through on any inference error
 
@@ -740,7 +912,7 @@ class EmotionClassifier:
                 and eeg.shape[0] >= 4
                 and eeg.shape[1] >= int(fs * 30)):
             try:
-                return self._reve.predict(eeg, fs, device_type)
+                return self._ensure_explanation(self._reve.predict(eeg, fs, device_type))
             except Exception:
                 pass  # fall through on any inference error
 
@@ -750,7 +922,7 @@ class EmotionClassifier:
         # AND its benchmark accuracy >= 60%.
         if (self._eegnet is not None and eeg.ndim == 2
                 and self._eegnet.is_available(eeg.shape[0], min_accuracy=_MIN_MODEL_ACCURACY)):
-            return self._eegnet.predict(eeg, fs)
+            return self._ensure_explanation(self._eegnet.predict(eeg, fs))
 
         # Mega cross-dataset LGBM with global PCA — third priority
         if (self.mega_lgbm_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
@@ -783,7 +955,7 @@ class EmotionClassifier:
             try:
                 result = self._tsception.predict(eeg, fs=fs)
                 result["model_type"] = "tsception"
-                return result
+                return self._ensure_explanation(result)
             except Exception as exc:  # noqa: BLE001
                 logging.warning("TSception inference failed, falling through: %s", exc)
 
@@ -898,6 +1070,7 @@ class EmotionClassifier:
             "fear_index": fear_index,
             "band_powers": bands,
             "differential_entropy": de,
+            "explanation": [],
         }
 
     # ────────────────────────────────────────────────────────────────
@@ -943,6 +1116,7 @@ class EmotionClassifier:
                 "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
                 "band_powers": {}, "differential_entropy": {},
                 "dasm_rasm": {}, "frontal_midline_theta": {}, "artifact_detected": True,
+                "explanation": [],
             }
 
         # ── Multichannel support ─────────────────────────────────
@@ -1161,6 +1335,7 @@ class EmotionClassifier:
                 "dasm_rasm": dasm_rasm,
                 "frontal_midline_theta": fmt,
                 "artifact_detected": _artifact_now,
+                "explanation": [],
             }
 
         # Softmax-like normalization (temperature=2.5 for clear sharpness).
@@ -1239,6 +1414,22 @@ class EmotionClassifier:
         top_conf = float(smoothed[emotion_idx])
         emotion_label = EMOTIONS[emotion_idx] if top_conf >= _CONFIDENCE_THRESHOLD else "neutral"
 
+        # ── Heuristic explanation ─────────────────────────────────
+        # Collect the key feature contributions that drove valence, arousal,
+        # and the predicted emotion. Each contribution is the weighted term
+        # value from the formulas above — already computed, just surfaced.
+        _contributions = [
+            ("alpha_beta_ratio", float(valence_abr)),
+            ("frontal_asymmetry", float(faa_valence)),
+            ("dasm_alpha", float(dasm_alpha_valence)),
+            ("beta_activation", float(arousal)),
+            ("high_beta_stress", float(stress_index)),
+            ("theta_relaxation", float(relaxation_index)),
+            ("beta_alpha_ratio", float(beta_alpha_ratio)),
+            ("dasm_beta_stress", float(dasm_beta_stress)),
+        ]
+        heuristic_explanation = self._compute_heuristic_explanation(_contributions)
+
         return {
             "emotion": emotion_label,
             "emotion_index": emotion_idx,
@@ -1256,6 +1447,7 @@ class EmotionClassifier:
             "dasm_rasm": dasm_rasm,
             "frontal_midline_theta": fmt,
             "artifact_detected": _artifact_now,
+            "explanation": heuristic_explanation,
         }
 
     # ────────────────────────────────────────────────────────────────
@@ -1341,6 +1533,7 @@ class EmotionClassifier:
             "fear_index": fear_index,
             "band_powers": bands,
             "differential_entropy": de,
+            "explanation": [],
         }
 
     # ────────────────────────────────────────────────────────────────
@@ -1448,4 +1641,5 @@ class EmotionClassifier:
             "fear_index": fear_index,
             "band_powers": bands,
             "differential_entropy": de,
+            "explanation": [],
         }
