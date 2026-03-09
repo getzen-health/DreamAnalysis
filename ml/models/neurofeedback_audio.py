@@ -23,6 +23,9 @@ from typing import Dict, List, Optional
 import numpy as np
 from scipy.signal import welch
 
+# numpy 2.0 renamed np.trapz → np.trapezoid; support both
+_trapezoid = getattr(np, "trapezoid", None) or getattr(np, "trapz", None)
+
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -74,11 +77,11 @@ def _band_power(signal: np.ndarray, fs: float,
     if nperseg < 4:
         return 0.0
     freqs, psd = welch(signal, fs=fs, nperseg=nperseg)
-    total = np.trapezoid(psd, freqs)
+    total = _trapezoid(psd, freqs)
     if total <= 0:
         return 0.0
     mask = (freqs >= band[0]) & (freqs <= band[1])
-    return float(np.trapezoid(psd[mask], freqs[mask]) / total)
+    return float(_trapezoid(psd[mask], freqs[mask]) / total)
 
 
 def _laterality_index(eeg: np.ndarray, fs: float,
