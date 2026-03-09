@@ -72,6 +72,7 @@ from .fatigue import router as _fatigue
 from .phenotyping import router as _phenotyping
 from .auth_biometric import router as _auth_biometric
 from .gru_sleep import router as _gru_sleep
+from .seizure import router as _seizure
 
 router = APIRouter()
 
@@ -114,3 +115,4 @@ router.include_router(_fatigue)
 router.include_router(_phenotyping)
 router.include_router(_auth_biometric)
 router.include_router(_gru_sleep)
+router.include_router(_seizure)
