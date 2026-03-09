@@ -68,6 +68,14 @@ _EXTERNAL_COMPONENTS = {
     "alexithymia",
     "emotional_memory",
     "mood_stability",
+    # Multimodal components (voice + health)
+    "voice_valence_clarity",      # self_perception — clarity of vocal emotion expression
+    "voice_expression_range",     # self_expression — range of vocal emotion expression
+    "voice_cognitive_load",       # decision_making — voice-derived cognitive strain (inverted)
+    "hrv_regulation",             # stress_management — HRV as autonomic regulation proxy
+    "sleep_restoration",          # stress_management — sleep quality as recovery indicator
+    "activity_engagement",        # interpersonal — physical activity as engagement proxy
+    "health_mood_coherence",      # self_perception — alignment between physiology and emotion
 }
 
 # Dimension names
@@ -598,6 +606,24 @@ class EmotionalIntelligenceIndex:
             dims["stress_management"].append(components["reactivity_regulation"] * 100.0)
         if "mood_stability" in components:
             dims["stress_management"].append(components["mood_stability"] * 100.0)
+
+        # -- Multimodal: voice components --
+        if "voice_valence_clarity" in components:
+            dims["self_perception"].append(components["voice_valence_clarity"] * 100.0)
+        if "voice_expression_range" in components:
+            dims["self_expression"].append(components["voice_expression_range"] * 100.0)
+        if "voice_cognitive_load" in components:
+            dims["decision_making"].append(components["voice_cognitive_load"] * 100.0)
+
+        # -- Multimodal: health components --
+        if "hrv_regulation" in components:
+            dims["stress_management"].append(components["hrv_regulation"] * 100.0)
+        if "sleep_restoration" in components:
+            dims["stress_management"].append(components["sleep_restoration"] * 100.0)
+        if "activity_engagement" in components:
+            dims["interpersonal"].append(components["activity_engagement"] * 100.0)
+        if "health_mood_coherence" in components:
+            dims["self_perception"].append(components["health_mood_coherence"] * 100.0)
 
         # Average within each dimension; default to 50 if no components mapped
         result: Dict[str, float] = {}

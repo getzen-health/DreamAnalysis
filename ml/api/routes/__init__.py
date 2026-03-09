@@ -129,6 +129,8 @@ from .affect_labeling import router as _affect_labeling
 from .emotional_synchrony import router as _emotional_synchrony
 from .emotional_memory import router as _emotional_memory
 from .ei_composite import router as _ei_composite
+from .multimodal_ei import router as _multimodal_ei
+from .supplement_tracker import router as _supplement_tracker
 
 router = APIRouter()
 
@@ -228,3 +230,5 @@ router.include_router(_affect_labeling)
 router.include_router(_emotional_synchrony)
 router.include_router(_emotional_memory)
 router.include_router(_ei_composite)
+router.include_router(_multimodal_ei)
+router.include_router(_supplement_tracker)
