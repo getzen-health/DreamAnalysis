@@ -131,6 +131,7 @@ from .emotional_memory import router as _emotional_memory
 from .ei_composite import router as _ei_composite
 from .multimodal_ei import router as _multimodal_ei
 from .supplement_tracker import router as _supplement_tracker
+from .voice_health import router as _voice_health
 
 router = APIRouter()
 
@@ -232,3 +233,4 @@ router.include_router(_emotional_memory)
 router.include_router(_ei_composite)
 router.include_router(_multimodal_ei)
 router.include_router(_supplement_tracker)
+router.include_router(_voice_health)
