@@ -1116,3 +1116,27 @@ class RunningNormalizer:
         normed = (features - mean) / safe_std
         normed = np.where(std < 1e-8, 0.0, normed)
         return normed
+
+
+def extract_spectral_microstate_features(
+    signals: np.ndarray, fs: float = 256.0, window_ms: int = 250
+) -> Dict:
+    """Extract spectral microstate temporal features from EEG.
+
+    Delegates to ``processing.spectral_microstates.extract_microstate_features``.
+    Defines 4 microstates by dominant frequency band (delta/theta/alpha/beta)
+    per 250ms window, then computes coverage, duration, occurrence, and
+    transition probabilities.
+
+    Args:
+        signals: EEG data, shape (n_channels, n_samples) or (n_samples,).
+        fs: Sampling rate in Hz.
+        window_ms: Window duration in milliseconds (default 250).
+
+    Returns:
+        Dict with coverage, avg_duration, occurrence, transition_matrix,
+        dominant_state, state_diversity, feature_vector (28 elements),
+        n_features, sequence_length.
+    """
+    from processing.spectral_microstates import extract_microstate_features
+    return extract_microstate_features(signals, int(fs), window_ms)

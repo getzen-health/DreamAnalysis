@@ -41,6 +41,7 @@ from processing.eeg_processor import (
     compute_dwt_features as compute_dwt_features,
     detect_sleep_spindles as detect_sleep_spindles,
     detect_k_complexes as detect_k_complexes,
+    extract_spectral_microstate_features as extract_spectral_microstate_features,
 )
 from processing.artifact_detector import (
     detect_eye_blinks as detect_eye_blinks,
@@ -432,6 +433,8 @@ class AnalysisResponse(BaseModel):
     # Background emotion from 30-second slow epoch (more accurate than fast 4s)
     background_emotion: Optional[Dict] = None
     background_ready: bool = False  # True when >= 30 sec buffered
+    # Spectral microstate temporal features (coverage, duration, transitions)
+    microstates: Optional[Dict] = None
 
 
 class DeviceConnectRequest(BaseModel):

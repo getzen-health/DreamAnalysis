@@ -17,6 +17,7 @@ from ._shared import (
     EEGInput, SimulateRequest, AnalysisResponse,
     STATE_PROFILES, simulate_eeg,
     extract_features, extract_band_powers, preprocess, extract_features_multichannel,
+    extract_spectral_microstate_features,
     compute_coherence, compute_phase_locking_value,
     detect_eye_blinks, detect_muscle_artifacts, detect_electrode_pops,
     compute_signal_quality_index, auto_reject_epochs,
@@ -373,6 +374,16 @@ async def analyze_eeg(input_data: EEGInput):
             _artifact_detected = False
             _artifact_type = "clean"
 
+        # ── Spectral microstate temporal features ─────────────────────────────
+        # Extracts coverage, duration, occurrence, and transition probabilities
+        # from the dominant-band state sequence. Added as optional field --
+        # failure must never break the main response.
+        microstates = None
+        try:
+            microstates = extract_spectral_microstate_features(signals, fs)
+        except Exception:
+            pass
+
         return AnalysisResponse(
             sleep_stage=sleep_result,
             emotions=emotion_result,
@@ -390,6 +401,7 @@ async def analyze_eeg(input_data: EEGInput):
             artifact_cleaned_ratio=round(artifact_cleaned_ratio, 4),
             background_emotion=background_emotion,
             background_ready=slow_ready,
+            microstates=microstates,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -467,3 +479,27 @@ async def simulate_eeg_endpoint(request: SimulateRequest):
             "meditation": meditation,
         },
     }
+
+
+@router.post("/analyze-microstates")
+async def analyze_microstates(input_data: EEGInput):
+    """Extract spectral microstate temporal features from EEG data.
+
+    Defines 4 microstates by dominant frequency band per 250ms window
+    (D=delta, T=theta, A=alpha, B=beta), then computes temporal dynamics:
+    coverage, average duration, occurrence rate, and 4x4 transition
+    probability matrix.
+
+    Returns a 28-element feature vector suitable for ML pipelines alongside
+    human-readable breakdowns of the microstate dynamics.
+    """
+    try:
+        signals = np.array(input_data.signals)
+        if signals.ndim == 1:
+            signals = signals.reshape(1, -1)
+
+        fs = input_data.fs
+        result = extract_spectral_microstate_features(signals, fs)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
