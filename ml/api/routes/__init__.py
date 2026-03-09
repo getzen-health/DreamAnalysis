@@ -156,3 +156,5 @@ router.include_router(_meditation_depth)
 router.include_router(_neurogame)
 router.include_router(_deception)
 router.include_router(_engagement)
+from .visual_attention import router as _visual_attention
+router.include_router(_visual_attention)
