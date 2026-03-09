@@ -288,3 +288,36 @@ async def voice_cognitive_load(request: dict):
 
     result = _voice_cog_load.predict(audio, sr)
     return _numpy_safe(result)
+
+
+# ── Attention Screening ──────────────────────────────────────────────────────
+
+from models.attention_screener import AttentionScreener, DISCLAIMER as ADHD_DISCLAIMER
+
+_screener_instances: dict = {}
+
+
+def _get_screener(user_id: str = "default") -> AttentionScreener:
+    if user_id not in _screener_instances:
+        _screener_instances[user_id] = AttentionScreener()
+    return _screener_instances[user_id]
+
+
+@router.post("/attention-screening")
+async def screen_attention(data: EEGInput):
+    """Screen for attention patterns using aperiodic EEG + TBR.
+
+    Returns attention_risk_index (0-1). NOT a medical diagnosis — wellness indicator only.
+    """
+    signals = np.array(data.signals)
+    screener = _get_screener(data.user_id)
+    result = screener.predict(signals, data.fs)
+    return _numpy_safe(result)
+
+
+@router.post("/attention-screening/rest-baseline")
+async def record_attention_rest(data: EEGInput):
+    """Record resting-state baseline for dynamic ADHD response test."""
+    signals = np.array(data.signals)
+    screener = _get_screener(data.user_id)
+    return screener.record_rest_baseline(signals, data.fs)
