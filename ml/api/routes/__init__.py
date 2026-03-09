@@ -66,6 +66,7 @@ from .trauma_resilience import router as _trauma_resilience
 from .ppg import router as _ppg
 from .binaural import router as _binaural
 from .dreams import router as _dreams
+from .music import router as _music
 
 router = APIRouter()
 
@@ -102,3 +103,4 @@ router.include_router(_trauma_resilience)
 router.include_router(_ppg)
 router.include_router(_binaural)
 router.include_router(_dreams)
+router.include_router(_music)
