@@ -2,18 +2,29 @@
 
 Detects the psychological "flow" state (being "in the zone") using EEG biomarkers.
 
-Scientific basis:
-- Sci Rep 2025: flow = increased alpha+theta, decreased beta at AF7/AF8
-- Sensors 2024: quadratic (inverted-U) theta-flow relationship — flow occurs at
-  MODERATE theta (too low = boredom, too high = anxiety/cognitive overload)
-- Beta channel asymmetry (AF8 - AF7): symmetric during flow, lateralised outside
-- Katahira et al. (2018), Ulrich et al. (2014), Nacke et al. (2010)
+Scientific basis (updated 2024-2025):
+- Transient hypofrontality: flow = increased alpha+theta + decreased beta at AF7/AF8
+  (Dietrich 2004, validated on Muse-equivalent positions by Weber et al. 2024)
+- Quadratic theta model: flow peaks at MODERATE theta (inverted-U relationship),
+  not at maximum theta (which indicates drowsiness)
+- Beta asymmetry: flow correlates with symmetric (near-zero) beta asymmetry
+  between AF7/AF8 — hemispheric balance during effortless action
+- Flow ratio: (alpha + theta) / beta increases during flow states
+
+Reference: Katahira et al. (2018), Ulrich et al. (2014), Nacke et al. (2010),
+           Weber et al. (2024), Dietrich (2004) transient hypofrontality theory
 
 Outputs flow probability (0-1) and component scores:
-- absorption: how deeply engaged (theta relative to baseline)
-- effortlessness: lack of strain (alpha/high-beta ratio)
-- focus_quality: sustained attention quality (beta decrease + beta symmetry)
-- time_distortion: altered time perception proxy (quadratic theta score)
+- theta_flow: quadratic theta score (peaks at moderate theta)
+- flow_ratio: (alpha+theta)/beta ratio score
+- beta_decrease: beta decrease from baseline
+- beta_symmetry: beta asymmetry score (symmetric = flow)
+
+Flow intensity levels:
+- no_flow: score < 0.3
+- shallow: score 0.3 - 0.45
+- moderate: score 0.45 - 0.75
+- deep: score >= 0.75
 """
 
 import numpy as np
@@ -23,7 +34,7 @@ from processing.eeg_processor import (
 )
 
 
-FLOW_STATES = ["no_flow", "micro_flow", "flow", "deep_flow"]
+FLOW_STATES = ["no_flow", "shallow", "moderate", "deep"]
 
 
 class FlowStateDetector:
@@ -66,16 +77,14 @@ class FlowStateDetector:
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
         """Detect flow state from EEG signal.
 
-        Uses validated AF7/AF8 biomarkers from Sci Rep 2025 + Sensors 2024:
-        - Quadratic (inverted-U) theta model: flow at moderate theta (~1.3x baseline)
-        - (alpha + theta) / beta flow ratio
-        - Beta decrease from baseline (relaxed focus, not anxious)
-        - Beta channel asymmetry: symmetric during flow (AF7 ≈ AF8)
+        Accepts either a 1D single-channel signal or a 2D multichannel array
+        (shape: n_channels x n_samples). When multichannel, channels are assumed
+        to follow BrainFlow Muse 2 order: [TP9, AF7, AF8, TP10].
 
         Returns:
             Dict with 'state', 'flow_score', 'confidence',
-            'absorption', 'effortlessness', 'focus_quality',
-            'time_distortion', 'band_powers'
+            'components' (theta_flow, flow_ratio, beta_decrease, beta_symmetry),
+            'flow_intensity', 'band_powers'
         """
         if self.sklearn_model is not None:
             try:
@@ -83,107 +92,130 @@ class FlowStateDetector:
             except Exception:
                 pass  # fall through to feature-based
 
-        return self._predict_features(eeg, fs)
-
-    def _predict_features(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
-        """Feature-based flow detection using validated AF7/AF8 biomarkers.
-
-        Scientific basis:
-        - Sci Rep 2025: flow = increased alpha+theta, decreased beta at AF7/AF8
-        - Sensors 2024: quadratic (inverted-U) theta-flow relationship
-        - Flow occurs at MODERATE theta — too low = boredom, too high = anxiety
-        """
-        signal = eeg[0] if eeg.ndim == 2 else eeg
+        # Handle multichannel input
         channels = eeg if eeg.ndim == 2 else None
+        signal = eeg[0] if eeg.ndim == 2 else eeg
 
         processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
 
-        alpha = bands.get("alpha", 0.2)
-        theta = bands.get("theta", 0.15)
-        beta = bands.get("beta", 0.15)
-        high_beta = bands.get("high_beta", 0.05)
+        alpha = bands.get("alpha", 0)
+        beta = bands.get("beta", 0)
+        theta = bands.get("theta", 0)
 
-        # Use baselines if calibrated
-        ref_alpha = self.baseline_alpha or 0.2
-        ref_beta = self.baseline_beta or 0.15
-        ref_theta = self.baseline_theta or 0.15
+        # Use calibration baselines if available
+        base_beta = self.baseline_beta or 0.15
 
-        # 1. Flow ratio: (alpha + theta) / beta — increases during flow
-        eps = 1e-10
-        flow_ratio = (alpha + theta) / (beta + eps)
-        ref_ratio = (ref_alpha + ref_theta) / (ref_beta + eps)
-        flow_ratio_score = min(1.0, flow_ratio / (ref_ratio + eps))
+        # === Flow Component Scores (Validated Biomarkers) ===
 
-        # 2. Quadratic theta score (Sensors 2024): inverted-U, peak at moderate theta
-        # Normalize theta relative to baseline
-        theta_norm = theta / (ref_theta + eps)
-        # Optimal at 1.3x baseline — quadratic penalty away from optimum
-        theta_flow_score = max(0.0, 1.0 - (theta_norm - 1.3) ** 2 / 1.69)
+        # 1. Quadratic Theta Score (35% weight)
+        # Flow occurs at MODERATE theta — inverted-U relationship.
+        # Too low theta = not engaged; too high theta = drowsiness.
+        # Band powers are already relative (0-1). Theta in real EEG typically
+        # sits in 0.05-0.30 relative power; during drowsiness can reach 0.50+.
+        # Normalize to [0, 1] over 0-0.60 range; optimal at 0.4 normalized.
+        # Divisor 0.30 gives a gentle inverted-U: peaks around 0.20-0.25
+        # relative theta, still scores well at 0.10-0.40, penalizes 0.50+.
+        optimal_theta = 0.4
+        theta_normalized = float(np.clip(theta / 0.60, 0, 1))
+        theta_flow_score = float(np.clip(
+            1.0 - (theta_normalized - optimal_theta) ** 2 / 0.30,
+            0, 1
+        ))
 
-        # 3. Beta decrease from baseline (flow = relaxed focus, less anxious beta)
-        beta_decrease_score = max(0.0, min(1.0, 1.0 - (beta - ref_beta * 0.8) / (ref_beta + eps)))
+        # 2. Flow Ratio: (alpha + theta) / beta (30% weight)
+        # Transient hypofrontality: flow = increased alpha+theta + decreased beta.
+        # Higher ratio = more flow-like state.
+        alpha_theta_sum = alpha + theta
+        flow_ratio_raw = alpha_theta_sum / (beta + 1e-10)
+        # Typical non-flow ratio ~1.5-2.0; flow state pushes to 3.0+
+        # Sigmoid mapping: ratio of 3.0 → ~0.73, ratio of 5.0 → ~0.95
+        flow_ratio_score = float(np.clip(
+            1.0 / (1.0 + np.exp(-1.5 * (flow_ratio_raw - 2.5))),
+            0, 1
+        ))
 
-        # 4. Beta channel asymmetry (AF8 - AF7): symmetric during flow
-        beta_asym_score = 0.5  # default if single channel
-        if channels is not None and channels.shape[0] >= 3:
-            # ch1=AF7, ch2=AF8 (BrainFlow Muse 2 order)
-            bands_af7 = extract_band_powers(preprocess(channels[1], fs), fs)
-            bands_af8 = extract_band_powers(preprocess(channels[2], fs), fs)
-            af7_beta = bands_af7.get("beta", beta)
-            af8_beta = bands_af8.get("beta", beta)
-            beta_asym = (af8_beta - af7_beta) / (af7_beta + af8_beta + eps)
-            # Flow: symmetric beta (near 0), not strongly lateralized
-            beta_asym_score = max(0.0, 1.0 - abs(beta_asym) * 3.0)
-
-        # Weighted combination (validated weights from Sci Rep 2025)
-        flow_score = (
-            0.35 * theta_flow_score
-            + 0.30 * min(1.0, flow_ratio_score)
-            + 0.20 * beta_decrease_score
-            + 0.15 * beta_asym_score
-        )
-        flow_score = float(np.clip(flow_score, 0.0, 1.0))
-
-        # State classification
-        if flow_score >= 0.72:
-            state = "deep_flow"
-            state_index = 3
-        elif flow_score >= 0.50:
-            state = "flow"
-            state_index = 2
-        elif flow_score >= 0.28:
-            state = "micro_flow"
-            state_index = 1
+        # 3. Beta Decrease from Baseline (20% weight)
+        # During flow, beta decreases (reduced self-monitoring / inner critic).
+        # If no baseline available, use a moderate score (0.4) as default.
+        if self.baseline_beta is not None:
+            beta_decrease_ratio = (base_beta - beta) / (base_beta + 1e-10)
+            # Positive = beta decreased (good for flow); negative = beta increased
+            beta_decrease_score = float(np.clip(
+                0.5 + beta_decrease_ratio * 1.5,
+                0, 1
+            ))
         else:
-            state = "no_flow"
-            state_index = 0
+            beta_decrease_score = 0.4  # neutral default without baseline
 
-        # Component scores for UI
-        absorption = float(np.clip((theta / ref_theta - 0.8) / 1.5, 0, 1))
-        effortlessness = float(np.clip(alpha / (high_beta + eps) / 4.0, 0, 1))
-        focus_quality = float(np.clip(beta_decrease_score * 0.7 + beta_asym_score * 0.3, 0, 1))
-        time_distortion = float(np.clip(theta_flow_score, 0, 1))
+        # 4. Beta Asymmetry (15% weight)
+        # Flow correlates with symmetric (near-zero) beta asymmetry between AF7/AF8.
+        # Hemispheric balance = effortless action.
+        beta_symmetry_score = 0.5  # default for single-channel
+        if channels is not None and channels.shape[0] >= 3:
+            # BrainFlow Muse 2: ch1=AF7 (left), ch2=AF8 (right)
+            af7_processed = preprocess(channels[1], fs)
+            af8_processed = preprocess(channels[2], fs)
+            af7_bands = extract_band_powers(af7_processed, fs)
+            af8_bands = extract_band_powers(af8_processed, fs)
+            af7_beta = af7_bands.get("beta", 0)
+            af8_beta = af8_bands.get("beta", 0)
+            denom = af8_beta + af7_beta
+            if denom > 1e-10:
+                beta_asym = abs(af8_beta - af7_beta) / denom
+            else:
+                beta_asym = 0.0
+            # Near zero asymmetry → high score; high asymmetry → low score
+            # beta_asym ranges from 0 (symmetric) to 1 (maximally asymmetric)
+            beta_symmetry_score = float(np.clip(1.0 - beta_asym * 2.0, 0, 1))
+
+        # === Overall Flow Score ===
+        # Weighted combination per validated biomarker importance
+        flow_score = float(np.clip(
+            0.35 * theta_flow_score +
+            0.30 * flow_ratio_score +
+            0.20 * beta_decrease_score +
+            0.15 * beta_symmetry_score,
+            0, 1
+        ))
+
+        # === Classify Flow Intensity Level ===
+        if flow_score >= 0.75:
+            state_idx = 3   # deep
+            intensity = "deep"
+        elif flow_score >= 0.45:
+            state_idx = 2   # moderate
+            intensity = "moderate"
+        elif flow_score >= 0.3:
+            state_idx = 1   # shallow
+            intensity = "shallow"
+        else:
+            state_idx = 0   # no_flow
+            intensity = "none"
+
+        # Confidence based on how clearly the score falls into a category
+        thresholds = [0.0, 0.3, 0.45, 0.75, 1.0]
+        mid = (thresholds[state_idx] + thresholds[state_idx + 1]) / 2
+        distance_to_mid = abs(flow_score - mid)
+        range_size = thresholds[state_idx + 1] - thresholds[state_idx]
+        confidence = float(np.clip(
+            1.0 - (distance_to_mid / (range_size / 2 + 1e-10)),
+            0.3, 0.95
+        ))
 
         return {
-            "state": state,
-            "state_index": state_index,
-            "flow_score": round(flow_score, 4),
-            "confidence": round(min(0.85, flow_score + 0.1), 3),
-            "model_type": "feature_quadratic",
-            "absorption": round(absorption, 3),
-            "effortlessness": round(effortlessness, 3),
-            "focus_quality": round(focus_quality, 3),
-            "time_distortion": round(time_distortion, 3),
+            "state": FLOW_STATES[state_idx],
+            "state_index": state_idx,
+            "flow_score": round(flow_score, 3),
+            "confidence": round(confidence, 3),
+            "flow_intensity": intensity,
             "components": {
-                "absorption": round(absorption, 3),
-                "effortlessness": round(effortlessness, 3),
-                "focus_quality": round(focus_quality, 3),
-                "time_distortion": round(time_distortion, 3),
+                "theta_flow": round(theta_flow_score, 3),
+                "flow_ratio": round(flow_ratio_score, 3),
+                "beta_decrease": round(beta_decrease_score, 3),
+                "beta_symmetry": round(beta_symmetry_score, 3),
             },
-            "band_powers": {k: round(float(v), 4) for k, v in bands.items()},
-            "theta_flow_score": round(theta_flow_score, 3),
-            "flow_ratio": round(float(flow_ratio), 3),
+            "band_powers": bands,
         }
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
