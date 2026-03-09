@@ -105,6 +105,14 @@ from .health_summary import router as _health_summary
 from .mental_health_questionnaire import router as _mental_health_questionnaire
 from .femba import router as _femba
 from .tmnet import router as _tmnet
+from .altered_consciousness import router as _altered_consciousness
+from .mci_screener import router as _mci_screener
+from .neurostim_guidance import router as _neurostim_guidance
+from .autism_screener import router as _autism_screener
+from .decision_confidence import router as _decision_confidence
+from .imagined_speech import router as _imagined_speech
+from .motor_intention import router as _motor_intention
+from .parkinsons_screener import router as _parkinsons_screener
 
 router = APIRouter()
 
@@ -180,3 +188,11 @@ router.include_router(_health_summary)
 router.include_router(_mental_health_questionnaire)
 router.include_router(_femba)
 router.include_router(_tmnet)
+router.include_router(_altered_consciousness)
+router.include_router(_mci_screener)
+router.include_router(_neurostim_guidance)
+router.include_router(_autism_screener)
+router.include_router(_decision_confidence)
+router.include_router(_imagined_speech)
+router.include_router(_motor_intention)
+router.include_router(_parkinsons_screener)
