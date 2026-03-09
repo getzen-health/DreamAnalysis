@@ -395,3 +395,56 @@ async def reset_emotion_trajectory(user_id: str):
     predictor = get_trajectory_predictor(user_id)
     predictor.reset()
     return {"status": "reset"}
+
+
+# ── IMU Artifact Detection ──────────────────────────────────────────────────
+
+from typing import List, Optional  # noqa: F811  already imported above for other sections
+from pydantic import BaseModel, Field  # noqa: F811
+from models.imu_artifact_detector import get_imu_detector
+
+
+class IMURequest(BaseModel):
+    acc_data: List[List[float]] = Field(
+        ..., description="Accelerometer data (3 x samples or samples x 3), m/s²"
+    )
+    gyro_data: Optional[List[List[float]]] = Field(
+        default=None, description="Gyroscope data (3 x samples or samples x 3), deg/s"
+    )
+    fs: float = Field(default=52.0, description="IMU sampling rate in Hz (Muse 2: ~52 Hz)")
+
+
+@router.post("/imu/detect-motion-artifact")
+async def detect_motion_artifact(req: IMURequest):
+    """Detect motion artifacts from Muse 2 IMU data.
+
+    Computes RMS acceleration magnitude above resting baseline.  Returns
+    motion_detected flag, artifact_probability [0-1], and a recommendation
+    string: "clean", "mild_motion", or "severe_motion".
+
+    Call once per EEG epoch before running emotion/cognitive classifiers.
+    If motion_detected=true, discard the EEG epoch — do not classify.
+    """
+    acc = np.array(req.acc_data)
+    gyro = np.array(req.gyro_data) if req.gyro_data is not None else None
+    detector = get_imu_detector()
+    result = detector.detect(acc, gyro, req.fs)
+    return _numpy_safe(result)
+
+
+@router.post("/imu/calibrate-resting")
+async def calibrate_imu_resting(req: IMURequest):
+    """Record resting-state IMU baseline for motion artifact detection.
+
+    Send 30+ seconds of still, seated accelerometer data.  After calibration,
+    the detector's threshold is relative to this individual's resting baseline
+    rather than a global default (~1 g), improving sensitivity for subtle
+    movements like head nods.
+    """
+    acc = np.array(req.acc_data)
+    detector = get_imu_detector()
+    detector.calibrate_resting(acc, req.fs)
+    return {
+        "status": "calibrated",
+        "resting_baseline_g": float(detector._resting_baseline),
+    }
