@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { DeviceProvider } from "./hooks/use-device";
 import { MLConnectionProvider } from "@/hooks/use-ml-connection";
 import { MLWarmupScreen } from "@/components/ml-warmup-screen";
+import { NeuralBackground } from "@/components/neural-background";
 import AppLayout from "./layouts/app-layout";
 
 // ── Core journey pages — static imports (always needed on first load) ──────
@@ -61,6 +62,7 @@ const SleepSession           = lazy(() => import("@/pages/sleep-session"));
 const WeeklyBrainSummary     = lazy(() => import("@/pages/weekly-brain-summary"));
 const PersonalRecords        = lazy(() => import("@/pages/personal-records"));
 const PrivacyPolicy          = lazy(() => import("@/pages/privacy-policy"));
+const ArchitectureGuide      = lazy(() => import("@/pages/architecture-guide"));
 
 // ── Error Boundary — prevents a single page crash from taking down the whole app ──
 class ErrorBoundary extends Component<
@@ -126,6 +128,9 @@ function AppRoutes() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
+      <Route path="/architecture-guide">
+        <AppLayout><ArchitectureGuide /></AppLayout>
+      </Route>
       <Route path="/">
         <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
       </Route>
@@ -243,8 +248,31 @@ function AppRoutes() {
   );
 }
 
+const PUBLIC_ROUTES = new Set(["/auth", "/forgot-password", "/reset-password", "/welcome"]);
+
 function App() {
   const [warmupDismissed, setWarmupDismissed] = useState(false);
+  const [location] = useLocation();
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
+  const isPublicRoute = PUBLIC_ROUTES.has(location);
+
+  if (pathname === "/architecture-guide") {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <div className="min-h-screen bg-background text-foreground">
+              <NeuralBackground />
+              <Suspense fallback={<PageLoader />}>
+                <ArchitectureGuide />
+              </Suspense>
+              <Toaster />
+            </div>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -253,7 +281,7 @@ function App() {
           <MLConnectionProvider>
             <DeviceProvider>
               <TooltipProvider>
-                {!warmupDismissed && (
+                {!warmupDismissed && !isPublicRoute && (
                   <MLWarmupScreen onSimulationMode={() => setWarmupDismissed(true)} />
                 )}
                 <AppRoutes />
