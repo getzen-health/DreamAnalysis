@@ -193,6 +193,33 @@ async def estimate_brain_age(req: BrainAgeRequest):
     return _numpy_safe(result)
 
 
+# ── Emotion Regulation / Reappraisal Detection ───────────────────────────────
+
+from models.reappraisal_detector import get_reappraisal_detector
+
+
+@router.post("/reappraisal-detection/predict")
+async def reappraisal_detect(data: EEGInput):
+    """Detect emotion regulation vs genuine experience via LPP + frontal theta.
+
+    Returns regulation_state: genuine / mild_regulation / active_reappraisal / suppression.
+    Higher regulation_index = more cognitive control over emotional response.
+    """
+    signals = np.array(data.signals)
+    detector = get_reappraisal_detector(data.user_id)
+    result = detector.predict(signals, data.fs)
+    return _numpy_safe(result)
+
+
+@router.post("/reappraisal-detection/baseline")
+async def reappraisal_baseline(data: EEGInput):
+    """Record resting-state baseline for LPP normalization."""
+    signals = np.array(data.signals)
+    detector = get_reappraisal_detector(data.user_id)
+    detector.update_baseline(signals, data.fs)
+    return {"status": "baseline_updated", "user_id": data.user_id}
+
+
 # ── Sleep Memory Consolidation ─────────────────────────────────────────────
 
 from models.memory_consolidation_tracker import get_memory_tracker
