@@ -1064,3 +1064,74 @@ export async function getTrainingDataStats(
   const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
   return mlFetch<TrainingDataStats>(`/sessions/training-data/stats${qs}`);
 }
+
+// ── Supplement Tracker ─────────────────────────────────────────────────────
+
+export interface SupplementLogEntry {
+  id: string;
+  name: string;
+  type: string;
+  dosage: number;
+  unit: string;
+  timestamp: number;
+  notes: string;
+}
+
+export interface ActiveSupplement {
+  name: string;
+  type: string;
+  dosage: number;
+  unit: string;
+  taken_at: number;
+  hours_ago: number;
+}
+
+export interface SupplementVerdict {
+  name: string;
+  verdict: "positive" | "negative" | "neutral" | "insufficient_data";
+  n_exposures: number;
+  valence_shift: number;
+  stress_shift: number;
+  focus_shift: number;
+  alpha_beta_shift: number;
+}
+
+export interface SupplementReport {
+  user_id: string;
+  n_supplements: number;
+  supplements: SupplementVerdict[];
+}
+
+export async function logSupplement(params: {
+  user_id: string;
+  name: string;
+  type: string;
+  dosage: number;
+  unit: string;
+  notes?: string;
+}): Promise<{ entry_id: string; logged_at: number }> {
+  return mlFetch("/supplements/log", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function getSupplementLog(
+  userId: string,
+  lastN = 50
+): Promise<{ user_id: string; count: number; entries: SupplementLogEntry[] }> {
+  return mlFetch(`/supplements/log/${encodeURIComponent(userId)}?last_n=${lastN}`);
+}
+
+export async function getSupplementReport(
+  userId: string
+): Promise<SupplementReport> {
+  return mlFetch(`/supplements/report/${encodeURIComponent(userId)}`);
+}
+
+export async function getActiveSupplements(
+  userId: string,
+  hours = 24
+): Promise<{ user_id: string; hours: number; count: number; supplements: ActiveSupplement[] }> {
+  return mlFetch(`/supplements/active/${encodeURIComponent(userId)}?hours=${hours}`);
+}
