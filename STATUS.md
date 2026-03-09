@@ -28,7 +28,7 @@
 - [x] 49 shadcn/ui components, 5 chart components, dark theme, responsive layout
 - [x] Vite vendor bundle splitting + React.lazy() code-splitting across 14 pages
 
-### ML Backend (100+ endpoints, 45+ models)
+### ML Backend (100+ endpoints, 95+ models)
 - [x] Emotion classifier (LightGBM mega, 74.21% CV on 9 datasets, 163 534 samples — cross-subject)
 - [x] Sleep staging, dream detection, flow state, creativity detection
 - [x] Drowsiness, cognitive load, attention, stress, meditation classifiers
@@ -261,14 +261,33 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 - [x] **Federated Learning** — privacy-preserving multi-user model training (#100)
 - [x] **GNN Spatial-Temporal** — graph attention for 4-channel EEG emotion (#51)
 - [x] **DREAM Database** — enhanced dream detection integration (#50)
+- [x] **Tinnitus NF Protocol** — alpha up-training at TP9/TP10 with reward feedback (#105)
+- [x] **Sleep Quality Predictor** — multi-component scoring + readiness forecast
+- [x] **Heart-Brain Coupling** — HEP + HRV + EEG fusion (#69)
+- [x] **Cognitive Flexibility** — frontal theta during task switching (#61)
+- [x] **Emotion Regulation Trainer** — FAA-based closed-loop biofeedback (#121)
+- [x] **Motor Imagery Classifier** — 4-class ERD-based BCI (#123)
+- [x] **Meditation Depth Quantifier** — FMT + alpha coherence + gamma bursts (#124)
+- [x] **ADHD Detector** — theta/beta ratio screening (#60)
+- [x] **Neurofeedback Audio** — multi-protocol audio parameter generation (#49)
+- [x] **Cognitive Reserve** — spectral entropy + 1/f slope + alpha peak
+- [x] **Anxiety Protocol** — alpha up + high-beta down training
+- [x] **Social Cognition** — mu suppression + frontal theta for empathy
+- [x] **Workload Adapter** — real-time difficulty adjustment for VR/AR
+- [x] **Eye State Detector** — alpha reactivity + blink detection
+- [x] **Hemispheric Balance** — per-band left/right asymmetry monitoring
+- [x] **Pre-Ictal Predictor** — entropy + synchrony trend for seizure forewarning (#117)
+- [x] **Domain Adapter** — CORAL-lite cross-subject feature alignment (#113)
+- [x] **EEG-Voice Fusion** — decision-level multimodal emotion fusion (#21)
+- [x] **Spindle Analyzer** — sleep spindle detection + memory consolidation index
+- [x] **Slow Oscillation Detector** — SO detection + SO-spindle coupling
+- [x] **Concentration Tracker** — sustained attention with lapse detection
+- [x] **Neural Complexity** — sample/permutation entropy, LZ, Hurst, fractal dim
+- [x] **Circadian Monitor** — alertness tracking + optimal cognitive windows
+- [x] **Connectivity Graph** — coherence + PLV across channel pairs
 - [ ] PPG sensor integration (#46)
 - [ ] DreamNet NLP (#48)
-- [ ] Neurofeedback audio (#49)
 - [ ] Brain age SpecParam (#59)
-- [ ] ADHD assessment (#60)
-- [ ] Cognitive flexibility (#61)
 - [ ] CNN-KAN hybrid (#65)
 - [ ] Self-supervised Barlow Twins (#66)
 - [ ] EEGNet-Lite edge (#67)
-- [ ] Heart-brain coupling (#69)
-- [ ] Brain music sonification audio (#71)
