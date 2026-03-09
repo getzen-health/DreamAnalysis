@@ -48,6 +48,152 @@ _6CLASS: List[str] = ["happy", "sad", "angry", "fear", "surprise", "neutral"]
 
 _MIN_SAMPLES = 8000  # ~0.5s at 16 kHz minimum
 
+
+class SenseVoiceEmotionDetector:
+    """Fast voice emotion using SenseVoice-Small (Alibaba, 2024).
+
+    SenseVoice performs ASR + emotion detection simultaneously.
+    ~70ms latency for 10 seconds of audio (15x faster than Whisper-Large).
+    Used as fast path during WebSocket streaming.
+
+    Falls back gracefully if funasr not installed.
+    """
+
+    _SENSE_LABELS = {
+        "<|HAPPY|>": "happy",
+        "<|SAD|>": "sad",
+        "<|ANGRY|>": "angry",
+        "<|FEARFUL|>": "fear",
+        "<|DISGUSTED|>": "angry",
+        "<|SURPRISED|>": "surprise",
+        "<|NEUTRAL|>": "neutral",
+        "happy": "happy", "sad": "sad", "angry": "angry",
+        "fear": "fear", "fearful": "fear",
+        "surprise": "surprise", "surprised": "surprise",
+        "neutral": "neutral", "disgusted": "angry",
+    }
+
+    def __init__(self):
+        self._model = None
+        self._available = False
+        self._try_load()
+
+    def _try_load(self):
+        try:
+            from funasr import AutoModel
+            self._model = AutoModel(
+                model="FunAudioLLM/SenseVoiceSmall",
+                trust_remote_code=True,
+                disable_update=True,
+            )
+            self._available = True
+            log.info("SenseVoice loaded successfully")
+        except Exception as e:
+            log.info(
+                "SenseVoice not available (funasr not installed or model unavailable): %s", e
+            )
+            self._available = False
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    def predict(self, audio: np.ndarray, fs: int = 16000) -> Optional[Dict]:
+        """Run SenseVoice emotion + ASR.
+
+        Returns dict with emotion, probabilities, transcription, latency_ms.
+        Returns None if SenseVoice unavailable.
+        """
+        if not self._available or self._model is None:
+            return None
+
+        import time
+        start = time.time()
+
+        try:
+            # SenseVoice expects 16kHz mono float32
+            if fs != 16000:
+                # Simple integer ratio resampling
+                ratio = 16000 / fs
+                n_out = int(len(audio) * ratio)
+                indices = np.round(np.linspace(0, len(audio) - 1, n_out)).astype(int)
+                audio = audio[indices]
+
+            audio_f32 = audio.astype(np.float32)
+            if audio_f32.max() > 1.0:
+                audio_f32 = audio_f32 / 32768.0  # normalize int16 range
+
+            result = self._model.generate(
+                input=audio_f32,
+                cache={},
+                language="auto",
+                use_itn=False,
+            )
+
+            elapsed_ms = (time.time() - start) * 1000
+
+            if not result or not result[0]:
+                return None
+
+            text = result[0].get("text", "") or ""
+
+            # Extract emotion tag from SenseVoice rich text format
+            detected_emotion = self._parse_emotion(text)
+
+            # Build 6-class probability vector
+            probs = {e: 0.02 for e in _6CLASS}  # low base
+            if detected_emotion in probs:
+                probs[detected_emotion] = 0.80
+                # Spread remaining 0.10 across other classes
+                others = [e for e in _6CLASS if e != detected_emotion]
+                for e in others:
+                    probs[e] = 0.10 / len(others)
+
+            # Valence/arousal from emotion
+            valence_map = {
+                "happy": 0.7, "surprise": 0.2, "neutral": 0.0,
+                "sad": -0.6, "fear": -0.5, "angry": -0.5,
+            }
+            arousal_map = {
+                "happy": 0.7, "surprise": 0.8, "angry": 0.8,
+                "fear": 0.7, "neutral": 0.3, "sad": 0.2,
+            }
+
+            return {
+                "emotion": detected_emotion,
+                "probabilities": probs,
+                "valence": valence_map.get(detected_emotion, 0.0),
+                "arousal": arousal_map.get(detected_emotion, 0.5),
+                "confidence": 0.75,
+                "transcription": self._clean_text(text),
+                "model_type": "sensevoice",
+                "latency_ms": round(elapsed_ms, 1),
+            }
+        except Exception as e:
+            log.debug("SenseVoice prediction failed: %s", e)
+            return None
+
+    def _parse_emotion(self, rich_text: str) -> str:
+        """Extract emotion tag from SenseVoice output like '<|HAPPY|>text<|/HAPPY|>'."""
+        import re
+        # Look for emotion tags in angle brackets
+        match = re.search(r"<\|([A-Z]+)\|>", rich_text)
+        if match:
+            tag = f"<|{match.group(1)}|>"
+            return self._SENSE_LABELS.get(tag, "neutral")
+        # Fallback: check keyword mapping
+        lower = rich_text.lower()
+        for key, val in self._SENSE_LABELS.items():
+            if key.lower() in lower and not key.startswith("<"):
+                return val
+        return "neutral"
+
+    def _clean_text(self, rich_text: str) -> str:
+        """Remove emotion tags to get clean transcription."""
+        import re
+        return re.sub(r"<\|[^|]+\|>", "", rich_text).strip()
+
+
 # DistilHuBERT SUPERB-ER label schema → 6-class mapping
 # SUPERB uses 4 classes: hap, sad, ang, neu (no fear/surprise)
 _DISTILHUBERT_MODEL = "superb/distilhubert-base-superb-er"
@@ -183,6 +329,8 @@ class VoiceEmotionModel:
     """Wraps emotion2vec+ (funasr) with LightGBM MFCC fallback."""
 
     def __init__(self) -> None:
+        # SenseVoice fast path (emotion2vec-compatible, <100ms)
+        self._sensevoice = SenseVoiceEmotionDetector()
         # emotion2vec+ funasr model
         self._e2v_model = None
         self._e2v_tried = False
@@ -255,14 +403,25 @@ class VoiceEmotionModel:
     # ── Public API ────────────────────────────────────────────────────────────
 
     def predict(
-        self, audio: np.ndarray, sample_rate: int = 22050
+        self, audio: np.ndarray, sample_rate: int = 22050, **kwargs
     ) -> Optional[Dict]:
         """Predict 6-class emotion from audio array.
+
+        Args:
+            audio: 1D float32 audio array
+            sample_rate: sampling rate in Hz
+            real_time: if True, prefer SenseVoice fast path (<100ms)
 
         Returns None if audio is too short or all models fail.
         """
         if audio is None or len(audio) < _MIN_SAMPLES:
             return None
+
+        # Fast path: SenseVoice (<100ms) — use when real_time=True
+        if kwargs.get("real_time", False) and self._sensevoice.available:
+            result = self._sensevoice.predict(audio, fs=sample_rate)
+            if result is not None:
+                return result
 
         # Try emotion2vec+ first
         if self._load_e2v():
