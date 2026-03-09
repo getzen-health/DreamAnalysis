@@ -175,6 +175,12 @@ class FlowStateDetector:
             "effortlessness": round(effortlessness, 3),
             "focus_quality": round(focus_quality, 3),
             "time_distortion": round(time_distortion, 3),
+            "components": {
+                "absorption": round(absorption, 3),
+                "effortlessness": round(effortlessness, 3),
+                "focus_quality": round(focus_quality, 3),
+                "time_distortion": round(time_distortion, 3),
+            },
             "band_powers": {k: round(float(v), 4) for k, v in bands.items()},
             "theta_flow_score": round(theta_flow_score, 3),
             "flow_ratio": round(float(flow_ratio), 3),
