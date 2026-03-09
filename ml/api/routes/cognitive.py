@@ -259,6 +259,38 @@ async def record_flexibility_baseline(data: EEGInput):
     return detector.record_baseline(signals, data.fs)
 
 
+
+# ── Emotional Granularity ────────────────────────────────────────────────────
+
+from models.emotion_granularity import get_granularity_mapper, estimate_dominance as _estimate_dominance
+
+
+@router.post("/emotion-granularity")
+async def analyze_emotion_granularity(data: EEGInput):
+    """Map EEG-derived VAD coordinates to 27-emotion nuanced vocabulary.
+
+    Returns primary emotion + 2 nuance emotions with narrative description.
+    Computes valence and arousal from EEG band powers, then maps to the
+    27-emotion VAD space with dominance estimation.
+    """
+    from processing.eeg_processor import preprocess, extract_band_powers
+
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    ch = signals[0]
+
+    bands = extract_band_powers(preprocess(ch, data.fs), data.fs)
+    alpha = max(bands.get("alpha", 0.2), 1e-10)
+    beta = max(bands.get("beta", 0.15), 1e-10)
+
+    valence = float(np.clip(np.tanh((alpha / beta - 0.7) * 2.0), -1, 1))
+    arousal = float(np.clip(beta / (beta + alpha), 0, 1))
+    dominance = _estimate_dominance(bands)
+
+    mapper = get_granularity_mapper()
+    result = mapper.map(valence, arousal, dominance)
+    return _numpy_safe(result)
 @router.post("/voice-cognitive-load")
 async def voice_cognitive_load(request: dict):
     """Estimate cognitive load from voice prosodic features.
