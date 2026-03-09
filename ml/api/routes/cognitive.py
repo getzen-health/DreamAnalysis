@@ -163,6 +163,76 @@ async def cognitive_session_stats():
     return _numpy_safe(stats)
 
 
+# ── Brain Age Estimation ──────────────────────────────────────────────────────
+
+from typing import List, Optional
+from pydantic import BaseModel, Field
+
+from models.brain_age_estimator import get_brain_age_estimator
+
+
+class BrainAgeRequest(BaseModel):
+    signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
+    fs: float = Field(default=256.0, description="Sampling frequency in Hz")
+    user_id: str = Field(default="default")
+    chronological_age: Optional[float] = Field(
+        default=None, description="User's actual age in years (enables gap calculation)"
+    )
+
+
+@router.post("/brain-age")
+async def estimate_brain_age(req: BrainAgeRequest):
+    """Estimate biological brain age from EEG aperiodic features.
+
+    Returns predicted_age, brain_age_gap (if chronological_age provided),
+    and aperiodic spectral features. Wellness indicator only — not medical.
+    """
+    signals = np.array(req.signals)
+    estimator = get_brain_age_estimator()
+    result = estimator.predict(signals, req.fs, chronological_age=req.chronological_age)
+    return _numpy_safe(result)
+
+
+# ── Sleep Memory Consolidation ─────────────────────────────────────────────
+
+from models.memory_consolidation_tracker import get_memory_tracker
+
+
+class MemoryEpochRequest(BaseModel):
+    signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
+    fs: float = Field(default=256.0, description="Sampling frequency in Hz")
+    user_id: str = Field(default="default")
+    sleep_stage: str = Field(default="N2", description="Current sleep stage: N1, N2, N3, REM, Wake")
+
+
+@router.post("/sleep/memory-consolidation/epoch")
+async def score_memory_epoch(req: MemoryEpochRequest):
+    """Score one sleep epoch for memory consolidation quality.
+
+    Use during sleep recording. Provide sleep_stage for accurate weighting.
+    Returns spindle density, SO-spindle coupling, and consolidation quality.
+    """
+    signals = np.array(req.signals)
+    tracker = get_memory_tracker(req.user_id)
+    result = tracker.score_epoch(signals, req.fs, req.sleep_stage)
+    return _numpy_safe(result)
+
+
+@router.get("/sleep/memory-consolidation/session/{user_id}")
+async def get_memory_session(user_id: str):
+    """Get memory consolidation summary for the current sleep session."""
+    tracker = get_memory_tracker(user_id)
+    return tracker.score_session()
+
+
+@router.post("/sleep/memory-consolidation/tmr-check")
+async def check_tmr_trigger(req: MemoryEpochRequest):
+    """Check if current moment is good for TMR audio cue (SO up-state detection)."""
+    signals = np.array(req.signals)
+    tracker = get_memory_tracker(req.user_id)
+    return tracker.get_tmr_trigger(signals, req.fs, req.sleep_stage)
+
+
 @router.post("/voice-cognitive-load")
 async def voice_cognitive_load(request: dict):
     """Estimate cognitive load from voice prosodic features.
