@@ -28,7 +28,7 @@
 - [x] 49 shadcn/ui components, 5 chart components, dark theme, responsive layout
 - [x] Vite vendor bundle splitting + React.lazy() code-splitting across 14 pages
 
-### ML Backend (82 endpoints, 18 models)
+### ML Backend (100+ endpoints, 28+ models)
 - [x] Emotion classifier (LightGBM mega, 74.21% CV on 9 datasets, 163 534 samples — cross-subject)
 - [x] Sleep staging, dream detection, flow state, creativity detection
 - [x] Drowsiness, cognitive load, attention, stress, meditation classifiers
@@ -225,3 +225,39 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 - [ ] Multi-user session support (currently single-user per server instance)
 - [x] Docker Compose one-command deployment — `docker-compose up` starts db + api + ml; VAPID and ML_BACKEND_URL env vars wired; Datadog profile-gated
 - [ ] Real-time collaborative sessions (shared brain data viewing)
+
+### Research Daemon Implementations (Cycles 5-8, 2026-03-08)
+- [x] **Flow State Detector** — quadratic theta model, beta asymmetry, flow ratio (#64)
+- [x] **Emotional Granularity** — 27-emotion VAD mapping with dominance dimension (#63)
+- [x] **Microsleep Detection** — theta/alpha ratio streak tracking (#91)
+- [x] **IMU Artifact Removal** — adaptive LMS filter using Muse 2 accelerometer (#70)
+- [x] **Study Session Optimizer** — FMT-based encoding detection, attention trends (#94)
+- [x] **Empathy Detector** — temporal mu rhythm suppression at TP9/TP10 (#96)
+- [x] **Pain Biomarker Detection** — frontal beta/alpha asymmetry + high-beta (#92)
+- [x] **Emotion Regulation** — LPP proxy + frontal theta (#53)
+- [x] **Cross-Modal EEG+Voice Alignment** — Optimal Transport fusion (#55)
+- [x] **DGAT** — Dynamic graph attention for adaptive channel relationships (#58)
+- [x] **N400 ERP Detection** — semantic processing at AF8, validated on Muse 2 (#97)
+- [x] **Neural Efficiency Tracker** — alpha power skill mastery tracking (#98)
+- [x] **Tinnitus Assessment** — temporal alpha/gamma biomarkers (#99)
+- [x] **Mindfulness Quality** — mind-wandering detection during meditation (#101)
+- [x] **Learning Stage Classifier** — encoding/consolidation/automation/mastery (#102)
+- [x] **Adaptive Learning Detector** — FMT-based learning pace optimization (#103)
+- [x] **Brain Music Mapper** — EEG emotion-to-musical-parameter sonification (#106)
+- [x] **Haptic Urgency Optimizer** — arousal-adaptive haptic feedback (#107)
+- [ ] PPG sensor integration (#46)
+- [ ] DreamNet NLP (#48)
+- [ ] Neurofeedback audio (#49)
+- [ ] Circadian normalization (#54)
+- [ ] Brain age SpecParam (#59)
+- [ ] ADHD assessment (#60)
+- [ ] Cognitive flexibility (#61)
+- [ ] Memory consolidation (#62)
+- [ ] CNN-KAN hybrid (#65)
+- [ ] Self-supervised Barlow Twins (#66)
+- [ ] EEGNet-Lite edge (#67)
+- [ ] Emotion trajectory (#68)
+- [ ] Heart-brain coupling (#69)
+- [ ] Brain music sonification audio (#71)
+- [ ] EEG biometrics (#93)
+- [ ] Digital phenotyping (#95)
