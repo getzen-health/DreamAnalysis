@@ -1,6 +1,10 @@
 [lint]
 ignore = [
     "E402",   # module-import-not-at-top-of-file (common in ML for optional deps)
+    "E701",   # multiple-statements-on-one-line-colon (common in training loops)
+    "E702",   # multiple-statements-on-one-line-semicolon (common in training scripts)
     "E741",   # ambiguous-variable-name (l, I, O are standard in math/ML)
+    "F401",   # unused-import (many conditional imports in ML pipeline)
+    "F821",   # undefined-name (false positives in lazy-init patterns)
     "F841",   # unused-variable (common pattern in ML pipelines)
 ]
