@@ -233,6 +233,32 @@ async def check_tmr_trigger(req: MemoryEpochRequest):
     return tracker.get_tmr_trigger(signals, req.fs, req.sleep_stage)
 
 
+# ── Cognitive Flexibility ────────────────────────────────────────────────────
+
+from models.cognitive_flexibility_detector import get_flexibility_detector
+
+
+@router.post("/cognitive-flexibility")
+async def detect_cognitive_flexibility(data: EEGInput):
+    """Detect cognitive flexibility level from frontal EEG features.
+
+    Uses aperiodic exponent + FMT power. Returns flexibility_index (0-1),
+    level (rigid/moderate/flexible), and metacontrol bias.
+    """
+    signals = np.array(data.signals)
+    detector = get_flexibility_detector(data.user_id)
+    result = detector.predict(signals, data.fs)
+    return _numpy_safe(result)
+
+
+@router.post("/cognitive-flexibility/baseline")
+async def record_flexibility_baseline(data: EEGInput):
+    """Record resting-state baseline for dynamic flexibility measurement."""
+    signals = np.array(data.signals)
+    detector = get_flexibility_detector(data.user_id)
+    return detector.record_baseline(signals, data.fs)
+
+
 @router.post("/voice-cognitive-load")
 async def voice_cognitive_load(request: dict):
     """Estimate cognitive load from voice prosodic features.
