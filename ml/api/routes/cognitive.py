@@ -672,3 +672,47 @@ async def dgat_emotion_graph_stats(user_id: str = "default"):
     """Get last computed dynamic graph adjacency statistics."""
     classifier = get_dgat_classifier(user_id)
     return _numpy_safe(classifier.get_graph_stats())
+
+
+# ── Cross-Modal EEG+Voice Fusion ─────────────────────────────────────────────
+
+from models.eeg_voice_fusion import get_eeg_voice_fusion
+
+
+class EEGVoiceFusionRequest(BaseModel):
+    eeg_signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
+    audio_base64: str = Field(default="", description="Base64-encoded audio (WAV/PCM)")
+    eeg_fs: float = Field(default=256.0)
+    voice_fs: int = Field(default=16000)
+    user_id: str = Field(default="default")
+
+
+@router.post("/eeg-voice-fusion/predict")
+async def eeg_voice_fusion_predict(req: EEGVoiceFusionRequest):
+    """Fuse EEG and voice features via Optimal Transport alignment.
+
+    Accepts EEG signals + base64-encoded audio. Uses Sinkhorn OT to
+    find optimal alignment between modal distributions before fusion.
+    Falls back gracefully to single-modal if one input missing.
+    """
+    import base64
+
+    eeg = np.array(req.eeg_signals)
+    audio = None
+    if req.audio_base64:
+        try:
+            audio_bytes = base64.b64decode(req.audio_base64)
+            audio = np.frombuffer(audio_bytes, dtype=np.float32)
+        except Exception:
+            audio = None
+
+    fusion = get_eeg_voice_fusion(req.user_id)
+    result = fusion.predict(eeg, audio, req.eeg_fs, req.voice_fs)
+    return _numpy_safe(result)
+
+
+@router.get("/eeg-voice-fusion/stats")
+async def eeg_voice_fusion_stats(user_id: str = "default"):
+    """Get last OT transport plan stats (cost, alignment quality)."""
+    fusion = get_eeg_voice_fusion(user_id)
+    return _numpy_safe(fusion.get_fusion_stats())
