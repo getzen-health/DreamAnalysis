@@ -62,7 +62,6 @@ const sections: NavSection[] = [
       { path: "/brain-connectivity", label: "Connectivity",    icon: Network },
       { path: "/inner-energy",       label: "Spiritual",       icon: Sparkles },
       { path: "/neurofeedback",      label: "Neurofeedback",   icon: Radio },
-      { path: "/calibration",        label: "Calibration",     icon: SlidersHorizontal },
     ],
   },
   {
@@ -94,9 +93,10 @@ const sections: NavSection[] = [
   {
     title: "Tools",
     items: [
-      { path: "/records",      label: "My Records",   icon: Trophy },
-      { path: "/benchmarks",   label: "Benchmarks",   icon: BarChart2 },
-      { path: "/device-setup", label: "Device Setup", icon: Bluetooth },
+      { path: "/records",      label: "My Records",     icon: Trophy },
+      { path: "/benchmarks",   label: "Benchmarks",     icon: BarChart2 },
+      { path: "/calibration",  label: "EEG Calibration", icon: SlidersHorizontal },
+      { path: "/device-setup", label: "EEG Setup",       icon: Bluetooth },
     ],
   },
 ];

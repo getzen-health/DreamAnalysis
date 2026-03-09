@@ -538,8 +538,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 2. Baseline calibration prompt (shown until calibrated) */}
-      {!baselineReady && (
+      {/* 2. Baseline calibration prompt (EEG users only — not shown to voice-only users) */}
+      {!baselineReady && isStreaming && (
         <Link href="/onboarding">
           <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 text-sm flex items-center justify-between gap-3 cursor-pointer hover:bg-primary/10 transition-colors">
             <div className="flex items-center gap-3">
