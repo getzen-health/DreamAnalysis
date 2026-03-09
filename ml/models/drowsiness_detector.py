@@ -37,6 +37,8 @@ class DrowsinessDetector:
         self.baseline_theta = None
         # Running average for trend detection
         self._theta_beta_history = []
+        # Microsleep detection: per-user consecutive drowsy epoch counters
+        self._microsleep_counters: Dict[str, int] = {}
 
         if model_path:
             self._load_model(model_path)
@@ -60,6 +62,58 @@ class DrowsinessDetector:
         self.baseline_alpha = bands.get("alpha", 0.2)
         self.baseline_beta = bands.get("beta", 0.2)
         self.baseline_theta = bands.get("theta", 0.15)
+
+    def detect_microsleep(self, features: Dict, user_id: str = 'default') -> Dict:
+        """Detect microsleep: theta dominates alpha for >= 3 consecutive seconds.
+
+        Microsleep episodes occur when the brain briefly enters a sleep-like
+        state while a person is nominally awake. The hallmark EEG signature is
+        theta power replacing alpha power for several consecutive seconds.
+
+        Args:
+            features: Dict containing at least 'theta' and 'alpha' band powers.
+            user_id: Identifier for per-user tracking (different users maintain
+                     independent streak counters).
+
+        Returns:
+            Dict with:
+              - microsleep_alert: bool — True if microsleep detected
+              - drowsy_streak_seconds: int — consecutive drowsy time (seconds)
+              - theta_alpha_ratio: float — current theta/alpha ratio
+              - drowsiness_level: str — 'microsleep', 'drowsy', or 'alert'
+        """
+        theta = features.get('theta', 0)
+        alpha = features.get('alpha', 0)
+
+        theta_alpha_ratio = theta / (alpha + 1e-8)
+        is_drowsy_epoch = theta_alpha_ratio > 1.5
+
+        if user_id not in self._microsleep_counters:
+            self._microsleep_counters[user_id] = 0
+
+        if is_drowsy_epoch:
+            self._microsleep_counters[user_id] += 1
+        else:
+            self._microsleep_counters[user_id] = 0
+
+        # Microsleep: drowsy for >= 3 consecutive epochs.
+        # At a 2-sec hop (4-sec sliding window, 50% overlap), 3 epochs ~ 6 sec.
+        # At 1-sec epochs, 3 epochs ~ 3 sec. Either way, 3 is the safety threshold.
+        microsleep = self._microsleep_counters[user_id] >= 3
+
+        if microsleep:
+            level = 'microsleep'
+        elif is_drowsy_epoch:
+            level = 'drowsy'
+        else:
+            level = 'alert'
+
+        return {
+            'microsleep_alert': microsleep,
+            'drowsy_streak_seconds': self._microsleep_counters[user_id] * 2,
+            'theta_alpha_ratio': float(theta_alpha_ratio),
+            'drowsiness_level': level,
+        }
 
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
         """Detect drowsiness state from EEG signal.
@@ -144,7 +198,10 @@ class DrowsinessDetector:
         range_size = thresholds[state_idx + 1] - thresholds[state_idx]
         confidence = float(np.clip(1.0 - dist / (range_size / 2 + 1e-10), 0.35, 0.95))
 
-        return {
+        # === Microsleep Detection ===
+        microsleep_info = self.detect_microsleep(bands)
+
+        result = {
             "state": ALERTNESS_STATES[state_idx],
             "state_index": state_idx,
             "alertness_score": round(float(alertness_score), 3),
@@ -158,7 +215,10 @@ class DrowsinessDetector:
                 "theta_trend": round(float(theta_trend), 3),
             },
             "band_powers": bands,
+            "microsleep": microsleep_info,
         }
+
+        return result
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
         processed = preprocess(eeg, fs)
