@@ -1,13 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { type SessionSummary } from "@/lib/ml-api";
+import { type SessionSummary, getBrainReport, type BrainReport } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Moon,
   ArrowRight,
   Flame,
   BarChart2,
   Radio,
+  Mic,
+  Activity,
+  Heart,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -286,6 +290,13 @@ export default function DailyBrainReport() {
   const serverInsights: ServerInsight[] = serverInsightsData?.insights ?? [];
   const brainPatterns: BrainPattern[] = patternsData?.patterns ?? [];
 
+  const { data: mlReport } = useQuery<BrainReport>({
+    queryKey: ["brain-report-ml", CURRENT_USER],
+    queryFn: () => getBrainReport(CURRENT_USER),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
   const isLoading = sessionsLoading || dreamsLoading || healthLoading;
 
   /* — Derived data — */
@@ -306,6 +317,11 @@ export default function DailyBrainReport() {
   const recentDreams = dreams.slice(0, 3);
   const action = recommendedAction(health);
   const insight = yesterdayInsight(health);
+
+  // Use ML recommended action if health is sparse but voice data is available
+  const effectiveAction = !latestHealth && mlReport?.recommended_action
+    ? { label: mlReport.recommended_action, route: "/", description: "Based on your voice + health patterns" }
+    : action;
   const latestStress = latestHealth?.stressLevel ?? null;
   const streak = currentStreak(sessions);
 
@@ -350,8 +366,46 @@ export default function DailyBrainReport() {
               {streak}-day streak
             </span>
           )}
+          {mlReport && mlReport.data_sources.length > 0 && (
+            <span className="text-[10px] text-muted-foreground">
+              Based on: {mlReport.data_sources.join(" + ")}
+            </span>
+          )}
         </div>
       </div>
+
+      {/* ML focus + stress forecast (voice/health-based, no EEG needed) */}
+      {mlReport && (mlReport.data_sources.includes("voice") || mlReport.data_sources.includes("health")) && (
+        <Card className="glass-card p-4">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-3">Today's Forecast</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-400 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">{mlReport.focus_forecast.toFixed(0)}<span className="text-xs text-muted-foreground">/100</span></p>
+                <p className="text-[11px] text-muted-foreground">Focus</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Heart className="h-4 w-4 text-red-400 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">{mlReport.stress_risk.toFixed(0)}<span className="text-xs text-muted-foreground">/100</span></p>
+                <p className="text-[11px] text-muted-foreground">Stress risk</p>
+              </div>
+            </div>
+          </div>
+          {mlReport.peak_focus_window && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Peak focus window: <span className="text-foreground">{mlReport.peak_focus_window}</span>
+            </p>
+          )}
+          {mlReport.insight && (
+            <p className="mt-2 text-xs text-foreground/75 border-t border-border/20 pt-2 leading-relaxed">
+              {mlReport.insight}
+            </p>
+          )}
+        </Card>
+      )}
 
       {/* Card 1 — Right now */}
       {isLoading ? (
@@ -360,19 +414,29 @@ export default function DailyBrainReport() {
         <Card className="glass-card p-5">
           <div className="flex items-start gap-3">
             <Radio className="h-4 w-4 text-muted-foreground/50 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-foreground/80">No data yet</p>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground/80">No health data yet</p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Connect your Muse 2 or sync Apple Health to see your live brain state here.
+                Do a quick voice check-in to start your report — no EEG required.
               </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2 h-7 px-2 text-xs text-primary"
-                onClick={() => navigate("/device-setup")}
-              >
-                Set up device <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs border-accent/40 text-accent hover:border-accent"
+                  onClick={() => navigate("/")}
+                >
+                  <Mic className="h-3 w-3 mr-1" /> Voice check-in
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  onClick={() => navigate("/settings")}
+                >
+                  Sync Health <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
@@ -443,18 +507,18 @@ export default function DailyBrainReport() {
       )}
 
       {/* Card 3 — Do this now */}
-      {!isLoading && (
+      {!isLoading && (latestHealth || mlReport) && (
         <Card className="glass-card p-5">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-3">Do this now</p>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">{action.label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{action.description}</p>
+              <p className="text-sm font-medium">{effectiveAction.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{effectiveAction.description}</p>
             </div>
             <Button
               size="sm"
               className="shrink-0 min-w-[72px]"
-              onClick={() => navigate(action.route)}
+              onClick={() => navigate(effectiveAction.route)}
             >
               Start <ArrowRight className="ml-1 h-3 w-3" />
             </Button>

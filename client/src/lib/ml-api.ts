@@ -1135,3 +1135,24 @@ export async function getActiveSupplements(
 ): Promise<{ user_id: string; hours: number; count: number; supplements: ActiveSupplement[] }> {
   return mlFetch(`/supplements/active/${encodeURIComponent(userId)}?hours=${hours}`);
 }
+
+// ── Brain Report (no-EEG mode) ────────────────────────────────────────────────
+
+export interface BrainReport {
+  user_id: string;
+  date: string;
+  data_sources: string[];
+  sleep_quality: number | null;
+  focus_forecast: number;
+  stress_risk: number;
+  dominant_mood: string | null;
+  mood_valence: number | null;
+  recommended_action: string;
+  peak_focus_window: string | null;
+  insight: string;
+  has_eeg: boolean;
+}
+
+export async function getBrainReport(userId: string): Promise<BrainReport> {
+  return mlFetch(`/brain-report/${encodeURIComponent(userId)}`);
+}
