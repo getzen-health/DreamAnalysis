@@ -17,11 +17,16 @@ References:
     Harmon-Jones (2003) - Clarifying the emotive functions of asymmetrical
         frontal cortical activity
 """
+import threading
 from typing import Dict, List, Optional
 
 import numpy as np
-_trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
-from scipy import signal as scipy_signal
+
+try:
+    from scipy import signal as scipy_signal
+    _SCIPY_AVAILABLE = True
+except ImportError:
+    _SCIPY_AVAILABLE = False
 
 
 # Cognitive reappraisal strategies keyed by current emotional state
@@ -289,7 +294,10 @@ class EmotionRegulationTrainer:
             return 0.0
 
         try:
-            freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=nperseg)
+            if _SCIPY_AVAILABLE:
+                freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=nperseg)
+            else:
+                freqs, psd = _numpy_welch(signal, fs=fs, nperseg=nperseg)
         except Exception:
             return 0.0
 
@@ -298,7 +306,7 @@ class EmotionRegulationTrainer:
             return 0.0
 
         if hasattr(np, "trapezoid"):
-            return float(_trapezoid(psd[mask], freqs[mask]))
+            return float(np.trapezoid(psd[mask], freqs[mask]))
         return float(np.trapz(psd[mask], freqs[mask]))
 
     def _frontal_alpha_powers(
@@ -453,3 +461,384 @@ class EmotionRegulationTrainer:
         elif diff < -3.0:
             return "declining"
         return "stable"
+
+
+# ── numpy-only Welch fallback ─────────────────────────────────────────────────
+
+def _numpy_welch(
+    x: np.ndarray, fs: float, nperseg: int
+):
+    """Minimal Welch PSD using numpy FFT (used when scipy is unavailable)."""
+    step = nperseg // 2
+    n = len(x)
+    window = np.hanning(nperseg)
+    segments = []
+    start = 0
+    while start + nperseg <= n:
+        seg = x[start: start + nperseg] * window
+        segments.append(seg)
+        start += step
+    if not segments:
+        freqs = np.fft.rfftfreq(nperseg, d=1.0 / fs)
+        return freqs, np.zeros(len(freqs))
+    psds = [np.abs(np.fft.rfft(s)) ** 2 for s in segments]
+    psd = np.mean(psds, axis=0)
+    win_power = np.sum(window ** 2)
+    psd = psd / (fs * win_power)
+    psd[1:-1] *= 2  # single-sided
+    freqs = np.fft.rfftfreq(nperseg, d=1.0 / fs)
+    return freqs, psd
+
+
+def _band_power(signal: np.ndarray, fs: float, flo: float, fhi: float) -> float:
+    """Compute power in a frequency band via Welch PSD."""
+    nperseg = min(len(signal), int(fs * 2))
+    if nperseg < 8:
+        # Too short: fall back to variance-scaled heuristic
+        return float(np.var(signal)) + 1e-12
+    try:
+        if _SCIPY_AVAILABLE:
+            freqs, psd = scipy_signal.welch(signal, fs=fs, nperseg=nperseg)
+        else:
+            freqs, psd = _numpy_welch(signal, fs=fs, nperseg=nperseg)
+    except Exception:
+        return float(np.var(signal)) + 1e-12
+    mask = (freqs >= flo) & (freqs <= fhi)
+    if not np.any(mask):
+        return 1e-12
+    if hasattr(np, "trapezoid"):
+        return float(np.trapezoid(psd[mask], freqs[mask])) + 1e-12
+    return float(np.trapz(psd[mask], freqs[mask])) + 1e-12
+
+
+# ── EmotionRegulationBiofeedback ──────────────────────────────────────────────
+
+_VALID_EMOTION_STATES = frozenset(
+    ["anxious", "calm", "focused", "stressed", "neutral"]
+)
+_VALID_BIOFEEDBACK_CUES = frozenset(
+    ["increase_alpha", "decrease_beta", "balanced"]
+)
+_VALID_REGULATION_TRENDS = frozenset(["improving", "declining", "stable"])
+
+
+class EmotionRegulationBiofeedback:
+    """Closed-loop neurofeedback for real-time emotion regulation.
+
+    Tracks three EEG biomarkers via exponential moving averages (EMA):
+      - Alpha asymmetry (FAA): log(AF8_alpha) - log(AF7_alpha)
+      - Anxiety index: theta/alpha ratio (frontal theta / frontal alpha)
+      - Arousal regulation: beta/alpha ratio
+
+    All raw data is discarded; only EMA state is retained.
+
+    Args:
+        ema_alpha: EMA decay factor (0–1). Smaller = more smoothing.
+            Default 0.2 gives a 5-frame effective window.
+        trend_window: Number of regulation_score updates used to classify
+            the regulation trend as improving/declining/stable.
+    """
+
+    def __init__(
+        self,
+        ema_alpha: float = 0.2,
+        trend_window: int = 10,
+    ):
+        self._ema_alpha = ema_alpha
+        self._trend_window = trend_window
+
+        # EMA state (per-instance, shared across calls for one user)
+        self._ema_faa: Optional[float] = None
+        self._ema_theta_alpha: Optional[float] = None
+        self._ema_beta_alpha: Optional[float] = None
+
+        # Session accumulators (lightweight — no raw data)
+        self._session_scores: List[float] = []
+        self._session_states: List[str] = []
+        self._session_count: int = 0
+        self._session_duration: int = 0
+
+    # ── Public API ───────────────────────────────────────────────────────────
+
+    def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
+        """Analyze one EEG epoch and return biofeedback result.
+
+        Args:
+            eeg: (n_channels, n_samples) or (n_samples,) array.
+                For Muse 2: ch0=TP9, ch1=AF7, ch2=AF8, ch3=TP10.
+            fs: Sampling rate in Hz.
+
+        Returns:
+            Dict with keys:
+                emotion_state (str): one of "anxious"|"calm"|"focused"|"stressed"|"neutral"
+                regulation_score (float): 0–1
+                biofeedback_cue (str): "increase_alpha"|"decrease_beta"|"balanced"
+                alpha_asymmetry (float): FAA value
+                anxiety_index (float): 0–1
+                regulation_trend (str): "improving"|"declining"|"stable"
+                session_duration (int): seconds accumulated via update_session()
+        """
+        eeg = np.asarray(eeg, dtype=float)
+        if eeg.ndim == 1:
+            eeg = eeg.reshape(1, -1)
+
+        faa = self._compute_faa(eeg, fs)
+        theta_alpha = self._compute_theta_alpha(eeg, fs)
+        beta_alpha = self._compute_beta_alpha(eeg, fs)
+
+        # Update EMAs
+        self._ema_faa = self._update_ema(self._ema_faa, faa)
+        self._ema_theta_alpha = self._update_ema(self._ema_theta_alpha, theta_alpha)
+        self._ema_beta_alpha = self._update_ema(self._ema_beta_alpha, beta_alpha)
+
+        smooth_faa = self._ema_faa
+        smooth_theta_alpha = self._ema_theta_alpha
+        smooth_beta_alpha = self._ema_beta_alpha
+
+        anxiety_index = self._anxiety_from_theta_alpha(smooth_theta_alpha)
+        regulation_score = self._compute_regulation_score(
+            smooth_faa, anxiety_index, smooth_beta_alpha
+        )
+        emotion_state = self._classify_state(
+            smooth_faa, anxiety_index, smooth_beta_alpha
+        )
+        biofeedback_cue = self._choose_cue(
+            emotion_state, smooth_faa, smooth_beta_alpha
+        )
+        regulation_trend = self._compute_trend()
+
+        return {
+            "emotion_state": emotion_state,
+            "regulation_score": round(float(regulation_score), 4),
+            "biofeedback_cue": biofeedback_cue,
+            "alpha_asymmetry": round(float(smooth_faa), 6),
+            "anxiety_index": round(float(anxiety_index), 4),
+            "regulation_trend": regulation_trend,
+            "session_duration": int(self._session_duration),
+        }
+
+    def update_session(
+        self,
+        eeg: np.ndarray,
+        fs: float = 256.0,
+        duration_sec: int = 0,
+    ) -> Dict:
+        """Accumulate a session epoch and update session counters.
+
+        Args:
+            eeg: EEG epoch for this update.
+            fs: Sampling rate in Hz.
+            duration_sec: Seconds to add to the session clock.
+
+        Returns:
+            Same dict as predict() with session_count included.
+        """
+        result = self.predict(eeg, fs)
+        self._session_count += 1
+        self._session_duration += max(0, int(duration_sec))
+        self._session_scores.append(result["regulation_score"])
+        self._session_states.append(result["emotion_state"])
+        # Keep only last trend_window * 4 entries to bound memory
+        max_keep = max(self._trend_window * 4, 40)
+        if len(self._session_scores) > max_keep:
+            self._session_scores = self._session_scores[-max_keep:]
+            self._session_states = self._session_states[-max_keep:]
+        result["session_count"] = self._session_count
+        return result
+
+    def get_session_summary(self) -> Dict:
+        """Return summary statistics for the current session.
+
+        Returns:
+            Dict with:
+                mean_regulation_score (float): average score 0–1
+                peak_score (float): highest score seen
+                session_count (int): number of update_session() calls
+                dominant_state (str): most frequent emotion_state
+        """
+        if not self._session_scores:
+            return {
+                "mean_regulation_score": 0.0,
+                "peak_score": 0.0,
+                "session_count": 0,
+                "dominant_state": "neutral",
+            }
+
+        dominant = "neutral"
+        if self._session_states:
+            counts: Dict[str, int] = {}
+            for s in self._session_states:
+                counts[s] = counts.get(s, 0) + 1
+            dominant = max(counts, key=lambda k: counts[k])
+
+        return {
+            "mean_regulation_score": round(
+                float(np.mean(self._session_scores)), 4
+            ),
+            "peak_score": round(float(np.max(self._session_scores)), 4),
+            "session_count": self._session_count,
+            "dominant_state": dominant,
+        }
+
+    def reset(self) -> None:
+        """Clear all EMA state and session history."""
+        self._ema_faa = None
+        self._ema_theta_alpha = None
+        self._ema_beta_alpha = None
+        self._session_scores = []
+        self._session_states = []
+        self._session_count = 0
+        self._session_duration = 0
+
+    # ── Private helpers ──────────────────────────────────────────────────────
+
+    def _update_ema(self, current: Optional[float], new: float) -> float:
+        """Update exponential moving average."""
+        if current is None:
+            return new
+        return self._ema_alpha * new + (1.0 - self._ema_alpha) * current
+
+    def _compute_faa(self, eeg: np.ndarray, fs: float) -> float:
+        """Compute frontal alpha asymmetry: log(AF8_alpha) - log(AF7_alpha)."""
+        n_ch = eeg.shape[0]
+        eps = 1e-12
+        if n_ch >= 3:
+            af7_alpha = _band_power(eeg[1], fs, 8.0, 12.0)
+            af8_alpha = _band_power(eeg[2], fs, 8.0, 12.0)
+        elif n_ch == 2:
+            af7_alpha = _band_power(eeg[0], fs, 8.0, 12.0)
+            af8_alpha = _band_power(eeg[1], fs, 8.0, 12.0)
+        else:
+            af7_alpha = _band_power(eeg[0], fs, 8.0, 12.0)
+            af8_alpha = af7_alpha
+        return float(np.log(af8_alpha + eps) - np.log(af7_alpha + eps))
+
+    def _compute_theta_alpha(self, eeg: np.ndarray, fs: float) -> float:
+        """Compute theta/alpha ratio (frontal channel)."""
+        ch = eeg[1] if eeg.shape[0] >= 2 else eeg[0]
+        theta = _band_power(ch, fs, 4.0, 8.0)
+        alpha = _band_power(ch, fs, 8.0, 12.0)
+        return float(theta / (alpha + 1e-12))
+
+    def _compute_beta_alpha(self, eeg: np.ndarray, fs: float) -> float:
+        """Compute beta/alpha ratio (frontal channel)."""
+        ch = eeg[1] if eeg.shape[0] >= 2 else eeg[0]
+        beta = _band_power(ch, fs, 12.0, 30.0)
+        alpha = _band_power(ch, fs, 8.0, 12.0)
+        return float(beta / (alpha + 1e-12))
+
+    def _anxiety_from_theta_alpha(self, theta_alpha: float) -> float:
+        """Map theta/alpha ratio to anxiety_index in [0, 1].
+
+        theta/alpha > 2.5 → highly anxious; < 0.8 → calm.
+        Sigmoid-like mapping clipped to [0, 1].
+        """
+        # Logistic: centre at 1.5, scale 0.8
+        raw = 1.0 / (1.0 + np.exp(-0.8 * (theta_alpha - 1.5)))
+        return float(np.clip(raw, 0.0, 1.0))
+
+    def _compute_regulation_score(
+        self,
+        faa: float,
+        anxiety_index: float,
+        beta_alpha: float,
+    ) -> float:
+        """Compute regulation_score in [0, 1].
+
+        Higher score = better regulated state:
+        - positive FAA (left activation) → higher
+        - lower anxiety_index → higher
+        - moderate beta/alpha (not too high) → higher
+        """
+        # FAA component: sigmoid around 0, positive = good
+        faa_score = float(np.clip(0.5 + faa * 1.5, 0.0, 1.0))
+        # Anxiety component: lower anxiety = higher score
+        anxiety_score = 1.0 - anxiety_index
+        # Arousal component: beta/alpha > 3.0 is stressed; < 1.0 is too drowsy
+        arousal_score = float(np.clip(1.0 - (beta_alpha - 1.5) / 3.0, 0.0, 1.0))
+        # Weighted blend
+        score = 0.4 * faa_score + 0.4 * anxiety_score + 0.2 * arousal_score
+        return float(np.clip(score, 0.0, 1.0))
+
+    def _classify_state(
+        self,
+        faa: float,
+        anxiety_index: float,
+        beta_alpha: float,
+    ) -> str:
+        """Map EEG features to one of the five emotion_state labels."""
+        if anxiety_index > 0.65:
+            # High theta/alpha → anxious or stressed
+            if beta_alpha > 2.5:
+                return "stressed"
+            return "anxious"
+        if faa > 0.15 and anxiety_index < 0.40:
+            # Positive FAA + low anxiety → calm
+            if beta_alpha > 1.8:
+                return "focused"
+            return "calm"
+        if beta_alpha > 2.0 and anxiety_index < 0.50:
+            return "focused"
+        if faa < -0.15 or anxiety_index > 0.55:
+            return "stressed"
+        return "neutral"
+
+    def _choose_cue(
+        self,
+        state: str,
+        faa: float,
+        beta_alpha: float,
+    ) -> str:
+        """Choose the biofeedback cue based on current state."""
+        if state in ("calm", "focused") and faa > 0.0 and beta_alpha < 2.0:
+            return "balanced"
+        if state in ("anxious", "stressed") and faa < 0.0:
+            return "increase_alpha"
+        if beta_alpha > 2.5:
+            return "decrease_beta"
+        if faa < -0.1:
+            return "increase_alpha"
+        return "balanced"
+
+    def _compute_trend(self) -> str:
+        """Classify regulation trend from recent session scores."""
+        scores = self._session_scores
+        n = len(scores)
+        if n < self._trend_window:
+            return "stable"
+        recent = scores[-self._trend_window:]
+        # Linear regression slope via numpy
+        x = np.arange(len(recent), dtype=float)
+        y = np.array(recent, dtype=float)
+        x_mean = np.mean(x)
+        y_mean = np.mean(y)
+        denom = np.sum((x - x_mean) ** 2)
+        if denom < 1e-12:
+            return "stable"
+        slope = float(np.sum((x - x_mean) * (y - y_mean)) / denom)
+        if slope > 0.01:
+            return "improving"
+        if slope < -0.01:
+            return "declining"
+        return "stable"
+
+
+# ── Per-user singleton registry ───────────────────────────────────────────────
+
+_instances: Dict[str, "EmotionRegulationBiofeedback"] = {}
+_instances_lock = threading.Lock()
+
+
+def get_emotion_regulation_biofeedback(
+    user_id: str = "default",
+) -> "EmotionRegulationBiofeedback":
+    """Return a singleton EmotionRegulationBiofeedback for the given user_id.
+
+    Different user_ids return different instances.  Same user_id always
+    returns the same instance (thread-safe).
+    """
+    global _instances
+    with _instances_lock:
+        if user_id not in _instances:
+            _instances[user_id] = EmotionRegulationBiofeedback()
+        return _instances[user_id]
