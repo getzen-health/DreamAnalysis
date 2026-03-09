@@ -505,6 +505,13 @@ class EmotionalSynchronyDetector:
             # No interhemispheric PLV possible
             frontal_ih_plv = 0.0
 
+        # Sanitize NaN from zero-variance / constant signals
+        ft_plv_alpha = float(np.nan_to_num(ft_plv_alpha, nan=0.0))
+        ft_plv_beta = float(np.nan_to_num(ft_plv_beta, nan=0.0))
+        alpha_coherence = float(np.nan_to_num(alpha_coherence, nan=0.0))
+        beta_coherence = float(np.nan_to_num(beta_coherence, nan=0.0))
+        frontal_ih_plv = float(np.nan_to_num(frontal_ih_plv, nan=0.0))
+
         # Composite synchrony score
         synchrony_score = (
             0.25 * ft_plv_alpha
