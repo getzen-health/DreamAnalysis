@@ -7,7 +7,11 @@ import pytest
 @pytest.fixture(scope="module")
 def client():
     from main import app
+    from api.routes import router
     from fastapi.testclient import TestClient
+    # Routes are loaded deferred at startup; force-register them synchronously for tests
+    if not any(r.path.startswith("/api/") for r in app.routes if hasattr(r, "path")):
+        app.include_router(router, prefix="/api")
     return TestClient(app)
 
 
