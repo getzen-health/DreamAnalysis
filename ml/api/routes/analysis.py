@@ -3,6 +3,7 @@
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import Dict
 import numpy as np
 from fastapi import APIRouter, HTTPException
@@ -23,6 +24,7 @@ from ._shared import (
     compute_signal_quality_index, auto_reject_epochs,
     AnomalyDetector,
     fusion_model, get_biometric_snapshot, predict_emotion,
+    apply_circadian_correction,
 )
 from processing.e_asr import EmbeddedASR
 
@@ -234,6 +236,16 @@ async def analyze_eeg(input_data: EEGInput):
             pass  # fusion failure must never break the main inference path
 
         features = extract_features(processed, fs)
+
+        # ── Circadian-aware feature normalization (Issue #54) ─────────────────
+        # Alpha power follows a diurnal rhythm; beta is anti-correlated.
+        # Correcting before classification improves cross-session accuracy.
+        try:
+            _current_hour = datetime.now().hour
+            features = apply_circadian_correction(features, _current_hour)
+        except Exception:
+            pass  # circadian correction failure must never break inference
+
         bands = extract_band_powers(processed, fs)
 
         # Cross-channel metrics

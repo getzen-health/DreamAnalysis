@@ -42,6 +42,7 @@ from processing.eeg_processor import (
     detect_sleep_spindles as detect_sleep_spindles,
     detect_k_complexes as detect_k_complexes,
     extract_spectral_microstate_features as extract_spectral_microstate_features,
+    apply_circadian_correction as apply_circadian_correction,
 )
 from processing.artifact_detector import (
     detect_eye_blinks as detect_eye_blinks,

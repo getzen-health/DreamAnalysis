@@ -22,10 +22,11 @@ Reference: Lutz et al. (2004), Cahn & Polich (2006), Travis & Shear (2010)
 """
 
 import numpy as np
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict, List, Optional
 from processing.eeg_processor import (
     extract_band_powers, extract_features, preprocess, compute_hjorth_parameters,
-    spectral_entropy
+    spectral_entropy, compute_frontal_midline_theta
 )
 
 MEDITATION_DEPTHS = ["relaxed", "meditating", "deep"]
@@ -33,6 +34,12 @@ MEDITATION_DEPTHS = ["relaxed", "meditating", "deep"]
 
 class MeditationClassifier:
     """EEG-based meditation depth classifier."""
+
+    # Feature names used by the Random Forest classifier
+    RF_FEATURE_NAMES = [
+        "theta_power", "alpha_power", "beta_power",
+        "theta_alpha_ratio", "alpha_beta_ratio", "frontal_midline_theta",
+    ]
 
     def __init__(self, model_path: Optional[str] = None):
         self.model_type = "feature-based"
@@ -42,6 +49,9 @@ class MeditationClassifier:
         self.baseline_alpha = None
         self.baseline_theta = None
         self.baseline_gamma = None
+        # Random Forest components (Issue #45)
+        self.rf_model = None
+        self.rf_scaler = None
         # Track depth over session
         self._depth_history = []
 
@@ -75,6 +85,13 @@ class MeditationClassifier:
             Dict with 'depth', 'depth_index', 'meditation_score' (0-1),
             'confidence', 'tradition_match', and component scores.
         """
+        # Try Random Forest first (Issue #45 — 86.7% accuracy on theta/alpha/beta)
+        if self.rf_model is not None:
+            try:
+                return self._predict_rf(eeg, fs)
+            except Exception:
+                pass  # fall through to sklearn or heuristics
+
         if self.sklearn_model is not None:
             try:
                 return self._predict_sklearn(eeg, fs)
@@ -236,3 +253,179 @@ class MeditationClassifier:
                 np.mean(scores[-10:]) - np.mean(scores[:10])
             ) if len(scores) >= 20 else 0.0, 3),
         }
+
+    # ── Random Forest classifier (Issue #45) ──────────────────────────────────
+
+    def _extract_rf_features(self, eeg: np.ndarray, fs: float) -> np.ndarray:
+        """Extract the 6 features used by the Random Forest classifier.
+
+        Features (in order matching RF_FEATURE_NAMES):
+          theta_power, alpha_power, beta_power,
+          theta_alpha_ratio, alpha_beta_ratio, frontal_midline_theta
+        """
+        processed = preprocess(eeg, fs)
+        bands = extract_band_powers(processed, fs)
+        theta = bands.get("theta", 1e-10)
+        alpha = bands.get("alpha", 1e-10)
+        beta = bands.get("beta", 1e-10)
+        fmt = compute_frontal_midline_theta(processed, fs)
+        return np.array([
+            theta,
+            alpha,
+            beta,
+            theta / max(alpha, 1e-10),
+            alpha / max(beta, 1e-10),
+            fmt.get("fmt_power", 0.0),
+        ], dtype=np.float64)
+
+    def _predict_rf(self, eeg: np.ndarray, fs: float) -> Dict:
+        """Run inference using the trained Random Forest model."""
+        processed = preprocess(eeg, fs)
+        bands = extract_band_powers(processed, fs)
+        fv = self._extract_rf_features(eeg, fs).reshape(1, -1)
+        if self.rf_scaler is not None:
+            fv = self.rf_scaler.transform(fv)
+        probs = self.rf_model.predict_proba(fv)[0]
+        depth_idx = int(np.argmax(probs))
+        meditation_score = float(np.dot(probs, np.linspace(0, 1, len(probs))))
+        return {
+            "depth": MEDITATION_DEPTHS[min(depth_idx, len(MEDITATION_DEPTHS) - 1)],
+            "depth_index": min(depth_idx, len(MEDITATION_DEPTHS) - 1),
+            "meditation_score": round(meditation_score, 3),
+            "confidence": round(float(probs[depth_idx]), 3),
+            "tradition_match": "focused_attention",
+            "tradition_scores": {},
+            "session_minutes": 0.0,
+            "components": {},
+            "band_powers": bands,
+            "model_type": "random_forest",
+        }
+
+    def train_rf(
+        self,
+        eeg_epochs: List[np.ndarray],
+        labels: List[int],
+        fs: float = 256.0,
+    ) -> Dict:
+        """Train a Random Forest classifier on labelled EEG epochs.
+
+        Based on the 2025 clinical trial achieving 86.7% accuracy using
+        RandomForest on theta/alpha/beta features from consumer EEG.
+
+        Args:
+            eeg_epochs: List of 1D EEG arrays, one per epoch.
+            labels: Integer depth labels per epoch (0=relaxed, 1=meditating, 2=deep).
+            fs: Sampling frequency in Hz.
+
+        Returns:
+            Dict with 'accuracy', 'n_samples', 'n_classes'.
+        """
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.model_selection import cross_val_score
+
+        X = np.array([self._extract_rf_features(ep, fs) for ep in eeg_epochs])
+        y = np.array(labels)
+
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        clf = RandomForestClassifier(
+            n_estimators=100,
+            class_weight="balanced",
+            random_state=42,
+            n_jobs=-1,
+        )
+        clf.fit(X_scaled, y)
+
+        cv_scores = cross_val_score(clf, X_scaled, y, cv=min(5, len(set(y))), scoring="accuracy")
+
+        self.rf_model = clf
+        self.rf_scaler = scaler
+        self.model_type = "random_forest"
+
+        return {
+            "accuracy": round(float(cv_scores.mean()), 4),
+            "accuracy_std": round(float(cv_scores.std()), 4),
+            "n_samples": len(y),
+            "n_classes": len(set(y)),
+        }
+
+    def save_rf(self, path: str) -> None:
+        """Persist the trained Random Forest model to disk using joblib.
+
+        Args:
+            path: File path to save the model (e.g. 'models/saved/meditation_rf.pkl').
+        """
+        import joblib
+
+        if self.rf_model is None:
+            raise RuntimeError("No RF model trained yet. Call train_rf() first.")
+
+        joblib.dump(
+            {
+                "rf_model": self.rf_model,
+                "rf_scaler": self.rf_scaler,
+                "feature_names": self.RF_FEATURE_NAMES,
+            },
+            path,
+        )
+
+    def load_rf(self, path: str) -> None:
+        """Load a previously saved Random Forest model from disk.
+
+        Args:
+            path: File path to the saved model (joblib format).
+        """
+        import joblib
+
+        data = joblib.load(path)
+        self.rf_model = data["rf_model"]
+        self.rf_scaler = data.get("rf_scaler")
+        self.model_type = "random_forest"
+
+    def train_from_session_data(
+        self,
+        sessions_dir: str = "ml/sessions",
+        fs: float = 256.0,
+    ) -> Optional[Dict]:
+        """Train RF from .npz session files that contain meditation labels.
+
+        Scans ``sessions_dir`` for .npz files that include a 'meditation_label'
+        array. Each entry must align with the corresponding EEG epoch in the
+        'eeg' array. Sessions without labels are silently skipped.
+
+        Args:
+            sessions_dir: Directory containing .npz session files.
+            fs: Sampling frequency in Hz.
+
+        Returns:
+            Training result dict from train_rf(), or None if no labelled data found.
+        """
+        sessions_path = Path(sessions_dir)
+        if not sessions_path.exists():
+            return None
+
+        all_epochs: List[np.ndarray] = []
+        all_labels: List[int] = []
+
+        for npz_file in sorted(sessions_path.glob("*.npz")):
+            try:
+                data = np.load(npz_file, allow_pickle=True)
+                if "eeg" not in data or "meditation_label" not in data:
+                    continue
+                eeg_epochs = data["eeg"]           # shape: (n_epochs, n_samples)
+                labels = data["meditation_label"]  # shape: (n_epochs,)
+                for epoch, label in zip(eeg_epochs, labels):
+                    # Skip epochs with missing/negative labels
+                    if label is None or int(label) < 0:
+                        continue
+                    all_epochs.append(np.asarray(epoch, dtype=np.float64))
+                    all_labels.append(int(label))
+            except Exception:
+                continue  # corrupt file — skip silently
+
+        if len(all_epochs) < 10:
+            return None  # not enough data to train meaningfully
+
+        return self.train_rf(all_epochs, all_labels, fs=fs)

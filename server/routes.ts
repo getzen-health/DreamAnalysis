@@ -19,6 +19,7 @@ import {
   users, pushSubscriptions,
   pilotParticipants, pilotSessions,
   passwordResetTokens,
+  eegSessions, healthMetrics, healthSamples,
 } from "@shared/schema";
 import { db } from "./db";
 import { emotionReadings } from "@shared/schema";
@@ -2510,6 +2511,212 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("GET /api/study/admin/export-csv error:", err);
       return res.status(500).json({ error: "Failed to export CSV" });
     }
+  });
+
+  // ── PHIA-style LLM health insights ───────────────────────────────────────
+  // POST /api/health-insights
+  // Queries last 7 days of EEG, emotion, and health data for the user,
+  // builds a structured context string, and calls GPT-5 to generate
+  // 3–5 personalized, cross-modal health insights.
+
+  app.post("/api/health-insights", async (req, res) => {
+    const { userId } = req.body as { userId?: string };
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    if (!openai) {
+      return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
+    }
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const avg = (arr: number[]): number | null =>
+      arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+    const round2 = (n: number | null): number | null =>
+      n != null ? Math.round(n * 100) / 100 : null;
+
+    // ── 1. EEG emotion readings (last 7 days) ────────────────────────────
+    let avgStress: number | null = null;
+    let avgFocus: number | null = null;
+    let avgValence: number | null = null;
+    let dominantEmotions: string[] = [];
+    let bestDay: string | null = null;
+    let worstDay: string | null = null;
+    let emotionReadingCount = 0;
+
+    try {
+      const readings = await db
+        .select({
+          stress: emotionReadings.stress,
+          focus: emotionReadings.focus,
+          valence: emotionReadings.valence,
+          dominantEmotion: emotionReadings.dominantEmotion,
+          timestamp: emotionReadings.timestamp,
+        })
+        .from(emotionReadings)
+        .where(and(eq(emotionReadings.userId, userId), gte(emotionReadings.timestamp, sevenDaysAgo)))
+        .orderBy(asc(emotionReadings.timestamp))
+        .limit(2000);
+
+      emotionReadingCount = readings.length;
+
+      if (readings.length > 0) {
+        avgStress = round2(avg(readings.map((r) => r.stress)));
+        avgFocus  = round2(avg(readings.map((r) => r.focus)));
+        avgValence = round2(avg(readings.filter((r) => r.valence != null).map((r) => r.valence!)));
+
+        // Dominant emotion counts
+        const emotionCounts: Record<string, number> = {};
+        readings.forEach((r) => {
+          emotionCounts[r.dominantEmotion] = (emotionCounts[r.dominantEmotion] ?? 0) + 1;
+        });
+        dominantEmotions = Object.entries(emotionCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([e]) => e);
+
+        // Best / worst day by avg focus per calendar day
+        const byDay: Record<string, { focus: number[]; stress: number[] }> = {};
+        readings.forEach((r) => {
+          const day = new Date(r.timestamp).toLocaleDateString("en-US", { weekday: "long" });
+          if (!byDay[day]) byDay[day] = { focus: [], stress: [] };
+          byDay[day].focus.push(r.focus);
+          byDay[day].stress.push(r.stress);
+        });
+        const dayAvgs = Object.entries(byDay).map(([day, data]) => ({
+          day,
+          avgFocus: avg(data.focus) ?? 0,
+          avgStress: avg(data.stress) ?? 0,
+        }));
+        if (dayAvgs.length > 0) {
+          dayAvgs.sort((a, b) => b.avgFocus - a.avgFocus);
+          bestDay  = dayAvgs[0].day;
+          worstDay = dayAvgs[dayAvgs.length - 1].day;
+        }
+      }
+    } catch {
+      // Non-fatal: continue with nulls
+    }
+
+    // ── 2. Health metrics (last 7 days) ──────────────────────────────────
+    let avgSleepQuality: number | null = null;
+    let avgDailySteps: number | null = null;
+    let avgHeartRate: number | null = null;
+
+    try {
+      const metrics = await db
+        .select({
+          sleepQuality: healthMetrics.sleepQuality,
+          dailySteps: healthMetrics.dailySteps,
+          heartRate: healthMetrics.heartRate,
+          timestamp: healthMetrics.timestamp,
+        })
+        .from(healthMetrics)
+        .where(and(eq(healthMetrics.userId, userId), gte(healthMetrics.timestamp, sevenDaysAgo)))
+        .limit(500);
+
+      if (metrics.length > 0) {
+        avgSleepQuality = round2(avg(metrics.map((m) => m.sleepQuality)));
+        avgHeartRate    = round2(avg(metrics.map((m) => m.heartRate)));
+        const steps = metrics.filter((m) => m.dailySteps != null).map((m) => m.dailySteps!);
+        if (steps.length > 0) avgDailySteps = round2(avg(steps));
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    // ── 3. Health samples (HRV, sleep efficiency from Apple Health / Fit) ─
+    let avgHrv: number | null = null;
+    let avgSleepEfficiency: number | null = null;
+
+    try {
+      const hrvRows = await db
+        .select({ value: healthSamples.value })
+        .from(healthSamples)
+        .where(and(
+          eq(healthSamples.userId, userId),
+          eq(healthSamples.metric, "hrv"),
+          gte(healthSamples.recordedAt, sevenDaysAgo),
+        ))
+        .limit(200);
+      if (hrvRows.length > 0) avgHrv = round2(avg(hrvRows.map((r) => r.value)));
+
+      const sleepEffRows = await db
+        .select({ value: healthSamples.value })
+        .from(healthSamples)
+        .where(and(
+          eq(healthSamples.userId, userId),
+          eq(healthSamples.metric, "sleep_efficiency"),
+          gte(healthSamples.recordedAt, sevenDaysAgo),
+        ))
+        .limit(200);
+      if (sleepEffRows.length > 0) avgSleepEfficiency = round2(avg(sleepEffRows.map((r) => r.value)));
+    } catch {
+      // Non-fatal
+    }
+
+    // ── 4. Check minimum data threshold ──────────────────────────────────
+    if (emotionReadingCount < 3 && avgSleepQuality == null && avgHrv == null) {
+      return res.json({
+        insights: [],
+        message: "Record at least 3 sessions to see personalized insights",
+      });
+    }
+
+    // ── 5. Build context string ───────────────────────────────────────────
+    const contextLines: string[] = ["User health data (last 7 days):"];
+    if (avgStress    != null) contextLines.push(`- Average stress index: ${avgStress} (0–1 scale, higher = more stressed)`);
+    if (avgFocus     != null) contextLines.push(`- Average focus index: ${avgFocus} (0–1 scale, higher = more focused)`);
+    if (avgValence   != null) contextLines.push(`- Average emotional valence: ${avgValence} (−1 to 1; positive = pleasant)`);
+    if (dominantEmotions.length) contextLines.push(`- Top emotions detected by EEG: ${dominantEmotions.join(", ")}`);
+    if (bestDay)               contextLines.push(`- Best focus day of the week: ${bestDay}`);
+    if (worstDay && worstDay !== bestDay) contextLines.push(`- Lowest focus day of the week: ${worstDay}`);
+    if (avgSleepQuality != null) contextLines.push(`- Average sleep quality (1–10 scale): ${avgSleepQuality}`);
+    if (avgDailySteps   != null) contextLines.push(`- Average daily steps: ${Math.round(avgDailySteps)}`);
+    if (avgHeartRate    != null) contextLines.push(`- Average resting heart rate: ${Math.round(avgHeartRate)} bpm`);
+    if (avgHrv          != null) contextLines.push(`- Average HRV (ms): ${Math.round(avgHrv)}`);
+    if (avgSleepEfficiency != null) contextLines.push(`- Average sleep efficiency: ${Math.round(avgSleepEfficiency)}%`);
+    contextLines.push(`- EEG readings used: ${emotionReadingCount}`);
+
+    const context = contextLines.join("\n");
+
+    // ── 6. Call GPT-5 ─────────────────────────────────────────────────────
+    const systemPrompt = `You are a personal health insights AI analyzing EEG and biometric data. \
+Generate 3 to 5 specific, actionable insights about patterns in the user's data. \
+Focus on: correlations between sleep and focus, stress patterns, emotional trends, \
+heart rate or HRV relationship with stress, and daily step impact on mood. \
+Be specific with the numbers provided. \
+Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": string, "detail": string, "recommendation": string }] }`;
+
+    let insights: Array<{ title: string; detail: string; recommendation: string }> = [];
+    try {
+      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user",   content: context },
+        ],
+        response_format: { type: "json_object" },
+      });
+
+      const raw = response.choices[0].message.content ?? "{}";
+      const parsed = JSON.parse(raw) as { insights?: unknown };
+      if (Array.isArray(parsed.insights)) {
+        insights = parsed.insights.filter(
+          (i): i is { title: string; detail: string; recommendation: string } =>
+            i != null &&
+            typeof (i as Record<string, unknown>).title === "string" &&
+            typeof (i as Record<string, unknown>).detail === "string" &&
+            typeof (i as Record<string, unknown>).recommendation === "string"
+        );
+      }
+    } catch (err) {
+      console.error("[health-insights] GPT-5 error:", err);
+      return res.status(500).json({ message: "Failed to generate insights" });
+    }
+
+    res.json({ insights });
   });
 
   const httpServer = createServer(app);

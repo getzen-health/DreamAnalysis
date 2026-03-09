@@ -1118,6 +1118,64 @@ class RunningNormalizer:
         return normed
 
 
+def apply_circadian_correction(
+    features: Dict[str, float],
+    hour_of_day: int,
+    chronotype: str = "intermediate",
+) -> Dict[str, float]:
+    """Apply time-of-day circadian correction to EEG feature values.
+
+    Alpha power follows a diurnal rhythm peaking in late morning and early
+    evening (circadian rhythm research, Cajochen et al. 2002; Lim et al. 2020).
+    Beta is anti-correlated with alpha. Theta is elevated at night.
+
+    Corrections are multiplicative relative to a noon baseline (multiplier=1.0).
+    Features not covered by the correction table are returned unchanged.
+
+    Args:
+        features: Dict of feature names to float values (e.g. from extract_features()).
+        hour_of_day: Integer hour in 24h format (0–23).
+        chronotype: "early" (morning type, -2h offset), "intermediate" (default),
+                    or "late" (evening type, +2h offset).
+
+    Returns:
+        New feature dict with corrected values (input dict is not mutated).
+    """
+    # Multipliers for alpha-related features relative to noon baseline.
+    # Derived from diurnal EEG alpha power patterns in published literature.
+    ALPHA_CORRECTION: Dict[int, float] = {
+        6: 0.85, 7: 0.88, 8: 0.92, 9: 0.96, 10: 1.0, 11: 1.02,
+        12: 1.0, 13: 0.98, 14: 0.95, 15: 0.93, 16: 0.94, 17: 0.96,
+        18: 1.0, 19: 1.03, 20: 1.05, 21: 1.02, 22: 0.95, 23: 0.88,
+    }
+
+    # Chronotype offset shifts the effective hour for the correction lookup.
+    CHRONOTYPE_OFFSETS = {"early": -2, "intermediate": 0, "late": 2}
+    offset = CHRONOTYPE_OFFSETS.get(chronotype, 0)
+    effective_hour = (hour_of_day + offset) % 24
+
+    alpha_mult = ALPHA_CORRECTION.get(effective_hour)
+    if alpha_mult is None:
+        # Hour not in table (e.g. 0–5) — no correction applied (safe fallback)
+        return features
+
+    corrected = dict(features)
+
+    # Alpha-related features: multiply by alpha_mult (higher alpha in peak hours)
+    alpha_keys = {"band_power_alpha", "alpha_power", "alpha_theta_ratio", "alpha_beta_ratio"}
+    for key in alpha_keys:
+        if key in corrected:
+            corrected[key] = corrected[key] * alpha_mult
+
+    # Beta-related and stress features: divide by alpha_mult (beta is anti-correlated)
+    beta_keys = {"band_power_beta", "beta_power", "stress_index"}
+    for key in beta_keys:
+        if key in corrected:
+            corrected[key] = corrected[key] / alpha_mult
+
+    return corrected
+
+
 def extract_spectral_microstate_features(
     signals: np.ndarray, fs: float = 256.0, window_ms: int = 250
 ) -> Dict:
