@@ -489,3 +489,57 @@ async def analyze_hrv(req: HeartBrainRequest):
     ppg = np.array(req.ppg_signal)
     result = _ppg_extractor.extract_hrv(ppg)
     return _numpy_safe(result)
+
+
+# ── EEGNet-Lite On-Device Inference ─────────────────────────────────────────
+
+from typing import List
+from pydantic import BaseModel, Field
+
+from models.eegnet_lite import EEGNetLite
+
+_eegnet_lite = EEGNetLite()
+
+
+class EEGNetFinetuneRequest(BaseModel):
+    signals: List[List[float]] = Field(..., description="EEG signals")
+    label: int = Field(
+        ...,
+        ge=0,
+        le=5,
+        description=(
+            "True emotion label "
+            "(0=happy, 1=sad, 2=angry, 3=fear, 4=surprise, 5=neutral)"
+        ),
+    )
+    fs: float = Field(default=256.0)
+    user_id: str = Field(default="default")
+
+
+@router.post("/eegnet-lite/predict")
+async def eegnet_lite_predict(data: EEGInput):
+    """Classify emotion using compact EEGNet-Lite (~2600 params, <20KB).
+
+    Designed for on-device inference. Falls back to heuristics if PyTorch unavailable.
+    """
+    signals = np.array(data.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    result = _eegnet_lite.predict(signals, data.fs)
+    return _numpy_safe(result)
+
+
+@router.post("/eegnet-lite/fine-tune")
+async def eegnet_lite_fine_tune(req: EEGNetFinetuneRequest):
+    """Online last-layer SGD fine-tuning for personalization (+7.31% from ISWC 2024)."""
+    signals = np.array(req.signals)
+    if signals.ndim == 1:
+        signals = signals.reshape(1, -1)
+    result = _eegnet_lite.fine_tune_last_layer(signals, req.label, req.fs)
+    return _numpy_safe(result)
+
+
+@router.get("/eegnet-lite/info")
+async def eegnet_lite_info():
+    """Get EEGNet-Lite model architecture info and parameter count."""
+    return _numpy_safe(_eegnet_lite.get_model_info())
