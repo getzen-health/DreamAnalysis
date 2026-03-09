@@ -61,7 +61,13 @@ jobs:
           python -c "
           import time, numpy as np
           from main import app
+          from api.routes import router
           from fastapi.testclient import TestClient
+
+          # Routes are loaded via startup event — force-register for inline test
+          if not any(getattr(r, 'path', '').startswith('/api/') for r in app.routes):
+              app.include_router(router, prefix='/api')
+
           client = TestClient(app)
 
           times = []
@@ -72,7 +78,7 @@ jobs:
               })
               elapsed_ms = (time.time() - start) * 1000
               times.append(elapsed_ms)
-              assert r.status_code == 200
+              assert r.status_code == 200, f'simulate-eeg returned {r.status_code}: {r.text}'
 
           avg_ms = sum(times) / len(times)
           print(f'ML inference avg: {avg_ms:.0f}ms (3 runs)')
