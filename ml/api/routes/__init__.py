@@ -90,6 +90,7 @@ from .preictal import router as _preictal
 from .sleep_quality import router as _sleep_quality
 from .motor_imagery import router as _motor_imagery
 from .meditation_depth_route import router as _meditation_depth
+from .neurogame import router as _neurogame
 
 router = APIRouter()
 
@@ -150,3 +151,4 @@ router.include_router(_preictal)
 router.include_router(_sleep_quality)
 router.include_router(_motor_imagery)
 router.include_router(_meditation_depth)
+router.include_router(_neurogame)
