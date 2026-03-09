@@ -69,7 +69,7 @@ from .dreams import router as _dreams
 from .music import router as _music
 from .federated import router as _federated
 from .fatigue import router as _fatigue
-from .auth_biometric import router as _auth_biometric
+from .phenotyping import router as _phenotyping
 
 router = APIRouter()
 
@@ -109,4 +109,4 @@ router.include_router(_dreams)
 router.include_router(_music)
 router.include_router(_federated)
 router.include_router(_fatigue)
-router.include_router(_auth_biometric)
+router.include_router(_phenotyping)
