@@ -365,11 +365,11 @@ class LucidDreamInducer:
                     continue
             i += 1
 
-        # LRLR = at least 2 alternations (4 crossings: L R L R or R L R L)
-        detected = len(crossings) >= 4
+        # LRLR = at least 3 direction-change crossings (L→R→L or R→L→R pattern)
+        detected = len(crossings) >= 3
 
-        # Smooth score = fraction of expected alternations found
-        lr_score = float(np.clip(len(crossings) / 4.0, 0, 1))
+        # Smooth score = fraction of expected crossings found (3 = full signal)
+        lr_score = float(np.clip(len(crossings) / 3.0, 0, 1))
 
         return lr_score, detected
 
