@@ -86,6 +86,19 @@ jobs:
           print('ML benchmark: PASSED')
           "
 
+      - name: Model regression benchmarks
+        run: |
+          pytest tests/test_model_benchmarks.py -v --tb=short
+        continue-on-error: false
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: ml/tests/benchmark_results.json
+          retention-days: 30
+
   dependency-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
