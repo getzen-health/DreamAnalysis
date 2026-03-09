@@ -87,6 +87,7 @@ from .neuroadaptive import router as _neuroadaptive
 from .domain_adapt import router as _domain_adapt
 from .few_shot import router as _few_shot
 from .preictal import router as _preictal
+from .sleep_quality import router as _sleep_quality
 
 router = APIRouter()
 
@@ -144,3 +145,4 @@ router.include_router(_neuroadaptive)
 router.include_router(_domain_adapt)
 router.include_router(_few_shot)
 router.include_router(_preictal)
+router.include_router(_sleep_quality)
