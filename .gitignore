@@ -46,3 +46,4 @@ benchmarks-dashboard.html
 .ruff_cache/
 .vercel
 .env*.local
+.worktrees/
