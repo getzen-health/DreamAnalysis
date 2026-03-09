@@ -79,6 +79,7 @@ from .emotion_regulation import router as _emotion_regulation
 from .lucid_induction import router as _lucid_induction
 from .tinnitus import router as _tinnitus
 from .pain import router as _pain
+from .social_cognition import router as _social_cognition
 
 router = APIRouter()
 
@@ -128,3 +129,4 @@ router.include_router(_emotion_regulation)
 router.include_router(_lucid_induction)
 router.include_router(_tinnitus)
 router.include_router(_pain)
+router.include_router(_social_cognition)
