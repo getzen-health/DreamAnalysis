@@ -156,3 +156,5 @@ router.include_router(_meditation_depth)
 router.include_router(_neurogame)
 router.include_router(_deception)
 router.include_router(_engagement)
+from .language_erp import router as _language_erp
+router.include_router(_language_erp)
