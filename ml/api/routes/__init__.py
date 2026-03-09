@@ -85,6 +85,7 @@ from .brain_health import router as _brain_health
 from .brain_maturation import router as _brain_maturation
 from .neuroadaptive import router as _neuroadaptive
 from .domain_adapt import router as _domain_adapt
+from .few_shot import router as _few_shot
 
 router = APIRouter()
 
@@ -140,3 +141,4 @@ router.include_router(_brain_health)
 router.include_router(_brain_maturation)
 router.include_router(_neuroadaptive)
 router.include_router(_domain_adapt)
+router.include_router(_few_shot)
