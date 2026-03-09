@@ -271,8 +271,9 @@ async function authResetPassword(req: VercelRequest, res: VercelResponse) {
 
     return success(res, { message: 'Password updated successfully' });
   } catch (err: any) {
-    console.error('[authResetPassword]', err?.message ?? err);
-    return error(res, 'Reset failed', 500);
+    const msg = err?.message ?? String(err);
+    console.error('[authResetPassword]', msg);
+    return error(res, `Reset failed: ${msg}`, 500);
   }
 }
 
