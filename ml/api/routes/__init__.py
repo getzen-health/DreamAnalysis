@@ -61,6 +61,7 @@ from .biometrics import router as _biometrics
 from .interventions import router as _interventions
 from .voice_watch import router as _voice_watch
 from .voice_biomarkers import router as _voice_biomarkers
+from .voice_checkin import router as _voice_checkin
 from .eeg_storage import router as _eeg_storage
 from .trauma_resilience import router as _trauma_resilience
 from .ppg import router as _ppg
@@ -162,6 +163,7 @@ router.include_router(_biometrics)
 router.include_router(_interventions)
 router.include_router(_voice_watch)
 router.include_router(_voice_biomarkers)
+router.include_router(_voice_checkin)
 router.include_router(_eeg_storage)
 router.include_router(_trauma_resilience)
 router.include_router(_ppg)
