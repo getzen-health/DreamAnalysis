@@ -1135,3 +1135,40 @@ export async function getActiveSupplements(
 ): Promise<{ user_id: string; hours: number; count: number; supplements: ActiveSupplement[] }> {
   return mlFetch(`/supplements/active/${encodeURIComponent(userId)}?hours=${hours}`);
 }
+
+// ── EI Composite ──────────────────────────────────────────────────────────────
+
+export interface EIQDimensions {
+  self_perception: number;
+  self_expression: number;
+  interpersonal: number;
+  decision_making: number;
+  stress_management: number;
+}
+
+export interface EIQResult {
+  eiq_score: number;
+  eiq_grade: string;
+  dimensions: EIQDimensions;
+  strengths: string[];
+  growth_areas: string[];
+  has_baseline: boolean;
+  processed_at?: number;
+}
+
+export interface EIQSessionStats {
+  n_assessments: number;
+  mean_eiq: number | null;
+  trend: "improving" | "declining" | "stable" | null;
+}
+
+export async function getEIQSessionStats(userId: string): Promise<EIQSessionStats> {
+  return mlFetch<EIQSessionStats>(`/ei-composite/session-stats/${encodeURIComponent(userId)}`);
+}
+
+export async function getEIQHistory(
+  userId: string,
+  limit = 30
+): Promise<{ user_id: string; count: number; history: EIQResult[] }> {
+  return mlFetch(`/ei-composite/history/${encodeURIComponent(userId)}?limit=${limit}`);
+}
