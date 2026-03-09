@@ -19,12 +19,8 @@ from models.stress_detector import StressDetector
 from models.lucid_dream_detector import LucidDreamDetector
 from models.meditation_classifier import MeditationClassifier
 from models.food_emotion_predictor import FoodEmotionPredictor
-from models.anomaly_detector import AnomalyDetector
-from processing.emotion_shift_detector import EmotionShiftDetector
 from neurofeedback.protocol_engine import NeurofeedbackProtocol, PROTOCOLS as PROTOCOLS
 from storage.session_recorder import SessionRecorder
-from processing.signal_quality import SignalQualityChecker
-from processing.calibration import CalibrationRunner
 from processing.state_transitions import BrainStateEngine
 from processing.confidence_calibration import ConfidenceCalibrator
 
