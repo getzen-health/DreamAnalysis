@@ -82,6 +82,7 @@ from .pain import router as _pain
 from .social_cognition import router as _social_cognition
 from .music_emotion import router as _music_emotion
 from .brain_health import router as _brain_health
+from .brain_maturation import router as _brain_maturation
 
 router = APIRouter()
 
@@ -134,3 +135,4 @@ router.include_router(_pain)
 router.include_router(_social_cognition)
 router.include_router(_music_emotion)
 router.include_router(_brain_health)
+router.include_router(_brain_maturation)
