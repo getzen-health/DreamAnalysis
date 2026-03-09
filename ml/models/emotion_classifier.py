@@ -18,6 +18,7 @@ from processing.eeg_processor import (
     compute_frontal_midline_theta,
 )
 from processing.channel_maps import get_channel_map
+from models.emotion_granularity import map_vad_to_granular_emotions
 
 # Pre-initialize PyTorch thread pool before any joblib/sklearn loading.
 # torch.nn.TransformerEncoder hangs when torch.nn is first imported AFTER
@@ -74,6 +75,19 @@ for _band in _BANDS_5:
 for _band in _BANDS_5:
     _FEATURE_NAMES_85.append(f"DASM_{_band}")
 assert len(_FEATURE_NAMES_85) == 85, f"Expected 85 feature names, got {len(_FEATURE_NAMES_85)}"
+
+def _compute_dominance(beta_alpha: float, theta_beta_ratio: float) -> float:
+    """Estimate dominance (sense of control / agency) from EEG band ratios.
+
+    High beta + low theta at frontal = high dominance (in control).
+    High theta + low beta = low dominance (overwhelmed).
+    Returns value clipped to [0, 1].
+    """
+    return float(np.clip(
+        0.50 * np.tanh((beta_alpha - 0.5) * 2.0)
+        + 0.50 * np.tanh((1 - theta_beta_ratio) * 2.0),
+        0, 1))
+
 
 # Singleton RunningNormalizer for session drift correction
 _running_normalizer: Optional[object] = None
@@ -297,14 +311,24 @@ class EmotionClassifier:
 
     @staticmethod
     def _ensure_explanation(result: Dict) -> Dict:
-        """Guarantee the result dict contains an 'explanation' key.
+        """Guarantee the result dict contains explanation, dominance, and granular_emotions.
 
         External model paths (EEGNet, REVE, TSception) do not compute SHAP
-        explanations. This method injects an empty list so the API contract
-        is always satisfied.
+        explanations or granularity fields. This method injects defaults so
+        the API contract is always satisfied.
         """
         if "explanation" not in result:
             result["explanation"] = []
+        # Ensure dominance + granular_emotions for external model paths
+        if "dominance" not in result:
+            # Default dominance when band power ratios unavailable from external models
+            result["dominance"] = 0.5
+        if "granular_emotions" not in result:
+            result["granular_emotions"] = map_vad_to_granular_emotions(
+                result.get("valence", 0.0),
+                result.get("arousal", 0.5),
+                result.get("dominance", 0.5),
+            )
         return result
 
     def _try_load_deap_model(self):
@@ -725,6 +749,7 @@ class EmotionClassifier:
 
         dasm_beta_stress = float(dasm_rasm.get("dasm_beta", 0.0)) * 0.5
         theta_beta_ratio = theta / max(beta, 1e-6)
+        dominance = _compute_dominance(beta_alpha, theta_beta_ratio)
         stress_index = float(np.clip(
             0.40 * min(1, beta_alpha * 0.3)
             + 0.25 * max(0, 1 - alpha * 2.5)
@@ -749,6 +774,8 @@ class EmotionClassifier:
             + 0.25 * max(0, 1 - alpha * 5)
             + 0.10 * max(0, arousal - 0.45), 0, 1))
 
+        granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
+
         top_conf    = float(np.max(smoothed))
         emotion_lbl = EMOTIONS[emotion_idx]
         return {
@@ -758,6 +785,8 @@ class EmotionClassifier:
             "probabilities":         {EMOTIONS[i]: float(p) for i, p in enumerate(smoothed)},
             "valence":               valence,
             "arousal":               arousal,
+            "dominance":             dominance,
+            "granular_emotions":     granular_emotions,
             "stress_index":          stress_index,
             "focus_index":           focus_index,
             "relaxation_index":      relaxation_index,
@@ -1074,6 +1103,7 @@ class EmotionClassifier:
             + 0.25 * (1.0 - delta / max(delta + beta, 1e-10)),
             0, 1
         ))
+        dominance = _compute_dominance(beta_alpha_ratio, theta_beta_ratio)
 
         stress_index = float(np.clip(
             0.40 * min(1, beta_alpha_ratio * 0.3) + 0.25 * max(0, 1 - alpha * 2.5)
@@ -1091,6 +1121,8 @@ class EmotionClassifier:
             0.35 * min(1, max(0, beta_alpha_ratio - 1.5) * 0.6) + 0.30 * min(1, high_beta * 5)
             + 0.25 * max(0, 1 - alpha * 5) + 0.10 * max(0, arousal - 0.45), 0, 1))
 
+        granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
+
         return {
             "emotion": EMOTIONS[emotion_idx],
             "emotion_index": emotion_idx,
@@ -1098,6 +1130,8 @@ class EmotionClassifier:
             "probabilities": {EMOTIONS[i]: float(p) for i, p in enumerate(smoothed)},
             "valence": valence,
             "arousal": arousal,
+            "dominance": dominance,
+            "granular_emotions": granular_emotions,
             "stress_index": stress_index,
             "focus_index": focus_index,
             "relaxation_index": relaxation_index,
@@ -1143,10 +1177,14 @@ class EmotionClassifier:
             emotion_label = EMOTIONS[emotion_idx] if top_conf >= 0.25 else "neutral"
             result = {e: float(smoothed[i]) for i, e in enumerate(EMOTIONS)}
             # Return frozen EMA state — do not update with artifact epoch
+            _frozen_dominance = 0.5
+            _frozen_granular = map_vad_to_granular_emotions(0.0, 0.5, _frozen_dominance)
             return {
                 "emotion": emotion_label, "emotion_index": emotion_idx,
                 "confidence": top_conf, "probabilities": result,
                 "valence": 0.0, "arousal": 0.5,
+                "dominance": _frozen_dominance,
+                "granular_emotions": _frozen_granular,
                 "stress_index": 0.5, "focus_index": 0.5,
                 "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
                 "band_powers": {}, "differential_entropy": {},
@@ -1344,6 +1382,8 @@ class EmotionClassifier:
             # Degenerate: initialize EMA to uniform so future artifact calls can freeze
             if self._ema_probs is None:
                 self._ema_probs = np.ones(len(probs)) / len(probs)
+            _degen_dominance = _compute_dominance(beta_alpha_ratio, theta_beta_ratio)
+            _degen_granular = map_vad_to_granular_emotions(valence, arousal, _degen_dominance)
             return {
                 "emotion": "neutral",
                 "emotion_index": 5,
@@ -1352,6 +1392,8 @@ class EmotionClassifier:
                 "classification_confidence": "low",
                 "valence": valence,
                 "arousal": arousal,
+                "dominance": _degen_dominance,
+                "granular_emotions": _degen_granular,
                 "stress_index": float(np.clip(
                     0.40 * min(1, beta_alpha_ratio * 0.3)
                     + 0.25 * max(0, 1 - alpha * 2.5)
@@ -1392,6 +1434,9 @@ class EmotionClassifier:
 
         smoothed = self._ema_probs / (self._ema_probs.sum() + 1e-10)
         emotion_idx = int(np.argmax(smoothed))
+
+        # ── Dominance (sense of control / agency) ─────────────
+        dominance = _compute_dominance(beta_alpha_ratio, theta_beta_ratio)
 
         # ── Mental state indices (0-1 scale) ────────────────────
         # Stress: high beta/alpha ratio + low alpha + high-beta + optional DASM beta.
@@ -1468,6 +1513,8 @@ class EmotionClassifier:
         ]
         heuristic_explanation = self._compute_heuristic_explanation(_contributions)
 
+        granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
+
         return {
             "emotion": emotion_label,
             "emotion_index": emotion_idx,
@@ -1475,6 +1522,8 @@ class EmotionClassifier:
             "probabilities": {EMOTIONS[i]: float(p) for i, p in enumerate(smoothed)},
             "valence": valence,
             "arousal": arousal,
+            "dominance": dominance,
+            "granular_emotions": granular_emotions,
             "stress_index": stress_index,
             "focus_index": focus_index,
             "relaxation_index": relaxation_index,
@@ -1540,6 +1589,7 @@ class EmotionClassifier:
             + 0.25 * (1.0 - delta / max(delta + beta, 1e-10)),
             0, 1
         ))
+        dominance = _compute_dominance(beta_alpha_ratio, theta_beta_ratio)
 
         stress_index = float(np.clip(
             0.40 * min(1, beta_alpha_ratio * 0.3) + 0.25 * max(0, 1 - alpha * 2.5)
@@ -1557,6 +1607,8 @@ class EmotionClassifier:
             0.35 * min(1, max(0, beta_alpha_ratio - 1.5) * 0.6) + 0.30 * min(1, high_beta * 5)
             + 0.25 * max(0, 1 - alpha * 5) + 0.10 * max(0, arousal - 0.45), 0, 1))
 
+        granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
+
         return {
             "emotion": EMOTIONS[emotion_idx] if emotion_idx < n_classes else "unknown",
             "emotion_index": emotion_idx,
@@ -1564,6 +1616,8 @@ class EmotionClassifier:
             "probabilities": {EMOTIONS[i]: probs[i] for i in range(n_classes)},
             "valence": float(np.clip(valence, -1, 1)),
             "arousal": float(np.clip(arousal, 0, 1)),
+            "dominance": dominance,
+            "granular_emotions": granular_emotions,
             "stress_index": stress_index,
             "focus_index": focus_index,
             "relaxation_index": relaxation_index,
@@ -1648,6 +1702,7 @@ class EmotionClassifier:
             + 0.25 * (1.0 - delta / max(delta + beta, 1e-10)),
             0, 1
         ))
+        dominance = _compute_dominance(beta_alpha_ratio, theta_beta_ratio)
 
         stress_index = float(np.clip(
             0.40 * min(1, beta_alpha_ratio * 0.3) + 0.25 * max(0, 1 - alpha * 2.5)
@@ -1665,6 +1720,8 @@ class EmotionClassifier:
             0.35 * min(1, max(0, beta_alpha_ratio - 1.5) * 0.6) + 0.30 * min(1, high_beta * 5)
             + 0.25 * max(0, 1 - alpha * 5) + 0.10 * max(0, arousal - 0.45), 0, 1))
 
+        granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
+
         return {
             "emotion": EMOTIONS[emotion_idx],
             "emotion_index": emotion_idx,
@@ -1672,6 +1729,8 @@ class EmotionClassifier:
             "probabilities": {EMOTIONS[i]: float(p) for i, p in enumerate(probs)},
             "valence": float(np.clip(valence, -1, 1)),
             "arousal": float(np.clip(arousal, 0, 1)),
+            "dominance": dominance,
+            "granular_emotions": granular_emotions,
             "stress_index": stress_index,
             "focus_index": focus_index,
             "relaxation_index": relaxation_index,

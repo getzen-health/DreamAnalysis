@@ -1,31 +1,28 @@
-"""Emotional Granularity via VAD Regression + 27-emotion mapping.
+"""Emotional granularity: map VAD (valence-arousal-dominance) to nuanced labels.
 
 Expands EEG emotion output from 6 basic emotions to 27 nuanced affect states
 by mapping continuous VAD (Valence-Arousal-Dominance) coordinates to a
 comprehensive emotion vocabulary.
 
 Scientific basis:
-- IEEE (2025): EEGEmotions-27 dataset — 62.24% accuracy on 27 categories
+- IEEE (2025): EEGEmotions-27 dataset -- 62.24% accuracy on 27 categories
 - MDPI Mathematics (2025): EEG-RegNet, 95% DEAP via VAD regression
 - Dominance (sense of control/agency) adds crucial third dimension
 - VAD coordinates from Russell's Circumplex + dimensional emotion theory
 
-Usage:
-    from models.emotion_granularity import EmotionGranularityMapper, estimate_dominance
-
-    dominance = estimate_dominance(band_powers)
-    mapper = EmotionGranularityMapper()
-    result = mapper.map(valence=0.3, arousal=0.7, dominance=0.6)
+Dominance (0-1) reflects perceived control / agency:
+    High dominance = in control, empowered (e.g. determined, angry, focused)
+    Low dominance  = overwhelmed, helpless  (e.g. fearful, overwhelmed, anxious)
 """
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+import math
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-
 # VAD coordinates for 27 emotion categories
-# Format: (valence, arousal, dominance) — all in [-1,1] or [0,1] depending on dimension
+# Format: (valence, arousal, dominance) -- all in [-1,1] or [0,1] depending on dimension
 # Valence: -1 (very negative) to +1 (very positive)
 # Arousal: 0 (very calm) to 1 (very energetic)
 # Dominance: 0 (submissive/overwhelmed) to 1 (dominant/in-control)
@@ -71,6 +68,74 @@ EMOTION_VAD_MAP: Dict[str, Tuple[float, float, float]] = {
 }
 
 
+# ── Standalone helpers (used by emotion_classifier.py and tests) ──────
+
+
+def _euclidean_distance(
+    a: Tuple[float, float, float],
+    b: Tuple[float, float, float],
+) -> float:
+    """3D Euclidean distance between two VAD coordinates."""
+    return math.sqrt(
+        (a[0] - b[0]) ** 2
+        + (a[1] - b[1]) ** 2
+        + (a[2] - b[2]) ** 2
+    )
+
+
+def _distance_to_similarity(distance: float, max_distance: float = 2.5) -> float:
+    """Convert Euclidean distance to a 0-1 similarity score.
+
+    max_distance is the theoretical maximum distance in the VAD space
+    (valence spans 2, arousal spans 1, dominance spans 1 => sqrt(4+1+1) ~ 2.45).
+    """
+    return max(0.0, min(1.0, 1.0 - distance / max_distance))
+
+
+def map_vad_to_granular_emotions(
+    valence: float,
+    arousal: float,
+    dominance: float,
+    top_k: int = 3,
+) -> List[Dict[str, object]]:
+    """Find the k nearest emotions in VAD space by Euclidean distance.
+
+    Args:
+        valence:   Emotional valence (-1 to 1, negative to positive).
+        arousal:   Activation level (0 to 1, calm to energetic).
+        dominance: Sense of control (0 to 1, overwhelmed to in-control).
+        top_k:     Number of nearest emotions to return.
+
+    Returns:
+        List of dicts sorted by descending similarity:
+        [{"emotion": "calm", "similarity": 0.89, "distance": 0.27}, ...]
+    """
+    if top_k < 1:
+        top_k = 1
+
+    point = (float(valence), float(arousal), float(dominance))
+
+    scored: List[Tuple[float, str]] = []
+    for label, coord in EMOTION_VAD_MAP.items():
+        dist = _euclidean_distance(point, coord)
+        scored.append((dist, label))
+
+    scored.sort(key=lambda x: x[0])
+
+    results: List[Dict[str, object]] = []
+    for dist, label in scored[:top_k]:
+        results.append({
+            "emotion": label,
+            "similarity": round(_distance_to_similarity(dist), 4),
+            "distance": round(dist, 4),
+        })
+
+    return results
+
+
+# ── Dominance estimation from band powers ─────────────────────────────
+
+
 def estimate_dominance(band_powers: Dict[str, float]) -> float:
     """Estimate dominance (sense of control/agency) from frontal band powers.
 
@@ -78,7 +143,7 @@ def estimate_dominance(band_powers: Dict[str, float]) -> float:
     High theta + low beta = low dominance (overwhelmed, submissive).
 
     Args:
-        band_powers: Dict from extract_band_powers() — delta, theta, alpha, beta, etc.
+        band_powers: Dict from extract_band_powers() -- delta, theta, alpha, beta, etc.
 
     Returns:
         dominance in [0, 1]
@@ -94,7 +159,7 @@ def estimate_dominance(band_powers: Dict[str, float]) -> float:
     # Dominance from beta/alpha ratio (high beta = assertive engagement)
     beta_alpha_component = float(np.tanh((beta / (alpha + eps) - 0.5) * 2.0)) * 0.5 + 0.5
 
-    # Dominance from theta/beta (inverse — high theta = overwhelmed)
+    # Dominance from theta/beta (inverse -- high theta = overwhelmed)
     theta_beta_component = float(np.clip(1.0 - theta_beta_ratio * 0.8, 0, 1))
 
     # High-beta penalty for anxiety (reduces perceived dominance)
@@ -104,9 +169,12 @@ def estimate_dominance(band_powers: Dict[str, float]) -> float:
         0.50 * beta_alpha_component
         + 0.50 * theta_beta_component
         - anxiety_penalty,
-        0.0, 1.0
+        0.0, 1.0,
     ))
     return dominance
+
+
+# ── Weighted-distance mapper (class interface) ────────────────────────
 
 
 def _vad_distance(
