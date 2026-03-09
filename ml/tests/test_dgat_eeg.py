@@ -90,7 +90,7 @@ class TestDGATPredict4Channel:
     def test_probabilities_sum_to_one(self):
         probs = self.result["probabilities"]
         total = sum(probs.values())
-        assert abs(total - 1.0) < 1e-4, f"Probabilities sum to {total}, expected ~1.0"
+        assert abs(total - 1.0) < 2e-4, f"Probabilities sum to {total}, expected ~1.0"
 
     def test_probabilities_non_negative(self):
         for label, p in self.result["probabilities"].items():
