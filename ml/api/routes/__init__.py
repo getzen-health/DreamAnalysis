@@ -93,6 +93,18 @@ from .meditation_depth_route import router as _meditation_depth
 from .neurogame import router as _neurogame
 from .deception import router as _deception
 from .engagement import router as _engagement
+from .music_genre_eeg import router as _music_genre_eeg
+from .ptsd_neurofeedback import router as _ptsd_neurofeedback
+from .vr_workload import router as _vr_workload
+from .hyperscanning import router as _hyperscanning
+from .cscl import router as _cscl
+from .contrastive_transfer import router as _contrastive_transfer
+from .emotion2vec import router as _emotion2vec
+from .lsteeg import router as _lsteeg
+from .health_summary import router as _health_summary
+from .mental_health_questionnaire import router as _mental_health_questionnaire
+from .femba import router as _femba
+from .tmnet import router as _tmnet
 
 router = APIRouter()
 
@@ -156,3 +168,15 @@ router.include_router(_meditation_depth)
 router.include_router(_neurogame)
 router.include_router(_deception)
 router.include_router(_engagement)
+router.include_router(_music_genre_eeg)
+router.include_router(_ptsd_neurofeedback)
+router.include_router(_vr_workload)
+router.include_router(_hyperscanning)
+router.include_router(_cscl)
+router.include_router(_contrastive_transfer)
+router.include_router(_emotion2vec)
+router.include_router(_lsteeg)
+router.include_router(_health_summary)
+router.include_router(_mental_health_questionnaire)
+router.include_router(_femba)
+router.include_router(_tmnet)
