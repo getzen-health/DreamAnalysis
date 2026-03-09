@@ -130,7 +130,7 @@ class MultimodalEmotionFusion:
 
     Usage::
 
-        from ml.models.multimodal_emotion_fusion import (
+        from models.multimodal_emotion_fusion import (
             MultimodalEmotionFusion, BiometricSnapshot
         )
 
