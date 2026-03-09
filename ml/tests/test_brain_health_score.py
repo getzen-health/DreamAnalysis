@@ -1,488 +1,508 @@
-"""Tests for BrainHealthScore calculator.
+"""Tests for BrainHealthScore -- composite brain health from EEG.
 
 Covers:
-  - Initialization and empty state
-  - add_sleep_data with 1D and 2D EEG
-  - add_waking_data with 1D and 2D EEG, multiple contexts
-  - compute_score output structure and ranges
-  - Grade assignment (A/B/C/D/F)
-  - Domain scores (sleep, cognition, stress, mood, vitality)
-  - get_domain_scores without full compute
-  - get_trends with insufficient data and sufficient data
-  - get_history and last_n filtering
-  - reset clears everything
-  - Recommendations for low-scoring domains
-  - Edge cases: flat signal, very short signal, noisy signal
-  - Multiple recordings aggregate correctly
-  - No data raises ValueError
-  - FAA proxy with multichannel data
-  - Signal quality scoring
+  - Output keys and value ranges
+  - Grade thresholds (A>=80, B>=65, C>=50, D>=35, F<35)
+  - Domain score ranges (each 0-100)
+  - High-quality vs low-quality signals
+  - Baseline effects
+  - Session stats
+  - History tracking
+  - Multi-user isolation
+  - Reset
+  - Edge cases (single channel, zeros, short signal, constant, large amplitude)
+  - Recommendations
+  - Reproducibility
 """
+
+import sys
+import os
 
 import numpy as np
 import pytest
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from models.brain_health_score import (
     BrainHealthScore,
     DOMAINS,
-    DOMAIN_WEIGHTS,
     GRADE_THRESHOLDS,
+    _grade_from_score,
 )
 
 
-@pytest.fixture
-def scorer():
-    return BrainHealthScore()
+# -- Helpers --------------------------------------------------------------- #
 
 
-@pytest.fixture
-def sleep_eeg():
-    """4 seconds of delta-dominant synthetic sleep EEG at 256 Hz."""
-    rng = np.random.RandomState(42)
-    t = np.arange(1024) / 256.0
-    # Delta-dominant (2 Hz) + small theta (6 Hz)
-    return 30 * np.sin(2 * np.pi * 2 * t) + 5 * np.sin(2 * np.pi * 6 * t) + rng.randn(1024) * 2
+def _make_eeg_4ch(rng, n_samples=1024, scale=20.0):
+    """4-channel synthetic EEG at ~20 uV RMS."""
+    return rng.normal(0, scale, (4, n_samples)).astype(np.float64)
 
 
-@pytest.fixture
-def waking_eeg():
-    """4 seconds of alpha-dominant waking EEG at 256 Hz."""
-    rng = np.random.RandomState(123)
-    t = np.arange(1024) / 256.0
-    # Alpha (10 Hz) + some beta (20 Hz)
-    return 20 * np.sin(2 * np.pi * 10 * t) + 8 * np.sin(2 * np.pi * 20 * t) + rng.randn(1024) * 3
+def _make_clean_alpha_eeg(rng, n_samples=2048, fs=256.0):
+    """4-channel EEG with strong 10 Hz alpha + mild noise.
+
+    Should score well on spectral and asymmetry domains.
+    """
+    t = np.arange(n_samples) / fs
+    alpha_10hz = 30.0 * np.sin(2 * np.pi * 10.0 * t)
+    channels = []
+    for _ in range(4):
+        noise = rng.normal(0, 3, n_samples)
+        channels.append(alpha_10hz + noise)
+    return np.array(channels)
 
 
-@pytest.fixture
-def multichannel_waking():
-    """4-channel x 4 seconds of waking EEG (Muse 2 layout)."""
-    rng = np.random.RandomState(456)
-    t = np.arange(1024) / 256.0
-    signals = np.zeros((4, 1024))
-    # TP9 (ch0)
-    signals[0] = 15 * np.sin(2 * np.pi * 10 * t) + rng.randn(1024) * 3
-    # AF7 (ch1) — more left alpha
-    signals[1] = 25 * np.sin(2 * np.pi * 10 * t) + rng.randn(1024) * 3
-    # AF8 (ch2) — less right alpha (negative FAA)
-    signals[2] = 10 * np.sin(2 * np.pi * 10 * t) + rng.randn(1024) * 3
-    # TP10 (ch3)
-    signals[3] = 15 * np.sin(2 * np.pi * 10 * t) + rng.randn(1024) * 3
-    return signals
+def _make_noisy_eeg(rng, n_samples=2048, fs=256.0):
+    """4-channel EEG dominated by high-frequency noise (low quality)."""
+    t = np.arange(n_samples) / fs
+    channels = []
+    for _ in range(4):
+        noise = rng.normal(0, 50, n_samples)
+        hf = 40.0 * np.sin(2 * np.pi * 45.0 * t)
+        channels.append(noise + hf)
+    return np.array(channels)
 
 
-# ── Initialization ──────────────────────────────────────────────────
+# -- 1. Output structure --------------------------------------------------- #
 
 
-class TestInitialization:
-    def test_fresh_scorer_has_empty_state(self, scorer):
-        """New scorer has no features and no history."""
-        assert scorer.get_history() == []
-        domains = scorer.get_domain_scores()
-        assert all(domains[d] == 0.0 for d in DOMAINS)
+class TestOutputStructure:
+    """Verify assess() returns all required keys with correct types."""
 
-    def test_compute_score_without_data_raises(self, scorer):
-        """compute_score() should raise if no data has been added."""
-        with pytest.raises(ValueError, match="No data added"):
-            scorer.compute_score()
+    def test_assess_output_keys(self):
+        rng = np.random.default_rng(42)
+        scorer = BrainHealthScore(fs=256.0)
+        result = scorer.assess(_make_eeg_4ch(rng), fs=256.0)
 
+        assert "overall_score" in result
+        assert "grade" in result
+        assert "domain_scores" in result
+        assert "recommendations" in result
+        assert "has_baseline" in result
 
-# ── Constants ───────────────────────────────────────────────────────
+    def test_assess_domain_keys(self):
+        rng = np.random.default_rng(1)
+        scorer = BrainHealthScore()
+        result = scorer.assess(_make_eeg_4ch(rng))
 
+        for domain in DOMAINS:
+            assert domain in result["domain_scores"], (
+                f"Missing domain: {domain}"
+            )
 
-class TestConstants:
-    def test_domains_list(self):
-        """DOMAINS should contain exactly the five expected domains."""
-        assert DOMAINS == ["sleep", "cognition", "stress", "mood", "vitality"]
+    def test_set_baseline_output_keys(self):
+        rng = np.random.default_rng(2)
+        scorer = BrainHealthScore()
+        result = scorer.set_baseline(_make_eeg_4ch(rng))
 
-    def test_domain_weights_sum_to_one(self):
-        """Domain weights must sum to 1.0."""
-        assert abs(sum(DOMAIN_WEIGHTS.values()) - 1.0) < 1e-10
-
-    def test_grade_thresholds_are_descending(self):
-        """Grade thresholds must be in descending order."""
-        thresholds = [t for t, _ in GRADE_THRESHOLDS]
-        assert thresholds == sorted(thresholds, reverse=True)
-
-
-# ── Adding sleep data ───────────────────────────────────────────────
-
-
-class TestAddSleepData:
-    def test_1d_sleep_eeg(self, scorer, sleep_eeg):
-        """add_sleep_data accepts 1D array and returns features."""
-        features = scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.5)
-        assert "delta_power" in features
-        assert "theta_power" in features
-        assert "alpha_delta_ratio" in features
-        assert features["duration_hours"] == 7.5
-
-    def test_2d_sleep_eeg(self, scorer, sleep_eeg):
-        """add_sleep_data accepts 2D array (multichannel) by averaging."""
-        eeg_2d = np.stack([sleep_eeg, sleep_eeg * 0.9])
-        features = scorer.add_sleep_data(eeg_2d, fs=256, duration_hours=8.0)
-        assert "delta_power" in features
-        assert features["duration_hours"] == 8.0
-
-    def test_delta_dominant_sleep_has_high_delta(self, scorer, sleep_eeg):
-        """Delta-dominant sleep EEG should show high delta power."""
-        features = scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.0)
-        assert features["delta_power"] > 0.3
-
-    def test_sleep_features_accumulate(self, scorer, sleep_eeg):
-        """Multiple add_sleep_data calls accumulate features."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.0)
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=8.0)
-        # Should not raise when computing score
-        result = scorer.compute_score()
-        assert result["overall_score"] >= 0
+        assert result["baseline_set"] is True
+        assert "domain_scores" in result
+        for domain in DOMAINS:
+            assert domain in result["domain_scores"]
 
 
-# ── Adding waking data ─────────────────────────────────────────────
+# -- 2. Score ranges ------------------------------------------------------- #
 
 
-class TestAddWakingData:
-    def test_1d_waking_eeg(self, scorer, waking_eeg):
-        """add_waking_data accepts 1D array and returns features."""
-        features = scorer.add_waking_data(waking_eeg, fs=256, context="resting")
-        assert "alpha_power" in features
-        assert "alpha_beta_ratio" in features
-        assert "alpha_peak_freq" in features
-        assert "spectral_entropy" in features
-        assert "hrv_proxy" in features
+class TestScoreRanges:
+    """All scores must be in [0, 100]."""
 
-    def test_multichannel_waking_eeg(self, scorer, multichannel_waking):
-        """add_waking_data with multichannel computes FAA proxy."""
-        features = scorer.add_waking_data(
-            multichannel_waking, fs=256, context="resting"
-        )
-        assert "faa_proxy" in features
-        # AF7 has more alpha than AF8, so FAA should be negative
-        # (less right alpha = withdrawal/negative)
-        assert features["faa_proxy"] < 0
+    def test_overall_score_range(self):
+        rng = np.random.default_rng(10)
+        scorer = BrainHealthScore()
+        result = scorer.assess(_make_eeg_4ch(rng, n_samples=2048))
 
-    def test_context_stored(self, scorer, waking_eeg):
-        """Context parameter is returned in features."""
-        features = scorer.add_waking_data(waking_eeg, fs=256, context="task")
-        assert features["context"] == "task"
-
-
-# ── compute_score output structure ──────────────────────────────────
-
-
-class TestComputeScore:
-    def test_output_has_required_keys(self, scorer, sleep_eeg, waking_eeg):
-        """compute_score returns all required keys."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.5)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-
-        required = {
-            "overall_score", "grade", "domains",
-            "top_strength", "top_weakness", "recommendations",
-        }
-        assert required.issubset(result.keys())
-
-    def test_overall_score_range(self, scorer, sleep_eeg, waking_eeg):
-        """Overall score is in [0, 100]."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.5)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
         assert 0 <= result["overall_score"] <= 100
 
-    def test_domains_dict_has_five_entries(self, scorer, waking_eeg):
-        """Domains dict contains exactly the five expected domains."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        assert set(result["domains"].keys()) == set(DOMAINS)
+    def test_domain_scores_range(self):
+        rng = np.random.default_rng(11)
+        scorer = BrainHealthScore()
+        result = scorer.assess(_make_eeg_4ch(rng, n_samples=2048))
 
-    def test_each_domain_score_in_range(self, scorer, sleep_eeg, waking_eeg):
-        """Each domain score is in [0, 100]."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.5)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        for domain, score in result["domains"].items():
+        for domain, score in result["domain_scores"].items():
             assert 0 <= score <= 100, f"{domain} score {score} out of range"
 
-    def test_top_strength_is_highest(self, scorer, sleep_eeg, waking_eeg):
-        """top_strength should be the domain with the highest score."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.5)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        domains = result["domains"]
-        assert domains[result["top_strength"]] == max(domains.values())
+    def test_all_domains_present(self):
+        rng = np.random.default_rng(12)
+        scorer = BrainHealthScore()
+        result = scorer.assess(_make_eeg_4ch(rng))
 
-    def test_top_weakness_is_lowest(self, scorer, sleep_eeg, waking_eeg):
-        """top_weakness should be the domain with the lowest score."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.5)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        domains = result["domains"]
-        assert domains[result["top_weakness"]] == min(domains.values())
-
-    def test_recommendations_is_nonempty_list(self, scorer, waking_eeg):
-        """Recommendations should always be a non-empty list."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        assert isinstance(result["recommendations"], list)
-        assert len(result["recommendations"]) >= 1
+        assert len(result["domain_scores"]) == 5
 
 
-# ── Grade assignment ────────────────────────────────────────────────
+# -- 3. Grade thresholds -------------------------------------------------- #
 
 
-class TestGrading:
-    def test_grade_is_valid_letter(self, scorer, waking_eeg):
-        """Grade must be one of A, B, C, D, F."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        assert result["grade"] in {"A", "B", "C", "D", "F"}
+class TestGradeThresholds:
+    """Verify A >= 80, B >= 65, C >= 50, D >= 35, F < 35."""
 
-    def test_high_score_gets_a(self, scorer):
-        """Overall score >= 90 should get grade A."""
-        # Directly verify the grade logic
-        scorer.add_waking_data(np.random.randn(1024) * 20, fs=256)
-        result = scorer.compute_score()
-        # We can't control the exact score, but we test the grading logic
-        if result["overall_score"] >= 90:
-            assert result["grade"] == "A"
-        elif result["overall_score"] >= 80:
-            assert result["grade"] == "B"
-        elif result["overall_score"] >= 70:
-            assert result["grade"] == "C"
-        elif result["overall_score"] >= 60:
-            assert result["grade"] == "D"
-        else:
-            assert result["grade"] == "F"
+    def test_grade_A(self):
+        assert _grade_from_score(80.0) == "A"
+        assert _grade_from_score(95.0) == "A"
+        assert _grade_from_score(100.0) == "A"
 
+    def test_grade_B(self):
+        assert _grade_from_score(65.0) == "B"
+        assert _grade_from_score(79.9) == "B"
 
-# ── get_domain_scores ───────────────────────────────────────────────
+    def test_grade_C(self):
+        assert _grade_from_score(50.0) == "C"
+        assert _grade_from_score(64.9) == "C"
 
+    def test_grade_D(self):
+        assert _grade_from_score(35.0) == "D"
+        assert _grade_from_score(49.9) == "D"
 
-class TestGetDomainScores:
-    def test_returns_all_domains(self, scorer, waking_eeg):
-        """get_domain_scores returns all five domains."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        domains = scorer.get_domain_scores()
-        assert set(domains.keys()) == set(DOMAINS)
+    def test_grade_F(self):
+        assert _grade_from_score(0.0) == "F"
+        assert _grade_from_score(34.9) == "F"
 
-    def test_consistent_with_compute_score(self, scorer, sleep_eeg, waking_eeg):
-        """get_domain_scores should match compute_score domains."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.5)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        domains_direct = scorer.get_domain_scores()
-        result = scorer.compute_score()
-        for d in DOMAINS:
-            assert abs(domains_direct[d] - result["domains"][d]) < 0.1
+    def test_assess_returns_valid_grade(self):
+        rng = np.random.default_rng(20)
+        scorer = BrainHealthScore()
+        result = scorer.assess(_make_eeg_4ch(rng))
+        assert result["grade"] in ("A", "B", "C", "D", "F")
 
 
-# ── get_trends ──────────────────────────────────────────────────────
-
-
-class TestGetTrends:
-    def test_insufficient_data(self, scorer, waking_eeg):
-        """Trends with <2 scores returns insufficient_data."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        scorer.compute_score()
-        trends = scorer.get_trends()
-        assert trends["trend"] == "insufficient_data"
-        assert trends["n_scores"] == 1
-
-    def test_sufficient_data_returns_trend(self, scorer, waking_eeg):
-        """Trends with >=2 scores returns a valid trend."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        scorer.compute_score()
-        scorer.compute_score()
-        trends = scorer.get_trends()
-        assert trends["trend"] in {"improving", "declining", "stable"}
-        assert "slope" in trends
-        assert "mean_score" in trends
-
-    def test_stable_scores_give_stable_trend(self, scorer, waking_eeg):
-        """Identical scores should produce a stable trend."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        for _ in range(5):
-            scorer.compute_score()
-        trends = scorer.get_trends()
-        assert trends["trend"] == "stable"
-
-
-# ── get_history ─────────────────────────────────────────────────────
-
-
-class TestGetHistory:
-    def test_empty_history(self, scorer):
-        """No compute_score calls -> empty history."""
-        assert scorer.get_history() == []
-
-    def test_history_grows(self, scorer, waking_eeg):
-        """Each compute_score call adds to history."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        scorer.compute_score()
-        scorer.compute_score()
-        assert len(scorer.get_history()) == 2
-
-    def test_last_n_filter(self, scorer, waking_eeg):
-        """get_history(last_n=1) returns only the last entry."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        scorer.compute_score()
-        scorer.compute_score()
-        scorer.compute_score()
-        history = scorer.get_history(last_n=1)
-        assert len(history) == 1
-
-    def test_last_n_larger_than_history(self, scorer, waking_eeg):
-        """last_n > actual history returns all entries."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        scorer.compute_score()
-        history = scorer.get_history(last_n=100)
-        assert len(history) == 1
-
-
-# ── reset ───────────────────────────────────────────────────────────
-
-
-class TestReset:
-    def test_reset_clears_features(self, scorer, sleep_eeg, waking_eeg):
-        """Reset clears sleep and waking features."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        scorer.compute_score()
-        scorer.reset()
-
-        assert scorer.get_history() == []
-        with pytest.raises(ValueError):
-            scorer.compute_score()
-
-    def test_reset_clears_history(self, scorer, waking_eeg):
-        """Reset clears history."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        scorer.compute_score()
-        scorer.compute_score()
-        scorer.reset()
-        assert scorer.get_history() == []
-
-    def test_usable_after_reset(self, scorer, waking_eeg):
-        """Scorer is usable again after reset."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        scorer.compute_score()
-        scorer.reset()
-
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        assert result["overall_score"] >= 0
-
-
-# ── Edge cases ──────────────────────────────────────────────────────
-
-
-class TestEdgeCases:
-    def test_flat_signal(self, scorer):
-        """Flat-line signal should not crash and gives valid scores."""
-        flat = np.ones(1024) * 0.001
-        scorer.add_waking_data(flat, fs=256)
-        result = scorer.compute_score()
-        assert 0 <= result["overall_score"] <= 100
-        assert result["grade"] in {"A", "B", "C", "D", "F"}
-
-    def test_very_short_signal(self, scorer):
-        """Very short signal (< 1 second) should not crash."""
-        short = np.random.randn(64) * 20
-        scorer.add_waking_data(short, fs=256)
-        result = scorer.compute_score()
-        assert 0 <= result["overall_score"] <= 100
-
-    def test_noisy_signal(self, scorer):
-        """High-amplitude noisy signal should not crash."""
-        noisy = np.random.randn(1024) * 500
-        scorer.add_waking_data(noisy, fs=256)
-        result = scorer.compute_score()
-        assert 0 <= result["overall_score"] <= 100
-
-    def test_sleep_only_gives_valid_score(self, scorer, sleep_eeg):
-        """Score with only sleep data should work (waking domains get defaults)."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.5)
-        result = scorer.compute_score()
-        assert 0 <= result["overall_score"] <= 100
-        assert all(d in result["domains"] for d in DOMAINS)
-
-    def test_waking_only_gives_valid_score(self, scorer, waking_eeg):
-        """Score with only waking data should work (sleep domain gets default)."""
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        assert 0 <= result["overall_score"] <= 100
-
-    def test_zero_duration_sleep(self, scorer, sleep_eeg):
-        """Zero sleep duration should not crash."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=0.0)
-        result = scorer.compute_score()
-        assert 0 <= result["overall_score"] <= 100
-
-    def test_all_values_finite(self, scorer, sleep_eeg, waking_eeg):
-        """All numeric values in the result should be finite."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=7.0)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-
-        assert np.isfinite(result["overall_score"])
-        for score in result["domains"].values():
-            assert np.isfinite(score), f"Non-finite domain score: {score}"
-
-
-# ── Recommendations ─────────────────────────────────────────────────
-
-
-class TestRecommendations:
-    def test_low_sleep_gets_sleep_recommendation(self, scorer):
-        """Low sleep score should produce a sleep recommendation."""
-        # Very short sleep + high-frequency dominant signal
-        t = np.arange(1024) / 256.0
-        high_beta = 30 * np.sin(2 * np.pi * 25 * t) + np.random.randn(1024) * 2
-        scorer.add_sleep_data(high_beta, fs=256, duration_hours=3.0)
-        result = scorer.compute_score()
-        sleep_recs = [r for r in result["recommendations"] if r.startswith("sleep:")]
-        assert len(sleep_recs) >= 1
-
-    def test_good_scores_get_positive_recommendation(self, scorer, sleep_eeg, waking_eeg):
-        """If all domains are high, recommendation should be positive."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=8.0)
-        scorer.add_waking_data(waking_eeg, fs=256)
-        result = scorer.compute_score()
-        # At least one recommendation always present
-        assert len(result["recommendations"]) >= 1
-
-
-# ── Multiple recordings ────────────────────────────────────────────
-
-
-class TestMultipleRecordings:
-    def test_multiple_sleep_recordings_aggregate(self, scorer, sleep_eeg):
-        """Multiple sleep recordings average their features."""
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=6.0)
-        scorer.add_sleep_data(sleep_eeg, fs=256, duration_hours=8.0)
-        result = scorer.compute_score()
-        # Aggregated duration should be ~7.0 (average of 6 and 8)
-        assert 0 <= result["overall_score"] <= 100
-
-    def test_multiple_waking_recordings_aggregate(self, scorer, waking_eeg):
-        """Multiple waking recordings average their features."""
-        scorer.add_waking_data(waking_eeg, fs=256, context="resting")
-        scorer.add_waking_data(waking_eeg, fs=256, context="task")
-        result = scorer.compute_score()
-        assert 0 <= result["overall_score"] <= 100
-
-
-# ── Signal quality ──────────────────────────────────────────────────
+# -- 4. Signal quality impact --------------------------------------------- #
 
 
 class TestSignalQuality:
-    def test_good_amplitude_high_quality(self, scorer):
-        """EEG with healthy amplitude should have high signal quality."""
-        good_eeg = np.random.randn(1024) * 20  # ~20 uV RMS
-        features = scorer.add_waking_data(good_eeg, fs=256)
-        assert features["signal_quality"] > 0.5
+    """Clean alpha EEG should score higher than noisy broadband."""
 
-    def test_railed_signal_low_quality(self, scorer):
-        """Saturated signal (>100 uV) should have low signal quality."""
-        railed = np.random.randn(1024) * 300  # ~300 uV RMS
-        features = scorer.add_waking_data(railed, fs=256)
-        assert features["signal_quality"] < 0.5
+    def test_clean_alpha_scores_higher_spectral(self):
+        rng = np.random.default_rng(30)
+        scorer_clean = BrainHealthScore()
+        scorer_noisy = BrainHealthScore()
+
+        clean = _make_clean_alpha_eeg(rng)
+        noisy = _make_noisy_eeg(rng)
+
+        res_clean = scorer_clean.assess(clean)
+        res_noisy = scorer_noisy.assess(noisy)
+
+        assert (
+            res_clean["domain_scores"]["spectral"]
+            > res_noisy["domain_scores"]["spectral"]
+        ), "Clean alpha should have higher spectral score"
+
+    def test_clean_alpha_scores_higher_overall(self):
+        rng = np.random.default_rng(31)
+        scorer = BrainHealthScore()
+
+        clean = _make_clean_alpha_eeg(rng)
+        noisy = _make_noisy_eeg(rng)
+
+        res_clean = scorer.assess(clean)
+        res_noisy = scorer.assess(noisy)
+
+        assert res_clean["overall_score"] >= res_noisy["overall_score"]
+
+
+# -- 5. Baseline effects -------------------------------------------------- #
+
+
+class TestBaseline:
+    """Baseline should affect has_baseline and stability scoring."""
+
+    def test_no_baseline_by_default(self):
+        rng = np.random.default_rng(40)
+        scorer = BrainHealthScore()
+        result = scorer.assess(_make_eeg_4ch(rng))
+        assert result["has_baseline"] is False
+
+    def test_baseline_sets_flag(self):
+        rng = np.random.default_rng(41)
+        scorer = BrainHealthScore()
+        signals = _make_eeg_4ch(rng)
+        scorer.set_baseline(signals)
+        result = scorer.assess(signals)
+        assert result["has_baseline"] is True
+
+    def test_baseline_returns_domain_scores(self):
+        rng = np.random.default_rng(42)
+        scorer = BrainHealthScore()
+        result = scorer.set_baseline(_make_eeg_4ch(rng))
+        assert result["baseline_set"] is True
+        assert len(result["domain_scores"]) == 5
+
+    def test_baseline_improves_stability_when_signal_matches(self):
+        """Same signal as baseline should give high stability."""
+        rng = np.random.default_rng(43)
+        signals = _make_eeg_4ch(rng, n_samples=2048)
+        scorer = BrainHealthScore()
+        scorer.set_baseline(signals)
+        result = scorer.assess(signals)
+        assert result["domain_scores"]["stability"] >= 40.0
+
+
+# -- 6. Session stats ----------------------------------------------------- #
+
+
+class TestSessionStats:
+    """get_session_stats should track epochs and compute aggregates."""
+
+    def test_empty_session_stats(self):
+        scorer = BrainHealthScore()
+        stats = scorer.get_session_stats()
+        assert stats["n_epochs"] == 0
+        assert stats["has_baseline"] is False
+        assert "mean_score" not in stats
+
+    def test_session_stats_after_assess(self):
+        rng = np.random.default_rng(50)
+        scorer = BrainHealthScore()
+        scorer.assess(_make_eeg_4ch(rng))
+        scorer.assess(_make_eeg_4ch(rng))
+
+        stats = scorer.get_session_stats()
+        assert stats["n_epochs"] == 2
+        assert "mean_score" in stats
+        assert "best_domain" in stats
+        assert "worst_domain" in stats
+        assert stats["best_domain"] in DOMAINS
+        assert stats["worst_domain"] in DOMAINS
+
+    def test_session_stats_with_baseline(self):
+        rng = np.random.default_rng(51)
+        scorer = BrainHealthScore()
+        scorer.set_baseline(_make_eeg_4ch(rng))
+        stats = scorer.get_session_stats()
+        assert stats["has_baseline"] is True
+        assert stats["n_epochs"] == 0  # set_baseline is not an assess epoch
+
+    def test_session_stats_mean_score_in_range(self):
+        rng = np.random.default_rng(52)
+        scorer = BrainHealthScore()
+        scorer.assess(_make_eeg_4ch(rng))
+        stats = scorer.get_session_stats()
+        assert 0 <= stats["mean_score"] <= 100
+
+
+# -- 7. History ------------------------------------------------------------ #
+
+
+class TestHistory:
+    """get_history should return past assess results."""
+
+    def test_empty_history(self):
+        scorer = BrainHealthScore()
+        assert scorer.get_history() == []
+
+    def test_history_grows_with_assess(self):
+        rng = np.random.default_rng(60)
+        scorer = BrainHealthScore()
+        for _ in range(3):
+            scorer.assess(_make_eeg_4ch(rng))
+
+        history = scorer.get_history()
+        assert len(history) == 3
+
+    def test_history_last_n(self):
+        rng = np.random.default_rng(61)
+        scorer = BrainHealthScore()
+        for _ in range(5):
+            scorer.assess(_make_eeg_4ch(rng))
+
+        assert len(scorer.get_history(last_n=2)) == 2
+        assert len(scorer.get_history(last_n=10)) == 5
+
+    def test_history_entries_have_correct_keys(self):
+        rng = np.random.default_rng(62)
+        scorer = BrainHealthScore()
+        scorer.assess(_make_eeg_4ch(rng))
+
+        entry = scorer.get_history()[0]
+        assert "overall_score" in entry
+        assert "grade" in entry
+        assert "domain_scores" in entry
+
+    def test_set_baseline_does_not_add_to_history(self):
+        rng = np.random.default_rng(63)
+        scorer = BrainHealthScore()
+        scorer.set_baseline(_make_eeg_4ch(rng))
+        assert scorer.get_history() == []
+
+
+# -- 8. Multi-user support ------------------------------------------------ #
+
+
+class TestMultiUser:
+    """Baselines and histories are isolated per user_id."""
+
+    def test_separate_baselines_per_user(self):
+        rng = np.random.default_rng(70)
+        scorer = BrainHealthScore()
+
+        scorer.set_baseline(_make_eeg_4ch(rng), user_id="alice")
+        scorer.set_baseline(_make_eeg_4ch(rng), user_id="bob")
+
+        res_alice = scorer.assess(_make_eeg_4ch(rng), user_id="alice")
+        res_carol = scorer.assess(_make_eeg_4ch(rng), user_id="carol")
+
+        assert res_alice["has_baseline"] is True
+        assert res_carol["has_baseline"] is False
+
+    def test_separate_histories_per_user(self):
+        rng = np.random.default_rng(71)
+        scorer = BrainHealthScore()
+
+        scorer.assess(_make_eeg_4ch(rng), user_id="alice")
+        scorer.assess(_make_eeg_4ch(rng), user_id="alice")
+        scorer.assess(_make_eeg_4ch(rng), user_id="bob")
+
+        assert len(scorer.get_history(user_id="alice")) == 2
+        assert len(scorer.get_history(user_id="bob")) == 1
+
+    def test_reset_one_user_preserves_other(self):
+        rng = np.random.default_rng(72)
+        scorer = BrainHealthScore()
+
+        scorer.set_baseline(_make_eeg_4ch(rng), user_id="alice")
+        scorer.assess(_make_eeg_4ch(rng), user_id="alice")
+        scorer.set_baseline(_make_eeg_4ch(rng), user_id="bob")
+        scorer.assess(_make_eeg_4ch(rng), user_id="bob")
+
+        scorer.reset(user_id="alice")
+
+        assert scorer.get_history(user_id="alice") == []
+        assert len(scorer.get_history(user_id="bob")) == 1
+        assert scorer.get_session_stats(user_id="bob")["has_baseline"] is True
+
+
+# -- 9. Reset -------------------------------------------------------------- #
+
+
+class TestReset:
+    """reset() clears baseline and history."""
+
+    def test_reset_clears_history(self):
+        rng = np.random.default_rng(80)
+        scorer = BrainHealthScore()
+        scorer.assess(_make_eeg_4ch(rng))
+        scorer.assess(_make_eeg_4ch(rng))
+        scorer.reset()
+        assert scorer.get_history() == []
+        assert scorer.get_session_stats()["n_epochs"] == 0
+
+    def test_reset_clears_baseline(self):
+        rng = np.random.default_rng(81)
+        scorer = BrainHealthScore()
+        scorer.set_baseline(_make_eeg_4ch(rng))
+        scorer.reset()
+        result = scorer.assess(_make_eeg_4ch(rng))
+        assert result["has_baseline"] is False
+
+    def test_usable_after_reset(self):
+        rng = np.random.default_rng(82)
+        scorer = BrainHealthScore()
+        scorer.assess(_make_eeg_4ch(rng))
+        scorer.reset()
+        result = scorer.assess(_make_eeg_4ch(rng))
+        assert 0 <= result["overall_score"] <= 100
+
+
+# -- 10. Edge cases -------------------------------------------------------- #
+
+
+class TestEdgeCases:
+    """Handle unusual inputs gracefully."""
+
+    def test_single_channel_input(self):
+        rng = np.random.default_rng(90)
+        eeg = rng.normal(0, 20, 1024)
+        scorer = BrainHealthScore()
+        result = scorer.assess(eeg)
+        assert 0 <= result["overall_score"] <= 100
+        # Connectivity and asymmetry should fall back to 50
+        assert result["domain_scores"]["connectivity"] == 50.0
+        assert result["domain_scores"]["asymmetry"] == 50.0
+
+    def test_zeros_signal(self):
+        scorer = BrainHealthScore()
+        zeros = np.zeros((4, 1024))
+        result = scorer.assess(zeros)
+        assert 0 <= result["overall_score"] <= 100
+        assert result["grade"] in ("A", "B", "C", "D", "F")
+
+    def test_short_signal(self):
+        rng = np.random.default_rng(92)
+        short = rng.normal(0, 20, (4, 32))
+        scorer = BrainHealthScore()
+        result = scorer.assess(short)
+        assert 0 <= result["overall_score"] <= 100
+
+    def test_two_channel_input(self):
+        rng = np.random.default_rng(93)
+        eeg = rng.normal(0, 20, (2, 1024))
+        scorer = BrainHealthScore()
+        result = scorer.assess(eeg)
+        assert 0 <= result["overall_score"] <= 100
+        assert 0 <= result["domain_scores"]["connectivity"] <= 100
+        assert 0 <= result["domain_scores"]["asymmetry"] <= 100
+
+    def test_large_amplitude_signal(self):
+        rng = np.random.default_rng(94)
+        large = rng.normal(0, 500, (4, 1024))
+        scorer = BrainHealthScore()
+        result = scorer.assess(large)
+        assert 0 <= result["overall_score"] <= 100
+
+    def test_constant_signal_does_not_crash(self):
+        scorer = BrainHealthScore()
+        const = np.ones((4, 1024)) * 10.0
+        result = scorer.assess(const)
+        assert 0 <= result["overall_score"] <= 100
+
+    def test_all_values_finite(self):
+        rng = np.random.default_rng(96)
+        scorer = BrainHealthScore()
+        result = scorer.assess(_make_eeg_4ch(rng))
+        assert np.isfinite(result["overall_score"])
+        for score in result["domain_scores"].values():
+            assert np.isfinite(score), f"Non-finite domain score: {score}"
+
+
+# -- 11. Recommendations -------------------------------------------------- #
+
+
+class TestRecommendations:
+    """Recommendations list should be non-empty strings."""
+
+    def test_recommendations_non_empty(self):
+        rng = np.random.default_rng(100)
+        scorer = BrainHealthScore()
+        result = scorer.assess(_make_eeg_4ch(rng))
+        assert isinstance(result["recommendations"], list)
+        assert len(result["recommendations"]) > 0
+
+    def test_good_signal_gets_positive_recommendation(self):
+        rng = np.random.default_rng(101)
+        scorer = BrainHealthScore()
+        clean = _make_clean_alpha_eeg(rng)
+        result = scorer.assess(clean)
+        assert len(result["recommendations"]) >= 1
+
+
+# -- 12. Reproducibility -------------------------------------------------- #
+
+
+class TestReproducibility:
+    """Same input should produce same output."""
+
+    def test_deterministic_output(self):
+        rng1 = np.random.default_rng(200)
+        rng2 = np.random.default_rng(200)
+        scorer1 = BrainHealthScore()
+        scorer2 = BrainHealthScore()
+
+        eeg1 = _make_eeg_4ch(rng1, n_samples=2048)
+        eeg2 = _make_eeg_4ch(rng2, n_samples=2048)
+
+        r1 = scorer1.assess(eeg1)
+        r2 = scorer2.assess(eeg2)
+
+        assert r1["overall_score"] == r2["overall_score"]
+        assert r1["grade"] == r2["grade"]
+        for d in DOMAINS:
+            assert r1["domain_scores"][d] == r2["domain_scores"][d]
