@@ -1135,3 +1135,55 @@ export async function getActiveSupplements(
 ): Promise<{ user_id: string; hours: number; count: number; supplements: ActiveSupplement[] }> {
   return mlFetch(`/supplements/active/${encodeURIComponent(userId)}?hours=${hours}`);
 }
+
+// ── Voice Check-In ────────────────────────────────────────────────────────────
+
+export interface CheckinResult {
+  checkin_id: string;
+  user_id: string;
+  timestamp: number;
+  slot: "morning" | "afternoon" | "evening" | "manual";
+  emotion: string;
+  probabilities: Record<string, number>;
+  valence: number;
+  arousal: number;
+  stress_index: number;
+  note?: string | null;
+}
+
+export interface CheckinDailySummary {
+  user_id: string;
+  date: string;
+  checkin_count: number;
+  dominant_emotion: string | null;
+  avg_valence: number | null;
+  avg_arousal: number | null;
+  avg_stress: number | null;
+  trend: "improving" | "declining" | "stable" | "insufficient_data";
+  slots_completed: string[];
+}
+
+export async function submitVoiceCheckin(params: {
+  user_id: string;
+  audio_b64: string;
+  sample_rate?: number;
+  note?: string;
+}): Promise<CheckinResult> {
+  return mlFetch("/voice-checkin/submit", {
+    method: "POST",
+    body: JSON.stringify({ sample_rate: 16000, ...params }),
+  });
+}
+
+export async function getCheckinHistory(
+  userId: string,
+  limit = 30
+): Promise<CheckinResult[]> {
+  return mlFetch(`/voice-checkin/history/${encodeURIComponent(userId)}?limit=${limit}`);
+}
+
+export async function getCheckinDailySummary(
+  userId: string
+): Promise<CheckinDailySummary> {
+  return mlFetch(`/voice-checkin/daily-summary/${encodeURIComponent(userId)}`);
+}

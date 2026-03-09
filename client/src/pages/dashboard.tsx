@@ -1,4 +1,5 @@
 import { getParticipantId } from "@/lib/participant";
+import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -965,6 +966,9 @@ export default function Dashboard() {
           </Card>
         );
       })()}
+
+      {/* 5a. Voice Check-In */}
+      <VoiceCheckinCard userId={USER_ID} />
 
       {/* 5. Brain-Health Insights */}
       <div className="grid grid-cols-1 gap-4">
