@@ -113,6 +113,22 @@ from .decision_confidence import router as _decision_confidence
 from .imagined_speech import router as _imagined_speech
 from .motor_intention import router as _motor_intention
 from .parkinsons_screener import router as _parkinsons_screener
+from .drowsiness_alertness import router as _drowsiness_alertness
+from .craving_detector import router as _craving_detector
+from .brain_age import router as _brain_age
+from .long_covid_screener import router as _long_covid_screener
+from .big_five_estimator import router as _big_five_estimator
+from .neuroaesthetic import router as _neuroaesthetic
+from .placebo_predictor import router as _placebo_predictor
+from .spatial_navigation import router as _spatial_navigation
+from .humor_detector import router as _humor_detector
+from .emotional_granularity import router as _emotional_granularity
+from .ied_detector import router as _ied_detector
+from .interoceptive_awareness import router as _interoceptive_awareness
+from .affect_labeling import router as _affect_labeling
+from .emotional_synchrony import router as _emotional_synchrony
+from .emotional_memory import router as _emotional_memory
+from .ei_composite import router as _ei_composite
 
 router = APIRouter()
 
@@ -196,3 +212,19 @@ router.include_router(_decision_confidence)
 router.include_router(_imagined_speech)
 router.include_router(_motor_intention)
 router.include_router(_parkinsons_screener)
+router.include_router(_drowsiness_alertness)
+router.include_router(_craving_detector)
+router.include_router(_brain_age)
+router.include_router(_long_covid_screener)
+router.include_router(_big_five_estimator)
+router.include_router(_neuroaesthetic)
+router.include_router(_placebo_predictor)
+router.include_router(_spatial_navigation)
+router.include_router(_humor_detector)
+router.include_router(_emotional_granularity)
+router.include_router(_ied_detector)
+router.include_router(_interoceptive_awareness)
+router.include_router(_affect_labeling)
+router.include_router(_emotional_synchrony)
+router.include_router(_emotional_memory)
+router.include_router(_ei_composite)
