@@ -1,12 +1,14 @@
-"""Tests for emotional granularity: dominance dimension and VAD-to-label mapping.
+"""Tests for EmotionalGranularityEstimator.
 
-Covers:
-- EMOTION_VAD_MAP structure and completeness (27 emotions)
-- map_vad_to_granular_emotions correctness, sorting, top_k, similarity bounds
-- Dominance calculation bounds and formula behavior
-- VAD quadrant mapping (positive/low arousal -> content/serene, etc.)
-- Edge cases (extreme values, zero, degenerate inputs)
-- Integration with EmotionClassifier output (dominance + granular_emotions present)
+Comprehensive test suite covering:
+- Episode addition (single/multi-channel, short signals, labels)
+- Granularity computation (insufficient data, sufficient data, scoring)
+- Output structure and value ranges
+- Session stats
+- History tracking
+- Reset behavior
+- Multi-user independence
+- Edge cases (constant signal, 1D input, very short signals, NaN handling)
 """
 
 import sys
@@ -14,250 +16,685 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy.signal import butter, filtfilt
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models.emotion_granularity import (
-    EMOTION_VAD_MAP,
-    map_vad_to_granular_emotions,
-    _euclidean_distance,
-    _distance_to_similarity,
-)
-from models.emotion_classifier import _compute_dominance
+from models.emotional_granularity import EmotionalGranularityEstimator
 
 
-# -- EMOTION_VAD_MAP structure -------------------------------------------
+# ---------------------------------------------------------------------------
+# Helpers to generate synthetic EEG with controllable spectral content
+# ---------------------------------------------------------------------------
 
 
-class TestEmotionVADMap:
-    def test_map_has_at_least_15_emotions(self):
-        assert len(EMOTION_VAD_MAP) >= 15
-
-    def test_map_has_27_emotions(self):
-        assert len(EMOTION_VAD_MAP) == 27
-
-    def test_all_values_are_3_tuples(self):
-        for label, coord in EMOTION_VAD_MAP.items():
-            assert len(coord) == 3, f"{label} has {len(coord)} values, expected 3"
-
-    def test_valence_bounds(self):
-        for label, (v, a, d) in EMOTION_VAD_MAP.items():
-            assert -1.0 <= v <= 1.0, f"{label} valence {v} out of [-1, 1]"
-
-    def test_arousal_bounds(self):
-        for label, (v, a, d) in EMOTION_VAD_MAP.items():
-            assert 0.0 <= a <= 1.0, f"{label} arousal {a} out of [0, 1]"
-
-    def test_dominance_bounds(self):
-        for label, (v, a, d) in EMOTION_VAD_MAP.items():
-            assert 0.0 <= d <= 1.0, f"{label} dominance {d} out of [0, 1]"
-
-
-# -- map_vad_to_granular_emotions ----------------------------------------
+def _make_eeg(
+    n_channels: int = 4,
+    duration_sec: float = 4.0,
+    fs: float = 256.0,
+    alpha_amp: float = 15.0,
+    beta_amp: float = 5.0,
+    theta_amp: float = 8.0,
+    noise_amp: float = 3.0,
+    seed: int = 42,
+) -> np.ndarray:
+    """Generate synthetic EEG with controllable band amplitudes."""
+    rng = np.random.RandomState(seed)
+    n_samples = int(duration_sec * fs)
+    t = np.arange(n_samples) / fs
+    eeg = np.zeros((n_channels, n_samples))
+    for ch in range(n_channels):
+        alpha = alpha_amp * np.sin(2 * np.pi * 10 * t + rng.uniform(0, 2 * np.pi))
+        beta = beta_amp * np.sin(2 * np.pi * 20 * t + rng.uniform(0, 2 * np.pi))
+        theta = theta_amp * np.sin(2 * np.pi * 6 * t + rng.uniform(0, 2 * np.pi))
+        noise = noise_amp * rng.randn(n_samples)
+        eeg[ch] = alpha + beta + theta + noise
+    return eeg
 
 
-class TestMapVADToGranularEmotions:
-    def test_returns_correct_top_k(self):
-        result = map_vad_to_granular_emotions(0.5, 0.5, 0.5, top_k=3)
-        assert len(result) == 3
-
-    def test_returns_top_k_5(self):
-        result = map_vad_to_granular_emotions(0.0, 0.3, 0.5, top_k=5)
-        assert len(result) == 5
-
-    def test_returns_top_k_1(self):
-        result = map_vad_to_granular_emotions(0.0, 0.3, 0.5, top_k=1)
-        assert len(result) == 1
-
-    def test_top_k_zero_returns_one(self):
-        """top_k < 1 is clamped to 1."""
-        result = map_vad_to_granular_emotions(0.0, 0.3, 0.5, top_k=0)
-        assert len(result) == 1
-
-    def test_result_structure(self):
-        result = map_vad_to_granular_emotions(0.5, 0.5, 0.5, top_k=1)
-        entry = result[0]
-        assert "emotion" in entry
-        assert "similarity" in entry
-        assert "distance" in entry
-
-    def test_similarity_scores_between_0_and_1(self):
-        result = map_vad_to_granular_emotions(0.3, 0.4, 0.5, top_k=5)
-        for entry in result:
-            assert 0.0 <= entry["similarity"] <= 1.0, (
-                f"{entry['emotion']} similarity {entry['similarity']} out of [0, 1]"
-            )
-
-    def test_results_sorted_by_descending_similarity(self):
-        result = map_vad_to_granular_emotions(0.0, 0.5, 0.5, top_k=5)
-        similarities = [e["similarity"] for e in result]
-        assert similarities == sorted(similarities, reverse=True)
-
-    def test_exact_match_has_high_similarity(self):
-        """Querying with exact coordinates of a known emotion should return similarity 1.0."""
-        v, a, d = EMOTION_VAD_MAP["happy"]
-        result = map_vad_to_granular_emotions(v, a, d, top_k=1)
-        assert result[0]["emotion"] == "happy"
-        assert result[0]["similarity"] == 1.0
-        assert result[0]["distance"] == 0.0
-
-    # -- Quadrant mapping tests ------------------------------------------
-
-    def test_positive_valence_low_arousal_maps_to_content_serene_calm(self):
-        """Positive valence + low arousal -> content, serene, calm."""
-        result = map_vad_to_granular_emotions(0.60, 0.12, 0.52, top_k=3)
-        labels = {e["emotion"] for e in result}
-        expected = {"content", "serene", "calm", "grateful"}
-        assert labels & expected, f"Expected overlap with {expected}, got {labels}"
-
-    def test_negative_valence_high_arousal_maps_to_anxious_stressed_fearful(self):
-        """Negative valence + high arousal -> anxious, stressed, fearful."""
-        result = map_vad_to_granular_emotions(-0.55, 0.80, 0.20, top_k=3)
-        labels = {e["emotion"] for e in result}
-        expected = {"anxious", "stressed", "frustrated", "fearful"}
-        assert labels & expected, f"Expected overlap with {expected}, got {labels}"
-
-    def test_high_dominance_positive_valence_maps_to_proud(self):
-        """High dominance + positive valence -> proud."""
-        result = map_vad_to_granular_emotions(0.70, 0.50, 0.90, top_k=3)
-        labels = {e["emotion"] for e in result}
-        expected = {"proud", "happy", "elated"}
-        assert labels & expected, f"Expected overlap with {expected}, got {labels}"
-
-    def test_low_dominance_negative_valence_maps_to_fearful_overwhelmed(self):
-        """Low dominance + negative valence + high arousal -> fearful."""
-        result = map_vad_to_granular_emotions(-0.70, 0.85, 0.12, top_k=3)
-        labels = {e["emotion"] for e in result}
-        expected = {"fearful", "anxious"}
-        assert labels & expected, f"Expected overlap with {expected}, got {labels}"
-
-    def test_neutral_state_maps_to_neutral_pensive_bored(self):
-        """Near-zero valence + low arousal -> neutral, pensive, bored."""
-        result = map_vad_to_granular_emotions(0.05, 0.18, 0.45, top_k=3)
-        labels = {e["emotion"] for e in result}
-        expected = {"neutral", "pensive", "bored", "nostalgic"}
-        assert labels & expected, f"Expected overlap with {expected}, got {labels}"
-
-    def test_extreme_positive_valence(self):
-        """Very high valence + high arousal -> elated, excited."""
-        result = map_vad_to_granular_emotions(0.90, 0.85, 0.75, top_k=2)
-        labels = {e["emotion"] for e in result}
-        expected = {"elated", "excited"}
-        assert labels & expected, f"Expected overlap with {expected}, got {labels}"
-
-    def test_extreme_negative_valence_low_arousal(self):
-        """Very negative valence + low arousal -> hopeless, sad."""
-        result = map_vad_to_granular_emotions(-0.80, 0.10, 0.05, top_k=2)
-        labels = {e["emotion"] for e in result}
-        expected = {"hopeless", "sad"}
-        assert labels & expected, f"Expected overlap with {expected}, got {labels}"
+def _make_diverse_episodes(n: int, fs: float = 256.0) -> list:
+    """Generate n episodes with diverse spectral content."""
+    np.random.seed(42)
+    episodes = []
+    for i in range(n):
+        eeg = _make_eeg(
+            n_channels=4,
+            fs=fs,
+            alpha_amp=5.0 + 20.0 * np.random.rand(),
+            beta_amp=2.0 + 15.0 * np.random.rand(),
+            theta_amp=3.0 + 12.0 * np.random.rand(),
+            noise_amp=1.0 + 5.0 * np.random.rand(),
+            seed=42 + i * 7,
+        )
+        episodes.append(eeg)
+    return episodes
 
 
-# -- Dominance computation -----------------------------------------------
+def _make_identical_episodes(n: int, fs: float = 256.0) -> list:
+    """Generate n episodes with identical spectral content."""
+    np.random.seed(42)
+    template = _make_eeg(n_channels=4, fs=fs, seed=42)
+    return [template.copy() for _ in range(n)]
 
 
-class TestDominanceComputation:
-    def test_dominance_bounds_normal(self):
-        """Dominance should be in [0, 1] for typical band ratio values."""
-        for ba in [0.1, 0.5, 1.0, 2.0, 5.0]:
-            for tbr in [0.1, 0.5, 1.0, 2.0, 5.0]:
-                d = _compute_dominance(ba, tbr)
-                assert 0.0 <= d <= 1.0, f"Dominance {d} out of [0, 1] for ba={ba}, tbr={tbr}"
-
-    def test_high_beta_alpha_low_theta_beta_gives_high_dominance(self):
-        """High beta/alpha + low theta/beta ratio -> in control -> high dominance."""
-        d = _compute_dominance(beta_alpha=3.0, theta_beta_ratio=0.1)
-        assert d > 0.7, f"Expected high dominance, got {d}"
-
-    def test_low_beta_alpha_high_theta_beta_gives_low_dominance(self):
-        """Low beta/alpha + high theta/beta -> overwhelmed -> low dominance."""
-        d = _compute_dominance(beta_alpha=0.1, theta_beta_ratio=3.0)
-        assert d < 0.3, f"Expected low dominance, got {d}"
-
-    def test_dominance_at_zero_inputs(self):
-        """Dominance with zero ratios should be within bounds."""
-        d = _compute_dominance(0.0, 0.0)
-        assert 0.0 <= d <= 1.0
-
-    def test_dominance_extreme_inputs(self):
-        """Dominance with extreme ratios should still be clipped to [0, 1]."""
-        d_high = _compute_dominance(100.0, 0.001)
-        d_low = _compute_dominance(0.001, 100.0)
-        assert 0.0 <= d_high <= 1.0
-        assert 0.0 <= d_low <= 1.0
-
-    def test_dominance_monotonic_with_beta_alpha(self):
-        """Increasing beta/alpha should increase dominance (theta/beta fixed)."""
-        d1 = _compute_dominance(0.5, 0.5)
-        d2 = _compute_dominance(2.0, 0.5)
-        assert d2 > d1, f"Expected d2 ({d2}) > d1 ({d1}) with higher beta/alpha"
+# ===========================================================================
+# TestAddEpisode
+# ===========================================================================
 
 
-# -- Euclidean distance / similarity helpers -----------------------------
+class TestAddEpisode:
+    """Tests for add_episode method."""
+
+    def test_add_single_episode(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = _make_eeg(n_channels=4, seed=42)
+        est.add_episode(eeg)
+        stats = est.get_session_stats()
+        assert stats["n_episodes"] == 1
+
+    def test_add_multiple_episodes(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for i in range(5):
+            eeg = _make_eeg(seed=42 + i)
+            est.add_episode(eeg)
+        stats = est.get_session_stats()
+        assert stats["n_episodes"] == 5
+
+    def test_add_single_channel(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = _make_eeg(n_channels=1, seed=42)
+        est.add_episode(eeg)
+        assert est.get_session_stats()["n_episodes"] == 1
+
+    def test_add_multichannel(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = _make_eeg(n_channels=4, seed=42)
+        est.add_episode(eeg)
+        assert est.get_session_stats()["n_episodes"] == 1
+
+    def test_add_1d_input(self):
+        """1D input should be reshaped to (1, n_samples)."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = np.random.randn(1024) * 20
+        est.add_episode(eeg)
+        assert est.get_session_stats()["n_episodes"] == 1
+
+    def test_add_with_label(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = _make_eeg(seed=42)
+        est.add_episode(eeg, label="happy")
+        assert est.get_session_stats()["n_episodes"] == 1
+
+    def test_add_with_custom_fs(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = _make_eeg(seed=42, fs=128.0)
+        est.add_episode(eeg, fs=128.0)
+        assert est.get_session_stats()["n_episodes"] == 1
+
+    def test_add_with_user_id(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = _make_eeg(seed=42)
+        est.add_episode(eeg, user_id="alice")
+        assert est.get_session_stats("alice")["n_episodes"] == 1
+        assert est.get_session_stats("default")["n_episodes"] == 0
+
+    def test_add_short_signal(self):
+        """Short signals (< 64 samples) should still be added gracefully."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = np.random.randn(4, 32) * 20
+        est.add_episode(eeg)
+        assert est.get_session_stats()["n_episodes"] == 1
+
+    def test_add_very_short_signal(self):
+        """Very short signal (< 10 samples) should be handled."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = np.random.randn(4, 8) * 20
+        est.add_episode(eeg)
+        assert est.get_session_stats()["n_episodes"] == 1
+
+    def test_episode_cap_enforced(self):
+        """Should not store more than 500 episodes per user."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        # Use tiny signal to keep test fast
+        for i in range(510):
+            eeg = np.random.randn(1, 64) * 20
+            est.add_episode(eeg)
+        assert est.get_session_stats()["n_episodes"] == 500
 
 
-class TestDistanceHelpers:
-    def test_euclidean_distance_zero(self):
-        assert _euclidean_distance((0, 0, 0), (0, 0, 0)) == 0.0
-
-    def test_euclidean_distance_unit(self):
-        d = _euclidean_distance((0, 0, 0), (1, 0, 0))
-        assert abs(d - 1.0) < 1e-9
-
-    def test_euclidean_distance_3d(self):
-        d = _euclidean_distance((1, 1, 1), (0, 0, 0))
-        assert abs(d - (3 ** 0.5)) < 1e-9
-
-    def test_distance_to_similarity_zero_distance(self):
-        assert _distance_to_similarity(0.0) == 1.0
-
-    def test_distance_to_similarity_max_distance(self):
-        assert _distance_to_similarity(2.5) == 0.0
-
-    def test_distance_to_similarity_over_max(self):
-        assert _distance_to_similarity(3.0) == 0.0
-
-    def test_distance_to_similarity_midpoint(self):
-        s = _distance_to_similarity(1.25)
-        assert abs(s - 0.5) < 1e-9
+# ===========================================================================
+# TestComputeGranularity
+# ===========================================================================
 
 
-# -- Integration: EmotionClassifier output -------------------------------
+class TestComputeGranularity:
+    """Tests for compute_granularity method."""
+
+    def test_insufficient_episodes_returns_none(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for i in range(5):
+            est.add_episode(_make_eeg(seed=42 + i))
+        result = est.compute_granularity()
+        assert result["granularity"] is None
+        assert result["ready"] is False
+        assert result["granularity_level"] == "insufficient_data"
+
+    def test_zero_episodes_returns_none(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        result = est.compute_granularity()
+        assert result["granularity"] is None
+        assert result["ready"] is False
+
+    def test_exactly_10_episodes_is_sufficient(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        episodes = _make_diverse_episodes(10)
+        for ep in episodes:
+            est.add_episode(ep)
+        result = est.compute_granularity()
+        assert result["granularity"] is not None
+        assert result["ready"] is True
+
+    def test_9_episodes_is_insufficient(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        episodes = _make_diverse_episodes(9)
+        for ep in episodes:
+            est.add_episode(ep)
+        result = est.compute_granularity()
+        assert result["granularity"] is None
+        assert result["ready"] is False
+
+    def test_sufficient_returns_valid_scores(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        episodes = _make_diverse_episodes(15)
+        for ep in episodes:
+            est.add_episode(ep)
+        result = est.compute_granularity()
+        assert result["granularity"] is not None
+        assert result["pattern_diversity"] is not None
+        assert result["entropy_variability"] is not None
+        assert result["de_variability"] is not None
+
+    def test_episodes_collected_count(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        episodes = _make_diverse_episodes(12)
+        for ep in episodes:
+            est.add_episode(ep)
+        result = est.compute_granularity()
+        assert result["episodes_collected"] == 12
 
 
-class TestEmotionClassifierIntegration:
-    def test_predict_features_returns_dominance_and_granular(self):
-        """The feature-based path should include dominance and granular_emotions."""
-        from models.emotion_classifier import EmotionClassifier
+# ===========================================================================
+# TestGranularityScoring
+# ===========================================================================
 
-        clf = EmotionClassifier()
-        eeg = np.random.randn(4, 1024) * 20
-        result = clf.predict(eeg, fs=256.0)
-        assert "dominance" in result, "Missing 'dominance' in prediction output"
-        assert "granular_emotions" in result, "Missing 'granular_emotions' in prediction output"
-        assert 0.0 <= result["dominance"] <= 1.0
-        assert isinstance(result["granular_emotions"], list)
-        assert len(result["granular_emotions"]) == 3  # default top_k
 
-    def test_granular_emotions_entries_have_required_keys(self):
-        from models.emotion_classifier import EmotionClassifier
+class TestGranularityScoring:
+    """Tests that diverse signals produce higher granularity than identical."""
 
-        clf = EmotionClassifier()
-        eeg = np.random.randn(4, 1024) * 20
-        result = clf.predict(eeg, fs=256.0)
-        for entry in result["granular_emotions"]:
-            assert "emotion" in entry
-            assert "similarity" in entry
-            assert "distance" in entry
+    def test_diverse_higher_than_identical(self):
+        """Diverse episodes should yield higher granularity than identical ones."""
+        np.random.seed(42)
 
-    def test_valence_arousal_still_present(self):
-        """Existing valence/arousal fields must not be removed."""
-        from models.emotion_classifier import EmotionClassifier
+        # Diverse episodes
+        est_diverse = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(15):
+            est_diverse.add_episode(ep)
+        result_diverse = est_diverse.compute_granularity()
 
-        clf = EmotionClassifier()
-        eeg = np.random.randn(4, 1024) * 20
-        result = clf.predict(eeg, fs=256.0)
-        assert "valence" in result
-        assert "arousal" in result
-        assert -1.0 <= result["valence"] <= 1.0
-        assert 0.0 <= result["arousal"] <= 1.0
+        # Identical episodes
+        est_identical = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_identical_episodes(15):
+            est_identical.add_episode(ep)
+        result_identical = est_identical.compute_granularity()
+
+        assert result_diverse["granularity"] > result_identical["granularity"]
+
+    def test_diverse_higher_pattern_diversity(self):
+        """Diverse episodes should have higher pattern_diversity."""
+        np.random.seed(42)
+
+        est_diverse = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est_diverse.add_episode(ep)
+
+        est_identical = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_identical_episodes(12):
+            est_identical.add_episode(ep)
+
+        div_result = est_diverse.compute_granularity()
+        ident_result = est_identical.compute_granularity()
+        assert div_result["pattern_diversity"] > ident_result["pattern_diversity"]
+
+    def test_identical_signals_low_granularity(self):
+        """Identical signals should produce low granularity."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_identical_episodes(15):
+            est.add_episode(ep)
+        result = est.compute_granularity()
+        assert result["granularity"] < 0.35
+
+    def test_very_diverse_signals_moderate_or_high_granularity(self):
+        """Very diverse signals should produce at least moderate granularity."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(20):
+            est.add_episode(ep)
+        result = est.compute_granularity()
+        assert result["granularity"] >= 0.20  # at least not trivially low
+
+    def test_granularity_level_matches_score(self):
+        """Level label should match the score threshold."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(15):
+            est.add_episode(ep)
+        result = est.compute_granularity()
+        g = result["granularity"]
+        level = result["granularity_level"]
+        if g >= 0.65:
+            assert level == "high"
+        elif g >= 0.35:
+            assert level == "moderate"
+        else:
+            assert level == "low"
+
+
+# ===========================================================================
+# TestOutputStructure
+# ===========================================================================
+
+
+class TestOutputStructure:
+    """Tests for output dict structure, types, and value ranges."""
+
+    def setup_method(self):
+        np.random.seed(42)
+        self.est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            self.est.add_episode(ep)
+        self.result = self.est.compute_granularity()
+
+    def test_all_required_keys_present(self):
+        required = [
+            "granularity", "pattern_diversity", "entropy_variability",
+            "de_variability", "episodes_collected", "ready", "granularity_level",
+        ]
+        for key in required:
+            assert key in self.result, f"Missing key: {key}"
+
+    def test_granularity_is_float(self):
+        assert isinstance(self.result["granularity"], float)
+
+    def test_pattern_diversity_is_float(self):
+        assert isinstance(self.result["pattern_diversity"], float)
+
+    def test_entropy_variability_is_float(self):
+        assert isinstance(self.result["entropy_variability"], float)
+
+    def test_de_variability_is_float(self):
+        assert isinstance(self.result["de_variability"], float)
+
+    def test_episodes_collected_is_int(self):
+        assert isinstance(self.result["episodes_collected"], int)
+
+    def test_ready_is_bool(self):
+        assert isinstance(self.result["ready"], bool)
+
+    def test_granularity_level_is_string(self):
+        assert isinstance(self.result["granularity_level"], str)
+
+    def test_granularity_in_0_1_range(self):
+        g = self.result["granularity"]
+        assert 0.0 <= g <= 1.0
+
+    def test_pattern_diversity_non_negative(self):
+        assert self.result["pattern_diversity"] >= 0.0
+
+    def test_entropy_variability_non_negative(self):
+        assert self.result["entropy_variability"] >= 0.0
+
+    def test_de_variability_non_negative(self):
+        assert self.result["de_variability"] >= 0.0
+
+    def test_granularity_level_valid_values(self):
+        assert self.result["granularity_level"] in {"high", "moderate", "low"}
+
+    def test_insufficient_output_keys(self):
+        """Insufficient data result should have the same keys."""
+        est = EmotionalGranularityEstimator(fs=256.0)
+        result = est.compute_granularity()
+        required = [
+            "granularity", "pattern_diversity", "entropy_variability",
+            "de_variability", "episodes_collected", "ready", "granularity_level",
+        ]
+        for key in required:
+            assert key in result, f"Missing key in insufficient result: {key}"
+
+
+# ===========================================================================
+# TestSessionStats
+# ===========================================================================
+
+
+class TestSessionStats:
+    """Tests for get_session_stats method."""
+
+    def test_empty_stats(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        stats = est.get_session_stats()
+        assert stats["n_episodes"] == 0
+        assert stats["has_episodes"] is False
+        assert stats["mean_granularity"] is None
+
+    def test_stats_after_episodes(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(5):
+            est.add_episode(ep)
+        stats = est.get_session_stats()
+        assert stats["n_episodes"] == 5
+        assert stats["has_episodes"] is True
+
+    def test_stats_after_compute(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep)
+        est.compute_granularity()
+        stats = est.get_session_stats()
+        assert stats["mean_granularity"] is not None
+        assert isinstance(stats["mean_granularity"], float)
+
+    def test_stats_mean_granularity_no_compute(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep)
+        stats = est.get_session_stats()
+        assert stats["mean_granularity"] is None
+
+
+# ===========================================================================
+# TestHistory
+# ===========================================================================
+
+
+class TestHistory:
+    """Tests for get_history method."""
+
+    def test_empty_history(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        history = est.get_history()
+        assert history == []
+
+    def test_history_grows_with_compute(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep)
+        est.compute_granularity()
+        est.compute_granularity()
+        history = est.get_history()
+        assert len(history) == 2
+
+    def test_history_last_n(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep)
+        for _ in range(5):
+            est.compute_granularity()
+        history = est.get_history(last_n=2)
+        assert len(history) == 2
+
+    def test_history_last_n_larger_than_history(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep)
+        est.compute_granularity()
+        history = est.get_history(last_n=100)
+        assert len(history) == 1
+
+    def test_history_entries_are_dicts(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep)
+        est.compute_granularity()
+        history = est.get_history()
+        assert all(isinstance(h, dict) for h in history)
+
+    def test_history_entries_have_granularity(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep)
+        est.compute_granularity()
+        history = est.get_history()
+        assert "granularity" in history[0]
+
+
+# ===========================================================================
+# TestReset
+# ===========================================================================
+
+
+class TestReset:
+    """Tests for reset method."""
+
+    def test_reset_clears_episodes(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(5):
+            est.add_episode(ep)
+        est.reset()
+        assert est.get_session_stats()["n_episodes"] == 0
+
+    def test_reset_clears_history(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep)
+        est.compute_granularity()
+        est.reset()
+        assert est.get_history() == []
+
+    def test_reset_specific_user(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(5):
+            est.add_episode(ep, user_id="alice")
+        for ep in _make_diverse_episodes(3):
+            est.add_episode(ep, user_id="bob")
+        est.reset(user_id="alice")
+        assert est.get_session_stats("alice")["n_episodes"] == 0
+        assert est.get_session_stats("bob")["n_episodes"] == 3
+
+    def test_reset_allows_reuse(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(5):
+            est.add_episode(ep)
+        est.reset()
+        est.add_episode(_make_eeg(seed=99))
+        assert est.get_session_stats()["n_episodes"] == 1
+
+
+# ===========================================================================
+# TestMultiUser
+# ===========================================================================
+
+
+class TestMultiUser:
+    """Tests for multi-user independence."""
+
+    def test_users_are_independent(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(5):
+            est.add_episode(ep, user_id="alice")
+        for ep in _make_diverse_episodes(3):
+            est.add_episode(ep, user_id="bob")
+        assert est.get_session_stats("alice")["n_episodes"] == 5
+        assert est.get_session_stats("bob")["n_episodes"] == 3
+
+    def test_compute_for_one_user_doesnt_affect_other(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep, user_id="alice")
+        for ep in _make_diverse_episodes(3):
+            est.add_episode(ep, user_id="bob")
+        result_alice = est.compute_granularity("alice")
+        result_bob = est.compute_granularity("bob")
+        assert result_alice["ready"] is True
+        assert result_bob["ready"] is False
+
+    def test_history_is_per_user(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(12):
+            est.add_episode(ep, user_id="alice")
+        est.compute_granularity("alice")
+        assert len(est.get_history("alice")) == 1
+        assert len(est.get_history("bob")) == 0
+
+    def test_reset_one_user_preserves_other(self):
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for ep in _make_diverse_episodes(5):
+            est.add_episode(ep, user_id="alice")
+        for ep in _make_diverse_episodes(5):
+            est.add_episode(ep, user_id="bob")
+        est.reset("alice")
+        assert est.get_session_stats("alice")["n_episodes"] == 0
+        assert est.get_session_stats("bob")["n_episodes"] == 5
+
+
+# ===========================================================================
+# TestEdgeCases
+# ===========================================================================
+
+
+class TestEdgeCases:
+    """Tests for edge cases and robustness."""
+
+    def test_constant_signal(self):
+        """Constant (DC) signal should not crash."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = np.ones((4, 1024)) * 100.0
+        for _ in range(12):
+            est.add_episode(eeg)
+        result = est.compute_granularity()
+        assert result["ready"] is True
+        assert result["granularity"] is not None
+        # Constant signal = zero diversity
+        assert result["granularity"] <= 0.5
+
+    def test_1d_input_computes_granularity(self):
+        """1D input across episodes should produce valid granularity."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for i in range(12):
+            eeg = np.random.randn(1024) * (10 + i * 3)
+            est.add_episode(eeg)
+        result = est.compute_granularity()
+        assert result["ready"] is True
+        assert 0.0 <= result["granularity"] <= 1.0
+
+    def test_very_short_signals_compute_granularity(self):
+        """Very short signals should still allow granularity computation."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for i in range(12):
+            eeg = np.random.randn(4, 16) * 20
+            est.add_episode(eeg)
+        result = est.compute_granularity()
+        assert result["ready"] is True
+        assert result["granularity"] is not None
+
+    def test_nan_in_eeg_handled(self):
+        """NaN values in EEG should be handled gracefully."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for i in range(12):
+            eeg = np.random.randn(4, 512) * 20
+            # Inject a NaN
+            eeg[0, 100] = np.nan
+            est.add_episode(eeg)
+        # Should not raise
+        result = est.compute_granularity()
+        assert result["ready"] is True
+
+    def test_inf_in_eeg_handled(self):
+        """Inf values in EEG should be handled gracefully."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for i in range(12):
+            eeg = np.random.randn(4, 512) * 20
+            eeg[1, 50] = np.inf
+            est.add_episode(eeg)
+        result = est.compute_granularity()
+        assert result["ready"] is True
+
+    def test_single_sample_signal(self):
+        """Single sample signal should not crash."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        eeg = np.random.randn(4, 1) * 20
+        est.add_episode(eeg)
+        assert est.get_session_stats()["n_episodes"] == 1
+
+    def test_two_channel_signal(self):
+        """2-channel signal should work (no frontal asymmetry from AF7/AF8)."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for i in range(12):
+            eeg = np.random.randn(2, 512) * 20
+            est.add_episode(eeg)
+        result = est.compute_granularity()
+        assert result["ready"] is True
+
+    def test_large_amplitude_signal(self):
+        """Very large amplitude should not cause overflow."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for i in range(12):
+            eeg = np.random.randn(4, 512) * 10000
+            est.add_episode(eeg)
+        result = est.compute_granularity()
+        assert result["ready"] is True
+        assert np.isfinite(result["granularity"])
+
+    def test_zero_signal(self):
+        """All-zero signal should produce valid (low) granularity."""
+        np.random.seed(42)
+        est = EmotionalGranularityEstimator(fs=256.0)
+        for _ in range(12):
+            eeg = np.zeros((4, 512))
+            est.add_episode(eeg)
+        result = est.compute_granularity()
+        assert result["ready"] is True
+        assert result["granularity"] is not None
