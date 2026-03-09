@@ -25,6 +25,7 @@ import {
   CalendarDays,
   Bluetooth,
   Trophy,
+  Pill,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -79,6 +80,7 @@ const sections: NavSection[] = [
     items: [
       { path: "/food",          label: "Food & Mood",   icon: Utensils },
       { path: "/food-emotion",  label: "Food-Emotion",  icon: Leaf },
+      { path: "/supplements",   label: "Supplements",   icon: Pill },
       { path: "/dreams",        label: "Dreams",        icon: Moon },
       { path: "/sleep-session", label: "Sleep",         icon: BedDouble },
       { path: "/biofeedback",   label: "Breathe",       icon: Wind },
