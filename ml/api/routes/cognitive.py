@@ -612,6 +612,23 @@ async def cnn_kan_emotion_predict(data: EEGInput):
     """
     signals = np.array(data.signals)
     classifier = get_cnn_kan_classifier(data.user_id)
+
+
+# ── Dynamic Graph Attention EEG (DGAT) ───────────────────────────────────────
+
+from models.dgat_eeg import get_dgat_classifier
+
+
+@router.post("/dgat-emotion/predict")
+async def dgat_emotion_predict(data: EEGInput):
+    """Classify emotion using Dynamic Graph Attention on EEG channel graph.
+
+    Computes dynamic per-epoch adjacency matrix from channel correlations,
+    then applies graph attention for spatially-aware emotion classification.
+    Returns 6-class emotion + graph connectivity stats.
+    """
+    signals = np.array(data.signals)
+    classifier = get_dgat_classifier(data.user_id)
     result = classifier.predict(signals, data.fs)
     return _numpy_safe(result)
 
@@ -621,3 +638,10 @@ async def cnn_kan_emotion_info():
     """Get CNN-KAN-F2CA model architecture info and parameter count."""
     classifier = get_cnn_kan_classifier()
     return _numpy_safe(classifier.get_model_info())
+
+
+@router.get("/dgat-emotion/graph-stats")
+async def dgat_emotion_graph_stats(user_id: str = "default"):
+    """Get last computed dynamic graph adjacency statistics."""
+    classifier = get_dgat_classifier(user_id)
+    return _numpy_safe(classifier.get_graph_stats())
