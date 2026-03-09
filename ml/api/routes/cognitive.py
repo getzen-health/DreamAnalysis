@@ -448,3 +448,44 @@ async def calibrate_imu_resting(req: IMURequest):
         "status": "calibrated",
         "resting_baseline_g": float(detector._resting_baseline),
     }
+
+
+# ── Heart-Brain Coupling ──────────────────────────────────────────────────────
+
+from pydantic import BaseModel as _BaseModel, Field as _Field
+from processing.ppg_features import PPGFeatureExtractor as _PPGFeatureExtractor
+from processing.heart_brain import compute_heart_brain_coupling as _compute_hbc
+
+_ppg_extractor = _PPGFeatureExtractor()
+
+
+class HeartBrainRequest(_BaseModel):
+    eeg_signals: list = _Field(..., description="EEG signals [[ch0_samples], [ch1_samples], ...]")
+    ppg_signal: list = _Field(..., description="PPG signal samples (64 Hz)")
+    fs_eeg: float = _Field(default=256.0)
+    fs_ppg: float = _Field(default=64.0)
+    user_id: str = _Field(default="default")
+
+
+@router.post("/heart-brain-coupling")
+async def analyze_heart_brain_coupling(req: HeartBrainRequest):
+    """Compute Heartbeat-Evoked Potential and HRV features from PPG+EEG.
+
+    Returns HEP amplitude, HRV time/frequency features, and interoceptive index.
+    Requires simultaneous PPG + EEG recording (Muse 2 with board.config_board('p50')).
+    """
+    eeg = np.array(req.eeg_signals)
+    ppg = np.array(req.ppg_signal)
+    result = _compute_hbc(eeg, ppg, req.fs_eeg, req.fs_ppg)
+    return _numpy_safe(result)
+
+
+@router.post("/heart-brain-coupling/hrv-only")
+async def analyze_hrv(req: HeartBrainRequest):
+    """Extract HRV features from PPG only (no EEG required).
+
+    Returns RMSSD, SDNN, pNN50, HR_bpm, LF/HF ratio.
+    """
+    ppg = np.array(req.ppg_signal)
+    result = _ppg_extractor.extract_hrv(ppg)
+    return _numpy_safe(result)
