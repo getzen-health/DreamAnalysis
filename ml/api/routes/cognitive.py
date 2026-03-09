@@ -743,3 +743,60 @@ async def graph_emotion_info():
     """Return GNN model info: node count, edge list, feature dimensions."""
     clf = get_graph_emotion_classifier()
     return _numpy_safe(clf.get_model_info())
+
+
+# ── DREAM Database Enhanced Dream Detection ───────────────────────────────────
+
+@router.post("/dream-database/predict")
+async def predict_dream_database(data: EEGInput):
+    """Detect dream state using DREAM database-informed classifier (505 subjects, 2643 awakenings).
+
+    Uses published DREAM database statistics (Nature Communications, 2025) as
+    Bayesian priors blended with EEG-derived features for sleep-stage-aware
+    dream probability estimation.
+    """
+    try:
+        from models.dream_database_detector import get_dream_database_detector
+        from fastapi import HTTPException
+        eeg = np.array(data.signals)
+        detector = get_dream_database_detector(data.user_id)
+        # sleep_stage is not part of EEGInput; callers pass it via a wrapper or
+        # the endpoint defaults to None (uses overall DREAM base rate of 0.45).
+        result = detector.predict(eeg, fs=int(data.fs))
+        return _numpy_safe(result)
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/dream-database/themes")
+async def get_dream_themes_endpoint(data: EEGInput):
+    """Estimate dream theme probabilities (emotional/visual/kinesthetic/narrative) from EEG features.
+
+    Based on DREAM database spectral correlates of dream content.
+    """
+    try:
+        from models.dream_database_detector import get_dream_database_detector
+        from fastapi import HTTPException
+        eeg = np.array(data.signals)
+        detector = get_dream_database_detector(data.user_id)
+        themes = detector.get_dream_themes(eeg, fs=int(data.fs))
+        return _numpy_safe({"themes": themes})
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dream-database/stats")
+async def dream_database_stats():
+    """Return DREAM database statistics and download instructions."""
+    try:
+        from training.train_dream_database import DREAMDatabaseLoader
+        loader = DREAMDatabaseLoader()
+        stats = loader.get_benchmark_stats()
+        stats["download_instructions"] = loader.download_instructions()
+        stats["is_available"] = loader.is_available()
+        return _numpy_safe(stats)
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
