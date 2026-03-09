@@ -75,6 +75,7 @@ from .gru_sleep import router as _gru_sleep
 from .seizure import router as _seizure
 from .emo_adapt import router as _emo_adapt
 from .cognitive_reserve import router as _cognitive_reserve
+from .emotion_regulation import router as _emotion_regulation
 
 router = APIRouter()
 
@@ -120,3 +121,4 @@ router.include_router(_gru_sleep)
 router.include_router(_seizure)
 router.include_router(_emo_adapt)
 router.include_router(_cognitive_reserve)
+router.include_router(_emotion_regulation)
