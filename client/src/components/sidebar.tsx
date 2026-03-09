@@ -69,6 +69,7 @@ const sections: NavSection[] = [
   {
     title: "Mind",
     items: [
+      { path: "/emotional-intelligence", label: "EI Dashboard",   icon: Brain },
       { path: "/emotions",        label: "Emotions",         icon: Brain },
       { path: "/insights",        label: "Insights",         icon: Lightbulb },
       { path: "/health-analytics",label: "Health Analytics", icon: BarChart2 },
