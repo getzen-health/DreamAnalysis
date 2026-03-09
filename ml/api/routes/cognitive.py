@@ -595,3 +595,29 @@ async def contrastive_extract_features(data: EEGInput):
 async def contrastive_pretrain_info():
     """Get contrastive pretrainer architecture info."""
     return _numpy_safe(_contrastive_pretrainer.get_pretrainer_info())
+
+
+# ── CNN-KAN-F2CA Sparse-Channel Emotion ──────────────────────────────────────
+
+from models.cnn_kan_emotion import get_cnn_kan_classifier
+
+
+@router.post("/cnn-kan-emotion/predict")
+async def cnn_kan_emotion_predict(data: EEGInput):
+    """Classify 4-quadrant emotion (valence × arousal) using CNN-KAN-F2CA.
+
+    Optimized for 4-channel sparse EEG. Returns one of:
+    low_valence_low_arousal, high_valence_low_arousal,
+    low_valence_high_arousal, high_valence_high_arousal.
+    """
+    signals = np.array(data.signals)
+    classifier = get_cnn_kan_classifier(data.user_id)
+    result = classifier.predict(signals, data.fs)
+    return _numpy_safe(result)
+
+
+@router.get("/cnn-kan-emotion/info")
+async def cnn_kan_emotion_info():
+    """Get CNN-KAN-F2CA model architecture info and parameter count."""
+    classifier = get_cnn_kan_classifier()
+    return _numpy_safe(classifier.get_model_info())
