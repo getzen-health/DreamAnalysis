@@ -165,7 +165,7 @@ async def cognitive_session_stats():
 
 # ── Brain Age Estimation ──────────────────────────────────────────────────────
 
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from models.brain_age_estimator import get_brain_age_estimator
