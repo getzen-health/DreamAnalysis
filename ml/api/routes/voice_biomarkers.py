@@ -179,6 +179,29 @@ def mental_health_screen(req: AudioRequest) -> Dict[str, Any]:
     }
 
 
+@router.post("/mental-health-screen-whisper")
+def mental_health_screen_whisper(req: AudioRequest) -> Dict[str, Any]:
+    """Screen for depression, anxiety, insomnia, and fatigue from speech.
+
+    Uses Whisper encoder embeddings + LightGBM classifiers when available,
+    falling back to prosodic heuristics otherwise.
+
+    Minimum 5 seconds of audio; 30+ seconds recommended for reliability.
+
+    Conditions screened (based on JMIR 2024, 865 adults):
+      - Depression  (AUC 0.76-0.78)
+      - Anxiety     (AUC 0.77)
+      - Insomnia    (AUC 0.73)
+      - Fatigue     (AUC 0.68)
+    """
+    audio = _decode_audio(req.audio_b64, req.sample_rate)
+
+    from models.voice_mental_health import get_mh_screener
+
+    result = get_mh_screener().screen(audio, fs=req.sample_rate)
+    return result
+
+
 @router.get("/biomarkers/status")
 def biomarkers_status() -> Dict[str, Any]:
     """Check availability of voice biomarker extraction."""

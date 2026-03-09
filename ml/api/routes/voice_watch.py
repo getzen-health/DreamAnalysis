@@ -113,6 +113,10 @@ class VoiceWatchRequest(BaseModel):
     hr: Optional[float] = Field(None, description="Heart rate bpm")
     hrv: Optional[float] = Field(None, description="HRV SDNN ms")
     spo2: Optional[float] = Field(None, description="SpO2 percentage")
+    real_time: bool = Field(
+        False,
+        description="Prefer SenseVoice fast path (<100ms) for WebSocket streaming",
+    )
 
 
 class CacheRequest(BaseModel):
@@ -150,7 +154,9 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
         if audio.ndim > 1:
             audio = audio.mean(axis=1)
         from models.voice_emotion_model import get_voice_model
-        result = get_voice_model().predict(audio, sample_rate=int(sr))
+        result = get_voice_model().predict(
+            audio, sample_rate=int(sr), real_time=req.real_time
+        )
         # Validate result has all required keys
         _required = {"emotion", "probabilities", "valence", "arousal", "confidence", "model_type"}
         if result is not None and not _required.issubset(result.keys()):
@@ -172,7 +178,9 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
             raise HTTPException(422, "Audio too short — need at least 0.25s")
         try:
             from models.voice_emotion_model import get_voice_model
-            result = get_voice_model().predict(y, sample_rate=_SR)
+            result = get_voice_model().predict(
+                y, sample_rate=_SR, real_time=req.real_time
+            )
         except Exception as exc:
             log.warning("VoiceEmotionModel librosa fallback failed: %s", exc)
 
@@ -218,16 +226,20 @@ def get_latest_voice(user_id: str) -> Optional[Dict]:
 def voice_watch_status() -> Dict[str, Any]:
     """Return voice model availability."""
     e2v_ok = False
+    sensevoice_ok = False
     try:
         from models.voice_emotion_model import get_voice_model
-        e2v_ok = get_voice_model()._load_e2v()
+        vm = get_voice_model()
+        e2v_ok = vm._load_e2v()
+        sensevoice_ok = vm._sensevoice.available
     except Exception:
         pass
     librosa_ok = _ensure_librosa()
     lgbm_ok = _LGBM_PATH.exists()
     return {
         "emotion2vec_available": e2v_ok,
+        "sensevoice_available": sensevoice_ok,
         "lgbm_fallback_available": lgbm_ok,
         "librosa_available": librosa_ok,
-        "ready": e2v_ok or lgbm_ok or librosa_ok,
+        "ready": e2v_ok or sensevoice_ok or lgbm_ok or librosa_ok,
     }
