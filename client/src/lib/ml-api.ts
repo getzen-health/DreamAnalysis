@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 const ML_API_URL_DEFAULT =
   import.meta.env.VITE_ML_API_URL ||
   "http://localhost:8080";
@@ -12,19 +14,26 @@ if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
   } catch { /* ignore */ }
 }
 
-/** Reads the ML backend URL from localStorage so the user can override it in Settings. */
+/** Reads the ML backend URL, handling web, native, and user overrides. */
 export function getMLApiUrl(): string {
-  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-    try {
-      const stored = localStorage.getItem("ml_backend_url");
-      if (stored?.trim()) return stored.trim().replace(/\/$/, "");
-    } catch { /* ignore */ }
-    return "http://localhost:8080";
-  }
+  // 1. User override from Settings (always wins)
   try {
     const stored = localStorage.getItem("ml_backend_url");
     if (stored?.trim()) return stored.trim().replace(/\/$/, "");
-  } catch { /* SSR / private browsing fallback */ }
+  } catch { /* SSR / private browsing */ }
+
+  // 2. Native app: always use the build-time env var (Railway URL).
+  //    Never fall back to localhost — it won't reach the dev machine.
+  if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
+    return ML_API_URL_DEFAULT;
+  }
+
+  // 3. Web localhost: use localhost:8080 for direct local dev
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    return "http://localhost:8080";
+  }
+
+  // 4. Web production (Vercel): use env var
   return ML_API_URL_DEFAULT;
 }
 
