@@ -133,6 +133,22 @@ from .multimodal_ei import router as _multimodal_ei
 from .supplement_tracker import router as _supplement_tracker
 from .voice_checkin import router as _voice_checkin
 from .sleep_mood import router as _sleep_mood
+from .ei_growth import router as _ei_growth
+from .streaks import router as _streaks
+from .temporal_fusion import router as _temporal_fusion
+from .no_eeg_benchmark import router as _no_eeg_benchmark
+from .voice_ensemble import router as _voice_ensemble
+from .voice_health import router as _voice_health
+from .camera_rppg import router as _camera_rppg
+from .gamification import router as _gamification
+from .voice_journal import router as _voice_journal
+from .nutrition import router as _nutrition
+from .wearables import router as _wearables
+from .social_emotion import router as _social_emotion
+from .workplace_ei import router as _workplace_ei
+from .emotion_coach import router as _emotion_coach
+from .on_device import router as _on_device
+from .community import router as _community
 
 router = APIRouter()
 
@@ -236,3 +252,19 @@ router.include_router(_multimodal_ei)
 router.include_router(_supplement_tracker)
 router.include_router(_voice_checkin)
 router.include_router(_sleep_mood)
+router.include_router(_ei_growth)
+router.include_router(_streaks)
+router.include_router(_temporal_fusion)
+router.include_router(_no_eeg_benchmark)
+router.include_router(_voice_ensemble)
+router.include_router(_voice_health)
+router.include_router(_camera_rppg)
+router.include_router(_gamification)
+router.include_router(_voice_journal)
+router.include_router(_nutrition)
+router.include_router(_wearables)
+router.include_router(_social_emotion)
+router.include_router(_workplace_ei)
+router.include_router(_emotion_coach)
+router.include_router(_on_device)
+router.include_router(_community)

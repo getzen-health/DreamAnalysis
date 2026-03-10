@@ -1,0 +1,6 @@
+{
+  "n_total_samples": 0,
+  "gt_file": "ml/benchmarks/ground_truth.jsonl",
+  "note": "Run ml/benchmarks/no_eeg_benchmark.py after collecting ground-truth labels via collect_ground_truth.py",
+  "configurations": {}
+}

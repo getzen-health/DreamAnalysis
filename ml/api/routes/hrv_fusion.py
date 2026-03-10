@@ -12,7 +12,9 @@ GET /hrv/status
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -22,6 +24,33 @@ from pydantic import BaseModel, Field
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/hrv", tags=["hrv_fusion"])
+
+# Path to the per-emotion fusion weights produced by optimize_fusion_weights.py
+_WEIGHTS_PATH = (
+    Path(__file__).resolve().parents[3]   # ml/
+    / "models" / "saved" / "fusion_weights.json"
+)
+
+# In-process cache: loaded once on first request, never reloaded
+_fusion_weights_cache: Optional[Dict[str, Dict[str, float]]] = None
+
+
+def _load_fusion_weights() -> Dict[str, Dict[str, float]]:
+    """Return per-emotion fusion weights from disk (cached after first load)."""
+    global _fusion_weights_cache
+    if _fusion_weights_cache is not None:
+        return _fusion_weights_cache
+    if not _WEIGHTS_PATH.exists():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "fusion_weights.json not found. "
+                "Run ml/training/optimize_fusion_weights.py to generate it."
+            ),
+        )
+    with _WEIGHTS_PATH.open() as fh:
+        _fusion_weights_cache = json.load(fh)
+    return _fusion_weights_cache
 
 # ── Per-user HRV cache (stores the last received HRV feature dict per user) ───
 _hrv_cache: Dict[str, Dict[str, Any]] = {}
@@ -271,5 +300,54 @@ def hrv_status(user_id: str = "default") -> Dict[str, Any]:
             if has_core else
             f"Partial HRV data ({', '.join(fields)}) — core fields hrv_sdnn / "
             "resting_heart_rate missing. Fusion contribution may be limited."
+        ),
+    }
+
+
+@router.get("/weights")
+def hrv_weights(emotion: Optional[str] = None) -> Dict[str, Any]:
+    """Return per-emotion fusion weights from the grid-search optimiser.
+
+    The weights are generated offline by ``ml/training/optimize_fusion_weights.py``
+    and stored in ``ml/models/saved/fusion_weights.json``.  Each entry is a dict
+    with four keys: ``voice``, ``hrv``, ``activity``, ``sleep`` (summing to ~1.0).
+
+    Args:
+        emotion: Optional emotion name to filter (e.g. ``stress``, ``happy``).
+                 Returns all emotions when omitted.
+
+    Returns:
+        Dict with ``weights`` (all or filtered) and ``source`` path info.
+
+    Raises:
+        404: if *emotion* is not found in the weights file.
+        503: if the weights file has not been generated yet.
+    """
+    all_weights = _load_fusion_weights()
+
+    if emotion is not None:
+        emotion_key = emotion.lower().strip()
+        if emotion_key not in all_weights:
+            available = sorted(all_weights.keys())
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"Emotion '{emotion}' not found in fusion weights. "
+                    f"Available: {available}"
+                ),
+            )
+        return {
+            "emotion":  emotion_key,
+            "weights":  all_weights[emotion_key],
+            "source":   str(_WEIGHTS_PATH),
+        }
+
+    return {
+        "weights": all_weights,
+        "source":  str(_WEIGHTS_PATH),
+        "note": (
+            "Per-emotion weights discovered via cosine-similarity grid search "
+            "against research-validated priors (voice prosody, HRV, activity, sleep). "
+            "Re-run ml/training/optimize_fusion_weights.py to refresh."
         ),
     }

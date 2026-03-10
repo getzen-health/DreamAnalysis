@@ -18,6 +18,8 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from models.context_prior import ContextPrior, blend_with_prior  # type: ignore
+
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice-checkin", tags=["voice-checkin"])
 
@@ -29,6 +31,7 @@ VALID_CHECKIN_TYPES = {"morning", "noon", "evening"}
 # ── Lazy model handles ────────────────────────────────────────────────────────
 _voice_model = None
 _tracker = None
+_context_prior = ContextPrior()
 
 
 def _get_voice_model():
@@ -121,6 +124,19 @@ class CheckinRequest(BaseModel):
     )
     text: Optional[str] = Field(None, description="Optional text note for the check-in")
     sample_rate: int = Field(22050, description="Audio sample rate in Hz")
+    # Context signals for Bayesian prior adjustment (all optional)
+    sleep_quality: Optional[float] = Field(
+        None,
+        description="Sleep quality score 0-10 (from health tracker or self-report)",
+    )
+    steps_today: Optional[int] = Field(
+        None,
+        description="Step count accumulated today (from phone/watch)",
+    )
+    caffeine_logged: bool = Field(
+        False,
+        description="True if caffeine was ingested within the last 4 hours",
+    )
 
 
 class CheckinResponse(BaseModel):
@@ -202,6 +218,32 @@ def submit_checkin(req: CheckinRequest) -> Dict[str, Any]:
     confidence = float(result.get("confidence", 0.0))
     model_type = str(result.get("model_type", "unknown"))
     biomarkers: Optional[Dict[str, Any]] = result.get("biomarkers") or None
+
+    # Apply context-aware prior — blend Bayesian prior with ML prediction
+    try:
+        history_so_far = _CHECKIN_HISTORY.get(req.user_id, [])
+        previous_valence: Optional[float] = (
+            float(history_so_far[-1]["valence"]) if history_so_far else None
+        )
+        prior = _context_prior.get_prior(
+            hour=datetime.now(tz=timezone.utc).hour,
+            sleep_quality=req.sleep_quality,
+            steps_today=req.steps_today,
+            caffeine_logged=req.caffeine_logged,
+            previous_checkin_valence=previous_valence,
+        )
+        adjusted = blend_with_prior(result, prior, prior_weight=0.20)
+        valence = float(adjusted.get("valence", valence))
+        arousal = float(adjusted.get("arousal", arousal))
+        context_adjustments: List[str] = adjusted.get("adjustments", [])
+        if context_adjustments:
+            log.debug(
+                "Context prior applied for user %s: adjustments=%s",
+                req.user_id,
+                context_adjustments,
+            )
+    except Exception as exc:
+        log.warning("Context prior failed — using raw prediction: %s", exc)
 
     # Derive stress / focus from biomarkers when available
     if biomarkers:
