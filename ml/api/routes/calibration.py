@@ -71,7 +71,7 @@ def _get_baseline_cal(user_id: str) -> BaselineCalibrator:
 class BaselineFrameRequest(BaseModel):
     signals: List[List[float]]   # shape: (n_channels, n_samples)
     fs: float = 256.0
-    user_id: str = "default"
+    user_id: str
 
 
 @router.post("/calibration/start")
@@ -154,7 +154,7 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
 
 
 @router.get("/calibration/status")
-async def calibration_status(user_id: str = "default"):
+async def calibration_status(user_id: str):
     """Check personal model calibration status.
 
     Returns PersonalModel.status() — includes buffer size, head accuracy,
@@ -210,7 +210,7 @@ async def baseline_add_frame(request: BaselineFrameRequest):
 
 
 @router.get("/calibration/baseline/status")
-async def baseline_status(user_id: str = "default"):
+async def baseline_status(user_id: str):
     """Return current baseline calibrator status."""
     status = _get_baseline_cal(user_id).to_dict()
     return {
@@ -221,7 +221,7 @@ async def baseline_status(user_id: str = "default"):
 
 
 @router.post("/calibration/baseline/reset")
-async def baseline_reset(user_id: str = "default"):
+async def baseline_reset(user_id: str):
     """Clear all collected baseline frames and start over."""
     _get_baseline_cal(user_id).reset()
     return {"status": "reset", "message": "Baseline calibrator cleared. Collect a fresh 2-min resting baseline."}

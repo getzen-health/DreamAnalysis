@@ -58,7 +58,7 @@ class HealthData(BaseModel):
 
 
 class MultimodalEIRequest(BaseModel):
-    user_id: str = Field(default="default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
     signals: Optional[List[List[float]]] = Field(
         default=None, description="EEG signals (channels x samples)"
     )
@@ -192,7 +192,7 @@ def _compute_coherence_score(
 # ---------------------------------------------------------------------------
 
 def _assess_multimodal_ei(
-    user_id: str = "default",
+    user_id: str,
     signals: Optional[np.ndarray] = None,
     fs: float = 256.0,
     voice_analysis: Optional[dict] = None,

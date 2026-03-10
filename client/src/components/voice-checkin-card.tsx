@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Mic, MicOff, X } from "lucide-react";
 import { getMLApiUrl, submitVoiceWatch } from "@/lib/ml-api";
 import type { VoiceWatchCheckinResult } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
 
 // ─── period helpers ──────────────────────────────────────────────────────────
 
@@ -138,9 +139,10 @@ type CardState = "idle" | "recording" | "analyzing" | "done" | "dismissed";
 const RECORD_SEC = 10;
 
 export function VoiceCheckinCard({
-  userId = "default",
+  userId,
   onComplete,
 }: VoiceCheckinCardProps) {
+  const resolvedUserId = userId ?? getParticipantId();
   const period = getCurrentPeriod();
 
   const [cardState, setCardState] = useState<CardState>(() => {
@@ -244,7 +246,7 @@ export function VoiceCheckinCard({
         }
         const audio_b64 = btoa(binary);
 
-        const raw = await submitVoiceWatch(audio_b64, userId);
+        const raw = await submitVoiceWatch(audio_b64, resolvedUserId);
         // Map voice-watch/analyze response to VoiceWatchCheckinResult shape
         // stress_from_watch and stress_index are both 0-1 scale
         const stressIndex = raw.stress_index ?? raw.stress_from_watch ?? 0.5;
@@ -271,7 +273,7 @@ export function VoiceCheckinCard({
         fetch(`${getMLApiUrl()}/api/streaks/checkin`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId, checkin_type: "voice" }),
+          body: JSON.stringify({ user_id: resolvedUserId, checkin_type: "voice" }),
         }).catch(() => {}); // ignore errors — streak is best-effort
       } catch (err) {
         setError(err instanceof Error ? err.message : "Check-in failed");
@@ -297,7 +299,7 @@ export function VoiceCheckinCard({
     stopTimerRef.current = setTimeout(() => {
       if (recorder.state === "recording") recorder.stop();
     }, RECORD_SEC * 1000);
-  }, [cardState, userId, period, onComplete]);
+  }, [cardState, resolvedUserId, period, onComplete]);
 
   // Don't render if dismissed or outside all windows
   if (cardState === "dismissed") return null;

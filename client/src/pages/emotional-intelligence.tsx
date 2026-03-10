@@ -234,7 +234,7 @@ export default function EmotionalIntelligencePage() {
       {!loading && !latest && (
         <Card className="bg-zinc-900/60 border-zinc-800">
           <CardContent className="p-6 text-center text-sm text-zinc-500">
-            No EIQ assessments yet. Run an EEG session and the score will appear here.
+            No EIQ assessments yet. Start with voice and health inputs; optional EEG can deepen the score later.
           </CardContent>
         </Card>
       )}

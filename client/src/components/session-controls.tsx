@@ -9,12 +9,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { startSession, stopSession } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
 
 interface SessionControlsProps {
   onRecordingChange?: (recording: boolean) => void;
 }
 
 export function SessionControls({ onRecordingChange }: SessionControlsProps) {
+  const userId = useRef(getParticipantId());
   const [isRecording, setIsRecording] = useState(false);
   const [sessionType, setSessionType] = useState("general");
   const [elapsed, setElapsed] = useState(0);
@@ -41,7 +43,7 @@ export function SessionControls({ onRecordingChange }: SessionControlsProps) {
 
   const handleStart = async () => {
     try {
-      const result = await startSession(sessionType);
+      const result = await startSession(sessionType, userId.current);
       setSessionId(result.session_id);
       setIsRecording(true);
       onRecordingChange?.(true);
@@ -52,7 +54,7 @@ export function SessionControls({ onRecordingChange }: SessionControlsProps) {
 
   const handleStop = async () => {
     try {
-      await stopSession();
+      await stopSession(userId.current);
       setIsRecording(false);
       setSessionId(null);
       onRecordingChange?.(false);

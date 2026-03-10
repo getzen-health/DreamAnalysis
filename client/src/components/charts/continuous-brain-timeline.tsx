@@ -24,6 +24,7 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { getParticipantId } from "@/lib/participant";
 import {
   Select,
   SelectContent,
@@ -100,10 +101,11 @@ interface Props {
 }
 
 export function ContinuousBrainTimeline({
-  userId = "default",
+  userId,
   defaultMetric = "focus_index",
   title = "Brain Trends",
 }: Props) {
+  const resolvedUserId = userId ?? getParticipantId();
   const [periodLabel, setPeriodLabel] = useState<PeriodLabel>("Week");
   const [metric, setMetric] = useState<MetricValue>(defaultMetric);
   const [panOffset, setPanOffset] = useState(0); // in number-of-periods to the past
@@ -117,9 +119,9 @@ export function ContinuousBrainTimeline({
   const metricConfig = METRICS.find((m) => m.value === metric) ?? METRICS[0];
 
   const { data, isLoading, isError } = useQuery<TimelineResponse>({
-    queryKey: ["brain-timeline", userId, metric, period.bucket, fromTs, toTs],
+    queryKey: ["brain-timeline", resolvedUserId, metric, period.bucket, fromTs, toTs],
     queryFn: () =>
-      fetchTimeline({ userId, fromTs, toTs, metric, bucket: period.bucket }),
+      fetchTimeline({ userId: resolvedUserId, fromTs, toTs, metric, bucket: period.bucket }),
     staleTime: 30_000,
     refetchInterval: 60_000,
     retry: 1,

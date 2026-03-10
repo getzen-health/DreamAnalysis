@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import { getParticipantId } from "@/lib/participant";
 
 const ML_API_URL_DEFAULT =
   import.meta.env.VITE_ML_API_URL ||
@@ -565,7 +566,7 @@ export async function stopNeurofeedback(): Promise<NeurofeedbackStopResult> {
 
 export async function startSession(
   sessionType: string = "general",
-  userId: string = "default"
+  userId: string
 ): Promise<{ status: string; session_id: string }> {
   return mlFetch("/sessions/start", {
     method: "POST",
@@ -573,31 +574,35 @@ export async function startSession(
   });
 }
 
-export async function stopSession(): Promise<Record<string, unknown>> {
-  return mlFetch("/sessions/stop", { method: "POST" });
+export async function stopSession(userId: string): Promise<Record<string, unknown>> {
+  return mlFetch(`/sessions/stop?user_id=${encodeURIComponent(userId)}`, { method: "POST" });
 }
 
 export async function listSessions(
   userId?: string,
   sessionType?: string
 ): Promise<SessionSummary[]> {
+  const resolvedUserId = userId ?? getParticipantId();
   const params = new URLSearchParams();
-  if (userId) params.set("user_id", userId);
+  params.set("user_id", resolvedUserId);
   if (sessionType) params.set("session_type", sessionType);
   const qs = params.toString();
   return mlFetch<SessionSummary[]>(`/sessions${qs ? `?${qs}` : ""}`);
 }
 
-export async function getSession(sessionId: string): Promise<Record<string, unknown>> {
-  return mlFetch(`/sessions/${sessionId}`);
+export async function getSession(sessionId: string, userId?: string): Promise<Record<string, unknown>> {
+  const resolvedUserId = userId ?? getParticipantId();
+  return mlFetch(`/sessions/${sessionId}?user_id=${encodeURIComponent(resolvedUserId)}`);
 }
 
-export async function deleteSession(sessionId: string): Promise<{ status: string }> {
-  return mlFetch(`/sessions/${sessionId}`, { method: "DELETE" });
+export async function deleteSession(sessionId: string, userId?: string): Promise<{ status: string }> {
+  const resolvedUserId = userId ?? getParticipantId();
+  return mlFetch(`/sessions/${sessionId}?user_id=${encodeURIComponent(resolvedUserId)}`, { method: "DELETE" });
 }
 
-export async function exportSession(sessionId: string, format: string = "csv"): Promise<string> {
-  return mlFetchRaw(`/sessions/${sessionId}/export?format=${format}`);
+export async function exportSession(sessionId: string, format: string = "csv", userId?: string): Promise<string> {
+  const resolvedUserId = userId ?? getParticipantId();
+  return mlFetchRaw(`/sessions/${sessionId}/export?format=${format}&user_id=${encodeURIComponent(resolvedUserId)}`);
 }
 
 // ─── Baseline Calibration (resting-state normalisation) ─────────────────
@@ -618,29 +623,32 @@ export interface BaselineStatusResult {
 /** Send one second of raw EEG to the baseline calibrator. */
 export async function addBaselineFrame(
   signals: number[][],
-  userId: string = "default",
+  userId?: string,
   fs: number = 256
 ): Promise<BaselineFrameResult> {
+  const resolvedUserId = userId ?? getParticipantId();
   return mlFetch<BaselineFrameResult>("/calibration/baseline/add-frame", {
     method: "POST",
-    body: JSON.stringify({ signals, fs, user_id: userId }),
+    body: JSON.stringify({ signals, fs, user_id: resolvedUserId }),
   });
 }
 
 export async function getBaselineStatus(
-  userId: string = "default"
+  userId?: string
 ): Promise<BaselineStatusResult> {
+  const resolvedUserId = userId ?? getParticipantId();
   return mlFetch<BaselineStatusResult>(
-    `/calibration/baseline/status?user_id=${encodeURIComponent(userId)}`
+    `/calibration/baseline/status?user_id=${encodeURIComponent(resolvedUserId)}`
   );
 }
 
 export async function resetBaselineCalibration(
-  userId: string = "default"
+  userId?: string
 ): Promise<{ status: string; message: string }> {
+  const resolvedUserId = userId ?? getParticipantId();
   return mlFetch("/calibration/baseline/reset", {
     method: "POST",
-    body: JSON.stringify({ user_id: userId }),
+    body: JSON.stringify({ user_id: resolvedUserId }),
   });
 }
 
@@ -668,12 +676,13 @@ export async function submitFeedback(
   signals: number[][],
   predictedLabel: string,
   correctLabel: string,
-  userId: string = "default"
+  userId?: string
 ): Promise<{ updated: boolean }> {
+  const resolvedUserId = userId ?? getParticipantId();
   return mlFetch("/feedback", {
     method: "POST",
     body: JSON.stringify({
-      user_id: userId,
+      user_id: resolvedUserId,
       signals,
       predicted_label: predictedLabel,
       correct_label: correctLabel,
@@ -682,9 +691,10 @@ export async function submitFeedback(
 }
 
 export async function getCalibrationStatus(
-  userId: string = "default"
+  userId?: string
 ): Promise<CalibrationStatus> {
-  return mlFetch<CalibrationStatus>(`/calibration/status?user_id=${userId}`);
+  const resolvedUserId = userId ?? getParticipantId();
+  return mlFetch<CalibrationStatus>(`/calibration/status?user_id=${resolvedUserId}`);
 }
 
 // ─── Connectivity (Phase 10) ────────────────────────────────────────────
@@ -1228,12 +1238,13 @@ export type CheckInResult = VoiceWatchCheckinResult;
 /** Submit a voice check-in via the canonical voice-watch pipeline. */
 export async function submitVoiceWatch(
   audioBase64: string,
-  userId: string = "default"
+  userId?: string
 ): Promise<VoiceWatchEmotionResult> {
+  const resolvedUserId = userId ?? getParticipantId();
   return mlFetch<VoiceWatchEmotionResult>("/voice-watch/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ audio_b64: audioBase64, user_id: userId }),
+    body: JSON.stringify({ audio_b64: audioBase64, user_id: resolvedUserId }),
   });
 }
 
@@ -1406,9 +1417,10 @@ export async function analyzeDreamNarrative(
   text: string,
   userId?: string
 ): Promise<{ status: string; analysis: DreamNarrativeAnalysis }> {
+  const resolvedUserId = userId ?? getParticipantId();
   return mlFetch("/analyze-dream-narrative", {
     method: "POST",
-    body: JSON.stringify({ text, user_id: userId ?? "default" }),
+    body: JSON.stringify({ text, user_id: resolvedUserId }),
   });
 }
 

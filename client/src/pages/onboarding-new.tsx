@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { useAuth } from "@/hooks/use-auth";
+import { getParticipantId } from "@/lib/participant";
 
 type Stage = "choose" | "voice" | "result";
 
@@ -13,7 +14,7 @@ export default function OnboardingNew() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const [stage, setStage] = useState<Stage>("choose");
-  const voiceEmotion = useVoiceEmotion({ durationMs: 10000, userId: "default" });
+  const voiceEmotion = useVoiceEmotion({ durationMs: 10000, userId: getParticipantId() });
 
   useEffect(() => {
     if (voiceEmotion.lastResult) {
@@ -29,11 +30,11 @@ export default function OnboardingNew() {
         <div className="max-w-md w-full space-y-6">
           <div className="text-center space-y-3">
             <Badge variant="outline" className="border-primary/40 text-primary">
-              Recommended path
+              Default path
             </Badge>
             <h1 className="text-3xl font-semibold">Voice + Health setup</h1>
             <p className="text-sm text-muted-foreground">
-              Record a 10-second check-in to start with emotion inference now. EEG stays optional.
+              Start with voice and watch-friendly health inputs first. EEG stays optional.
             </p>
           </div>
 
@@ -52,7 +53,7 @@ export default function OnboardingNew() {
               <div>
                 <p className="font-medium">Health data when available</p>
                 <p className="text-sm text-muted-foreground">
-                  Apple Health or wearable biometrics can refine stress and readiness estimates later.
+                  Apple Health or wearable biometrics can refine stress, recovery, and readiness estimates.
                 </p>
               </div>
             </div>
@@ -119,7 +120,7 @@ export default function OnboardingNew() {
                 <div>
                   <p className="text-sm font-medium">Continue without EEG</p>
                   <p className="text-xs text-muted-foreground">
-                    Use voice and health inputs first, then add EEG later if needed.
+                    Stay in the main voice + watch flow and start using the app right away.
                   </p>
                 </div>
               </div>
@@ -130,7 +131,7 @@ export default function OnboardingNew() {
                 <div>
                   <p className="text-sm font-medium">Add Muse 2 later</p>
                   <p className="text-xs text-muted-foreground">
-                    EEG unlocks live neural features and calibration, but it is not required to start.
+                    EEG unlocks live neural features and calibration, but it is a later upgrade.
                   </p>
                 </div>
               </div>
@@ -156,12 +157,11 @@ export default function OnboardingNew() {
       <div className="max-w-4xl w-full space-y-8">
         <div className="text-center space-y-3">
           <Badge variant="outline" className="border-primary/40 text-primary">
-            Start here
+            Voice + watch first
           </Badge>
           <h1 className="text-4xl font-semibold">Choose your setup path</h1>
           <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-            The app works without EEG. Start with voice and health for the fastest setup, or go
-            straight to Muse 2 if you want live neural features from the beginning.
+            The main product starts with voice and health inputs. Add Muse 2 only if you want live EEG and deeper neural tools.
           </p>
         </div>
 
@@ -175,15 +175,15 @@ export default function OnboardingNew() {
               <Badge>Recommended</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              Start with a 10-second voice check-in. Add health data and EEG later as optional inputs.
+              Start with a 10-second voice check-in. Health signals improve over time, and EEG remains optional.
             </p>
             <ul className="text-sm space-y-2 text-foreground/90">
-              <li>Fastest way to get emotion and readiness output</li>
+              <li>Main app path for daily readiness</li>
               <li>No headset required</li>
-              <li>Uses the same live voice path as the rest of the app</li>
+              <li>Uses the same voice pipeline as the rest of the app</li>
             </ul>
             <Button className="w-full" onClick={() => setStage("voice")}>
-              Start with voice
+              Start with voice + watch
             </Button>
           </Card>
 
@@ -193,12 +193,12 @@ export default function OnboardingNew() {
               <h2 className="text-xl font-semibold">Muse 2 EEG</h2>
             </div>
             <p className="text-sm text-muted-foreground">
-              Use the existing calibration onboarding if you already have a headset and want live EEG.
+              Use the EEG setup only if you already have a headset and want live neural features from day one.
             </p>
             <ul className="text-sm space-y-2 text-foreground/90">
+              <li>Optional hardware upgrade</li>
               <li>Live stress, focus, and relaxation from neural signals</li>
-              <li>Baseline calibration improves model accuracy</li>
-              <li>Best for neurofeedback and continuous sessions</li>
+              <li>Best for neurofeedback and continuous EEG sessions</li>
             </ul>
             <Link href="/onboarding">
               <Button variant="outline" className="w-full">

@@ -28,7 +28,7 @@ router = APIRouter()
 
 class LabeledEpochRequest(BaseModel):
     """Submit one labeled EEG epoch to the personal model buffer."""
-    user_id: str = "default"
+    user_id: str
     signals: List[List[float]]   # (n_channels, n_samples) nested list
     label: int                   # 0–5 index into EMOTIONS list
     fs: float = 256.0
@@ -36,17 +36,17 @@ class LabeledEpochRequest(BaseModel):
 
 class BaselineFrameRequest(BaseModel):
     """Submit one feature vector frame during resting-state baseline recording."""
-    user_id: str = "default"
+    user_id: str
     features: List[float]        # feature vector from extract_features()
 
 
 class FineTuneRequest(BaseModel):
-    user_id: str = "default"
+    user_id: str
     n_channels: int = 4
 
 
 class PredictPersonalRequest(BaseModel):
-    user_id: str = "default"
+    user_id: str
     signals: List[List[float]]   # (n_channels, n_samples)
     fs: float = 256.0
 
@@ -114,7 +114,7 @@ async def add_baseline_frame(req: BaselineFrameRequest):
 
 
 @router.get("/personal/status")
-async def personal_status(user_id: str = "default", n_channels: int = 4):
+async def personal_status(user_id: str, n_channels: int = 4):
     """Return personalisation progress for the dashboard.
 
     Shown as a progress card: "Personal model: 45/100 epochs collected"
@@ -144,7 +144,7 @@ async def fine_tune(req: FineTuneRequest):
 
 
 @router.post("/personal/session-complete")
-async def session_complete(user_id: str = "default", n_channels: int = 4):
+async def session_complete(user_id: str, n_channels: int = 4):
     """Mark a session as complete — triggers fine-tuning if enough new data."""
     pm = get_personal_model(user_id, n_channels=n_channels)
     pm.mark_session_complete()
@@ -170,7 +170,7 @@ async def predict_personal(req: PredictPersonalRequest):
 
 
 @router.delete("/personal/reset")
-async def reset_personal_model(user_id: str = "default"):
+async def reset_personal_model(user_id: str):
     """Clear all personal model data for a user (buffer, head, baseline).
 
     Use this if a user wants to start fresh or if data quality was poor.

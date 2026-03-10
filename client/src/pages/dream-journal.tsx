@@ -81,7 +81,7 @@ export default function DreamJournal() {
             <Moon className="w-10 h-10 text-muted-foreground/40" />
             <p className="text-sm font-medium">Log a dream manually</p>
             <p className="text-xs text-muted-foreground max-w-[220px]">
-              Record a dream below using voice or text. Connect Muse 2 while sleeping for automatic detection.
+              Record a dream below using voice or text. Optional overnight EEG can add automatic dream detection later.
             </p>
           </div>
         ) : (
@@ -149,7 +149,7 @@ export default function DreamJournal() {
           <p className="text-xs text-muted-foreground py-4 text-center">
             {isStreaming
               ? "Dream episodes will appear here as you sleep."
-              : "Auto-detected episodes appear here when streaming with Muse 2. Use the journal button to log memories manually."}
+              : "Manual dream entries are the default here. Auto-detected episodes appear later if you add overnight EEG."}
           </p>
         ) : (
           <div className="space-y-2">

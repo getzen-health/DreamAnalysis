@@ -39,7 +39,7 @@ class PrescribeRequest(BaseModel):
 
 
 class SessionCompleteRequest(BaseModel):
-    user_id: str = Field("default")
+    user_id: str = Field(..., description="User identifier")
     pattern_id: str = Field("resonance")
     duration_s: float = Field(..., gt=0, description="Actual session duration seconds")
     completed_cycles: int = Field(0, ge=0)
@@ -47,7 +47,7 @@ class SessionCompleteRequest(BaseModel):
 
 
 class StressSnapshotRequest(BaseModel):
-    user_id: str = Field("default")
+    user_id: str = Field(..., description="User identifier")
     stress_index: float = Field(..., ge=0.0, le=1.0)
     source: str = Field("voice", description="'voice' | 'eeg' | 'manual'")
 

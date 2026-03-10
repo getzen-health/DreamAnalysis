@@ -25,7 +25,7 @@ _BUCKET_TO_VIEW = {
 
 @router.get("/brain/timeline")
 async def brain_timeline(
-    user_id: str = "default",
+    user_id: str,
     from_ts: Optional[float] = None,
     to_ts: Optional[float] = None,
     metric: str = "focus_index",
@@ -91,7 +91,7 @@ async def brain_timeline(
 
 @router.get("/brain/export")
 async def brain_export(
-    user_id: str = "default",
+    user_id: str,
     from_ts: Optional[float] = None,
     to_ts: Optional[float] = None,
     format: str = "csv",

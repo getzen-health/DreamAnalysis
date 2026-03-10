@@ -62,7 +62,7 @@ async def assess_social_cognition(data: EEGInput):
 
 
 @router.get("/social-cognition/stats")
-async def get_social_cognition_stats(user_id: str = "default"):
+async def get_social_cognition_stats(user_id: str):
     """Get session statistics for social cognition assessments.
 
     Returns n_assessments, mean_empathy_score, mean_engagement_score,
@@ -73,7 +73,7 @@ async def get_social_cognition_stats(user_id: str = "default"):
 
 
 @router.post("/social-cognition/reset")
-async def reset_social_cognition(user_id: str = "default"):
+async def reset_social_cognition(user_id: str):
     """Clear baseline and session history for a user."""
     _detector.reset(user_id=user_id)
     return {

@@ -166,7 +166,7 @@ async def evaluate_neurofeedback(request: NeurofeedbackEvalRequest):
 
 
 @router.post("/neurofeedback/stop")
-async def stop_neurofeedback(user_id: str = "default"):
+async def stop_neurofeedback(user_id: str):
     """Stop the current neurofeedback session and return stats."""
     protocol = _get_nf_protocol(user_id)
     if protocol is None:
@@ -193,7 +193,7 @@ async def stop_neurofeedback(user_id: str = "default"):
 
 
 @router.get("/neurofeedback/rl/status")
-async def rl_status(user_id: str = "default"):
+async def rl_status(user_id: str):
     """Return RL agent status and current threshold."""
     global_trained = _rl_agent is not None and _rl_agent.is_trained
     user_agent = _get_user_rl_agent(user_id)

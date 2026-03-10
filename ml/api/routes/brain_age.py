@@ -16,7 +16,7 @@ class BrainAgeInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
     chronological_age: Optional[float] = None
-    user_id: str = "default"
+    user_id: str
 
 
 class BrainAgeResult(BaseModel):

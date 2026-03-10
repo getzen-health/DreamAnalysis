@@ -62,7 +62,7 @@ async def evaluate_tinnitus_epoch(data: EEGInput):
 
 
 @router.get("/tinnitus/stats")
-async def get_tinnitus_stats(user_id: str = "default"):
+async def get_tinnitus_stats(user_id: str):
     """Get training session statistics for a user.
 
     Returns n_epochs, reward_rate, mean_alpha_ratio, max_alpha_ratio,
@@ -74,7 +74,7 @@ async def get_tinnitus_stats(user_id: str = "default"):
 
 
 @router.post("/tinnitus/reset")
-async def reset_tinnitus(user_id: str = "default"):
+async def reset_tinnitus(user_id: str):
     """Clear session history and baseline for a user.
 
     Call before starting a fresh training session or when switching users.

@@ -100,7 +100,8 @@ class HRVAnalyzeRequest(BaseModel):
         description="EEG sampling rate in Hz.",
     )
     user_id: str = Field(
-        default="default",
+        ...,
+        min_length=1,
         description="User identifier for per-user HRV cache.",
     )
 
@@ -258,7 +259,7 @@ def hrv_analyze(req: HRVAnalyzeRequest) -> Dict[str, Any]:
 
 
 @router.get("/status")
-def hrv_status(user_id: str = "default") -> Dict[str, Any]:
+def hrv_status(user_id: str) -> Dict[str, Any]:
     """Return HRV data availability for a user.
 
     Checks the per-user HRV cache populated by ``POST /hrv/analyze``.

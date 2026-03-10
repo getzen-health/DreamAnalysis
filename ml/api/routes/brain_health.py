@@ -63,7 +63,7 @@ async def assess_brain_health(data: EEGInput):
 
 
 @router.get("/brain-health/stats")
-async def get_brain_health_stats(user_id: str = "default"):
+async def get_brain_health_stats(user_id: str):
     """Get session statistics for brain health assessments.
 
     Returns n_assessments, mean_score, score_trend, mean_domain_scores,
@@ -74,7 +74,7 @@ async def get_brain_health_stats(user_id: str = "default"):
 
 
 @router.post("/brain-health/reset")
-async def reset_brain_health(user_id: str = "default"):
+async def reset_brain_health(user_id: str):
     """Clear baseline and session history for a user."""
     _estimator.reset(user_id=user_id)
     return {

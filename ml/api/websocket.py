@@ -93,7 +93,7 @@ async def eeg_stream_endpoint(websocket: WebSocket):
 
     # Per-connection state (stored in module-level dict, cleaned up on disconnect)
     _connection_state[conn_id] = {
-        "user_id": "default",
+        "user_id": None,
         "shift_detector": None,
         # Rolling 30s EEG buffer for emotion classification
         "eeg_buffer": None,          # np.ndarray (n_channels, n_samples) or None
@@ -101,9 +101,9 @@ async def eeg_stream_endpoint(websocket: WebSocket):
         "emotion_updated_at": 0.0,   # timestamp of last emotion computation
         "emotion_samples_seen": 0,   # total samples accumulated so far
     }
-    user_id = "default"
-    ts_writer = await TimescaleWriter.create(user_id)  # always-on TimescaleDB recording
-    parquet_writer = ParquetWriter(user_id=user_id)     # always-on Parquet recording
+    user_id = None
+    ts_writer = None
+    parquet_writer = None
     run_models = True
     run_quality = True
     run_smoothing = True
@@ -177,8 +177,9 @@ async def eeg_stream_endpoint(websocket: WebSocket):
         # Get per-user session recorder
         session_recorder = None
         try:
-            from api.routes._shared import _get_session_recorder
-            session_recorder = _get_session_recorder(user_id)
+            if user_id:
+                from api.routes._shared import _get_session_recorder
+                session_recorder = _get_session_recorder(user_id)
         except Exception as e:
             logger.warning("Session recorder not available: %s", e)
 
@@ -195,11 +196,14 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                 try:
                     cmd = json.loads(msg)
                     if cmd.get("command") == "set_user":
-                        new_uid = cmd.get("user_id", "default")
-                        if new_uid != user_id:
-                            await ts_writer.close()
-                            parquet_writer.flush()
+                        new_uid = cmd.get("user_id")
+                        if new_uid and new_uid != user_id:
+                            if ts_writer is not None:
+                                await ts_writer.close()
+                            if parquet_writer is not None:
+                                parquet_writer.flush()
                             user_id = new_uid
+                            _connection_state[conn_id]["user_id"] = user_id
                             ts_writer = await TimescaleWriter.create(user_id)
                             parquet_writer = ParquetWriter(user_id=user_id)
                             # Switch to the new user's session recorder
@@ -208,7 +212,9 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                 session_recorder = _get_session_recorder(user_id)
                             except Exception:
                                 pass
-                        user_id = new_uid
+                        elif new_uid:
+                            user_id = new_uid
+                            _connection_state[conn_id]["user_id"] = user_id
                     elif cmd.get("command") == "configure":
                         run_models = cmd.get("run_models", run_models)
                         run_quality = cmd.get("run_quality", run_quality)
@@ -306,7 +312,9 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                                 due = now - conn_state.get("emotion_updated_at", 0) >= _EMOTION_WINDOW_SEC
                                 if buf_full and (due or conn_state.get("emotion_result") is None):
                                     try:
-                                        ws_user_id = conn_state.get("user_id", "default")
+                                        ws_user_id = conn_state.get("user_id")
+                                        if not ws_user_id:
+                                            continue
                                         eeg_30s = buf if buf.shape[0] >= 4 else buf[0]
                                         n_ch = eeg_30s.shape[0] if eeg_30s.ndim == 2 else 1
                                         # Personal model → EEGNet central → mega LGBM fallback
@@ -505,8 +513,10 @@ async def eeg_stream_endpoint(websocket: WebSocket):
                             logger.warning("Spiritual energy analysis error: %s", e)
 
                     # Always-on: push to TimescaleDB + Parquet
-                    ts_writer.push_frame(frame, frame.get("signals", []))
-                    parquet_writer.push_frame(frame.get("analysis", {}), frame.get("timestamp"))
+                    if ts_writer is not None:
+                        ts_writer.push_frame(frame, frame.get("signals", []))
+                    if parquet_writer is not None:
+                        parquet_writer.push_frame(frame.get("analysis", {}), frame.get("timestamp"))
 
                     # Pipe to session recorder
                     if session_recorder and session_recorder.is_recording:
@@ -532,6 +542,8 @@ async def eeg_stream_endpoint(websocket: WebSocket):
         except Exception:
             pass
     finally:
-        await ts_writer.close()
-        await parquet_writer.close()
+        if ts_writer is not None:
+            await ts_writer.close()
+        if parquet_writer is not None:
+            await parquet_writer.close()
         _connection_state.pop(conn_id, None)

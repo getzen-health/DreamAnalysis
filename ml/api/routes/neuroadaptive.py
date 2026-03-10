@@ -69,7 +69,7 @@ async def assess_neuroadaptive(data: EEGInput, session_minutes: float = 0.0,
 
 
 @router.post("/neuroadaptive/ack-break")
-async def acknowledge_break(user_id: str = "default"):
+async def acknowledge_break(user_id: str):
     """Acknowledge that the user has taken a recommended break.
 
     Resets the break cooldown counter so break recommendations resume
@@ -80,7 +80,7 @@ async def acknowledge_break(user_id: str = "default"):
 
 
 @router.get("/neuroadaptive/summary")
-async def get_neuroadaptive_summary(user_id: str = "default"):
+async def get_neuroadaptive_summary(user_id: str):
     """Get session summary statistics for a user.
 
     Returns zone distribution, mean engagement, break count, difficulty
@@ -92,14 +92,14 @@ async def get_neuroadaptive_summary(user_id: str = "default"):
 
 
 @router.get("/neuroadaptive/history")
-async def get_neuroadaptive_history(user_id: str = "default", last_n: int = 50):
+async def get_neuroadaptive_history(user_id: str, last_n: int = 50):
     """Get assessment history for a user."""
     history = _tutor.get_history(user_id=user_id, last_n=last_n)
     return _numpy_safe({"history": history, "user_id": user_id, "count": len(history)})
 
 
 @router.post("/neuroadaptive/reset")
-async def reset_neuroadaptive(user_id: str = "default"):
+async def reset_neuroadaptive(user_id: str):
     """Clear assessment history and difficulty state for a user."""
     _tutor.reset(user_id=user_id)
     return {"status": "ok", "message": "Neuroadaptive state cleared.", "user_id": user_id}

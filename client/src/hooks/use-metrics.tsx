@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { getParticipantId } from "@/lib/participant";
 
 export interface HealthMetrics {
   heartRate: number;
@@ -25,8 +26,7 @@ export interface NeuralActivity {
   brainstem: number;
 }
 
-// Simulated user ID for demo purposes
-const USER_ID = "demo-user";
+const USER_ID = getParticipantId();
 
 export function useMetrics() {
   const [currentMetrics, setCurrentMetrics] = useState<HealthMetrics>({

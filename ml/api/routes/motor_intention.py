@@ -7,7 +7,7 @@ from typing import Dict, List
 
 import numpy as np
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/motor-intention", tags=["motor-intention"])
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/motor-intention", tags=["motor-intention"])
 class MotorIntentionInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
-    user_id: str = "default"
+    user_id: str = Field(..., min_length=1)
 
 
 class MotorIntentionResult(BaseModel):

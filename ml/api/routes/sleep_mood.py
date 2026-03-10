@@ -34,7 +34,7 @@ def _get_predictor():
 # ── Pydantic schemas ───────────────────────────────────────────────────────────
 
 class SleepMoodRequest(BaseModel):
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
     total_sleep_hours: Optional[float] = Field(
         None,
         description="Total hours of sleep (default 7.0)",

@@ -45,7 +45,7 @@ async def assess_brain_maturation(data: EEGInput):
 
 
 @router.get("/brain-maturation/trajectory")
-async def get_maturation_trajectory(user_id: str = "default"):
+async def get_maturation_trajectory(user_id: str):
     """Get longitudinal maturation trajectory for a user.
 
     Returns ordered list of past assessments with timestamps, estimated_brain_age,
@@ -56,7 +56,7 @@ async def get_maturation_trajectory(user_id: str = "default"):
 
 
 @router.get("/brain-maturation/summary")
-async def get_maturation_summary(user_id: str = "default"):
+async def get_maturation_summary(user_id: str):
     """Get maturation summary statistics for a user.
 
     Returns n_assessments, mean_brain_age, mean_maturation_index,
@@ -67,7 +67,7 @@ async def get_maturation_summary(user_id: str = "default"):
 
 
 @router.post("/brain-maturation/reset")
-async def reset_maturation(user_id: str = "default"):
+async def reset_maturation(user_id: str):
     """Clear maturation history for a user."""
     _tracker.reset(user_id=user_id)
     return {

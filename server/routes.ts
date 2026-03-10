@@ -92,14 +92,6 @@ async function checkAndMarkValidDay(sessionId: string): Promise<boolean> {
   return isValid;
 }
 
-// Ensure the hardcoded "default" user exists — runs once on startup.
-// All research + food features use USER_ID = "default" on the client.
-async function ensureDefaultUser() {
-  await db.insert(users)
-    .values({ id: "default", username: "default", password: "n/a" })
-    .onConflictDoNothing();
-}
-
 export async function registerRoutes(app: Express): Promise<Server> {
   // ── Session middleware (PostgreSQL-backed — persists across Vercel instances) ──
   const PgSession = connectPg(session);
@@ -312,9 +304,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: "Reset failed" });
     }
   });
-
-  // Seed the default user so FK constraints never block self-study usage
-  await ensureDefaultUser();
 
   // Health metrics endpoints
   app.get("/api/health-metrics/:userId", async (req, res) => {
@@ -2072,7 +2061,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { mood, uri } = req.body as { mood?: string; uri?: string };
 
     // Restore or create API client from session tokens
-    const sessionUserId = (req.session as { userId?: string }).userId ?? "default";
+    const sessionUserId = (req.session as { userId?: string }).userId;
+    if (!sessionUserId) {
+      return res.status(401).json({ error: "not_connected", authUrl: "/api/spotify/auth" });
+    }
     let api = _spotifyClients.get(sessionUserId);
     if (!api) {
       api = makeSpotifyApi(
@@ -2115,8 +2107,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST /api/spotify/disconnect
   app.post("/api/spotify/disconnect", (req, res) => {
     const sess = req.session as any;
-    const sessionUserId = (req.session as { userId?: string }).userId ?? "default";
-    _spotifyClients.delete(sessionUserId);
+    const sessionUserId = (req.session as { userId?: string }).userId;
+    if (sessionUserId) {
+      _spotifyClients.delete(sessionUserId);
+    }
     delete sess.spotifyAccessToken;
     delete sess.spotifyRefreshToken;
     delete sess.spotifyUsername;

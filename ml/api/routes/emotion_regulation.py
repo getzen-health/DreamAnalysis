@@ -29,7 +29,7 @@ class EmotionRegulationAnalyzeRequest(BaseModel):
     duration_sec: int = Field(
         default=0, ge=0, description="Epoch duration in seconds (informational)"
     )
-    user_id: str = Field(default="default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
 
 
 class EmotionRegulationUpdateRequest(BaseModel):
@@ -41,11 +41,11 @@ class EmotionRegulationUpdateRequest(BaseModel):
     duration_sec: int = Field(
         default=1, ge=0, description="Seconds to add to session clock"
     )
-    user_id: str = Field(default="default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
 
 
 class EmotionRegulationResetRequest(BaseModel):
-    user_id: str = Field(default="default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ async def emotion_regulation_update(request: EmotionRegulationUpdateRequest):
 
 
 @router.get("/emotion-regulation/summary")
-async def emotion_regulation_summary(user_id: str = "default"):
+async def emotion_regulation_summary(user_id: str):
     """Return session summary statistics.
 
     Returns mean_regulation_score, peak_score, session_count, dominant_state.

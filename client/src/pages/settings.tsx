@@ -888,20 +888,20 @@ function BaselineCalibrationCard({ userId }: { userId: string }) {
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Brain className="h-4 w-4 text-primary" />
-          Baseline Calibration
+          Optional EEG Calibration
         </h3>
         {statusBadge}
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Record 30 seconds of resting-state EEG so the ML backend can normalize your live brain signals.
-        This improves emotion accuracy by ~15–29%.
+        If you use Muse 2, record 30 seconds of resting-state EEG so the ML backend can normalize live headset signals.
+        This only affects the optional EEG layer.
       </p>
 
       <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/40 border border-border/30 text-xs text-muted-foreground mb-4">
         <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary/60" />
         <span>
           Sit quietly with eyes closed for 30 seconds. Minimize jaw movement.
-          Keep your Muse headband firmly in place before starting.
+          Keep your Muse headband firmly in place before starting if you are using EEG.
         </span>
       </div>
 
@@ -939,7 +939,7 @@ function BaselineCalibrationCard({ userId }: { userId: string }) {
 
       {!deviceStreaming && (
         <p className="text-xs text-muted-foreground mt-2">
-          Connect and start streaming an EEG device to enable calibration.
+          EEG calibration only appears when a headset is connected and streaming.
         </p>
       )}
     </Card>

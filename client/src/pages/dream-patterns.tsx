@@ -203,7 +203,7 @@ export default function DreamPatterns() {
       {!isStreaming && isLiveToday && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
-          Connect Muse 2 for live sleep staging and automatic dream detection. Manual dream logs are shown below.
+          Manual dream logs are shown below. Optional overnight EEG can add live sleep staging and automatic dream detection later.
         </div>
       )}
 

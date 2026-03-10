@@ -100,7 +100,7 @@ async def assess_engagement(data: EEGInput):
 
 
 @router.get("/engagement/curve")
-async def get_engagement_curve(user_id: str = "default"):
+async def get_engagement_curve(user_id: str):
     """Get engagement time-series for a user.
 
     Returns ordered list of past assessments with engagement_index,
@@ -111,7 +111,7 @@ async def get_engagement_curve(user_id: str = "default"):
 
 
 @router.get("/engagement/summary")
-async def get_engagement_summary(user_id: str = "default"):
+async def get_engagement_summary(user_id: str):
     """Get session summary statistics for a user.
 
     Returns mean_engagement, state distribution, dominant_emotion,
@@ -123,7 +123,7 @@ async def get_engagement_summary(user_id: str = "default"):
 
 
 @router.post("/engagement/reset")
-async def reset_engagement(user_id: str = "default"):
+async def reset_engagement(user_id: str):
     """Clear engagement history and baseline for a user."""
     _detector.reset(user_id=user_id)
     return {"status": "ok", "message": "Engagement state cleared.", "user_id": user_id}

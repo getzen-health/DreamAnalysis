@@ -174,7 +174,7 @@ from models.brain_age_estimator import get_brain_age_estimator
 class BrainAgeRequest(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
     fs: float = Field(default=256.0, description="Sampling frequency in Hz")
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     chronological_age: Optional[float] = Field(
         default=None, description="User's actual age in years (enables gap calculation)"
     )
@@ -228,7 +228,7 @@ from models.memory_consolidation_tracker import get_memory_tracker
 class MemoryEpochRequest(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
     fs: float = Field(default=256.0, description="Sampling frequency in Hz")
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     sleep_stage: str = Field(default="N2", description="Current sleep stage: N1, N2, N3, REM, Wake")
 
 
@@ -356,7 +356,7 @@ from models.attention_screener import AttentionScreener, DISCLAIMER as ADHD_DISC
 _screener_instances: dict = {}
 
 
-def _get_screener(user_id: str = "default") -> AttentionScreener:
+def _get_screener(user_id: str) -> AttentionScreener:
     if user_id not in _screener_instances:
         _screener_instances[user_id] = AttentionScreener()
     return _screener_instances[user_id]
@@ -390,7 +390,7 @@ from models.emotion_trajectory_predictor import get_trajectory_predictor
 class TrajectoryUpdateRequest(BaseModel):
     valence: float = Field(..., description="Current valence (-1 to 1)")
     arousal: float = Field(..., description="Current arousal (0 to 1)")
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
 
 
 @router.post("/emotion-trajectory/update")
@@ -491,7 +491,7 @@ class HeartBrainRequest(_BaseModel):
     ppg_signal: list = _Field(..., description="PPG signal samples (64 Hz)")
     fs_eeg: float = _Field(default=256.0)
     fs_ppg: float = _Field(default=64.0)
-    user_id: str = _Field(default="default")
+    user_id: str = _Field(..., description="User identifier")
 
 
 @router.post("/heart-brain-coupling")
@@ -540,7 +540,7 @@ class EEGNetFinetuneRequest(BaseModel):
         ),
     )
     fs: float = Field(default=256.0)
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
 
 
 @router.post("/eegnet-lite/predict")
@@ -668,7 +668,7 @@ async def cnn_kan_emotion_info():
 
 
 @router.get("/dgat-emotion/graph-stats")
-async def dgat_emotion_graph_stats(user_id: str = "default"):
+async def dgat_emotion_graph_stats(user_id: str):
     """Get last computed dynamic graph adjacency statistics."""
     classifier = get_dgat_classifier(user_id)
     return _numpy_safe(classifier.get_graph_stats())
@@ -684,7 +684,7 @@ class EEGVoiceFusionRequest(BaseModel):
     audio_base64: str = Field(default="", description="Base64-encoded audio (WAV/PCM)")
     eeg_fs: float = Field(default=256.0)
     voice_fs: int = Field(default=16000)
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
 
 
 @router.post("/eeg-voice-fusion/predict")
@@ -712,7 +712,7 @@ async def eeg_voice_fusion_predict(req: EEGVoiceFusionRequest):
 
 
 @router.get("/eeg-voice-fusion/stats")
-async def eeg_voice_fusion_stats(user_id: str = "default"):
+async def eeg_voice_fusion_stats(user_id: str):
     """Get last OT transport plan stats (cost, alignment quality)."""
     fusion = get_eeg_voice_fusion(user_id)
     return _numpy_safe(fusion.get_fusion_stats())

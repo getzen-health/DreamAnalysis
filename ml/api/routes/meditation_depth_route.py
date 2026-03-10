@@ -45,14 +45,14 @@ async def assess_meditation_depth(data: EEGInput):
 
 
 @router.get("/meditation-depth/timeline")
-async def get_meditation_timeline(user_id: str = "default"):
+async def get_meditation_timeline(user_id: str):
     """Get meditation depth timeline for the current session."""
     timeline = _quantifier.get_session_timeline(user_id=user_id)
     return _numpy_safe({"timeline": timeline, "user_id": user_id, "count": len(timeline)})
 
 
 @router.get("/meditation-depth/stats")
-async def get_meditation_stats(user_id: str = "default"):
+async def get_meditation_stats(user_id: str):
     """Get session-level meditation statistics."""
     result = _quantifier.get_session_stats(user_id=user_id)
     result["user_id"] = user_id
@@ -60,14 +60,14 @@ async def get_meditation_stats(user_id: str = "default"):
 
 
 @router.get("/meditation-depth/history")
-async def get_meditation_history(user_id: str = "default", last_n: int = 50):
+async def get_meditation_history(user_id: str, last_n: int = 50):
     """Get meditation depth assessment history for a user."""
     history = _quantifier.get_history(user_id=user_id, last_n=last_n)
     return _numpy_safe({"history": history, "user_id": user_id, "count": len(history)})
 
 
 @router.post("/meditation-depth/reset")
-async def reset_meditation_depth(user_id: str = "default"):
+async def reset_meditation_depth(user_id: str):
     """Clear all meditation depth state for a user."""
     _quantifier.reset(user_id=user_id)
     return {"status": "ok", "message": "Meditation depth state cleared.", "user_id": user_id}

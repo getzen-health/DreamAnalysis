@@ -16,11 +16,11 @@ class GranularityEpisodeInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
     emotion_label: Optional[str] = None
-    user_id: str = "default"
+    user_id: str
 
 
 class GranularityQueryInput(BaseModel):
-    user_id: str = "default"
+    user_id: str
 
 
 _history: dict = defaultdict(lambda: deque(maxlen=200))

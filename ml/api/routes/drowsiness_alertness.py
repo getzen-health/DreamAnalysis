@@ -7,7 +7,7 @@ from typing import Dict, List
 
 import numpy as np
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/drowsiness-alertness", tags=["drowsiness-alertness"])
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/drowsiness-alertness", tags=["drowsiness-alertness"]
 class DrowsinessInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
-    user_id: str = "default"
+    user_id: str = Field(..., min_length=1)
 
 
 class DrowsinessResult(BaseModel):

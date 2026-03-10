@@ -17,6 +17,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { pingBackend, getMLApiUrl, type VoiceWatchEmotionResult } from "@/lib/ml-api";
 import { VoiceWatchAnalyzer } from "@/components/voice-watch-analyzer";
 import { healthSync } from "@/lib/health-sync";
+import { getParticipantId } from "@/lib/participant";
 import { useToast } from "@/hooks/use-toast";
 import { useDevice } from "@/hooks/use-device";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -25,6 +26,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 
 type BlockType = "stress" | "food";
 type Phase = "block-pick" | "muse-pair" | "eeg" | "survey";
+const FALLBACK_USER_ID = getParticipantId();
 
 interface EEGSnapshot {
   alpha: number;
@@ -517,7 +519,7 @@ export default function StudySession() {
                 Record 30 seconds of voice to detect emotion from speech patterns.
                 If Apple Watch data is available, it blends heart rate and HRV for better accuracy.
               </p>
-              <VoiceWatchAnalyzer userId={participantCode || "default"} onResult={onVoiceResult} />
+              <VoiceWatchAnalyzer userId={participantCode || FALLBACK_USER_ID} onResult={onVoiceResult} />
             </CardContent>
           </Card>
 
@@ -645,7 +647,7 @@ export default function StudySession() {
               {/* Voice emotion during recording */}
               <div className="pt-2 border-t border-border">
                 <p className="text-xs text-muted-foreground mb-2">Record voice emotion (optional — saves to database)</p>
-                <VoiceWatchAnalyzer userId={participantCode || "default"} onResult={onVoiceResult} />
+                <VoiceWatchAnalyzer userId={participantCode || FALLBACK_USER_ID} onResult={onVoiceResult} />
               </div>
             </CardContent>
           </Card>

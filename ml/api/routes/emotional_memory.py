@@ -15,7 +15,7 @@ router = APIRouter(prefix="/emotional-memory", tags=["emotional-memory"])
 class EmotionalMemoryInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
-    user_id: str = "default"
+    user_id: str
 
 
 class EmotionalMemoryResult(BaseModel):

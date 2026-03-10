@@ -316,7 +316,7 @@ function relativeDay(startTime: number): string {
 }
 
 const QUICK_ACTIONS = [
-  { href: "/brain-monitor", icon: Activity, label: "Brain Monitor", color: "hsl(200, 70%, 55%)" },
+  { href: "/brain-report", icon: Activity, label: "Daily Report", color: "hsl(200, 70%, 55%)" },
   { href: "/dreams", icon: Moon, label: "Dream Journal", color: "hsl(262, 45%, 65%)" },
   { href: "/ai-companion", icon: MessageSquare, label: "AI Companion", color: "hsl(152, 60%, 48%)" },
   { href: "/biofeedback", icon: Wind, label: "Breathe", color: "hsl(38, 85%, 58%)" },
@@ -482,23 +482,18 @@ export default function Dashboard() {
 
   return (
     <main className="p-6 space-y-6 max-w-6xl">
-      {/* 1. Connection Banner — hidden when health data is available */}
+      {/* 1. Voice + watch first banner */}
       {!isStreaming && !healthState && (
-        <Link href="/device-setup">
-          <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center justify-between gap-3 cursor-pointer hover:bg-warning/10 transition-colors">
-            <div className="flex items-center gap-3">
-              <Radio className="h-4 w-4 shrink-0" />
-              Start with voice check-ins now. Add EEG later for live brain data.
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 opacity-60" />
-          </div>
-        </Link>
+        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0" />
+          Start with voice check-ins or sync health data now. EEG is an optional upgrade for live brain sensing later.
+        </div>
       )}
       {/* Health data mode banner */}
       {!isStreaming && healthState && (
         <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400 flex items-center gap-2">
           <Heart className="h-3.5 w-3.5 shrink-0" />
-          Showing estimates from {healthState.source}. Connect EEG for precise brain data.
+          Showing estimates from {healthState.source}. EEG is optional if you want live neural data later.
         </div>
       )}
 
@@ -535,7 +530,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Tap to detect emotion via microphone. EEG adds a live brain-state layer.
+              Tap to detect emotion via microphone. Voice and health power the main daily flow.
             </p>
           )}
         </div>
@@ -573,8 +568,8 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <Brain className="h-4 w-4 shrink-0 text-primary" />
               <span>
-                <span className="font-medium">Calibrate for accurate readings</span>
-                <span className="text-muted-foreground ml-2">— takes 2 min, +15–29% accuracy</span>
+                <span className="font-medium">Finish optional EEG calibration</span>
+                <span className="text-muted-foreground ml-2">— improves live headset readings</span>
               </span>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -671,10 +666,10 @@ export default function Dashboard() {
               <p className="text-xs text-foreground/60 mt-2">{shift.guidance}</p>
               {(shift.type === "approaching_anxiety" || shift.type === "emotional_turbulence") && (
                 <Link
-                  href="/neurofeedback"
+                  href="/biofeedback"
                   className="inline-flex items-center gap-1 mt-2 text-xs text-warning hover:text-warning/80 transition-colors"
                 >
-                  Start neurofeedback session <ArrowRight className="h-3 w-3" />
+                  Start breathing session <ArrowRight className="h-3 w-3" />
                 </Link>
               )}
             </div>
@@ -768,9 +763,9 @@ export default function Dashboard() {
                           : `Beat ${peakFocus}%?`}
                       </span>
                     ) : (
-                      <Link href="/brain-monitor"
+                      <Link href="/brain-report"
                         className="text-[10px] text-muted-foreground/50 hover:text-primary transition-colors">
-                        Beat {peakFocus}%? →
+                        Build toward it →
                       </Link>
                     )
                   )}
@@ -785,9 +780,9 @@ export default function Dashboard() {
                     <p className="text-[10px] text-muted-foreground mt-0.5">Best flow</p>
                   </div>
                   {peakFlow > 0 && (
-                    <Link href="/neurofeedback"
+                    <Link href="/brain-report"
                       className="text-[10px] text-muted-foreground/50 hover:text-success transition-colors">
-                      Beat {peakFlow}%? →
+                      Review your best day →
                     </Link>
                   )}
                 </div>
@@ -850,8 +845,8 @@ export default function Dashboard() {
           ? "hsl(38,85%,58%)"
           : "hsl(4,72%,55%)";
         const emotionLabel = EMOTION_LABELS[currentEmotion] || currentEmotion;
-        const actionHref  = stress > 65 ? "/biofeedback" : focus < 30 ? "/neurofeedback" : "/brain-report";
-        const actionLabel = stress > 65 ? "Start breathing session →" : focus < 30 ? "Start focus session →" : "View Brain Report →";
+        const actionHref  = stress > 65 ? "/biofeedback" : "/brain-report";
+        const actionLabel = stress > 65 ? "Start breathing session →" : "View Daily Report →";
 
         return (
           <Card className="glass-card p-5 hover-glow">

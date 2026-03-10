@@ -19,12 +19,12 @@ _personalizer = FewShotPersonalizer()
 class SupportInput(BaseModel):
     features: List[float] = Field(..., description="1D feature vector")
     emotion: str = Field(..., description="Emotion label (happy/sad/angry/fear/surprise/neutral)")
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
 
 
 class ClassifyInput(BaseModel):
     features: List[float] = Field(..., description="1D feature vector to classify")
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
 
 
 @router.post("/few-shot/add-support")
@@ -59,7 +59,7 @@ async def classify_features(data: ClassifyInput):
 
 
 @router.get("/few-shot/status")
-async def get_status(user_id: str = "default"):
+async def get_status(user_id: str):
     """Get personalization adaptation status for a user."""
     result = _personalizer.get_status(user_id=user_id)
     result["user_id"] = user_id
@@ -67,7 +67,7 @@ async def get_status(user_id: str = "default"):
 
 
 @router.get("/few-shot/prototypes")
-async def get_prototypes(user_id: str = "default"):
+async def get_prototypes(user_id: str):
     """Get computed emotion prototypes (for visualization/debugging)."""
     protos = _personalizer.get_prototypes(user_id=user_id)
     return {
@@ -78,7 +78,7 @@ async def get_prototypes(user_id: str = "default"):
 
 
 @router.post("/few-shot/reset")
-async def reset_personalizer(user_id: str = "default"):
+async def reset_personalizer(user_id: str):
     """Clear all support data and prototypes for a user."""
     _personalizer.reset(user_id=user_id)
     return {"status": "ok", "message": "Few-shot personalizer cleared.", "user_id": user_id}

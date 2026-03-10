@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/vr-workload", tags=["vr-workload"])
 
@@ -25,7 +25,7 @@ class WorkloadInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
     current_difficulty: float = 0.5   # 0-1 scale from the VR engine
-    user_id: str = "default"
+    user_id: str = Field(..., min_length=1)
 
 
 class WorkloadResult(BaseModel):

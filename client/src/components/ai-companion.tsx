@@ -125,7 +125,7 @@ Rate yourself 1–10 on these right now:
 - 🎯 **Focus** (1 = scattered, 10 = laser-sharp)
 - 😊 **Mood** (1 = very low, 10 = excellent)
 
-Connect your Muse 2 for real-time brain-wave insights, or just tell me how you're feeling in your own words — I'm here to listen. 💙`;
+Start with your own words or a voice check-in for guidance now. Add Muse 2 later if you want live brain-wave insights. 💙`;
   }
 
   if (msg.includes("sleep") || msg.includes("tired") || msg.includes("insomnia") || msg.includes("rest")) {
@@ -480,7 +480,7 @@ export function AICompanion({ userId }: AICompanionProps) {
               ? "Running in offline mode — responses are locally generated."
               : isStreaming
               ? "EEG context is automatically included with each message."
-              : "Connect your Muse 2 for brain-aware responses."}
+              : "Voice and health context can guide responses now. EEG is optional later for live brain-aware input."}
           </p>
         </div>
       </div>
@@ -549,7 +549,7 @@ export function AICompanion({ userId }: AICompanionProps) {
 
           {!isStreaming && (
             <p className="text-[10px] text-muted-foreground mt-3 text-center">
-              Connect Muse 2 for live metrics
+              Live EEG metrics appear here if you add optional Muse later
             </p>
           )}
 

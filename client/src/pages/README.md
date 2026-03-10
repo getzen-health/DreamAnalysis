@@ -20,7 +20,7 @@ Each file is one route in the app. Routes are defined in `App.tsx`. Authenticate
 | `/auth` | `auth.tsx` | Login / register |
 | `/onboarding-new` | `onboarding-new.tsx` | Voice-first onboarding path |
 
-### Overview / Daily Flow (health + multimodal)
+### Voice + Watch First (health + multimodal)
 
 | Route | File | Tier | Description |
 |-------|------|------|-------------|
@@ -29,7 +29,7 @@ Each file is one route in the app. Routes are defined in `App.tsx`. Authenticate
 | `/weekly-summary` | `weekly-brain-summary.tsx` | multimodal | Weekly emotion/focus trends |
 | `/insights` | `insights.tsx` | multimodal | AI narrative — voice fallback when no EEG |
 
-### Mind & Mood
+### Mind & Recovery
 
 | Route | File | Tier | Description |
 |-------|------|------|-------------|
@@ -43,24 +43,22 @@ Each file is one route in the app. Routes are defined in `App.tsx`. Authenticate
 | Route | File | Tier | Description |
 |-------|------|------|-------------|
 | `/food` | `food-log.tsx` | health | Food + mood journaling |
-| `/food-emotion` | `food-emotion.tsx` | health | Food-emotion correlation tracker |
 | `/supplements` | `supplements.tsx` | health | Supplement + medication tracker |
 | `/dreams` | `dream-journal.tsx` | multimodal | Dream journaling — manual-first, EEG auto-detection optional |
 | `/dream-patterns` | `dream-patterns.tsx` | multimodal | Dream pattern trends |
 | `/sleep-session` | `sleep-session.tsx` | multimodal | Sleep + HRV session log |
 | `/biofeedback` | `biofeedback.tsx` | health | Guided breathwork — voice stress baseline, EEG optional |
 
-### AI & Records
+### Support
 
 | Route | File | Tier | Description |
 |-------|------|------|-------------|
 | `/ai-companion` | `ai-companion.tsx` | health | AI wellness chat |
-| `/research` | `research-evening.tsx` | health | My Day — evening journal |
-| `/research/morning` | `research-morning.tsx` | health | Morning dream + mood journal |
-| `/research/daytime` | `research-daytime.tsx` | health | Daytime check-in |
 | `/records` | `personal-records.tsx` | health | Personal bests + achievements |
 
-### Advanced EEG (Muse 2 required or strongly preferred)
+### Add EEG Later
+
+These routes remain available in the app shell, but only as an optional hardware layer below the main voice + watch flow.
 
 | Route | File | Tier | Description |
 |-------|------|------|-------------|
@@ -70,6 +68,14 @@ Each file is one route in the app. Routes are defined in `App.tsx`. Authenticate
 | `/neurofeedback` | `neurofeedback.tsx` | eeg | Neurofeedback training protocols |
 | `/calibration` | `calibration.tsx` | eeg | EEG baseline calibration |
 | `/device-setup` | `device-setup.tsx` | eeg | Muse 2 hardware setup |
+
+### Hidden From Default Navigation
+
+These routes still exist, but they are intentionally hidden from the default app shell because they are research-only or internal.
+
+| Route | File | Tier | Description |
+|-------|------|------|-------------|
+| `/food-emotion` | `food-emotion.tsx` | health | Food-emotion research surface |
 
 ### Auth & Utility (no auth)
 

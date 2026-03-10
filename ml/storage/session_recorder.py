@@ -81,7 +81,7 @@ class SessionRecorder:
         self._unflushed_frames: List[Dict] = []  # pending frames not yet POSTed
 
     def start_recording(
-        self, user_id: str = "default", session_type: str = "general", metadata: Optional[Dict] = None
+        self, user_id: str, session_type: str = "general", metadata: Optional[Dict] = None
     ) -> str:
         """Start a new recording session.
 
@@ -128,7 +128,7 @@ class SessionRecorder:
 
             # Batch-flush every _BATCH_FLUSH_INTERVAL frames so partial sessions are persisted
             if len(self._unflushed_frames) >= _BATCH_FLUSH_INTERVAL:
-                user_id = (self.session_meta or {}).get("user_id", "default")
+                user_id = (self.session_meta or {}).get("user_id", "")
                 session_id = self.active_session or "unknown"
                 _post_emotion_batch(self._unflushed_frames, user_id, session_id)
                 self._unflushed_frames = []
@@ -156,7 +156,7 @@ class SessionRecorder:
         np.savez_compressed(str(signal_path), signals=all_signals)
 
         # Upload to R2 (no-op when credentials not set)
-        user_id = self.session_meta.get("user_id", "default")
+        user_id = self.session_meta.get("user_id", "")
         signal_r2_key: str | None = None
         try:
             from storage.r2_client import r2
@@ -213,7 +213,7 @@ class SessionRecorder:
             from storage.pg_session_store import upsert_session
             upsert_session(
                 session_id=session_id,
-                user_id=self.session_meta.get("user_id", "default"),
+                user_id=self.session_meta.get("user_id", ""),
                 session_type=self.session_meta.get("session_type", "general"),
                 start_time=self.session_meta.get("start_time"),
                 end_time=self.session_meta.get("end_time"),
@@ -226,7 +226,7 @@ class SessionRecorder:
 
         # POST any remaining unflushed frames + full timeline to Express
         # (unflushed_frames contains only frames not yet sent during recording)
-        flush_user = self.session_meta.get("user_id", "default")
+        flush_user = self.session_meta.get("user_id", "")
         if self._unflushed_frames:
             _post_emotion_batch(self._unflushed_frames, flush_user, session_id)
 
@@ -246,8 +246,29 @@ class SessionRecorder:
         return self.active_session is not None
 
     @staticmethod
+    def _meta_path(session_id: str) -> Path:
+        return SESSIONS_DIR / f"{session_id}.json"
+
+    @staticmethod
+    def _signal_path(session_id: str) -> Path:
+        return SESSIONS_DIR / f"{session_id}.npz"
+
+    @staticmethod
+    def get_session_meta(session_id: str) -> Optional[Dict]:
+        meta_path = SessionRecorder._meta_path(session_id)
+        if not meta_path.exists():
+            return None
+        try:
+            with open(meta_path) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    @staticmethod
     def list_sessions(user_id: Optional[str] = None, session_type: Optional[str] = None) -> List[Dict]:
         """List saved sessions with optional filters."""
+        if not user_id:
+            return []
         sessions = []
         for meta_file in SESSIONS_DIR.glob("*.json"):
             try:
@@ -275,16 +296,19 @@ class SessionRecorder:
         return sessions
 
     @staticmethod
-    def load_session(session_id: str) -> Dict:
+    def load_session(session_id: str, user_id: Optional[str] = None) -> Dict:
         """Load a full session (metadata + signals + analysis timeline)."""
-        meta_path = SESSIONS_DIR / f"{session_id}.json"
-        signal_path = SESSIONS_DIR / f"{session_id}.npz"
+        meta_path = SessionRecorder._meta_path(session_id)
+        signal_path = SessionRecorder._signal_path(session_id)
 
         if not meta_path.exists():
             return {"error": f"Session {session_id} not found"}
 
         with open(meta_path) as f:
             meta = json.load(f)
+
+        if user_id and meta.get("user_id") != user_id:
+            return {"error": f"Session {session_id} not found"}
 
         signals = None
         if signal_path.exists():
@@ -297,19 +321,22 @@ class SessionRecorder:
         }
 
     @staticmethod
-    def delete_session(session_id: str) -> bool:
+    def delete_session(session_id: str, user_id: Optional[str] = None) -> bool:
         """Delete a session's local files, R2 object, and PostgreSQL row."""
-        meta_path = SESSIONS_DIR / f"{session_id}.json"
-        signal_path = SESSIONS_DIR / f"{session_id}.npz"
+        meta_path = SessionRecorder._meta_path(session_id)
+        signal_path = SessionRecorder._signal_path(session_id)
 
         # Read user_id from local JSON before deleting
-        user_id = "default"
+        session_user_id = ""
         try:
             if meta_path.exists():
                 with open(meta_path) as f:
-                    user_id = json.load(f).get("user_id", "default")
+                    session_user_id = json.load(f).get("user_id", "")
         except Exception:
             pass
+
+        if user_id and session_user_id != user_id:
+            return False
 
         deleted = False
         if meta_path.exists():
@@ -323,7 +350,7 @@ class SessionRecorder:
         try:
             from storage.r2_client import r2
             if r2.available:
-                r2.delete(r2.session_key(user_id, session_id))
+                r2.delete(r2.session_key(session_user_id, session_id))
         except Exception:
             pass
 
@@ -337,7 +364,7 @@ class SessionRecorder:
         return deleted
 
     @staticmethod
-    def export_session(session_id: str, format: str = "csv") -> Optional[bytes]:
+    def export_session(session_id: str, format: str = "csv", user_id: Optional[str] = None) -> Optional[bytes]:
         """Export session data as CSV or raw bytes.
 
         Args:
@@ -347,14 +374,17 @@ class SessionRecorder:
         Returns:
             Bytes of the exported data, or None on error.
         """
-        meta_path = SESSIONS_DIR / f"{session_id}.json"
-        signal_path = SESSIONS_DIR / f"{session_id}.npz"
+        meta_path = SessionRecorder._meta_path(session_id)
+        signal_path = SessionRecorder._signal_path(session_id)
 
         if not signal_path.exists() or not meta_path.exists():
             return None
 
         with open(meta_path) as f:
             meta = json.load(f)
+
+        if user_id and meta.get("user_id") != user_id:
+            return None
 
         data = np.load(str(signal_path))
         signals = data["signals"]

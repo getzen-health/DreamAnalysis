@@ -21,6 +21,7 @@ import {
   type DeviceInfo,
   type DeviceStatusResponse,
 } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
 import { museBle, museFrameToEegStreamFrame } from "@/lib/muse-ble";
 
 type DeviceState = "disconnected" | "connecting" | "connected" | "streaming";
@@ -197,6 +198,7 @@ const IS_REMOTE_BACKEND = typeof window !== "undefined" && window.location.hostn
 const RECONNECT_MAX_ATTEMPTS = IS_REMOTE_BACKEND ? 2 : Infinity;
 
 function useDeviceInternal(): UseDeviceReturn {
+  const userIdRef = useRef(getParticipantId());
   const [state, setState] = useState<DeviceState>("disconnected");
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
@@ -232,6 +234,7 @@ function useDeviceInternal(): UseDeviceReturn {
       reconnectRef.current = 0;
       setReconnectCount(0);
       setError(null);
+      ws.send(JSON.stringify({ command: "set_user", user_id: userIdRef.current }));
       // 30-second keepalive ping to prevent server-side idle timeout
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       pingIntervalRef.current = setInterval(() => {
@@ -411,7 +414,7 @@ function useDeviceInternal(): UseDeviceReturn {
         });
         setState("streaming");
         isStreamingRef.current = true;
-        startSession("general").catch(() => {});
+        startSession("general", userIdRef.current).catch(() => {});
         return; // BLE succeeded, done
       } catch (e) {
         const bleErr = e instanceof Error ? e.message : "BLE connection failed";
@@ -446,7 +449,7 @@ function useDeviceInternal(): UseDeviceReturn {
       isStreamingRef.current = true;
       reconnectRef.current = 0;
       openWebSocket();
-      startSession("general").catch(() => {});
+      startSession("general", userIdRef.current).catch(() => {});
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Connection failed";
       if (IS_REMOTE_BACKEND && deviceType !== "synthetic") {
@@ -469,7 +472,7 @@ function useDeviceInternal(): UseDeviceReturn {
       wsRef.current.close();
       wsRef.current = null;
     }
-    stopSession().catch(() => {}); // save recording if one was active
+    stopSession(userIdRef.current).catch(() => {}); // save recording if one was active
 
     // Disconnect BLE if active (mobile path)
     if (museBle.getStatus().state === "streaming" || museBle.getStatus().state === "connected") {
@@ -497,7 +500,7 @@ function useDeviceInternal(): UseDeviceReturn {
       isStreamingRef.current = true;
       reconnectRef.current = 0;
       openWebSocket();
-      startSession("general").catch(() => {}); // auto-record while streaming
+      startSession("general", userIdRef.current).catch(() => {}); // auto-record while streaming
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start stream");
     }
@@ -513,7 +516,7 @@ function useDeviceInternal(): UseDeviceReturn {
       wsRef.current.close();
       wsRef.current = null;
     }
-    stopSession().catch(() => {}); // save the recording
+    stopSession(userIdRef.current).catch(() => {}); // save the recording
     try {
       await stopDeviceStream();
     } catch {
@@ -529,11 +532,11 @@ function useDeviceInternal(): UseDeviceReturn {
     if (!isStreamingRef.current) return;
     const interval = setInterval(() => {
       if (isStreamingRef.current) {
-        stopSession()
+        stopSession(userIdRef.current)
           .catch(() => {})
           .finally(() => {
             if (isStreamingRef.current) {
-              startSession("general").catch(() => {});
+              startSession("general", userIdRef.current).catch(() => {});
             }
           });
       }
@@ -558,7 +561,7 @@ function useDeviceInternal(): UseDeviceReturn {
         isStreamingRef.current = true;
         reconnectRef.current = 0;
         openWebSocket();
-        startSession("general").catch(() => {}); // resume auto-recording after page reload
+        startSession("general", userIdRef.current).catch(() => {}); // resume auto-recording after page reload
       } else if (status.connected) {
         setDeviceStatus(status);
         setSelectedDevice(status.device_type);

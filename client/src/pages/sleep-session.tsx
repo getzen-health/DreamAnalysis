@@ -273,7 +273,7 @@ export default function SleepSession() {
     // Dim screen after 15 seconds so the user can place their phone/laptop
     setTimeout(() => setDimmed(true), 15_000);
     // Best-effort API call — don't block UI if ML backend is offline
-    startSession("sleep", "default").catch(() => {});
+    startSession("sleep", CURRENT_USER).catch(() => {});
     // Start background processing (wake lock on web, BackgroundRunner on native)
     backgroundEeg.startSleepRecording().catch(() => {});
   };
@@ -286,7 +286,7 @@ export default function SleepSession() {
     hapticSuccess(); // session complete
     setDreamsDetected(dreamCountRef.current);
     setPhase("summary");
-    stopSession().catch(() => {});
+    stopSession(CURRENT_USER).catch(() => {});
     backgroundEeg.stopSleepRecording().catch(() => {});
   };
 
@@ -316,7 +316,7 @@ export default function SleepSession() {
           <div>
             <h2 className="text-xl font-semibold">Sleep Session</h2>
             <p className="text-xs text-muted-foreground">
-              Overnight sleep tracking with EEG depth when available, plus fallback summaries from recent health sleep data
+              Overnight sleep tracking with health-based sleep summaries by default, plus optional EEG depth when available
             </p>
           </div>
         </div>
@@ -325,7 +325,7 @@ export default function SleepSession() {
         {!isStreaming && (
           <div className="flex items-center gap-3 p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5 text-sm text-yellow-500">
             <Moon className="h-4 w-4 shrink-0 opacity-60" />
-            No device connected — simulation mode will cycle through N1 → N2 → N3 → REM.
+            No EEG connected — this page still works from recent sleep and health data. Live stages shown here use a preview cycle until EEG is added.
           </div>
         )}
 

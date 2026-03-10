@@ -37,7 +37,7 @@ def _get_tracker():
 # ── Pydantic schemas ───────────────────────────────────────────────────────────
 
 class SnapshotRequest(BaseModel):
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., min_length=1, description="User identifier")
     eiq_score: float = Field(..., ge=0.0, le=100.0, description="Overall EI composite score (0-100)")
     dimension_scores: Dict[str, float] = Field(
         default_factory=dict,

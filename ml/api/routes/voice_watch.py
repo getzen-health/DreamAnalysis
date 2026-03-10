@@ -116,7 +116,7 @@ def _watch_to_stress(
 class VoiceWatchRequest(BaseModel):
     audio_b64: str = Field(..., description="Base64-encoded WAV (5-10s)")
     sample_rate: int = Field(22050, description="Audio sample rate in Hz")
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
     hr: Optional[float] = Field(None, description="Heart rate bpm")
     hrv: Optional[float] = Field(None, description="HRV SDNN ms")
     spo2: Optional[float] = Field(None, description="SpO2 percentage")
@@ -127,7 +127,7 @@ class VoiceWatchRequest(BaseModel):
 
 
 class CacheRequest(BaseModel):
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
     emotion_result: Dict[str, Any] = Field(..., description="Voice emotion result dict")
 
 

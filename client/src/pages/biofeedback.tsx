@@ -717,8 +717,8 @@ export default function Biofeedback() {
         <div className="flex items-center gap-3 p-3 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning">
           <Radio className="h-4 w-4 shrink-0" />
           {voiceResult
-            ? `Using voice-derived stress baseline (${Math.round((voiceResult.stress_from_watch ?? 0.5) * 100)}%). Connect Muse 2 for live EEG stress tracking.`
-            : "Connect Muse 2 for live stress tracking. Run a voice check-in on the dashboard to set your stress baseline."}
+            ? `Using a voice-derived stress baseline (${Math.round((voiceResult.stress_from_watch ?? 0.5) * 100)}%). Optional EEG can add live stress tracking later.`
+            : "Run a voice check-in on the dashboard to set your stress baseline. EEG is optional later for live stress tracking."}
         </div>
       )}
 

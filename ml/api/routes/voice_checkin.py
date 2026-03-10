@@ -115,7 +115,7 @@ def _auto_log_brain_state(
 
 class CheckinRequest(BaseModel):
     audio_b64: str = Field(..., description="Base64-encoded WAV audio (5-30s)")
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
     checkin_type: str = Field(
         "morning",
         description="Time of day: morning | noon | evening",

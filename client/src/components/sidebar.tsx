@@ -10,7 +10,6 @@ import {
   Utensils,
   BedDouble,
   LogOut,
-  ClipboardList,
   LayoutDashboard,
   Activity,
   Network,
@@ -26,7 +25,6 @@ import {
   Bluetooth,
   Trophy,
   Pill,
-  BookOpenText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -49,9 +47,8 @@ interface NavSection {
 }
 
 const sections: NavSection[] = [
-  // ── Default daily-health flow (works without EEG hardware) ────────────────
   {
-    title: "Today",
+    title: "Voice & Watch",
     items: [
       { path: "/",               label: "Dashboard",      icon: LayoutDashboard },
       { path: "/brain-report",   label: "Daily Report",   icon: Sun },
@@ -59,7 +56,7 @@ const sections: NavSection[] = [
     ],
   },
   {
-    title: "Mind & Mood",
+    title: "Mind & Recovery",
     items: [
       { path: "/emotional-intelligence", label: "EI Dashboard",   icon: Brain },
       { path: "/emotions",        label: "Emotions",         icon: Brain },
@@ -72,7 +69,6 @@ const sections: NavSection[] = [
     title: "Health & Life",
     items: [
       { path: "/food",          label: "Food & Mood",   icon: Utensils },
-      { path: "/food-emotion",  label: "Food-Emotion",  icon: Leaf },
       { path: "/supplements",   label: "Supplements",   icon: Pill },
       { path: "/dreams",        label: "Dreams",        icon: Moon },
       { path: "/sleep-session", label: "Sleep",         icon: BedDouble },
@@ -80,30 +76,21 @@ const sections: NavSection[] = [
     ],
   },
   {
-    title: "AI & Records",
+    title: "Support",
     items: [
       { path: "/ai-companion", label: "AI Companion", icon: MessageCircle },
-      { path: "/research",     label: "My Day",       icon: ClipboardList },
       { path: "/records",      label: "My Records",   icon: Trophy },
     ],
   },
-  // ── Advanced EEG tools (require or strongly prefer Muse hardware) ─────────
   {
-    title: "Advanced EEG",
+    title: "Add EEG Later",
     items: [
       { path: "/brain-monitor",      label: "Brain Monitor",   icon: Activity },
       { path: "/brain-connectivity", label: "Connectivity",    icon: Network },
-      { path: "/inner-energy",       label: "Spiritual",       icon: Sparkles },
+      { path: "/inner-energy",       label: "Inner Energy",    icon: Sparkles },
       { path: "/neurofeedback",      label: "Neurofeedback",   icon: Radio },
       { path: "/calibration",        label: "EEG Calibration", icon: SlidersHorizontal },
       { path: "/device-setup",       label: "EEG Setup",       icon: Bluetooth },
-    ],
-  },
-  {
-    title: "Dev Tools",
-    items: [
-      { path: "/benchmarks",         label: "Benchmarks",    icon: BarChart2 },
-      { path: "/architecture-guide", label: "Project Guide", icon: BookOpenText },
     ],
   },
 ];

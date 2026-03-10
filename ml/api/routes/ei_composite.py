@@ -27,19 +27,19 @@ class EICompositeInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
     component_scores: Optional[Dict[str, float]] = None
-    user_id: str = "default"
+    user_id: str
 
 
 class EIBaselineInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
-    user_id: str = "default"
+    user_id: str
 
 
 class EIComponentInput(BaseModel):
     component_name: str
     score: float
-    user_id: str = "default"
+    user_id: str
 
 
 @router.post("/analyze")

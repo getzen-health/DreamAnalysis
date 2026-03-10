@@ -26,7 +26,7 @@ class BiometricEEGRequest(BaseModel):
         ..., description="EEG data: shape [n_channels, n_samples] or [n_samples]"
     )
     fs: float = Field(default=256.0, gt=0, description="Sampling rate in Hz")
-    user_id: str = Field(default="default", description="User identifier")
+    user_id: str = Field(..., min_length=1, description="User identifier")
 
 
 class DeleteTemplateRequest(BaseModel):

@@ -8,6 +8,7 @@
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getMLApiUrl } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
 
 export interface VoiceEmotionResult {
   emotion: string;
@@ -45,11 +46,12 @@ export function useVoiceEmotion(
 ): UseVoiceEmotionReturn {
   const {
     durationMs = 30000,
-    userId = "default",
+    userId,
     hr = null,
     hrv = null,
     spo2 = null,
   } = options;
+  const resolvedUserId = userId ?? getParticipantId();
 
   const [isRecording, setIsRecording] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -135,7 +137,7 @@ export function useVoiceEmotion(
           body: JSON.stringify({
             audio_b64,
             sample_rate: sampleRate,
-            user_id: userId,
+            user_id: resolvedUserId,
             ...(hr != null && { hr }),
             ...(hrv != null && { hrv }),
             ...(spo2 != null && { spo2 }),
@@ -154,7 +156,7 @@ export function useVoiceEmotion(
         fetch(`${baseUrl}/api/voice-watch/cache`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId, emotion_result: result }),
+          body: JSON.stringify({ user_id: resolvedUserId, emotion_result: result }),
         }).catch(() => {
           // Silent — cache failure is not user-facing
         });
@@ -174,7 +176,7 @@ export function useVoiceEmotion(
         recorder.stop();
       }
     }, durationMs);
-  }, [isRecording, isAnalyzing, durationMs, userId, hr, hrv, spo2]);
+  }, [isRecording, isAnalyzing, durationMs, resolvedUserId, hr, hrv, spo2]);
 
   return { startRecording, isRecording, isAnalyzing, lastResult, error };
 }

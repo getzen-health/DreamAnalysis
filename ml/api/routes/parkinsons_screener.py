@@ -7,7 +7,7 @@ from typing import List
 
 import numpy as np
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/parkinsons-screen", tags=["parkinsons-screener"])
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/parkinsons-screen", tags=["parkinsons-screener"])
 class ParkinsonsScreenInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
-    user_id: str = "default"
+    user_id: str = Field(..., min_length=1)
 
 
 class ParkinsonsScreenResult(BaseModel):

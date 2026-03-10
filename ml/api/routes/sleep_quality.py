@@ -27,7 +27,7 @@ class SleepInput(BaseModel):
     total_sleep_hours: float = Field(7.0, ge=0.0, description="Total hours of sleep")
     waso_minutes: float = Field(0.0, ge=0.0, description="Wake after sleep onset (minutes)")
     hrv_ms: Optional[float] = Field(None, description="HRV RMSSD during sleep (optional)")
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
 
 
 @router.post("/sleep-quality/predict")
@@ -55,7 +55,7 @@ async def predict_sleep_quality(data: SleepInput):
 
 
 @router.get("/sleep-quality/trend")
-async def get_sleep_trend(user_id: str = "default", window: int = 7):
+async def get_sleep_trend(user_id: str, window: int = 7):
     """Get sleep quality trend over the last N nights."""
     result = _predictor.get_trend(user_id=user_id, window=window)
     result["user_id"] = user_id
@@ -63,14 +63,14 @@ async def get_sleep_trend(user_id: str = "default", window: int = 7):
 
 
 @router.get("/sleep-quality/history")
-async def get_sleep_history(user_id: str = "default", last_n: int = 30):
+async def get_sleep_history(user_id: str, last_n: int = 30):
     """Get sleep quality history for a user."""
     history = _predictor.get_history(user_id=user_id, last_n=last_n)
     return _numpy_safe({"history": history, "user_id": user_id, "count": len(history)})
 
 
 @router.post("/sleep-quality/reset")
-async def reset_sleep_quality(user_id: str = "default"):
+async def reset_sleep_quality(user_id: str):
     """Clear sleep quality history for a user."""
     _predictor.reset(user_id=user_id)
     return {"status": "ok", "message": "Sleep quality history cleared.", "user_id": user_id}

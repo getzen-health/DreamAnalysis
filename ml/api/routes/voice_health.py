@@ -33,7 +33,7 @@ _analyzer = VoiceHealthAnalyzer()
 
 
 class AnalyzeRequest(BaseModel):
-    user_id: str = Field(default="default", description="Per-user baseline key")
+    user_id: str = Field(..., description="Per-user baseline key")
     audio_data: List[float] = Field(..., description="Raw audio samples as floats")
     sample_rate: int = Field(default=16000, description="Sample rate in Hz")
     update_baseline: bool = Field(

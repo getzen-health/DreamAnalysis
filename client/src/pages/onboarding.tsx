@@ -19,8 +19,9 @@ import {
   getBaselineStatus,
   simulateEEG,
 } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
 
-const USER_ID = "default";
+const USER_ID = getParticipantId();
 const FS = 256;
 const TARGET_FRAMES = 120;   // 2 minutes
 const MIN_FRAMES = 30;       // earliest early-exit allowed
@@ -128,21 +129,21 @@ export default function Onboarding() {
             <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-primary/10 mb-2">
               <Brain className="h-7 w-7 text-primary" />
             </div>
-            <h1 className="text-2xl font-semibold">Brain Setup</h1>
+            <h1 className="text-2xl font-semibold">Optional EEG Setup</h1>
             <p className="text-sm text-muted-foreground">
-              2 minutes · Done once
+              Muse 2 only · 2 minutes · Done once
             </p>
           </div>
 
           {/* Explanation card */}
           <Card className="glass-card p-5 space-y-3">
             <p className="text-sm leading-relaxed text-foreground/90">
-              Your brain is unique. This calibration records your personal
-              resting baseline so the AI can measure changes relative to{" "}
-              <em>you</em> — not a population average.
+              This step is only for users adding Muse 2. It records your personal
+              resting baseline so EEG features can be measured relative to{" "}
+              <em>you</em> instead of a population average.
             </p>
             <p className="text-sm font-medium text-primary">
-              Result: 15–29% more accurate emotion readings.
+              Result: better EEG calibration and more stable live neural readings.
             </p>
           </Card>
 
@@ -155,7 +156,7 @@ export default function Onboarding() {
               {[
                 "Sit still and close your eyes",
                 "Breathe naturally for 2 minutes",
-                "No headset required — simulation works too",
+                "Best used when you want the optional EEG layer",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2">
                   <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -170,7 +171,7 @@ export default function Onboarding() {
             )}
             {!isStreaming && (
               <p className="mt-3 text-xs text-muted-foreground">
-                No headset detected — will use EEG simulation
+                No headset detected — simulation can preview the flow, but voice + watch remains the main path
               </p>
             )}
           </Card>
@@ -185,10 +186,10 @@ export default function Onboarding() {
               <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/onboarding-new")}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
-              Skip for now — readings will be less accurate
+              Go back to voice + watch setup
             </button>
           </div>
         </div>

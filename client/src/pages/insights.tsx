@@ -169,7 +169,7 @@ function voiceNarrative(voice: Record<string, unknown>): { headline: string; sto
 
   return {
     headline: `Voice check-in: ${emotion} — ${moodLabel}`,
-    story: `Your most recent voice snapshot shows a ${moodLabel} emotional state with ${energyLabel}. Detected emotion: ${emotion}.${stressPart} Insights here will sharpen further once EEG data from a Muse session is available.`,
+    story: `Your most recent voice snapshot shows a ${moodLabel} emotional state with ${energyLabel}. Detected emotion: ${emotion}.${stressPart} This page already works from voice and health signals; EEG can add deeper live neural detail later.`,
   };
 }
 
@@ -340,7 +340,7 @@ export default function Insights() {
           else if (vValence < -0.2)
             items.push({ icon: Brain, title: "Negative Emotional Tone", description: `Voice detected ${vEmotion} state. Negative valence can narrow attention — be mindful of decisions made in this state.`, type: "warning" });
           if (items.length < 2)
-            items.push({ icon: Brain, title: "Voice Baseline Captured", description: "Daily voice check-ins build an emotional baseline over time. Connect your EEG headband for deep neural insights: focus, flow state, creativity, and sleep staging.", type: "primary" });
+            items.push({ icon: Brain, title: "Voice Baseline Captured", description: "Daily voice check-ins build an emotional baseline over time. Health data can deepen readiness and recovery insights, and EEG remains an optional live layer.", type: "primary" });
           return items.slice(0, 4);
         })()
       : [];
@@ -377,8 +377,8 @@ export default function Insights() {
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
           {latestVoice
-            ? "Showing voice-based insights. Connect Muse 2 for live EEG narrative."
-            : "Connect your Muse 2 from the sidebar to unlock your live brain narrative."}
+            ? "Showing voice-based insights. Health and watch signals can refine this further, and EEG is optional later."
+            : "Run a voice check-in first to unlock this page. EEG is optional later if you want live neural narrative."}
         </div>
       )}
 
@@ -517,7 +517,7 @@ export default function Insights() {
           </p>
           {bandHistory.length < 2 ? (
             <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
-              {isStreaming ? "Collecting data…" : "Connect Muse 2 to see live trends"}
+              {isStreaming ? "Collecting data…" : "Live trends appear when optional EEG is connected"}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
@@ -566,7 +566,7 @@ export default function Insights() {
           </p>
           {radarData.length === 0 ? (
             <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
-              Connect Muse 2 to see your cognitive profile
+              Add EEG later to see the live cognitive profile
             </div>
           ) : (
             <>

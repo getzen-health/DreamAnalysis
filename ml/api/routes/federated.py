@@ -132,7 +132,7 @@ async def federated_submit_update(request: SubmitUpdateRequest):
 
 
 @router.get("/federated/global-model")
-async def federated_get_global_model(user_id: str = "default"):
+async def federated_get_global_model(user_id: str):
     """Fetch the current global model weights.
 
     Returns the aggregated model that clients should apply before local training.

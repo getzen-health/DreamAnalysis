@@ -374,8 +374,8 @@ export default function WeeklyBrainSummary() {
           <div>
             <p className="text-sm font-medium">No data yet for this week</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Health metrics are recorded automatically during EEG sessions. Run a
-              session from the Biofeedback page to start building your weekly summary.
+              Your weekly summary builds from check-ins, health signals, and guided sessions over time.
+              Optional EEG sessions can add more detail later, but they are not required.
             </p>
           </div>
         </Card>

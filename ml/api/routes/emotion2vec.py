@@ -128,7 +128,7 @@ def _classify_from_embedding(emb: np.ndarray) -> dict:
 @router.post("/classify-audio", response_model=VoiceEmotionResult)
 async def classify_audio_emotion(
     file: UploadFile = File(...),
-    user_id: str = "default",
+    user_id: str = ...,
     transcribe: bool = False,
 ):
     """
@@ -288,7 +288,7 @@ class MultilingualRequest(BaseModel):
     audio_b64: str
     sample_rate: int = 22050
     language: str = "auto"   # ISO 639-1 code or "auto"
-    user_id: str = "default"
+    user_id: str
 
 
 class MultilingualResult(BaseModel):

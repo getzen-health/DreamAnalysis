@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/femba", tags=["femba"])
 
@@ -26,7 +26,7 @@ class FEMBAInput(BaseModel):
     signals: List[List[float]]     # (n_channels, n_samples)
     fs: float = 256.0
     task: str = "emotion"          # emotion | sleep | workload | anomaly
-    user_id: str = "default"
+    user_id: str = Field(..., min_length=1)
 
 
 class FEMBAResult(BaseModel):

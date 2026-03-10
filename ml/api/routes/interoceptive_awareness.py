@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import numpy as np
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/interoceptive-awareness", tags=["interoceptive-awareness"])
 
@@ -16,7 +16,7 @@ class InteroceptiveInput(BaseModel):
     signals: List[List[float]]
     fs: float = 256.0
     set_as_baseline: bool = False
-    user_id: str = "default"
+    user_id: str = Field(..., min_length=1)
 
 
 class InteroceptiveResult(BaseModel):

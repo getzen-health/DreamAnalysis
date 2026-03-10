@@ -12,7 +12,7 @@ All fields are optional — send only what you have.
 from typing import Optional
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ._shared import get_biometric_snapshot, update_biometric_snapshot
 
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/biometrics", tags=["biometrics"])
 
 
 class BiometricUpdateRequest(BaseModel):
-    user_id: str = "default"
+    user_id: str = Field(..., min_length=1)
     # HRV / Heart
     hrv_sdnn: Optional[float] = None
     hrv_rmssd: Optional[float] = None

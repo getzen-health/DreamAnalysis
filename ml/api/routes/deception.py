@@ -38,7 +38,7 @@ class DeceptionInput(BaseModel):
         description="EEG epoch time-locked to irrelevant stimulus. Same shape as probe_signals.",
     )
     fs: float = Field(256.0, description="Sampling rate in Hz.")
-    user_id: str = Field("default", description="User identifier.")
+    user_id: str = Field(..., description="User identifier.")
     channel_idx: int = Field(2, description="EEG channel index for P300 extraction (default 2 = AF8).")
 
 
@@ -54,7 +54,7 @@ class DeceptionAverageInput(BaseModel):
         description="List of irrelevant epochs. Same format.",
     )
     fs: float = Field(256.0, description="Sampling rate in Hz.")
-    user_id: str = Field("default", description="User identifier.")
+    user_id: str = Field(..., description="User identifier.")
     channel_idx: int = Field(2, description="EEG channel index for P300 (default 2 = AF8).")
 
 
@@ -112,7 +112,7 @@ async def detect_deception_average(data: DeceptionAverageInput):
 
 
 @router.get("/deception/history")
-async def get_deception_history(user_id: str = "default", last_n: int = 50):
+async def get_deception_history(user_id: str, last_n: int = 50):
     """Get detection history for a user.
 
     Query params:
@@ -123,7 +123,7 @@ async def get_deception_history(user_id: str = "default", last_n: int = 50):
 
 
 @router.get("/deception/summary")
-async def get_deception_summary(user_id: str = "default"):
+async def get_deception_summary(user_id: str):
     """Get summary statistics for a user.
 
     Returns n_detections, mean_deception_score, detected_count,
@@ -135,7 +135,7 @@ async def get_deception_summary(user_id: str = "default"):
 
 
 @router.post("/deception/reset")
-async def reset_deception(user_id: str = "default"):
+async def reset_deception(user_id: str):
     """Clear detection history for a user."""
     _detector.reset(user_id=user_id)
     return {"status": "ok", "message": "Deception detection history cleared.", "user_id": user_id}

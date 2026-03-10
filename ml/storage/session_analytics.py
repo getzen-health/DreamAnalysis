@@ -14,13 +14,13 @@ from storage.session_recorder import SESSIONS_DIR
 # ─── Session Comparison ───────────────────────────────────────────────────
 
 
-def compare_sessions(session_id_a: str, session_id_b: str) -> Dict:
+def compare_sessions(session_id_a: str, session_id_b: str, user_id: str) -> Dict:
     """Compare two sessions side-by-side.
 
     Returns per-metric deltas, improvement indicators, and narrative summary.
     """
-    a = _load_session_meta(session_id_a)
-    b = _load_session_meta(session_id_b)
+    a = _load_session_meta(session_id_a, user_id)
+    b = _load_session_meta(session_id_b, user_id)
 
     if "error" in a:
         return a
@@ -219,12 +219,15 @@ def get_weekly_report(user_id: Optional[str] = None) -> Dict:
 # ─── Helpers ──────────────────────────────────────────────────────────────
 
 
-def _load_session_meta(session_id: str) -> Dict:
+def _load_session_meta(session_id: str, user_id: Optional[str] = None) -> Dict:
     meta_path = SESSIONS_DIR / f"{session_id}.json"
     if not meta_path.exists():
         return {"error": f"Session {session_id} not found"}
     with open(meta_path) as f:
-        return json.load(f)
+        meta = json.load(f)
+    if user_id and meta.get("user_id") != user_id:
+        return {"error": f"Session {session_id} not found"}
+    return meta
 
 
 def _list_session_metas(user_id: Optional[str] = None) -> List[Dict]:

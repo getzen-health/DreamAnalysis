@@ -188,7 +188,7 @@ def _longest_streak(checkin_dates: set) -> int:
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class CheckinRequest(BaseModel):
-    user_id: str = Field("default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
     checkin_type: Literal["voice", "eeg", "health"] = Field(
         "voice", description="Type of check-in"
     )

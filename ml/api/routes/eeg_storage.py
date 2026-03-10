@@ -23,7 +23,7 @@ USER_DATA_DIR = Path(__file__).parent.parent.parent / "user_data"
 
 class SaveEEGRequest(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier for stored training data")
     session_id: Optional[str] = Field(default=None, description="Session ID (auto-generated if omitted)")
     sample_rate: float = Field(default=256.0)
     device_type: str = Field(default="muse_2")
@@ -113,7 +113,7 @@ async def save_eeg(data: SaveEEGRequest):
 
 
 @router.get("/sessions/training-data/stats")
-async def training_data_stats(user_id: Optional[str] = None):
+async def training_data_stats(user_id: str):
     """Get statistics on stored EEG training data."""
     if not USER_DATA_DIR.exists():
         return {"total_epochs": 0, "users": {}, "ready_to_train": False}
@@ -121,10 +121,7 @@ async def training_data_stats(user_id: Optional[str] = None):
     users_data: Dict[str, dict] = {}
     total = 0
 
-    # Iterate user directories
-    user_dirs = [USER_DATA_DIR / user_id] if user_id else [
-        d for d in USER_DATA_DIR.iterdir() if d.is_dir()
-    ]
+    user_dirs = [USER_DATA_DIR / user_id]
 
     for user_dir in user_dirs:
         sessions_dir = user_dir / "sessions"

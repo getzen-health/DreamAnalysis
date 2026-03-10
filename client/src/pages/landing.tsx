@@ -1,58 +1,63 @@
-import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { NeuralBackground } from "@/components/neural-background";
-import { Brain, Moon, Heart, Zap, Bot, Eye, BarChart3, Mic, Wifi, Shield, ChevronRight, Star } from "lucide-react";
+import { Brain, Moon, Heart, Bot, Eye, BarChart3, Mic, Wifi, ChevronRight, Watch } from "lucide-react";
 
 const features = [
   {
-    icon: Brain,
-    title: "EEG Brain Monitoring",
-    description: "Real-time brain wave analysis from Muse 2 (4-channel EEG). Track alpha, beta, theta, delta, and gamma waves.",
+    icon: Mic,
+    title: "Voice Check-Ins",
+    description: "Start with a short voice check-in to estimate emotion, energy, stress, and daily readiness in seconds.",
     color: "primary",
   },
   {
-    icon: Moon,
-    title: "AI Dream Interpretation",
-    description: "Advanced AI analyzes your dreams using Jungian and Freudian frameworks. Discover symbols, emotions, and hidden meanings.",
+    icon: Watch,
+    title: "Watch + Health Signals",
+    description: "Blend heart rate, HRV, sleep, SpO2, and daily activity into readiness and recovery insights when health data is available.",
     color: "secondary",
   },
   {
     icon: Heart,
-    title: "Emotion from Brain Waves",
-    description: "Detect emotions in real-time from EEG patterns. Track stress, focus, relaxation, and emotional valence throughout the day.",
+    title: "Daily Readiness",
+    description: "Track stress, focus, recovery, and emotional balance from voice and health inputs without needing a headset.",
     color: "success",
+  },
+  {
+    icon: Brain,
+    title: "Optional EEG Upgrade",
+    description: "Add Muse 2 later for live neural sensing, calibration, neurofeedback, and advanced brain-state tools.",
+    color: "accent",
+  },
+  {
+    icon: Moon,
+    title: "Dream Journal",
+    description: "Capture dreams by voice or text, then track themes, sleep quality, and next-day mood over time.",
+    color: "warning",
   },
   {
     icon: Eye,
     title: "Dream Visualization",
-    description: "AI-generated artwork from your dream descriptions. Build a personal gallery of your dream world.",
-    color: "accent",
-  },
-  {
-    icon: BarChart3,
-    title: "Dream Pattern Analytics",
-    description: "Track recurring symbols, emotion trends, and sleep quality correlations across your entire dream history.",
-    color: "warning",
-  },
-  {
-    icon: Mic,
-    title: "Voice Dream Journaling",
-    description: "Record dreams with your voice immediately upon waking. Auto-transcription captures every detail.",
+    description: "Generate artwork from dream descriptions and build a visual archive of your inner world.",
     color: "primary",
   },
   {
     icon: Bot,
     title: "AI Wellness Companion",
-    description: "Personalized AI assistant for guided meditation, breathing exercises, mood check-ins, and stress relief.",
+    description: "Use guided breathing, reflection, and mood support tools throughout the day from the same voice-first flow.",
     color: "secondary",
   },
   {
+    icon: BarChart3,
+    title: "Trend Tracking",
+    description: "See daily and weekly changes in mood, sleep, focus, and recovery as your data builds up.",
+    color: "success",
+  },
+  {
     icon: Wifi,
-    title: "Offline & PWA",
-    description: "Works offline as an installable app. Journal dreams without internet and sync when connected.",
+    title: "Installable App",
+    description: "Use it like a daily health app, keep journaling offline, and sync when connected.",
     color: "success",
   },
 ];
@@ -74,7 +79,7 @@ export default function Landing() {
       <section className="relative min-h-screen flex items-center justify-center px-4">
         <div className="max-w-4xl mx-auto text-center z-10">
           <Badge variant="outline" className="mb-6 border-secondary/50 text-secondary px-4 py-1.5">
-            First-of-its-Kind BCI Dream Platform
+            Voice + Watch First. EEG Optional.
           </Badge>
 
           <h1 className="text-5xl md:text-7xl font-futuristic font-bold mb-6">
@@ -82,8 +87,8 @@ export default function Landing() {
           </h1>
 
           <p className="text-lg md:text-xl text-foreground/60 max-w-2xl mx-auto mb-8 leading-relaxed">
-            The world's first platform combining EEG brain monitoring, AI dream analysis,
-            and emotion detection from brain waves. Unlock the mysteries of your sleeping mind.
+            A daily readiness app built around voice check-ins, health signals, sleep, and dream tracking.
+            Add Muse 2 later if you want live EEG and deeper neural features.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -104,7 +109,7 @@ export default function Landing() {
           <div className="flex items-center justify-center gap-8 mt-12 text-foreground/40">
             <div className="text-center">
               <div className="text-2xl font-bold text-primary font-mono">5</div>
-              <div className="text-xs">Sleep Stages</div>
+              <div className="text-xs">Sleep Signals</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-secondary font-mono">6</div>
@@ -112,11 +117,11 @@ export default function Landing() {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-success font-mono">4</div>
-              <div className="text-xs">EEG Channels</div>
+              <div className="text-xs">Health Inputs</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-warning font-mono">24/7</div>
-              <div className="text-xs">Monitoring</div>
+              <div className="text-xs">Daily Tracking</div>
             </div>
           </div>
         </div>
@@ -127,10 +132,10 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-futuristic font-bold mb-4">
-              <span className="text-gradient">Unprecedented</span> Features
+              <span className="text-gradient">One Daily Flow</span>, Multiple Inputs
             </h2>
             <p className="text-foreground/60 max-w-xl mx-auto">
-              No other platform in the world combines all these capabilities into one consumer-friendly experience.
+              Start with voice and health now. Layer in dreams, recovery, and optional EEG only when you want more depth.
             </p>
           </div>
 
@@ -157,11 +162,10 @@ export default function Landing() {
           <Card className="glass-card p-12 rounded-2xl hover-glow">
             <Brain className="h-16 w-16 mx-auto text-primary mb-6" />
             <h2 className="text-3xl font-futuristic font-bold mb-4">
-              Start Your <span className="text-gradient">Neural Journey</span>
+              Start Your <span className="text-gradient">Daily Readiness Flow</span>
             </h2>
             <p className="text-foreground/60 mb-8 max-w-lg mx-auto">
-              Join the frontier of dream science. Record your dreams, understand your brain waves,
-              and discover the emotional landscape of your sleeping mind.
+              Begin with a voice check-in, connect health data when available, and add EEG later if you want live neural sensing.
             </p>
             <Link href="/onboarding-new">
               <Button size="lg" className="bg-gradient-to-r from-primary to-secondary text-primary-foreground hover-glow px-12 text-lg">

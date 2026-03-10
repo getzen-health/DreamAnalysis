@@ -303,7 +303,7 @@ def _decide_intervention(
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
 class CheckRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     stress_index: float = Field(default=0.0, ge=0.0, le=1.0)
     focus_index: float = Field(default=0.5, ge=0.0, le=1.0)
     minutes_since_last_meal: Optional[float] = Field(
@@ -321,14 +321,14 @@ class CheckRequest(BaseModel):
 
 
 class TriggerRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     intervention_type: str = Field(..., description="Type from INTERVENTIONS keys")
     stress_before: float = Field(default=0.0, ge=0.0, le=1.0)
     focus_before: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
 class OutcomeRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     intervention_type: str
     stress_after: float = Field(ge=0.0, le=1.0)
     focus_after: float = Field(ge=0.0, le=1.0)
@@ -336,7 +336,7 @@ class OutcomeRequest(BaseModel):
 
 
 class SnoozeRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     minutes: int = Field(default=10, ge=1, le=120)
 
 
@@ -544,7 +544,7 @@ _JITAI_ELIGIBLE = [
 # ── JITAI Pydantic models ───────────────────────────────────────────────────
 
 class JITAICheckRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     stress_index: float = Field(default=0.0, ge=0.0, le=1.0)
     focus_index: float = Field(default=0.5, ge=0.0, le=1.0)
     emotion_type: Optional[str] = Field(
@@ -570,7 +570,7 @@ class JITAICheckRequest(BaseModel):
 
 
 class HRVReadingRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     rmssd: float = Field(..., description="RMSSD in milliseconds")
     heart_rate: Optional[float] = Field(
         default=None, description="Heart rate in BPM."
