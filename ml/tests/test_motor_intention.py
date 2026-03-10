@@ -101,7 +101,7 @@ def test_api_analyze(client):
 
 
 def test_api_multichannel(client):
-    payload = {"signals": [make_signal(), make_signal(freq=10.0), make_signal(freq=12.0), make_signal(freq=8.0)]}
+    payload = {"signals": [make_signal(), make_signal(freq=10.0), make_signal(freq=12.0), make_signal(freq=8.0)], "user_id": "test-user"}
     resp = client.post("/motor-intention/analyze", json=payload)
     assert resp.status_code == 200
 
@@ -130,7 +130,7 @@ def test_api_history_after_reset(client):
 
 
 def test_api_processed_at(client):
-    resp = client.post("/motor-intention/analyze", json={"signals": [make_signal()]})
+    resp = client.post("/motor-intention/analyze", json={"signals": [make_signal()], "user_id": "test-user"})
     assert resp.json()["processed_at"] > 0
 
 

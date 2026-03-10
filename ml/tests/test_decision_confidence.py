@@ -93,7 +93,7 @@ def test_api_analyze(client):
 
 def test_api_confidence_label_valid(client):
     labels = {"uncertain", "moderate", "confident", "highly_confident"}
-    resp = client.post("/decision-confidence/analyze", json={"signals": [make_signal()]})
+    resp = client.post("/decision-confidence/analyze", json={"signals": [make_signal()], "user_id": "test-user"})
     assert resp.json()["confidence_label"] in labels
 
 
@@ -121,7 +121,7 @@ def test_api_history_after_reset(client):
 
 
 def test_api_processed_at(client):
-    resp = client.post("/decision-confidence/analyze", json={"signals": [make_signal()]})
+    resp = client.post("/decision-confidence/analyze", json={"signals": [make_signal()], "user_id": "test-user"})
     assert resp.json()["processed_at"] > 0
 
 
@@ -133,6 +133,6 @@ def test_api_history_limit(client):
 
 
 def test_api_multichannel(client):
-    payload = {"signals": [make_signal(), make_signal(freq=6.0)]}
+    payload = {"signals": [make_signal(), make_signal(freq=6.0)], "user_id": "test-user"}
     resp = client.post("/decision-confidence/analyze", json=payload)
     assert resp.status_code == 200

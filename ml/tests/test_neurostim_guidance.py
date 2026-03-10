@@ -99,7 +99,7 @@ def test_api_analyze(client):
 
 
 def test_api_theta_protocol(client):
-    payload = {"signals": [make_signal()], "target_protocol": "theta_suppression"}
+    payload = {"signals": [make_signal()], "target_protocol": "theta_suppression", "user_id": "test-user"}
     resp = client.post("/neurostim/analyze", json=payload)
     assert resp.json()["stim_frequency_hz"] == 40.0
 
@@ -129,7 +129,7 @@ def test_api_history_after_reset(client):
 
 
 def test_api_processed_at(client):
-    resp = client.post("/neurostim/analyze", json={"signals": [make_signal()]})
+    resp = client.post("/neurostim/analyze", json={"signals": [make_signal()], "user_id": "test-user"})
     assert resp.json()["processed_at"] > 0
 
 
