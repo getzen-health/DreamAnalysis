@@ -53,10 +53,10 @@ describe("Biofeedback page", () => {
     expect(screen.getByText("Deep Relax")).toBeInTheDocument();
   });
 
-  it("shows no-device simulation notice when Muse 2 not connected", () => {
+  it("shows no-device banner when Muse 2 not connected", () => {
     renderWithProviders(<Biofeedback />);
     expect(
-      screen.getByText(/Connect Muse 2 for live stress tracking/)
+      screen.getByText(/EEG is optional later for live stress tracking/)
     ).toBeInTheDocument();
   });
 

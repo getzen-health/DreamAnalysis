@@ -48,14 +48,14 @@ describe("SleepSession page — idle state", () => {
   it("shows the overnight EEG recording description", () => {
     renderWithProviders(<SleepSession />);
     expect(
-      screen.getByText(/Overnight sleep tracking with EEG depth/)
+      screen.getByText(/Overnight sleep tracking with health-based sleep summaries/)
     ).toBeInTheDocument();
   });
 
-  it("shows no-device simulation notice when device is not connected", () => {
+  it("shows no-device notice when device is not connected", () => {
     renderWithProviders(<SleepSession />);
     expect(
-      screen.getByText(/No device connected — simulation mode will cycle through/)
+      screen.getByText(/No EEG connected — this page still works from recent sleep/)
     ).toBeInTheDocument();
   });
 

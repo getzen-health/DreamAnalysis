@@ -41,9 +41,9 @@ describe("Onboarding page — intro phase (device not connected)", () => {
     renderWithProviders(<Onboarding />);
   });
 
-  it("shows the Brain Setup heading", () => {
+  it("shows the Optional EEG Setup heading", () => {
     renderWithProviders(<Onboarding />);
-    expect(screen.getByText("Brain Setup")).toBeInTheDocument();
+    expect(screen.getByText("Optional EEG Setup")).toBeInTheDocument();
   });
 
   it("shows the 2 minutes tagline", () => {
@@ -51,17 +51,17 @@ describe("Onboarding page — intro phase (device not connected)", () => {
     expect(screen.getByText(/2 minutes · Done once/)).toBeInTheDocument();
   });
 
-  it("shows the accuracy improvement claim", () => {
+  it("shows the accuracy improvement description", () => {
     renderWithProviders(<Onboarding />);
     expect(
-      screen.getByText(/15–29% more accurate emotion readings/)
+      screen.getByText(/better EEG calibration and more stable live neural readings/)
     ).toBeInTheDocument();
   });
 
   it("shows the no-headset simulation notice when device not connected", () => {
     renderWithProviders(<Onboarding />);
     expect(
-      screen.getByText(/No headset detected — will use EEG simulation/)
+      screen.getByText(/No headset detected — simulation can preview the flow/)
     ).toBeInTheDocument();
   });
 
@@ -70,7 +70,7 @@ describe("Onboarding page — intro phase (device not connected)", () => {
     expect(screen.getByText("Sit still and close your eyes")).toBeInTheDocument();
     expect(screen.getByText("Breathe naturally for 2 minutes")).toBeInTheDocument();
     expect(
-      screen.getByText("No headset required — simulation works too")
+      screen.getByText("Best used when you want the optional EEG layer")
     ).toBeInTheDocument();
   });
 
@@ -81,10 +81,10 @@ describe("Onboarding page — intro phase (device not connected)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the Skip link", () => {
+  it("shows the back navigation link", () => {
     renderWithProviders(<Onboarding />);
     expect(
-      screen.getByText(/Skip for now — readings will be less accurate/)
+      screen.getByText(/Go back to voice \+ watch setup/)
     ).toBeInTheDocument();
   });
 

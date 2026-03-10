@@ -59,17 +59,17 @@ describe("DreamDetection (dream-journal) page", () => {
     expect(screen.getByText("Log a dream manually")).toBeInTheDocument();
   });
 
-  it("shows Muse 2 sleep wear message when not streaming", () => {
+  it("shows optional EEG message when not streaming", () => {
     renderWithProviders(<DreamDetection />);
     expect(
-      screen.getByText(/Connect Muse 2 while sleeping for automatic detection/)
+      screen.getByText(/Optional overnight EEG can add automatic dream detection later/)
     ).toBeInTheDocument();
   });
 
   it("shows automatic dream detection message", () => {
     renderWithProviders(<DreamDetection />);
     expect(
-      screen.getByText(/for automatic detection/)
+      screen.getByText(/automatic dream detection/)
     ).toBeInTheDocument();
   });
 
@@ -86,7 +86,7 @@ describe("DreamDetection (dream-journal) page", () => {
   it("shows empty state message when not streaming", () => {
     renderWithProviders(<DreamDetection />);
     expect(
-      screen.getByText(/Auto-detected episodes appear here when streaming with Muse 2/)
+      screen.getByText(/Auto-detected episodes appear later if you add overnight EEG/)
     ).toBeInTheDocument();
   });
 

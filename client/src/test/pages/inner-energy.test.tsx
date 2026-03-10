@@ -44,7 +44,7 @@ describe("InnerEnergy page", () => {
     renderWithProviders(<InnerEnergy />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Connect your Muse 2 from the sidebar to see live energy data/)
+        screen.getByText(/Start with a voice check-in to unlock this page/)
       ).toBeInTheDocument();
     });
   });
@@ -60,7 +60,7 @@ describe("InnerEnergy page", () => {
     renderWithProviders(<InnerEnergy />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Connect your Muse 2 to begin reading your energy centers from live EEG data/)
+        screen.getByText(/Start with a voice check-in to estimate your energy state/)
       ).toBeInTheDocument();
     });
   });
