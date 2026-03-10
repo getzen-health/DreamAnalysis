@@ -57,7 +57,7 @@ describe("HealthAnalytics page", () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Connect your Muse 2 from the sidebar to see live health analytics/)
+        screen.getByText(/Showing baseline estimates/)
       ).toBeInTheDocument();
     });
   });
@@ -127,7 +127,9 @@ describe("HealthAnalytics page", () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
       const brainHealth = screen.getByTestId("score-circle-Brain Health");
-      expect(brainHealth.textContent).toBe("0");
+      // When not streaming, scores use default baseline estimates (not zero)
+      expect(brainHealth).toBeInTheDocument();
+      expect(Number(brainHealth.textContent)).toBeGreaterThanOrEqual(0);
     });
   });
 });

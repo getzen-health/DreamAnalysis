@@ -54,7 +54,7 @@ describe("DreamPatterns page", () => {
     renderWithProviders(<DreamPatterns />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Connect your Muse 2 from the sidebar to see live dream pattern data/)
+        screen.getByText(/Connect Muse 2 for live sleep staging and automatic dream detection/)
       ).toBeInTheDocument();
     });
   });

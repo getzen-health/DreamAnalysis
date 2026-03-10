@@ -69,7 +69,7 @@ describe("Neurofeedback page", () => {
     renderWithProviders(<Neurofeedback />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Connect your Muse 2 and start streaming to use neurofeedback training/)
+        screen.getByText(/Neurofeedback is an EEG-only mode/)
       ).toBeInTheDocument();
     });
   });
@@ -99,7 +99,7 @@ describe("Neurofeedback page", () => {
     renderWithProviders(<Neurofeedback />);
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /Connect Device First/ })
+        screen.getByRole("button", { name: /EEG Required For Training/ })
       ).toBeInTheDocument();
     });
   });
@@ -107,7 +107,7 @@ describe("Neurofeedback page", () => {
   it("Start button is disabled when device not connected", async () => {
     renderWithProviders(<Neurofeedback />);
     await waitFor(() => {
-      const btn = screen.getByRole("button", { name: /Connect Device First/ });
+      const btn = screen.getByRole("button", { name: /EEG Required For Training/ });
       expect(btn).toBeDisabled();
     });
   });

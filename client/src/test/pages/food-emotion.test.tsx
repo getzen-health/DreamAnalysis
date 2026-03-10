@@ -90,7 +90,7 @@ describe("FoodEmotion page", () => {
     renderWithProviders(<FoodEmotion />);
     await waitFor(() => {
       expect(
-        screen.getByText("EEG-based appetite and eating-state analysis")
+        screen.getByText(/Appetite and eating-state analysis from voice check-ins/)
       ).toBeInTheDocument();
     });
   });

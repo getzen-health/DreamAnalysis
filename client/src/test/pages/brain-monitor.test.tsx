@@ -88,7 +88,7 @@ describe("BrainMonitor page", () => {
     renderWithProviders(<BrainMonitor />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Connect your Muse 2 from the sidebar to see live brain data/)
+        screen.getByText(/EEG is offline/)
       ).toBeInTheDocument();
     });
   });
@@ -126,7 +126,8 @@ describe("BrainMonitor page", () => {
   it("shows prompt to connect device inside Brain State Now panel", async () => {
     renderWithProviders(<BrainMonitor />);
     await waitFor(() => {
-      expect(screen.getByText("Connect device to see your brain state")).toBeInTheDocument();
+      const els = screen.getAllByText("No EEG signal — showing voice + health estimates");
+      expect(els.length).toBeGreaterThan(0);
     });
   });
 
