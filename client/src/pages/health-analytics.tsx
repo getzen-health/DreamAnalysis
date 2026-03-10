@@ -22,6 +22,7 @@ import {
   Radio,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
+import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 
 /* ---------- constants ---------- */
@@ -118,6 +119,7 @@ export default function HealthAnalytics() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
+  const { lastResult: voiceResult } = useVoiceEmotion();
 
   // Extract live metrics from ML models
   const emotions = analysis?.emotions;
@@ -129,26 +131,33 @@ export default function HealthAnalytics() {
   const drowsiness = analysis?.drowsiness;
   const memoryEncoding = analysis?.memory_encoding;
 
-  // Current live metrics
-  const stressIndex = isStreaming ? Math.round((stress?.stress_index ?? emotions?.stress_index ?? 0) * 100) : 0;
-  const focusScore = isStreaming ? Math.round((attention?.attention_score ?? emotions?.focus_index ?? 0) * 100) : 0;
-  const relaxScore = isStreaming ? Math.round((emotions?.relaxation_index ?? 0) * 100) : 0;
+  // Voice-derived fallbacks when EEG is not streaming
+  const voiceStress = voiceResult ? Math.round((voiceResult.stress_from_watch ?? Math.max(0, voiceResult.arousal - voiceResult.valence + 0.5) / 1.5) * 100) : null;
+  const voiceFocus = voiceResult ? Math.round(((voiceResult.arousal * 0.6 + (voiceResult.valence + 1) / 2 * 0.4)) * 100) : null;
+  const voiceRelax = voiceResult ? Math.round(((1 - voiceResult.arousal) * 0.5 + (voiceResult.valence + 1) / 2 * 0.5) * 100) : null;
+
+  // Current metrics — EEG when streaming, voice estimates when not
+  const stressIndex = isStreaming
+    ? Math.round((stress?.stress_index ?? emotions?.stress_index ?? 0) * 100)
+    : (voiceStress ?? 40);
+  const focusScore = isStreaming
+    ? Math.round((attention?.attention_score ?? emotions?.focus_index ?? 0) * 100)
+    : (voiceFocus ?? 50);
+  const relaxScore = isStreaming
+    ? Math.round((emotions?.relaxation_index ?? 0) * 100)
+    : (voiceRelax ?? 55);
   const cogLoadIndex = isStreaming ? Math.round((cognitiveLoad?.load_index ?? 0) * 100) : 0;
   const flowScore = isStreaming ? Math.round((flowState?.flow_score ?? 0) * 100) : 0;
   const creativityScore = isStreaming ? Math.round((creativity?.creativity_score ?? 0) * 100) : 0;
   const drowsinessIndex = isStreaming ? Math.round((drowsiness?.drowsiness_index ?? 0) * 100) : 0;
   const memoryScore = isStreaming ? Math.round((memoryEncoding?.encoding_score ?? 0) * 100) : 0;
 
-  // Composite scores (live only)
-  const brainHealthScore = isStreaming
-    ? Math.round(focusScore * 0.25 + relaxScore * 0.25 + (100 - stressIndex) * 0.25 + flowScore * 0.25)
-    : 0;
+  // Composite scores
+  const brainHealthScore = Math.round(focusScore * 0.25 + relaxScore * 0.25 + (100 - stressIndex) * 0.25 + (isStreaming ? flowScore : relaxScore) * 0.25);
   const cognitiveScore = isStreaming
     ? Math.round(focusScore * 0.3 + creativityScore * 0.25 + memoryScore * 0.25 + (100 - drowsinessIndex) * 0.2)
-    : 0;
-  const wellbeingScore = isStreaming
-    ? Math.round(relaxScore * 0.35 + (100 - stressIndex) * 0.35 + flowScore * 0.3)
-    : 0;
+    : Math.round(focusScore * 0.6 + relaxScore * 0.4);
+  const wellbeingScore = Math.round(relaxScore * 0.35 + (100 - stressIndex) * 0.35 + (isStreaming ? flowScore : relaxScore) * 0.3);
 
   // Period selector
   const [periodDays, setPeriodDays] = useState(1);
@@ -234,9 +243,11 @@ export default function HealthAnalytics() {
     <main className="p-6 space-y-6 max-w-5xl">
       {/* Connection Banner */}
       {!isStreaming && (
-        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
-          <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 from the sidebar to see live health analytics.
+        <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 text-sm text-muted-foreground flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0 text-primary" />
+          {voiceResult
+            ? "Showing voice-derived estimates. Connect EEG for precise live brain data."
+            : "Showing baseline estimates. Run a voice check-in or connect EEG for live analytics."}
         </div>
       )}
 
