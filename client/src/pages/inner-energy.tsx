@@ -129,7 +129,7 @@ export default function InnerEnergy() {
       sanskrit: c.sanskrit,
       meaning: c.meaning,
       wave: c.wave,
-      activation: isStreaming ? activations[i] : (voiceFallback ? voiceFallback[i] : 15),
+      activation: isStreaming ? activations[i] : (voiceFallback ? voiceFallback[i] : 0),
       color: CHAKRA_COLORS[c.key],
     }));
   }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming, hasVoice, latestVoice]);
@@ -143,7 +143,7 @@ export default function InnerEnergy() {
     ? Math.round(meditationScore * 100)
     : hasVoice
       ? Math.round(Math.max(10, (1 - voiceArousal) * 60 + ((voiceValence + 1) / 2) * 20))
-      : 10;
+      : 0;
   const meditationStage = meditation?.depth ?? "—";
 
   // Consciousness level derived from attention + flow + meditation
@@ -151,7 +151,7 @@ export default function InnerEnergy() {
     ? (attention?.attention_score ?? 0) * 30 + (flowState?.flow_score ?? 0) * 40 + meditationScore * 30
     : hasVoice
       ? ((voiceValence + 1) / 2) * 40 + voiceArousal * 30
-      : 10;
+      : 0;
   const consciousnessPercent = Math.round(Math.min(100, consciousnessRaw));
   const consciousnessLevels = ["Survival", "Desire", "Willpower", "Love", "Expression", "Insight", "Unity"];
   const consciousnessName = consciousnessLevels[Math.min(6, Math.floor(consciousnessPercent / 15))] || "—";
@@ -160,8 +160,8 @@ export default function InnerEnergy() {
   const thirdEyeActivation = isStreaming
     ? Math.round(Math.min(100, ((bandPowers.gamma ?? 0) + (bandPowers.beta ?? 0) * 0.3) * 150))
     : hasVoice
-      ? Math.round(Math.max(10, voiceFocusIndex * 80))
-      : 10;
+      ? Math.round(Math.max(0, voiceFocusIndex * 80))
+      : 0;
 
   // Dominant energy center
   const dominantChakra = chakras.reduce((max, c) =>

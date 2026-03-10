@@ -136,28 +136,40 @@ export default function HealthAnalytics() {
   const voiceFocus = voiceResult ? Math.round(((voiceResult.arousal * 0.6 + (voiceResult.valence + 1) / 2 * 0.4)) * 100) : null;
   const voiceRelax = voiceResult ? Math.round(((1 - voiceResult.arousal) * 0.5 + (voiceResult.valence + 1) / 2 * 0.5) * 100) : null;
 
-  // Current metrics — EEG when streaming, voice estimates when not
-  const stressIndex = isStreaming
+  // True when we have any real measurement (EEG or voice)
+  const hasRealData = isStreaming || voiceResult !== null;
+
+  // Current metrics — EEG when streaming, voice estimates when available, null otherwise
+  const stressIndex: number | null = isStreaming
     ? Math.round((stress?.stress_index ?? emotions?.stress_index ?? 0) * 100)
-    : (voiceStress ?? 40);
-  const focusScore = isStreaming
+    : voiceStress;
+  const focusScore: number | null = isStreaming
     ? Math.round((attention?.attention_score ?? emotions?.focus_index ?? 0) * 100)
-    : (voiceFocus ?? 50);
-  const relaxScore = isStreaming
+    : voiceFocus;
+  const relaxScore: number | null = isStreaming
     ? Math.round((emotions?.relaxation_index ?? 0) * 100)
-    : (voiceRelax ?? 55);
+    : voiceRelax;
   const cogLoadIndex = isStreaming ? Math.round((cognitiveLoad?.load_index ?? 0) * 100) : 0;
   const flowScore = isStreaming ? Math.round((flowState?.flow_score ?? 0) * 100) : 0;
   const creativityScore = isStreaming ? Math.round((creativity?.creativity_score ?? 0) * 100) : 0;
   const drowsinessIndex = isStreaming ? Math.round((drowsiness?.drowsiness_index ?? 0) * 100) : 0;
   const memoryScore = isStreaming ? Math.round((memoryEncoding?.encoding_score ?? 0) * 100) : 0;
 
-  // Composite scores
-  const brainHealthScore = Math.round(focusScore * 0.25 + relaxScore * 0.25 + (100 - stressIndex) * 0.25 + (isStreaming ? flowScore : relaxScore) * 0.25);
-  const cognitiveScore = isStreaming
-    ? Math.round(focusScore * 0.3 + creativityScore * 0.25 + memoryScore * 0.25 + (100 - drowsinessIndex) * 0.2)
-    : Math.round(focusScore * 0.6 + relaxScore * 0.4);
-  const wellbeingScore = Math.round(relaxScore * 0.35 + (100 - stressIndex) * 0.35 + (isStreaming ? flowScore : relaxScore) * 0.3);
+  // Composite scores — null when any required input is missing
+  const brainHealthScore: number | null =
+    focusScore !== null && relaxScore !== null && stressIndex !== null
+      ? Math.round(focusScore * 0.25 + relaxScore * 0.25 + (100 - stressIndex) * 0.25 + (isStreaming ? flowScore : relaxScore) * 0.25)
+      : null;
+  const cognitiveScore: number | null =
+    focusScore !== null
+      ? isStreaming
+        ? Math.round(focusScore * 0.3 + creativityScore * 0.25 + memoryScore * 0.25 + (100 - drowsinessIndex) * 0.2)
+        : relaxScore !== null ? Math.round(focusScore * 0.6 + relaxScore * 0.4) : null
+      : null;
+  const wellbeingScore: number | null =
+    relaxScore !== null && stressIndex !== null
+      ? Math.round(relaxScore * 0.35 + (100 - stressIndex) * 0.35 + (isStreaming ? flowScore : relaxScore) * 0.3)
+      : null;
 
   // Period selector
   const [periodDays, setPeriodDays] = useState(1);
@@ -180,7 +192,7 @@ export default function HealthAnalytics() {
     const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
     setTimeline((prev) => [
       ...prev.slice(-60),
-      { time: now, stress: stressIndex, focus: focusScore, relaxation: relaxScore, cogLoad: cogLoadIndex, flow: flowScore },
+      { time: now, stress: stressIndex ?? 0, focus: focusScore ?? 0, relaxation: relaxScore ?? 0, cogLoad: cogLoadIndex, flow: flowScore },
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
@@ -206,7 +218,7 @@ export default function HealthAnalytics() {
   const sessionChartData = buildHealthChartData(periodSessions, periodDays);
 
   const liveNow: HealthPoint | null = isLiveToday && isStreaming
-    ? { time: "Now", stress: stressIndex, focus: focusScore, relaxation: relaxScore, cogLoad: cogLoadIndex, flow: flowScore }
+    ? { time: "Now", stress: stressIndex ?? 0, focus: focusScore ?? 0, relaxation: relaxScore ?? 0, cogLoad: cogLoadIndex, flow: flowScore }
     : null;
   const todayChartData: (HealthPoint | SessionPoint)[] = liveNow
     ? [...timeline.slice(-30), liveNow]
@@ -214,7 +226,7 @@ export default function HealthAnalytics() {
 
   const chartData = isLiveToday ? todayChartData : sessionChartData;
   const dataKey = isLiveToday ? "time" : "date";
-  const hasData = chartData.length >= 1;
+  const hasChartData = chartData.length >= 1;
 
   // Live insights (throttled to 10s)
   interface Insight { title: string; description: string; strength: number; brain: string; health: string; }
@@ -229,7 +241,7 @@ export default function HealthAnalytics() {
 
     const next: Insight[] = [];
     if (flowScore > 60) next.push({ title: "Flow State Active", description: `Flow score ${flowScore}%. Optimal for deep work. Minimize interruptions.`, strength: flowScore / 100, brain: "flow_score", health: "focus" });
-    if (stressIndex > 50) next.push({ title: "Elevated Stress", description: `Stress at ${stressIndex}%. Consider a breathing exercise or short break.`, strength: stressIndex / 100, brain: "stress_index", health: "relaxation" });
+    if ((stressIndex ?? 0) > 50) next.push({ title: "Elevated Stress", description: `Stress at ${stressIndex ?? 0}%. Consider a breathing exercise or short break.`, strength: (stressIndex ?? 0) / 100, brain: "stress_index", health: "relaxation" });
     if (creativityScore > 50) next.push({ title: "Creative State", description: `Creativity at ${creativityScore}%. Theta-alpha ratio suggests heightened divergent thinking.`, strength: creativityScore / 100, brain: "creativity", health: "cognitive" });
     if (memoryScore > 60) next.push({ title: "Strong Memory Encoding", description: `Memory encoding at ${memoryScore}%. Brain actively consolidating — great time to learn.`, strength: memoryScore / 100, brain: "memory", health: "encoding" });
     if (drowsinessIndex > 60) next.push({ title: "Drowsiness Alert", description: `Drowsiness at ${drowsinessIndex}%. Consider a break or movement to restore alertness.`, strength: drowsinessIndex / 100, brain: "drowsiness", health: "alertness" });
@@ -253,18 +265,42 @@ export default function HealthAnalytics() {
 
       {/* Score Gauges */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="score-card p-4 flex flex-col items-center hover-glow">
-          <ScoreCircle value={brainHealthScore} label="Brain Health" gradientId="grad-brain-health" colorFrom="hsl(152, 60%, 48%)" colorTo="hsl(200, 70%, 55%)" size="sm" />
-          <p className="text-xs text-muted-foreground mt-1">Focus + Relaxation + Low Stress</p>
-        </div>
-        <div className="score-card p-4 flex flex-col items-center hover-glow">
-          <ScoreCircle value={cognitiveScore} label="Cognitive" gradientId="grad-cognitive" colorFrom="hsl(262, 45%, 65%)" colorTo="hsl(220, 50%, 50%)" size="sm" />
-          <p className="text-xs text-muted-foreground mt-1">Focus + Creativity + Memory</p>
-        </div>
-        <div className="score-card p-4 flex flex-col items-center hover-glow">
-          <ScoreCircle value={wellbeingScore} label="Wellbeing" gradientId="grad-wellbeing" colorFrom="hsl(38, 85%, 58%)" colorTo="hsl(25, 85%, 55%)" size="sm" />
-          <p className="text-xs text-muted-foreground mt-1">Relaxation + Low Stress + Flow</p>
-        </div>
+        {hasRealData && brainHealthScore !== null ? (
+          <div className="score-card p-4 flex flex-col items-center hover-glow">
+            <ScoreCircle value={brainHealthScore} label="Brain Health" gradientId="grad-brain-health" colorFrom="hsl(152, 60%, 48%)" colorTo="hsl(200, 70%, 55%)" size="sm" />
+            <p className="text-xs text-muted-foreground mt-1">Focus + Relaxation + Low Stress</p>
+          </div>
+        ) : (
+          <div className="score-card p-4 flex flex-col items-center justify-center hover-glow h-[140px]">
+            <span className="text-3xl font-semibold text-muted-foreground">—</span>
+            <span className="text-xs font-medium text-muted-foreground mt-1">Brain Health</span>
+            <p className="text-[10px] text-muted-foreground mt-1">No data</p>
+          </div>
+        )}
+        {hasRealData && cognitiveScore !== null ? (
+          <div className="score-card p-4 flex flex-col items-center hover-glow">
+            <ScoreCircle value={cognitiveScore} label="Cognitive" gradientId="grad-cognitive" colorFrom="hsl(262, 45%, 65%)" colorTo="hsl(220, 50%, 50%)" size="sm" />
+            <p className="text-xs text-muted-foreground mt-1">Focus + Creativity + Memory</p>
+          </div>
+        ) : (
+          <div className="score-card p-4 flex flex-col items-center justify-center hover-glow h-[140px]">
+            <span className="text-3xl font-semibold text-muted-foreground">—</span>
+            <span className="text-xs font-medium text-muted-foreground mt-1">Cognitive</span>
+            <p className="text-[10px] text-muted-foreground mt-1">No data</p>
+          </div>
+        )}
+        {hasRealData && wellbeingScore !== null ? (
+          <div className="score-card p-4 flex flex-col items-center hover-glow">
+            <ScoreCircle value={wellbeingScore} label="Wellbeing" gradientId="grad-wellbeing" colorFrom="hsl(38, 85%, 58%)" colorTo="hsl(25, 85%, 55%)" size="sm" />
+            <p className="text-xs text-muted-foreground mt-1">Relaxation + Low Stress + Flow</p>
+          </div>
+        ) : (
+          <div className="score-card p-4 flex flex-col items-center justify-center hover-glow h-[140px]">
+            <span className="text-3xl font-semibold text-muted-foreground">—</span>
+            <span className="text-xs font-medium text-muted-foreground mt-1">Wellbeing</span>
+            <p className="text-[10px] text-muted-foreground mt-1">No data</p>
+          </div>
+        )}
       </div>
 
       {/* Brain Health Trends */}
@@ -333,7 +369,7 @@ export default function HealthAnalytics() {
               </div>
             </>
           )
-        ) : !hasData ? (
+        ) : !hasChartData ? (
           <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
             <Brain className="h-8 w-8 opacity-30" />
             <p>{isLiveToday ? "Connect device to see trends" : "No sessions in this period"}</p>

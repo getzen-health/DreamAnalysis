@@ -69,12 +69,7 @@ export default function CalibrationPage() {
       .catch(() => {});
   }, []);
 
-  // Auto-enable simulation mode if no device connected
-  useEffect(() => {
-    if (!isStreaming && phase === "idle") {
-      setSimulateMode(true);
-    }
-  }, [isStreaming, phase]);
+  // Note: simulation mode is an explicit user choice — do not auto-enable it
 
   /* ── Stop interval helper ────────────────────────────────────────── */
   const stopInterval = useCallback(() => {
