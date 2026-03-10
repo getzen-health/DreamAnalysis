@@ -1008,6 +1008,9 @@ export interface VoiceWatchEmotionResult {
   confidence: number;
   model_type: string;
   stress_from_watch: number | null;
+  stress_index?: number;
+  focus_index?: number;
+  biomarkers?: Record<string, number>;
 }
 
 export interface VoiceWatchStatus {
@@ -1019,7 +1022,8 @@ export interface VoiceWatchStatus {
 
 export async function analyzeVoiceWatch(
   audioBase64: string,
-  watch: WatchBiometrics = {}
+  watch: WatchBiometrics = {},
+  userId?: string
 ): Promise<VoiceWatchEmotionResult> {
   return mlFetch<VoiceWatchEmotionResult>("/voice-watch/analyze", {
     method: "POST",
@@ -1029,6 +1033,7 @@ export async function analyzeVoiceWatch(
       hr:   watch.hr,
       hrv:  watch.hrv,
       spo2: watch.spo2,
+      ...(userId ? { user_id: userId } : {}),
     }),
   });
 }
@@ -1192,9 +1197,9 @@ export async function getEIQHistory(
   return mlFetch(`/ei-composite/history/${encodeURIComponent(userId)}?limit=${limit}`);
 }
 
-// ─── Voice Check-In (canonical: voice-watch pipeline) ────────────────────────
+// ─── Voice Watch Check-In ─────────────────────────────────────────────────────
 
-export interface CheckInResult {
+export interface VoiceWatchCheckinResult {
   checkin_id: string;
   checkin_type: "morning" | "noon" | "evening";
   emotion: string;
@@ -1206,6 +1211,38 @@ export interface CheckInResult {
   model_type: string;
   timestamp: number;
   biomarkers?: Record<string, number>;
+}
+
+/** @deprecated Use VoiceWatchCheckinResult instead. */
+export type CheckInResult = VoiceWatchCheckinResult;
+
+/** Submit a voice check-in via the canonical voice-watch pipeline. */
+export async function submitVoiceWatch(
+  audioBase64: string,
+  userId: string = "default_user"
+): Promise<VoiceWatchEmotionResult> {
+  return mlFetch<VoiceWatchEmotionResult>("/voice-watch/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ audio_b64: audioBase64, user_id: userId }),
+  });
+}
+
+/** Fetch the last N voice-watch check-in records for a user. */
+export async function getWatchHistory(
+  userId: string,
+  lastN: number = 20
+): Promise<{ user_id: string; count: number; history: VoiceWatchCheckinResult[] }> {
+  return mlFetch(`/voice-watch/history/${encodeURIComponent(userId)}?last_n=${lastN}`);
+}
+
+/** Fetch the daily voice-watch mood summary (morning / noon / evening). */
+export async function getDailyWatchSummary(
+  userId: string,
+  date?: string
+): Promise<Record<string, VoiceWatchCheckinResult | null>> {
+  const params = date ? `?date=${date}` : "";
+  return mlFetch(`/voice-watch/daily-summary/${encodeURIComponent(userId)}${params}`);
 }
 
 // ─── Sleep-to-Mood Predictor ─────────────────────────────────────────────────
@@ -1347,5 +1384,67 @@ export async function triggerPersonalFineTune(
   return mlFetch(`/personal/fine-tune`, {
     method: "POST",
     body: JSON.stringify({ user_id: userId }),
+  });
+}
+
+// ── Dream narrative analysis (#287) ──────────────────────────────────────────
+
+export interface DreamNarrativeAnalysis {
+  emotional_valence: number;
+  emotional_arousal: number;
+  emotional_intensity: number;
+  nightmare_score: number;
+  is_nightmare: boolean;
+  archetypes: string[];
+  emotions_detected: { word: string; polarity: string }[];
+  lucid_probability: number;
+  word_count: number;
+  irt_recommended: boolean;
+  irt_protocol: {
+    description: string;
+    steps: string[];
+    reference: string;
+  } | null;
+  insights: string[];
+  morning_mood_prediction: string;
+  theme_analysis: Record<string, unknown> | null;
+}
+
+export async function analyzeDreamNarrative(
+  text: string,
+  userId?: string
+): Promise<{ status: string; analysis: DreamNarrativeAnalysis }> {
+  return mlFetch("/analyze-dream-narrative", {
+    method: "POST",
+    body: JSON.stringify({ text, user_id: userId ?? "default" }),
+  });
+}
+
+// ── Adaptive music — ISO principle (#284) ────────────────────────────────────
+
+export interface MusicTherapyPrescription {
+  current_state: string;
+  target_state: string;
+  iso_phase: "match" | "transition" | "target";
+  recommended_tempo_bpm: number;
+  recommended_key: string;
+  recommended_mode: string;
+  search_query: string;
+  session_duration_min: number;
+  evidence_grade: string;
+}
+
+export async function getMusicTherapyPrescription(
+  valence: number,
+  arousal: number,
+  targetValence?: number
+): Promise<MusicTherapyPrescription> {
+  return mlFetch("/music-therapy/prescribe", {
+    method: "POST",
+    body: JSON.stringify({
+      valence,
+      arousal,
+      target_valence: targetValence ?? 0.5,
+    }),
   });
 }
