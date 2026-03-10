@@ -33,7 +33,8 @@ import { useDevice } from "@/hooks/use-device";
 import { useQuery } from "@tanstack/react-query";
 const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
-import { ingestHealthData, addBaselineFrame, getBaselineStatus, resetBaselineCalibration, getCalibrationStatus } from "@/lib/ml-api";
+import { ingestHealthData, addBaselineFrame, getBaselineStatus, resetBaselineCalibration, getCalibrationStatus, getPersonalStatus, triggerPersonalFineTune } from "@/lib/ml-api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface SettingsState {
   chartAnimations: boolean;
@@ -662,6 +663,9 @@ export default function SettingsPage() {
 
       {/* Baseline Calibration */}
       <BaselineCalibrationCard userId={userId} />
+
+      {/* Personal Model Personalization */}
+      <PersonalModelCard userId={userId} />
 
       {/* Notifications */}
       <NotificationsCard userId={userId} />
@@ -1345,6 +1349,107 @@ function ExportBrainDataCard({ userId }: { userId: string }) {
       <p className="text-[10px] text-muted-foreground mt-3">
         Exports raw 1Hz readings from TimescaleDB. Requires DATABASE_URL.
       </p>
+    </Card>
+  );
+}
+
+/* ── Personal Model Card (#203) ─────────────────────────────────── */
+
+function PersonalModelCard({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ["personal-status", userId],
+    queryFn: () => getPersonalStatus(userId),
+    refetchInterval: 30_000,
+    retry: false,
+  });
+
+  const fineTune = useMutation({
+    mutationFn: () => triggerPersonalFineTune(userId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["personal-status", userId] });
+      toast({
+        title: data.status === "fine_tuned" ? "Model fine-tuned" : "Not enough data yet",
+        description: data.status === "fine_tuned"
+          ? `Validation accuracy: ${data.val_accuracy_pct}%`
+          : "Keep rating predictions to collect more labeled epochs.",
+      });
+    },
+    onError: () => {
+      toast({ title: "Fine-tune failed", description: "ML backend unreachable.", variant: "destructive" });
+    },
+  });
+
+  const MILESTONE = status?.next_milestone ?? 30;
+  const collected = status?.buffer_size ?? 0;
+  const pct = Math.min(100, Math.round((collected / MILESTONE) * 100));
+  const isActive = status?.personal_model_active ?? false;
+
+  return (
+    <Card className="p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Brain className="h-4 w-4 text-violet-400" />
+        <h3 className="text-sm font-semibold">Personal Model</h3>
+        {isActive ? (
+          <Badge className="text-xs bg-green-500/10 text-green-400 border-green-500/30">Active</Badge>
+        ) : (
+          <Badge className="text-xs bg-zinc-500/10 text-zinc-400 border-zinc-500/30">Inactive</Badge>
+        )}
+      </div>
+
+      {isLoading && (
+        <p className="text-xs text-muted-foreground animate-pulse">Loading personalization status…</p>
+      )}
+
+      {status && (
+        <>
+          <p className="text-xs text-muted-foreground">{status.message}</p>
+
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Labeled epochs</span>
+              <span>{collected} / {MILESTONE}</span>
+            </div>
+            <Progress value={pct} className="h-2" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 text-xs">
+            <div className="rounded-lg bg-muted/30 p-2 text-center">
+              <p className="text-muted-foreground">Sessions</p>
+              <p className="font-semibold text-foreground">{status.total_sessions}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-2 text-center">
+              <p className="text-muted-foreground">Accuracy</p>
+              <p className="font-semibold text-foreground">
+                {isActive ? `${status.head_accuracy_pct}%` : "—"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-2 text-center">
+              <p className="text-muted-foreground">Baseline</p>
+              <p className={`font-semibold ${status.baseline_ready ? "text-green-400" : "text-muted-foreground"}`}>
+                {status.baseline_ready ? "Ready" : `${status.baseline_frames}/30`}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={fineTune.isPending || collected < 10}
+            onClick={() => fineTune.mutate()}
+            className="w-full text-xs"
+          >
+            {fineTune.isPending ? "Fine-tuning…" : "Fine-Tune Now"}
+          </Button>
+          {collected < 10 && (
+            <p className="text-[10px] text-muted-foreground text-center">
+              Rate emotion predictions in the Emotions page to collect labeled epochs.
+            </p>
+          )}
+        </>
+      )}
     </Card>
   );
 }

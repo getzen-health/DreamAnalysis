@@ -1349,3 +1349,36 @@ export async function getEIGrowthHistory(
 ): Promise<{ count: number; snapshots: DailyEISnapshot[] }> {
   return mlFetch(`/ei/growth/history/${encodeURIComponent(userId)}?last_n=${lastN}`);
 }
+
+// ── Personal Model Personalization (#203) ────────────────────────────────────
+
+export interface PersonalModelStatus {
+  user_id: string;
+  personal_model_active: boolean;
+  total_sessions: number;
+  total_labeled_epochs: number;
+  buffer_size: number;
+  head_accuracy_pct: number;
+  baseline_ready: boolean;
+  baseline_frames: number;
+  class_counts: Record<string, number>;
+  next_milestone: number;
+  message: string;
+}
+
+export async function getPersonalStatus(
+  userId: string
+): Promise<PersonalModelStatus> {
+  return mlFetch<PersonalModelStatus>(
+    `/personal/status?user_id=${encodeURIComponent(userId)}`
+  );
+}
+
+export async function triggerPersonalFineTune(
+  userId: string
+): Promise<{ status: string; val_accuracy_pct: number; buffer_size: number; personal_model_active: boolean; message: string }> {
+  return mlFetch(`/personal/fine-tune`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
