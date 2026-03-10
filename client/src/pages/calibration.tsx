@@ -11,6 +11,7 @@ import {
   resetBaselineCalibration,
   simulateEEG,
 } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
 
 /* ── Constants ─────────────────────────────────────────────────────── */
 const TARGET_FRAMES = 120; // 2 minutes at 1 frame/sec
@@ -18,6 +19,7 @@ const MIN_READY     = 30;  // backend marks ready after 30 frames
 const RING_SIZE     = 220;
 const RING_RADIUS   = 88;
 const RING_CIRCUM   = 2 * Math.PI * RING_RADIUS;
+const USER_ID       = getParticipantId();
 
 type Phase = "idle" | "running" | "complete";
 
@@ -60,7 +62,7 @@ export default function CalibrationPage() {
 
   // On mount: check existing baseline status
   useEffect(() => {
-    getBaselineStatus("default")
+    getBaselineStatus(USER_ID)
       .then((s) => {
         setFrameCount(s.n_frames);
         setIsReady(s.ready);
@@ -83,7 +85,7 @@ export default function CalibrationPage() {
   const startCalibration = async () => {
     setErrMsg(null);
     try {
-      await resetBaselineCalibration("default");
+      await resetBaselineCalibration(USER_ID);
     } catch { /* ignore — backend may not have one yet */ }
     setFrameCount(0);
     setIsReady(false);
@@ -126,7 +128,7 @@ export default function CalibrationPage() {
       try {
         const result = await addBaselineFrame(
           signals,
-          "default",
+          USER_ID,
           256
         );
         setFrameCount(result.n_frames);

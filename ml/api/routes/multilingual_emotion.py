@@ -48,11 +48,11 @@ class CalibrateRequest(BaseModel):
         default="en",
         description="ISO 639-1 language code (e.g., 'en', 'ja', 'zh')",
     )
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
 
 
 class SetCultureRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     culture_group: str = Field(
         ..., description="One of: collectivist, individualist, mixed"
     )

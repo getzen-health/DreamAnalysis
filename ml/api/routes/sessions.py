@@ -32,7 +32,7 @@ async def start_session(request: SessionStartRequest):
 
 
 @router.post("/sessions/stop")
-async def stop_session(user_id: str = "default"):
+async def stop_session(user_id: str):
     """Stop the current recording and return summary."""
     recorder = _get_session_recorder(user_id)
     if not recorder.is_recording:
@@ -41,13 +41,13 @@ async def stop_session(user_id: str = "default"):
 
 
 @router.get("/sessions")
-async def list_sessions(user_id: Optional[str] = None, session_type: Optional[str] = None):
+async def list_sessions(user_id: str, session_type: Optional[str] = None):
     """List saved sessions."""
     return SessionRecorder.list_sessions(user_id, session_type)
 
 
 @router.get("/sessions/trends")
-async def session_trends(user_id: Optional[str] = None, last_n: int = 20):
+async def session_trends(user_id: str, last_n: int = 20):
     """Get trends across recent sessions."""
     return _numpy_safe(get_session_trends(user_id, last_n))
 
@@ -59,36 +59,36 @@ async def weekly_report(user_id: Optional[str] = None):
 
 
 @router.get("/sessions/compare/{session_a}/{session_b}")
-async def compare_two_sessions(session_a: str, session_b: str):
+async def compare_two_sessions(session_a: str, session_b: str, user_id: Optional[str] = None):
     """Compare two sessions side-by-side with per-metric deltas."""
-    result = compare_sessions(session_a, session_b)
+    result = compare_sessions(session_a, session_b, user_id)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return _numpy_safe(result)
 
 
 @router.get("/sessions/{session_id}")
-async def get_session(session_id: str):
+async def get_session(session_id: str, user_id: str):
     """Get full session data."""
-    data = SessionRecorder.load_session(session_id)
+    data = SessionRecorder.load_session(session_id, user_id)
     if "error" in data:
         raise HTTPException(status_code=404, detail=data["error"])
     return data
 
 
 @router.delete("/sessions/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(session_id: str, user_id: str):
     """Delete a session."""
-    deleted = SessionRecorder.delete_session(session_id)
+    deleted = SessionRecorder.delete_session(session_id, user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"status": "deleted", "session_id": session_id}
 
 
 @router.get("/sessions/{session_id}/export")
-async def export_session(session_id: str, format: str = "csv"):
+async def export_session(session_id: str, user_id: str, format: str = "csv"):
     """Export session data as CSV."""
-    data = SessionRecorder.export_session(session_id, format)
+    data = SessionRecorder.export_session(session_id, format, user_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Session not found or export failed")
 

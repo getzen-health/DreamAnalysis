@@ -2,6 +2,8 @@
 state engine, user feedback, personalization, and /analyze-eeg-accurate."""
 
 
+from typing import Optional
+
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
@@ -45,13 +47,13 @@ async def check_signal_quality(req: SignalQualityRequest):
 # ── Confidence & Reliability ────────────────────────────────────────────────
 
 @router.get("/confidence/reliability")
-async def get_model_reliability(user_id: str = "default"):
+async def get_model_reliability(user_id: Optional[str] = "default"):
     """Get reliability assessment for all models."""
     return _get_confidence_cal(user_id).get_all_reliability()
 
 
 @router.post("/confidence/calibrate")
-async def calibrate_confidence(model_name: str, raw_confidence: float, user_id: str = "default"):
+async def calibrate_confidence(model_name: str, raw_confidence: float, user_id: str):
     """Calibrate a single confidence score."""
     return _get_confidence_cal(user_id).calibrate(model_name, raw_confidence)
 
@@ -144,15 +146,15 @@ async def get_calibration_status(user_id: str):
 # ── State Engine ────────────────────────────────────────────────────────────
 
 @router.get("/state-engine/summary")
-async def get_state_engine_summary():
+async def get_state_engine_summary(user_id: str):
     """Get current state of all temporal smoothing trackers."""
-    return _get_state_engine().get_summary()
+    return _get_state_engine(user_id).get_summary()
 
 
 @router.get("/state-engine/coherence")
-async def get_state_coherence():
+async def get_state_coherence(user_id: Optional[str] = "default"):
     """Check if current brain states are physiologically coherent."""
-    return _get_state_engine().get_cross_state_coherence()
+    return _get_state_engine(user_id).get_cross_state_coherence()
 
 
 # ── User Feedback & Personalization ────────────────────────────────────────

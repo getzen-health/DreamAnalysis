@@ -68,7 +68,7 @@ describe("Dashboard page", () => {
 
   it("shows all four quick action cards", () => {
     renderWithProviders(<Dashboard />);
-    expect(screen.getByText("Brain Monitor")).toBeInTheDocument();
+    expect(screen.getByText("Daily Report")).toBeInTheDocument();
     expect(screen.getByText("Dream Journal")).toBeInTheDocument();
     expect(screen.getByText("AI Companion")).toBeInTheDocument();
     expect(screen.getByText("Breathe")).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("Dashboard page", () => {
   it("shows connect device banner when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Start with voice check-ins now\. Add EEG later for live brain data\./)
+      screen.getByText(/Start with voice check-ins or sync health data now\. EEG is an optional upgrade for live brain sensing later\./)
     ).toBeInTheDocument();
   });
 
@@ -91,7 +91,7 @@ describe("Dashboard page", () => {
   it("shows empty state when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Tap to detect emotion via microphone\. EEG adds a live brain-state layer\./)
+      screen.getByText(/Tap to detect emotion via microphone\. Voice and health power the main daily flow\./)
     ).toBeInTheDocument();
   });
 });

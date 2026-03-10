@@ -39,7 +39,7 @@ describe("Insights page", () => {
     renderWithProviders(<Insights />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Connect your Muse 2 from the sidebar to unlock your live brain narrative/)
+        screen.getByText(/Showing voice-based insights\. Health and watch signals can refine this further, and EEG is optional later\./)
       ).toBeInTheDocument();
     });
   });
@@ -97,7 +97,7 @@ describe("Insights page", () => {
     renderWithProviders(<Insights />);
     await waitFor(() => {
       expect(
-        screen.getByText("Connect Muse 2 to see live trends")
+        screen.getByText("Live trends appear when optional EEG is connected")
       ).toBeInTheDocument();
     });
   });
@@ -106,7 +106,7 @@ describe("Insights page", () => {
     renderWithProviders(<Insights />);
     await waitFor(() => {
       expect(
-        screen.getByText("Connect Muse 2 to see your cognitive profile")
+        screen.getByText("Add EEG later to see the live cognitive profile")
       ).toBeInTheDocument();
     });
   });

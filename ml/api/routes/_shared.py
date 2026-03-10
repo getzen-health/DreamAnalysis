@@ -215,12 +215,11 @@ def update_biometric_snapshot(user_id: str, fields: dict) -> BiometricSnapshot:
     return snap
 
 # ── Legacy aliases (kept for code that imports these directly) ────────────────
-# These always return/act on the "default" user bucket so old single-user
-# callers continue to work without modification.
+# Legacy aliases kept only for backward compatibility.
 _session_recorder: SessionRecorder  # assigned lazily below via getter
 
 
-def _get_nf_protocol(user_id: str = "default") -> Optional[NeurofeedbackProtocol]:
+def _get_nf_protocol(user_id: str) -> Optional[NeurofeedbackProtocol]:
     """Return the active NeurofeedbackProtocol for *user_id*, or None."""
     return _nf_protocols.get(user_id)
 
@@ -233,14 +232,14 @@ def _set_nf_protocol(user_id: str, protocol: Optional[NeurofeedbackProtocol]) ->
         _nf_protocols[user_id] = protocol
 
 
-def _get_session_recorder(user_id: str = "default") -> SessionRecorder:
+def _get_session_recorder(user_id: str) -> SessionRecorder:
     """Return (creating if needed) the SessionRecorder for *user_id*."""
     if user_id not in _session_recorders:
         _session_recorders[user_id] = SessionRecorder()
     return _session_recorders[user_id]
 
 
-def _get_anomaly_detector(user_id: str = "default") -> AnomalyDetector:
+def _get_anomaly_detector(user_id: str) -> AnomalyDetector:
     """Return (creating if needed) the AnomalyDetector for *user_id*."""
     if user_id not in _anomaly_detectors:
         _anomaly_detectors[user_id] = AnomalyDetector()
@@ -251,22 +250,22 @@ def _get_anomaly_detector(user_id: str = "default") -> AnomalyDetector:
 _anomaly_detector: AnomalyDetector = _get_anomaly_detector("default")
 
 
-def _get_state_engine(user_id: str = "default") -> BrainStateEngine:
+def _get_state_engine(user_id: str) -> BrainStateEngine:
     """Return (creating if needed) the BrainStateEngine for *user_id*."""
     if user_id not in _state_engines:
         _state_engines[user_id] = BrainStateEngine()
     return _state_engines[user_id]
 
 
-def _get_confidence_cal(user_id: str = "default") -> ConfidenceCalibrator:
+def _get_confidence_cal(user_id: str) -> ConfidenceCalibrator:
     """Return (creating if needed) the ConfidenceCalibrator for *user_id*."""
     if user_id not in _confidence_cals:
         _confidence_cals[user_id] = ConfidenceCalibrator()
     return _confidence_cals[user_id]
 
 
-# Initialise the legacy singleton so existing `from ._shared import _session_recorder` still works
-_session_recorder = _get_session_recorder("default")
+# Legacy singleton for old imports; new code should use _get_session_recorder(user_id)
+_session_recorder = SessionRecorder()
 
 
 # ─── Helper functions ────────────────────────────────────────────────────────
@@ -404,7 +403,7 @@ def predict_emotion(
 class EEGInput(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
     fs: float = Field(default=256.0, description="Sampling frequency in Hz")
-    user_id: str = Field(default="default", description="User identifier for per-user state isolation")
+    user_id: str = Field(default="anonymous", description="User identifier for per-user state isolation")
     device_type: str = Field(default="muse_2", description="EEG device name for channel map selection (e.g. 'muse_2', 'openbci_cyton')")
 
 
@@ -449,23 +448,23 @@ class NeurofeedbackStartRequest(BaseModel):
     target_band: Optional[str] = Field(default=None, description="Target frequency band")
     threshold: Optional[float] = Field(default=None, description="Reward threshold")
     calibrate: bool = Field(default=True, description="Run baseline calibration")
-    user_id: str = Field(default="default", description="User identifier for per-user state isolation")
+    user_id: str = Field(..., description="User identifier for per-user state isolation")
 
 
 class NeurofeedbackEvalRequest(BaseModel):
     band_powers: Dict[str, float] = Field(..., description="Current band powers")
     channel_powers: Optional[List[Dict[str, float]]] = Field(default=None)
-    user_id: str = Field(default="default", description="User identifier for per-user state isolation")
+    user_id: str = Field(..., description="User identifier for per-user state isolation")
 
 
 class SessionStartRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier for per-user session isolation")
     session_type: str = Field(default="general")
     metadata: Optional[Dict] = Field(default=None)
 
 
 class CalibrationSubmitRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier for per-user calibration")
     signals_list: List[List[List[float]]] = Field(..., description="List of signal arrays")
     labels: List[str] = Field(..., description="Labels for each signal")
     fs: float = Field(default=256.0)
@@ -473,7 +472,7 @@ class CalibrationSubmitRequest(BaseModel):
 
 # Renamed from FeedbackRequest to avoid collision with accuracy pipeline's FeedbackRequest
 class PersonalFeedbackRequest(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier for personal feedback")
     signals: Optional[List[List[float]]] = Field(default=None, description="EEG signals (optional — label-only corrections accepted)")
     predicted_label: str = Field(...)
     correct_label: str = Field(...)
@@ -497,12 +496,12 @@ class CalibrationEpochRequest(BaseModel):
 class AccurateAnalysisRequest(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals")
     sample_rate: int = 256
-    user_id: str = "default"
+    user_id: str = Field(..., description="User identifier for per-user accurate analysis")
 
 
 # Accuracy pipeline FeedbackRequest (different from PersonalFeedbackRequest)
 class FeedbackRequest(BaseModel):
-    user_id: str = "default"
+    user_id: str = Field(..., description="User identifier for feedback correction")
     model_name: str = Field(..., description="Model that was wrong")
     predicted_state: str = Field(..., description="What the model said")
     corrected_state: str = Field(..., description="What user says is correct")
@@ -510,7 +509,7 @@ class FeedbackRequest(BaseModel):
 
 
 class SelfReportRequest(BaseModel):
-    user_id: str = "default"
+    user_id: str = Field(..., description="User identifier for self-report")
     reported_state: str = Field(..., description="User's current state")
     model_name: str = "general"
     features: Optional[List[float]] = None
@@ -519,7 +518,7 @@ class SelfReportRequest(BaseModel):
 class EmotionShiftRequest(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
     fs: float = Field(default=256.0)
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier for emotion-shift tracking")
 
 
 class LucidDreamRequest(BaseModel):
@@ -541,13 +540,13 @@ class CollectRequest(BaseModel):
 
 
 class HealthDataPayload(BaseModel):
-    user_id: str = Field(default="default", description="User identifier")
+    user_id: str = Field(..., description="User identifier")
     source: str = Field(..., description="'apple_health', 'google_fit', or 'health_connect'")
     data: Dict = Field(..., description="Raw health data payload from the platform SDK")
 
 
 class BrainSessionPayload(BaseModel):
-    user_id: str = Field(default="default")
+    user_id: str = Field(..., description="User identifier")
     session_id: Optional[str] = None
     start_time: float = Field(..., description="Unix timestamp")
     end_time: Optional[float] = None

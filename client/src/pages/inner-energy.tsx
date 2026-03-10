@@ -168,7 +168,7 @@ export default function InnerEnergy() {
     c.activation > max.activation ? c : max, chakras[0]);
 
   // Throttle guidance text to 10s so user can read it
-  const [guidance, setGuidance] = useState("Connect your Muse 2 to begin reading your energy centers from live EEG data.");
+  const [guidance, setGuidance] = useState("Start with a voice check-in to estimate your energy state. Optional EEG can add live signal detail later.");
   const guidanceTimerRef = useRef(0);
   const GUIDANCE_THROTTLE = 10_000;
 
@@ -181,15 +181,15 @@ export default function InnerEnergy() {
           ? `Voice check-in shows a ${emotion} state with positive energy. ${getGuidance(dominantChakra.name, "—")} Connect EEG for deeper readings.`
           : valence < -0.1
           ? `Voice shows a ${emotion} state. Your heart center may benefit from a breathing pause. ${getGuidance("Heart", "—")}`
-          : `Voice baseline captured (${emotion}). ${getGuidance(dominantChakra.name, "—")} Connect Muse 2 for live EEG energy readings.`;
+          : `Voice baseline captured (${emotion}). ${getGuidance(dominantChakra.name, "—")} Optional EEG can add live energy readings later.`;
         setGuidance(voiceGuide);
       } else {
-        setGuidance("Connect your Muse 2 to begin reading your energy centers from live EEG data.");
+        setGuidance("Start with a voice check-in to estimate your energy state. Optional EEG can add live signal detail later.");
       }
       return;
     }
     const now = Date.now();
-    if (now - guidanceTimerRef.current < GUIDANCE_THROTTLE && guidance !== "Connect your Muse 2 to begin reading your energy centers from live EEG data.") return;
+    if (now - guidanceTimerRef.current < GUIDANCE_THROTTLE && guidance !== "Start with a voice check-in to estimate your energy state. Optional EEG can add live signal detail later.") return;
     guidanceTimerRef.current = now;
     setGuidance(getGuidance(dominantChakra.name, meditationStage));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,8 +212,8 @@ export default function InnerEnergy() {
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
           {hasVoice
-            ? "Showing voice-derived energy estimate. Connect Muse 2 for live EEG chakra readings."
-            : "Connect your Muse 2 from the sidebar to see live energy data."}
+            ? "Showing a voice-derived energy estimate. Optional EEG can add live chakra-style readings later."
+            : "Start with a voice check-in to unlock this page. EEG is optional later for live energy data."}
         </div>
       )}
 
