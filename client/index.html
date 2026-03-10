@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <!-- Datadog Browser RUM — replace YOUR_APPLICATION_ID and YOUR_CLIENT_TOKEN with values
          from Datadog > UX Monitoring > RUM Applications before this activates. -->
@@ -34,6 +34,10 @@
     <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <title>Svapnastra</title>
+    <style>
+      /* Prevent white flash on mobile — dark theme is default */
+      html, body { background-color: hsl(222, 25%, 6%); color: hsl(38, 20%, 92%); }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
