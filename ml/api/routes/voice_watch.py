@@ -333,3 +333,83 @@ def voice_watch_status() -> Dict[str, Any]:
         "preferred_model_tier": preferred_tier,
         "ready": e2v_large_ok or e2v_ok or sensevoice_ok or lgbm_ok or librosa_ok,
     }
+
+
+# ── History & daily-summary endpoints (#302) ─────────────────────────────────
+# _VOICE_HISTORY is the canonical per-user ring buffer populated by /analyze.
+# These routes expose it so client helpers have real endpoints to call.
+
+@router.get("/history/{user_id}")
+def get_voice_history(user_id: str, last_n: int = 50) -> Dict[str, Any]:
+    """Return the last N voice-watch results for a user.
+
+    Each record: {timestamp, emotion, valence, arousal, stress_index, focus_index}
+    """
+    history = _VOICE_HISTORY.get(user_id, [])
+    trimmed = history[-last_n:] if len(history) > last_n else history
+    return {"user_id": user_id, "count": len(trimmed), "history": trimmed}
+
+
+@router.get("/daily-summary/{user_id}")
+def get_daily_summary(user_id: str) -> Dict[str, Any]:
+    """Return morning/noon/evening aggregates for the current calendar day (UTC).
+
+    Groups today's _VOICE_HISTORY entries by approximate time slot:
+      morning  = 04:00-11:59 UTC
+      noon     = 12:00-16:59 UTC
+      evening  = 17:00-03:59 UTC
+
+    Returns mean valence, arousal, stress_index, focus_index and dominant emotion
+    for each slot that has at least one entry.
+    """
+    import datetime as _dt
+    from collections import defaultdict as _dd
+
+    now = time.time()
+    # UTC midnight for today
+    today_dt = _dt.datetime.utcfromtimestamp(now).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    today_start = today_dt.timestamp()
+
+    history = _VOICE_HISTORY.get(user_id, [])
+    today = [r for r in history if r.get("timestamp", 0) >= today_start]
+
+    def _slot(ts: float) -> str:
+        h = _dt.datetime.utcfromtimestamp(ts).hour
+        if 4 <= h < 12:
+            return "morning"
+        if 12 <= h < 17:
+            return "noon"
+        return "evening"
+
+    groups: Dict[str, List[Dict]] = _dd(list)
+    for r in today:
+        groups[_slot(r["timestamp"])].append(r)
+
+    summary: Dict[str, Any] = {}
+    for slot, records in groups.items():
+        vals = [r.get("valence", 0.0) for r in records]
+        aros = [r.get("arousal", 0.5) for r in records]
+        strs = [r.get("stress_index", 0.0) for r in records]
+        foci = [r.get("focus_index", 0.0) for r in records]
+        emo_counts: Dict[str, int] = _dd(int)
+        for r in records:
+            emo_counts[r.get("emotion", "neutral")] += 1
+        dominant = max(emo_counts, key=lambda e: emo_counts[e]) if emo_counts else "neutral"
+        summary[slot] = {
+            "count": len(records),
+            "dominant_emotion": dominant,
+            "avg_valence": round(float(np.mean(vals)), 4),
+            "avg_arousal": round(float(np.mean(aros)), 4),
+            "avg_stress_index": round(float(np.mean(strs)), 4),
+            "avg_focus_index": round(float(np.mean(foci)), 4),
+            "latest_timestamp": max(r["timestamp"] for r in records),
+        }
+
+    return {
+        "user_id": user_id,
+        "date": today_dt.strftime("%Y-%m-%d"),
+        "total_today": len(today),
+        "trajectory": summary,
+    }
