@@ -47,3 +47,8 @@ benchmarks-dashboard.html
 .vercel
 .env*.local
 .worktrees/
+
+# Android signing (never commit keys)
+android/keystore.properties
+android/*.keystore
+android/*.jks
