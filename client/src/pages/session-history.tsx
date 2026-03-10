@@ -579,7 +579,7 @@ export default function DataHub() {
             <Card className="glass-card p-10 text-center">
               <Activity className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No emotion readings in this period.</p>
-              <p className="text-xs text-muted-foreground mt-1">Connect your Muse 2 to start recording.</p>
+              <p className="text-xs text-muted-foreground mt-1">Complete a voice check-in or connect Muse 2 to start building your history.</p>
             </Card>
           )}
 

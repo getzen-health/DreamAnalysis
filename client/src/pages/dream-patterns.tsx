@@ -203,7 +203,7 @@ export default function DreamPatterns() {
       {!isStreaming && isLiveToday && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 from the sidebar to see live dream pattern data.
+          Connect Muse 2 for live sleep staging and automatic dream detection. Manual dream logs are shown below.
         </div>
       )}
 
@@ -457,7 +457,7 @@ export default function DreamPatterns() {
               <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
                 <Moon className="h-8 w-8 text-muted-foreground/30" />
                 <p>No sessions in this period</p>
-                <p className="text-xs text-muted-foreground/60">Connect your Muse 2 to start recording</p>
+                <p className="text-xs text-muted-foreground/60">Log dreams manually or connect Muse 2 for automatic detection</p>
               </div>
             ) : (
               <>

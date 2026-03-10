@@ -172,7 +172,7 @@ export default function PersonalRecords() {
           <Trophy className="h-8 w-8 text-muted-foreground/30 mx-auto" />
           <p className="text-sm font-medium">No records yet</p>
           <p className="text-xs text-muted-foreground">
-            Connect your Muse 2 and run a session to start building your records.
+            Complete voice check-ins or health syncs to build your records. Connect Muse 2 for EEG session records.
           </p>
         </Card>
       )}

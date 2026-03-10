@@ -79,9 +79,9 @@ export default function DreamJournal() {
         {!isStreaming ? (
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <Moon className="w-10 h-10 text-muted-foreground/40" />
-            <p className="text-sm font-medium">Connect your device</p>
+            <p className="text-sm font-medium">Log a dream manually</p>
             <p className="text-xs text-muted-foreground max-w-[220px]">
-              Wear your Muse 2 while you sleep and the app will detect your dreams automatically.
+              Record a dream below using voice or text. Connect Muse 2 while sleeping for automatic detection.
             </p>
           </div>
         ) : (
@@ -149,7 +149,7 @@ export default function DreamJournal() {
           <p className="text-xs text-muted-foreground py-4 text-center">
             {isStreaming
               ? "Dream episodes will appear here as you sleep."
-              : "Start a sleep session to record dream episodes."}
+              : "Auto-detected episodes appear here when streaming with Muse 2. Use the journal button to log memories manually."}
           </p>
         ) : (
           <div className="space-y-2">
@@ -184,11 +184,15 @@ export default function DreamJournal() {
       {/* ── Card 3: Record on waking ─────────────────────────────────────── */}
       <button
         onClick={() => navigate("/research/morning")}
-        className="w-full flex items-center gap-3 rounded-xl border border-border/50 bg-muted/10 hover:bg-muted/20 px-4 py-3.5 transition-colors text-left"
+        className={`w-full flex items-center gap-3 rounded-xl px-4 py-3.5 transition-colors text-left ${
+          !isStreaming
+            ? "border border-primary/30 bg-primary/5 hover:bg-primary/10"
+            : "border border-border/50 bg-muted/10 hover:bg-muted/20"
+        }`}
       >
-        <PenLine className="w-4 h-4 text-muted-foreground shrink-0" />
+        <PenLine className={`w-4 h-4 shrink-0 ${!isStreaming ? "text-primary" : "text-muted-foreground"}`} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">Record this morning's dream</p>
+          <p className={`text-sm font-medium ${!isStreaming ? "text-primary" : ""}`}>Record this morning's dream</p>
           <p className="text-xs text-muted-foreground">
             Write what you remember — even a word counts
           </p>
