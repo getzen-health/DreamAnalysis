@@ -485,18 +485,18 @@ export default function WeeklyBrainSummary() {
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Stress</p>
-              <p className="text-lg font-mono font-bold text-rose-400">{fmtPct(lastWeek.stress)}</p>
+              <p className="text-lg font-mono font-bold text-rose-400">{fmtSlash10(lastWeek.stress)}</p>
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Focus</p>
-              <p className="text-lg font-mono font-bold text-blue-400">{fmtPct(lastWeek.focus)}</p>
+              <p className="text-lg font-mono font-bold text-blue-400">{fmtPct100(lastWeek.focus)}</p>
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sleep</p>
               <p className="text-lg font-mono font-bold text-violet-400">
                 {lastWeek.sleepHours != null
                   ? `${fmtNum(lastWeek.sleepHours)}h`
-                  : fmtPct(lastWeek.sleep ? lastWeek.sleep / 9 : null)}
+                  : fmtSlash10(lastWeek.sleep)}
               </p>
             </div>
           </div>
