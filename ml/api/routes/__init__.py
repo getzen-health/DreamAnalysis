@@ -75,6 +75,7 @@ from .gru_sleep import router as _gru_sleep
 from .seizure import router as _seizure
 from .emo_adapt import router as _emo_adapt
 from .cognitive_reserve import router as _cognitive_reserve
+from .cognitive_screening import router as _cognitive_screening
 from .emotion_regulation import router as _emotion_regulation
 from .lucid_induction import router as _lucid_induction
 from .tinnitus import router as _tinnitus
@@ -130,6 +131,7 @@ from .emotional_synchrony import router as _emotional_synchrony
 from .emotional_memory import router as _emotional_memory
 from .ei_composite import router as _ei_composite
 from .multimodal_ei import router as _multimodal_ei
+from .multilingual_emotion import router as _multilingual_emotion
 from .supplement_tracker import router as _supplement_tracker
 # voice_checkin deprecated — canonical path is voice-watch/analyze (kept for reference)
 # from .voice_checkin import router as _voice_checkin
@@ -199,6 +201,7 @@ router.include_router(_gru_sleep)
 router.include_router(_seizure)
 router.include_router(_emo_adapt)
 router.include_router(_cognitive_reserve)
+router.include_router(_cognitive_screening)
 router.include_router(_emotion_regulation)
 router.include_router(_lucid_induction)
 router.include_router(_tinnitus)
@@ -254,6 +257,7 @@ router.include_router(_emotional_synchrony)
 router.include_router(_emotional_memory)
 router.include_router(_ei_composite)
 router.include_router(_multimodal_ei)
+router.include_router(_multilingual_emotion)
 router.include_router(_supplement_tracker)
 # router.include_router(_voice_checkin)  # deprecated — canonical path is voice-watch/analyze
 router.include_router(_sleep_mood)
