@@ -5,6 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
+import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
+import { getMLApiUrl } from "@/lib/ml-api";
 import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Headphones, ExternalLink } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticMedium, hapticSuccess } from "@/lib/haptics";
@@ -298,6 +300,7 @@ type MusicMood = "calm" | "focus";
 export default function Biofeedback() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
+  const { lastResult: voiceResult } = useVoiceEmotion();
   const [location] = useLocation();
   const userId = useRef(getParticipantId());
 
@@ -350,12 +353,13 @@ export default function Biofeedback() {
     if (s != null) latestStressRef.current = s * 100;
   }, [latestFrame]);
 
-  // ── Get current stress (real or simulated) ────────────────────────────────
+  // ── Get current stress (real EEG → voice → simulation) ───────────────────
   const getStress = () => {
     if (isStreaming && latestStressRef.current != null) return latestStressRef.current;
-    // Simulation: starts 55-65, drifts down over session
+    // Use voice-derived stress as the simulation baseline if available
+    const voiceBase = voiceResult ? (voiceResult.stress_index ?? 0.6) * 100 : 60;
     const progress = elapsedSecRef.current / 180;
-    const base = 60 - 30 * Math.min(progress * 1.3, 1);
+    const base = voiceBase - (voiceBase * 0.45) * Math.min(progress * 1.3, 1);
     return Math.max(8, Math.min(92, base + (Math.random() - 0.5) * 9));
   };
 
@@ -425,6 +429,21 @@ export default function Biofeedback() {
   const handleStop = () => {
     setSessionPhase("done");
     hapticSuccess(); // celebrate session completion on mobile
+    // Record session to breathing API for coherence scoring
+    const finalStressNorm = getStress() / 100;
+    const preStressNorm = startStress != null ? startStress / 100 : undefined;
+    fetch(`${getMLApiUrl()}/api/breathing/session/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId.current,
+        pattern_id: exercise.id,
+        duration_s: elapsed,
+        completed_cycles: Math.floor(elapsed / (exercise.phases.reduce((s, p) => s + p.duration, 0))),
+        stress_after: finalStressNorm,
+        ...(preStressNorm != null ? { stress_before: preStressNorm } : {}),
+      }),
+    }).catch(() => {});
     // Report outcome to intervention engine after 5 minutes
     const finalStress = (latestStressRef.current ?? 50) / 100;
     setTimeout(() => {
@@ -697,7 +716,9 @@ export default function Biofeedback() {
       {!isStreaming && sessionPhase === "idle" && (
         <div className="flex items-center gap-3 p-3 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning">
           <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 to see your real brain response. Showing simulation without it.
+          {voiceResult
+            ? `Using voice-derived stress baseline (${Math.round((voiceResult.stress_index ?? 0.5) * 100)}%). Connect Muse 2 for live EEG stress tracking.`
+            : "Connect Muse 2 for live stress tracking. Run a voice check-in on the dashboard to set your stress baseline."}
         </div>
       )}
 

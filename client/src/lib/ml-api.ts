@@ -1192,7 +1192,7 @@ export async function getEIQHistory(
   return mlFetch(`/ei-composite/history/${encodeURIComponent(userId)}?limit=${limit}`);
 }
 
-// ─── Voice Check-In ─────────────────────────────────────────────────────────
+// ─── Voice Check-In (canonical: voice-watch pipeline) ────────────────────────
 
 export interface CheckInResult {
   checkin_id: string;
@@ -1206,39 +1206,6 @@ export interface CheckInResult {
   model_type: string;
   timestamp: number;
   biomarkers?: Record<string, number>;
-}
-
-export interface DailySummary {
-  morning: CheckInResult | null;
-  noon: CheckInResult | null;
-  evening: CheckInResult | null;
-  average_valence: number;
-  average_arousal: number;
-  dominant_emotion: string;
-}
-
-export async function submitVoiceCheckin(
-  audioBase64: string,
-  userId: string,
-  checkinType: "morning" | "noon" | "evening"
-): Promise<CheckInResult> {
-  return mlFetch<CheckInResult>("/voice-checkin/submit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      audio_b64: audioBase64,
-      user_id: userId,
-      checkin_type: checkinType,
-    }),
-  });
-}
-
-export async function getCheckinHistory(userId: string, lastN = 30): Promise<{ checkins: CheckInResult[] }> {
-  return mlFetch<{ checkins: CheckInResult[] }>(`/voice-checkin/history/${encodeURIComponent(userId)}?last_n=${lastN}`);
-}
-
-export async function getDailyCheckinSummary(userId: string): Promise<DailySummary> {
-  return mlFetch<DailySummary>(`/voice-checkin/daily-summary/${encodeURIComponent(userId)}`);
 }
 
 // ─── Sleep-to-Mood Predictor ─────────────────────────────────────────────────

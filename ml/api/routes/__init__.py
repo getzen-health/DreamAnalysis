@@ -150,6 +150,7 @@ from .emotion_coach import router as _emotion_coach
 from .on_device import router as _on_device
 from .community import router as _community
 from .brain_report import router as _brain_report
+from .breathing import router as _breathing
 
 router = APIRouter()
 
@@ -270,3 +271,4 @@ router.include_router(_emotion_coach)
 router.include_router(_on_device)
 router.include_router(_community)
 router.include_router(_brain_report)
+router.include_router(_breathing)
