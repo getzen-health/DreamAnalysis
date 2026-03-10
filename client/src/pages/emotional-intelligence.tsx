@@ -128,6 +128,15 @@ function DimensionBar({ name, value }: { name: string; value: number }) {
   );
 }
 
+const SENSOR_COLOR_MAP: Record<string, { border: string; bg: string; text: string; dot: string }> = {
+  violet: { border: "border-violet-500/40", bg: "bg-violet-500/10", text: "text-violet-300", dot: "bg-violet-400" },
+  blue:   { border: "border-blue-500/40",   bg: "bg-blue-500/10",   text: "text-blue-300",   dot: "bg-blue-400" },
+  purple: { border: "border-purple-500/40", bg: "bg-purple-500/10", text: "text-purple-300", dot: "bg-purple-400" },
+  emerald:{ border: "border-emerald-500/40",bg: "bg-emerald-500/10",text: "text-emerald-300",dot: "bg-emerald-400" },
+  cyan:   { border: "border-cyan-500/40",   bg: "bg-cyan-500/10",   text: "text-cyan-300",   dot: "bg-cyan-400" },
+  rose:   { border: "border-rose-500/40",   bg: "bg-rose-500/10",   text: "text-rose-300",   dot: "bg-rose-400" },
+};
+
 function SensorChip({
   icon: Icon,
   label,
@@ -141,11 +150,12 @@ function SensorChip({
   weight: number;
   color: string;
 }) {
+  const c = SENSOR_COLOR_MAP[color] ?? SENSOR_COLOR_MAP["violet"];
   return (
     <div
       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
         active
-          ? `border-${color}-500/40 bg-${color}-500/10 text-${color}-300`
+          ? `${c.border} ${c.bg} ${c.text}`
           : "border-zinc-800 bg-zinc-900/40 text-zinc-500"
       }`}
     >
@@ -156,7 +166,7 @@ function SensorChip({
           {active ? `${Math.round(weight * 100)}% weight` : "offline"}
         </p>
       </div>
-      <div className={`h-2 w-2 rounded-full ${active ? `bg-${color}-400` : "bg-zinc-700"}`} />
+      <div className={`h-2 w-2 rounded-full ${active ? c.dot : "bg-zinc-700"}`} />
     </div>
   );
 }
