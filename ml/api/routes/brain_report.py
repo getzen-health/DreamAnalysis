@@ -78,15 +78,20 @@ def _yesterday_voice(user_id: str) -> Dict[str, Any]:
 
 
 def _peak_focus_from_arousal(user_id: str) -> Optional[str]:
-    """Estimate peak focus window from the current voice-watch cache entry."""
-    import time
-    entry = _VOICE_CACHE.get(user_id)
-    if not entry or time.time() - entry.get("ts", 0) > _VOICE_CACHE_TTL:
+    """Find the hour-of-day with highest historical arousal from voice history."""
+    import numpy as np
+    from collections import defaultdict
+
+    hour_arousals: Dict[int, list] = defaultdict(list)
+    for entry in _VOICE_HISTORY.get(user_id, []):
+        h = datetime.datetime.utcfromtimestamp(entry["timestamp"]).hour
+        hour_arousals[h].append(entry.get("arousal", 0.0))
+
+    if not hour_arousals:
         return None
-    arousal = float(entry.get("result", {}).get("arousal", 0.5))
-    # High arousal → morning peak; lower arousal → later morning window
-    base_hour = 9 if arousal >= 0.6 else 10
-    return f"{base_hour:02d}:00–{base_hour + 2:02d}:00"
+
+    best_hour = max(hour_arousals, key=lambda h: float(np.mean(hour_arousals[h])))
+    return f"{best_hour:02d}:00–{best_hour + 2:02d}:00"
 
 
 def _health_daily_summary(user_id: str) -> Dict[str, Any]:

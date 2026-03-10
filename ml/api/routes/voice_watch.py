@@ -28,6 +28,12 @@ _LGBM_PATH = _ML_ROOT / "models" / "saved" / "audio_emotion_lgbm.pkl"
 _VOICE_CACHE: Dict[str, Dict] = {}
 _VOICE_CACHE_TTL = 300  # seconds
 
+# ── In-memory voice history (persistent within session, keyed by user_id) ─────
+# Each entry: {timestamp, emotion, valence, arousal, stress_index, focus_index}
+# Used by brain_report.py as the canonical voice data source.
+from collections import defaultdict as _defaultdict
+_VOICE_HISTORY: Dict[str, List[Dict[str, Any]]] = _defaultdict(list)
+
 # ── Librosa state (lazy) ──────────────────────────────────────────────────────
 _librosa_ok = False
 _SR = 22050
@@ -251,7 +257,18 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
         result["arousal"] = float(np.clip(result["arousal"] + stress_w * 0.2, 0.0, 1.0))
         result["stress_from_watch"] = round(stress_w, 4)
 
-    _auto_log_voice_brain_state(req.user_id, time.time(), result)
+    ts = time.time()
+    _auto_log_voice_brain_state(req.user_id, ts, result)
+
+    # Persist to history for brain_report and other cross-route consumers
+    _VOICE_HISTORY[req.user_id].append({
+        "timestamp": ts,
+        "emotion": result.get("emotion", "neutral"),
+        "valence": float(result.get("valence", 0.0)),
+        "arousal": float(result.get("arousal", 0.5)),
+        "stress_index": _voice_stress_index(result),
+        "focus_index": _voice_focus_index(result),
+    })
 
     return result
 
