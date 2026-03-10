@@ -89,7 +89,7 @@ describe("EmotionLab page", () => {
   it("shows connect-device message when Muse 2 not streaming", () => {
     renderWithProviders(<EmotionLab />);
     expect(
-      screen.getByText(/Attach your Muse 2 from the sidebar to see live emotion detection/)
+      screen.getByText(/Voice mode is ready/)
     ).toBeInTheDocument();
   });
 
@@ -105,7 +105,7 @@ describe("EmotionLab page", () => {
 
   it("shows connect device heading when not streaming", () => {
     renderWithProviders(<EmotionLab />);
-    expect(screen.getByText("Connect your device")).toBeInTheDocument();
+    expect(screen.getByText("Voice mode is ready")).toBeInTheDocument();
   });
 
   it("shows empty session message when not streaming", () => {

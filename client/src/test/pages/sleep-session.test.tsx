@@ -48,7 +48,7 @@ describe("SleepSession page — idle state", () => {
   it("shows the overnight EEG recording description", () => {
     renderWithProviders(<SleepSession />);
     expect(
-      screen.getByText(/Overnight EEG recording/)
+      screen.getByText(/Overnight sleep tracking with EEG depth/)
     ).toBeInTheDocument();
   });
 

@@ -138,7 +138,7 @@ type CardState = "idle" | "recording" | "analyzing" | "done" | "dismissed";
 const RECORD_SEC = 10;
 
 export function VoiceCheckinCard({
-  userId = "default_user",
+  userId = "default",
   onComplete,
 }: VoiceCheckinCardProps) {
   const period = getCurrentPeriod();

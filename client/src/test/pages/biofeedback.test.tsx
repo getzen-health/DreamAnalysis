@@ -56,7 +56,7 @@ describe("Biofeedback page", () => {
   it("shows no-device simulation notice when Muse 2 not connected", () => {
     renderWithProviders(<Biofeedback />);
     expect(
-      screen.getByText(/Connect your Muse 2 to see your real brain response/)
+      screen.getByText(/Connect Muse 2 for live stress tracking/)
     ).toBeInTheDocument();
   });
 

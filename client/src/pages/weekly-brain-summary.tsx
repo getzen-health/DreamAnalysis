@@ -25,7 +25,7 @@ const CURRENT_USER = getParticipantId();
 
 interface HealthMetric {
   stressLevel?: number | null;
-  focusScore?:  number | null;
+  neuralActivity?: number | null; // 0-100; returned as-is from /api/health-metrics
   sleepQuality?: number | null;
   sleepDuration?: number | null;
   timestamp?: string;
@@ -59,7 +59,7 @@ function computeWeek(metrics: HealthMetric[], daysAgoStart: number, daysAgoEnd: 
   });
   return {
     stress:      avg(rows.map(r => r.stressLevel ?? NaN)),
-    focus:       avg(rows.map(r => r.focusScore  ?? NaN)),
+    focus:       avg(rows.map(r => r.neuralActivity ?? NaN)),
     sleep:       avg(rows.map(r => r.sleepQuality ?? NaN)),
     sleepHours:  avg(rows.map(r => r.sleepDuration ?? NaN)),
     sampleCount: rows.length,
@@ -71,9 +71,16 @@ function delta(now: number | null, prev: number | null): number | null {
   return now - prev;
 }
 
-function fmtPct(v: number | null, scale = 100, decimals = 0): string {
+/** Format a 0-10 integer as "X.X/10". Used for stressLevel and sleepQuality. */
+function fmtSlash10(v: number | null): string {
   if (v == null) return "—";
-  return (v * scale).toFixed(decimals) + "%";
+  return v.toFixed(1) + "/10";
+}
+
+/** Format a 0-100 integer as "X%". Used for neuralActivity (focus). */
+function fmtPct100(v: number | null): string {
+  if (v == null) return "—";
+  return v.toFixed(0) + "%";
 }
 
 function fmtNum(v: number | null, decimals = 1): string {
@@ -156,21 +163,21 @@ function exportAsPng(
   const cards = [
     {
       label: "Stress",
-      thisVal: thisWeek.stress != null ? (thisWeek.stress * 100).toFixed(0) + "%" : "—",
+      thisVal: fmtSlash10(thisWeek.stress),
       d: delta(thisWeek.stress, lastWeek.stress),
       positiveIsGood: false,
       color: "#f87171",
     },
     {
       label: "Focus",
-      thisVal: thisWeek.focus != null ? (thisWeek.focus * 100).toFixed(0) + "%" : "—",
+      thisVal: fmtPct100(thisWeek.focus),
       d: delta(thisWeek.focus, lastWeek.focus),
       positiveIsGood: true,
       color: "#60a5fa",
     },
     {
       label: "Sleep",
-      thisVal: thisWeek.sleepHours != null ? thisWeek.sleepHours.toFixed(1) + "h" : thisWeek.sleep != null ? (thisWeek.sleep * 100 / 9).toFixed(0) + "%" : "—",
+      thisVal: thisWeek.sleepHours != null ? thisWeek.sleepHours.toFixed(1) + "h" : fmtSlash10(thisWeek.sleep),
       d: delta(thisWeek.sleep, lastWeek.sleep),
       positiveIsGood: true,
       color: "#a78bfa",
@@ -433,8 +440,8 @@ export default function WeeklyBrainSummary() {
             <MetricCard
               icon={AlertCircle}
               label="Stress"
-              thisVal={fmtPct(thisWeek.stress)}
-              lastVal={fmtPct(lastWeek.stress)}
+              thisVal={fmtSlash10(thisWeek.stress)}
+              lastVal={fmtSlash10(lastWeek.stress)}
               d={stressDelta}
               positiveIsGood={false}
               color="hsl(0, 70%, 65%)"
@@ -442,8 +449,8 @@ export default function WeeklyBrainSummary() {
             <MetricCard
               icon={Zap}
               label="Focus"
-              thisVal={fmtPct(thisWeek.focus)}
-              lastVal={fmtPct(lastWeek.focus)}
+              thisVal={fmtPct100(thisWeek.focus)}
+              lastVal={fmtPct100(lastWeek.focus)}
               d={focusDelta}
               positiveIsGood={true}
               color="hsl(210, 80%, 65%)"
@@ -454,12 +461,12 @@ export default function WeeklyBrainSummary() {
               thisVal={
                 thisWeek.sleepHours != null
                   ? `${fmtNum(thisWeek.sleepHours)}h`
-                  : fmtPct(thisWeek.sleep ? thisWeek.sleep / 9 : null)
+                  : fmtSlash10(thisWeek.sleep)
               }
               lastVal={
                 lastWeek.sleepHours != null
                   ? `${fmtNum(lastWeek.sleepHours)}h`
-                  : fmtPct(lastWeek.sleep ? lastWeek.sleep / 9 : null)
+                  : fmtSlash10(lastWeek.sleep)
               }
               d={sleepDelta}
               positiveIsGood={true}

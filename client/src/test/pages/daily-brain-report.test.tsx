@@ -49,25 +49,31 @@ describe("DailyBrainReport page — no data state", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows default recommended action when no health data", async () => {
+  it("shows voice check-in CTA as default action when no health data", async () => {
     renderWithProviders(<DailyBrainReport />);
     expect(
-      await screen.findByText("Start coherence breathing", {}, { timeout: 3000 })
+      await screen.findByText("Run a voice check-in", {}, { timeout: 3000 })
     ).toBeInTheDocument();
   });
 
-  it("shows the action description when no health data", async () => {
+  it("shows voice check-in description when no health data", async () => {
     renderWithProviders(<DailyBrainReport />);
+    // Note: the page uses a curly apostrophe (U+2019) in "today\u2019s"
     expect(
-      await screen.findByText(/4-min session to centre your nervous system/, {}, { timeout: 3000 })
+      await screen.findByText(
+        /Capture a quick emotion snapshot to personalize today/i,
+        {},
+        { timeout: 3000 }
+      )
     ).toBeInTheDocument();
   });
 
   it("shows a Start button for the recommended action", async () => {
     renderWithProviders(<DailyBrainReport />);
-    expect(
-      await screen.findByRole("button", { name: /Start/ }, { timeout: 3000 })
-    ).toBeInTheDocument();
+    // Wait for Do this now card first, then confirm button is present
+    await screen.findByText("Do this now", {}, { timeout: 3000 });
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.some((b) => /start/i.test(b.textContent ?? ""))).toBe(true);
   });
 
   it("does not show 'Last night' card when no sleep data", async () => {

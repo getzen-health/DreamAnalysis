@@ -1219,7 +1219,7 @@ export type CheckInResult = VoiceWatchCheckinResult;
 /** Submit a voice check-in via the canonical voice-watch pipeline. */
 export async function submitVoiceWatch(
   audioBase64: string,
-  userId: string = "default_user"
+  userId: string = "default"
 ): Promise<VoiceWatchEmotionResult> {
   return mlFetch<VoiceWatchEmotionResult>("/voice-watch/analyze", {
     method: "POST",
