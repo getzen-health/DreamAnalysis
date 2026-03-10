@@ -10,7 +10,8 @@
     "check": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "build:mobile": "vite build"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.1.0",
