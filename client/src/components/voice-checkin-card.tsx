@@ -257,17 +257,22 @@ export function VoiceCheckinCard({
         }
 
         const raw = await res.json();
-        // Map voice-watch response to CheckInResult shape
+        // Map voice-watch/analyze response to CheckInResult shape
+        // stress_from_watch is 0-10 scale; stress_index/focus_index are 0-1
+        const stressIndex = raw.stress_index ?? Math.min(1, (raw.stress_from_watch ?? 5) / 10);
+        const focusIndex = raw.focus_index ?? Math.max(0.2, Math.min(0.85, raw.confidence ?? 0.5));
         const checkinResult: CheckInResult = {
+          checkin_id:     `${Date.now()}`,
+          checkin_type:   period ?? "morning",
           emotion:        raw.emotion ?? "neutral",
           valence:        raw.valence ?? 0,
           arousal:        raw.arousal ?? 0.5,
-          stress_level:   raw.stress_from_watch ?? raw.stress_level ?? 0,
-          energy_level:   raw.arousal ?? raw.energy_level ?? 0.5,
-          checkin_type:   period ?? "morning",
-          timestamp:      new Date().toISOString(),
-          probabilities:  raw.probabilities ?? {},
-          ...raw,
+          confidence:     raw.confidence ?? 0.5,
+          stress_index:   stressIndex,
+          focus_index:    focusIndex,
+          model_type:     raw.model_type ?? "voice",
+          timestamp:      Date.now() / 1000,
+          biomarkers:     raw.biomarkers,
         };
         setResult(checkinResult);
         if (period) markCheckinDone(period, checkinResult);
