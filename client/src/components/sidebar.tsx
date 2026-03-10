@@ -49,35 +49,27 @@ interface NavSection {
 }
 
 const sections: NavSection[] = [
+  // ── Default daily-health flow (works without EEG hardware) ────────────────
   {
-    title: "Overview",
+    title: "Today",
     items: [
       { path: "/",               label: "Dashboard",      icon: LayoutDashboard },
-      { path: "/brain-report",   label: "Today",          icon: Sun },
+      { path: "/brain-report",   label: "Daily Report",   icon: Sun },
       { path: "/weekly-summary", label: "Weekly Summary", icon: CalendarDays },
     ],
   },
   {
-    title: "Brain",
-    items: [
-      { path: "/brain-monitor",      label: "Brain Monitor",   icon: Activity },
-      { path: "/brain-connectivity", label: "Connectivity",    icon: Network },
-      { path: "/inner-energy",       label: "Spiritual",       icon: Sparkles },
-      { path: "/neurofeedback",      label: "Neurofeedback",   icon: Radio },
-    ],
-  },
-  {
-    title: "Mind",
+    title: "Mind & Mood",
     items: [
       { path: "/emotional-intelligence", label: "EI Dashboard",   icon: Brain },
       { path: "/emotions",        label: "Emotions",         icon: Brain },
       { path: "/insights",        label: "Insights",         icon: Lightbulb },
       { path: "/health-analytics",label: "Health Analytics", icon: BarChart2 },
-      { path: "/sessions",        label: "Sessions",         icon: History },
+      { path: "/sessions",        label: "History",          icon: History },
     ],
   },
   {
-    title: "Life",
+    title: "Health & Life",
     items: [
       { path: "/food",          label: "Food & Mood",   icon: Utensils },
       { path: "/food-emotion",  label: "Food-Emotion",  icon: Leaf },
@@ -88,20 +80,30 @@ const sections: NavSection[] = [
     ],
   },
   {
-    title: "AI",
+    title: "AI & Records",
     items: [
       { path: "/ai-companion", label: "AI Companion", icon: MessageCircle },
       { path: "/research",     label: "My Day",       icon: ClipboardList },
+      { path: "/records",      label: "My Records",   icon: Trophy },
+    ],
+  },
+  // ── Advanced EEG tools (require or strongly prefer Muse hardware) ─────────
+  {
+    title: "Advanced EEG",
+    items: [
+      { path: "/brain-monitor",      label: "Brain Monitor",   icon: Activity },
+      { path: "/brain-connectivity", label: "Connectivity",    icon: Network },
+      { path: "/inner-energy",       label: "Spiritual",       icon: Sparkles },
+      { path: "/neurofeedback",      label: "Neurofeedback",   icon: Radio },
+      { path: "/calibration",        label: "EEG Calibration", icon: SlidersHorizontal },
+      { path: "/device-setup",       label: "EEG Setup",       icon: Bluetooth },
     ],
   },
   {
-    title: "Tools",
+    title: "Dev Tools",
     items: [
-      { path: "/records",      label: "My Records",   icon: Trophy },
-      { path: "/benchmarks",   label: "Benchmarks",   icon: BarChart2 },
+      { path: "/benchmarks",         label: "Benchmarks",    icon: BarChart2 },
       { path: "/architecture-guide", label: "Project Guide", icon: BookOpenText },
-      { path: "/calibration",  label: "EEG Calibration", icon: SlidersHorizontal },
-      { path: "/device-setup", label: "EEG Setup", icon: Bluetooth },
     ],
   },
 ];

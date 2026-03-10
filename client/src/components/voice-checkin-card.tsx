@@ -245,21 +245,30 @@ export function VoiceCheckinCard({
         const audio_b64 = btoa(binary);
 
         const baseUrl = getMLApiUrl();
-        const res = await fetch(`${baseUrl}/api/voice-checkin/submit`, {
+        // Use canonical voice-watch pipeline (replaces deprecated voice-checkin/submit)
+        const res = await fetch(`${baseUrl}/api/voice-watch/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            audio_b64,
-            user_id: userId,
-            checkin_type: period,
-          }),
+          body: JSON.stringify({ audio_b64, user_id: userId }),
         });
 
         if (!res.ok) {
           throw new Error(`Check-in failed (HTTP ${res.status})`);
         }
 
-        const checkinResult: CheckInResult = await res.json();
+        const raw = await res.json();
+        // Map voice-watch response to CheckInResult shape
+        const checkinResult: CheckInResult = {
+          emotion:        raw.emotion ?? "neutral",
+          valence:        raw.valence ?? 0,
+          arousal:        raw.arousal ?? 0.5,
+          stress_level:   raw.stress_from_watch ?? raw.stress_level ?? 0,
+          energy_level:   raw.arousal ?? raw.energy_level ?? 0.5,
+          checkin_type:   period ?? "morning",
+          timestamp:      new Date().toISOString(),
+          probabilities:  raw.probabilities ?? {},
+          ...raw,
+        };
         setResult(checkinResult);
         if (period) markCheckinDone(period, checkinResult);
         setCardState("done");
