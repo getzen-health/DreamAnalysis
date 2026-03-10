@@ -33,6 +33,11 @@ from .supplement_tracker import get_tracker as get_supplement_tracker
 
 router = APIRouter()
 
+# ─── Brain-state auto-logging rate limiter ────────────────────────────────────
+# Only log once per epoch hop (4 seconds) to avoid flooding the supplement tracker.
+_BRAIN_STATE_LOG_INTERVAL = 4.0   # seconds — matches _EPOCH_HOP_SECONDS
+_brain_state_last_log: Dict[str, float] = {}
+
 # ─── Per-user E-ASR instances ────────────────────────────────────────────────
 # Each user gets an independent EmbeddedASR so baseline calibration is per-session.
 # Instances are created lazily on first use. Baseline is fitted via the
@@ -460,6 +465,30 @@ async def analyze_eeg(input_data: EEGInput):
             microstates = extract_spectral_microstate_features(signals, fs)
         except Exception:
             pass
+
+        # ── Auto-log brain state to supplement tracker (Issue #207) ──────────
+        # Only log when a full 4-second epoch is ready (epoch_ready=True) and
+        # at most once per epoch hop to avoid filling the tracker with duplicates.
+        if epoch_ready:
+            _now = time.time()
+            if _now - _brain_state_last_log.get(user_id, 0.0) >= _BRAIN_STATE_LOG_INTERVAL:
+                _brain_state_last_log[user_id] = _now
+                try:
+                    get_supplement_tracker().log_brain_state(
+                        user_id=user_id,
+                        timestamp=_now,
+                        emotion_data={
+                            "valence": emotion_result.get("valence", 0.0),
+                            "arousal": emotion_result.get("arousal", 0.0),
+                            "stress_index": emotion_result.get("stress_index", 0.0),
+                            "focus_index": emotion_result.get("focus_index", 0.0),
+                            "alpha_beta_ratio": features.get("alpha_beta_ratio", 0.0),
+                            "theta_power": bands.get("theta", 0.0),
+                            "faa": emotion_result.get("frontal_asymmetry", 0.0),
+                        },
+                    )
+                except Exception:
+                    pass  # auto-logging must never break the main analysis response
 
         return AnalysisResponse(
             sleep_stage=sleep_result,
