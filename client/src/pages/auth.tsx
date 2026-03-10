@@ -240,7 +240,7 @@ export default function AuthPage() {
               <TabsContent value="login" className="mt-6">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-username" className="text-foreground/80">
+                    <Label htmlFor="login-username" className="text-foreground">
                       Username
                     </Label>
                     <Input
@@ -249,12 +249,12 @@ export default function AuthPage() {
                       placeholder="Enter your username"
                       value={loginUsername}
                       onChange={(e) => setLoginUsername(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
                       autoComplete="username"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password" className="text-foreground/80">
+                    <Label htmlFor="login-password" className="text-foreground">
                       Password
                     </Label>
                     <Input
@@ -263,7 +263,7 @@ export default function AuthPage() {
                       placeholder="Enter your password"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
                       autoComplete="current-password"
                     />
                   </div>
@@ -299,7 +299,7 @@ export default function AuthPage() {
               <TabsContent value="register" className="mt-6">
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="register-username" className="text-foreground/80">
+                    <Label htmlFor="register-username" className="text-foreground">
                       Username
                     </Label>
                     <Input
@@ -308,12 +308,12 @@ export default function AuthPage() {
                       placeholder="Choose a username (3+ characters)"
                       value={registerUsername}
                       onChange={(e) => setRegisterUsername(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
                       autoComplete="username"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-email" className="text-foreground/80">
+                    <Label htmlFor="register-email" className="text-foreground">
                       Email <span className="text-foreground/40">(optional)</span>
                     </Label>
                     <Input
@@ -322,12 +322,12 @@ export default function AuthPage() {
                       placeholder="your@email.com"
                       value={registerEmail}
                       onChange={(e) => setRegisterEmail(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
                       autoComplete="email"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-password" className="text-foreground/80">
+                    <Label htmlFor="register-password" className="text-foreground">
                       Password
                     </Label>
                     <Input
@@ -336,12 +336,12 @@ export default function AuthPage() {
                       placeholder="Create a password (6+ characters)"
                       value={registerPassword}
                       onChange={(e) => setRegisterPassword(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
                       autoComplete="new-password"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirm-password" className="text-foreground/80">
+                    <Label htmlFor="confirm-password" className="text-foreground">
                       Confirm Password
                     </Label>
                     <Input
@@ -350,13 +350,13 @@ export default function AuthPage() {
                       placeholder="Confirm your password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
                       autoComplete="new-password"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="register-age" className="text-foreground/80">
+                      <Label htmlFor="register-age" className="text-foreground">
                         Age <span className="text-foreground/40">(optional)</span>
                       </Label>
                       <Input
@@ -366,11 +366,11 @@ export default function AuthPage() {
                         min={10} max={120}
                         value={registerAge}
                         onChange={(e) => setRegisterAge(e.target.value)}
-                        className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                        className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="register-device" className="text-foreground/80">
+                      <Label htmlFor="register-device" className="text-foreground">
                         EEG Device
                       </Label>
                       <select
