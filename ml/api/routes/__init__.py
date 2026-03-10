@@ -64,6 +64,7 @@ from .voice_biomarkers import router as _voice_biomarkers
 from .eeg_storage import router as _eeg_storage
 from .trauma_resilience import router as _trauma_resilience
 from .ppg import router as _ppg
+from .camera_rppg import router as _camera_rppg
 from .binaural import router as _binaural
 from .dreams import router as _dreams
 from .music import router as _music
@@ -165,6 +166,7 @@ router.include_router(_voice_biomarkers)
 router.include_router(_eeg_storage)
 router.include_router(_trauma_resilience)
 router.include_router(_ppg)
+router.include_router(_camera_rppg)
 router.include_router(_binaural)
 router.include_router(_dreams)
 router.include_router(_music)
