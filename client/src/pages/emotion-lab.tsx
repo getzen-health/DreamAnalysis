@@ -11,6 +11,8 @@ import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { useToast } from "@/hooks/use-toast";
 import { submitFeedback } from "@/lib/ml-api";
 import { Music, Mic, MicOff } from "lucide-react";
+import EmotionStateCard from "@/components/emotion-state-card";
+import EmotionFlow, { type EmotionDataPoint } from "@/components/emotion-flow";
 
 /* ---------- helpers ---------- */
 
@@ -183,6 +185,23 @@ export default function EmotionLab() {
         { emotion: emotions.emotion!, label: newLabel, time: now, confidence: emotions.confidence },
       ];
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emotions?.emotion, emotions?.ready]);
+
+  // EmotionFlow readings — last 10 data points for the chart
+  const [emotionReadings, setEmotionReadings] = useState<EmotionDataPoint[]>([]);
+
+  useEffect(() => {
+    if (!emotions?.ready || !emotions?.emotion) return;
+    const now = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const point: EmotionDataPoint = {
+      time: now,
+      valence: emotions.valence ?? 0,
+      arousal: emotions.arousal ?? 0,
+      stress: emotions.stress_index ?? 0,
+      label: emotions.emotion,
+    };
+    setEmotionReadings((prev) => [...prev.slice(-9), point]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emotions?.emotion, emotions?.ready]);
 
@@ -378,25 +397,26 @@ export default function EmotionLab() {
               </div>
             )}
 
-            {/* Valence & Arousal */}
+            {/* Emotional State — human-readable card */}
             {emotions && (
-              <div className="space-y-2 mt-4">
-                <h4 className="text-sm font-medium text-muted-foreground">Emotional State</h4>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs w-16">Valence</span>
-                  <Progress value={Math.round(((emotions.valence ?? 0) + 1) / 2 * 100)} className="flex-1 h-2" />
-                  <span className="text-xs w-8 text-right">{(emotions.valence ?? 0).toFixed(2)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs w-16">Arousal</span>
-                  <Progress value={Math.round((emotions.arousal ?? 0) * 100)} className="flex-1 h-2" />
-                  <span className="text-xs w-8 text-right">{(emotions.arousal ?? 0).toFixed(2)}</span>
-                </div>
-              </div>
+              <EmotionStateCard
+                emotion={emotion}
+                valence={emotions.valence ?? 0}
+                arousal={emotions.arousal ?? 0}
+                stressIndex={emotions.stress_index}
+                focusIndex={emotions.focus_index}
+                confidence={emotions.confidence}
+                source="eeg"
+              />
             )}
           </div>
         )}
       </Card>
+
+      {/* ── EmotionFlow chart ────────────────────────────────────────────── */}
+      {emotionReadings.length > 0 && (
+        <EmotionFlow data={emotionReadings} height={160} />
+      )}
 
       {/* ── Card 2: Today's emotions ─────────────────────────────────────── */}
       <Card className="p-5">

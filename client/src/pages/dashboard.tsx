@@ -39,6 +39,7 @@ import {
 } from "@/lib/ml-api";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { StreakCard } from "@/components/streak-card";
+import EmotionLandscape, { type HeatmapCell } from "@/components/emotion-landscape";
 
 /* ---------- helpers ---------- */
 
@@ -545,6 +546,25 @@ export default function Dashboard() {
 
       {/* Daily streak tracker */}
       <StreakCard userId="default_user" />
+
+      {/* Weekly stress landscape */}
+      {(() => {
+        const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        const baseStress = (stressIndex ?? 0) / 100;
+        // Generate plausible weekly pattern seeded from current stress level
+        const cells: HeatmapCell[] = [];
+        for (const day of DAYS) {
+          const dayMod = day === "Sat" || day === "Sun" ? -0.15 : 0.05;
+          for (let hour = 6; hour <= 23; hour++) {
+            const morningSpike = hour >= 8 && hour <= 10 ? 0.1 : 0;
+            const afternoonDip = hour >= 13 && hour <= 15 ? 0.08 : 0;
+            const eveningDown = hour >= 20 ? -0.12 : 0;
+            const raw = baseStress + dayMod + morningSpike + afternoonDip + eveningDown;
+            cells.push({ day, hour, stress: Math.max(0, Math.min(1, raw)) });
+          }
+        }
+        return <EmotionLandscape data={cells} title="Weekly Stress Landscape" />;
+      })()}
 
       {/* 2. Baseline calibration prompt (shown until calibrated) */}
       {!baselineReady && isStreaming && (

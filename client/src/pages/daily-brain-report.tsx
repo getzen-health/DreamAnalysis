@@ -132,8 +132,8 @@ function recommendedAction(health: HealthEntry[], voice: VoiceSnapshot | null): 
     };
   }
   const latest = health[0];
-  const stress = latest.stressLevel ?? 0;
-  const focus = latest.neuralActivity ?? 5;
+  const stress = latest?.stressLevel ?? 0;
+  const focus = latest?.neuralActivity ?? 5;
   const voiceStress = voice?.stress_from_watch ?? (voice ? clamp((voice.arousal - voice.valence + 1) * 3, 0, 10) : 0);
 
   if (stress > 6 || voiceStress > 6) {
