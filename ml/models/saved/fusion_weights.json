@@ -1,0 +1,44 @@
+{
+  "stress": {
+    "voice": 0.4,
+    "hrv": 0.4,
+    "activity": 0.05,
+    "sleep": 0.15
+  },
+  "happy": {
+    "voice": 0.6,
+    "hrv": 0.2,
+    "activity": 0.15,
+    "sleep": 0.05
+  },
+  "sad": {
+    "voice": 0.6,
+    "hrv": 0.2,
+    "activity": 0.05,
+    "sleep": 0.15
+  },
+  "focus": {
+    "voice": 0.4,
+    "hrv": 0.3,
+    "activity": 0.1,
+    "sleep": 0.2
+  },
+  "anxiety": {
+    "voice": 0.5,
+    "hrv": 0.3,
+    "activity": 0.05,
+    "sleep": 0.15
+  },
+  "neutral": {
+    "voice": 0.4,
+    "hrv": 0.3,
+    "activity": 0.1,
+    "sleep": 0.2
+  },
+  "default": {
+    "voice": 0.5,
+    "hrv": 0.3,
+    "activity": 0.05,
+    "sleep": 0.15
+  }
+}
