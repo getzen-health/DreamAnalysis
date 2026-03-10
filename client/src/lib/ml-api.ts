@@ -1276,3 +1276,76 @@ export async function predictSleepMood(sleepData: {
 export async function getSleepMoodHistory(userId: string, lastN = 14): Promise<{ predictions: SleepMoodPrediction[] }> {
   return mlFetch<{ predictions: SleepMoodPrediction[] }>(`/sleep-mood/history/${encodeURIComponent(userId)}?last_n=${lastN}`);
 }
+
+// ─── EI Growth Tracker ───────────────────────────────────────────────────────
+
+export interface DailyEISnapshot {
+  date: string;
+  eiq_score: number;
+  dimension_scores: Record<string, number>;
+  data_sources: string[];
+  confidence: number;
+  timestamp: number;
+}
+
+export interface EIGrowthTrend {
+  weekly_averages: number[];
+  slope_per_week: number;
+  trend: "improving" | "declining" | "stable";
+  p_significant: boolean;
+  weeks_of_data: number;
+}
+
+export interface EIMilestone {
+  type: string;
+  label: string;
+  achieved_at: string;
+  description: string;
+}
+
+export interface EITrajectory {
+  predicted_weeks: number | null;
+  confidence: number;
+  current_eiq: number;
+  target_eiq: number;
+  trajectory_points: number[];
+}
+
+export async function addEISnapshot(params: {
+  user_id: string;
+  eiq_score: number;
+  dimension_scores: Record<string, number>;
+  data_sources: string[];
+  confidence: number;
+}): Promise<{ added: boolean; snapshot: DailyEISnapshot }> {
+  return mlFetch("/ei/growth/snapshot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+}
+
+export async function getEIGrowthTrend(userId: string): Promise<EIGrowthTrend> {
+  return mlFetch<EIGrowthTrend>(`/ei/growth/trend/${encodeURIComponent(userId)}`);
+}
+
+export async function getEIMilestones(userId: string): Promise<{ milestones: EIMilestone[] }> {
+  return mlFetch<{ milestones: EIMilestone[] }>(`/ei/growth/milestones/${encodeURIComponent(userId)}`);
+}
+
+export async function getEITrajectory(userId: string, target = 80): Promise<EITrajectory> {
+  return mlFetch<EITrajectory>(`/ei/growth/trajectory/${encodeURIComponent(userId)}?target=${target}`);
+}
+
+export async function getEIDimensionReport(
+  userId: string
+): Promise<{ dimensions: Record<string, { label: string; current_score: number | null; slope_per_week: number; trend: string; changeability: string; d_value: number; description: string }> }> {
+  return mlFetch(`/ei/growth/dimensions/${encodeURIComponent(userId)}`);
+}
+
+export async function getEIGrowthHistory(
+  userId: string,
+  lastN = 30
+): Promise<{ count: number; snapshots: DailyEISnapshot[] }> {
+  return mlFetch(`/ei/growth/history/${encodeURIComponent(userId)}?last_n=${lastN}`);
+}
