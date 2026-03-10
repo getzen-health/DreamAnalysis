@@ -182,10 +182,6 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-6 text-xs text-foreground/40">
             <span>Built with AI + Neuroscience</span>
-            <span>|</span>
-            <a href="https://github.com/LakshmiSravyaVedantham/DreamAnalysis" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
-              GitHub
-            </a>
           </div>
         </div>
       </footer>

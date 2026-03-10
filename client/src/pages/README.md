@@ -71,6 +71,26 @@ Each file is one route in the app. Routes are defined in `App.tsx`. Authenticate
 | `/calibration` | `calibration.tsx` | eeg | EEG baseline calibration |
 | `/device-setup` | `device-setup.tsx` | eeg | Muse 2 hardware setup |
 
+### Auth & Utility (no auth)
+
+| Route | File | Notes |
+|-------|------|-------|
+| `/forgot-password` | `forgot-password.tsx` | Password reset request |
+| `/reset-password` | `reset-password.tsx` | Password reset confirmation |
+| `/privacy-policy` | `privacy-policy.tsx` | Privacy policy page |
+| `/intent` | `intent-select.tsx` | Onboarding intent selection |
+| `*` | `not-found.tsx` | 404 fallback |
+
+### Research Study Flow
+
+| Route | File | Description |
+|-------|------|-------------|
+| `/research` | `research-evening.tsx` | My Day — evening journal |
+| `/research/morning` | `research-morning.tsx` | Morning dream + mood journal |
+| `/research/daytime` | `research-daytime.tsx` | Daytime check-in |
+| `/research/hub` | `research-hub.tsx` | Study participant hub |
+| `/research/enroll` | `research-enroll.tsx` | Study enrollment |
+
 ### Dev / Admin Tools
 
 | Route | File | Description |
@@ -78,7 +98,6 @@ Each file is one route in the app. Routes are defined in `App.tsx`. Authenticate
 | `/architecture-guide` | `architecture-guide.tsx` | Internal project guide |
 | `/benchmarks` | `formal-benchmarks-dashboard.tsx` | Model accuracy benchmarks |
 | `/settings` | `settings.tsx` | User preferences + device config |
-| `/study/*` | `Study*.tsx` | Research study admin pages |
 
 ## How to Add a New Page
 
