@@ -321,6 +321,37 @@ export default function Insights() {
     ? getRecommendedActions(stressIndex, focusScore, creativityScore, flowScore)
     : [];
 
+  // Voice-derived insights and actions (when no EEG)
+  const voiceInsightItems: { icon: typeof Lightbulb; title: string; description: string; type: "success" | "primary" | "secondary" | "warning" }[] =
+    !isStreaming && latestVoice
+      ? (() => {
+          const items: { icon: typeof Lightbulb; title: string; description: string; type: "success" | "primary" | "secondary" | "warning" }[] = [];
+          const vValence = (latestVoice.valence as number) ?? 0;
+          const vStress = (latestVoice.stress_from_watch as number) ?? null;
+          const vEmotion = (latestVoice.emotion as string) ?? "neutral";
+          if (vStress !== null && vStress > 6)
+            items.push({ icon: Heart, title: "Elevated Voice Stress", description: `Stress markers at ${vStress}/10. Pitch variability and faster speech tempo suggest sympathetic activation. A 2-minute breathing exercise can shift this quickly.`, type: "warning" });
+          else if (vStress !== null && vStress < 3)
+            items.push({ icon: Heart, title: "Calm Vocal State", description: `Stress at ${vStress}/10. Steady pitch and relaxed tempo indicate your nervous system is regulated — good state for focused or reflective work.`, type: "success" });
+          if (vValence > 0.3)
+            items.push({ icon: Sparkles, title: "Positive Emotional Tone", description: `Voice detected ${vEmotion} with positive valence (${Math.round(vValence * 100)}%). Positive affect broadens attention scope and enhances creative thinking.`, type: "success" });
+          else if (vValence < -0.2)
+            items.push({ icon: Brain, title: "Negative Emotional Tone", description: `Voice detected ${vEmotion} state. Negative valence can narrow attention — be mindful of decisions made in this state.`, type: "warning" });
+          if (items.length < 2)
+            items.push({ icon: Brain, title: "Voice Baseline Captured", description: "Daily voice check-ins build an emotional baseline over time. Connect your EEG headband for deep neural insights: focus, flow state, creativity, and sleep staging.", type: "primary" });
+          return items.slice(0, 4);
+        })()
+      : [];
+
+  const voiceRecommendedActions = !isStreaming && latestVoice
+    ? getRecommendedActions(
+        ((latestVoice.stress_from_watch as number) ?? 5) * 10,
+        50,
+        0,
+        0,
+      )
+    : [];
+
   const colorMap = {
     success: "bg-success/10 border-success/30 text-success",
     primary: "bg-primary/10 border-primary/30 text-primary",
@@ -409,19 +440,19 @@ export default function Insights() {
       )}
 
       {/* ── AI Insight Cards ── */}
-      {liveInsights.length > 0 && (
+      {(liveInsights.length > 0 || voiceInsightItems.length > 0) && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-base font-semibold flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-secondary" />
-              AI Brain Insights
+              {isStreaming ? "AI Brain Insights" : "Voice Insights"}
             </h3>
-            <Badge variant="outline" className="border-primary/30 text-primary animate-pulse text-[10px]">
-              LIVE
+            <Badge variant="outline" className={`text-[10px] ${isStreaming ? "border-primary/30 text-primary animate-pulse" : "border-secondary/30 text-secondary"}`}>
+              {isStreaming ? "LIVE" : "VOICE"}
             </Badge>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {liveInsights.map((insight, i) => {
+            {(isStreaming ? liveInsights : voiceInsightItems).map((insight, i) => {
               const Icon = insight.icon;
               return (
                 <div
@@ -441,14 +472,14 @@ export default function Insights() {
       )}
 
       {/* ── Recommended Actions ── */}
-      {recommendedActions.length > 0 && (
+      {(recommendedActions.length > 0 || voiceRecommendedActions.length > 0) && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
             <Target className="h-4 w-4 text-primary" />
             Recommended Right Now
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {recommendedActions.map(({ icon: Icon, label, description }, i) => (
+            {(isStreaming ? recommendedActions : voiceRecommendedActions).map(({ icon: Icon, label, description }, i) => (
               <div
                 key={i}
                 className="flex flex-col gap-2 p-4 rounded-xl border border-border/30 bg-card/30 hover:bg-card/50 transition-colors"
