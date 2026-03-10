@@ -19,7 +19,7 @@ import numpy as np
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from ml.models.cognitive_screening import (
+from models.cognitive_screening import (
     ElderlyEmotionMonitor,
     VoiceCognitiveScreener,
 )

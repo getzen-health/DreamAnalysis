@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from ml.models.cognitive_screening import (
+from models.cognitive_screening import (
     ElderlyEmotionMonitor,
     VoiceCognitiveScreener,
 )

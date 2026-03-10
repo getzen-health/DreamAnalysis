@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from ml.models.multilingual_emotion import (
+from models.multilingual_emotion import (
     CulturalCalibrator,
     CulturalEIAdapter,
     get_culture_group,

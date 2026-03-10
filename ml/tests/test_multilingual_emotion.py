@@ -2,7 +2,7 @@
 
 import pytest
 
-from ml.models.multilingual_emotion import (
+from models.multilingual_emotion import (
     CulturalCalibrator,
     CulturalEIAdapter,
     get_culture_group,
