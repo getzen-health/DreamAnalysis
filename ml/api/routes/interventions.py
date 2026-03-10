@@ -8,16 +8,27 @@ Logic:
 
 Each intervention has a 10-minute per-user cooldown to prevent spam.
 Outcomes are recorded 5 minutes after trigger and fed back for personalisation.
+
+JITAI (Just-In-Time Adaptive Intervention) extensions:
+  - Thompson Sampling bandit for personalized intervention selection
+  - HRV-based stress trigger detection (RMSSD drop from baseline)
+  - Evidence-based new interventions: cyclic sighing, grounding, body scan,
+    cognitive reappraisal, slow breathing
 """
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
+
+from models.jitai_engine import HRVTriggerDetector, InterventionBandit
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -121,6 +132,104 @@ INTERVENTIONS = {
         "icon": "footprints",
         "evidence": "Kang et al. (2020): 5-min nature walks significantly reduce perceived stress and improve affect.",
         "priority": 3,
+    },
+    # ── JITAI interventions ─────────────────────────────────────────────────
+    "cyclic_sighing": {
+        "type": "cyclic_sighing",
+        "title": "Try cyclic sighing",
+        "body": (
+            "Double inhale through nose, long exhale through mouth. "
+            "Repeat 3-4 times. Stanford research shows this outperforms "
+            "meditation for mood improvement."
+        ),
+        "action_label": "Start sighing",
+        "action_url": "/biofeedback?protocol=cyclic_sighing&auto=true",
+        "icon": "wind",
+        "evidence": (
+            "Balban et al. (2023, Cell Reports Medicine): Cyclic sighing "
+            "produced greater positive affect improvement than mindfulness "
+            "meditation (p<.05). N=108 RCT."
+        ),
+        "priority": 1,
+        "duration_seconds": 60,
+        "intensity_range": [0.7, 1.0],
+    },
+    "grounding_54321": {
+        "type": "grounding_54321",
+        "title": "5-4-3-2-1 grounding",
+        "body": (
+            "Name 5 things you see, 4 you hear, 3 you touch, 2 you smell, "
+            "1 you taste. Reestablishes sensory connection when overwhelmed."
+        ),
+        "action_label": "Start grounding",
+        "action_url": "/biofeedback?protocol=grounding&auto=true",
+        "icon": "hand",
+        "evidence": (
+            "Evidence-informed low-barrier technique for anxiety, panic, "
+            "and dissociation. Operates through sensory modality engagement."
+        ),
+        "priority": 1,
+        "duration_seconds": 90,
+        "intensity_range": [0.7, 1.0],
+    },
+    "body_scan": {
+        "type": "body_scan",
+        "title": "Quick body scan",
+        "body": (
+            "Focus attention on 3-4 body regions for 20 seconds each. "
+            "Notice tension without judging. Brief body scans produce "
+            "measurable HRV changes."
+        ),
+        "action_label": "Start body scan",
+        "action_url": "/biofeedback?protocol=body_scan&auto=true",
+        "icon": "scan",
+        "evidence": (
+            "PMC 11519409 (2024): Brief mindfulness exercises including "
+            "body scan produced significant HRV changes."
+        ),
+        "priority": 2,
+        "duration_seconds": 90,
+        "intensity_range": [0.4, 0.7],
+    },
+    "cognitive_reappraisal": {
+        "type": "cognitive_reappraisal",
+        "title": "Reframe this moment",
+        "body": (
+            "What is the situation? What is another way to interpret it? "
+            "Most validated emotion regulation strategy for mild-to-moderate "
+            "distress."
+        ),
+        "action_label": "Start reframing",
+        "action_url": "/biofeedback?protocol=reappraisal&auto=true",
+        "icon": "lightbulb",
+        "evidence": (
+            "30+ years of research. Most effective at low-to-moderate "
+            "intensity. Less effective under high intensity (prefrontal "
+            "demands too high)."
+        ),
+        "priority": 2,
+        "duration_seconds": 60,
+        "intensity_range": [0.0, 0.4],
+    },
+    "slow_breathing": {
+        "type": "slow_breathing",
+        "title": "Slow breathing (6 breaths/min)",
+        "body": (
+            "Inhale 5 seconds, exhale 5 seconds. Six breaths per minute "
+            "maximizes heart rate variability and activates the "
+            "parasympathetic system."
+        ),
+        "action_label": "Start breathing",
+        "action_url": "/biofeedback?protocol=slow_breathing&auto=true",
+        "icon": "wind",
+        "evidence": (
+            "Strong meta-analytic evidence. Significant HRV increases in "
+            "single 2-minute sessions. A52 Breath Method variant supported "
+            "by 2025 narrative review."
+        ),
+        "priority": 1,
+        "duration_seconds": 120,
+        "intensity_range": [0.4, 0.7],
     },
 }
 
@@ -417,3 +526,238 @@ async def get_effectiveness(user_id: str):
 async def get_catalogue():
     """Return all available intervention types with metadata."""
     return {"interventions": list(INTERVENTIONS.values())}
+
+
+# ── JITAI module-level instances ─────────────────────────────────────────────
+
+_bandit = InterventionBandit()
+_hrv_detector = HRVTriggerDetector()
+
+# All intervention types eligible for bandit selection
+_JITAI_ELIGIBLE = [
+    "breathing", "music_calm", "music_focus", "food", "walk",
+    "cyclic_sighing", "grounding_54321", "body_scan",
+    "cognitive_reappraisal", "slow_breathing",
+]
+
+
+# ── JITAI Pydantic models ───────────────────────────────────────────────────
+
+class JITAICheckRequest(BaseModel):
+    user_id: str = Field(default="default")
+    stress_index: float = Field(default=0.0, ge=0.0, le=1.0)
+    focus_index: float = Field(default=0.5, ge=0.0, le=1.0)
+    emotion_type: Optional[str] = Field(
+        default=None, description="Dominant emotion: happy, sad, angry, fear, etc."
+    )
+    emotion_intensity: float = Field(
+        default=0.5, ge=0.0, le=1.0,
+        description="Distress intensity for bandit context."
+    )
+    rmssd: Optional[float] = Field(
+        default=None, description="HRV RMSSD in milliseconds."
+    )
+    heart_rate: Optional[float] = Field(
+        default=None, description="Heart rate in BPM."
+    )
+    minutes_since_last_meal: Optional[float] = Field(
+        default=None, description="Minutes since last meal (None = unknown)."
+    )
+    voice_emotion: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Voice emotion reading (same format as CheckRequest).",
+    )
+
+
+class HRVReadingRequest(BaseModel):
+    user_id: str = Field(default="default")
+    rmssd: float = Field(..., description="RMSSD in milliseconds")
+    heart_rate: Optional[float] = Field(
+        default=None, description="Heart rate in BPM."
+    )
+
+
+# ── JITAI helper ─────────────────────────────────────────────────────────────
+
+def _jitai_check_logic(req: JITAICheckRequest) -> Dict:
+    """Sync core of the /jitai/check endpoint — separated for testability."""
+    now = time.time()
+    st = _user_state(req.user_id)
+
+    # Respect snooze
+    if now < st["last_snooze_until"]:
+        return {
+            "intervention": None,
+            "has_recommendation": False,
+            "trigger_source": None,
+            "snoozed": True,
+        }
+
+    # Enforce per-user cooldown
+    if now - st["last_triggered_ts"] < COOLDOWN_SECS:
+        return {
+            "intervention": None,
+            "has_recommendation": False,
+            "trigger_source": None,
+            "cooldown_active": True,
+        }
+
+    trigger_source: Optional[str] = None
+
+    # ── HRV trigger detection ──────────────────────────────────────────────
+    hrv_triggered = False
+    if req.rmssd is not None:
+        # Feed reading to build baseline
+        _hrv_detector.add_reading(req.user_id, req.rmssd, req.heart_rate)
+        # Check if this reading triggers
+        hrv_result = _hrv_detector.check_trigger(req.user_id, req.rmssd)
+        hrv_triggered = hrv_result.get("triggered", False)
+        if hrv_triggered:
+            trigger_source = "hrv"
+
+    # ── Standard stress/focus triggers ─────────────────────────────────────
+    stress_triggered = req.stress_index >= STRESS_HIGH
+    focus_triggered = req.focus_index < FOCUS_LOW
+
+    # ── Voice emotion trigger ──────────────────────────────────────────────
+    voice_triggered = False
+    if req.voice_emotion:
+        voice_conf = float(req.voice_emotion.get("confidence", 0.0))
+        voice_arousal = float(req.voice_emotion.get("arousal", 0.5))
+        voice_valence = float(req.voice_emotion.get("valence", 0.0))
+        if voice_conf >= 0.5 and (voice_arousal >= 0.70 or voice_valence <= -0.30):
+            voice_triggered = True
+            if trigger_source is None:
+                trigger_source = "voice"
+
+    # Determine if any trigger fired
+    any_trigger = hrv_triggered or stress_triggered or voice_triggered
+    if not any_trigger and not focus_triggered:
+        return {
+            "intervention": None,
+            "has_recommendation": False,
+            "trigger_source": None,
+        }
+
+    if trigger_source is None:
+        trigger_source = "eeg" if stress_triggered else "focus"
+
+    # ── Determine intensity for bandit context ─────────────────────────────
+    intensity = req.emotion_intensity
+    if stress_triggered:
+        intensity = max(intensity, req.stress_index)
+
+    # ── Filter available interventions ─────────────────────────────────────
+    available = list(_JITAI_ELIGIBLE)
+
+    # Remove food unless hunger is a factor
+    if req.minutes_since_last_meal is None or req.minutes_since_last_meal < FOOD_GAP_MINS:
+        available = [a for a in available if a != "food"]
+
+    # Remove focus music if focus is not the issue
+    if not focus_triggered:
+        available = [a for a in available if a != "music_focus"]
+
+    if not available:
+        available = ["breathing"]  # absolute fallback
+
+    # ── Bandit selection ───────────────────────────────────────────────────
+    selected_type = _bandit.select(
+        user_id=req.user_id,
+        available_interventions=available,
+        intensity=intensity,
+        emotion_type=req.emotion_type,
+    )
+
+    intervention = dict(INTERVENTIONS.get(selected_type, INTERVENTIONS["breathing"]))
+    intervention["selection_method"] = (
+        "bandit" if _bandit._outcome_counts.get(req.user_id, 0) >= 10
+        else "evidence_default"
+    )
+
+    return {
+        "intervention": intervention,
+        "has_recommendation": True,
+        "trigger_source": trigger_source,
+        "selected_by": intervention.get("selection_method", "evidence_default"),
+    }
+
+
+# ── JITAI endpoints ─────────────────────────────────────────────────────────
+
+@router.post("/interventions/jitai/check")
+async def jitai_check(req: JITAICheckRequest):
+    """JITAI-enhanced intervention check with HRV triggering + bandit selection.
+
+    Accepts HRV features (rmssd, heart_rate) alongside stress/focus.
+    Uses Thompson Sampling to select optimal intervention for this user.
+    Does NOT modify existing /interventions/check behavior.
+    """
+    return _jitai_check_logic(req)
+
+
+@router.post("/interventions/jitai/hrv-reading")
+async def add_hrv_reading(req: HRVReadingRequest):
+    """Feed HRV reading to build per-user baseline for trigger detection.
+
+    Call this every 30 seconds with the latest RMSSD value. After 5 readings,
+    the baseline is considered stable and trigger detection activates.
+    """
+    status = _hrv_detector.add_reading(req.user_id, req.rmssd, req.heart_rate)
+    return {"ok": True, "baseline": status}
+
+
+@router.get("/interventions/jitai/bandit-stats/{user_id}")
+async def get_bandit_stats(user_id: str):
+    """Return current bandit priors and selection stats for a user.
+
+    Shows per-arm Alpha/Beta parameters, estimated reward, and whether
+    the user is still in cold-start mode.
+    """
+    return _bandit.get_stats(user_id)
+
+
+@router.post("/interventions/jitai/outcome")
+async def jitai_outcome(req: OutcomeRequest):
+    """Record outcome and feed reward to the bandit.
+
+    This wraps the existing outcome logic and additionally updates the
+    Thompson Sampling bandit with a normalized reward signal.
+    """
+    # Use existing outcome recording logic
+    history = _user_history(req.user_id)
+    matched = None
+    for entry in reversed(history):
+        if entry["type"] == req.intervention_type and entry["outcome_recorded_at"] is None:
+            matched = entry
+            break
+
+    if matched is None:
+        return {"ok": False, "error": "No pending intervention of that type found"}
+
+    matched["stress_after"] = req.stress_after
+    matched["focus_after"] = req.focus_after
+    matched["felt_helpful"] = req.felt_helpful
+    matched["outcome_recorded_at"] = time.time()
+
+    stress_delta = matched["stress_before"] - req.stress_after  # positive = improved
+    focus_delta = req.focus_after - matched["focus_before"]      # positive = improved
+
+    # Compute bandit reward: normalize stress reduction to [0, 1]
+    # stress_delta range is roughly [-1, 1], map to [0, 1]
+    reward = max(0.0, min(1.0, (stress_delta + 1.0) / 2.0))
+    # Bonus for self-reported helpfulness
+    if req.felt_helpful is True:
+        reward = min(1.0, reward + 0.15)
+    elif req.felt_helpful is False:
+        reward = max(0.0, reward - 0.15)
+
+    _bandit.update(req.user_id, req.intervention_type, reward)
+
+    return {
+        "ok": True,
+        "stress_delta": round(stress_delta, 3),
+        "focus_delta": round(focus_delta, 3),
+        "worked": stress_delta > 0.05 or (req.felt_helpful is True),
+        "bandit_reward": round(reward, 3),
+    }

@@ -43,6 +43,7 @@
  *   GET    /api/study/admin/participants   (pilot study, auth required)
  *   GET    /api/study/admin/sessions       (pilot study, auth required)
  *   GET    /api/study/admin/export-csv     (pilot study, auth required)
+ *   ALL    /api/ml/*                      (ML backend proxy → FastAPI)
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -1345,6 +1346,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (s0 === 'seed-demo') return await seedDemo(req, res);
+
+    // ── ML backend proxy: /api/ml/* → ML_API_URL/* ─────────────────────
+    // Mirrors the Express proxy in server/routes.ts.  Covers all FastAPI
+    // route prefixes: voice-watch, streaks, supplements, voice-biomarkers,
+    // voice-ensemble, voice-health, voice-journal, breathing, nutrition,
+    // brain (timeline/export), sessions, health, biometrics, gamification,
+    // wearables, community, brain-report, emotion-coach, workplace-ei,
+    // social-emotion, on-device, camera-rppg, and every other ML route.
+    if (s0 === 'ml') {
+      const ML_API_URL =
+        process.env.VITE_ML_API_URL ||
+        process.env.ML_API_URL ||
+        'https://neural-dream-ml.onrender.com';
+      // Strip leading /api/ml to get the downstream path
+      const mlPath = (req.url || '').split('?')[0].replace(/^\/api\/ml/, '');
+      const queryStr = new URLSearchParams(
+        (req.query || {}) as Record<string, string>,
+      ).toString();
+      const targetUrl = `${ML_API_URL}${mlPath}${queryStr ? `?${queryStr}` : ''}`;
+
+      try {
+        const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+        const mlRes = await fetch(targetUrl, {
+          method: req.method || 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          body: hasBody ? JSON.stringify(req.body) : undefined,
+        });
+
+        const contentType = mlRes.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await mlRes.json();
+          return res.status(mlRes.status).json(data);
+        }
+        const text = await mlRes.text();
+        return res
+          .status(mlRes.status)
+          .setHeader('Content-Type', contentType || 'text/plain')
+          .send(text);
+      } catch (err) {
+        return res
+          .status(503)
+          .json({ message: 'ML backend unavailable', error: String(err) });
+      }
+    }
 
     return error(res, 'Not found', 404);
   } catch (err: any) {

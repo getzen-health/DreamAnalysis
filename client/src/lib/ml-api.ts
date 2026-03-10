@@ -1228,23 +1228,6 @@ export async function submitVoiceWatch(
   });
 }
 
-/** Fetch the last N voice-watch check-in records for a user. */
-export async function getWatchHistory(
-  userId: string,
-  lastN: number = 20
-): Promise<{ user_id: string; count: number; history: VoiceWatchCheckinResult[] }> {
-  return mlFetch(`/voice-watch/history/${encodeURIComponent(userId)}?last_n=${lastN}`);
-}
-
-/** Fetch the daily voice-watch mood summary (morning / noon / evening). */
-export async function getDailyWatchSummary(
-  userId: string,
-  date?: string
-): Promise<Record<string, VoiceWatchCheckinResult | null>> {
-  const params = date ? `?date=${date}` : "";
-  return mlFetch(`/voice-watch/daily-summary/${encodeURIComponent(userId)}${params}`);
-}
-
 // ─── Sleep-to-Mood Predictor ─────────────────────────────────────────────────
 
 export interface SleepMoodPrediction {
