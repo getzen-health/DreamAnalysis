@@ -180,7 +180,7 @@ export default function Neurofeedback() {
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 and start streaming to use neurofeedback training.
+          Neurofeedback is an EEG-only mode. Use voice and health features without hardware, or connect Muse to train here.
         </div>
       )}
 
@@ -254,7 +254,7 @@ export default function Neurofeedback() {
                 className="w-full bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 disabled:opacity-50"
               >
                 <Play className="h-4 w-4 mr-2" />
-                {isStreaming ? "Start Training" : "Connect Device First"}
+                {isStreaming ? "Start Training" : "EEG Required For Training"}
               </Button>
             </div>
           </Card>
@@ -262,7 +262,7 @@ export default function Neurofeedback() {
           <Card className="glass-card p-6 rounded-xl hover-glow">
             <h3 className="text-lg font-semibold mb-4">How It Works</h3>
             <div className="space-y-3 text-sm text-foreground/70">
-              <p>1. <strong>Connect Muse 2</strong> from the sidebar and start streaming</p>
+              <p>1. <strong>Connect Muse 2</strong> from EEG Setup and start streaming</p>
               <p>2. <strong>Calibration</strong> (30s): Measure your baseline brain activity</p>
               <p>3. <strong>Training</strong>: Watch the gauge and try to increase your score</p>
               <p>4. <strong>Rewards</strong>: Audio/visual feedback when you hit the target</p>

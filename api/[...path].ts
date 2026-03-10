@@ -964,7 +964,8 @@ async function studyEvening(req: VercelRequest, res: VercelResponse) {
   const { userId, dayValence, dayArousal, peakEmotionIntensity,
           peakEmotionDirection, meals, emotionalEatingDay,
           cravingsToday, cravingTypes, exerciseLevel, alcoholDrinks,
-          medicationsTaken, stressRightNow, readyForSleep } = req.body;
+          supplementsTaken, medicationsTaken, medicationsDetails,
+          stressRightNow, readyForSleep } = req.body;
   const participant = await getActiveParticipant(userId);
   if (!participant) return error(res, 'Not enrolled in an active study', 404);
   const session = await getOrCreateTodaySession(participant);
@@ -975,7 +976,8 @@ async function studyEvening(req: VercelRequest, res: VercelResponse) {
     studyCode: participant.studyCode,
     dayValence, dayArousal, peakEmotionIntensity, peakEmotionDirection,
     meals, emotionalEatingDay, cravingsToday, cravingTypes,
-    exerciseLevel, alcoholDrinks, medicationsTaken, stressRightNow, readyForSleep,
+    exerciseLevel, alcoholDrinks, supplementsTaken, medicationsTaken,
+    medicationsDetails, stressRightNow, readyForSleep,
   });
   await db.update(schema.studySessions).set({ eveningCompleted: true }).where(eq(schema.studySessions.id, session.id));
   const isValid = await checkAndMarkValidDay(session.id);

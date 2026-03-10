@@ -4,9 +4,16 @@ import sys
 import time
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from models.supplement_knowledge import (
+    check_interactions,
+    get_supplement_knowledge,
+    population_vs_personal,
+)
 from models.supplement_tracker import (
     SupplementTracker,
     SupplementEntry,
@@ -123,6 +130,7 @@ def test_log_brain_state(tracker, base_time):
         "valence": 0.5, "arousal": 0.6,
         "stress_index": 0.2, "focus_index": 0.7,
         "alpha_beta_ratio": 1.2, "theta_power": 0.3, "faa": 0.1,
+        "source": "eeg",
     })
     # Verify internal storage
     assert len(tracker._brain_states["user1"]) == 1
@@ -131,6 +139,7 @@ def test_log_brain_state(tracker, base_time):
     assert bs.arousal == 0.6
     assert bs.stress_index == 0.2
     assert bs.focus_index == 0.7
+    assert bs.source == "eeg"
     assert bs.alpha_beta_ratio == 1.2
     assert bs.theta_power == 0.3
     assert bs.faa == 0.1
@@ -284,6 +293,37 @@ def test_analyze_correlations_eeg_insights(tracker, base_time):
     assert "faa_shift" in insights
 
 
+def test_analyze_correlations_includes_voice_data_source_summary(tracker, base_time):
+    tracker.log_supplement("user1", "TestSupp", "supplement", 500, "mg", base_time)
+
+    for i in range(6):
+        tracker.log_brain_state("user1", base_time + 600 + i * 300, {
+            "valence": 0.4,
+            "arousal": 0.6,
+            "stress_index": 0.2,
+            "focus_index": 0.6,
+            "speech_rate": 4.8,
+            "source": "voice",
+        })
+
+    for i in range(10):
+        tracker.log_brain_state("user1", base_time - 86400 + i * 300, {
+            "valence": 0.0,
+            "arousal": 0.5,
+            "stress_index": 0.3,
+            "focus_index": 0.5,
+            "speech_rate": 4.0,
+            "source": "voice",
+        })
+
+    result = tracker.analyze_correlations("user1", "TestSupp")
+    assert result["post_source_counts"]["voice"] == 6
+    assert result["post_source_counts"]["eeg"] == 0
+    assert result["data_source_summary"] == "Based on 6 voice check-ins (no EEG data)"
+    assert "voice_insights" in result
+    assert "speech_rate_shift" in result["voice_insights"]
+
+
 def test_analyze_correlations_returns_means(tracker, base_time):
     _populate_for_correlation(tracker, base_time)
     result = tracker.analyze_correlations("user1", "TestSupp")
@@ -332,6 +372,16 @@ def test_get_supplement_report_multiple_supplements(tracker, base_time):
     omega = next(s for s in report["supplements"] if s["name"] == "Omega-3")
     assert omega["entry_count"] == 1
     assert "correlation" in omega
+
+
+def test_get_supplement_report_counts_voice_and_eeg_states(tracker, base_time):
+    tracker.log_supplement("user1", "Omega-3", "supplement", 1000, "mg", base_time)
+    tracker.log_brain_state("user1", base_time + 60, {"valence": 0.2, "source": "voice"})
+    tracker.log_brain_state("user1", base_time + 120, {"valence": 0.3, "source": "eeg"})
+
+    report = tracker.get_supplement_report("user1")
+    assert report["voice_brain_states"] == 1
+    assert report["eeg_brain_states"] == 1
 
 
 # ── Active supplements ──────────────────────────────────────────────
@@ -526,3 +576,87 @@ def test_route_module_imports():
     from api.routes.supplement_tracker import router, get_tracker
     assert router is not None
     assert get_tracker() is not None
+
+
+def test_get_supplement_knowledge_resolves_alias():
+    knowledge = get_supplement_knowledge("fish-oil")
+    assert knowledge is not None
+    assert knowledge["canonical_name"] == "omega-3"
+    assert knowledge["display_name"] == "Omega-3"
+
+
+def test_check_interactions_resolves_aliases():
+    result = check_interactions(["fish-oil", "theanine", "caffeine"])
+    assert result["canonical_names"] == ["omega-3", "l-theanine", "caffeine"]
+    assert result["interaction_count"] == 1
+    assert result["interactions"][0]["supplements"] == ["caffeine", "l-theanine"]
+
+
+def test_population_vs_personal_handles_stress_as_lower_is_better():
+    comparison = population_vs_personal(
+        {
+            "avg_valence_shift": 0.02,
+            "avg_stress_shift": -0.10,
+            "avg_focus_shift": 0.02,
+        },
+        {
+            "display_name": "Magnesium",
+            "expected_effects": {
+                "valence": 0.03,
+                "stress_index": -0.07,
+                "focus_index": 0.01,
+            },
+        },
+    )
+
+    stress_metric = next(m for m in comparison["metrics"] if m["metric"] == "stress_index")
+    assert stress_metric["comparison"] == "above_average"
+
+
+def test_compare_route_returns_stress_directionally_correct_label(base_time):
+    from api.routes.supplement_tracker import get_tracker, router
+
+    tracker = get_tracker()
+    tracker.reset("compare_user")
+    tracker.log_supplement("compare_user", "Magnesium", "supplement", 300, "mg", base_time)
+
+    for i in range(6):
+        tracker.log_brain_state("compare_user", base_time + 300 + i * 300, {
+            "valence": 0.01,
+            "arousal": 0.4,
+            "stress_index": 0.05,
+            "focus_index": 0.02,
+        })
+    for i in range(10):
+        tracker.log_brain_state("compare_user", base_time - 86400 + i * 300, {
+            "valence": 0.0,
+            "arousal": 0.4,
+            "stress_index": 0.14,
+            "focus_index": 0.01,
+        })
+
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    response = client.get("/supplements/compare/compare_user/magnesium")
+    assert response.status_code == 200
+    body = response.json()
+    stress_metric = next(
+        metric
+        for metric in body["population_comparison"]["metrics"]
+        if metric["metric"] == "stress_index"
+    )
+    assert stress_metric["comparison"] == "above_average"
+
+
+def test_interactions_route_resolves_aliases():
+    from api.routes.supplement_tracker import router
+
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    response = client.get("/supplements/interactions", params={"names": "fish-oil,theanine,caffeine"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["canonical_names"] == ["omega-3", "l-theanine", "caffeine"]
+    assert body["interaction_count"] == 1

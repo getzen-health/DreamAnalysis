@@ -103,13 +103,21 @@ async function ensureDefaultUser() {
 export async function registerRoutes(app: Express): Promise<Server> {
   // ── Session middleware (PostgreSQL-backed — persists across Vercel instances) ──
   const PgSession = connectPg(session);
-  const sessionPool = new NeonPool({ connectionString: process.env.DATABASE_URL! });
+  const useMemorySessionStore = process.env.NODE_ENV === "development";
+  const sessionPool = useMemorySessionStore
+    ? null
+    : new NeonPool({ connectionString: process.env.DATABASE_URL! });
+
+  const store = useMemorySessionStore
+    ? new session.MemoryStore()
+    : new PgSession({
+        pool: sessionPool as any,
+        createTableIfMissing: true,
+        tableName: "user_sessions",
+      });
+
   app.use(session({
-    store: new PgSession({
-      pool: sessionPool as any,
-      createTableIfMissing: true,
-      tableName: "user_sessions",
-    }),
+    store,
     secret: process.env.SESSION_SECRET ?? "svapnastra-dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
@@ -1346,7 +1354,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { userId, dayValence, dayArousal, peakEmotionIntensity,
               peakEmotionDirection, meals, emotionalEatingDay,
               cravingsToday, cravingTypes, exerciseLevel, alcoholDrinks,
-              medicationsTaken, stressRightNow, readyForSleep } = req.body;
+              supplementsTaken, medicationsTaken, medicationsDetails,
+              stressRightNow, readyForSleep } = req.body;
 
       const participant = await getActiveParticipant(userId);
       if (!participant) return res.status(404).json({ message: "Not enrolled in an active study" });
@@ -1362,7 +1371,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         studyCode: participant.studyCode,
         dayValence, dayArousal, peakEmotionIntensity, peakEmotionDirection,
         meals, emotionalEatingDay, cravingsToday, cravingTypes,
-        exerciseLevel, alcoholDrinks, medicationsTaken, stressRightNow, readyForSleep,
+        exerciseLevel, alcoholDrinks, supplementsTaken, medicationsTaken,
+        medicationsDetails, stressRightNow, readyForSleep,
       });
 
       await db.update(studySessions)

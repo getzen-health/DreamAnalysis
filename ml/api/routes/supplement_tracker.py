@@ -17,6 +17,15 @@ GET  /supplements/correlations/{user_id}
 GET  /supplements/report/{user_id}
     Full supplement report with per-supplement correlation verdicts.
 
+GET  /supplements/knowledge/{supplement_name}
+    Return curated knowledge for a supplement, with alias resolution.
+
+GET  /supplements/interactions
+    Check pairwise interactions across a comma-separated supplement list.
+
+GET  /supplements/compare/{user_id}/{supplement_name}
+    Compare a user's observed response against population expectations.
+
 GET  /supplements/active/{user_id}
     List supplements taken in the last N hours.
 
@@ -31,6 +40,12 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from models.supplement_knowledge import (
+    check_interactions,
+    get_supplement_knowledge,
+    normalize_name,
+    population_vs_personal,
+)
 from models.supplement_tracker import SupplementTracker, VALID_SUPPLEMENT_TYPES
 
 router = APIRouter(prefix="/supplements", tags=["Supplement Tracker"])
@@ -78,9 +93,11 @@ class LogBrainStateRequest(BaseModel):
     arousal: float = Field(0.0, description="Arousal level (0 to 1)")
     stress_index: float = Field(0.0, description="Stress index (0 to 1)")
     focus_index: float = Field(0.0, description="Focus index (0 to 1)")
+    source: str = Field("eeg", description="Signal source: eeg or voice")
     alpha_beta_ratio: float = Field(0.0, description="Alpha/beta ratio (relaxation)")
     theta_power: float = Field(0.0, description="Theta power (creativity/drowsiness)")
     faa: float = Field(0.0, description="Frontal alpha asymmetry")
+    speech_rate: float = Field(0.0, description="Voice speech rate proxy")
 
 
 # ── Endpoints ───────────────────────────────────────────────────────
@@ -152,9 +169,11 @@ async def log_brain_state(req: LogBrainStateRequest):
             "arousal": req.arousal,
             "stress_index": req.stress_index,
             "focus_index": req.focus_index,
+            "source": req.source,
             "alpha_beta_ratio": req.alpha_beta_ratio,
             "theta_power": req.theta_power,
             "faa": req.faa,
+            "speech_rate": req.speech_rate,
         },
     )
     return {"stored": True, "timestamp": ts}
@@ -190,6 +209,51 @@ async def get_supplement_report(user_id: str):
     against EEG-derived brain metrics.
     """
     return _tracker.get_supplement_report(user_id)
+
+
+@router.get("/knowledge/{supplement_name}")
+async def get_supplement_knowledge_route(supplement_name: str):
+    """Return curated supplement knowledge with canonical alias resolution."""
+    knowledge = get_supplement_knowledge(supplement_name)
+    if knowledge is None:
+        raise HTTPException(status_code=404, detail="Supplement knowledge not found")
+    return knowledge
+
+
+@router.get("/interactions")
+async def get_supplement_interactions(names: str):
+    """Check interactions for a comma-separated supplement list."""
+    requested_names = [name.strip() for name in names.split(",") if name.strip()]
+    if len(requested_names) < 2:
+        raise HTTPException(status_code=422, detail="At least two supplement names are required")
+    return check_interactions(requested_names)
+
+
+@router.get("/compare/{user_id}/{supplement_name}")
+async def compare_user_to_population(
+    user_id: str,
+    supplement_name: str,
+    window_hours: float = 4.0,
+):
+    """Compare a user's observed response with population expectations."""
+    knowledge = get_supplement_knowledge(supplement_name)
+    if knowledge is None:
+        raise HTTPException(status_code=404, detail="Supplement knowledge not found")
+
+    canonical_name = normalize_name(supplement_name)
+    correlation = _tracker.analyze_correlations(
+        user_id=user_id,
+        supplement_name=canonical_name,
+        window_hours=window_hours,
+    )
+    comparison = population_vs_personal(correlation, knowledge)
+    return {
+        "user_id": user_id,
+        "supplement_name": knowledge["display_name"],
+        "canonical_name": canonical_name,
+        "correlation": correlation,
+        "population_comparison": comparison,
+    }
 
 
 @router.get("/active/{user_id}")

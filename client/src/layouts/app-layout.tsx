@@ -22,6 +22,7 @@ const routeTitles: Record<string, string> = {
   "/ai-companion": "AI Companion",
   "/insights": "Insights",
   "/sessions": "Sessions",
+  "/architecture-guide": "Project Guide",
   "/settings": "Settings",
 };
 

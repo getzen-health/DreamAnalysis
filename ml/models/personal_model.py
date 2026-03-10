@@ -62,6 +62,9 @@ log = logging.getLogger(__name__)
 EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"]
 N_CLASSES = len(EMOTIONS)
 _PERSONAL_DIR = Path(__file__).parent / "saved" / "personal"
+_PERSONALIZATION_START_SESSIONS = 5
+_GLOBAL_BASELINE_ACCURACY_PCT = 71.0
+_PERSONAL_BLEND_WEIGHT = 0.70
 
 
 # ── Baseline calibrator (session-level normalisation) ─────────────────────
@@ -188,8 +191,8 @@ class PersonalModel:
     """
 
     _EMA_ALPHA = 0.35
-    _MIN_SAMPLES_PER_CLASS_TO_ACTIVATE = 10   # personal model activates after 10 samples/class
-    _MIN_TOTAL_SAMPLES = 30                   # absolute minimum to attempt fine-tuning
+    _MIN_SAMPLES_PER_CLASS_TO_ACTIVATE = 10   # legacy constant retained for compatibility
+    _MIN_TOTAL_SAMPLES = _PERSONALIZATION_START_SESSIONS
     _FINE_TUNE_EPOCHS = 50
     _FINE_TUNE_LR = 5e-4
     _MAX_BUFFER = 2000                         # rolling window of most recent labeled epochs
@@ -204,6 +207,12 @@ class PersonalModel:
         self.head_accuracy: float = 0.0        # last fine-tune val accuracy
         self.total_sessions: int = 0
         self.total_labeled_epochs: int = 0
+        self.feature_priors: Dict[str, float] = {
+            "alpha_mean": 0.0,
+            "beta_mean": 0.0,
+            "theta_mean": 0.0,
+        }
+        self._prior_count: int = 0
 
         # Rolling buffer of (raw_eeg, label) for continuous learning
         self._buffer_X: List[np.ndarray] = []  # list of (n_channels, n_samples) arrays
@@ -274,6 +283,7 @@ class PersonalModel:
         self._buffer_X.append(eeg.astype(np.float32))
         self._buffer_y.append(int(label))
         self.total_labeled_epochs += 1
+        self._update_feature_priors(eeg)
 
         # Trim buffer to rolling window
         if len(self._buffer_X) > self._MAX_BUFFER:
@@ -354,7 +364,7 @@ class PersonalModel:
     def mark_session_complete(self) -> None:
         """Call at end of each session — fine-tunes if enough new data."""
         self.total_sessions += 1
-        if len(self._buffer_y) >= self._MIN_TOTAL_SAMPLES:
+        if self.total_sessions >= _PERSONALIZATION_START_SESSIONS:
             self.fine_tune()
         self.save()
 
@@ -383,6 +393,8 @@ class PersonalModel:
             "head_accuracy":       self.head_accuracy,
             "personal_ready":      self._personal_head_ready(),
             "buffer_size":         len(self._buffer_y),
+            "feature_priors":      self.feature_priors,
+            "prior_count":         self._prior_count,
             "last_updated":        time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         (path / "meta.json").write_text(json.dumps(meta, indent=2))
@@ -393,12 +405,64 @@ class PersonalModel:
 
     def _personal_head_ready(self) -> bool:
         """True when personal head has been fine-tuned with enough data."""
-        counts = np.bincount(self._buffer_y, minlength=N_CLASSES) if self._buffer_y else np.zeros(N_CLASSES)
         return (
-            len(self._buffer_y) >= self._MIN_TOTAL_SAMPLES
-            and counts.min() >= self._MIN_SAMPLES_PER_CLASS_TO_ACTIVATE
+            self.total_sessions >= _PERSONALIZATION_START_SESSIONS
+            and len(self._buffer_y) >= _PERSONALIZATION_START_SESSIONS
             and self.head_accuracy > 0.0
         )
+
+    def record_feedback_session(self) -> None:
+        """Count one user-corrected session toward personalization."""
+        self.total_sessions += 1
+
+    def blend_with_global(self, eeg: np.ndarray, global_result: Dict[str, Any], fs: float = 256.0) -> Dict[str, Any]:
+        """Blend personal and global emotion probabilities with a 70/30 weighting."""
+        if not self._personal_head_ready():
+            result = dict(global_result)
+            result["personal_model_active"] = False
+            result["personal_blend_weight"] = 0.0
+            return result
+
+        personal_result = self.predict(eeg, fs=fs)
+        personal_probs = personal_result.get("probabilities", {})
+        global_probs = global_result.get("probabilities", {})
+        if not personal_probs or not global_probs:
+            result = dict(global_result)
+            result["personal_model_active"] = False
+            result["personal_blend_weight"] = 0.0
+            return result
+
+        blended_vec = np.array([
+            _PERSONAL_BLEND_WEIGHT * float(personal_probs.get(emotion, 0.0))
+            + (1.0 - _PERSONAL_BLEND_WEIGHT) * float(global_probs.get(emotion, 0.0))
+            for emotion in EMOTIONS
+        ], dtype=np.float32)
+        blended_vec /= (blended_vec.sum() + 1e-10)
+
+        blended = self._probs_to_dict(blended_vec, f"personal_blend_{self.n_channels}ch")
+        blended["personal_model_active"] = True
+        blended["personal_blend_weight"] = _PERSONAL_BLEND_WEIGHT
+        blended["global_blend_weight"] = round(1.0 - _PERSONAL_BLEND_WEIGHT, 2)
+        blended["head_accuracy_pct"] = round(self.head_accuracy * 100, 1)
+        return blended
+
+    def _update_feature_priors(self, eeg: np.ndarray) -> None:
+        """Maintain running means for alpha/beta/theta features per user."""
+        try:
+            from processing.eeg_processor import extract_band_powers
+
+            bands = extract_band_powers(eeg, fs=256.0)
+            alpha = float(bands.get("alpha", 0.0))
+            beta = float(bands.get("beta", 0.0))
+            theta = float(bands.get("theta", 0.0))
+        except Exception:
+            return
+
+        self._prior_count += 1
+        weight = 1.0 / self._prior_count
+        self.feature_priors["alpha_mean"] += (alpha - self.feature_priors["alpha_mean"]) * weight
+        self.feature_priors["beta_mean"] += (beta - self.feature_priors["beta_mean"]) * weight
+        self.feature_priors["theta_mean"] += (theta - self.feature_priors["theta_mean"]) * weight
 
     def _ensure_backbone(self) -> None:
         """Lazy-load the central EEGNet backbone (frozen)."""
@@ -480,6 +544,8 @@ class PersonalModel:
                 self.total_sessions      = meta.get("total_sessions", 0)
                 self.total_labeled_epochs = meta.get("total_labeled_epochs", 0)
                 self.head_accuracy       = meta.get("head_accuracy", 0.0)
+                self.feature_priors      = meta.get("feature_priors", self.feature_priors)
+                self._prior_count        = meta.get("prior_count", 0)
             except Exception:
                 pass
 
@@ -519,36 +585,45 @@ class PersonalModel:
     def status(self) -> Dict[str, Any]:
         """Return human-readable status for the dashboard."""
         counts = np.bincount(self._buffer_y, minlength=N_CLASSES) if self._buffer_y else np.zeros(N_CLASSES, int)
+        progress_pct = min(100, round((self.total_sessions / _PERSONALIZATION_START_SESSIONS) * 100))
+        head_accuracy_pct = round(self.head_accuracy * 100, 1)
+        accuracy_improvement_pct = round(max(0.0, head_accuracy_pct - _GLOBAL_BASELINE_ACCURACY_PCT), 1)
         return {
             "user_id":              self.user_id,
             "personal_model_active": self._personal_head_ready(),
             "total_sessions":        self.total_sessions,
             "total_labeled_epochs":  self.total_labeled_epochs,
             "buffer_size":           len(self._buffer_y),
-            "head_accuracy_pct":     round(self.head_accuracy * 100, 1),
+            "head_accuracy_pct":     head_accuracy_pct,
+            "estimated_global_accuracy_pct": _GLOBAL_BASELINE_ACCURACY_PCT,
+            "accuracy_improvement_pct": accuracy_improvement_pct,
+            "personalization_progress_pct": progress_pct,
+            "activation_threshold_sessions": _PERSONALIZATION_START_SESSIONS,
+            "personal_blend_weight_pct": int(_PERSONAL_BLEND_WEIGHT * 100),
             "baseline_ready":        self.baseline.is_ready,
             "baseline_frames":       self.baseline.n_frames_collected,
+            "feature_priors":        {k: round(v, 4) for k, v in self.feature_priors.items()},
             "class_counts":          {e: int(c) for e, c in zip(EMOTIONS, counts)},
-            "next_milestone":        _next_milestone(len(self._buffer_y)),
-            "message":               _progress_message(len(self._buffer_y), self._personal_head_ready()),
+            "next_milestone":        _next_milestone(self.total_sessions),
+            "message":               _progress_message(self.total_sessions, self._personal_head_ready()),
         }
 
 
 # ── Progress messaging ────────────────────────────────────────────────────
 
 def _next_milestone(n: int) -> int:
-    for m in [30, 100, 300, 600, 1000, 2000]:
+    for m in [5, 10, 20, 30, 50, 100]:
         if n < m:
             return m
-    return n + 500
+    return n + 10
 
 
 def _progress_message(n: int, active: bool) -> str:
     if active:
-        return f"Personal model active — accuracy improves with each session. {n} labeled epochs so far."
+        return f"Personal model active — blended 70/30 with the global model. {n} corrected sessions recorded."
     if n == 0:
-        return "Use the app and rate your sessions — personal model will activate after 30 labeled epochs."
-    return f"{n}/30 labeled epochs collected. Keep using the app — personal model activates at 30."
+        return "Correct 5 sessions to activate your personal model."
+    return f"{n}/5 corrected sessions collected. Keep correcting labels to activate personalization."
 
 
 # ── Global per-user registry ──────────────────────────────────────────────

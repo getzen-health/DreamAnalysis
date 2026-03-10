@@ -30,26 +30,27 @@ def _make_preictal_eeg(fs=256, duration=4, n_channels=4, seed=42):
     """Simulated pre-ictal EEG with known biomarker changes.
 
     Characteristics vs normal:
-    - Lower spectral entropy (more rhythmic/ordered)
+    - Lower spectral entropy (single dominant frequency, very ordered)
     - Higher cross-channel synchronization (nearly identical signals)
-    - Higher theta/alpha ratio (theta increases, alpha suppressed)
+    - Higher theta/alpha ratio (theta dominant, alpha absent)
     - Higher high-beta / HFO power
-    - Lower complexity (more predictable signal)
+    - Lower complexity (highly predictable signal)
     """
     rng = np.random.RandomState(seed)
     t = np.arange(int(fs * duration)) / fs
 
-    # Base pattern: strong theta with suppressed alpha, elevated high-beta
-    theta_dominant = 25.0 * np.sin(2 * np.pi * 6 * t)
-    alpha_suppressed = 4.0 * np.sin(2 * np.pi * 10 * t)
-    high_beta = 12.0 * np.sin(2 * np.pi * 25 * t)
+    # Single dominant theta — narrow spectrum = low entropy
+    # Normal EEG has alpha+theta+beta+noise (broad spectrum = higher entropy)
+    theta_dominant = 40.0 * np.sin(2 * np.pi * 6 * t)
+    # Small high-beta for HFO feature
+    high_beta = 5.0 * np.sin(2 * np.pi * 25 * t)
 
-    base = theta_dominant + alpha_suppressed + high_beta
+    base = theta_dominant + high_beta
 
-    # All channels nearly identical (high synchrony) with minimal noise
+    # All channels nearly identical (high synchrony), minimal noise
     signals = []
     for ch in range(n_channels):
-        noise = 0.5 * rng.randn(len(t))
+        noise = 0.3 * rng.randn(len(t))
         signals.append(base + noise)
     return np.array(signals)
 
@@ -473,9 +474,8 @@ class TestFeatureExtraction:
     def test_preictal_entropy_lower(self, predictor):
         normal_feats = predictor._extract_features(_make_normal_eeg(), 256.0)
         preictal_feats = predictor._extract_features(_make_preictal_eeg(), 256.0)
-        # Pre-ictal signal is more ordered → entropy should be similar or lower
-        # Allow small tolerance due to stochastic noise
-        assert preictal_feats["spectral_entropy"] <= normal_feats["spectral_entropy"] + 0.05
+        # Pre-ictal signal has single dominant frequency → lower entropy
+        assert preictal_feats["spectral_entropy"] < normal_feats["spectral_entropy"]
 
     def test_preictal_synchrony_higher(self, predictor):
         normal_feats = predictor._extract_features(_make_normal_eeg(), 256.0)

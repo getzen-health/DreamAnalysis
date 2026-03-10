@@ -8,11 +8,15 @@
 
 ## The One Sentence
 
-**Oura Ring tells you your physical readiness. This tells you your mental readiness.**
+**Your mental readiness score, every morning. From your voice, your health data, and what you consume. EEG is optional.**
 
-That is the gap in the market. Nobody has solved daily cognitive performance
-tracking for normal people. Whoop, Oura, Garmin all measure body. This
-measures brain. That is the wedge.
+That is the wedge. Oura, Whoop, Garmin, and Apple all explain the body first.
+This product explains the mind first, with a low-friction voice entry point and
+optional EEG depth for users who want lab-grade measurements.
+
+The external story should be:
+
+> Know your mind. No headband required.
 
 ---
 
@@ -27,6 +31,9 @@ They open it because they want to know:
 
 That question already exists in their head every morning.
 This app should answer it.
+
+The user should be able to get that answer without being blocked on hardware.
+Voice and health data are the default acquisition path. EEG is the upgrade path.
 
 ---
 
@@ -58,6 +65,18 @@ Recommended now
 
 This is the product. Everything else is infrastructure to produce this screen.
 
+Default input stack:
+- Voice check-in
+- Health data
+- Sleep/recovery context
+- Consumption logs
+
+Premium depth stack:
+- Live EEG
+- Sleep staging
+- Dream detection
+- Neurofeedback
+
 ---
 
 ## The Moment That Makes Users Believe
@@ -65,16 +84,18 @@ This is the product. Everything else is infrastructure to produce this screen.
 Every product has one moment that converts a skeptic into a believer.
 Ours is this:
 
-**The user is stressed. The live reading shows it. They do a 4-7-8
-breathing exercise for 3 minutes. They watch the stress line drop
-in real time on screen.**
+**The user does a 10-second voice check-in in the morning, gets a mental
+readiness score that matches how the day actually feels, then uses a short
+breathing reset and sees the state shift.**
 
-That moment — seeing their own brain respond to something they chose to do —
-is viscerally powerful. It is unlike anything else on their phone.
+That moment matters because it happens before hardware commitment. The user
+gets value on day one. EEG then becomes a depth feature, not a prerequisite.
 
-Every competitor shows a score *after* a session ends.
-We show the brain change *during* the action.
-That is the differentiator. Build this first.
+The strongest product sequence is:
+1. Voice predicts state
+2. Health context explains why
+3. Intervention changes trajectory
+4. EEG validates and deepens the model for advanced users
 
 ---
 
@@ -88,11 +109,11 @@ Without this loop there is no product. Just a dashboard with numbers.
 
 | Step | What it looks like in the app |
 |------|-------------------------------|
-| Measure | Wear headset. Session recorded automatically. |
-| Insight | "Your focus crashes every day at 2:30pm" |
+| Measure | Voice check-in, health sync, optional EEG session |
+| Insight | "Your readiness drops every day at 2:30pm" |
 | Action | "Try a 10-min walk at 2pm tomorrow" |
-| Visible result | Stress line drops live during the walk |
-| Measure again | Next day: "Yesterday's walk kept focus up until 4pm" |
+| Visible result | Stress drops after breathing or a short reset block |
+| Measure again | Next day: "Yesterday's walk kept readiness up until 4pm" |
 
 The user who has gone around this loop once will come back tomorrow.
 The user who has gone around it five times will never leave.
@@ -113,23 +134,34 @@ The user who has gone around it five times will never leave.
 
 ## The Three Product Lanes — Pick One
 
-### Lane 1 — Personal Performance (B2C, $15/month)
+### Lane 1 — Personal Performance
 - **Target:** Knowledge workers, students, founders, anyone optimising their work
-- **Positioning:** "Understand your cognitive rhythm the way elite athletes understand their physical rhythm"
-- **Comps:** Oura Ring, Whoop — but for brain
+- **Positioning:** "Understand your mental rhythm the way athletes understand physical recovery"
+- **Comps:** Oura Ring, Whoop, Apple Health readiness layers
 - **Hook:** Schedule your day around your actual mental energy, not guesswork
 
-### Lane 2 — Meditation & Wellness (B2C, $10/month)
+### Lane 2 — Meditation & Wellness
 - **Target:** 40M meditators in the US who already have Muse or similar
 - **Positioning:** "See your meditation actually working in your brain"
 - **Hook:** "Your 10-min morning meditation gave you 2 extra hours of low-stress today"
 - **Differentiator from Muse app:** They measure during session. We measure all day and show the downstream effect.
 
-### Lane 3 — Corporate / Research (B2B, $500–2000/month per seat)
+### Lane 3 — Corporate / Research
 - **Target:** Universities, clinics, corporate wellness programs, therapists
 - **Positioning:** Group-level brain insights, session recordings, exportable data
-- **Why it's faster:** They already have budget. They already have hardware. No consumer acquisition.
-- **Fastest path to first dollar.** Start here if unsure.
+- **Why it's faster:** They already have budget. Some already have hardware. Voice-first onboarding lowers deployment friction.
+- **Fastest path to first evidence.** Start here if unsure.
+
+---
+
+## Positioning Rules
+
+When writing public copy, keep these distinctions explicit:
+
+- Primary promise: mental readiness from voice + health + consumption context
+- Secondary promise: optional EEG for live brain-state depth
+- Internal truth: the platform is multimodal, but the first-time user should not feel blocked by hardware
+- Storefront rule: lead with voice-first value, not with sensors, models, or lab language
 
 ---
 

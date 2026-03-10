@@ -267,7 +267,9 @@ export const studyEveningEntries = pgTable("study_evening_entries", {
   cravingTypes:          jsonb("craving_types"),                    // ["sweet", "salty", ...]
   exerciseLevel:         text("exercise_level"),                    // "none"|"light"|"moderate"|"vigorous"
   alcoholDrinks:         integer("alcohol_drinks"),
+  supplementsTaken:      jsonb("supplements_taken"),                // [{name, dosage, timeTaken}]
   medicationsTaken:      boolean("medications_taken"),
+  medicationsDetails:    jsonb("medications_details"),              // [{name, dosage, timeTaken}]
   stressRightNow:        integer("stress_right_now"),               // 1–9
   readyForSleep:         boolean("ready_for_sleep"),
   submittedAt:           timestamp("submitted_at").defaultNow(),

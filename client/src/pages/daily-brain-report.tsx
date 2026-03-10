@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { type SessionSummary } from "@/lib/ml-api";
+import { type SessionSummary, type SleepMoodPrediction, predictSleepMood } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Moon,
@@ -51,6 +52,14 @@ interface BrainPattern {
   data: Record<string, unknown>;
 }
 
+interface VoiceSnapshot {
+  emotion: string;
+  valence: number;
+  arousal: number;
+  confidence: number;
+  stress_from_watch: number | null;
+}
+
 /* ── Derived / computed helpers ──────────────────────────────── */
 const CURRENT_USER = "default";
 
@@ -67,6 +76,10 @@ function greeting(): string {
   if (h < 12) return "Good morning";
   if (h < 17) return "Good afternoon";
   return "Good evening";
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 /* ── Streak helper ───────────────────────────────────────────── */
@@ -106,27 +119,35 @@ function stressLabel(level: number): string {
 }
 
 /** Derive recommended action from latest health data. */
-function recommendedAction(health: HealthEntry[]): {
+function recommendedAction(health: HealthEntry[], voice: VoiceSnapshot | null): {
   label: string;
   route: string;
   description: string;
 } {
-  if (!health.length) {
+  if (!health.length && !voice) {
     return {
-      label: "Start coherence breathing",
-      route: "/biofeedback",
-      description: "4-min session to centre your nervous system",
+      label: "Run a voice check-in",
+      route: "/emotions",
+      description: "Capture a quick emotion snapshot to personalize today’s report",
     };
   }
   const latest = health[0];
   const stress = latest.stressLevel ?? 0;
   const focus = latest.neuralActivity ?? 5;
+  const voiceStress = voice?.stress_from_watch ?? (voice ? clamp((voice.arousal - voice.valence + 1) * 3, 0, 10) : 0);
 
-  if (stress > 6) {
+  if (stress > 6 || voiceStress > 6) {
     return {
       label: "Start coherence breathing",
       route: "/biofeedback",
       description: "4-min session to lower cortisol and reset",
+    };
+  }
+  if (voice && voice.valence < -0.2) {
+    return {
+      label: "Check your emotion state",
+      route: "/emotions",
+      description: "Review your voice snapshot and reset before the day ramps up",
     };
   }
   if (focus < 4) {
@@ -137,10 +158,37 @@ function recommendedAction(health: HealthEntry[]): {
     };
   }
   return {
-    label: "Review your sleep session",
-    route: "/sessions",
-    description: "Explore last night's EEG data in depth",
+    label: "Open Daily Brain Monitor",
+    route: "/",
+    description: "Use your current state to protect your best focus window",
   };
+}
+
+function focusForecast(health: HealthEntry | undefined, voice: VoiceSnapshot | null): {
+  score: number;
+  label: string;
+  window: string;
+} {
+  const sleepQuality = health?.sleepQuality ?? 5;
+  const neuralActivity = health?.neuralActivity ?? 5;
+  const voiceLift = voice ? clamp(((voice.valence + 1) / 2) * 10, 0, 10) : 5;
+  const arousalLift = voice ? clamp(10 - Math.abs(voice.arousal - 0.55) * 10, 0, 10) : 5;
+  const score = Math.round(clamp(sleepQuality * 0.4 + neuralActivity * 0.3 + voiceLift * 0.2 + arousalLift * 0.1, 0, 10) * 10);
+  const label = score >= 75 ? "High focus potential" : score >= 55 ? "Steady focus day" : "Protect your energy";
+  const window = score >= 75 ? "9:30am - 12:00pm" : score >= 55 ? "10:30am - 12:00pm" : "11:00am - 12:00pm";
+  return { score, label, window };
+}
+
+function stressForecast(health: HealthEntry | undefined, voice: VoiceSnapshot | null): {
+  score: number;
+  label: string;
+} {
+  const healthStress = health?.stressLevel ?? 4;
+  const sleepPenalty = health?.sleepQuality !== undefined ? clamp(10 - health.sleepQuality, 0, 10) : 5;
+  const voiceStress = voice?.stress_from_watch ?? (voice ? clamp((voice.arousal - voice.valence + 1) * 3, 0, 10) : 4);
+  const score = Math.round(clamp(healthStress * 0.45 + sleepPenalty * 0.2 + voiceStress * 0.35, 0, 10) * 10);
+  const label = score >= 70 ? "High stress risk" : score >= 45 ? "Moderate stress risk" : "Low stress risk";
+  return { score, label };
 }
 
 /** Richer pattern engine: correlates time-of-day with focus/stress peaks.
@@ -259,6 +307,18 @@ export default function DailyBrainReport() {
       retry: false,
     });
 
+  const { data: latestVoice, isLoading: voiceLoading } =
+    useQuery<VoiceSnapshot | null>({
+      queryKey: ["voice-latest-brain-report", CURRENT_USER],
+      queryFn: async () => {
+        const res = await fetch(`/api/ml/voice-watch/latest/${CURRENT_USER}`);
+        if (!res.ok) return null;
+        return res.json();
+      },
+      staleTime: 60_000,
+      retry: false,
+    });
+
   const { data: serverInsightsData } =
     useQuery<{ userId: string; insights: ServerInsight[] }>({
       queryKey: ["yesterday-insights", CURRENT_USER],
@@ -283,10 +343,41 @@ export default function DailyBrainReport() {
       retry: false,
     });
 
+  /* — Sleep-to-mood prediction (requires health data to be present) — */
+  const latestHealthForSleep = (health as HealthEntry[])[0] as HealthEntry | undefined;
+  const hasSleepInput = !!(latestHealthForSleep?.sleepDuration || latestHealthForSleep?.sleepQuality);
+
+  const { data: sleepMoodData } =
+    useQuery<SleepMoodPrediction | null>({
+      queryKey: ["sleep-mood-prediction", CURRENT_USER],
+      queryFn: async () => {
+        if (!hasSleepInput) return null;
+        try {
+          const sleepHours = latestHealthForSleep?.sleepDuration ?? 7;
+          const quality = latestHealthForSleep?.sleepQuality ?? 7;
+          // Derive deep_sleep_pct: quality 10/10 ≈ 25% deep, 5/10 ≈ 12.5%
+          const deepSleepPct = (quality / 10) * 0.25;
+          const sleepEfficiency = (quality / 10) * 0.95;
+          return await predictSleepMood({
+            total_sleep_hours: sleepHours,
+            deep_sleep_pct: deepSleepPct,
+            sleep_efficiency: sleepEfficiency,
+            user_id: CURRENT_USER,
+          });
+        } catch {
+          return null;
+        }
+      },
+      enabled: hasSleepInput,
+      staleTime: 15 * 60_000,
+      retry: false,
+    });
+
   const serverInsights: ServerInsight[] = serverInsightsData?.insights ?? [];
   const brainPatterns: BrainPattern[] = patternsData?.patterns ?? [];
+  const voiceSnapshot = latestVoice ?? null;
 
-  const isLoading = sessionsLoading || dreamsLoading || healthLoading;
+  const isLoading = sessionsLoading || dreamsLoading || healthLoading || voiceLoading;
 
   /* — Derived data — */
   const latestHealth = health[0] as HealthEntry | undefined;
@@ -304,7 +395,7 @@ export default function DailyBrainReport() {
   };
 
   const recentDreams = dreams.slice(0, 3);
-  const action = recommendedAction(health);
+  const action = recommendedAction(health, voiceSnapshot);
   const insight = yesterdayInsight(health);
   const latestStress = latestHealth?.stressLevel ?? null;
   const streak = currentStreak(sessions);
@@ -326,6 +417,19 @@ export default function DailyBrainReport() {
     latestStress !== null
       ? latestStress > 6 ? "High stress" : latestStress > 3 ? "Moderate" : "Calm"
       : null;
+
+  const focusToday = focusForecast(latestHealth, voiceSnapshot);
+  const stressToday = stressForecast(latestHealth, voiceSnapshot);
+  const sourceLabel =
+    overnightSession && voiceSnapshot && latestHealth
+      ? "Based on: EEG + Voice + Health"
+      : voiceSnapshot && latestHealth
+      ? "Based on: Voice + Health"
+      : latestHealth
+      ? "Based on: Health"
+      : voiceSnapshot
+      ? "Based on: Voice"
+      : "Based on: No inputs yet";
 
   /* — Top insight (1 liner) — */
   const topInsight: string | null =
@@ -356,22 +460,22 @@ export default function DailyBrainReport() {
       {/* Card 1 — Right now */}
       {isLoading ? (
         <SkeletonCard />
-      ) : !latestHealth ? (
+      ) : !latestHealth && !voiceSnapshot ? (
         <Card className="glass-card p-5">
           <div className="flex items-start gap-3">
             <Radio className="h-4 w-4 text-muted-foreground/50 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-foreground/80">No data yet</p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Connect your Muse 2 or sync Apple Health to see your live brain state here.
+                Run a voice check-in, sync Apple Health, or connect EEG to generate today’s report.
               </p>
               <Button
                 variant="ghost"
                 size="sm"
                 className="mt-2 h-7 px-2 text-xs text-primary"
-                onClick={() => navigate("/device-setup")}
+                onClick={() => navigate("/emotions")}
               >
-                Set up device <ArrowRight className="h-3 w-3 ml-1" />
+                Start check-in <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </div>
           </div>
@@ -380,6 +484,9 @@ export default function DailyBrainReport() {
         <Card className="glass-card p-5">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-3">Right now</p>
           <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs px-2.5 py-1 rounded-full border border-border/40 text-muted-foreground">
+              {sourceLabel}
+            </span>
             {stressBadgeLabel && (
               <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${stressBadgeClass}`}>
                 {stressBadgeLabel}
@@ -393,6 +500,11 @@ export default function DailyBrainReport() {
             {latestHealth?.heartRate && (
               <span className="text-xs px-2.5 py-1 rounded-full border border-border/40 text-muted-foreground">
                 ♥ {latestHealth.heartRate} bpm
+              </span>
+            )}
+            {voiceSnapshot && (
+              <span className="text-xs px-2.5 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 capitalize">
+                Voice: {voiceSnapshot.emotion}
               </span>
             )}
           </div>
@@ -439,6 +551,54 @@ export default function DailyBrainReport() {
               Open dream journal <ArrowRight className="h-3 w-3" />
             </button>
           )}
+        </Card>
+      )}
+
+      {/* Sleep-mood forecast card — hidden if ML backend unavailable or no sleep data */}
+      {!isLoading && sleepMoodData && (
+        <Card className="glass-card p-5">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-3">Tonight's sleep predicts...</p>
+          <div className="flex items-center gap-2 mb-2">
+            <Badge
+              className={
+                sleepMoodData.mood_label === "positive"
+                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 border"
+                  : sleepMoodData.mood_label === "challenging"
+                  ? "bg-red-500/15 text-red-400 border-red-500/30 border"
+                  : "bg-muted/40 text-muted-foreground border-border/40 border"
+              }
+              variant="outline"
+            >
+              {sleepMoodData.mood_label === "positive" ? "Positive mood" : sleepMoodData.mood_label === "challenging" ? "Challenging day" : "Neutral outlook"}
+            </Badge>
+          </div>
+          {sleepMoodData.key_factor && (
+            <p className="text-xs text-foreground/70 leading-relaxed">{sleepMoodData.key_factor}</p>
+          )}
+          <p className="text-xs text-muted-foreground mt-2 border-t border-border/20 pt-2">
+            Best focus window: {sleepMoodData.predicted_focus_window}
+          </p>
+        </Card>
+      )}
+
+      {!isLoading && (latestHealth || voiceSnapshot) && (
+        <Card className="glass-card p-5">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-3">Today's forecast</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-lg font-semibold">{focusToday.score}%</p>
+              <p className="text-[11px] text-muted-foreground">focus readiness</p>
+              <p className="text-xs text-foreground/75 mt-1">{focusToday.label}</p>
+            </div>
+            <div>
+              <p className="text-lg font-semibold">{stressToday.score}%</p>
+              <p className="text-[11px] text-muted-foreground">stress risk</p>
+              <p className="text-xs text-foreground/75 mt-1">{stressToday.label}</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3 border-t border-border/20 pt-3">
+            Peak focus window: {focusToday.window}
+          </p>
         </Card>
       )}
 

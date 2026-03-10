@@ -1,655 +1,696 @@
-import { useState } from "react";
-import { Card } from "@/components/ui/card";
+import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Brain,
-  Activity,
-  Heart,
-  Moon,
-  Sparkles,
-  Zap,
-  Headphones,
-  MessageSquare,
-  BarChart2,
-  Network,
-  HeartPulse,
-  Lightbulb,
-  Clock,
-  Settings,
-  Radio,
-  Wifi,
-  ArrowDown,
-  ArrowRight,
   ChevronDown,
   ChevronUp,
-  Eye,
-  Battery,
-  Gauge,
-  Shield,
-  Smile,
+  Compass,
+  FlaskConical,
+  GitBranch,
+  HeartPulse,
+  Lightbulb,
+  Rocket,
+  Sparkles,
+  Target,
   Waves,
 } from "lucide-react";
 
-/* ---------- types ---------- */
-interface SectionProps {
-  id: string;
+type SectionProps = {
   title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  icon: ReactNode;
   defaultOpen?: boolean;
-}
+  children: ReactNode;
+};
 
-/* ---------- collapsible section ---------- */
-function Section({ id, title, icon, children, defaultOpen = false }: SectionProps) {
+function Section({ title, icon, defaultOpen = false, children }: SectionProps) {
   const [open, setOpen] = useState(defaultOpen);
+
   return (
-    <Card className="glass-card rounded-xl overflow-hidden hover-glow">
+    <Card className="overflow-hidden border-border/50 bg-background/80 backdrop-blur">
       <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 p-5 text-left transition-colors hover:bg-muted/20"
+        className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/20"
+        onClick={() => setOpen((value) => !value)}
       >
         <span className="text-primary">{icon}</span>
-        <h3 className="text-base font-semibold flex-1">{title}</h3>
+        <div className="flex-1">
+          <h2 className="text-base font-semibold">{title}</h2>
+        </div>
         {open ? (
           <ChevronUp className="h-4 w-4 text-muted-foreground" />
         ) : (
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
       </button>
-      {open && <div className="px-5 pb-5 space-y-4">{children}</div>}
+      {open && <div className="border-t border-border/40 px-5 py-5">{children}</div>}
     </Card>
   );
 }
 
-/* ---------- small info card ---------- */
-function InfoCard({
-  icon,
-  title,
+function StatCard({
+  label,
   value,
-  description,
-  color = "text-primary",
+  detail,
 }: {
-  icon: React.ReactNode;
-  title: string;
+  label: string;
   value: string;
-  description: string;
-  color?: string;
+  detail: string;
 }) {
   return (
-    <div
-      className="p-4 rounded-xl"
-      style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <span className={color}>{icon}</span>
-        <span className="text-xs text-muted-foreground font-medium">{title}</span>
-      </div>
-      <p className={`text-sm font-semibold ${color}`}>{value}</p>
-      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
+    <div className="rounded-2xl border border-border/50 bg-muted/20 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail}</p>
     </div>
   );
 }
 
-/* ---------- score formula row ---------- */
-function ScoreFormula({
-  name,
-  formula,
-  meaning,
-  color,
-}: {
-  name: string;
-  formula: string;
-  meaning: string;
-  color: string;
-}) {
-  return (
-    <div className="flex gap-4 items-start py-3 border-b border-border/20 last:border-0">
-      <div className="w-28 shrink-0">
-        <span className={`text-sm font-semibold ${color}`}>{name}</span>
-      </div>
-      <div className="flex-1">
-        <code className="text-xs font-mono text-foreground/80 bg-muted/30 px-2 py-0.5 rounded">
-          {formula}
-        </code>
-        <p className="text-xs text-muted-foreground mt-1">{meaning}</p>
-      </div>
-    </div>
-  );
-}
+const platformLayers = [
+  {
+    title: "Product layer",
+    body:
+      "A React application for live EEG dashboards, dream journaling, food logging, neurofeedback, AI companion flows, and a structured research journey.",
+  },
+  {
+    title: "Inference layer",
+    body:
+      "A Python ML backend processes Muse 2 EEG streams, extracts features, runs model chains, and returns live state estimates over REST and WebSocket.",
+  },
+  {
+    title: "Research layer",
+    body:
+      "Protocol documents, study routes, data export, benchmarks, and issue-driven experimentation turn the app into a research operations surface, not just a consumer dashboard.",
+  },
+];
 
-/* ========== Main Component ========== */
+const modelEvolution = [
+  {
+    phase: "Phase 1",
+    title: "Heuristic-first EEG interpretation",
+    body:
+      "The foundation was interpretable EEG biomarker logic: FAA, band power ratios, sleep signatures, stress asymmetry, and rule-based dream or meditation indicators.",
+  },
+  {
+    phase: "Phase 2",
+    title: "Cross-dataset supervised training",
+    body:
+      "The project then consolidated public EEG datasets into a unified emotion training path, moving from isolated experiments toward cross-subject generalization.",
+  },
+  {
+    phase: "Phase 3",
+    title: "Personalization and stability",
+    body:
+      "Baseline calibration, running normalization, EMA smoothing, epoch gating, and online adaptation were added to make live outputs less noisy and more usable per person.",
+  },
+  {
+    phase: "Phase 4",
+    title: "Multimodal and edge-ready expansion",
+    body:
+      "The codebase expanded into voice, health, ONNX browser inference, BLE streaming, and mobile execution so the system could operate outside a lab-like desktop setup.",
+  },
+  {
+    phase: "Phase 5",
+    title: "Research-platform acceleration",
+    body:
+      "Recent issue-driven work pushed into foundation models, domain adaptation, neuroadaptive learning, seizure or tinnitus workflows, digital phenotyping, and broader BCI experiments.",
+  },
+];
+
+const issueHighlights = [
+  "Core reliability: auth for ML/WebSocket, WebSocket state fixes, security headers, env validation, CI, docker-compose, and frontend tests.",
+  "Signal quality and live UX: artifact warnings, 4-second epoch gating, EMA smoothing, baseline calibration, connection warmup handling, and simulation fallback.",
+  "Research-grade model growth: REVE, FEMBA, CSCL, domain adaptation, few-shot personalization, TSception fallback, dual-epoch processing, and Dream database integration.",
+  "Multimodal scope: EEG plus voice, Apple Health, PPG, health summaries, mental health screening, and AI-generated explanations.",
+  "Intervention and application scope: neurofeedback, emotion regulation loops, learning optimization, neurogaming, music therapy, tinnitus, seizure risk, and digital phenotyping.",
+];
+
+const useCases = [
+  "Personal self-tracking: seeing how stress, focus, sleep, food, and dreams interact across a day.",
+  "Research participation: collecting longitudinal day-night data for the continuity-hypothesis and food-emotion-dream program.",
+  "Adaptive interventions: deciding when to breathe, rest, focus, change music, or enter neurofeedback based on brain state.",
+  "Education and productivity: attention, fatigue, engagement, and learning-stage experiments for tutoring or study optimization.",
+  "Clinical-adjacent exploration: early prototypes around seizure detection, tinnitus support, pain biomarkers, brain health, and phenotyping.",
+];
+
+const projectionSteps = [
+  "Tell one clear story first: wearable EEG that connects daytime emotion, eating behavior, and nighttime dreams in natural settings.",
+  "Separate what is production-ready from what is research-stage so credibility does not get diluted by the breadth of experiments.",
+  "Publish benchmark snapshots and study protocol summaries in plain language, then use the app as the live demonstration surface.",
+  "Lead with differentiated assets: Muse 2 support, longitudinal design, dream continuity framing, and multimodal personalization.",
+  "Package distinct audiences: participant study page, researcher methods page, and partner/demo page instead of one blended pitch.",
+];
+
+const nextSteps = [
+  "Validate the food-emotion module with human-subject data instead of leaving it as theory-backed but unvalidated heuristics.",
+  "Narrow the flagship paper and demo to a small number of claims that can be defended with current evidence.",
+  "Promote the dormant architecture page into a maintained project dossier and keep it synced with benchmarks, protocol revisions, and issue closures.",
+  "Turn the open GitHub queue into themed milestones such as cognition, clinical screening, multimodal fusion, and assistive BCI.",
+  "Add source-level references or deep links from this page to the benchmark dashboard, protocol docs, and study routes for easier external sharing.",
+];
+
+const liveModelStack = [
+  {
+    name: "Emotion classifier",
+    detail:
+      "Primary live path: unified LightGBM trained with global PCA (85 -> 80 features) across 11 datasets. Repository status lists 71.52% cross-subject CV on 187,751 samples. Runtime fallback chain also includes TSception CNN and feature heuristics when full model conditions are not met.",
+  },
+  {
+    name: "Sleep staging",
+    detail:
+      "Classical supervised model path for Wake, N1, N2, N3, and REM. Status file reports 92.98% benchmark accuracy for the active path.",
+  },
+  {
+    name: "Dream detector",
+    detail:
+      "Gradient-boosting style detector layered on top of sleep-state reasoning to estimate dream-relevant REM-like periods. Status file reports 97.20% benchmark accuracy.",
+  },
+  {
+    name: "Cognitive state models",
+    detail:
+      "Drowsiness, cognitive load, attention, stress, lucid dream, and meditation are trained and/or heuristic-assisted models. Status reports include drowsiness 81.72% CV, cognitive load 65.72% CV, attention 63.87% CV, stress 59.64% CV, lucid dream 61.85% CV, and meditation 61.13% CV.",
+  },
+  {
+    name: "Signal hygiene models",
+    detail:
+      "Artifact classifier uses LightGBM with 96.47% CV on synthetic artifact classes, while the denoising autoencoder reports +2.29 dB SNR improvement. These are used to protect downstream inference quality.",
+  },
+  {
+    name: "Adaptive control models",
+    detail:
+      "A PPO reinforcement-learning threshold agent adjusts neurofeedback difficulty in real time. The status file reports a 67% live reward rate for the target flow zone.",
+  },
+];
+
+const technicalPipeline = [
+  "Acquisition: Muse 2 dry-electrode EEG, typically 4 channels, streamed through BrainFlow or native BLE decoding paths.",
+  "Preprocessing: artifact handling, denoising, re-referencing, signal-quality scoring, filtering, and feature extraction from band powers, asymmetry metrics, Hjorth parameters, entropy-style features, and temporal summaries.",
+  "Epoch logic: a 4-second sliding epoch buffer with overlap is used for live inference. The frontend also uses epoch gating so unstable early frames are not presented as confident results.",
+  "Normalization: running z-score normalization and baseline calibration adapt the live stream to within-session drift and per-user resting-state differences.",
+  "Inference orchestration: the Python backend runs parallel inference for major models and exposes outputs over REST and WebSocket to the React client.",
+  "Client rendering: the React app consumes device context, model outputs, health sync, offline storage, and intervention triggers to update dashboards and study pages.",
+];
+
+const datasets = [
+  "DEAP, DREAMER, GAMEEMO, DENS, FACED, SEED-IV, EEG-ER, STEW, Muse-Subconscious, EmoKey, and EAV are referenced in the current emotion training path.",
+  "Mental Attention and STEW are explicitly used in the newer cognitive training scripts for drowsiness and cognitive-load style models.",
+  "DREAM Database integration is called out for dream detection and sleep staging expansion.",
+  "Several newer models are still trained partly on synthetic or proxy data, which matters when interpreting benchmark strength versus real-world validity.",
+];
+
+const researchOnlyModels = [
+  "Foundation-model direction: REVE, FEMBA, CSCL, and other cross-subject transfer approaches appear in closed issues as major architecture experiments rather than mature end-user features.",
+  "Personalization direction: FACE few-shot adapters, prototypical few-shot learning, online learning, and domain adaptation all indicate a shift toward subject-specific calibration rather than one-model-fits-all inference.",
+  "Multimodal direction: TMNet EEG+voice fusion, Apple Health HRV integration, PPG stress augmentation, SenseVoice, DistilHuBERT, and voice mental-health biomarkers extend the platform beyond EEG-only reasoning.",
+  "Clinical-adjacent direction: seizure detection, pre-ictal prediction, tinnitus protocols, pain biomarkers, cognitive reserve, developmental brain maturation, and digital phenotyping are present in the issue stream and API surface, but they should be communicated as research-stage work, not validated clinical products.",
+];
+
+const modelComparisonRows = [
+  {
+    model: "Emotion classifier",
+    algorithm: "LightGBM + PCA, TSception fallback, heuristics fallback",
+    data: "11 EEG datasets, cross-subject",
+    metric: "71.52% CV",
+    status: "Live core path",
+  },
+  {
+    model: "Sleep staging",
+    algorithm: "RF / LightGBM-style supervised classifier",
+    data: "ISRUC and sleep datasets",
+    metric: "92.98%",
+    status: "Live core path",
+  },
+  {
+    model: "Dream detector",
+    algorithm: "Gradient boosting + sleep-state logic",
+    data: "Dream/sleep benchmarks",
+    metric: "97.20%",
+    status: "Live core path",
+  },
+  {
+    model: "Drowsiness",
+    algorithm: "LightGBM",
+    data: "Mental Attention + synthetic",
+    metric: "81.72% CV",
+    status: "Live cognitive path",
+  },
+  {
+    model: "Cognitive load",
+    algorithm: "LightGBM",
+    data: "STEW + synthetic",
+    metric: "65.72% CV",
+    status: "Live cognitive path",
+  },
+  {
+    model: "Attention",
+    algorithm: "LightGBM",
+    data: "Synthetic + DEAP proxy",
+    metric: "63.87% CV",
+    status: "Live cognitive path",
+  },
+  {
+    model: "Stress",
+    algorithm: "LightGBM",
+    data: "Synthetic + DEAP proxy",
+    metric: "59.64% CV",
+    status: "Live cognitive path",
+  },
+  {
+    model: "Lucid dream",
+    algorithm: "LightGBM",
+    data: "Synthetic, noise-augmented",
+    metric: "61.85% CV",
+    status: "Live/research hybrid",
+  },
+  {
+    model: "Meditation",
+    algorithm: "LightGBM",
+    data: "Synthetic, noise-augmented",
+    metric: "61.13% CV",
+    status: "Live/research hybrid",
+  },
+  {
+    model: "Artifact classifier",
+    algorithm: "LightGBM",
+    data: "Synthetic artifact classes",
+    metric: "96.47% CV",
+    status: "Quality-control path",
+  },
+  {
+    model: "Denoising autoencoder",
+    algorithm: "PyTorch autoencoder",
+    data: "Synthetic paired noise-clean data",
+    metric: "+2.29 dB SNR",
+    status: "Quality-control path",
+  },
+  {
+    model: "RL threshold agent",
+    algorithm: "PPO actor-critic",
+    data: "Synthetic neurofeedback environment",
+    metric: "67% reward rate",
+    status: "Adaptive intervention path",
+  },
+];
+
+const milestoneTimeline = [
+  {
+    phase: "Foundation and hardening",
+    issues: "#1, #4, #5, #6, #7, #10, #11",
+    detail:
+      "The early repo work focused on auth, WebSocket correctness, security headers, env validation, local stack setup, CI, and mobile/PWA readiness. This is the stage where the platform became operational rather than purely aspirational.",
+  },
+  {
+    phase: "Live UX stabilization",
+    issues: "#14, #15, #16, #17, #18",
+    detail:
+      "Baseline calibration, EMA smoothing, epoch_ready gating, artifact warnings, and missing tests improved live interpretability and reduced presentation of noisy states.",
+  },
+  {
+    phase: "Multimodal and foundation-model expansion",
+    issues: "#19, #21, #22, #23, #24, #26, #28, #29, #30, #31, #33, #34, #36, #40",
+    detail:
+      "This phase added REVE, FEMBA, EEG+voice fusion, Apple Health fusion, fast voice emotion models, health summaries, self-supervised adaptation, artifact-rejection upgrades, dual-epoch logic, GRU sleep staging, and cross-subject contrastive learning.",
+  },
+  {
+    phase: "Research daemon acceleration",
+    issues: "#41 through #58, plus #68 through #71",
+    detail:
+      "The repository moved into rapid issue-driven expansion across mental-health voice screening, neurofeedback, federated learning, SHAP explainability, PPG fusion, DreamNet analysis, binaural feedback, microstates, entropy, graph models, and emotion trajectories.",
+  },
+  {
+    phase: "Clinical-adjacent and adaptive BCI wave",
+    issues: "#91 through #118",
+    detail:
+      "This wave introduced microsleep, pain biomarkers, EEG authentication, study optimization, digital phenotyping, empathy, N400 detection, neural efficiency, tinnitus, mindfulness quality, learning-stage classification, adaptive tutoring, neurogaming, brain maturation, seizure detection, domain adaptation, few-shot personalization, and CSCL.",
+  },
+  {
+    phase: "Current open frontier",
+    issues: "#159 through #168",
+    detail:
+      "The open queue now points toward language processing, gaze prediction, altered-consciousness tracking, neurodegeneration markers, neurostimulation guidance, motor-intention decoding, imagined speech, and Parkinsonian screening.",
+  },
+];
+
 export default function ArchitectureGuide() {
   return (
-    <main className="p-6 space-y-4 max-w-4xl">
-      {/* Hero */}
-      <div className="ai-insight-card">
-        <div className="flex items-start gap-3">
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: "linear-gradient(135deg, hsl(152,60%,48%,0.3), hsl(38,85%,58%,0.3))" }}
-          >
-            <Brain className="h-5 w-5 text-primary" />
-          </div>
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <div className="rounded-3xl border border-emerald-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_40%),linear-gradient(135deg,rgba(10,14,22,0.98),rgba(14,18,30,0.94))] p-6 shadow-2xl">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            Project Dossier
+          </Badge>
+          <Badge variant="outline" className="border-sky-500/30 bg-sky-500/10 text-sky-300">
+            Repo + GitHub reviewed
+          </Badge>
+          <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-300">
+            Snapshot: March 9, 2026
+          </Badge>
+        </div>
+
+        <div className="mt-5 grid gap-6 lg:grid-cols-[1.45fr_0.95fr]">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Svapnastra Architecture Guide</h2>
-            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-              Complete breakdown of how every page, component, score, and ML model works.
-              Expand each section below to learn what each part does and how the data flows.
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              Neural Dream Workshop is a wearable EEG research and product platform.
+            </h1>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">
+              At its core, this project reads brain activity from a Muse 2 headset and turns it into
+              live interpretations of emotion, focus, stress, sleep, dream-relevant states, and
+              intervention opportunities. Around that core, the repository has grown into a larger
+              platform for longitudinal dream research, multimodal wellness experiments, and emerging
+              adaptive BCI workflows.
             </p>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">
+              Verified facts on this page come from the repository, study documents, status files,
+              and the GitHub issue tracker. Interpretive statements are based on those sources and are
+              presented as synthesis rather than direct claims from a single file.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <StatCard
+              label="What it is"
+              value="EEG app + research stack"
+              detail="It is both an end-user application and an experimentation environment for new brain-state models."
+            />
+            <StatCard
+              label="Flagship idea"
+              value="Emotion -> eating -> dreams"
+              detail="The strongest original thread in the codebase is the day-night research program linking waking emotion, food behavior, and dream content."
+            />
           </div>
         </div>
       </div>
 
-      {/* ──────────── 1. DATA FLOW ──────────── */}
-      <Section id="data-flow" title="How Data Flows" icon={<Wifi className="h-5 w-5" />} defaultOpen>
-        <div className="space-y-3">
-          {[
-            {
-              step: "1",
-              label: "Muse 2 Headband",
-              detail: "4 EEG channels (TP9, AF7, AF8, TP10) at 256 Hz via Bluetooth",
-              color: "bg-blue-500",
-            },
-            {
-              step: "2",
-              label: "BrainFlow v5.20.1",
-              detail: "Reads raw EEG signals from Muse 2 (board ID 38, native Bluetooth)",
-              color: "bg-cyan-500",
-            },
-            {
-              step: "3",
-              label: "FastAPI Backend (port 8000)",
-              detail: "12 ML models process each chunk: sleep, emotion, dream, flow, creativity, memory, drowsiness, cognitive load, attention, stress, lucid dream, meditation",
-              color: "bg-purple-500",
-            },
-            {
-              step: "4",
-              label: "WebSocket /ws/eeg-stream @ 4Hz",
-              detail: "Sends JSON frames with all 12 model outputs, band powers, signal quality, emotion shifts, and coherence data",
-              color: "bg-green-500",
-            },
-            {
-              step: "5",
-              label: "DeviceProvider (React Context)",
-              detail: "Stores latestFrame globally — every page reads from useDevice() hook",
-              color: "bg-amber-500",
-            },
-            {
-              step: "6",
-              label: "Pages render live data",
-              detail: "Each page reads latestFrame.analysis.* — no fake data, all zeros when not streaming",
-              color: "bg-rose-500",
-            },
-          ].map((item, i) => (
-            <div key={i}>
-              <div className="flex items-start gap-3">
-                <div
-                  className={`w-7 h-7 rounded-lg ${item.color} flex items-center justify-center shrink-0 text-white text-xs font-bold`}
-                >
-                  {item.step}
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        {platformLayers.map((item) => (
+          <Card key={item.title} className="border-border/50 bg-background/70">
+            <CardContent className="pt-5">
+              <h3 className="text-sm font-semibold text-foreground">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.body}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mt-6 space-y-4">
+        <Section
+          title="What Exactly This Project Is About"
+          icon={<Brain className="h-5 w-5" />}
+          defaultOpen
+        >
+          <div className="space-y-4 text-sm leading-7 text-muted-foreground">
+            <p>
+              Neural Dream Workshop is not only a dream journal and not only an EEG dashboard. It is a
+              full pipeline that starts with wearable brain sensing, processes those signals into
+              interpretable features, runs multiple model families, and then surfaces the results in
+              pages for daily use, longitudinal tracking, guided studies, and adaptive interventions.
+            </p>
+            <p>
+              The repository’s own documents show a progression from a core real-time EEG application
+              into a broader research system. The README describes the technical architecture. The
+              status file shows the product surface area and the widening model catalog. The IRB draft
+              clarifies the central scientific question: whether naturalistic daytime EEG emotion
+              markers predict dream emotion that night, and whether eating behavior changes that link.
+            </p>
+            <p>
+              Inference: the most defensible identity for the project today is a consumer-device EEG
+              platform built to study continuity between waking emotion, health behavior, and dream
+              life while also incubating new BCI applications around that data stream.
+            </p>
+          </div>
+        </Section>
+
+        <Section title="What Research Is Going On" icon={<FlaskConical className="h-5 w-5" />} defaultOpen>
+          <div className="space-y-4 text-sm leading-7 text-muted-foreground">
+            <p>
+              The primary research program is the 30-day longitudinal study described in
+              `irb/COMBINED_STUDY_PROTOCOL_DRAFT.md`. Its central aims are to test the continuity
+              hypothesis of dreaming with objective daytime EEG markers, examine eating behavior as a
+              moderator of the emotion-to-dream pathway, estimate nightmare risk prospectively, and
+              measure how stable consumer-EEG emotion biomarkers are within the same person across time.
+            </p>
+            <p>
+              Surrounding that flagship study is a much broader issue-driven research engine. Recent
+              closed issues added or expanded work in digital phenotyping, emotion regulation,
+              neurofeedback, sleep architecture, voice fusion, health fusion, engagement detection,
+              neuroadaptive tutoring, deception detection, tinnitus protocols, seizure detection, and
+              adaptive learning.
+            </p>
+            <p>
+              That means the project now spans three research bands: core dream and emotion science,
+              multimodal brain-health sensing, and experimental BCI applications. The first band is the
+              clearest narrative. The second and third bands show ambition, but they also increase the
+              need to communicate maturity levels carefully.
+            </p>
+          </div>
+        </Section>
+
+        <Section title="How The Models Have Changed" icon={<Waves className="h-5 w-5" />}>
+          <div className="space-y-4">
+            {modelEvolution.map((item) => (
+              <div key={item.phase} className="rounded-2xl border border-border/40 bg-muted/15 p-4">
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                    {item.phase}
+                  </Badge>
+                  <h3 className="text-sm font-semibold text-foreground">{item.title}</h3>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.detail}</p>
-                </div>
+                <p className="mt-3 text-sm leading-7 text-muted-foreground">{item.body}</p>
               </div>
-              {i < 5 && (
-                <div className="ml-3 py-1">
-                  <ArrowDown className="h-3 w-3 text-muted-foreground/40" />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </Section>
+            ))}
+            <p className="text-sm leading-7 text-muted-foreground">
+              Concretely, the training layer moved from legacy multi-algorithm scripts toward a unified
+              LightGBM training path, newer cognitive model batch training, ONNX export, and web-side
+              inference. The live system also gained personalization machinery such as baseline
+              calibration, per-user adaptation, running normalization, and TSception fallback.
+            </p>
+          </div>
+        </Section>
 
-      {/* ──────────── 2. THE 12 ML MODELS ──────────── */}
-      <Section id="ml-models" title="12 ML Models" icon={<Sparkles className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          Every WebSocket frame runs your EEG through all 12 models. Each returns a score (0-1) and a state label.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <InfoCard
-            icon={<Moon className="h-4 w-4" />}
-            title="Sleep Staging"
-            value="stage, confidence"
-            description="Classifies: Wake, N1 (Light), N2 (Sleep), N3 (Deep), REM. Uses delta/theta/alpha ratios and spindle detection."
-            color="text-blue-400"
-          />
-          <InfoCard
-            icon={<Smile className="h-4 w-4" />}
-            title="Emotion"
-            value="emotion, valence, arousal"
-            description="6 emotions: happy, sad, angry, fearful, relaxed, focused. Plus stress_index, focus_index, relaxation_index (all 0-1)."
-            color="text-pink-400"
-          />
-          <InfoCard
-            icon={<Moon className="h-4 w-4" />}
-            title="Dream Detection"
-            value="is_dreaming, probability"
-            description="Detects dream states via REM-like patterns. Outputs: rem_likelihood, dream_intensity, lucidity_estimate (all 0-1)."
-            color="text-purple-400"
-          />
-          <InfoCard
-            icon={<Zap className="h-4 w-4" />}
-            title="Flow State"
-            value="in_flow, flow_score"
-            description="Detects optimal performance state: high focus + moderate arousal + low stress. Flow score 0-1."
-            color="text-green-400"
-          />
-          <InfoCard
-            icon={<Lightbulb className="h-4 w-4" />}
-            title="Creativity"
-            value="state, creativity_score"
-            description="Measures divergent thinking via theta-alpha ratio. High theta + moderate alpha = creative state."
-            color="text-amber-400"
-          />
-          <InfoCard
-            icon={<Brain className="h-4 w-4" />}
-            title="Memory Encoding"
-            value="state, encoding_score"
-            description="Detects active memory consolidation. Theta bursts + gamma coupling = information being encoded."
-            color="text-cyan-400"
-          />
-          <InfoCard
-            icon={<Eye className="h-4 w-4" />}
-            title="Attention"
-            value="state, attention_score"
-            description="Sustained attention via prefrontal beta activity. High beta + low theta = focused attention."
-            color="text-emerald-400"
-          />
-          <InfoCard
-            icon={<Battery className="h-4 w-4" />}
-            title="Drowsiness"
-            value="state, drowsiness_index"
-            description="Detects fatigue: rising theta + dropping alpha + increasing slow eye movements."
-            color="text-orange-400"
-          />
-          <InfoCard
-            icon={<Gauge className="h-4 w-4" />}
-            title="Cognitive Load"
-            value="level, load_index"
-            description="Mental workload from frontal theta power. High theta + high beta = cognitive overload."
-            color="text-red-400"
-          />
-          <InfoCard
-            icon={<Shield className="h-4 w-4" />}
-            title="Stress"
-            value="level, stress_index"
-            description="Physiological stress: high beta/alpha ratio + frontal asymmetry + reduced alpha power."
-            color="text-rose-400"
-          />
-          <InfoCard
-            icon={<Heart className="h-4 w-4" />}
-            title="Meditation"
-            value="depth, meditation_score"
-            description="Meditation depth: Surface, Light, Deep Absorption, Jhana. Strong alpha coherence + low beta."
-            color="text-violet-400"
-          />
-          <InfoCard
-            icon={<Moon className="h-4 w-4" />}
-            title="Lucid Dream"
-            value="state, lucidity_score"
-            description="Only active during REM. Detects awareness within dreams via gamma bursts in frontal regions."
-            color="text-fuchsia-400"
-          />
-        </div>
-      </Section>
-
-      {/* ──────────── 3. BAND POWERS ──────────── */}
-      <Section id="band-powers" title="EEG Band Powers" icon={<Waves className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          Raw EEG is decomposed into 5 frequency bands. All values are relative power (0-1 scale, shown as 0-100%).
-        </p>
-        <div className="space-y-3">
-          {[
-            { band: "Delta", range: "0.5-4 Hz", color: "hsl(270, 70%, 65%)", meaning: "Deep sleep, unconscious processing, healing. Dominant in N3 (deep sleep)." },
-            { band: "Theta", range: "4-8 Hz", color: "hsl(195, 100%, 50%)", meaning: "Relaxation, creativity, meditation, drowsiness. High in REM sleep and deep meditation." },
-            { band: "Alpha", range: "8-12 Hz", color: "hsl(120, 100%, 55%)", meaning: "Calm focus, relaxation with awareness. Eyes-closed rest. Bridge between conscious and subconscious." },
-            { band: "Beta", range: "12-30 Hz", color: "hsl(45, 100%, 50%)", meaning: "Active thinking, problem-solving, anxiety. High during concentration, stress, and mental effort." },
-            { band: "Gamma", range: "30-100 Hz", color: "hsl(0, 80%, 50%)", meaning: "Higher cognition, memory binding, peak awareness. Associated with 'aha' moments and transcendent states." },
-          ].map((b) => (
-            <div key={b.band} className="flex items-start gap-3 py-2">
-              <div className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ background: b.color }} />
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">{b.band}</span>
-                  <span className="text-[10px] text-muted-foreground font-mono">{b.range}</span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{b.meaning}</p>
+        <Section title="Technical Inference Pipeline" icon={<Brain className="h-5 w-5" />}>
+          <div className="space-y-3">
+            {technicalPipeline.map((item) => (
+              <div key={item} className="rounded-xl border border-border/40 bg-muted/15 px-4 py-3 text-sm leading-7 text-muted-foreground">
+                {item}
               </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Exact Models In The Active Stack" icon={<Sparkles className="h-5 w-5" />}>
+          <div className="space-y-4">
+            {liveModelStack.map((item) => (
+              <div key={item.name} className="rounded-2xl border border-border/40 bg-muted/15 p-4">
+                <h3 className="text-sm font-semibold text-foreground">{item.name}</h3>
+                <p className="mt-2 text-sm leading-7 text-muted-foreground">{item.detail}</p>
+              </div>
+            ))}
+            <p className="text-sm leading-7 text-muted-foreground">
+              Important distinction: some of these models are directly in the live user path today,
+              while others are exposed through specific API routes, benchmark dashboards, or research
+              endpoints rather than every default UI page. The repository mixes deployed inference and
+              active experimentation in the same codebase.
+            </p>
+          </div>
+        </Section>
+
+        <Section title="Model Comparison Table" icon={<Target className="h-5 w-5" />}>
+          <div className="overflow-x-auto rounded-2xl border border-border/40">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-muted/30 text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Model</th>
+                  <th className="px-4 py-3 font-medium">Algorithm / family</th>
+                  <th className="px-4 py-3 font-medium">Primary data basis</th>
+                  <th className="px-4 py-3 font-medium">Reported metric</th>
+                  <th className="px-4 py-3 font-medium">Role</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modelComparisonRows.map((row, index) => (
+                  <tr
+                    key={row.model}
+                    className={index % 2 === 0 ? "bg-background/60" : "bg-muted/10"}
+                  >
+                    <td className="px-4 py-3 align-top text-foreground">{row.model}</td>
+                    <td className="px-4 py-3 align-top text-muted-foreground">{row.algorithm}</td>
+                    <td className="px-4 py-3 align-top text-muted-foreground">{row.data}</td>
+                    <td className="px-4 py-3 align-top text-muted-foreground">{row.metric}</td>
+                    <td className="px-4 py-3 align-top text-muted-foreground">{row.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-4 text-sm leading-7 text-muted-foreground">
+            This table is intentionally selective. It focuses on the models most important for
+            understanding the currently documented live stack and the immediate product-research
+            interface, rather than every experimental route in the repository.
+          </p>
+        </Section>
+
+        <Section title="Training Data And Benchmark Context" icon={<FlaskConical className="h-5 w-5" />}>
+          <div className="space-y-3">
+            {datasets.map((item) => (
+              <div key={item} className="rounded-xl border border-border/40 bg-muted/15 px-4 py-3 text-sm leading-7 text-muted-foreground">
+                {item}
+              </div>
+            ))}
+            <p className="text-sm leading-7 text-muted-foreground">
+              The technical implication is that the repository contains a heterogeneous model stack:
+              some models are trained on large cross-subject datasets, some on narrow real datasets,
+              and some on synthetic or theory-derived labels. That is one of the most important things
+              to understand before presenting the project externally.
+            </p>
+          </div>
+        </Section>
+
+        <Section title="What GitHub Issues Say About New Advancements" icon={<GitBranch className="h-5 w-5" />}>
+          <div className="space-y-4 text-sm leading-7 text-muted-foreground">
+            <p>
+              GitHub snapshot reviewed on March 9, 2026: 119 total issues, 109 closed and 10 open.
+              Most of the tracker is research-led rather than bug-led, which is unusual for a normal
+              product repository and confirms that the repo is being used as a live research backlog.
+            </p>
+            <p>
+              Of those issues, 103 are labeled as research, 18 involve health-data integration, 9
+              involve voice emotion, 8 are multimodal, and 6 explicitly target foundation-model style
+              integrations. Only 4 issues are labeled as bugs. That distribution shows the center of
+              gravity has shifted from app stabilization to research acceleration.
+            </p>
+            <div className="space-y-2">
+              {issueHighlights.map((item) => (
+                <div key={item} className="rounded-xl border border-border/40 bg-muted/15 px-4 py-3">
+                  {item}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* ──────────── 4. PAGES EXPLAINED ──────────── */}
-      <Section id="dashboard" title="Dashboard (/)" icon={<Brain className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          The main overview page with 3 score circles, mood timeline, brain wave sparklines, energy centers, and emotional shift alerts.
-        </p>
-        <h4 className="text-sm font-semibold text-foreground mb-2">Score Formulas</h4>
-        <div className="rounded-lg overflow-hidden" style={{ background: "hsl(220, 22%, 7%)" }}>
-          <div className="p-4 space-y-0">
-            <ScoreFormula
-              name="Wellness"
-              formula="relaxation × 0.4 + (100 - stress) × 0.35 + focus × 0.25"
-              meaning="Overall emotional wellbeing. High relaxation + low stress + decent focus = high wellness."
-              color="text-green-400"
-            />
-            <ScoreFormula
-              name="Sleep"
-              formula="sleep_staging.confidence × 100"
-              meaning="How confidently the ML model classifies your current sleep stage. High = clear EEG pattern."
-              color="text-blue-400"
-            />
-            <ScoreFormula
-              name="Brain"
-              formula="focus × 0.4 + relaxation × 0.3 + (100 - arousal × 60) × 0.3"
-              meaning="Cognitive balance. High focus + calm relaxation + moderate (not extreme) arousal."
-              color="text-purple-400"
-            />
+            <p>
+              The current open queue points toward the next frontier: language processing from EEG,
+              visual attention and gaze prediction, altered-consciousness analysis, dementia-screening
+              style biomarkers, neurostimulation guidance, assistive motor-intention decoding,
+              imagined-speech control, and Parkinsonian screening. Inference: the repository is moving
+              from a wellness-and-dream platform toward a broader consumer-EEG research lab.
+            </p>
           </div>
-        </div>
+        </Section>
 
-        <h4 className="text-sm font-semibold text-foreground mt-4 mb-2">Emotional Shift Alerts</h4>
-        <p className="text-xs text-muted-foreground mb-2">
-          The EmotionShiftDetector watches EEG for pre-conscious changes — your brain's electrical signature shifts 2-8 seconds BEFORE you consciously notice a mood change. Like how animals sense human emotional shifts.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {[
-            { type: "Approaching Anxiety", sign: "Beta rising + alpha dropping + stress increasing", color: "text-warning" },
-            { type: "Approaching Calm", sign: "Alpha rising + beta dropping + calm ratio up", color: "text-success" },
-            { type: "Approaching Sadness", sign: "Valence dropping + arousal dropping + theta rising", color: "text-blue-400" },
-            { type: "Approaching Focus", sign: "Entropy dropping + beta structured + theta down", color: "text-emerald-400" },
-            { type: "Approaching Joy", sign: "Valence rising + gamma bursts", color: "text-amber-400" },
-            { type: "Turbulence", sign: "High variability in valence + arousal", color: "text-rose-400" },
-          ].map((s) => (
-            <div key={s.type} className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-              <p className={`text-xs font-semibold ${s.color}`}>{s.type}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{s.sign}</p>
+        <Section title="Research Models Versus Product Models" icon={<GitBranch className="h-5 w-5" />}>
+          <div className="space-y-3">
+            {researchOnlyModels.map((item) => (
+              <div key={item} className="rounded-xl border border-border/40 bg-muted/15 px-4 py-3 text-sm leading-7 text-muted-foreground">
+                {item}
+              </div>
+            ))}
+            <p className="text-sm leading-7 text-muted-foreground">
+              Inference: the repo should be described as a layered model ecosystem. One layer supports
+              current live product experiences. Another layer exists as research APIs, experimental
+              routes, benchmark artifacts, and issue-closed implementations that still need stricter
+              validation or tighter productization.
+            </p>
+          </div>
+        </Section>
+
+        <Section title="Issue Timeline To Research Milestones" icon={<Compass className="h-5 w-5" />}>
+          <div className="space-y-4">
+            {milestoneTimeline.map((item) => (
+              <div key={item.phase} className="rounded-2xl border border-border/40 bg-muted/15 p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-sm font-semibold text-foreground">{item.phase}</h3>
+                  <Badge variant="outline" className="border-sky-500/30 bg-sky-500/10 text-sky-300">
+                    {item.issues}
+                  </Badge>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-muted-foreground">{item.detail}</p>
+              </div>
+            ))}
+            <p className="text-sm leading-7 text-muted-foreground">
+              Interpreting the timeline at a high level: the repo first became reliable, then became
+              usable, then became adaptive and multimodal, and is now being pushed toward a much wider
+              BCI and brain-health research surface.
+            </p>
+          </div>
+        </Section>
+
+        <Section title="Use Cases We Have Right Now" icon={<Target className="h-5 w-5" />}>
+          <div className="grid gap-3 md:grid-cols-2">
+            {useCases.map((item) => (
+              <div key={item} className="rounded-2xl border border-border/40 bg-muted/15 p-4 text-sm leading-7 text-muted-foreground">
+                {item}
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="How To Project This To The World" icon={<Rocket className="h-5 w-5" />}>
+          <div className="space-y-3 text-sm leading-7 text-muted-foreground">
+            {projectionSteps.map((item) => (
+              <div key={item} className="rounded-xl border border-border/40 bg-muted/15 px-4 py-3">
+                {item}
+              </div>
+            ))}
+            <p>
+              The strongest external framing is not “we have many models.” The stronger message is:
+              this platform makes consumer EEG useful for understanding the full emotional day, from
+              live state to behavior to sleep and dreams, while also serving as a launchpad for future
+              adaptive brain-health applications.
+            </p>
+          </div>
+        </Section>
+
+        <Section title="What The Next Steps Should Be" icon={<Compass className="h-5 w-5" />}>
+          <div className="space-y-3 text-sm leading-7 text-muted-foreground">
+            {nextSteps.map((item) => (
+              <div key={item} className="rounded-xl border border-border/40 bg-muted/15 px-4 py-3">
+                {item}
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Plain-English Summary" icon={<Lightbulb className="h-5 w-5" />} defaultOpen>
+          <div className="space-y-4 text-sm leading-7 text-muted-foreground">
+            <p>
+              This project started as a brain-computer interface app for reading live Muse 2 EEG and
+              showing meaningful mental-state estimates. It has since become a much larger system that
+              mixes product features, human-subject study infrastructure, mobile sensing, model
+              benchmarking, and rapid research prototyping.
+            </p>
+            <p>
+              The most original and communicable part is the emotional day-night story: what you feel
+              in the day, how you eat, how you sleep, and what you dream may be measurable as one
+              connected chain. The codebase already has enough pieces to tell that story well. The main
+              strategic job now is to keep that story central while organizing the expanding research
+              backlog into clear, credible milestones.
+            </p>
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <div className="flex items-center gap-2 text-emerald-300">
+                <Sparkles className="h-4 w-4" />
+                <span className="text-sm font-semibold">Best one-line positioning</span>
+              </div>
+              <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                Neural Dream Workshop is a consumer-EEG platform that turns brain activity into a
+                measurable story about emotion, behavior, sleep, and dreams.
+              </p>
             </div>
-          ))}
-        </div>
+          </div>
+        </Section>
 
-        <h4 className="text-sm font-semibold text-foreground mt-4 mb-2">Chakra Energy Bars</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {[
-            { chakra: "Root", band: "Delta", formula: "delta × 1.2", color: "text-red-400" },
-            { chakra: "Sacral", band: "Theta", formula: "theta × 1.1", color: "text-orange-400" },
-            { chakra: "Solar Plexus", band: "Alpha + Theta", formula: "(alpha + theta) × 0.6", color: "text-yellow-400" },
-            { chakra: "Heart", band: "Alpha", formula: "alpha × 1.2", color: "text-green-400" },
-            { chakra: "Throat", band: "Beta", formula: "beta × 1.0", color: "text-blue-400" },
-            { chakra: "Third Eye", band: "Beta + Gamma", formula: "(beta + gamma) × 0.7", color: "text-indigo-400" },
-            { chakra: "Crown", band: "Gamma", formula: "gamma × 1.5", color: "text-purple-400" },
-          ].map((c) => (
-            <div key={c.chakra} className="flex items-center gap-2 text-xs py-1">
-              <span className={`font-medium w-24 ${c.color}`}>{c.chakra}</span>
-              <span className="text-muted-foreground">{c.band}</span>
-              <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
-              <code className="font-mono text-foreground/70 text-[10px]">{c.formula}</code>
+        <Card className="border-sky-500/20 bg-sky-500/5">
+          <CardContent className="pt-5">
+            <div className="flex items-center gap-2 text-sky-300">
+              <HeartPulse className="h-4 w-4" />
+              <h2 className="text-sm font-semibold">Page Basis</h2>
             </div>
-          ))}
-        </div>
-      </Section>
-
-      <Section id="emotion-lab" title="Emotion Lab (/emotions)" icon={<Heart className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          Deep dive into your emotional state with 5 panels.
-        </p>
-        <div className="space-y-3">
-          <div className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-            <p className="text-sm font-medium text-foreground">Emotion Wheel</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Radial SVG with 6 emotions (happy, sad, angry, fearful, relaxed, focused). Each node's distance from center = its probability from the emotion model. Dominant emotion pulses and is larger.
+            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+              This page was synthesized from `README.md`, `STATUS.md`,
+              `irb/COMBINED_STUDY_PROTOCOL_DRAFT.md`, local git history, and the GitHub issue tracker
+              for `LakshmiSravyaVedantham/DreamAnalysis`.
             </p>
-          </div>
-          <div className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-            <p className="text-sm font-medium text-foreground">Mental State Metrics</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              <strong>Stress</strong> (0-100): High beta relative to alpha. <strong>Focus</strong> (0-100): Structured beta + low theta.
-              <strong> Relaxation</strong> (0-100): High alpha + low beta. <strong>Valence</strong> (-1 to +1): Negative = sad/angry, Positive = happy.
-              <strong> Arousal</strong> (0-1): Low = calm, High = excited/anxious.
+            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+              Related execution plan: `docs/plans/2026-03-09-food-emotion-human-validation-plan.md`
             </p>
-          </div>
-          <div className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-            <p className="text-sm font-medium text-foreground">Valence-Arousal Scatter</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              2D emotional space. X-axis = valence (sad↔happy), Y-axis = arousal (calm↔excited). Your emotional trajectory is plotted — dots grow larger over time. Cluster in upper-right = excited + positive. Lower-left = calm + negative.
-            </p>
-          </div>
-        </div>
-      </Section>
-
-      <Section id="inner-energy" title="Inner Energy (/inner-energy)" icon={<Sparkles className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          Spiritual/meditative interpretation of EEG data through the chakra system.
-        </p>
-        <div className="rounded-lg overflow-hidden" style={{ background: "hsl(220, 22%, 7%)" }}>
-          <div className="p-4 space-y-0">
-            <ScoreFormula
-              name="Meditation"
-              formula="meditation_model.meditation_score × 100"
-              meaning="ML meditation model output. Depth labels: Surface, Light, Deep Absorption, Jhana."
-              color="text-green-400"
-            />
-            <ScoreFormula
-              name="Consciousness"
-              formula="attention × 30 + flow × 40 + meditation × 30"
-              meaning="Composite awareness level. Maps to: Survival → Desire → Willpower → Love → Expression → Insight → Unity."
-              color="text-purple-400"
-            />
-            <ScoreFormula
-              name="Third Eye"
-              formula="(gamma + beta × 0.3) × 150"
-              meaning="Prefrontal high-frequency activity. Associated with intuition and insight."
-              color="text-indigo-400"
-            />
-          </div>
-        </div>
-      </Section>
-
-      <Section id="brain-monitor" title="Brain Monitor (/brain-monitor)" icon={<Activity className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          The technical EEG view showing all 12 ML model outputs simultaneously.
-        </p>
-        <div className="space-y-3">
-          <div className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-            <p className="text-sm font-medium text-foreground">EEG Brain Waves</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Real-time waveform chart showing alpha + beta waves. Includes signal quality indicator (SQI %), session recording controls, and source label (DEVICE vs SIMULATION).
-            </p>
-          </div>
-          <div className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-            <p className="text-sm font-medium text-foreground">12-Model Panel</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Grid of cards — one per ML model. Each shows: current state label, confidence bar (0-100%), and model-specific details. Only visible when streaming.
-            </p>
-          </div>
-          <div className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-            <p className="text-sm font-medium text-foreground">Wavelet Spectrogram</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Time-frequency analysis updated every 2s. Shows sleep spindles, K-complexes, and DWT energy distribution across frequency bands.
-            </p>
-          </div>
-          <div className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-            <p className="text-sm font-medium text-foreground">Electrode Grid</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              8x8 grid showing per-channel signal quality. Green = good (80%+), Yellow = weak (60-80%), Red = error (&lt;60%).
-            </p>
-          </div>
-        </div>
-      </Section>
-
-      <Section id="dreams" title="Dream Detection (/dreams)" icon={<Moon className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          Live dream state monitoring with 4 score gauges and episode tracking.
-        </p>
-        <div className="rounded-lg overflow-hidden" style={{ background: "hsl(220, 22%, 7%)" }}>
-          <div className="p-4 space-y-0">
-            <ScoreFormula
-              name="Dream Prob"
-              formula="dream_detection.probability × 100"
-              meaning="How likely you're in a dream state. Based on theta dominance + eye movement patterns."
-              color="text-purple-400"
-            />
-            <ScoreFormula
-              name="REM"
-              formula="dream_detection.rem_likelihood × 100"
-              meaning="Probability of REM sleep stage. Rapid eye movements + muscle atonia + mixed-frequency EEG."
-              color="text-green-400"
-            />
-            <ScoreFormula
-              name="Intensity"
-              formula="dream_detection.dream_intensity × 100"
-              meaning="How vivid/active the dream is. Higher gamma + theta bursts = more intense dreaming."
-              color="text-amber-400"
-            />
-            <ScoreFormula
-              name="Lucidity"
-              formula="dream_detection.lucidity_estimate × 100"
-              meaning="Awareness within the dream. Frontal gamma activity during REM = lucid dreaming potential."
-              color="text-blue-400"
-            />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground mt-3">
-          <strong>Dream Episodes</strong> are auto-detected when <code>is_dreaming</code> transitions from false → true → false. Each episode records: start time, duration, intensity, lucidity, REM probability, and sleep stage.
-        </p>
-      </Section>
-
-      <Section id="dream-patterns" title="Dream Patterns (/dream-patterns)" icon={<BarChart2 className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground">
-          Session-level dream analytics. Shows a <strong>hypnogram</strong> (sleep architecture chart: N3=deep at bottom, Wake at top),
-          <strong> dream activity</strong> (intensity bar chart), <strong>REM likelihood</strong> trend (area chart), and <strong>REM cycle progression</strong> (intensity + lucidity + duration across completed cycles).
-          Natural pattern: later REM cycles are longer and more intense.
-        </p>
-      </Section>
-
-      <Section id="health" title="Health Analytics (/health-analytics)" icon={<HeartPulse className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          Holistic health dashboard pulling from all 12 models.
-        </p>
-        <div className="rounded-lg overflow-hidden" style={{ background: "hsl(220, 22%, 7%)" }}>
-          <div className="p-4 space-y-0">
-            <ScoreFormula
-              name="Brain Health"
-              formula="focus × 0.25 + relax × 0.25 + (100 - stress) × 0.25 + flow × 0.25"
-              meaning="Balanced cognitive function across all dimensions."
-              color="text-green-400"
-            />
-            <ScoreFormula
-              name="Cognitive"
-              formula="focus × 0.3 + creativity × 0.25 + memory × 0.25 + (100 - drowsiness) × 0.2"
-              meaning="Mental performance capacity. How sharp your brain is right now."
-              color="text-purple-400"
-            />
-            <ScoreFormula
-              name="Wellbeing"
-              formula="relax × 0.35 + (100 - stress) × 0.35 + flow × 0.3"
-              meaning="Emotional balance and inner peace. Low stress + high relaxation + flow state."
-              color="text-amber-400"
-            />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground mt-3">
-          Also shows 8 individual metrics (Stress, Focus, Flow, Relaxation, Creativity, Memory, Cognitive Load, Drowsiness) with dynamic AI insights that trigger based on thresholds.
-        </p>
-      </Section>
-
-      <Section id="insights" title="Insights (/insights)" icon={<Lightbulb className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          AI-generated brain insights based on your current state. Up to 4 insight cards shown simultaneously.
-        </p>
-        <div className="space-y-2">
-          {[
-            { condition: "Focus > 60%", insight: "High Focus State — ideal for analytical tasks", color: "text-primary" },
-            { condition: "Focus < 30%", insight: "Low Focus — consider a break", color: "text-warning" },
-            { condition: "Creativity > 50%", insight: "Creative State — theta-alpha ratio high, good for brainstorming", color: "text-success" },
-            { condition: "Stress > 50%", insight: "Elevated Stress — try breathing exercise", color: "text-warning" },
-            { condition: "Relaxation > 60%", insight: "Calm & Balanced — parasympathetic state", color: "text-success" },
-            { condition: "Flow > 60%", insight: "Flow State Achieved — minimize interruptions", color: "text-success" },
-            { condition: "Dream Prob > 40%", insight: "Dream-Like Patterns — hypnagogic state", color: "text-secondary" },
-            { condition: "Meditation > 50%", insight: "Deep Meditative State — strong alpha coherence", color: "text-primary" },
-          ].map((item) => (
-            <div key={item.condition} className="flex items-center gap-3 text-xs py-1">
-              <code className="font-mono text-muted-foreground w-36 shrink-0">{item.condition}</code>
-              <ArrowRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-              <span className={item.color}>{item.insight}</span>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground mt-3">
-          Also shows a <strong>6-axis radar chart</strong> (Focus, Creativity, Relaxation, Memory, Flow, Meditation) and <strong>band power trends</strong> over time.
-        </p>
-      </Section>
-
-      <Section id="neurofeedback" title="Neurofeedback (/neurofeedback)" icon={<Headphones className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground mb-3">
-          Real-time brain training in 4 phases.
-        </p>
-        <div className="space-y-2">
-          {[
-            {
-              phase: "1. Protocol Selection",
-              detail: "Choose: Alpha Enhancement (increase calm focus), SMR Training (sensorimotor rhythm), Theta/Beta Ratio (ADHD protocol), Alpha Asymmetry (mood balance). Toggle audio feedback.",
-            },
-            {
-              phase: "2. Calibration (30s)",
-              detail: "Measures your baseline brain activity. Relax and breathe normally. Progress bar shows calibration completion.",
-            },
-            {
-              phase: "3. Training",
-              detail: "Live score gauge (0-100). Your band powers are sent to the backend every 1s and compared to your calibrated baseline. Score > threshold = reward (audio tone at 523Hz C5 + green flash). Track rewards count and streak.",
-            },
-            {
-              phase: "4. Summary",
-              detail: "Session stats: total rewards, reward rate %, average score, best streak.",
-            },
-          ].map((p) => (
-            <div key={p.phase} className="p-3 rounded-lg" style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}>
-              <p className="text-sm font-medium text-foreground">{p.phase}</p>
-              <p className="text-xs text-muted-foreground mt-1">{p.detail}</p>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      <Section id="connectivity" title="Brain Connectivity (/brain-connectivity)" icon={<Network className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground">
-          Network analysis of brain region connections. Select channels (4/8/16) and method (coherence).
-          Shows <strong>connectivity matrix</strong> heatmap, <strong>graph metrics</strong> (clustering coefficient, average path length, small-world index, modularity),
-          and <strong>directed flow</strong> (Granger causality, DTF matrix, dominant information flow direction).
-        </p>
-      </Section>
-
-      <Section id="ai-companion" title="AI Companion (/ai-companion)" icon={<MessageSquare className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground">
-          Chat interface with an EEG-aware AI assistant. Can reference your current brain state during conversation — e.g., "I notice your stress levels are elevated, would you like to try a breathing exercise?"
-        </p>
-      </Section>
-
-      <Section id="sessions" title="Sessions (/sessions)" icon={<Clock className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground">
-          Browse and manage recorded EEG sessions. View session details, export as CSV for external analysis, or delete old sessions. Sessions are recorded via the Brain Monitor page's recording controls.
-        </p>
-      </Section>
-
-      <Section id="settings" title="Settings (/settings)" icon={<Settings className="h-5 w-5" />}>
-        <p className="text-xs text-muted-foreground">
-          App configuration: hardware settings (electrode count, sampling rate), stress alert threshold, visual effects toggles,
-          local vs server inference, data encryption, calibration wizard for model personalization, ML benchmark viewer, theme toggle, and data export/delete.
-        </p>
-      </Section>
-
-      {/* ──────────── FOOTER ──────────── */}
-      <div className="text-center py-6">
-        <p className="text-xs text-muted-foreground">
-          All data is 100% live from your Muse 2 headband. No fake data, no simulations.
-        </p>
-        <p className="text-[10px] text-muted-foreground/50 mt-1">
-          Svapnastra &middot; 12 ML Models &middot; 13 Pages &middot; 4Hz Real-Time Streaming
-        </p>
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

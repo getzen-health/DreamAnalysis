@@ -26,6 +26,7 @@ import {
   Bluetooth,
   Trophy,
   Pill,
+  BookOpenText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -63,7 +64,6 @@ const sections: NavSection[] = [
       { path: "/brain-connectivity", label: "Connectivity",    icon: Network },
       { path: "/inner-energy",       label: "Spiritual",       icon: Sparkles },
       { path: "/neurofeedback",      label: "Neurofeedback",   icon: Radio },
-      { path: "/calibration",        label: "Calibration",     icon: SlidersHorizontal },
     ],
   },
   {
@@ -99,7 +99,9 @@ const sections: NavSection[] = [
     items: [
       { path: "/records",      label: "My Records",   icon: Trophy },
       { path: "/benchmarks",   label: "Benchmarks",   icon: BarChart2 },
-      { path: "/device-setup", label: "Device Setup", icon: Bluetooth },
+      { path: "/architecture-guide", label: "Project Guide", icon: BookOpenText },
+      { path: "/calibration",  label: "EEG Calibration", icon: SlidersHorizontal },
+      { path: "/device-setup", label: "EEG Setup", icon: Bluetooth },
     ],
   },
 ];
@@ -266,7 +268,7 @@ export function Sidebar() {
                   ? (device.selectedDevice === "synthetic" ? "Demo Mode" : "Streaming")
                   : isConnected
                     ? "Connected"
-                    : "Connect Device"}
+                    : "EEG Optional"}
               </span>
             </div>
             {device.deviceStatus && isConnected && (

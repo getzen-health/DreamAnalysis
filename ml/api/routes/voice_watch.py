@@ -110,6 +110,7 @@ def _watch_to_stress(
 class VoiceWatchRequest(BaseModel):
     audio_b64: str = Field(..., description="Base64-encoded WAV (5-10s)")
     sample_rate: int = Field(22050, description="Audio sample rate in Hz")
+    user_id: str = Field("default", description="User identifier")
     hr: Optional[float] = Field(None, description="Heart rate bpm")
     hrv: Optional[float] = Field(None, description="HRV SDNN ms")
     spo2: Optional[float] = Field(None, description="SpO2 percentage")
@@ -134,6 +135,60 @@ class EmotionResult(BaseModel):
     stress_from_watch: Optional[float] = None
 
 
+def _voice_stress_index(result: Dict[str, Any]) -> float:
+    """Composite 0-1 stress score from voice biomarkers + watch signal."""
+    biomarkers = result.get("biomarkers", {}) or {}
+    mental = result.get("mental_health", {}) or {}
+
+    hnr_db = float(biomarkers.get("hnr_db", 20.0) or 20.0)
+    jitter = float(biomarkers.get("jitter_local", 0.01) or 0.01)
+    model_stress = float(mental.get("stress", 0.0) or 0.0)
+    watch_stress = float(result.get("stress_from_watch", 0.0) or 0.0)
+
+    low_hnr = float(np.clip((18.0 - hnr_db) / 18.0, 0.0, 1.0))
+    jitter_tension = float(np.clip((0.01 - min(jitter, 0.01)) / 0.01, 0.0, 1.0))
+    composite = 0.45 * model_stress + 0.30 * low_hnr + 0.15 * jitter_tension + 0.10 * watch_stress
+    return float(np.clip(composite, 0.0, 1.0))
+
+
+def _voice_focus_index(result: Dict[str, Any]) -> float:
+    """Approximate 0-1 focus proxy from voice prosody stability."""
+    biomarkers = result.get("biomarkers", {}) or {}
+    speech_rate = float(biomarkers.get("speech_rate", 0.0) or 0.0)
+    confidence = float(result.get("confidence", 0.0) or 0.0)
+    arousal = float(result.get("arousal", 0.0) or 0.0)
+
+    if speech_rate <= 0:
+      speech_score = 0.45
+    else:
+      speech_score = float(np.clip(1.0 - abs(speech_rate - 4.5) / 4.5, 0.0, 1.0))
+    arousal_balance = float(np.clip(1.0 - abs(arousal - 0.55) / 0.55, 0.0, 1.0))
+    return float(np.clip(0.45 * confidence + 0.30 * speech_score + 0.25 * arousal_balance, 0.0, 1.0))
+
+
+def _auto_log_voice_brain_state(user_id: str, timestamp: float, result: Dict[str, Any]) -> None:
+    """Store voice-derived brain-state proxies in supplement tracker."""
+    try:
+        from api.routes.supplement_tracker import get_tracker as get_supplement_tracker
+
+        biomarkers = result.get("biomarkers", {}) or {}
+        tracker = get_supplement_tracker()
+        tracker.log_brain_state(
+            user_id=user_id,
+            timestamp=timestamp,
+            emotion_data={
+                "valence": float(result.get("valence", 0.0)),
+                "arousal": float(result.get("arousal", 0.0)),
+                "stress_index": _voice_stress_index(result),
+                "focus_index": _voice_focus_index(result),
+                "source": "voice",
+                "speech_rate": float(biomarkers.get("speech_rate", 0.0) or 0.0),
+            },
+        )
+    except Exception as exc:
+        log.warning("Voice supplement auto-log failed: %s", exc)
+
+
 # ── Analyze endpoint ──────────────────────────────────────────────────────────
 
 @router.post("/analyze", response_model=EmotionResult)
@@ -154,7 +209,7 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
         if audio.ndim > 1:
             audio = audio.mean(axis=1)
         from models.voice_emotion_model import get_voice_model
-        result = get_voice_model().predict(
+        result = get_voice_model().predict_with_biomarkers(
             audio, sample_rate=int(sr), real_time=req.real_time
         )
         # Validate result has all required keys
@@ -178,7 +233,7 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
             raise HTTPException(422, "Audio too short — need at least 0.25s")
         try:
             from models.voice_emotion_model import get_voice_model
-            result = get_voice_model().predict(
+            result = get_voice_model().predict_with_biomarkers(
                 y, sample_rate=_SR, real_time=req.real_time
             )
         except Exception as exc:
@@ -195,6 +250,8 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
         result["valence"] = float(np.clip(result["valence"] - stress_w * 0.3, -1.0, 1.0))
         result["arousal"] = float(np.clip(result["arousal"] + stress_w * 0.2, 0.0, 1.0))
         result["stress_from_watch"] = round(stress_w, 4)
+
+    _auto_log_voice_brain_state(req.user_id, time.time(), result)
 
     return result
 
@@ -225,21 +282,37 @@ def get_latest_voice(user_id: str) -> Optional[Dict]:
 @router.get("/status")
 def voice_watch_status() -> Dict[str, Any]:
     """Return voice model availability."""
+    e2v_large_ok = False
     e2v_ok = False
     sensevoice_ok = False
+    preferred_tier = "heuristic"
     try:
         from models.voice_emotion_model import get_voice_model
         vm = get_voice_model()
+        e2v_large_ok = vm._load_e2v_large()
         e2v_ok = vm._load_e2v()
         sensevoice_ok = vm._sensevoice.available
+        if e2v_large_ok:
+            preferred_tier = "emotion2vec_large"
+        elif e2v_ok:
+            preferred_tier = "emotion2vec_base"
+        elif sensevoice_ok:
+            preferred_tier = "sensevoice"
     except Exception:
         pass
     librosa_ok = _ensure_librosa()
     lgbm_ok = _LGBM_PATH.exists()
+    if preferred_tier == "heuristic":
+        if lgbm_ok:
+            preferred_tier = "lgbm_fallback"
+        elif librosa_ok:
+            preferred_tier = "feature_heuristic"
     return {
+        "emotion2vec_large_available": e2v_large_ok,
         "emotion2vec_available": e2v_ok,
         "sensevoice_available": sensevoice_ok,
         "lgbm_fallback_available": lgbm_ok,
         "librosa_available": librosa_ok,
-        "ready": e2v_ok or sensevoice_ok or lgbm_ok or librosa_ok,
+        "preferred_model_tier": preferred_tier,
+        "ready": e2v_large_ok or e2v_ok or sensevoice_ok or lgbm_ok or librosa_ok,
     }

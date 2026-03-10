@@ -257,12 +257,12 @@ export default function EmotionLab() {
         </p>
 
         {!isStreaming ? (
-          /* No device */
+          /* Voice-first mode */
           <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <div className="text-5xl">🧠</div>
-            <p className="text-sm font-medium">Connect your device</p>
-            <p className="text-xs text-muted-foreground max-w-[220px]">
-              Attach your Muse 2 from the sidebar to see live emotion detection.
+            <div className="text-5xl">🎙️</div>
+            <p className="text-sm font-medium">Voice mode is ready</p>
+            <p className="text-xs text-muted-foreground max-w-[260px]">
+              Run a microphone check-in above for emotion detection now. EEG is optional if you want continuous live readings.
             </p>
           </div>
         ) : !emotionReady ? (

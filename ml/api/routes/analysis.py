@@ -2,6 +2,7 @@
 
 import asyncio
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict
@@ -19,6 +20,7 @@ from ._shared import (
     STATE_PROFILES, simulate_eeg,
     extract_features, extract_band_powers, preprocess, extract_features_multichannel,
     extract_spectral_microstate_features,
+    compute_frontal_asymmetry,
     compute_coherence, compute_phase_locking_value,
     detect_eye_blinks, detect_muscle_artifacts, detect_electrode_pops,
     compute_signal_quality_index, auto_reject_epochs,
@@ -27,6 +29,7 @@ from ._shared import (
     apply_circadian_correction,
 )
 from processing.e_asr import EmbeddedASR
+from .supplement_tracker import get_tracker as get_supplement_tracker
 
 router = APIRouter()
 
@@ -138,6 +141,9 @@ _epoch_buffers_lock = threading.Lock()
 _EMA_ALPHA = 0.3
 _ema_state: Dict[str, Dict[str, float]] = {}
 _ema_state_lock = threading.Lock()
+_supplement_log_times: Dict[str, float] = {}
+_supplement_log_lock = threading.Lock()
+_SUPPLEMENT_LOG_INTERVAL_SEC = 4.0
 
 
 def _apply_ema(user_id: str, raw_probs: Dict[str, float]) -> Dict[str, float]:
@@ -180,6 +186,54 @@ def _get_epoch_buffer(user_id: str) -> _EpochBuffer:
             _epoch_buffers[user_id] = _EpochBuffer()
         return _epoch_buffers[user_id]
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def _should_log_supplement_brain_state(user_id: str, timestamp_s: float) -> bool:
+    """Rate-limit supplement brain-state auto-logging to one event per hop."""
+    with _supplement_log_lock:
+      last_logged = _supplement_log_times.get(user_id)
+      if last_logged is not None and (timestamp_s - last_logged) < _SUPPLEMENT_LOG_INTERVAL_SEC:
+          return False
+      _supplement_log_times[user_id] = timestamp_s
+      return True
+
+
+def _auto_log_supplement_brain_state(
+    user_id: str,
+    timestamp_s: float,
+    epoch_ready: bool,
+    emotion_result: dict,
+    features: dict,
+    bands: dict,
+    signals: np.ndarray,
+    fs: float,
+    device_type: str,
+) -> None:
+    """Mirror main EEG analysis output into the supplement tracker timeline."""
+    if not epoch_ready or not _should_log_supplement_brain_state(user_id, timestamp_s):
+        return
+
+    faa = 0.0
+    if signals.ndim == 2 and signals.shape[0] >= 3:
+        if device_type.startswith("muse"):
+            asym = compute_frontal_asymmetry(signals, fs, left_ch=1, right_ch=2)
+        else:
+            asym = compute_frontal_asymmetry(signals, fs, left_ch=0, right_ch=1)
+        faa = float(asym.get("frontal_asymmetry", 0.0))
+
+    get_supplement_tracker().log_brain_state(
+        user_id=user_id,
+        timestamp=timestamp_s,
+        emotion_data={
+            "valence": float(emotion_result.get("valence", 0.0)),
+            "arousal": float(emotion_result.get("arousal", 0.0)),
+            "stress_index": float(emotion_result.get("stress_index", 0.0)),
+            "focus_index": float(emotion_result.get("focus_index", 0.0)),
+            "alpha_beta_ratio": float(features.get("alpha_beta_ratio", 0.0)),
+            "theta_power": float(bands.get("theta", 0.0)),
+            "faa": faa,
+        },
+    )
 
 
 @router.post("/analyze-eeg", response_model=AnalysisResponse)
@@ -247,6 +301,17 @@ async def analyze_eeg(input_data: EEGInput):
             pass  # circadian correction failure must never break inference
 
         bands = extract_band_powers(processed, fs)
+        _auto_log_supplement_brain_state(
+            user_id=user_id,
+            timestamp_s=time.time(),
+            epoch_ready=epoch_ready,
+            emotion_result=emotion_result,
+            features=features,
+            bands=bands,
+            signals=signals,
+            fs=fs,
+            device_type=device_type,
+        )
 
         # Cross-channel metrics
         cross_channel = None

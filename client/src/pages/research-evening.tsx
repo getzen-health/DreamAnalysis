@@ -1,10 +1,11 @@
 import { getParticipantId } from "@/lib/participant";
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 import { Moon, CheckCircle2, Loader2, Activity } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,81 @@ const EXERCISE_OPTIONS = [
 
 const CRAVING_TYPES = ["sweet", "salty", "fatty", "carbs", "caffeine", "alcohol"];
 
+type IngestEntry = {
+  name: string;
+  dosage: string;
+  timeTaken: string;
+};
+
+function emptyIngestEntry(): IngestEntry {
+  return { name: "", dosage: "", timeTaken: "" };
+}
+
+function IngestSection({
+  title,
+  description,
+  entries,
+  setEntries,
+}: {
+  title: string;
+  description: string;
+  entries: IngestEntry[];
+  setEntries: Dispatch<SetStateAction<IngestEntry[]>>;
+}) {
+  const updateEntry = (index: number, field: keyof IngestEntry, value: string) => {
+    setEntries((prev) => prev.map((entry, i) => (
+      i === index ? { ...entry, [field]: value } : entry
+    )));
+  };
+
+  const addEntry = () => setEntries((prev) => [...prev, emptyIngestEntry()]);
+  const removeEntry = (index: number) => setEntries((prev) => prev.filter((_, i) => i !== index));
+
+  return (
+    <Card>
+      <CardContent className="pt-5 space-y-4">
+        <div>
+          <p className="text-sm font-medium">{title}</p>
+          <p className="text-xs text-muted-foreground mt-1">{description}</p>
+        </div>
+
+        <div className="space-y-3">
+          {entries.map((entry, index) => (
+            <div key={`${title}-${index}`} className="rounded-lg border border-border/60 p-3 space-y-3">
+              <div className="grid gap-3 md:grid-cols-3">
+                <Input
+                  value={entry.name}
+                  onChange={(e) => updateEntry(index, "name", e.target.value)}
+                  placeholder="Name"
+                />
+                <Input
+                  value={entry.dosage}
+                  onChange={(e) => updateEntry(index, "dosage", e.target.value)}
+                  placeholder="Dosage"
+                />
+                <Input
+                  value={entry.timeTaken}
+                  onChange={(e) => updateEntry(index, "timeTaken", e.target.value)}
+                  placeholder="Time taken"
+                />
+              </div>
+              {entries.length > 1 && (
+                <Button variant="ghost" size="sm" onClick={() => removeEntry(index)}>
+                  Remove
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <Button variant="outline" size="sm" onClick={addEntry}>
+          Add {title.slice(0, -1)}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ResearchEvening() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -58,8 +134,10 @@ export default function ResearchEvening() {
   const [peakDirection,  setPeakDirection]  = useState<"positive" | "negative" | null>(null);
   const [exercise,       setExercise]       = useState<string | null>(null);
   const [alcohol,        setAlcohol]        = useState(0);
+  const [supplements,    setSupplements]    = useState<IngestEntry[]>([emptyIngestEntry()]);
   const [cravings,       setCravings]       = useState(false);
   const [cravingTypes,   setCravingTypes]   = useState<string[]>([]);
+  const [medications,    setMedications]    = useState<IngestEntry[]>([emptyIngestEntry()]);
   const [readyForSleep,  setReadyForSleep]  = useState<boolean | null>(null);
   const [submitting,     setSubmitting]     = useState(false);
   const [done,           setDone]           = useState(false);
@@ -79,6 +157,9 @@ export default function ResearchEvening() {
   const toggleCravingType = (t: string) =>
     setCravingTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
+  const cleanEntries = (entries: IngestEntry[]) =>
+    entries.filter((entry) => entry.name.trim() || entry.dosage.trim() || entry.timeTaken.trim());
+
   const handleSubmit = async () => {
     if (!peakDirection) {
       toast({ title: "One more thing", description: "Was your peak emotion positive or negative?", variant: "destructive" });
@@ -94,6 +175,8 @@ export default function ResearchEvening() {
     }
     setSubmitting(true);
     try {
+      const supplementEntries = cleanEntries(supplements);
+      const medicationEntries = cleanEntries(medications);
       const result = await apiRequest("POST", "/api/study/evening", {
         userId: USER_ID,
         dayValence, dayArousal,
@@ -101,8 +184,11 @@ export default function ResearchEvening() {
         peakEmotionDirection: peakDirection,
         exerciseLevel: exercise,
         alcoholDrinks: alcohol,
+        supplementsTaken: supplementEntries,
         cravingsToday: cravings,
         cravingTypes: cravings ? cravingTypes : [],
+        medicationsTaken: medicationEntries.length > 0,
+        medicationsDetails: medicationEntries,
         stressRightNow: stressNow,
         readyForSleep,
       });
@@ -230,6 +316,13 @@ export default function ResearchEvening() {
         </CardContent>
       </Card>
 
+      <IngestSection
+        title="Supplements"
+        description="Log any vitamins, supplements, powders, or nootropics taken today with name, dosage, and time."
+        entries={supplements}
+        setEntries={setSupplements}
+      />
+
       {/* Cravings */}
       <Card>
         <CardContent className="pt-5 space-y-3">
@@ -258,6 +351,13 @@ export default function ResearchEvening() {
           )}
         </CardContent>
       </Card>
+
+      <IngestSection
+        title="Medications"
+        description="Log any medications taken today with name, dosage, and time."
+        entries={medications}
+        setEntries={setMedications}
+      />
 
       {/* Ready for sleep */}
       <Card>

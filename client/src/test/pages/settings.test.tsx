@@ -23,9 +23,20 @@ vi.mock("@/hooks/use-toast", () => ({
 
 vi.mock("@/lib/ml-api", () => ({
   ingestHealthData: vi.fn().mockResolvedValue({ stored: 10, metrics: ["heart_rate"] }),
-  getBaselineStatus: vi.fn().mockResolvedValue({ is_ready: false, frames_collected: 0 }),
+  getBaselineStatus: vi.fn().mockResolvedValue({ ready: false, n_frames: 0 }),
   addBaselineFrame: vi.fn().mockResolvedValue({ ok: true }),
   resetBaselineCalibration: vi.fn().mockResolvedValue({ ok: true }),
+  getCalibrationStatus: vi.fn().mockResolvedValue({
+    personal_model_active: false,
+    personalization_progress_pct: 40,
+    total_sessions: 2,
+    total_labeled_epochs: 2,
+    activation_threshold_sessions: 5,
+    accuracy_improvement_pct: 0,
+    personal_blend_weight_pct: 70,
+    feature_priors: { alpha_mean: 0.1, beta_mean: 0.05, theta_mean: 0.08 },
+    message: "2/5 corrected sessions collected. Keep correcting labels to activate personalization.",
+  }),
 }));
 
 describe("Settings page", () => {
@@ -57,6 +68,14 @@ describe("Settings page", () => {
     renderWithProviders(<SettingsPage />);
     await waitFor(() => {
       expect(screen.getByText("ML Backend")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Model Personalization section", async () => {
+    renderWithProviders(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Model Personalization")).toBeInTheDocument();
+      expect(screen.getByText("2 / 5 corrected sessions")).toBeInTheDocument();
     });
   });
 

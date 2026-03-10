@@ -1,8 +1,8 @@
-"""Supplement/Medication/Vitamin Tracker with EEG correlation analysis.
+"""Supplement/Medication/Vitamin Tracker with EEG and voice correlation analysis.
 
-Tracks user supplement intake and correlates it with EEG-derived emotional
-states (valence, arousal, stress, focus) and brain signal features
-(alpha/beta ratio, theta power, FAA) over time.
+Tracks user supplement intake and correlates it with EEG-derived or
+voice-derived emotional states (valence, arousal, stress, focus) and
+signal features over time.
 
 Answers: "Is what I'm consuming affecting my brain/emotions positively or
 negatively?"
@@ -68,9 +68,11 @@ class BrainStateSnapshot:
     arousal: float          # 0 to 1
     stress_index: float     # 0 to 1
     focus_index: float      # 0 to 1
+    source: str = "eeg"     # eeg or voice
     alpha_beta_ratio: float = 0.0
     theta_power: float = 0.0
     faa: float = 0.0        # frontal alpha asymmetry
+    speech_rate: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -163,13 +165,14 @@ class SupplementTracker:
         timestamp: float,
         emotion_data: Dict[str, Any],
     ) -> None:
-        """Log a brain state snapshot from EEG analysis.
+        """Log a brain state snapshot from EEG or voice analysis.
 
         Args:
             user_id: User identifier.
             timestamp: Unix timestamp of the reading.
             emotion_data: Dict with keys: valence, arousal, stress_index,
-                focus_index, and optionally alpha_beta_ratio, theta_power, faa.
+                focus_index, source, and optionally alpha_beta_ratio,
+                theta_power, faa, speech_rate.
         """
         self._ensure_user(user_id)
 
@@ -179,9 +182,11 @@ class SupplementTracker:
             arousal=float(emotion_data.get("arousal", 0.0)),
             stress_index=float(emotion_data.get("stress_index", 0.0)),
             focus_index=float(emotion_data.get("focus_index", 0.0)),
+            source=str(emotion_data.get("source", "eeg")),
             alpha_beta_ratio=float(emotion_data.get("alpha_beta_ratio", 0.0)),
             theta_power=float(emotion_data.get("theta_power", 0.0)),
             faa=float(emotion_data.get("faa", 0.0)),
+            speech_rate=float(emotion_data.get("speech_rate", 0.0)),
         )
         self._brain_states[user_id].append(snapshot)
 
@@ -301,7 +306,7 @@ class SupplementTracker:
 
         metrics = [
             "valence", "arousal", "stress_index", "focus_index",
-            "alpha_beta_ratio", "theta_power", "faa",
+            "alpha_beta_ratio", "theta_power", "faa", "speech_rate",
         ]
 
         post_means: Dict[str, float] = {}
@@ -312,6 +317,28 @@ class SupplementTracker:
             post_means[m] = _mean_metric(post_states, m)
             control_means[m] = _mean_metric(control_states, m)
             shifts[m] = post_means[m] - control_means[m]
+
+        def _count_sources(states: List[BrainStateSnapshot]) -> Dict[str, int]:
+            counts = {"voice": 0, "eeg": 0}
+            for state in states:
+                if state.source == "voice":
+                    counts["voice"] += 1
+                else:
+                    counts["eeg"] += 1
+            return counts
+
+        post_source_counts = _count_sources(post_states)
+        control_source_counts = _count_sources(control_states)
+        total_voice = post_source_counts["voice"]
+        total_eeg = post_source_counts["eeg"]
+        if total_voice and total_eeg:
+            source_summary = f"Based on {total_voice} voice check-ins + {total_eeg} EEG sessions"
+        elif total_voice:
+            source_summary = f"Based on {total_voice} voice check-ins (no EEG data)"
+        elif total_eeg:
+            source_summary = f"Based on {total_eeg} EEG sessions"
+        else:
+            source_summary = "Based on no post-supplement brain-state data"
 
         # Determine verdict
         valence_shift = shifts["valence"]
@@ -340,10 +367,18 @@ class SupplementTracker:
             "avg_arousal_shift": round(shifts["arousal"], 4),
             "avg_stress_shift": round(stress_shift, 4),
             "avg_focus_shift": round(shifts["focus_index"], 4),
+            "data_source_summary": source_summary,
+            "post_source_counts": post_source_counts,
+            "control_source_counts": control_source_counts,
             "eeg_insights": {
                 "alpha_beta_ratio_shift": round(shifts["alpha_beta_ratio"], 4),
                 "theta_power_shift": round(shifts["theta_power"], 4),
                 "faa_shift": round(shifts["faa"], 4),
+            },
+            "voice_insights": {
+                "voice_valence_shift": round(valence_shift, 4),
+                "voice_stress_shift": round(stress_shift, 4),
+                "speech_rate_shift": round(shifts["speech_rate"], 4),
             },
             "post_means": {k: round(v, 4) for k, v in post_means.items()},
             "control_means": {k: round(v, 4) for k, v in control_means.items()},
@@ -392,6 +427,8 @@ class SupplementTracker:
             "supplements": reports,
             "total_supplements": len(supplement_names),
             "total_brain_states": len(self._brain_states[user_id]),
+            "voice_brain_states": sum(1 for s in self._brain_states[user_id] if s.source == "voice"),
+            "eeg_brain_states": sum(1 for s in self._brain_states[user_id] if s.source != "voice"),
         }
 
     def get_active_supplements(

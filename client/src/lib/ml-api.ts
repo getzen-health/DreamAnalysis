@@ -1240,3 +1240,39 @@ export async function getCheckinHistory(userId: string, lastN = 30): Promise<{ c
 export async function getDailyCheckinSummary(userId: string): Promise<DailySummary> {
   return mlFetch<DailySummary>(`/voice-checkin/daily-summary/${encodeURIComponent(userId)}`);
 }
+
+// ─── Sleep-to-Mood Predictor ─────────────────────────────────────────────────
+
+export interface SleepMoodPrediction {
+  predicted_valence: number;       // -1 to 1
+  predicted_arousal: number;       // 0 to 1
+  predicted_stress_risk: number;   // 0 to 1
+  predicted_focus_score: number;   // 0 to 1
+  predicted_focus_window: string;  // e.g. "9:00am–12:00pm"
+  confidence: number;
+  key_factor: string;
+  mood_label: "positive" | "neutral" | "challenging";
+  sleep_score: number;             // 0-100
+  timestamp: number;
+}
+
+export async function predictSleepMood(sleepData: {
+  total_sleep_hours?: number;
+  deep_sleep_pct?: number;
+  rem_pct?: number;
+  sleep_efficiency?: number;
+  waso_minutes?: number;
+  sleep_onset_latency?: number;
+  hrv_ms?: number;
+  user_id?: string;
+}): Promise<SleepMoodPrediction> {
+  return mlFetch<SleepMoodPrediction>("/sleep-mood/predict", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sleepData),
+  });
+}
+
+export async function getSleepMoodHistory(userId: string, lastN = 14): Promise<{ predictions: SleepMoodPrediction[] }> {
+  return mlFetch<{ predictions: SleepMoodPrediction[] }>(`/sleep-mood/history/${encodeURIComponent(userId)}?last_n=${lastN}`);
+}

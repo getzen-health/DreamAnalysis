@@ -31,6 +31,7 @@ from processing.eeg_processor import (
     extract_band_powers as extract_band_powers,
     preprocess as preprocess,
     extract_features_multichannel as extract_features_multichannel,
+    compute_frontal_asymmetry as compute_frontal_asymmetry,
     compute_coherence as compute_coherence,
     compute_phase_locking_value as compute_phase_locking_value,
     compute_cwt_spectrogram as compute_cwt_spectrogram,
@@ -341,12 +342,16 @@ def predict_emotion(
         try:
             from models.personal_model import get_personal_model as _get_pm
             pm = _get_pm(user_id, n_channels=n_channels)
-            result = pm.predict(eeg, fs)
-            # "fallback_no_backbone" means EEGNet weights not present → use mega LGBM
-            if result.get("model_type") != "fallback_no_backbone":
-                base_result = result
+            global_result = emotion_model.predict(eeg, fs, device_type=device_type)
+            if pm.status().get("personal_model_active"):
+                base_result = pm.blend_with_global(eeg, global_result, fs=fs)
             else:
-                base_result = emotion_model.predict(eeg, fs, device_type=device_type)
+                result = pm.predict(eeg, fs)
+                # "fallback_no_backbone" means EEGNet weights not present → use mega LGBM
+                if result.get("model_type") != "fallback_no_backbone":
+                    base_result = result
+                else:
+                    base_result = global_result
         except Exception:
             base_result = emotion_model.predict(eeg, fs, device_type=device_type)
 

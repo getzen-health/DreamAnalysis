@@ -132,6 +132,7 @@ from .ei_composite import router as _ei_composite
 from .multimodal_ei import router as _multimodal_ei
 from .supplement_tracker import router as _supplement_tracker
 from .voice_checkin import router as _voice_checkin
+from .sleep_mood import router as _sleep_mood
 
 router = APIRouter()
 
@@ -234,3 +235,4 @@ router.include_router(_ei_composite)
 router.include_router(_multimodal_ei)
 router.include_router(_supplement_tracker)
 router.include_router(_voice_checkin)
+router.include_router(_sleep_mood)

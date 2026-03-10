@@ -9,9 +9,9 @@ from typing import Dict, List
 
 log = logging.getLogger(__name__)
 
-# Trigger fine-tune at 30 samples, then every 20 after that
-_FINE_TUNE_FIRST = 30
-_FINE_TUNE_INTERVAL = 20
+# Trigger fine-tune at 5 corrected sessions, then after each additional one
+_FINE_TUNE_FIRST = 5
+_FINE_TUNE_INTERVAL = 1
 
 
 def _should_fine_tune(n: int) -> bool:
@@ -135,8 +135,9 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
             if label_idx >= 0:
                 signal = np.array(request.signals)
                 pm.add_labeled_epoch(signal, label_idx)
+                pm.record_feedback_session()
                 labeled = True
-                n = len(pm._buffer_y)
+                n = pm.total_sessions
                 if _should_fine_tune(n):
                     fine_tune_triggered = True
                     t = threading.Thread(target=_fine_tune_bg, args=(pm,), daemon=True)

@@ -4,7 +4,7 @@
 Neural Dream
 
 ## Subtitle (30 chars max)
-Brain Performance Tracker
+Voice + Health Readiness Tracker
 
 ## Category
 Primary: Health & Fitness
@@ -13,60 +13,73 @@ Secondary: Medical (if approved) / Productivity
 ## App Store Description (4000 chars max)
 
 ```
-Understand your brain the way elite athletes understand their body.
+Mental readiness tracker from your voice and health data. EEG optional.
 
-Neural Dream reads your EEG headband (Muse 2, Muse S) in real time and tells you what your brain is actually doing — stress, focus, sleep stages, and emotional state — all day long.
+Neural Dream gives you a daily mental readiness score from your voice, your health data, and what you consume — no wearable hardware required. Add EEG later for deeper brain insights.
 
-──── THE MORNING REPORT ────
+──── YOUR MORNING READINESS REPORT ────
 Every morning, one screen answers the question you already have:
 "What should I do today, and when?"
 
-• Peak focus window — protect this time for your hardest work
-• Afternoon slump forecast — so you plan around it
-• Yesterday's insight — "Focus was 31% higher after your 3pm walk"
-• Recommended action — coherence breathing, music, or a 10-min walk
+• Mental readiness score for today
+• Sleep-to-mood morning forecast: know if today will be a positive or challenging day before it starts
+• Peak focus window so you can protect your best work time
+• Recovery and stress context from Apple Health
+• Yesterday's insight: "Readiness was 24% higher after your 3pm walk"
+• Recommended action: breathing, a reset walk, or a short recovery block
 
-──── REAL-TIME BIOFEEDBACK ────
-The moment that changes everything: you're stressed. The live reading shows it. You do a 4-minute breathing exercise and watch your own stress line drop in real time on screen.
+──── 10-SECOND VOICE CHECK-INS ────
+Record a short voice note three times a day and Neural Dream estimates your emotional state, stress load, and readiness trend — no wearable, no hardware barrier.
 
-That moment — seeing your brain respond to something you chose to do — is unlike anything else on your phone.
+• Morning, noon, and evening check-ins in under 10 seconds each
+• Voice-based emotion and energy snapshots
+• Trend tracking across days and weeks
+• Optional multimodal fusion with health and EEG data
 
-Seven evidence-based exercises:
-• Box breathing, 4-7-8, coherence breathing
-• Physiological sigh, cyclic sigh, power breath
-• Custom-duration sessions with haptic guidance
+──── APPLE HEALTH INTEGRATION ────
+Your mental state does not exist in isolation. Neural Dream connects the dots with data you already have.
 
-──── SLEEP INTELLIGENCE ────
-Sleep with your Muse 2 on and wake up to:
-• Time in deep sleep (N3), REM, and light sleep
-• Dreams detected (and logged for you)
-• A 7-day brain recovery score
+• Sleep duration, HRV, and heart rate trends from Apple Health
+• Sleep-to-mood forecast: predicts tomorrow's focus window and stress risk from last night's sleep
+• Supplement tracking to see what actually helps your mood and readiness
+• Food and routine correlations that explain good and bad days
+• A Daily Brain Report that tells you when to push and when to rest
+
+──── REAL-TIME REGULATION TOOLS ────
+When stress rises, the app gives you something to do about it.
+
+• Coherence breathing, box breathing, 4-7-8, and physiological sigh
+• Biofeedback charts that show before/after changes
+• A simple loop: measure, act, and see the result
 
 ──── WHAT MAKES IT DIFFERENT ────
-Other wearables show you a score after a session ends. Neural Dream shows the change during the action. That's the differentiator.
+Most wellness apps tell you how your body is doing. Neural Dream is built to tell you how your mind is doing — and it works without any hardware.
 
-• Personalized model that improves every session
-• Closed-loop interventions — stress threshold crossed → music or breathing triggered automatically
-• Works offline — all analysis runs locally on device
-• Connects to Apple Health for richer context (HRV, steps, SpO2)
-• Weekly shareable brain summary card
+• Voice-first: works the moment you install it, no wearable required
+• Apple Health integration for sleep, HRV, and recovery context
+• Sleep-to-mood forecasting from your health data
+• Optional EEG for lab-grade brain measurements
+• Personalized recommendations from your own patterns
+• Privacy-first design with optional local analysis paths
 
-──── HARDWARE REQUIRED ────
-Muse 2 or Muse S EEG headband (~$250 USD, sold separately). No headband? Use simulation mode to explore all features before purchasing.
+──── OPTIONAL EEG MODE ────
+Have a Muse 2 or Muse S headband? Connect it to unlock deeper live brain metrics, sleep staging, dream tracking, and real-time neurofeedback.
+
+No EEG hardware? The app is fully functional in voice + health mode — most users never need it.
 
 ──── PRIVACY FIRST ────
-Your brain data is yours. No data is sold to third parties. All EEG processing can run locally on device. Optional server sync for multi-device access.
+Your data is yours. No data is sold to third parties. Voice, health, and EEG features are built for personal insight, not advertising.
 
 See our full privacy policy at neuraldreamworkshop.com/privacy
 
-── Note: This app is a wellness tool, not a medical device. EEG emotion readings are statistical patterns, not clinical diagnoses.
+── Note: This app is a wellness tool, not a medical device. Voice and EEG insights are statistical wellness signals, not clinical diagnoses.
 ```
 
 ## Keywords (100 chars max)
-eeg,brain,muse,biofeedback,stress,focus,sleep,emotion,meditation,neurofeedback,hrv,wellness
+mental readiness,voice mood tracker,stress,focus,recovery,sleep,health,biofeedback,eeg,wellness
 
 ## What's New (first release)
-Initial release of Neural Dream — real-time EEG brain performance tracker with daily brain report, sleep intelligence, and closed-loop stress interventions.
+Voice-first launch of Neural Dream with Daily Brain Report, mental readiness scoring, health-context insights, supplement tracking, and optional EEG integration for deeper brain metrics.
 
 ## Support URL
 https://neuraldreamworkshop.com/support
@@ -78,43 +91,47 @@ https://dream-analysis.vercel.app/privacy
 
 ## Screenshot Descriptions (5 required)
 
-### Screenshot 1 — Daily Brain Report
-**Title:** "Your Morning Intelligence Brief"
+### Screenshot 1 — Onboarding / No Hardware Required
+**Title:** "Works Without Any Hardware"
+**Content:** onboarding screen showing:
+  - "Start with voice + Apple Health" primary CTA
+  - "Add EEG later (optional)" secondary option
+  - Short list of what you get immediately: Daily Brain Report, voice check-ins, sleep forecast
+  - "No Muse headband needed" callout
+
+### Screenshot 2 — Voice Check-In
+**Title:** "10 Seconds. Better Self-Knowledge."
+**Content:** voice check-in recording screen showing:
+  - Large record button with morning/noon/evening selector
+  - Prompt text for the daily voice reflection
+  - Recent emotion result badge (e.g. "Calm · Valence +0.4")
+  - "No wearable required" subtext
+
+### Screenshot 3 — Daily Brain Report + Sleep Forecast
+**Title:** "Your Mental Readiness, Every Morning"
 **Content:** /brain-report page showing:
+  - Sleep-to-mood forecast card ("Tonight's sleep predicts... Positive mood")
+  - Mental readiness score
   - Peak focus window (9:30am – 12:00pm)
   - Yesterday's insight card
-  - Recommended action: coherence breathing
-  - Sleep summary (6h 42m, 2 dreams)
+  - Recommended action card
+  - "Based on: Voice + Health" source badge
 
-### Screenshot 2 — Live Brain State
-**Title:** "Watch Your Brain in Real Time"
-**Content:** Dashboard showing:
-  - Stress: HIGH (red bar), Focus: MEDIUM (amber), Flow: LOW (blue)
-  - Live session timeline strip (green/orange blocks)
-  - "Beat your focus record" challenge card
+### Screenshot 4 — Supplement Correlation
+**Title:** "See What Actually Helps"
+**Content:** supplement tracking results showing:
+  - Positive/neutral effect cards
+  - Example: "Vitamin D: positive effect"
+  - Mood/readiness correlation summary
+  - Time-of-day trend
 
-### Screenshot 3 — Biofeedback
-**Title:** "See Your Stress Drop — Live"
+### Screenshot 5 — Biofeedback Reset
+**Title:** "Shift Your State In Real Time"
 **Content:** /biofeedback page showing:
-  - Expanding circle animation (coherence breathing)
-  - Live stress chart dropping during exercise
-  - Before: 0.72 → After: 0.41
-  - Haptic guide indicator
-
-### Screenshot 4 — Sleep Session
-**Title:** "Sleep Intelligence You'll Actually Use"
-**Content:** /sleep-session recording view showing:
-  - Current stage: REM (purple)
-  - 4h 23m elapsed
-  - Hypnogram bar (Wake → N1 → N2 → N3 → REM)
-  - "2 dreams detected" spark
-
-### Screenshot 5 — Weekly Brain Summary
-**Title:** "Share Your Mental Fitness Progress"
-**Content:** /weekly-summary page showing:
-  - This week vs last week: Stress ↓18%, Focus ↑12%
-  - Week-in-one-sentence: "Your most focused week in a month"
-  - Shareable card with PNG export button
+  - Expanding circle animation
+  - Before/after stress chart
+  - Guided breathing timer
+  - Recovery message after session
 
 ---
 
@@ -125,7 +142,7 @@ https://dream-analysis.vercel.app/privacy
 ### Data Linked to You:
 | Category | Type | Use |
 |----------|------|-----|
-| Health & Fitness | EEG readings, sleep data, HRV | App functionality |
+| Health & Fitness | Voice wellness signals, EEG readings, sleep data, HRV | App functionality |
 | Identifiers | User ID | App functionality |
 
 ### Data Not Linked to You:
@@ -147,7 +164,7 @@ https://dream-analysis.vercel.app/privacy
 
 ```xml
 <key>NSHealthShareUsageDescription</key>
-<string>Neural Dream reads your Apple Health data (heart rate, HRV, sleep, SpO2, steps) to enrich your daily brain performance report with physical context.</string>
+<string>Neural Dream reads your Apple Health data (heart rate, HRV, sleep, SpO2, steps) to enrich your daily mental readiness report with physical context.</string>
 
 <key>NSHealthUpdateUsageDescription</key>
 <string>Neural Dream does not write to Apple Health in this version.</string>
@@ -157,10 +174,10 @@ https://dream-analysis.vercel.app/privacy
 
 ```xml
 <key>NSBluetoothAlwaysUsageDescription</key>
-<string>Neural Dream uses Bluetooth to connect to your Muse 2 EEG headband for real-time brain monitoring.</string>
+<string>Neural Dream optionally connects to a Muse 2 or Muse S EEG headband via Bluetooth for live brain monitoring. Bluetooth is not required — the app works in voice + health mode without it.</string>
 
 <key>NSBluetoothPeripheralUsageDescription</key>
-<string>Neural Dream connects to your Muse 2 EEG headband via Bluetooth.</string>
+<string>Neural Dream can connect to a Muse 2 or Muse S EEG headband via Bluetooth for optional deeper brain metrics. This feature is not required to use the app.</string>
 ```
 
 ## Background Modes (Info.plist — required for sleep recording)

@@ -67,6 +67,22 @@ class TestEEGAnalysis:
         data = r.json()
         assert "sleep_staging" in data or "emotions" in data
 
+    def test_analyze_eeg_auto_logs_supplement_brain_state(self, client):
+        from api.routes.supplement_tracker import get_tracker
+
+        tracker = get_tracker()
+        tracker.reset("supplement_auto_log_test")
+
+        signal = (np.random.randn(1024) * 20).tolist()  # 4 seconds @ 256 Hz
+        r = client.post("/api/analyze-eeg", json={
+            "signals": [signal, signal, signal, signal],
+            "sample_rate": 256,
+            "user_id": "supplement_auto_log_test",
+            "device_type": "muse_2",
+        })
+        assert r.status_code == 200
+        assert len(tracker._brain_states["supplement_auto_log_test"]) == 1
+
 
 class TestHealthIntegration:
     def test_supported_metrics(self, client):

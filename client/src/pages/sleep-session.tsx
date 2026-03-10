@@ -316,7 +316,7 @@ export default function SleepSession() {
           <div>
             <h2 className="text-xl font-semibold">Sleep Session</h2>
             <p className="text-xs text-muted-foreground">
-              Overnight EEG recording — tracks sleep stages and dreams
+              Overnight sleep tracking with EEG depth when available, plus fallback summaries from recent health sleep data
             </p>
           </div>
         </div>

@@ -30,9 +30,10 @@ import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCirc
 import { useTheme } from "@/hooks/use-theme";
 import { useLocation } from "wouter";
 import { useDevice } from "@/hooks/use-device";
+import { useQuery } from "@tanstack/react-query";
 const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
-import { ingestHealthData, addBaselineFrame, getBaselineStatus, resetBaselineCalibration } from "@/lib/ml-api";
+import { ingestHealthData, addBaselineFrame, getBaselineStatus, resetBaselineCalibration, getCalibrationStatus } from "@/lib/ml-api";
 
 interface SettingsState {
   chartAnimations: boolean;
@@ -657,6 +658,9 @@ export default function SettingsPage() {
       </div>
 
       {/* Baseline Calibration */}
+      <PersonalizationCard userId={userId} />
+
+      {/* Baseline Calibration */}
       <BaselineCalibrationCard userId={userId} />
 
       {/* Notifications */}
@@ -672,6 +676,95 @@ export default function SettingsPage() {
 /* ── Baseline Calibration Card ───────────────────────────────── */
 
 const CALIBRATION_TOTAL_FRAMES = 30;
+
+function PersonalizationCard({ userId }: { userId: string }) {
+  const { data: status } = useQuery({
+    queryKey: ["personalization-status", userId],
+    queryFn: () => getCalibrationStatus(userId),
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const progress = status?.personalization_progress_pct ?? 0;
+  const active = status?.personal_model_active ?? false;
+  const threshold = status?.activation_threshold_sessions ?? 5;
+  const sessions = status?.total_sessions ?? 0;
+  const improvement = status?.accuracy_improvement_pct ?? 0;
+  const blend = status?.personal_blend_weight_pct ?? 70;
+  const priors = status?.feature_priors;
+
+  return (
+    <Card className="glass-card p-6 rounded-xl">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Brain className="h-4 w-4 text-primary" />
+            Model Personalization
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Your emotion model becomes personal after {threshold} corrected sessions.
+          </p>
+        </div>
+        <Badge className={active ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"}>
+          {active ? `${progress}% Personalized` : `${progress}% Ready`}
+        </Badge>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+            <span>{sessions} / {threshold} corrected sessions</span>
+            <span>{progress}%</span>
+          </div>
+          <Progress value={progress} className="h-2" />
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-lg bg-muted/40 p-3">
+            <p className="text-xs text-muted-foreground">Corrected sessions</p>
+            <p className="text-lg font-semibold">{sessions}</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 p-3">
+            <p className="text-xs text-muted-foreground">Labeled epochs</p>
+            <p className="text-lg font-semibold">{status?.total_labeled_epochs ?? 0}</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 p-3">
+            <p className="text-xs text-muted-foreground">Accuracy lift</p>
+            <p className="text-lg font-semibold">{improvement}%</p>
+          </div>
+          <div className="rounded-lg bg-muted/40 p-3">
+            <p className="text-xs text-muted-foreground">Blend</p>
+            <p className="text-lg font-semibold">{blend}/{100 - blend}</p>
+          </div>
+        </div>
+
+        {priors && (
+          <div className="rounded-lg border border-border/40 bg-muted/20 p-3">
+            <p className="text-xs text-muted-foreground mb-2">Stored personal priors</p>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs">Alpha</p>
+                <p className="font-mono">{priors.alpha_mean.toFixed(3)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Beta</p>
+                <p className="font-mono">{priors.beta_mean.toFixed(3)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Theta</p>
+                <p className="font-mono">{priors.theta_mean.toFixed(3)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-muted-foreground">
+          {status?.message ?? "Correct labels in Emotion Lab to start training your personal model."}
+        </p>
+      </div>
+    </Card>
+  );
+}
 
 function BaselineCalibrationCard({ userId }: { userId: string }) {
   const { toast } = useToast();

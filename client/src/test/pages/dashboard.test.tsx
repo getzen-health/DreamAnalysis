@@ -77,7 +77,7 @@ describe("Dashboard page", () => {
   it("shows connect device banner when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Connect your Muse 2 to see live dashboard data/)
+      screen.getByText(/Start with voice check-ins now\. Add EEG later for live brain data\./)
     ).toBeInTheDocument();
   });
 
@@ -91,7 +91,7 @@ describe("Dashboard page", () => {
   it("shows empty state when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Connect your EEG device or Apple Health to see brain state/)
+      screen.getByText(/Tap to detect emotion via microphone\. EEG adds a live brain-state layer\./)
     ).toBeInTheDocument();
   });
 });

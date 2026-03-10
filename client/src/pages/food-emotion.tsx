@@ -25,6 +25,7 @@ import {
   Cell,
 } from "recharts";
 import { useDevice } from "@/hooks/use-device";
+import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,6 +89,7 @@ export default function FoodEmotion() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const liveEmotions = latestFrame?.analysis?.emotions;
+  const voiceEmotion = useVoiceEmotion();
 
   // Only call ML API when streaming with real signals — never simulate
   const { data, isLoading } = useQuery<FoodEmotionResult>({
@@ -158,7 +160,7 @@ export default function FoodEmotion() {
             )}
           </div>
           <p className="text-muted-foreground text-sm">
-            EEG-based appetite and eating-state analysis
+            Appetite and eating-state analysis from voice check-ins today, with EEG depth when available
           </p>
         </div>
       </div>
@@ -174,9 +176,36 @@ export default function FoodEmotion() {
           </CardHeader>
           <CardContent className="space-y-3">
             {!isStreaming ? (
-              <p className="text-sm text-muted-foreground">
-                Connect your Muse headset to see your real-time food state.
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Start with a voice check-in and meal log. EEG is optional for live food-state biomarkers.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={voiceEmotion.startRecording}
+                  disabled={voiceEmotion.isRecording || voiceEmotion.isAnalyzing}
+                  className="w-full"
+                >
+                  {voiceEmotion.isRecording
+                    ? "Recording…"
+                    : voiceEmotion.isAnalyzing
+                    ? "Analyzing…"
+                    : "Run Voice Check-In"}
+                </Button>
+                {voiceEmotion.lastResult && (
+                  <div className="rounded-md bg-muted/40 p-3 text-xs space-y-1">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Emotion</span>
+                      <span className="font-medium capitalize">{voiceEmotion.lastResult.emotion}</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Confidence</span>
+                      <span className="font-mono">{Math.round(voiceEmotion.lastResult.confidence * 100)}%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <>
               <div className="flex items-center gap-3">
@@ -286,7 +315,7 @@ export default function FoodEmotion() {
             <p className="text-xs text-muted-foreground py-6 text-center">
               {isStreaming
                 ? "Waiting for EEG data — keep your Muse on for a few seconds."
-                : "Connect your Muse headset to see real-time EEG-based food state analysis."}
+                : "Log a meal and run a voice check-in now, or connect Muse for real-time EEG-based food state analysis."}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>

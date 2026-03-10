@@ -33,14 +33,17 @@ def _make_signal(
     af8_theta=None,
     noise_amp=1.0,
     n_channels=4,
+    seed=42,
 ):
     """Build synthetic EEG with controllable per-channel band amplitudes.
 
     Channel layout: ch0=TP9, ch1=AF7, ch2=AF8, ch3=TP10.
     By default all channels share the same theta_amp and alpha_amp.
     Override af7_*/af8_* to make per-channel differences.
+    Set seed=None to use the caller's RNG state (no re-seeding).
     """
-    np.random.seed(42)
+    if seed is not None:
+        np.random.seed(seed)
     n_samples = int(fs * duration)
     t = np.arange(n_samples) / fs
     signals = []
@@ -341,10 +344,13 @@ class TestBodyAwarenessLevels:
             assert result["body_awareness_level"] == "high"
 
     def test_minimal_level_low_signal(self, trainer):
-        """Very low theta with no suppression -> 'minimal', 'low', or 'moderate'."""
+        """Very low theta with no suppression -> 'minimal' or 'low'."""
         np.random.seed(42)
-        result = trainer.assess(_make_signal(theta_amp=0.5, alpha_amp=0.5))
-        assert result["body_awareness_level"] in ("minimal", "low", "moderate")
+        # Set baseline with similarly low alpha so suppression is near zero
+        baseline = _make_signal(alpha_amp=1.0, theta_amp=0.5)
+        trainer.set_baseline(baseline)
+        result = trainer.assess(_make_signal(theta_amp=0.5, alpha_amp=1.0))
+        assert result["body_awareness_level"] in ("minimal", "low")
 
     def test_level_consistent_with_score(self, trainer):
         """Awareness level must be consistent with score thresholds."""
@@ -385,32 +391,38 @@ class TestSessionStats:
         assert 0.0 <= stats["mean_score"] <= 1.0
 
     def test_improvement_trend_improving(self, trainer):
-        """Scores that increase over time -> 'improving' or 'stable'."""
+        """Scores that increase over time -> 'improving'."""
         np.random.seed(42)
-        trainer.set_baseline(_make_signal(alpha_amp=30.0, theta_amp=2.0))
-        # First half: low theta, high alpha -> low scores
-        for _ in range(4):
-            trainer.assess(_make_signal(theta_amp=0.5, alpha_amp=30.0))
-        # Second half: high theta, low alpha (suppression) -> higher scores
-        for _ in range(4):
+        baseline = _make_signal(alpha_amp=30.0, theta_amp=2.0)
+        trainer.set_baseline(baseline)
+        # First half: low theta, high alpha (no suppression) -> low scores
+        for i in range(4):
+            trainer.assess(_make_signal(theta_amp=0.5, alpha_amp=30.0,
+                                        seed=100 + i))
+        # Second half: high theta, suppressed alpha, right-lateralized -> high scores
+        for i in range(4):
             trainer.assess(_make_signal(theta_amp=30.0, alpha_amp=2.0,
-                                        af7_alpha=10.0, af8_alpha=2.0))
+                                        af7_alpha=15.0, af8_alpha=2.0,
+                                        seed=200 + i))
         stats = trainer.get_session_stats()
-        assert stats["improvement_trend"] in ("improving", "stable")
+        assert stats["improvement_trend"] == "improving"
 
     def test_improvement_trend_declining(self, trainer):
-        """Scores that decrease -> 'declining' or 'stable'."""
+        """Scores that decrease -> 'declining'."""
         np.random.seed(42)
-        trainer.set_baseline(_make_signal(alpha_amp=30.0, theta_amp=2.0))
-        # First half: high theta, low alpha -> higher scores
-        for _ in range(4):
+        baseline = _make_signal(alpha_amp=30.0, theta_amp=2.0)
+        trainer.set_baseline(baseline)
+        # First half: high theta, suppressed alpha, right-lateralized -> high scores
+        for i in range(4):
             trainer.assess(_make_signal(theta_amp=30.0, alpha_amp=2.0,
-                                        af7_alpha=10.0, af8_alpha=2.0))
-        # Second half: low theta, high alpha -> lower scores
-        for _ in range(4):
-            trainer.assess(_make_signal(theta_amp=0.5, alpha_amp=30.0))
+                                        af7_alpha=15.0, af8_alpha=2.0,
+                                        seed=200 + i))
+        # Second half: low theta, high alpha (no suppression) -> low scores
+        for i in range(4):
+            trainer.assess(_make_signal(theta_amp=0.5, alpha_amp=30.0,
+                                        seed=100 + i))
         stats = trainer.get_session_stats()
-        assert stats["improvement_trend"] in ("declining", "stable")
+        assert stats["improvement_trend"] == "declining"
 
     def test_insufficient_data_trend(self, trainer):
         """Fewer than 4 epochs -> 'insufficient_data'."""

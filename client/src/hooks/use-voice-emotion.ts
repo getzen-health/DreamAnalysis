@@ -135,6 +135,7 @@ export function useVoiceEmotion(
           body: JSON.stringify({
             audio_b64,
             sample_rate: sampleRate,
+            user_id: userId,
             ...(hr != null && { hr }),
             ...(hrv != null && { hrv }),
             ...(spo2 != null && { spo2 }),

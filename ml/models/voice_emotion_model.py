@@ -9,7 +9,8 @@ Output format matches EEG EmotionClassifier (6-class):
     model_type: "voice_emotion2vec" | "voice_distilhubert" | "voice_lgbm_fallback"
 
 Fallback chain (highest to lowest priority):
-    1. emotion2vec_plus_base (funasr) — 9-class, most accurate
+    1. emotion2vec_plus_large (funasr) — highest-capacity tier when available
+    2. emotion2vec_plus_base (funasr) — default primary tier
     2. DistilHuBERT SUPERB-ER (transformers) — 4-class, 23 MB, 34 ms, no funasr needed
     3. LightGBM MFCC (pkl) — 3-class, requires audio_emotion_lgbm.pkl
     4. Feature-based heuristics — no model file needed
@@ -331,6 +332,9 @@ class VoiceEmotionModel:
     def __init__(self) -> None:
         # SenseVoice fast path (emotion2vec-compatible, <100ms)
         self._sensevoice = SenseVoiceEmotionDetector()
+        # emotion2vec+ large funasr model
+        self._e2v_large_model = None
+        self._e2v_large_tried = False
         # emotion2vec+ funasr model
         self._e2v_model = None
         self._e2v_tried = False
@@ -342,6 +346,22 @@ class VoiceEmotionModel:
         self._lgbm_tried = False
 
     # ── Lazy loaders ──────────────────────────────────────────────────────────
+
+    def _load_e2v_large(self) -> bool:
+        if self._e2v_large_tried:
+            return self._e2v_large_model is not None
+        self._e2v_large_tried = True
+        try:
+            from funasr import AutoModel  # type: ignore
+            self._e2v_large_model = AutoModel(
+                model="iic/emotion2vec_plus_large",
+                disable_update=True,
+            )
+            log.info("emotion2vec_plus_large loaded successfully")
+            return True
+        except Exception as exc:
+            log.info("emotion2vec_plus_large unavailable: %s", exc)
+            return False
 
     def _load_e2v(self) -> bool:
         if self._e2v_tried:
@@ -423,9 +443,25 @@ class VoiceEmotionModel:
             if result is not None:
                 return result
 
-        # Try emotion2vec+ first
+        # Try emotion2vec+ large first when available
+        if self._load_e2v_large():
+            result = self._predict_e2v(
+                audio,
+                sample_rate,
+                model=self._e2v_large_model,
+                model_type="voice_emotion2vec_large",
+            )
+            if result is not None:
+                return result
+
+        # Fall back to emotion2vec+ base
         if self._load_e2v():
-            result = self._predict_e2v(audio, sample_rate)
+            result = self._predict_e2v(
+                audio,
+                sample_rate,
+                model=self._e2v_model,
+                model_type="voice_emotion2vec",
+            )
             if result is not None:
                 return result
 
@@ -444,7 +480,7 @@ class VoiceEmotionModel:
         return self._predict_features(audio, sample_rate)
 
     def predict_with_biomarkers(
-        self, audio: np.ndarray, sample_rate: int = 22050
+        self, audio: np.ndarray, sample_rate: int = 22050, real_time: bool = False
     ) -> Optional[Dict]:
         """Predict emotion AND extract mental-health biomarkers.
 
@@ -455,7 +491,7 @@ class VoiceEmotionModel:
         This is an opt-in enrichment — callers who only need emotion
         should use ``predict()`` for lower latency.
         """
-        result = self.predict(audio, sample_rate)
+        result = self.predict(audio, sample_rate, real_time=real_time)
         if result is None:
             return None
 
@@ -479,11 +515,19 @@ class VoiceEmotionModel:
     # ── Internal inference ────────────────────────────────────────────────────
 
     def _predict_e2v(
-        self, audio: np.ndarray, sample_rate: int
+        self,
+        audio: np.ndarray,
+        sample_rate: int,
+        model=None,
+        model_type: str = "voice_emotion2vec",
     ) -> Optional[Dict]:
         try:
             import tempfile
             from pathlib import Path as _Path
+
+            active_model = model if model is not None else self._e2v_model
+            if active_model is None:
+                return None
 
             # Create temp file safely (no race condition)
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
@@ -510,7 +554,7 @@ class VoiceEmotionModel:
                         wf.writeframes(pcm)
 
                 # Run inference
-                res = self._e2v_model.generate(
+                res = active_model.generate(
                     input=tmp_path,
                     granularity="utterance",
                     extract_embedding=False,
@@ -544,7 +588,7 @@ class VoiceEmotionModel:
                 "valence": round(valence, 4),
                 "arousal": round(arousal, 4),
                 "confidence": round(confidence, 4),
-                "model_type": "voice_emotion2vec",
+                "model_type": model_type,
             }
         except Exception as exc:
             log.warning("emotion2vec predict failed: %s", exc)
