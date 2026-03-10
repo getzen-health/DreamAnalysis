@@ -135,21 +135,32 @@ export default function InnerEnergy() {
 
   // Meditation depth from meditation model
   const meditationScore = meditation?.meditation_score ?? 0;
-  const meditationPercent = isStreaming ? Math.round(meditationScore * 100) : 10;
+  const voiceArousal = (latestVoice?.arousal as number) ?? 0.5;
+  const voiceValence = (latestVoice?.valence as number) ?? 0;
+  const voiceFocusIndex = (latestVoice?.focus_index as number) ?? 0.4;
+  const meditationPercent = isStreaming
+    ? Math.round(meditationScore * 100)
+    : hasVoice
+      ? Math.round(Math.max(10, (1 - voiceArousal) * 60 + ((voiceValence + 1) / 2) * 20))
+      : 10;
   const meditationStage = meditation?.depth ?? "—";
 
   // Consciousness level derived from attention + flow + meditation
   const consciousnessRaw = isStreaming
     ? (attention?.attention_score ?? 0) * 30 + (flowState?.flow_score ?? 0) * 40 + meditationScore * 30
-    : 10;
+    : hasVoice
+      ? ((voiceValence + 1) / 2) * 40 + voiceArousal * 30
+      : 10;
   const consciousnessPercent = Math.round(Math.min(100, consciousnessRaw));
   const consciousnessLevels = ["Survival", "Desire", "Willpower", "Love", "Expression", "Insight", "Unity"];
   const consciousnessName = consciousnessLevels[Math.min(6, Math.floor(consciousnessPercent / 15))] || "—";
 
-  // Third eye activation from gamma + high beta
+  // Third eye activation from gamma + high beta (or voice focus when no EEG)
   const thirdEyeActivation = isStreaming
     ? Math.round(Math.min(100, ((bandPowers.gamma ?? 0) + (bandPowers.beta ?? 0) * 0.3) * 150))
-    : 10;
+    : hasVoice
+      ? Math.round(Math.max(10, voiceFocusIndex * 80))
+      : 10;
 
   // Dominant energy center
   const dominantChakra = chakras.reduce((max, c) =>
@@ -228,7 +239,7 @@ export default function InnerEnergy() {
             size="md"
           />
           <Badge variant="secondary" className="text-xs mt-2">
-            {isStreaming ? meditationStage : "—"}
+            {isStreaming ? meditationStage : hasVoice ? "Voice-derived" : "—"}
           </Badge>
           <p className="text-[10px] text-muted-foreground mt-1 text-center">How calm & inward your mind is right now</p>
         </div>
@@ -243,7 +254,7 @@ export default function InnerEnergy() {
             size="md"
           />
           <Badge variant="secondary" className="text-xs mt-2">
-            {isStreaming ? consciousnessName : "—"}
+            {(isStreaming || hasVoice) ? consciousnessName : "—"}
           </Badge>
           <p className="text-[10px] text-muted-foreground mt-1 text-center">How present & aware you feel (attention + flow + calm)</p>
         </div>
@@ -305,10 +316,11 @@ export default function InnerEnergy() {
             </div>
           ))}
         </div>
-        {isStreaming && (
+        {(isStreaming || hasVoice) && (
           <div className="mt-4 pt-3 border-t border-border/30 text-sm text-muted-foreground">
             Most active: <span className="text-foreground font-medium">{dominantChakra.name}</span>
             <span className="text-muted-foreground/60 text-xs ml-2">— {dominantChakra.meaning}</span>
+            {!isStreaming && <span className="text-muted-foreground/40 text-xs ml-2">(voice estimate)</span>}
           </div>
         )}
       </Card>
