@@ -4,24 +4,29 @@ Wires Voice emotion analysis + Apple Health data into the EI composite
 scoring system alongside EEG signals.
 
 Endpoints:
-  POST /multimodal-ei/assess  -- compute EIQ from EEG + voice + health data
+  POST /multimodal-ei/assess        -- compute EIQ from EEG + voice + health data
+  POST /multimodal-ei/context-prior -- compute and/or apply circadian context priors
 """
 
 from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
 from typing import Dict, List, Optional
 
 import numpy as np
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from models.context_prior import ContextPrior
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/multimodal-ei", tags=["Multimodal EI"])
 
 _ei_model = None
+_context_prior = ContextPrior()
 
 
 def _get_model():
@@ -304,3 +309,111 @@ async def assess_multimodal_ei(req: MultimodalEIRequest):
         }
 
     return {"user_id": req.user_id, **result}
+
+
+# ---------------------------------------------------------------------------
+# Context-prior endpoint
+# ---------------------------------------------------------------------------
+
+
+class ContextPriorRequest(BaseModel):
+    """Request body for context-aware emotion prior computation."""
+    hour: Optional[float] = Field(
+        default=None,
+        description="Hour of day (0-24). Inferred from server time if omitted.",
+    )
+    sleep_score: Optional[float] = Field(
+        default=None,
+        description="Sleep quality score (0-100) from Apple Health / Oura / etc.",
+    )
+    steps: Optional[float] = Field(
+        default=None,
+        description="Step count so far today.",
+    )
+    recent_caffeine: bool = Field(
+        default=False,
+        description="True if caffeine was consumed in the last 2 hours.",
+    )
+    day_of_week: Optional[int] = Field(
+        default=None,
+        description="Day of week (0=Monday … 6=Sunday). Inferred from server time if omitted.",
+    )
+    # Optional raw prediction to adjust
+    raw_valence: Optional[float] = Field(
+        default=None,
+        description="Raw model valence to adjust (-1 to 1). If provided, returns adjusted values.",
+    )
+    raw_arousal: Optional[float] = Field(
+        default=None,
+        description="Raw model arousal to adjust (0 to 1). If provided, returns adjusted values.",
+    )
+    raw_stress_index: Optional[float] = Field(
+        default=None,
+        description="Raw stress index to adjust (0 to 1). If provided, returns adjusted values.",
+    )
+    raw_focus_index: Optional[float] = Field(
+        default=None,
+        description="Raw focus index to adjust (0 to 1). If provided, returns adjusted values.",
+    )
+    confidence: float = Field(
+        default=0.5,
+        description="Model prediction confidence (0-1). Lower = more context weight applied.",
+    )
+
+
+@router.post("/context-prior")
+async def compute_context_prior(req: ContextPriorRequest):
+    """Compute circadian and contextual emotion priors.
+
+    Returns expected emotion offsets from time-of-day, sleep quality,
+    activity, caffeine, and day-of-week signals — all without new hardware.
+
+    If raw emotion values + confidence are supplied, also returns context-
+    adjusted predictions. Useful for correcting false positives such as
+    'stressed' readings first thing in the morning (just woke up) or
+    low-energy voice readings that are normal for the post-lunch dip.
+
+    Research basis: Stone et al. (2006), Wilhelm et al. (2011),
+    Monk (2005), Nehlig (2010) caffeine timeline.
+    """
+    now = datetime.now()
+    hour = req.hour if req.hour is not None else (now.hour + now.minute / 60.0)
+    day_of_week = req.day_of_week if req.day_of_week is not None else now.weekday()
+
+    prior = _context_prior.compute_prior(
+        hour=hour,
+        sleep_score=req.sleep_score,
+        steps=req.steps,
+        recent_caffeine=req.recent_caffeine,
+        day_of_week=day_of_week,
+    )
+
+    response: dict = {
+        "prior": prior,
+        "inferred_hour": round(hour, 2),
+        "inferred_day_of_week": day_of_week,
+    }
+
+    # Apply adjustment if raw values provided
+    has_raw = any(v is not None for v in [
+        req.raw_valence, req.raw_arousal, req.raw_stress_index, req.raw_focus_index,
+    ])
+    if has_raw:
+        raw = {}
+        if req.raw_valence is not None:
+            raw["valence"] = req.raw_valence
+        if req.raw_arousal is not None:
+            raw["arousal"] = req.raw_arousal
+        if req.raw_stress_index is not None:
+            raw["stress_index"] = req.raw_stress_index
+        if req.raw_focus_index is not None:
+            raw["focus_index"] = req.raw_focus_index
+
+        adjusted = _context_prior.adjust_prediction(
+            raw_prediction=raw,
+            prior=prior,
+            confidence=req.confidence,
+        )
+        response["adjusted"] = adjusted
+
+    return response

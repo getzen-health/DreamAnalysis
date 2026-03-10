@@ -17,36 +17,31 @@ GET  /supplements/correlations/{user_id}
 GET  /supplements/report/{user_id}
     Full supplement report with per-supplement correlation verdicts.
 
-GET  /supplements/knowledge/{supplement_name}
-    Return curated knowledge for a supplement, with alias resolution.
-
-GET  /supplements/interactions
-    Check pairwise interactions across a comma-separated supplement list.
-
-GET  /supplements/compare/{user_id}/{supplement_name}
-    Compare a user's observed response against population expectations.
-
 GET  /supplements/active/{user_id}
     List supplements taken in the last N hours.
 
 DELETE /supplements/reset/{user_id}
     Clear all supplement data for a user.
+
+GET  /supplements/knowledge/{supplement_name}
+    Return evidence-based entry for a supplement (CANMAT 2022 + 2024-2025 lit).
+
+GET  /supplements/interactions
+    Check synergies/cautions for a set of supplements (?names=omega-3,caffeine).
+
+GET  /supplements/compare/{user_id}/{supplement_name}
+    Compare personal observed effects against population-average expected effects.
 """
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from models.supplement_knowledge import (
-    check_interactions,
-    get_supplement_knowledge,
-    normalize_name,
-    population_vs_personal,
-)
 from models.supplement_tracker import SupplementTracker, VALID_SUPPLEMENT_TYPES
+import models.supplement_knowledge as _kb
 
 router = APIRouter(prefix="/supplements", tags=["Supplement Tracker"])
 
@@ -93,11 +88,9 @@ class LogBrainStateRequest(BaseModel):
     arousal: float = Field(0.0, description="Arousal level (0 to 1)")
     stress_index: float = Field(0.0, description="Stress index (0 to 1)")
     focus_index: float = Field(0.0, description="Focus index (0 to 1)")
-    source: str = Field("eeg", description="Signal source: eeg or voice")
     alpha_beta_ratio: float = Field(0.0, description="Alpha/beta ratio (relaxation)")
     theta_power: float = Field(0.0, description="Theta power (creativity/drowsiness)")
     faa: float = Field(0.0, description="Frontal alpha asymmetry")
-    speech_rate: float = Field(0.0, description="Voice speech rate proxy")
 
 
 # ── Endpoints ───────────────────────────────────────────────────────
@@ -169,11 +162,9 @@ async def log_brain_state(req: LogBrainStateRequest):
             "arousal": req.arousal,
             "stress_index": req.stress_index,
             "focus_index": req.focus_index,
-            "source": req.source,
             "alpha_beta_ratio": req.alpha_beta_ratio,
             "theta_power": req.theta_power,
             "faa": req.faa,
-            "speech_rate": req.speech_rate,
         },
     )
     return {"stored": True, "timestamp": ts}
@@ -211,51 +202,6 @@ async def get_supplement_report(user_id: str):
     return _tracker.get_supplement_report(user_id)
 
 
-@router.get("/knowledge/{supplement_name}")
-async def get_supplement_knowledge_route(supplement_name: str):
-    """Return curated supplement knowledge with canonical alias resolution."""
-    knowledge = get_supplement_knowledge(supplement_name)
-    if knowledge is None:
-        raise HTTPException(status_code=404, detail="Supplement knowledge not found")
-    return knowledge
-
-
-@router.get("/interactions")
-async def get_supplement_interactions(names: str):
-    """Check interactions for a comma-separated supplement list."""
-    requested_names = [name.strip() for name in names.split(",") if name.strip()]
-    if len(requested_names) < 2:
-        raise HTTPException(status_code=422, detail="At least two supplement names are required")
-    return check_interactions(requested_names)
-
-
-@router.get("/compare/{user_id}/{supplement_name}")
-async def compare_user_to_population(
-    user_id: str,
-    supplement_name: str,
-    window_hours: float = 4.0,
-):
-    """Compare a user's observed response with population expectations."""
-    knowledge = get_supplement_knowledge(supplement_name)
-    if knowledge is None:
-        raise HTTPException(status_code=404, detail="Supplement knowledge not found")
-
-    canonical_name = normalize_name(supplement_name)
-    correlation = _tracker.analyze_correlations(
-        user_id=user_id,
-        supplement_name=canonical_name,
-        window_hours=window_hours,
-    )
-    comparison = population_vs_personal(correlation, knowledge)
-    return {
-        "user_id": user_id,
-        "supplement_name": knowledge["display_name"],
-        "canonical_name": canonical_name,
-        "correlation": correlation,
-        "population_comparison": comparison,
-    }
-
-
 @router.get("/active/{user_id}")
 async def get_active_supplements(user_id: str, hours: float = 24.0):
     """List supplements taken within the last N hours.
@@ -272,3 +218,125 @@ async def reset_supplement_data(user_id: str):
     """Clear all supplement and brain state data for a user."""
     _tracker.reset(user_id)
     return {"user_id": user_id, "status": "reset"}
+
+
+# ── Evidence-based knowledge base endpoints ─────────────────────────
+
+
+@router.get("/knowledge/{supplement_name}")
+async def get_supplement_knowledge(supplement_name: str):
+    """Return evidence-based entry for a supplement from the knowledge base.
+
+    Provides immediate, research-backed guidance before the user has
+    accumulated enough personal EEG data for reliable correlations.
+    Source: CANMAT 2022 + 2024-2025 systematic reviews.
+
+    Returns:
+        Evidence grade (A/B/C/W), expected effects on valence/stress/focus,
+        onset timeline, mechanism, synergies, cautions, and references.
+    """
+    entry = _kb.lookup(supplement_name)
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Supplement '{supplement_name}' not found in knowledge base. "
+                f"Known supplements: {sorted(_kb.SUPPLEMENT_DB.keys())}"
+            ),
+        )
+    return {
+        "supplement": supplement_name,
+        "knowledge": entry,
+        "source": "CANMAT 2022 + 2024-2025 systematic reviews",
+        "note": (
+            "Population-average expected effects. "
+            "Use /supplements/compare/{user_id}/{supplement_name} "
+            "once you have ≥7 days of EEG data after taking this supplement."
+        ),
+    }
+
+
+@router.get("/interactions")
+async def check_supplement_interactions(
+    names: str = Query(
+        ...,
+        description="Comma-separated supplement names, e.g. 'omega-3,caffeine,l-theanine'",
+    ),
+):
+    """Check synergies and cautions for a set of supplements taken together.
+
+    Pass a comma-separated list of supplement names via the `names` query param.
+    Returns interaction rules that apply when all listed supplements are present.
+
+    Example: GET /supplements/interactions?names=caffeine,l-theanine
+    """
+    name_list = [n.strip() for n in names.split(",") if n.strip()]
+    if len(name_list) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide at least 2 supplement names separated by commas.",
+        )
+    interactions = _kb.check_interactions(name_list)
+    return {
+        "supplements": name_list,
+        "interactions": interactions,
+        "count": len(interactions),
+        "has_cautions": any(i["type"] == "caution" for i in interactions),
+        "has_synergies": any(i["type"] == "synergy" for i in interactions),
+    }
+
+
+@router.get("/compare/{user_id}/{supplement_name}")
+async def compare_personal_vs_population(user_id: str, supplement_name: str):
+    """Compare personal observed effects vs population-average expected effects.
+
+    Requires at least one supplement log entry and sufficient brain state
+    snapshots (≥7 days recommended) to compute a meaningful correlation.
+
+    Returns per-metric comparison (valence, stress_index, focus_index) with:
+    - personal: your observed average shift
+    - population_avg: clinical average from CANMAT 2022 research
+    - direction: above_average / average / below_average
+    - note: human-readable interpretation
+    """
+    # Pull personal correlation data
+    correlation = _tracker.analyze_correlations(
+        user_id=user_id,
+        supplement_name=supplement_name,
+    )
+
+    if correlation.get("verdict") == "insufficient_data":
+        return {
+            "user_id": user_id,
+            "supplement": supplement_name,
+            "status": "insufficient_data",
+            "reason": correlation.get("reason", "not_enough_data"),
+            "sample_count_post": correlation.get("sample_count_post", 0),
+            "knowledge_base": _kb.lookup(supplement_name),
+        }
+
+    # Build personal effects dict from flat correlation result
+    personal_effects: dict = {
+        "valence": correlation.get("avg_valence_shift", 0.0),
+        "stress_index": correlation.get("avg_stress_shift", 0.0),
+        "focus_index": correlation.get("avg_focus_shift", 0.0),
+    }
+
+    comparison = _kb.population_vs_personal(supplement_name, personal_effects)
+
+    entry = _kb.lookup(supplement_name)
+
+    return {
+        "user_id": user_id,
+        "supplement": supplement_name,
+        "status": "ok",
+        "personal_data_points": correlation.get("sample_count_post", 0),
+        "personal_verdict": correlation.get("verdict"),
+        "comparison": comparison,
+        "population_reference": entry.get("expected_effects") if entry else None,
+        "evidence_grade": entry.get("evidence_grade") if entry else None,
+        "note": (
+            "Personal effects are averaged over EEG sessions within the "
+            "supplement's onset window. Requires ≥7 days for reliable estimates."
+        ),
+    }

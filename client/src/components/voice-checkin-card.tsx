@@ -264,6 +264,13 @@ export function VoiceCheckinCard({
         if (period) markCheckinDone(period, checkinResult);
         setCardState("done");
         onComplete?.(checkinResult);
+
+        // Fire-and-forget: record a streak check-in so the StreakCard updates
+        fetch(`${getMLApiUrl()}/api/streaks/checkin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId, checkin_type: "voice" }),
+        }).catch(() => {}); // ignore errors — streak is best-effort
       } catch (err) {
         setError(err instanceof Error ? err.message : "Check-in failed");
         setCardState("idle");

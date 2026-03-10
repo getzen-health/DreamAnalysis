@@ -38,6 +38,7 @@ import {
   type SessionSummary,
 } from "@/lib/ml-api";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
+import { StreakCard } from "@/components/streak-card";
 
 /* ---------- helpers ---------- */
 
@@ -541,6 +542,9 @@ export default function Dashboard() {
 
       {/* Voice micro check-in */}
       <VoiceCheckinCard userId="default_user" />
+
+      {/* Daily streak tracker */}
+      <StreakCard userId="default_user" />
 
       {/* 2. Baseline calibration prompt (shown until calibrated) */}
       {!baselineReady && isStreaming && (

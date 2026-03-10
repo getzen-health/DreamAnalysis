@@ -9,11 +9,11 @@ Output format matches EEG EmotionClassifier (6-class):
     model_type: "voice_emotion2vec" | "voice_distilhubert" | "voice_lgbm_fallback"
 
 Fallback chain (highest to lowest priority):
-    1. emotion2vec_plus_large (funasr) — highest-capacity tier when available
-    2. emotion2vec_plus_base (funasr) — default primary tier
-    2. DistilHuBERT SUPERB-ER (transformers) — 4-class, 23 MB, 34 ms, no funasr needed
-    3. LightGBM MFCC (pkl) — 3-class, requires audio_emotion_lgbm.pkl
-    4. Feature-based heuristics — no model file needed
+    1. emotion2vec_plus_large (funasr, 300M) — 9-class, ACL 2024, highest accuracy
+    2. emotion2vec_plus_base (funasr) — 9-class, faster, lower memory
+    3. DistilHuBERT SUPERB-ER (transformers) — 4-class, 23 MB, 34 ms, no funasr needed
+    4. LightGBM MFCC (pkl) — 3-class, requires audio_emotion_lgbm.pkl
+    5. Feature-based heuristics — no model file needed
 """
 from __future__ import annotations
 
@@ -332,10 +332,10 @@ class VoiceEmotionModel:
     def __init__(self) -> None:
         # SenseVoice fast path (emotion2vec-compatible, <100ms)
         self._sensevoice = SenseVoiceEmotionDetector()
-        # emotion2vec+ large funasr model
+        # emotion2vec+ large (funasr, 300M params) — highest accuracy, ACL 2024
         self._e2v_large_model = None
         self._e2v_large_tried = False
-        # emotion2vec+ funasr model
+        # emotion2vec+ base (funasr) — faster, lower memory
         self._e2v_model = None
         self._e2v_tried = False
         # DistilHuBERT SUPERB-ER (transformers pipeline)
@@ -348,6 +348,7 @@ class VoiceEmotionModel:
     # ── Lazy loaders ──────────────────────────────────────────────────────────
 
     def _load_e2v_large(self) -> bool:
+        """Load emotion2vec_plus_large (300M params, ACL 2024). Lazy, cached."""
         if self._e2v_large_tried:
             return self._e2v_large_model is not None
         self._e2v_large_tried = True
@@ -357,10 +358,12 @@ class VoiceEmotionModel:
                 model="iic/emotion2vec_plus_large",
                 disable_update=True,
             )
-            log.info("emotion2vec_plus_large loaded successfully")
+            log.info("emotion2vec_plus_large loaded successfully (300M params)")
             return True
         except Exception as exc:
-            log.info("emotion2vec_plus_large unavailable: %s", exc)
+            log.warning(
+                "emotion2vec_plus_large load failed (%s) — falling back to base", exc
+            )
             return False
 
     def _load_e2v(self) -> bool:
@@ -443,25 +446,16 @@ class VoiceEmotionModel:
             if result is not None:
                 return result
 
-        # Try emotion2vec+ large first when available
+        # Tier 0: emotion2vec+ large (300M, ACL 2024) — highest accuracy
         if self._load_e2v_large():
-            result = self._predict_e2v(
-                audio,
-                sample_rate,
-                model=self._e2v_large_model,
-                model_type="voice_emotion2vec_large",
-            )
+            result = self._predict_e2v(audio, sample_rate, model=self._e2v_large_model)
             if result is not None:
+                result["model_type"] = "voice_emotion2vec_large"
                 return result
 
-        # Fall back to emotion2vec+ base
+        # Tier 1: emotion2vec+ base — faster fallback
         if self._load_e2v():
-            result = self._predict_e2v(
-                audio,
-                sample_rate,
-                model=self._e2v_model,
-                model_type="voice_emotion2vec",
-            )
+            result = self._predict_e2v(audio, sample_rate)
             if result is not None:
                 return result
 
@@ -480,7 +474,7 @@ class VoiceEmotionModel:
         return self._predict_features(audio, sample_rate)
 
     def predict_with_biomarkers(
-        self, audio: np.ndarray, sample_rate: int = 22050, real_time: bool = False
+        self, audio: np.ndarray, sample_rate: int = 22050
     ) -> Optional[Dict]:
         """Predict emotion AND extract mental-health biomarkers.
 
@@ -491,7 +485,7 @@ class VoiceEmotionModel:
         This is an opt-in enrichment — callers who only need emotion
         should use ``predict()`` for lower latency.
         """
-        result = self.predict(audio, sample_rate, real_time=real_time)
+        result = self.predict(audio, sample_rate)
         if result is None:
             return None
 
@@ -515,19 +509,13 @@ class VoiceEmotionModel:
     # ── Internal inference ────────────────────────────────────────────────────
 
     def _predict_e2v(
-        self,
-        audio: np.ndarray,
-        sample_rate: int,
-        model=None,
-        model_type: str = "voice_emotion2vec",
+        self, audio: np.ndarray, sample_rate: int, model=None
     ) -> Optional[Dict]:
+        """Run emotion2vec inference. Pass model= to use a specific instance (e.g. large)."""
+        e2v = model if model is not None else self._e2v_model
         try:
             import tempfile
             from pathlib import Path as _Path
-
-            active_model = model if model is not None else self._e2v_model
-            if active_model is None:
-                return None
 
             # Create temp file safely (no race condition)
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
@@ -554,7 +542,7 @@ class VoiceEmotionModel:
                         wf.writeframes(pcm)
 
                 # Run inference
-                res = active_model.generate(
+                res = e2v.generate(
                     input=tmp_path,
                     granularity="utterance",
                     extract_embedding=False,
@@ -588,7 +576,7 @@ class VoiceEmotionModel:
                 "valence": round(valence, 4),
                 "arousal": round(arousal, 4),
                 "confidence": round(confidence, 4),
-                "model_type": model_type,
+                "model_type": "voice_emotion2vec",
             }
         except Exception as exc:
             log.warning("emotion2vec predict failed: %s", exc)

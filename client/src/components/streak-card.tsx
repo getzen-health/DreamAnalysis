@@ -1,0 +1,158 @@
+/**
+ * StreakCard — displays the user's daily check-in streak with ethical,
+ * non-addictive framing.  Shows current streak, progress toward the next
+ * milestone, and which insight features have been unlocked.
+ */
+
+import { useQuery } from "@tanstack/react-query";
+import { Flame } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { getMLApiUrl } from "@/lib/ml-api";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface StreakStatus {
+  user_id: string;
+  streak_days: number;
+  longest_streak: number;
+  today_checked_in: boolean;
+  flexible_days_used: number;
+  milestones_achieved: string[];
+  next_milestone: number | null;
+  unlocked_features: string[];
+  last_checkin_date: string | null;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const FEATURE_LABELS: Record<string, string> = {
+  weekly_patterns: "Weekly Patterns",
+  supplement_correlations: "Supplement Correlations",
+  monthly_report: "Monthly Report",
+  personal_model: "Personal Model",
+};
+
+function progressPercent(streakDays: number, nextMilestone: number | null): number {
+  if (!nextMilestone) return 100;
+  // Find the previous milestone (or 0)
+  const milestones = [0, 3, 7, 14, 30, 60, 90];
+  let prev = 0;
+  for (const m of milestones) {
+    if (m < nextMilestone && streakDays >= m) prev = m;
+  }
+  const range = nextMilestone - prev;
+  if (range <= 0) return 100;
+  return Math.min(100, Math.round(((streakDays - prev) / range) * 100));
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+interface StreakCardProps {
+  userId: string;
+}
+
+export function StreakCard({ userId }: StreakCardProps) {
+  const { data, isLoading, isError } = useQuery<StreakStatus>({
+    queryKey: ["streak-status", userId],
+    queryFn: async () => {
+      const baseUrl = getMLApiUrl();
+      const res = await fetch(
+        `${baseUrl}/api/streaks/status/${encodeURIComponent(userId)}`,
+        { headers: { "Content-Type": "application/json" } }
+      );
+      if (!res.ok) throw new Error(`Streak status error: ${res.status}`);
+      return res.json() as Promise<StreakStatus>;
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  if (isLoading) {
+    return (
+      <Card className="bg-card rounded-xl border border-border/50 shadow-sm">
+        <CardContent className="p-4">
+          <div className="h-16 flex items-center justify-center">
+            <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError || !data) return null;
+
+  const { streak_days, next_milestone, unlocked_features, today_checked_in } = data;
+  const pct = progressPercent(streak_days, next_milestone);
+  const hasStreak = streak_days > 0;
+  const isGreen = streak_days >= 7;
+
+  return (
+    <Card className="bg-card rounded-xl border border-border/50 shadow-sm">
+      <CardContent className="p-4 space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Flame
+              className={`h-5 w-5 ${isGreen ? "text-emerald-500" : "text-orange-400"}`}
+            />
+            <div>
+              <p className="text-sm font-semibold leading-tight">
+                {hasStreak
+                  ? `${streak_days} day streak${isGreen ? " 🔥" : ""}`
+                  : "Start your streak today"}
+              </p>
+              {data.longest_streak > streak_days && (
+                <p className="text-xs text-muted-foreground">
+                  Best: {data.longest_streak} days
+                </p>
+              )}
+            </div>
+          </div>
+
+          {!today_checked_in && (
+            <Badge
+              variant="outline"
+              className="text-xs border-primary/40 text-primary"
+            >
+              Check in today
+            </Badge>
+          )}
+        </div>
+
+        {/* Progress to next milestone */}
+        {next_milestone !== null && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{streak_days}d</span>
+              <span>Next: {next_milestone}d</span>
+            </div>
+            <Progress value={pct} className="h-1.5" />
+          </div>
+        )}
+
+        {/* Unlocked features */}
+        {unlocked_features.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {unlocked_features.map((key) => (
+              <Badge
+                key={key}
+                className="text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+              >
+                {FEATURE_LABELS[key] ?? key}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {/* Prompt if not checked in today */}
+        {!today_checked_in && hasStreak && (
+          <p className="text-xs text-muted-foreground">
+            Check in with voice, EEG, or health data to keep your streak alive.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
