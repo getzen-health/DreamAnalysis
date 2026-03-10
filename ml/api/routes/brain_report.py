@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from .voice_checkin import _store as _checkin_store
+from .voice_watch import _VOICE_CACHE, _VOICE_CACHE_TTL, _VOICE_HISTORY
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/brain-report", tags=["Brain Report"])
@@ -56,57 +56,37 @@ def _clamp(v: float, lo: float = 0.0, hi: float = 100.0) -> float:
 
 
 def _yesterday_voice(user_id: str) -> Dict[str, Any]:
-    """Pull yesterday's voice check-in summaries."""
-    now = datetime.datetime.utcnow()
-    yesterday = now.date() - datetime.timedelta(days=1)
-    day_start = datetime.datetime(yesterday.year, yesterday.month, yesterday.day).timestamp()
-    day_end = day_start + 86_400
-
-    entries = [
-        e for e in _checkin_store.get(user_id, [])
-        if day_start <= e["timestamp"] < day_end
-    ]
-
-    if not entries:
+    """Pull latest voice result from the canonical voice-watch cache."""
+    import time
+    entry = _VOICE_CACHE.get(user_id)
+    if not entry:
         return {}
-
-    import numpy as np
-    valences = [e["valence"] for e in entries]
-    stresses = [e["stress_index"] for e in entries]
-    arousals = [e["arousal"] for e in entries]
-
-    # Evening check-in (latest timestamp in the "evening" slot or after 18:00)
-    evening = [e for e in entries if e.get("slot") == "evening"] or entries[-1:]
-    evening_stress = float(np.mean([e["stress_index"] for e in evening]))
-
-    from collections import Counter
-    dominant = Counter(e["emotion"] for e in entries).most_common(1)[0][0]
-
+    # Honour TTL — stale cache is treated as no data
+    if time.time() - entry.get("ts", 0) > _VOICE_CACHE_TTL:
+        return {}
+    r = entry.get("result", {})
+    stress_raw = r.get("stress_from_watch")
+    stress_index = min(1.0, float(stress_raw) / 10.0) if stress_raw is not None else r.get("stress_index", 0.0)
     return {
-        "avg_valence": float(np.mean(valences)),
-        "avg_stress": float(np.mean(stresses)),
-        "avg_arousal": float(np.mean(arousals)),
-        "evening_stress": evening_stress,
-        "dominant_emotion": dominant,
-        "count": len(entries),
+        "avg_valence":      float(r.get("valence", 0.0)),
+        "avg_stress":       float(stress_index),
+        "avg_arousal":      float(r.get("arousal", 0.5)),
+        "evening_stress":   float(stress_index),
+        "dominant_emotion": r.get("emotion", "neutral"),
+        "count": 1,
     }
 
 
 def _peak_focus_from_arousal(user_id: str) -> Optional[str]:
-    """Find the hour-of-day where voice arousal has historically been highest."""
-    import numpy as np
-    from collections import defaultdict
-
-    hour_arousals: Dict[int, list] = defaultdict(list)
-    for entry in _checkin_store.get(user_id, []):
-        h = datetime.datetime.utcfromtimestamp(entry["timestamp"]).hour
-        hour_arousals[h].append(entry.get("arousal", 0.0))
-
-    if not hour_arousals:
+    """Estimate peak focus window from the current voice-watch cache entry."""
+    import time
+    entry = _VOICE_CACHE.get(user_id)
+    if not entry or time.time() - entry.get("ts", 0) > _VOICE_CACHE_TTL:
         return None
-
-    best_hour = max(hour_arousals, key=lambda h: float(np.mean(hour_arousals[h])))
-    return f"{best_hour:02d}:00–{best_hour + 2:02d}:00"
+    arousal = float(entry.get("result", {}).get("arousal", 0.5))
+    # High arousal → morning peak; lower arousal → later morning window
+    base_hour = 9 if arousal >= 0.6 else 10
+    return f"{base_hour:02d}:00–{base_hour + 2:02d}:00"
 
 
 def _health_daily_summary(user_id: str) -> Dict[str, Any]:

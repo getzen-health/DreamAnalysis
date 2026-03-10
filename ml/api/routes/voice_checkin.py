@@ -30,7 +30,6 @@ VALID_CHECKIN_TYPES = {"morning", "noon", "evening"}
 
 # ── Lazy model handles ────────────────────────────────────────────────────────
 _voice_model = None
-_tracker = None
 _context_prior = ContextPrior()
 
 
@@ -46,14 +45,13 @@ def _get_voice_model():
 
 
 def _get_tracker():
-    global _tracker
-    if _tracker is None:
-        try:
-            from models.supplement_tracker import SupplementTracker  # type: ignore
-            _tracker = SupplementTracker()
-        except ImportError as exc:
-            log.warning("SupplementTracker unavailable: %s", exc)
-    return _tracker
+    """Return the shared SupplementTracker singleton from the supplement_tracker route."""
+    try:
+        from .supplement_tracker import get_tracker  # type: ignore
+        return get_tracker()
+    except Exception as exc:
+        log.warning("Shared SupplementTracker unavailable: %s", exc)
+        return None
 
 
 # ── Helper: derive stress/focus proxies from voice biomarkers ─────────────────
