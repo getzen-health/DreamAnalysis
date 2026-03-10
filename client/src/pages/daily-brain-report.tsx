@@ -313,7 +313,10 @@ export default function DailyBrainReport() {
       queryFn: async () => {
         const res = await fetch(`/api/ml/voice-watch/latest/${CURRENT_USER}`);
         if (!res.ok) return null;
-        return res.json();
+        const data = await res.json();
+        // Normalize: empty array or non-object payloads → null
+        if (!data || Array.isArray(data) || typeof data !== "object") return null;
+        return data as VoiceSnapshot;
       },
       staleTime: 60_000,
       retry: false,

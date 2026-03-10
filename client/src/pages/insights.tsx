@@ -30,6 +30,7 @@ import {
   Activity,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
+import { useQuery } from "@tanstack/react-query";
 
 interface BandHistoryPoint {
   time: string;
@@ -144,9 +145,50 @@ function getRecommendedActions(
   return actions.slice(0, 3);
 }
 
+const CURRENT_USER = "default";
+
+function voiceNarrative(voice: Record<string, unknown>): { headline: string; story: string } {
+  const emotion = (voice.emotion as string) ?? "neutral";
+  const valence = (voice.valence as number) ?? 0;
+  const arousal = (voice.arousal as number) ?? 0.5;
+  const stress = (voice.stress_from_watch as number) ?? null;
+
+  const moodLabel =
+    valence > 0.3 ? "positive and energised"
+    : valence < -0.2 ? "heavy or low"
+    : "neutral and steady";
+
+  const energyLabel = arousal > 0.6 ? "high energy" : arousal < 0.35 ? "low energy" : "moderate energy";
+
+  const stressPart = stress !== null
+    ? stress > 6 ? " Stress markers are elevated — a short breathing exercise may help."
+    : stress < 3 ? " Stress reads low, which is a great sign."
+    : ""
+    : "";
+
+  return {
+    headline: `Voice check-in: ${emotion} — ${moodLabel}`,
+    story: `Your most recent voice snapshot shows a ${moodLabel} emotional state with ${energyLabel}. Detected emotion: ${emotion}.${stressPart} Insights here will sharpen further once EEG data from a Muse session is available.`,
+  };
+}
+
 export default function Insights() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
+
+  const { data: latestVoice } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["voice-insights-fallback", CURRENT_USER],
+    queryFn: async () => {
+      const res = await fetch(`/api/ml/voice-watch/latest/${CURRENT_USER}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || Array.isArray(data) || typeof data !== "object") return null;
+      return data as Record<string, unknown>;
+    },
+    staleTime: 60_000,
+    retry: false,
+    enabled: !isStreaming,
+  });
   const analysis = latestFrame?.analysis;
 
   const bandPowers = (analysis?.band_powers as Record<string, number>) ?? {};
@@ -301,11 +343,30 @@ export default function Insights() {
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 from the sidebar to unlock your live brain narrative.
+          {latestVoice
+            ? "Showing voice-based insights. Connect Muse 2 for live EEG narrative."
+            : "Connect your Muse 2 from the sidebar to unlock your live brain narrative."}
         </div>
       )}
 
-      {/* ── Brain Narrative (live) ── */}
+      {/* ── Voice Fallback Narrative (no EEG) ── */}
+      {!isStreaming && latestVoice && (() => {
+        const vn = voiceNarrative(latestVoice);
+        return (
+          <Card className="glass-card p-6 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/10 border-secondary/30">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Voice Check-in</p>
+                <h2 className="text-xl font-bold text-foreground">{vn.headline}</h2>
+              </div>
+              <Badge variant="outline" className="border-secondary/30 text-secondary shrink-0 ml-4">VOICE</Badge>
+            </div>
+            <p className="text-sm text-foreground/75 leading-relaxed">{vn.story}</p>
+          </Card>
+        );
+      })()}
+
+      {/* ── Brain Narrative (live EEG) ── */}
       {narrative && (
         <Card className={`glass-card p-6 rounded-xl bg-gradient-to-br ${stateColors[narrative.state]}`}>
           <div className="flex items-start justify-between mb-3">
@@ -321,8 +382,8 @@ export default function Insights() {
         </Card>
       )}
 
-      {/* ── Offline: What to expect ── */}
-      {!isStreaming && (
+      {/* ── Offline: What to expect (only when no voice data either) ── */}
+      {!isStreaming && !latestVoice && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-secondary" />
