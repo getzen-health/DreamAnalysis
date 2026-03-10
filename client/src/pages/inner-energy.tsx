@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { getParticipantId } from "@/lib/participant";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
@@ -6,14 +7,14 @@ import { Sparkles, Activity, Radio } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { useQuery } from "@tanstack/react-query";
 
-const CURRENT_USER = "default";
+const CURRENT_USER = getParticipantId();
 
 /** Derive rough chakra activations from voice valence + arousal when no EEG. */
 function voiceChakraActivations(valence: number, arousal: number, stress: number): number[] {
   // valence [-1,1] → positive = heart/crown active; arousal [0,1] → energy level
   const v = (valence + 1) / 2;     // 0→1
   const a = arousal;                // 0→1
-  const s = Math.min(1, stress / 10); // normalise stress 0-10 → 0-1
+  const s = Math.min(1, stress); // stress_from_watch is already 0-1
   return [
     Math.round((1 - a) * 60 + 15),                 // Root — grounded when low arousal
     Math.round(v * 50 + 15),                        // Sacral — creativity via positive valence
@@ -119,7 +120,7 @@ export default function InnerEnergy() {
     if (hasVoice && latestVoice) {
       const vv = (latestVoice.valence as number) ?? 0;
       const va = (latestVoice.arousal as number) ?? 0.5;
-      const vs = (latestVoice.stress_from_watch as number) ?? 5;
+      const vs = (latestVoice.stress_from_watch as number) ?? 0.5;
       voiceFallback = voiceChakraActivations(vv, va, vs);
     }
 

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { getParticipantId } from "@/lib/participant";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,7 @@ const PERIODS = [
 type Tab = "sessions" | "emotions" | "dreams" | "health";
 
 /* ── Helpers ─────────────────────────────────────────────────── */
-const CURRENT_USER = "default";
+const CURRENT_USER = getParticipantId();
 
 function cutoffUnix(days: number) {
   return Date.now() / 1000 - days * 86400;

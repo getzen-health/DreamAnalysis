@@ -17,8 +17,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Mic, MicOff, X } from "lucide-react";
-import { getMLApiUrl } from "@/lib/ml-api";
-import type { CheckInResult } from "@/lib/ml-api";
+import { getMLApiUrl, submitVoiceWatch } from "@/lib/ml-api";
+import type { VoiceWatchCheckinResult } from "@/lib/ml-api";
 
 // ─── period helpers ──────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ function isCheckinDone(period: Period): boolean {
   }
 }
 
-function markCheckinDone(period: Period, result: CheckInResult): void {
+function markCheckinDone(period: Period, result: VoiceWatchCheckinResult): void {
   try {
     localStorage.setItem(todayKey(period), JSON.stringify(result));
   } catch {
@@ -130,7 +130,7 @@ function valenceLabel(v: number): { text: string; className: string } {
 
 interface VoiceCheckinCardProps {
   userId?: string;
-  onComplete?: (result: CheckInResult) => void;
+  onComplete?: (result: VoiceWatchCheckinResult) => void;
 }
 
 type CardState = "idle" | "recording" | "analyzing" | "done" | "dismissed";
@@ -151,7 +151,7 @@ export function VoiceCheckinCard({
 
   const [countdown, setCountdown] = useState(RECORD_SEC);
   const [amplitude, setAmplitude] = useState<number[]>(Array(12).fill(0.15));
-  const [result, setResult] = useState<CheckInResult | null>(null);
+  const [result, setResult] = useState<VoiceWatchCheckinResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -244,24 +244,12 @@ export function VoiceCheckinCard({
         }
         const audio_b64 = btoa(binary);
 
-        const baseUrl = getMLApiUrl();
-        // Use canonical voice-watch pipeline (replaces deprecated voice-checkin/submit)
-        const res = await fetch(`${baseUrl}/api/voice-watch/analyze`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio_b64, user_id: userId }),
-        });
-
-        if (!res.ok) {
-          throw new Error(`Check-in failed (HTTP ${res.status})`);
-        }
-
-        const raw = await res.json();
-        // Map voice-watch/analyze response to CheckInResult shape
-        // stress_from_watch is 0-10 scale; stress_index/focus_index are 0-1
-        const stressIndex = raw.stress_index ?? Math.min(1, (raw.stress_from_watch ?? 5) / 10);
+        const raw = await submitVoiceWatch(audio_b64, userId);
+        // Map voice-watch/analyze response to VoiceWatchCheckinResult shape
+        // stress_from_watch and stress_index are both 0-1 scale
+        const stressIndex = raw.stress_index ?? raw.stress_from_watch ?? 0.5;
         const focusIndex = raw.focus_index ?? Math.max(0.2, Math.min(0.85, raw.confidence ?? 0.5));
-        const checkinResult: CheckInResult = {
+        const checkinResult: VoiceWatchCheckinResult = {
           checkin_id:     `${Date.now()}`,
           checkin_type:   period ?? "morning",
           emotion:        raw.emotion ?? "neutral",

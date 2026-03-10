@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { getParticipantId } from "@/lib/participant";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -145,7 +146,7 @@ function getRecommendedActions(
   return actions.slice(0, 3);
 }
 
-const CURRENT_USER = "default";
+const CURRENT_USER = getParticipantId();
 
 function voiceNarrative(voice: Record<string, unknown>): { headline: string; story: string } {
   const emotion = (voice.emotion as string) ?? "neutral";
@@ -329,10 +330,11 @@ export default function Insights() {
           const vValence = (latestVoice.valence as number) ?? 0;
           const vStress = (latestVoice.stress_from_watch as number) ?? null;
           const vEmotion = (latestVoice.emotion as string) ?? "neutral";
-          if (vStress !== null && vStress > 6)
-            items.push({ icon: Heart, title: "Elevated Voice Stress", description: `Stress markers at ${vStress}/10. Pitch variability and faster speech tempo suggest sympathetic activation. A 2-minute breathing exercise can shift this quickly.`, type: "warning" });
-          else if (vStress !== null && vStress < 3)
-            items.push({ icon: Heart, title: "Calm Vocal State", description: `Stress at ${vStress}/10. Steady pitch and relaxed tempo indicate your nervous system is regulated — good state for focused or reflective work.`, type: "success" });
+          // stress_from_watch is 0-1 scale
+          if (vStress !== null && vStress > 0.6)
+            items.push({ icon: Heart, title: "Elevated Voice Stress", description: `Stress markers at ${Math.round(vStress * 100)}%. Pitch variability and faster speech tempo suggest sympathetic activation. A 2-minute breathing exercise can shift this quickly.`, type: "warning" });
+          else if (vStress !== null && vStress < 0.3)
+            items.push({ icon: Heart, title: "Calm Vocal State", description: `Stress at ${Math.round(vStress * 100)}%. Steady pitch and relaxed tempo indicate your nervous system is regulated — good state for focused or reflective work.`, type: "success" });
           if (vValence > 0.3)
             items.push({ icon: Sparkles, title: "Positive Emotional Tone", description: `Voice detected ${vEmotion} with positive valence (${Math.round(vValence * 100)}%). Positive affect broadens attention scope and enhances creative thinking.`, type: "success" });
           else if (vValence < -0.2)
@@ -345,7 +347,7 @@ export default function Insights() {
 
   const voiceRecommendedActions = !isStreaming && latestVoice
     ? getRecommendedActions(
-        ((latestVoice.stress_from_watch as number) ?? 5) * 10,
+        ((latestVoice.stress_from_watch as number) ?? 0.5) * 100,
         50,
         0,
         0,

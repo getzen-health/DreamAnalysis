@@ -542,10 +542,10 @@ export default function Dashboard() {
       )}
 
       {/* Voice micro check-in */}
-      <VoiceCheckinCard userId="default_user" />
+      <VoiceCheckinCard userId={USER_ID} />
 
       {/* Daily streak tracker */}
-      <StreakCard userId="default_user" />
+      <StreakCard userId={USER_ID} />
 
       {/* Weekly stress landscape */}
       {(() => {

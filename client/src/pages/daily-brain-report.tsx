@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { type SessionSummary, type SleepMoodPrediction, predictSleepMood } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,7 @@ interface VoiceSnapshot {
 }
 
 /* ── Derived / computed helpers ──────────────────────────────── */
-const CURRENT_USER = "default";
+const CURRENT_USER = getParticipantId();
 
 function fmtMinutes(mins: number): string {
   const h = Math.floor(mins / 60);
@@ -134,7 +135,10 @@ function recommendedAction(health: HealthEntry[], voice: VoiceSnapshot | null): 
   const latest = health[0];
   const stress = latest?.stressLevel ?? 0;
   const focus = latest?.neuralActivity ?? 5;
-  const voiceStress = voice?.stress_from_watch ?? (voice ? clamp((voice.arousal - voice.valence + 1) * 3, 0, 10) : 0);
+  // stress_from_watch is 0-1; scale to 0-10 to match healthStress scale
+  const voiceStress = voice?.stress_from_watch != null
+    ? voice.stress_from_watch * 10
+    : (voice ? clamp((voice.arousal - voice.valence + 1) * 3, 0, 10) : 0);
 
   if (stress > 6 || voiceStress > 6) {
     return {
@@ -185,7 +189,10 @@ function stressForecast(health: HealthEntry | undefined, voice: VoiceSnapshot | 
 } {
   const healthStress = health?.stressLevel ?? 4;
   const sleepPenalty = health?.sleepQuality !== undefined ? clamp(10 - health.sleepQuality, 0, 10) : 5;
-  const voiceStress = voice?.stress_from_watch ?? (voice ? clamp((voice.arousal - voice.valence + 1) * 3, 0, 10) : 4);
+  // stress_from_watch is 0-1; scale to 0-10 to match healthStress scale
+  const voiceStress = voice?.stress_from_watch != null
+    ? voice.stress_from_watch * 10
+    : (voice ? clamp((voice.arousal - voice.valence + 1) * 3, 0, 10) : 4);
   const score = Math.round(clamp(healthStress * 0.45 + sleepPenalty * 0.2 + voiceStress * 0.35, 0, 10) * 10);
   const label = score >= 70 ? "High stress risk" : score >= 45 ? "Moderate stress risk" : "Low stress risk";
   return { score, label };

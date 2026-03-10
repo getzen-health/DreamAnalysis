@@ -96,7 +96,7 @@ interface Props {
 
 type Phase = "idle" | "recording" | "analyzing" | "done" | "error";
 
-export function VoiceWatchAnalyzer({ userId: _userId, onResult }: Props) {
+export function VoiceWatchAnalyzer({ userId, onResult }: Props) {
   const [phase,   setPhase]   = useState<Phase>("idle");
   const [result,  setResult]  = useState<VoiceWatchEmotionResult | null>(null);
   const [error,   setError]   = useState<string | null>(null);
@@ -221,7 +221,7 @@ export function VoiceWatchAnalyzer({ userId: _userId, onResult }: Props) {
     };
 
     try {
-      const res = await analyzeVoiceWatch(audioB64, watch);
+      const res = await analyzeVoiceWatch(audioB64, watch, userId);
       setResult(res);
       setPhase("done");
       onResult?.(res);
