@@ -1415,6 +1415,7 @@ class EmotionClassifier:
                 "dasm_rasm": dasm_rasm,
                 "frontal_midline_theta": fmt,
                 "artifact_detected": _artifact_now,
+                "model_type": "feature-based",
                 "explanation": [],
             }
 
@@ -1534,6 +1535,7 @@ class EmotionClassifier:
             "dasm_rasm": dasm_rasm,
             "frontal_midline_theta": fmt,
             "artifact_detected": _artifact_now,
+            "model_type": "feature-based",
             "explanation": heuristic_explanation,
         }
 

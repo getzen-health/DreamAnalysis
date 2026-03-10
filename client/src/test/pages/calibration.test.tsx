@@ -64,17 +64,17 @@ describe("CalibrationPage", () => {
     expect(screen.getByText("Not started")).toBeInTheDocument();
   });
 
-  it("hides device warning when in simulation mode", () => {
+  it("shows device warning in real-device mode when disconnected", () => {
     renderWithProviders(<CalibrationPage />);
-    // Page starts in simulation mode when no device — warning should not appear
-    expect(screen.queryByText("Muse 2 not connected")).not.toBeInTheDocument();
+    // Page starts in real-device mode — shows warning when no device connected
+    expect(screen.getByText(/not connected/i)).toBeInTheDocument();
   });
 
-  it("shows Start simulation button in simulation mode", () => {
+  it("shows Connect device first button when not streaming", () => {
     renderWithProviders(<CalibrationPage />);
-    // Page auto-enables simulation when no device is connected
+    // No device connected → button says "Connect device first"
     expect(
-      screen.getByRole("button", { name: /Start simulation/ })
+      screen.getByRole("button", { name: /Connect device first/ })
     ).toBeInTheDocument();
   });
 });

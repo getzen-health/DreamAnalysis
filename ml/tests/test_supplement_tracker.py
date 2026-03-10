@@ -582,7 +582,7 @@ def test_get_supplement_knowledge_resolves_alias():
     knowledge = get_supplement_knowledge("fish-oil")
     assert knowledge is not None
     assert knowledge["canonical_name"] == "omega-3"
-    assert knowledge["display_name"] == "Omega-3"
+    assert knowledge["display_name"] == "Omega-3 (EPA>DHA)"
 
 
 def test_check_interactions_resolves_aliases():
@@ -631,7 +631,7 @@ def test_compare_route_returns_stress_directionally_correct_label(base_time):
         tracker.log_brain_state("compare_user", base_time - 86400 + i * 300, {
             "valence": 0.0,
             "arousal": 0.4,
-            "stress_index": 0.14,
+            "stress_index": 0.20,
             "focus_index": 0.01,
         })
 

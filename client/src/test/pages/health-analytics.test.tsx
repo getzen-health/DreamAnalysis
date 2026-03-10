@@ -62,21 +62,21 @@ describe("HealthAnalytics page", () => {
     });
   });
 
-  it("shows three score gauge cards", async () => {
+  it("shows placeholder dashes when no real data", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      expect(screen.getByTestId("score-circle-Brain Health")).toBeInTheDocument();
-      expect(screen.getByTestId("score-circle-Cognitive")).toBeInTheDocument();
-      expect(screen.getByTestId("score-circle-Wellbeing")).toBeInTheDocument();
+      // When disconnected with no voice data, shows "—" placeholders
+      const dashes = screen.getAllByText("—");
+      expect(dashes.length).toBe(3);
     });
   });
 
-  it("shows score gauge labels", async () => {
+  it("shows score label names in placeholders", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      expect(screen.getByText("Focus + Relaxation + Low Stress")).toBeInTheDocument();
-      expect(screen.getByText("Focus + Creativity + Memory")).toBeInTheDocument();
-      expect(screen.getByText("Relaxation + Low Stress + Flow")).toBeInTheDocument();
+      expect(screen.getByText("Brain Health")).toBeInTheDocument();
+      expect(screen.getByText("Cognitive")).toBeInTheDocument();
+      expect(screen.getByText("Wellbeing")).toBeInTheDocument();
     });
   });
 
@@ -123,13 +123,11 @@ describe("HealthAnalytics page", () => {
     });
   });
 
-  it("score gauge values are zero when not streaming", async () => {
+  it("shows No data text for each score when not streaming", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      const brainHealth = screen.getByTestId("score-circle-Brain Health");
-      // When not streaming, scores use default baseline estimates (not zero)
-      expect(brainHealth).toBeInTheDocument();
-      expect(Number(brainHealth.textContent)).toBeGreaterThanOrEqual(0);
+      const noDataLabels = screen.getAllByText("No data");
+      expect(noDataLabels.length).toBe(3);
     });
   });
 });

@@ -225,108 +225,168 @@ INTERACTION_RULES: List[dict] = [
 ]
 
 
+_ALIASES: Dict[str, str] = {
+    "omega3": "omega-3",
+    "fish-oil": "omega-3",
+    "fish-oil-omega3": "omega-3",
+    "vitamin-d3": "vitamin-d",
+    "vit-d": "vitamin-d",
+    "vitd": "vitamin-d",
+    "mag": "magnesium",
+    "magnesium-glycinate": "magnesium",
+    "probiotic": "probiotics",
+    "lactobacillus": "probiotics",
+    "bifidobacterium": "probiotics",
+    "l-theanine": "l-theanine",
+    "theanine": "l-theanine",
+    "s-adenosyl-methionine": "same",
+    "ademetionine": "same",
+    "melatonin": "melatonin",
+    "coffee": "caffeine",
+    "espresso": "caffeine",
+    "rhodiola-rosea": "rhodiola",
+    "golden-root": "rhodiola",
+    "withania-somnifera": "ashwagandha",
+    "indian-ginseng": "ashwagandha",
+    "ksm-66": "ashwagandha",
+}
+
+# Lower-is-better metrics (more negative = better outcome)
+_LOWER_IS_BETTER = {"stress_index"}
+
+
+def _resolve_canonical(name: str) -> Optional[str]:
+    """Resolve a supplement name to its canonical DB key."""
+    key = name.lower().strip().replace(" ", "-").replace("_", "-")
+    if key in SUPPLEMENT_DB:
+        return key
+    mapped = _ALIASES.get(key)
+    if mapped:
+        return mapped
+    for db_key in SUPPLEMENT_DB:
+        if db_key.startswith(key) or key in db_key:
+            return db_key
+    return None
+
+
 def lookup(name: str) -> Optional[dict]:
     """Return knowledge base entry for a supplement name.
 
     Does fuzzy matching on common aliases (e.g. 'omega3' → 'omega-3').
     """
-    key = name.lower().strip().replace(" ", "-").replace("_", "-")
-    # Exact match
-    if key in SUPPLEMENT_DB:
-        return SUPPLEMENT_DB[key]
-    # Alias match
-    aliases = {
-        "omega3": "omega-3",
-        "fish-oil": "omega-3",
-        "fish-oil-omega3": "omega-3",
-        "vitamin-d3": "vitamin-d",
-        "vit-d": "vitamin-d",
-        "vitd": "vitamin-d",
-        "mag": "magnesium",
-        "magnesium-glycinate": "magnesium",
-        "probiotic": "probiotics",
-        "lactobacillus": "probiotics",
-        "bifidobacterium": "probiotics",
-        "l-theanine": "l-theanine",
-        "theanine": "l-theanine",
-        "s-adenosyl-methionine": "same",
-        "ademetionine": "same",
-        "melatonin": "melatonin",
-        "coffee": "caffeine",
-        "espresso": "caffeine",
-        "rhodiola-rosea": "rhodiola",
-        "golden-root": "rhodiola",
-        "withania-somnifera": "ashwagandha",
-        "indian-ginseng": "ashwagandha",
-        "ksm-66": "ashwagandha",
-    }
-    mapped = aliases.get(key)
-    if mapped:
-        return SUPPLEMENT_DB.get(mapped)
-    # Partial match — return first entry whose key starts with the query
-    for db_key, entry in SUPPLEMENT_DB.items():
-        if db_key.startswith(key) or key in db_key:
-            return entry
+    canonical = _resolve_canonical(name)
+    if canonical:
+        return SUPPLEMENT_DB[canonical]
     return None
 
 
-def check_interactions(supplement_names: List[str]) -> List[dict]:
-    """Return interaction warnings/synergies for a set of supplements being logged together."""
-    normalized = {
-        n.lower().strip().replace(" ", "-").replace("_", "-")
-        for n in supplement_names
-    }
-    results = []
+def get_supplement_knowledge(name: str) -> Optional[dict]:
+    """Return knowledge base entry with canonical_name included."""
+    canonical = _resolve_canonical(name)
+    if canonical is None:
+        return None
+    entry = dict(SUPPLEMENT_DB[canonical])
+    entry["canonical_name"] = canonical
+    return entry
+
+
+def check_interactions(supplement_names: List[str]) -> dict:
+    """Return interaction warnings/synergies for a set of supplements.
+
+    Returns a dict with canonical_names, interaction_count, and interactions list.
+    """
+    canonical_names = []
+    canonical_set: set = set()
+    for n in supplement_names:
+        resolved = _resolve_canonical(n)
+        canon = resolved if resolved else n.lower().strip().replace(" ", "-").replace("_", "-")
+        canonical_names.append(canon)
+        canonical_set.add(canon)
+
+    interactions = []
     for rule in INTERACTION_RULES:
-        if all(s in normalized for s in rule["supplements"]):
-            results.append(rule)
-    return results
+        if all(s in canonical_set for s in rule["supplements"]):
+            interactions.append(rule)
+
+    return {
+        "canonical_names": canonical_names,
+        "interaction_count": len(interactions),
+        "interactions": interactions,
+        "has_cautions": any(i["type"] == "caution" for i in interactions),
+        "has_synergies": any(i["type"] == "synergy" for i in interactions),
+    }
 
 
 def population_vs_personal(
-    supplement_name: str,
     personal_effects: dict,
+    entry: Optional[dict] = None,
+    *,
+    supplement_name: Optional[str] = None,
 ) -> dict:
     """Compare personal observed effects vs population-average expected effects.
 
     Args:
-        supplement_name: supplement identifier
-        personal_effects: dict with keys valence, stress_index, focus_index (observed shifts)
+        personal_effects: dict with observed shifts (avg_valence_shift, avg_stress_shift,
+            avg_focus_shift) or (valence, stress_index, focus_index).
+        entry: optional knowledge-base entry dict (with expected_effects).
+            If omitted, looked up via supplement_name.
+        supplement_name: supplement identifier (used when entry is not given).
 
     Returns:
-        comparison dict with diff, direction, and interpretation text
+        dict with metrics list containing per-metric comparisons.
     """
-    entry = lookup(supplement_name)
-    if not entry:
-        return {}
+    if entry is None:
+        if supplement_name is None:
+            return {"metrics": []}
+        entry = lookup(supplement_name)
+        if entry is None:
+            return {"metrics": []}
 
     expected = entry.get("expected_effects", {})
-    comparison = {}
+
+    # Map personal effect keys to expected effect keys
+    key_map = {
+        "avg_valence_shift": "valence",
+        "avg_stress_shift": "stress_index",
+        "avg_focus_shift": "focus_index",
+    }
+
+    metrics = []
     for key, exp_val in expected.items():
-        personal_val = personal_effects.get(key, None)
+        # Try direct key first, then mapped keys
+        personal_val = personal_effects.get(key)
+        if personal_val is None:
+            for alt_key, mapped_key in key_map.items():
+                if mapped_key == key:
+                    personal_val = personal_effects.get(alt_key)
+                    break
         if personal_val is None:
             continue
+
         diff = personal_val - exp_val
-        if abs(diff) < 0.02:
-            direction = "average"
-            note = f"Your {key} response matches the clinical average."
-        elif diff > 0:
-            direction = "above_average"
-            note = (
-                f"Your {key} response ({personal_val:+.2f}) exceeds the clinical average "
-                f"({exp_val:+.2f}) — this supplement is working particularly well for you."
-            )
+
+        if key in _LOWER_IS_BETTER:
+            # For stress: more negative personal = better = above_average
+            if abs(diff) < 0.02:
+                direction = "average"
+            elif diff < 0:
+                direction = "above_average"
+            else:
+                direction = "below_average"
         else:
-            direction = "below_average"
-            note = (
-                f"Your {key} response ({personal_val:+.2f}) is below the clinical average "
-                f"({exp_val:+.2f}) — consider timing, dose, or synergistic supplements."
-            )
-        comparison[key] = {
+            if abs(diff) < 0.02:
+                direction = "average"
+            elif diff > 0:
+                direction = "above_average"
+            else:
+                direction = "below_average"
+
+        metrics.append({
+            "metric": key,
             "personal": personal_val,
             "population_avg": exp_val,
             "diff": round(diff, 3),
-            "direction": direction,
-            "note": note,
-        }
-    return comparison
+            "comparison": direction,
+        })
+
+    return {"metrics": metrics}

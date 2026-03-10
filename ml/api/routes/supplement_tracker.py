@@ -276,13 +276,15 @@ async def check_supplement_interactions(
             status_code=422,
             detail="Provide at least 2 supplement names separated by commas.",
         )
-    interactions = _kb.check_interactions(name_list)
+    result = _kb.check_interactions(name_list)
     return {
         "supplements": name_list,
-        "interactions": interactions,
-        "count": len(interactions),
-        "has_cautions": any(i["type"] == "caution" for i in interactions),
-        "has_synergies": any(i["type"] == "synergy" for i in interactions),
+        "canonical_names": result["canonical_names"],
+        "interactions": result["interactions"],
+        "interaction_count": result["interaction_count"],
+        "count": result["interaction_count"],
+        "has_cautions": result["has_cautions"],
+        "has_synergies": result["has_synergies"],
     }
 
 
@@ -322,7 +324,9 @@ async def compare_personal_vs_population(user_id: str, supplement_name: str):
         "focus_index": correlation.get("avg_focus_shift", 0.0),
     }
 
-    comparison = _kb.population_vs_personal(supplement_name, personal_effects)
+    comparison = _kb.population_vs_personal(
+        personal_effects, supplement_name=supplement_name
+    )
 
     entry = _kb.lookup(supplement_name)
 
@@ -332,7 +336,7 @@ async def compare_personal_vs_population(user_id: str, supplement_name: str):
         "status": "ok",
         "personal_data_points": correlation.get("sample_count_post", 0),
         "personal_verdict": correlation.get("verdict"),
-        "comparison": comparison,
+        "population_comparison": comparison,
         "population_reference": entry.get("expected_effects") if entry else None,
         "evidence_grade": entry.get("evidence_grade") if entry else None,
         "note": (
