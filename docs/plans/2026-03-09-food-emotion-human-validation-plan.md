@@ -291,11 +291,40 @@ This is likely the most pragmatic path if early data are sparse or noisy.
 
 ---
 
+## Supplement & Medication Tracking (Issue #206)
+
+Extend each meal episode self-report to include:
+
+### Per-session supplement form
+```
+Supplements taken today:
+  [ ] Name: ____________  Dosage: ____  Time taken: ____
+  [ ] Name: ____________  Dosage: ____  Time taken: ____
+
+Medications today:
+  [ ] Name: ____________  Dosage: ____  Time taken: ____
+
+Caffeine today: _____ mg (or cups)
+Alcohol today:  _____ units
+```
+
+### Analysis additions
+- Correlate supplement timing with pre/post-meal EEG biomarker shifts (FAA, high-beta, theta)
+- Track cumulative supplement effects across the 14-day pilot window
+- Use `POST /supplements/brain-state` to auto-log EEG context at supplement ingestion time
+
+### Backend integration
+- `ml/models/supplement_tracker.py` — already implemented
+- `ml/api/routes/supplement_tracker.py` — 7 endpoints live
+- Link supplement log entries to meal episode IDs for joint analysis
+
+---
+
 ## Immediate Next Steps
 
 1. Freeze the pilot protocol
 2. Finalize the label schema before data collection
-3. Include supplement and medication entries in the evening / meal-adjacent form so ingest timing is captured alongside EEG and mood
+3. Include supplement and medication entries (see section above) in the evening / meal-adjacent form
 4. Shorten the wearable portion to 4-6 minutes total per meal
 5. Ensure raw or windowed EEG plus labels are stored per episode
 6. Run a 10-15 participant feasibility pilot first

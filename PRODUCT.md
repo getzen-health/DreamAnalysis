@@ -457,3 +457,25 @@ That is the product.
 4. Does this give a reason to open the app tomorrow morning?
 
 If the answer to all four is no — don't build it yet.
+
+---
+
+## Regulatory Positioning (March 2026)
+
+**Current classification**: General Wellness device — FDA-exempt under January 2026 guidance.
+
+**What this means for marketing:**
+- ✅ "Track your emotional patterns and brain rhythms"
+- ✅ "Understand how sleep, food, and supplements affect your focus"
+- ✅ "Research-backed methodology for emotional awareness"
+- ❌ "Diagnose," "treat," "screen for," or "prevent" any condition
+- ❌ "Clinically validated" (requires IRB study + peer review)
+- ❌ "FDA approved" or "medical grade"
+
+**Path to DTx (optional, 24–36 months):**
+1. Publish peer-reviewed paper on emotion detection accuracy
+2. Complete 10-person feasibility pilot with IRB oversight
+3. Run small RCT (n=30–50) targeting "stress awareness + breathing intervention"
+4. File De Novo submission for "emotion awareness device with behavioral intervention"
+
+Full strategy in `docs/regulatory-strategy.md`.
