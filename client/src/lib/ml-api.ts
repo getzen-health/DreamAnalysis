@@ -310,10 +310,29 @@ interface ConnectivityResult {
 
 // Calibration types
 interface CalibrationStatus {
-  calibrated: boolean;
-  n_samples: number;
-  personal_accuracy: number;
-  classes: string[];
+  calibrated?: boolean;
+  n_samples?: number;
+  personal_accuracy?: number;
+  classes?: string[];
+  personal_model_active?: boolean;
+  total_sessions?: number;
+  total_labeled_epochs?: number;
+  head_accuracy_pct?: number;
+  estimated_global_accuracy_pct?: number;
+  accuracy_improvement_pct?: number;
+  personalization_progress_pct?: number;
+  activation_threshold_sessions?: number;
+  personal_blend_weight_pct?: number;
+  baseline_ready?: boolean;
+  baseline_frames?: number;
+  feature_priors?: {
+    alpha_mean: number;
+    beta_mean: number;
+    theta_mean: number;
+  };
+  class_counts?: Record<string, number>;
+  next_milestone?: number;
+  message?: string;
 }
 
 /** Exponential backoff delays (ms) between successive retries. */
@@ -1171,4 +1190,53 @@ export async function getEIQHistory(
   limit = 30
 ): Promise<{ user_id: string; count: number; history: EIQResult[] }> {
   return mlFetch(`/ei-composite/history/${encodeURIComponent(userId)}?limit=${limit}`);
+}
+
+// ─── Voice Check-In ─────────────────────────────────────────────────────────
+
+export interface CheckInResult {
+  checkin_id: string;
+  checkin_type: "morning" | "noon" | "evening";
+  emotion: string;
+  valence: number;
+  arousal: number;
+  confidence: number;
+  stress_index: number;
+  focus_index: number;
+  model_type: string;
+  timestamp: number;
+  biomarkers?: Record<string, number>;
+}
+
+export interface DailySummary {
+  morning: CheckInResult | null;
+  noon: CheckInResult | null;
+  evening: CheckInResult | null;
+  average_valence: number;
+  average_arousal: number;
+  dominant_emotion: string;
+}
+
+export async function submitVoiceCheckin(
+  audioBase64: string,
+  userId: string,
+  checkinType: "morning" | "noon" | "evening"
+): Promise<CheckInResult> {
+  return mlFetch<CheckInResult>("/voice-checkin/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      audio_b64: audioBase64,
+      user_id: userId,
+      checkin_type: checkinType,
+    }),
+  });
+}
+
+export async function getCheckinHistory(userId: string, lastN = 30): Promise<{ checkins: CheckInResult[] }> {
+  return mlFetch<{ checkins: CheckInResult[] }>(`/voice-checkin/history/${encodeURIComponent(userId)}?last_n=${lastN}`);
+}
+
+export async function getDailyCheckinSummary(userId: string): Promise<DailySummary> {
+  return mlFetch<DailySummary>(`/voice-checkin/daily-summary/${encodeURIComponent(userId)}`);
 }

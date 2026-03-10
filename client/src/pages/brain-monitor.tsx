@@ -260,7 +260,7 @@ export default function BrainMonitor() {
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 from the sidebar to see live brain data. Historical data is shown below.
+          EEG is offline. You can still use voice + health features elsewhere; connect Muse only for live brain data here.
         </div>
       )}
 
@@ -419,8 +419,21 @@ export default function BrainMonitor() {
               </div>
             </>
           ) : (
-            <div className="h-64 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
-              Connect device to see live EEG waveforms
+            <div className="h-64 flex flex-col items-center justify-center gap-3 border border-dashed border-border/30 rounded-lg p-4">
+              <Radio className="h-6 w-6 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground text-center">
+                No EEG signal — showing voice + health estimates
+              </p>
+              {voiceEmotion.lastResult && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="capitalize font-medium text-foreground/80">{voiceEmotion.lastResult.emotion}</span>
+                  <span className="text-muted-foreground">
+                    valence {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}{voiceEmotion.lastResult.valence.toFixed(2)}
+                  </span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">{Math.round(voiceEmotion.lastResult.confidence * 100)}% conf</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -497,8 +510,41 @@ export default function BrainMonitor() {
               </div>
             );
           })() : (
-            <div className="h-80 flex items-center justify-center text-sm text-muted-foreground border border-dashed border-border/30 rounded-lg">
-              Connect device to see your brain state
+            <div className="h-80 flex flex-col items-center justify-center gap-3 border border-dashed border-border/30 rounded-lg p-4">
+              <Brain className="h-6 w-6 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground text-center">
+                No EEG signal — showing voice + health estimates
+              </p>
+              {voiceEmotion.lastResult ? (
+                <div className="space-y-2 w-full max-w-[200px]">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Emotion</span>
+                    <span className="capitalize font-medium">{voiceEmotion.lastResult.emotion}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Valence</span>
+                    <span className="font-mono">
+                      {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}
+                      {voiceEmotion.lastResult.valence.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Arousal</span>
+                    <span className="font-mono">{voiceEmotion.lastResult.arousal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Confidence</span>
+                    <span className="font-mono">{Math.round(voiceEmotion.lastResult.confidence * 100)}%</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/60 text-center pt-1">
+                    via {voiceEmotion.lastResult.model_type}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground/60 text-center">
+                  Use voice analysis on the dashboard for estimates without EEG.
+                </p>
+              )}
             </div>
           )}
         </div>

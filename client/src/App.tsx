@@ -28,6 +28,7 @@ import SettingsPage from "@/pages/settings";
 import CalibrationPage from "@/pages/calibration";
 import DailyBrainReport from "@/pages/daily-brain-report";
 import Onboarding from "@/pages/onboarding";
+import OnboardingNew from "@/pages/onboarding-new";
 import NotFound from "@/pages/not-found";
 
 // ── Intent selection page — lazy loaded ────────────────────────────────────
@@ -130,6 +131,7 @@ function AppRoutes() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
+      <Route path="/onboarding-new" component={OnboardingNew} />
       <Route path="/architecture-guide">
         <AppLayout><ArchitectureGuide /></AppLayout>
       </Route>
@@ -260,7 +262,7 @@ function AppRoutes() {
   );
 }
 
-const PUBLIC_ROUTES = new Set(["/auth", "/forgot-password", "/reset-password", "/welcome"]);
+const PUBLIC_ROUTES = new Set(["/auth", "/forgot-password", "/reset-password", "/welcome", "/onboarding-new"]);
 
 function App() {
   const [warmupDismissed, setWarmupDismissed] = useState(false);

@@ -37,6 +37,7 @@ import {
   type HealthInsight,
   type SessionSummary,
 } from "@/lib/ml-api";
+import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 
 /* ---------- helpers ---------- */
 
@@ -485,7 +486,7 @@ export default function Dashboard() {
           <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center justify-between gap-3 cursor-pointer hover:bg-warning/10 transition-colors">
             <div className="flex items-center gap-3">
               <Radio className="h-4 w-4 shrink-0" />
-              Connect your Muse 2 to see live dashboard data.
+              Start with voice check-ins now. Add EEG later for live brain data.
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 opacity-60" />
           </div>
@@ -532,14 +533,17 @@ export default function Dashboard() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Connect Muse 2 or tap to detect emotion via microphone
+              Tap to detect emotion via microphone. EEG adds a live brain-state layer.
             </p>
           )}
         </div>
       )}
 
+      {/* Voice micro check-in */}
+      <VoiceCheckinCard userId="default_user" />
+
       {/* 2. Baseline calibration prompt (shown until calibrated) */}
-      {!baselineReady && (
+      {!baselineReady && isStreaming && (
         <Link href="/onboarding">
           <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 text-sm flex items-center justify-between gap-3 cursor-pointer hover:bg-primary/10 transition-colors">
             <div className="flex items-center gap-3">
@@ -959,7 +963,7 @@ export default function Dashboard() {
             ) : (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 <Brain className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-                Connect your EEG device or Apple Health to see brain state
+                Start with a voice check-in or sync Apple Health. EEG is optional for live brain metrics.
               </div>
             )}
           </Card>
@@ -979,7 +983,7 @@ export default function Dashboard() {
               <Brain className="h-8 w-8 text-muted-foreground/40" />
               <p>Insights appear after a few days of data</p>
               <p className="text-xs text-muted-foreground/60 text-center px-4">
-                Complete a few EEG sessions and sync health data to unlock brain-health correlations.
+                Complete a few voice check-ins or EEG sessions and sync health data to unlock correlations.
               </p>
             </div>
           ) : (

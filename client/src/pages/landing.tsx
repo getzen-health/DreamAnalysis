@@ -87,13 +87,13 @@ export default function Landing() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth">
+            <Link href="/onboarding-new">
               <Button size="lg" className="bg-gradient-to-r from-primary to-secondary text-primary-foreground hover-glow px-8 text-lg">
                 Get Started Free
                 <ChevronRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/auth">
+            <Link href="/architecture-guide">
               <Button size="lg" variant="outline" className="border-primary/30 text-primary hover:bg-primary/10 px-8 text-lg">
                 <Brain className="mr-2 h-5 w-5" />
                 Live Demo
@@ -163,7 +163,7 @@ export default function Landing() {
               Join the frontier of dream science. Record your dreams, understand your brain waves,
               and discover the emotional landscape of your sleeping mind.
             </p>
-            <Link href="/auth">
+            <Link href="/onboarding-new">
               <Button size="lg" className="bg-gradient-to-r from-primary to-secondary text-primary-foreground hover-glow px-12 text-lg">
                 Create Free Account
                 <ChevronRight className="ml-2 h-5 w-5" />
