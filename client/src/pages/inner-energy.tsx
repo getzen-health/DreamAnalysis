@@ -4,6 +4,26 @@ import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
 import { Sparkles, Activity, Radio } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
+import { useQuery } from "@tanstack/react-query";
+
+const CURRENT_USER = "default";
+
+/** Derive rough chakra activations from voice valence + arousal when no EEG. */
+function voiceChakraActivations(valence: number, arousal: number, stress: number): number[] {
+  // valence [-1,1] → positive = heart/crown active; arousal [0,1] → energy level
+  const v = (valence + 1) / 2;     // 0→1
+  const a = arousal;                // 0→1
+  const s = Math.min(1, stress / 10); // normalise stress 0-10 → 0-1
+  return [
+    Math.round((1 - a) * 60 + 15),                 // Root — grounded when low arousal
+    Math.round(v * 50 + 15),                        // Sacral — creativity via positive valence
+    Math.round((v + a) / 2 * 55 + 10),             // Solar Plexus
+    Math.round(v * 60 + 10),                        // Heart — positive valence
+    Math.round(a * 50 + 15),                        // Throat — arousal → expression
+    Math.round((s > 0.5 ? s * 50 : a * 40) + 10),  // Third Eye
+    Math.round(v * 40 + 5),                         // Crown — positive state
+  ];
+}
 
 interface ChakraState {
   name: string;
@@ -56,6 +76,22 @@ export default function InnerEnergy() {
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
 
+  const { data: latestVoice } = useQuery<Record<string, unknown> | null>({
+    queryKey: ["voice-inner-energy", CURRENT_USER],
+    queryFn: async () => {
+      const res = await fetch(`/api/ml/voice-watch/latest/${CURRENT_USER}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || Array.isArray(data) || typeof data !== "object") return null;
+      return data as Record<string, unknown>;
+    },
+    staleTime: 60_000,
+    retry: false,
+    enabled: !isStreaming,
+  });
+
+  const hasVoice = !isStreaming && !!latestVoice;
+
   const bandPowers = analysis?.band_powers ?? {};
   const meditation = analysis?.meditation;
   const attention = analysis?.attention;
@@ -79,15 +115,23 @@ export default function InnerEnergy() {
       Math.min(95, Math.round(g * 1.5)),           // Crown — gamma
     ];
 
+    let voiceFallback: number[] | null = null;
+    if (hasVoice && latestVoice) {
+      const vv = (latestVoice.valence as number) ?? 0;
+      const va = (latestVoice.arousal as number) ?? 0.5;
+      const vs = (latestVoice.stress_from_watch as number) ?? 5;
+      voiceFallback = voiceChakraActivations(vv, va, vs);
+    }
+
     return CHAKRA_INFO.map((c, i) => ({
       name: c.name,
       sanskrit: c.sanskrit,
       meaning: c.meaning,
       wave: c.wave,
-      activation: isStreaming ? activations[i] : 15,
+      activation: isStreaming ? activations[i] : (voiceFallback ? voiceFallback[i] : 15),
       color: CHAKRA_COLORS[c.key],
     }));
-  }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming]);
+  }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming, hasVoice, latestVoice]);
 
   // Meditation depth from meditation model
   const meditationScore = meditation?.meditation_score ?? 0;
@@ -118,7 +162,18 @@ export default function InnerEnergy() {
 
   useEffect(() => {
     if (!isStreaming) {
-      setGuidance("Connect your Muse 2 to begin reading your energy centers from live EEG data.");
+      if (hasVoice && latestVoice) {
+        const emotion = (latestVoice.emotion as string) ?? "neutral";
+        const valence = (latestVoice.valence as number) ?? 0;
+        const voiceGuide = valence > 0.2
+          ? `Voice check-in shows a ${emotion} state with positive energy. ${getGuidance(dominantChakra.name, "—")} Connect EEG for deeper readings.`
+          : valence < -0.1
+          ? `Voice shows a ${emotion} state. Your heart center may benefit from a breathing pause. ${getGuidance("Heart", "—")}`
+          : `Voice baseline captured (${emotion}). ${getGuidance(dominantChakra.name, "—")} Connect Muse 2 for live EEG energy readings.`;
+        setGuidance(voiceGuide);
+      } else {
+        setGuidance("Connect your Muse 2 to begin reading your energy centers from live EEG data.");
+      }
       return;
     }
     const now = Date.now();
@@ -126,7 +181,7 @@ export default function InnerEnergy() {
     guidanceTimerRef.current = now;
     setGuidance(getGuidance(dominantChakra.name, meditationStage));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestFrame?.timestamp]);
+  }, [latestFrame?.timestamp, hasVoice]);
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">
@@ -144,7 +199,9 @@ export default function InnerEnergy() {
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
           <Radio className="h-4 w-4 shrink-0" />
-          Connect your Muse 2 from the sidebar to see live energy data.
+          {hasVoice
+            ? "Showing voice-derived energy estimate. Connect Muse 2 for live EEG chakra readings."
+            : "Connect your Muse 2 from the sidebar to see live energy data."}
         </div>
       )}
 
