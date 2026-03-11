@@ -92,7 +92,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <Sidebar />
 
       {/* md:ml-56 = sidebar width; on mobile sidebar overlays so no margin needed */}
-      <div ref={pullRef} className="md:ml-56 min-h-screen overflow-x-hidden">
+      <main ref={pullRef} className="md:ml-56 min-h-screen overflow-x-hidden" role="main">
         <header
           className="sticky top-0 z-30 border-b pl-14 pr-4 py-3 md:px-6"
           style={{
@@ -144,7 +144,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </motion.div>
           </AnimatePresence>
         </div>
-      </div>
+      </main>
 
       {/* Bottom tab bar — mobile only */}
       <BottomTabs />

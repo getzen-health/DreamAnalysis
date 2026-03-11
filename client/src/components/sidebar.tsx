@@ -132,8 +132,10 @@ export function Sidebar() {
             left: "calc(12px + env(safe-area-inset-left, 0px))",
           }}
           onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={isOpen}
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
       )}
 
@@ -163,7 +165,7 @@ export function Sidebar() {
           </div>
 
           {/* Navigation Sections */}
-          <nav className="flex-1 px-2 pb-4">
+          <nav aria-label="Sidebar navigation" className="flex-1 px-2 pb-4">
             {sections.map((section, si) => (
               <div key={section.title || "main"} className={si > 0 ? "mt-1" : ""}>
                 {section.title && (

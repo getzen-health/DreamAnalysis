@@ -15,6 +15,7 @@ export function BottomTabs() {
 
   return (
     <nav
+      aria-label="Main navigation"
       className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t"
       style={{
         background: "hsl(222, 25%, 6%, 0.92)",
@@ -36,13 +37,15 @@ export function BottomTabs() {
               key={tab.path}
               href={tab.path}
               onClick={() => hapticLight()}
+              aria-current={isActive ? "page" : undefined}
+              aria-label={tab.label}
               className={`flex flex-col items-center justify-center gap-0.5 w-16 py-1 transition-colors ${
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground/60"
               }`}
             >
-              <Icon className={`h-5 w-5 ${isActive ? "text-primary" : ""}`} />
+              <Icon className={`h-5 w-5 ${isActive ? "text-primary" : ""}`} aria-hidden="true" />
               <span className="text-[10px] leading-tight">{tab.label}</span>
             </Link>
           );

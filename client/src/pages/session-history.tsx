@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "wouter";
 import { getParticipantId } from "@/lib/participant";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -373,6 +374,13 @@ export default function DataHub() {
             <Card className="glass-card p-10 text-center">
               <Brain className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No sessions in this period.</p>
+              <p className="text-xs text-muted-foreground/60 mt-1 mb-3">Start a voice check-in or EEG recording to build your history.</p>
+              <Link href="/">
+                <Button size="sm" variant="outline" className="text-xs">
+                  <Activity className="h-3 w-3 mr-1.5" />
+                  Go to Dashboard
+                </Button>
+              </Link>
             </Card>
           )}
 
@@ -649,6 +657,13 @@ export default function DataHub() {
             <Card className="glass-card p-10 text-center">
               <Moon className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No dreams recorded in this period.</p>
+              <p className="text-xs text-muted-foreground/60 mt-1 mb-3">Record your dreams to track patterns and get AI analysis.</p>
+              <Link href="/dreams">
+                <Button size="sm" variant="outline" className="text-xs">
+                  <Moon className="h-3 w-3 mr-1.5" />
+                  Record a Dream
+                </Button>
+              </Link>
             </Card>
           )}
 
@@ -691,6 +706,13 @@ export default function DataHub() {
             <Card className="glass-card p-10 text-center">
               <Heart className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No health data in this period.</p>
+              <p className="text-xs text-muted-foreground/60 mt-1 mb-3">Sync Apple Health or Google Fit to see heart rate, sleep, and activity trends.</p>
+              <Link href="/settings">
+                <Button size="sm" variant="outline" className="text-xs">
+                  <Heart className="h-3 w-3 mr-1.5" />
+                  Go to Settings
+                </Button>
+              </Link>
             </Card>
           )}
 
