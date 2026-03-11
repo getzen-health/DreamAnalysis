@@ -5,9 +5,11 @@ import { NeuralBackground } from "@/components/neural-background";
 import { InterventionBanner } from "@/components/intervention-banner";
 import OfflineSyncBanner from "@/components/offline-sync-banner";
 import { useHealthSync } from "@/hooks/use-health-sync";
+import { usePullRefresh } from "@/hooks/use-pull-refresh";
 import { registerNativePush } from "@/lib/native-push";
 import { useAuth } from "@/hooks/use-auth";
 import { pingBackend } from "@/lib/ml-api";
+import { Loader2 } from "lucide-react";
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -73,6 +75,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return () => clearInterval(id);
   }, [user]);
 
+  const { ref: pullRef, pullDistance, refreshing } = usePullRefresh<HTMLDivElement>();
+
   const pageTitle = routeTitles[location] || "Dashboard";
   const dateStr = currentTime.toLocaleDateString("en-US", {
     weekday: "long",
@@ -86,7 +90,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <Sidebar />
 
       {/* md:ml-56 = sidebar width; on mobile sidebar overlays so no margin needed */}
-      <div className="md:ml-56 min-h-screen overflow-x-hidden">
+      <div ref={pullRef} className="md:ml-56 min-h-screen overflow-x-hidden">
         <header
           className="sticky top-0 z-30 border-b pl-14 pr-4 py-3 md:px-6"
           style={{
@@ -107,6 +111,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
           </div>
         </header>
+
+        {/* Pull-to-refresh indicator */}
+        {(pullDistance > 0 || refreshing) && (
+          <div
+            className="flex items-center justify-center overflow-hidden transition-[height] duration-200"
+            style={{ height: refreshing ? 48 : pullDistance }}
+          >
+            <Loader2
+              className={`h-5 w-5 text-primary ${refreshing ? "animate-spin" : ""}`}
+              style={{
+                opacity: refreshing ? 1 : Math.min(1, pullDistance / 40),
+                transform: `rotate(${pullDistance * 3}deg)`,
+              }}
+            />
+          </div>
+        )}
 
         {/* pb-safe: extra bottom padding on devices with home indicator */}
         <div className="pb-[env(safe-area-inset-bottom,0px)]">
