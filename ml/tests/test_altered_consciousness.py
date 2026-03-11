@@ -104,7 +104,7 @@ def test_api_analyze(client):
 
 
 def test_api_analyze_2ch(client):
-    payload = {"signals": [make_signal(), make_signal(freq=6.0)], "fs": 256.0}
+    payload = {"signals": [make_signal(), make_signal(freq=6.0)], "fs": 256.0, "user_id": "test-user"}
     resp = client.post("/altered-consciousness/analyze", json=payload)
     assert resp.status_code == 200
 
@@ -139,7 +139,7 @@ def test_api_history_after_reset(client):
 
 
 def test_api_processed_at(client):
-    payload = {"signals": [make_signal()]}
+    payload = {"signals": [make_signal()], "user_id": "test-user"}
     resp = client.post("/altered-consciousness/analyze", json=payload)
     assert resp.json()["processed_at"] > 0
 

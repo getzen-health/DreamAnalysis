@@ -2,6 +2,12 @@ server
 node_modules
 .git
 .cache
+android
+ios
+benchmarks
+docs
+.claude
+.worktrees
 *.log
 *.md
 !VERCEL_DEPLOYMENT.md

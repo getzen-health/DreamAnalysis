@@ -20,7 +20,7 @@ describe("ArchitectureGuide page", () => {
     renderWithProviders(<ArchitectureGuide />);
 
     expect(
-      screen.getByText(/Neural Dream Workshop is a wearable EEG research and product platform/i)
+      screen.getByText(/AntarAI is a wearable EEG research and product platform/i)
     ).toBeInTheDocument();
   });
 

@@ -37,13 +37,13 @@ describe("MLWarmupScreen", () => {
   it("renders when status is 'connecting'", () => {
     mockHook(makeState({ status: "connecting" }));
     renderWithProviders(<MLWarmupScreen />);
-    expect(screen.getByText("Neural Dream Workshop")).toBeInTheDocument();
+    expect(screen.getByText("AntarAI")).toBeInTheDocument();
   });
 
   it("renders when status is 'warming'", () => {
     mockHook(makeState({ status: "warming", warmupProgress: 45 }));
     renderWithProviders(<MLWarmupScreen />);
-    expect(screen.getByText("Neural Dream Workshop")).toBeInTheDocument();
+    expect(screen.getByText("AntarAI")).toBeInTheDocument();
   });
 
   it("returns null when status is 'ready'", () => {

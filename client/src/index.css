@@ -375,3 +375,34 @@ html {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ── Android WebView: force readable form inputs ────────────────────────────
+   Older Android WebViews may not support CSS Color Level 4 space-separated
+   hsl() or color-mix() for opacity modifiers on CSS variables.
+   These hardcoded fallbacks guarantee readable text in form controls.
+*/
+.dark input,
+.dark textarea,
+.dark select {
+  color: #e8e0d4 !important;
+  background-color: #161a22 !important;
+  border-color: #2a3040 !important;
+  -webkit-text-fill-color: #e8e0d4 !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #7a8194 !important;
+  -webkit-text-fill-color: #7a8194 !important;
+  opacity: 1 !important;
+}
+
+.dark label {
+  color: #e8e0d4 !important;
+  -webkit-text-fill-color: #e8e0d4 !important;
+}
+
+.dark select option {
+  color: #e8e0d4 !important;
+  background-color: #161a22 !important;
+}

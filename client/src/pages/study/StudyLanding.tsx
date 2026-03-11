@@ -59,7 +59,7 @@ export default function StudyLanding() {
             <Brain className="h-12 w-12 text-primary" />
           </div>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-            Neural Dream Workshop Pilot Study
+            AntarAI Pilot Study
           </h1>
           <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-xl mx-auto">
             We are running a small pilot study to understand how the brain responds to

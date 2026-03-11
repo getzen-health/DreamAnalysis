@@ -1,8 +1,8 @@
-# Competitive Analysis — Neural Dream Workshop (2026)
+# Competitive Analysis — AntarAI (2026)
 
 ## Market Landscape
 
-Consumer brain-computer interface (BCI) and emotion-tracking apps are fragmenting into three lanes: **EEG meditation tools**, **HRV/wearable stress monitors**, and **manual mood-tracking apps**. Neural Dream Workshop is the only product that fuses all three with an ML pipeline and longitudinal emotion tracking.
+Consumer brain-computer interface (BCI) and emotion-tracking apps are fragmenting into three lanes: **EEG meditation tools**, **HRV/wearable stress monitors**, and **manual mood-tracking apps**. AntarAI is the product positioned to fuse all three with an ML pipeline and longitudinal emotion tracking.
 
 ---
 
@@ -123,6 +123,6 @@ Consumer brain-computer interface (BCI) and emotion-tracking apps are fragmentin
 
 ## Positioning Statement
 
-**Neural Dream Workshop** is the only consumer tool that combines real-time EEG, voice biomarkers, and health data into a unified ML pipeline for full-spectrum emotional intelligence tracking — from brain wave to behavior.
+**AntarAI** combines real-time EEG, voice biomarkers, and health data into a unified ML pipeline for full-spectrum emotional intelligence tracking — from brain wave to behavior.
 
 *Not just "how calm are you" — but "why, what triggered it, what helps, and how you're trending over time."*

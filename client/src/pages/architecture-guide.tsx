@@ -349,7 +349,7 @@ export default function ArchitectureGuide() {
         <div className="mt-5 grid gap-6 lg:grid-cols-[1.45fr_0.95fr]">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Neural Dream Workshop is a wearable EEG research and product platform.
+              AntarAI is a wearable EEG research and product platform.
             </h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">
               At its core, this project reads brain activity from a Muse 2 headset and turns it into
@@ -399,7 +399,7 @@ export default function ArchitectureGuide() {
         >
           <div className="space-y-4 text-sm leading-7 text-muted-foreground">
             <p>
-              Neural Dream Workshop is not only a dream journal and not only an EEG dashboard. It is a
+              AntarAI is not only an EEG dashboard. It is a
               full pipeline that starts with wearable brain sensing, processes those signals into
               interpretable features, runs multiple model families, and then surfaces the results in
               pages for daily use, longitudinal tracking, guided studies, and adaptive interventions.
@@ -668,7 +668,7 @@ export default function ArchitectureGuide() {
                 <span className="text-sm font-semibold">Best one-line positioning</span>
               </div>
               <p className="mt-2 text-sm leading-7 text-muted-foreground">
-                Neural Dream Workshop is a consumer-EEG platform that turns brain activity into a
+                AntarAI is a consumer-EEG platform that turns brain activity into a
                 measurable story about emotion, behavior, sleep, and dreams.
               </p>
             </div>

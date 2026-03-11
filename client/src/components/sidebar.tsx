@@ -159,7 +159,7 @@ export function Sidebar() {
               <Brain className="h-4 w-4 text-white" />
             </div>
             <span className="text-base font-semibold text-gradient">
-              Svapnastra
+              AntarAI
             </span>
           </div>
 

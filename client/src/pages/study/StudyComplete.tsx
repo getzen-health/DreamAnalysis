@@ -176,7 +176,7 @@ export default function StudyComplete() {
               <p className="font-semibold">Both sessions complete!</p>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Your data is contributing to brain science. Thank you for participating
-                in the Neural Dream Workshop pilot study.
+                in the AntarAI pilot study.
               </p>
               <Button className="w-full" onClick={exploreApp}>
                 <Compass className="mr-2 h-4 w-4" />

@@ -21,6 +21,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { getParticipantId } from "./participant";
+import { getMLApiUrl } from "./ml-api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -355,16 +356,8 @@ async function requestPermissionsAndroid(): Promise<void> {
 
 // ── Post to ML backend ────────────────────────────────────────────────────────
 
-function getMlApiUrl(): string {
-  try {
-    const stored = localStorage.getItem("ml_backend_url");
-    if (stored?.trim()) return stored.trim().replace(/\/$/, "");
-  } catch { /* SSR */ }
-  return (import.meta.env.VITE_ML_API_URL as string | undefined) ?? "http://localhost:8000";
-}
-
 async function postToBackend(payload: BiometricPayload): Promise<void> {
-  const url = getMlApiUrl();
+  const url = getMLApiUrl();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (url.includes("ngrok")) headers["ngrok-skip-browser-warning"] = "true";
 

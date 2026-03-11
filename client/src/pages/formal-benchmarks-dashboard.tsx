@@ -1,6 +1,6 @@
 import React from "react";
 
-// ─── Neural Dream Workshop — Comprehensive Research Dashboard ──────────────
+// ─── AntarAI — Comprehensive Research Dashboard ──────────────
 // Covers all 21 ML models, 11 EEG datasets, food-emotion module, publishing
 // roadmap, research differentiation, and architecture overview.
 // ──────────────────────────────────────────────────────────────────────────
@@ -830,7 +830,7 @@ export default function FormalBenchmarksDashboard() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(139,92,246,0.18),transparent_55%),radial-gradient(circle_at_80%_0%,rgba(34,211,238,0.14),transparent_50%),radial-gradient(circle_at_50%_100%,rgba(74,222,128,0.10),transparent_60%)]" />
         <div className="relative mx-auto max-w-7xl px-6 py-16">
           <p className="text-xs uppercase tracking-[0.6em] text-white/40">
-            NeuralDreamWorkshop · Research Dashboard
+            AntarAI · Research Dashboard
           </p>
           <h1 className="mt-4 text-5xl font-bold tracking-tight sm:text-6xl">
             Full System Overview
@@ -1315,7 +1315,7 @@ export default function FormalBenchmarksDashboard() {
 
         {/* ── Footer ── */}
         <div className="border-t border-white/8 pt-10 text-center">
-          <p className="text-xs uppercase tracking-[0.5em] text-white/30">Neural Dream Workshop</p>
+          <p className="text-xs uppercase tracking-[0.5em] text-white/30">AntarAI</p>
           <p className="mt-2 text-xs text-white/25">
             17 ML models · 79 API endpoints · 8 EEG datasets · 19 pages · Muse 2 · FastAPI · React · PostgreSQL
           </p>

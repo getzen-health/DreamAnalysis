@@ -992,7 +992,7 @@ function MLBackendCard() {
   }
 
   async function testConnection() {
-    const target = url.trim().replace(/\/$/, "") || "http://localhost:8000";
+    const target = url.trim().replace(/\/$/, "") || "http://localhost:8080";
     setTesting(true);
     setTestResult(null);
     try {
@@ -1005,13 +1005,13 @@ function MLBackendCard() {
     }
   }
 
-  const RENDER_DEFAULT = import.meta.env.VITE_ML_API_URL || "https://neural-dream-ml.onrender.com";
+  const ML_DEFAULT = import.meta.env.VITE_ML_API_URL || "http://localhost:8080";
 
   function resetToDefault() {
     try { localStorage.removeItem("ml_backend_url"); } catch { /* ok */ }
     setUrl("");
     setTestResult(null);
-    toast({ title: "Reset", description: "Using the deployed Render ML backend." });
+    toast({ title: "Reset", description: "Using the default ML backend." });
   }
 
   return (
@@ -1027,14 +1027,14 @@ function MLBackendCard() {
       </p>
 
       <div className="mb-4 p-3 rounded-xl bg-muted/30 border border-border/30 text-xs text-muted-foreground font-mono">
-        Default: {RENDER_DEFAULT}
+        Default: {ML_DEFAULT}
       </div>
 
       <div className="flex gap-2">
         <Input
           value={url}
           onChange={(e) => { setUrl(e.target.value); setTestResult(null); }}
-          placeholder={`Leave blank to use ${RENDER_DEFAULT}`}
+          placeholder={`Leave blank to use ${ML_DEFAULT}`}
           className="flex-1 font-mono text-sm"
         />
         <Button variant="outline" onClick={testConnection} disabled={testing}>
@@ -1062,7 +1062,7 @@ function MLBackendCard() {
         </p>
       )}
       <p className="text-[11px] text-muted-foreground mt-3">
-        Current: <span className="font-mono">{url.trim() || "http://localhost:8000 (default)"}</span>
+        Current: <span className="font-mono">{url.trim() || "http://localhost:8080 (default)"}</span>
       </p>
     </Card>
   );

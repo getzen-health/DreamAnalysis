@@ -25,15 +25,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#2dd4a0" />
-    <meta name="description" content="Svapnastra - Track stress, emotions, food mood, dreams, and breathe your way to calm" />
+    <meta name="description" content="AntarAI - Track emotions, stress, readiness, and recovery from voice, watch, and optional EEG signals" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Svapnastra" />
+    <meta name="apple-mobile-web-app-title" content="AntarAI" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-    <title>Svapnastra</title>
+    <title>AntarAI</title>
     <style>
       /* Prevent white flash on mobile — dark theme is default */
       html, body { background-color: hsl(222, 25%, 6%); color: hsl(38, 20%, 92%); }
@@ -46,9 +46,15 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
+      // Skip service worker on Capacitor native — it intercepts fetch and breaks API calls
+      if ('serviceWorker' in navigator && !window.Capacitor) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      } else if (window.Capacitor && navigator.serviceWorker) {
+        // Unregister any previously registered SW on native
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          for (var r of regs) r.unregister();
         });
       }
     </script>

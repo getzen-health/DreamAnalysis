@@ -95,10 +95,10 @@ export default function PrivacyPolicy() {
         <div>
           <h1 className="text-2xl font-semibold">Privacy Policy</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Neural Dream Workshop &mdash; effective February 2026
+            AntarAI &mdash; effective February 2026
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            Neural Dream Workshop is a wellness and research application. We take your
+            AntarAI is a wellness and research application. We take your
             brainwave data seriously. This policy explains what we collect, why, and how
             you can control it.
           </p>

@@ -1,4 +1,4 @@
-# App Store Listing — Neural Dream Workshop
+# App Store Listing — AntarAI
 
 ## App Name
 Neural Dream
@@ -156,7 +156,7 @@ https://dream-analysis.vercel.app/privacy
 4+ (no objectionable content)
 
 ## Copyright
-© 2026 Neural Dream Workshop
+© 2026 AntarAI
 
 ---
 

@@ -216,13 +216,6 @@ const PLAYLISTS: Playlist[] = [
 
 // ─── Intervention outcome helper ──────────────────────────────────────────────
 
-function getMLApiBase(): string {
-  try {
-    const s = localStorage.getItem("ml_backend_url");
-    if (s?.trim()) return s.trim().replace(/\/$/, "");
-  } catch { /* ignore */ }
-  return (import.meta.env.VITE_ML_API_URL as string | undefined) ?? "http://localhost:8000";
-}
 
 function reportInterventionOutcome(
   userId: string,
@@ -231,7 +224,7 @@ function reportInterventionOutcome(
   focusAfter: number,         // 0-1 scale
   feltHelpful: boolean,
 ) {
-  const base = getMLApiBase();
+  const base = getMLApiUrl();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (base.includes("ngrok")) headers["ngrok-skip-browser-warning"] = "true";
   fetch(`${base}/api/interventions/outcome`, {

@@ -1,7 +1,7 @@
 {
-  "name": "Svapnastra",
-  "short_name": "Svapnastra",
-  "description": "Real-time EEG brain monitoring, emotion tracking, dream analysis, and stress relief",
+  "name": "AntarAI",
+  "short_name": "AntarAI",
+  "description": "Emotion tracking, readiness, recovery, and stress insights from voice, health, and optional EEG",
   "start_url": "/brain-report",
   "display": "standalone",
   "background_color": "#0b0d14",

@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Neural Dream</string>
+        <string>AntarAI</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -50,15 +50,15 @@
 
 	<!-- Bluetooth - Muse 2 headband scanning -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Neural Dream uses Bluetooth to connect to your Muse 2 EEG headband for brain monitoring.</string>
+	<string>AntarAI uses Bluetooth to connect to your Muse 2 EEG headband for brain monitoring.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Neural Dream uses Bluetooth to connect to your Muse 2 EEG headband for brain monitoring.</string>
+	<string>AntarAI uses Bluetooth to connect to your Muse 2 EEG headband for brain monitoring.</string>
 
 	<!-- HealthKit - heart rate, HRV, sleep, steps -->
 	<key>NSHealthShareUsageDescription</key>
-	<string>Neural Dream reads heart rate, HRV, sleep, and steps from Apple Health to enrich brain state analysis when EEG is not connected.</string>
+	<string>AntarAI reads heart rate, HRV, sleep, and steps from Apple Health to enrich brain state analysis when EEG is not connected.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Neural Dream can write mindfulness session data to Apple Health.</string>
+	<string>AntarAI can write mindfulness session data to Apple Health.</string>
 
 	<!-- Background modes for push notifications and data sync -->
 	<key>UIBackgroundModes</key>
@@ -70,6 +70,6 @@
 
 	<!-- Motion - accelerometer during EEG sessions -->
 	<key>NSMotionUsageDescription</key>
-	<string>Neural Dream uses motion data to detect head movement during EEG sessions.</string>
+	<string>AntarAI uses motion data to detect head movement during EEG sessions.</string>
 </dict>
 </plist>

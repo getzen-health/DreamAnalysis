@@ -76,7 +76,7 @@ export default function ResearchEnroll() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2 mb-1">
               <Star className="w-5 h-5 text-violet-400" />
-              <CardTitle className="text-lg">Svapnastra Beta</CardTitle>
+              <CardTitle className="text-lg">AntarAI Beta</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -127,7 +127,7 @@ export default function ResearchEnroll() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2 mb-1">
               <Star className="w-5 h-5 text-violet-400" />
-              <CardTitle className="text-lg">Svapnastra Beta</CardTitle>
+              <CardTitle className="text-lg">AntarAI Beta</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -138,7 +138,7 @@ export default function ResearchEnroll() {
               <div>
                 <h2 className="text-xl font-bold">You're in!</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Welcome to the Svapnastra Beta. Your early access is now active.
+                  Welcome to the AntarAI Beta. Your early access is now active.
                 </p>
               </div>
               <Badge className="bg-violet-600 text-white text-sm px-3 py-1">Beta Member</Badge>
@@ -188,7 +188,7 @@ export default function ResearchEnroll() {
         <CardContent className="space-y-6">
           {/* Hero */}
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold">Join the Svapnastra Beta</h2>
+            <h2 className="text-2xl font-bold">Join the AntarAI Beta</h2>
             <p className="text-sm text-muted-foreground">
               Help improve the models and get early access to new features.
             </p>

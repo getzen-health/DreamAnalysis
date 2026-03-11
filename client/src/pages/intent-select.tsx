@@ -22,7 +22,7 @@ export default function IntentSelect() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="max-w-xl w-full space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">Welcome to Neural Dream Workshop</h1>
+          <h1 className="text-3xl font-bold">Welcome to AntarAI</h1>
           <p className="text-muted-foreground">What brings you here today?</p>
         </div>
 

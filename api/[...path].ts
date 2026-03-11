@@ -91,27 +91,46 @@ function getOpenAIClient(): any {
 const scryptAsync = promisify(scrypt);
 
 // ── Body parser ──────────────────────────────────────────────────────────────
-// Vercel's ESM runtime (triggered by "type":"module" in package.json) does not
-// auto-populate req.body — its getter throws "Invalid JSON" instead of returning
-// the parsed object.  We read the raw Node.js IncomingMessage stream directly.
+// Vercel's runtime has a known bug where req.body throws "Invalid JSON" and the
+// request stream is already consumed. As a workaround, clients send the body
+// base64-encoded in the x-body-b64 header, which bypasses Vercel's broken parser.
 async function parseRequestBody(req: VercelRequest): Promise<unknown> {
-  // Fast path: pre-parsed body already available (CJS runtime or unit tests)
-  try {
-    const b = (req as VercelRequest & { body?: unknown }).body;
-    if (b !== undefined && b !== null) return b;
-  } catch {
-    // getter threw — fall through to stream reading
+  // Strategy 1 (primary): read body from x-body-b64 header
+  const b64 = req.headers['x-body-b64'] as string | undefined;
+  if (b64) {
+    try {
+      const raw = Buffer.from(b64, 'base64').toString('utf8');
+      if (raw) return JSON.parse(raw);
+    } catch { /* fall through */ }
   }
 
-  return new Promise<unknown>((resolve) => {
-    let raw = '';
-    req.on('data', (chunk: Buffer) => { raw += chunk.toString('utf8'); });
-    req.on('end', () => {
-      if (!raw) { resolve({}); return; }
-      try { resolve(JSON.parse(raw)); } catch { resolve({}); }
+  // Strategy 2: direct body access (works on some Vercel runtimes)
+  try {
+    const b = (req as any).body;
+    if (b !== undefined && b !== null) {
+      if (typeof b === 'string' && b.length > 0) {
+        try { return JSON.parse(b); } catch { /* fall through */ }
+      }
+      if (typeof b === 'object' && Object.keys(b as object).length > 0) return b;
+    }
+  } catch { /* getter threw */ }
+
+  // Strategy 3: read stream (fallback)
+  try {
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, 2000);
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => { clearTimeout(timeout); resolve(); });
+      req.on('error', () => { clearTimeout(timeout); resolve(); });
     });
-    req.on('error', () => resolve({}));
-  });
+    if (chunks.length > 0) {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      return JSON.parse(raw);
+    }
+  } catch { /* fall through */ }
+
+  return {};
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -152,7 +171,7 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
     return success(res, { user: safe, token }, 201);
   } catch (err: any) {
     console.error('[authRegister]', err?.message ?? err);
-    return error(res, `Registration failed: ${err?.message ?? 'Unknown error'}`, 500);
+    return error(res, 'Registration failed. Please try again.', 500);
   }
 }
 
@@ -171,7 +190,7 @@ async function authLogin(req: VercelRequest, res: VercelResponse) {
     return success(res, { user: safe, token });
   } catch (err: any) {
     console.error('[authLogin]', err?.message ?? err);
-    return error(res, `Login failed: ${err?.message ?? 'Unknown error'}`, 500);
+    return error(res, 'Login failed. Please try again.', 500);
   }
 }
 
@@ -223,7 +242,7 @@ async function authForgotPassword(req: VercelRequest, res: VercelResponse) {
         });
         try {
           await transporter.sendMail({
-            from: `"Neural Dream Workshop" <${process.env.GMAIL_USER ?? 'lakshmisravya.vedantham@gmail.com'}>`,
+            from: `"AntarAI" <${process.env.GMAIL_USER ?? 'lakshmisravya.vedantham@gmail.com'}>`,
             to: user.email ?? email,
             subject: 'Reset your password',
             text: `Click the link to reset your password (valid 1 hour):\n\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
@@ -272,9 +291,8 @@ async function authResetPassword(req: VercelRequest, res: VercelResponse) {
 
     return success(res, { message: 'Password updated successfully' });
   } catch (err: any) {
-    const msg = err?.message ?? String(err);
-    console.error('[authResetPassword]', msg);
-    return error(res, `Reset failed: ${msg}`, 500);
+    console.error('[authResetPassword]', err?.message ?? err);
+    return error(res, 'Password reset failed. Please try again.', 500);
   }
 }
 
@@ -542,9 +560,9 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
     const records = metrics.flatMap(m => {
       const ts = new Date(m.timestamp).toISOString().replace('T', ' ').slice(0, 19) + ' +0000';
       const rows: string[] = [];
-      if (m.heartRate)    rows.push(`  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Neural Dream Workshop" unit="count/min" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="${m.heartRate}"/>`);
-      if (m.dailySteps)   rows.push(`  <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Neural Dream Workshop" unit="count" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="${m.dailySteps}"/>`);
-      if (m.sleepDuration) rows.push(`  <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Neural Dream Workshop" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="HKCategoryValueSleepAnalysisAsleepCore"/>`);
+      if (m.heartRate)    rows.push(`  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="AntarAI" unit="count/min" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="${m.heartRate}"/>`);
+      if (m.dailySteps)   rows.push(`  <Record type="HKQuantityTypeIdentifierStepCount" sourceName="AntarAI" unit="count" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="${m.dailySteps}"/>`);
+      if (m.sleepDuration) rows.push(`  <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="AntarAI" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="HKCategoryValueSleepAnalysisAsleepCore"/>`);
       return rows;
     });
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE HealthData [\n<!ELEMENT HealthData (Record*)>\n<!ELEMENT Record EMPTY>\n<!ATTLIST Record type CDATA #REQUIRED sourceName CDATA #REQUIRED unit CDATA #IMPLIED creationDate CDATA #REQUIRED startDate CDATA #REQUIRED endDate CDATA #REQUIRED value CDATA #IMPLIED>\n]>\n<HealthData locale="en_US">\n${records.join('\n')}\n</HealthData>`;
@@ -668,7 +686,7 @@ async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
   if (!vapidPublic || !vapidPrivate) return error(res, 'VAPID keys not configured', 503);
 
-  const { userId, title = 'Neural Dream Workshop', body = 'Good morning! Your brain report is ready.', url = '/brain-report' } = req.body;
+  const { userId, title = 'AntarAI', body = 'Good morning! Your brain report is ready.', url = '/brain-report' } = req.body;
 
   const db = getDb();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1245,16 +1263,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS preflight
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-body-b64');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   // Lazy-load all heavy modules (schema, db, openai) before routing to avoid cold-start crash
   await loadModules();
 
   // Parse body early so all route handlers can safely access req.body.
-  // Required because Vercel's ESM runtime doesn't auto-parse JSON bodies.
+  // Vercel's runtime has a bug where req.body getter throws "Invalid JSON" and
+  // the stream is consumed. Use Object.defineProperty to force-override the getter.
   if (['POST', 'PUT', 'PATCH'].includes(req.method || '')) {
-    (req as VercelRequest & { body: unknown }).body = await parseRequestBody(req);
+    const parsed = await parseRequestBody(req);
+    Object.defineProperty(req, 'body', { value: parsed, writable: true, configurable: true });
   }
 
   // Extract path segments from /api/seg0/seg1/...
@@ -1265,7 +1285,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const [s0, s1] = segs;
 
-    if (s0 === 'ping') return res.status(200).json({ ok: true, ts: Date.now() });
+    if (s0 === 'ping' || s0 === 'health') return res.status(200).json({ ok: true, ts: Date.now() });
 
     if (s0 === 'auth') {
       if (s1 === 'register')        return await authRegister(req, res);

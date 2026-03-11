@@ -45,7 +45,7 @@ self.addEventListener("fetch", (event) => {
 // Push notification handling
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
-  const title = data.title || "Neural Dream Workshop";
+  const title = data.title || "AntarAI";
   const options = {
     body: data.body || "Your morning brain report is ready.",
     icon: "/favicon.png",

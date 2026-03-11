@@ -25,11 +25,11 @@ describe("FormalBenchmarksDashboard page", () => {
     });
   });
 
-  it("shows the NeuralDreamWorkshop Research Dashboard label", async () => {
+  it("shows the AntarAI Research Dashboard label", async () => {
     renderWithProviders(<FormalBenchmarksDashboard />);
     await waitFor(() => {
       expect(
-        screen.getByText(/NeuralDreamWorkshop · Research Dashboard/)
+        screen.getByText(/AntarAI · Research Dashboard/)
       ).toBeInTheDocument();
     });
   });

@@ -1,4 +1,26 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { Capacitor } from "@capacitor/core";
+
+const isNative = Capacitor.isNativePlatform();
+
+/**
+ * On native Capacitor apps, relative URLs like /api/auth/register resolve to
+ * file:// which fails. Prefix with the production backend URL.
+ */
+function resolveUrl(url: string): string {
+  if (isNative && url.startsWith("/")) {
+    const base = import.meta.env.VITE_EXPRESS_URL || "https://dream-analysis.vercel.app";
+    return `${base}${url}`;
+  }
+  return url;
+}
+
+/**
+ * On native, credentials: "include" causes CORS failure because the server
+ * returns Access-Control-Allow-Origin: * which is incompatible with credentials.
+ * Native uses JWT tokens via Authorization header instead of cookies.
+ */
+const fetchCredentials: RequestCredentials = isNative ? "omit" : "include";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -26,15 +48,23 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const headers: Record<string, string> = {};
-  if (data) headers["Content-Type"] = "application/json";
   const token = getStoredToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(url, {
+  let body: string | undefined;
+  if (data) {
+    body = JSON.stringify(data);
+    headers["Content-Type"] = "application/json";
+    // Vercel's serverless runtime has a bug where req.body is consumed but
+    // inaccessible. Send body as base64 header as a workaround.
+    headers["x-body-b64"] = btoa(body);
+  }
+
+  const res = await fetch(resolveUrl(url), {
     method,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    body,
+    credentials: fetchCredentials,
   });
 
   await throwIfResNotOk(res);
@@ -50,8 +80,8 @@ export const getQueryFn: <T>(options: {
     const headers: Record<string, string> = {};
     const token = getStoredToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
+    const res = await fetch(resolveUrl(queryKey.join("/") as string), {
+      credentials: fetchCredentials,
       headers,
     });
 

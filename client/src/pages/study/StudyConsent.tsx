@@ -10,9 +10,9 @@ import { AlertCircle, ChevronRight, Shield, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const CONSENT_TEXT = `INFORMED CONSENT — Neural Dream Workshop Pilot Study
+const CONSENT_TEXT = `INFORMED CONSENT — AntarAI Pilot Study
 
-Principal Investigator: Neural Dream Workshop Research Team
+Principal Investigator: AntarAI Research Team
 Version: 1.0
 
 PURPOSE

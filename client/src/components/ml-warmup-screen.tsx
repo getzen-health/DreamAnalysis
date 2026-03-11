@@ -82,7 +82,7 @@ export function MLWarmupScreen({ onSimulationMode }: MLWarmupScreenProps): JSX.E
 
       {/* Title */}
       <h1 className="text-3xl font-bold text-foreground tracking-tight">
-        Neural Dream Workshop
+        AntarAI
       </h1>
 
       {/* Progress bar */}

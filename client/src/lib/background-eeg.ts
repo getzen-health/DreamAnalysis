@@ -29,6 +29,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { getParticipantId } from "./participant";
+import { getMLApiUrl } from "./ml-api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ class BackgroundEegManager {
     if (this._keepAliveInterval) return;
     this._keepAliveInterval = setInterval(async () => {
       try {
-        const mlUrl = localStorage.getItem("ml_backend_url") ?? "http://localhost:8000";
+        const mlUrl = getMLApiUrl();
         await fetch(`${mlUrl}/api/health`, { method: "GET" }).catch(() => {});
       } catch { /* ignore */ }
     }, 5 * 60 * 1000);

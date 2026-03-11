@@ -1,6 +1,6 @@
-# Neural Dream Workshop — Complete Technical & Scientific Guide
+# AntarAI — Complete Technical & Scientific Guide
 
-## Svapnastra: The Brain-Computer Interface Dream Platform
+## AntarAI: The Emotion Intelligence Platform
 
 > *"Animals sense human emotional shifts before we consciously notice them. They read physiological signals that change seconds before conscious awareness. EEG does the same."*
 
@@ -914,7 +914,7 @@ The v8 unified trainer uses a single global PCA fitted on all data — deployabl
 
 ## The Vision
 
-Neural Dream Workshop gives humans abilities that were previously invisible:
+AntarAI gives humans abilities that were previously invisible:
 
 1. **See your emotions before you feel them** — The emotion shift detector catches mood changes 2-8 seconds before conscious awareness. Like having an emotional early warning system.
 
@@ -938,7 +938,7 @@ Neural Dream Workshop gives humans abilities that were previously invisible:
 
 ---
 
-*Neural Dream Workshop — Svapnastra*
+*AntarAI*
 *First-of-its-Kind BCI Dream Platform*
 *5 Sleep Stages. 6 Emotions. 12 ML Models. 111+ API Endpoints.*
 *Bridging neuroscience, machine learning, and human consciousness.*

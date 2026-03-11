@@ -24,6 +24,7 @@ import {
   Brain,
 } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
+import { getMLApiUrl } from "@/lib/ml-api";
 import { triggerSpotifyPlay } from "@/components/spotify-connect";
 
 // ── Shared brain state (module-level) ────────────────────────────────────────
@@ -78,17 +79,6 @@ const PRIORITY_STYLE: Record<number, { border: string; badge: string; icon: stri
   3: { border: "border-blue-500/40",   badge: "bg-blue-500/15 text-blue-300",  icon: "text-blue-400"   },
 };
 
-// ── ML API helpers (local — mirrors ml-api.ts pattern) ────────────────────────
-
-function getMLApiUrl(): string {
-  try {
-    const stored = localStorage.getItem("ml_backend_url");
-    if (stored?.trim()) return stored.trim().replace(/\/$/, "");
-  } catch {
-    /* SSR / private browsing */
-  }
-  return (import.meta.env.VITE_ML_API_URL as string | undefined) ?? "http://localhost:8000";
-}
 
 function extraHeaders(): Record<string, string> {
   const url = getMLApiUrl();

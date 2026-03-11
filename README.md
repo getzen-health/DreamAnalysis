@@ -1,4 +1,4 @@
-# Neural Dream Workshop
+# AntarAI
 
 A brain-computer interface (BCI) web application that reads EEG signals from a Muse 2 headband and uses 16 machine-learning models to classify emotions, detect dreams, stage sleep, measure focus, and more — all visualized in a real-time React dashboard.
 
@@ -47,7 +47,7 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph Root["NeuralDreamWorkshop"]
+    subgraph Root["AntarAI"]
         direction TB
 
         subgraph FE["client/ — React Frontend"]

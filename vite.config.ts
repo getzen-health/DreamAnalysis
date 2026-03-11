@@ -5,15 +5,7 @@ import path from "path";
 export default defineConfig({
   plugins: [
     react(),
-    // @replit/vite-plugin-runtime-error-modal only works on Replit — skip locally
-    ...(process.env.REPL_ID !== undefined
-      ? [
-          (await import("@replit/vite-plugin-runtime-error-modal")).default(),
-          ...(process.env.NODE_ENV !== "production"
-            ? [await import("@replit/vite-plugin-cartographer").then((m) => m.cartographer())]
-            : []),
-        ]
-      : []),
+    // @replit/vite-plugin-runtime-error-modal only works on Replit — removed
   ],
   resolve: {
     alias: {

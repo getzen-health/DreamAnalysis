@@ -232,7 +232,7 @@ function exportAsPng(
 
   ctx.fillStyle = "#6b7280";
   ctx.font = "12px system-ui, sans-serif";
-  ctx.fillText("Neural Dream Workshop — neuralDreamWorkshop.app", 40, H - 18);
+  ctx.fillText("AntarAI", 40, H - 18);
 
   ctx.fillStyle = "#4b5563";
   ctx.font = "12px system-ui, sans-serif";

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.neuraldreamworkshop.app",
-  appName: "Neural Dream",
+  appName: "AntarAI",
   // Vite builds the React app to dist/public
   webDir: "dist/public",
   server: {

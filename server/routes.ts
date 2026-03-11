@@ -6,6 +6,9 @@ import webpush from "web-push";
 import cron from "node-cron";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.SESSION_SECRET || "neural-dream-jwt-secret";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { Pool as NeonPool } from "@neondatabase/serverless";
@@ -151,7 +154,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await new Promise<void>((resolve, reject) =>
         req.session.save(err => (err ? reject(err) : resolve()))
       );
-      return res.status(201).json({ user: newUser });
+      const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, { expiresIn: "30d" });
+      return res.status(201).json({ user: newUser, token });
     } catch (err: any) {
       console.error("Register error:", err);
       return res.status(500).json({ error: "Registration failed." });
@@ -179,7 +183,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.session.save(err => (err ? reject(err) : resolve()))
       );
       const { password: _pw, ...safeUser } = user;
-      return res.json({ user: safeUser });
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "30d" });
+      return res.json({ user: safeUser, token });
     } catch (err) {
       console.error("Login error:", err);
       return res.status(500).json({ error: "Login failed." });
@@ -188,7 +193,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // GET /api/auth/me
   app.get("/api/auth/me", async (req, res) => {
-    const userId = (req.session as any).userId;
+    let userId = (req.session as any).userId;
+    // Fall back to JWT token for native apps (no cookies)
+    if (!userId) {
+      const auth = req.headers.authorization;
+      if (auth?.startsWith("Bearer ")) {
+        try {
+          const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as { userId: string };
+          userId = decoded.userId;
+        } catch { /* invalid token */ }
+      }
+    }
     if (!userId) return res.status(401).json(null);
     try {
       const [user] = await db.select().from(users)
@@ -1621,7 +1636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const subs = await query;
 
       const payload = JSON.stringify({
-        title: title ?? "Neural Dream Workshop",
+        title: title ?? "AntarAI",
         body:  body  ?? "Your morning brain report is ready.",
         url:   url   ?? "/brain-report",
         tag:   "ndw-morning",

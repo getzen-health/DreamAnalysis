@@ -521,7 +521,7 @@ export default function StudyAdmin() {
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">Study Admin</h1>
             <p className="text-sm text-muted-foreground">
-              Neural Dream Workshop pilot study — participant data
+              AntarAI pilot study — participant data
             </p>
           </div>
           <div className="flex items-center gap-2">

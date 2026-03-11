@@ -1,4 +1,4 @@
-# Regulatory Strategy — Neural Dream Workshop (2026)
+# Regulatory Strategy — AntarAI (2026)
 
 ## Decision: Stay Wellness, Build Toward DTx
 

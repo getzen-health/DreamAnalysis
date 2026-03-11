@@ -135,7 +135,7 @@ export default function AuthPage() {
       });
       toast({
         title: 'Account Created',
-        description: 'Welcome to Svapnastra!',
+        description: 'Welcome to AntarAI!',
       });
       await redirectByIntent();
     } catch (err: any) {
@@ -178,7 +178,7 @@ export default function AuthPage() {
             </div>
           </div>
           <h1 className="text-5xl font-futuristic font-bold text-gradient leading-tight">
-            Svapnastra
+            AntarAI
           </h1>
           <p className="text-xl text-foreground/70 leading-relaxed">
             Unlock the secrets of your mind through advanced neural monitoring,
@@ -207,7 +207,7 @@ export default function AuthPage() {
           <CardHeader className="text-center pb-2">
             <div className="flex items-center justify-center space-x-2 mb-4 lg:hidden">
               <Brain className="h-8 w-8 text-primary" />
-              <span className="text-xl font-futuristic font-bold text-gradient">Svapnastra</span>
+              <span className="text-xl font-futuristic font-bold text-gradient">AntarAI</span>
             </div>
             <CardTitle className="text-2xl font-futuristic text-gradient">
               Access Portal
@@ -219,17 +219,19 @@ export default function AuthPage() {
 
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-card/50 border border-primary/10">
+              <TabsList className="grid w-full grid-cols-2 border border-primary/10" style={{ backgroundColor: '#161a22' }}>
                 <TabsTrigger
                   value="login"
-                  className="text-foreground/70 data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
+                  className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
+                  style={{ color: '#b0a898' }}
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Login
                 </TabsTrigger>
                 <TabsTrigger
                   value="register"
-                  className="text-foreground/70 data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
+                  className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
+                  style={{ color: '#b0a898' }}
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
                   Register
@@ -249,7 +251,8 @@ export default function AuthPage() {
                       placeholder="Enter your username"
                       value={loginUsername}
                       onChange={(e) => setLoginUsername(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
+                      className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       autoComplete="username"
                     />
                   </div>
@@ -263,7 +266,8 @@ export default function AuthPage() {
                       placeholder="Enter your password"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
+                      className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       autoComplete="current-password"
                     />
                   </div>
@@ -308,7 +312,8 @@ export default function AuthPage() {
                       placeholder="Choose a username (3+ characters)"
                       value={registerUsername}
                       onChange={(e) => setRegisterUsername(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
+                      className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       autoComplete="username"
                     />
                   </div>
@@ -322,7 +327,8 @@ export default function AuthPage() {
                       placeholder="your@email.com"
                       value={registerEmail}
                       onChange={(e) => setRegisterEmail(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
+                      className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       autoComplete="email"
                     />
                   </div>
@@ -336,7 +342,8 @@ export default function AuthPage() {
                       placeholder="Create a password (6+ characters)"
                       value={registerPassword}
                       onChange={(e) => setRegisterPassword(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
+                      className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       autoComplete="new-password"
                     />
                   </div>
@@ -350,7 +357,8 @@ export default function AuthPage() {
                       placeholder="Confirm your password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
+                      className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       autoComplete="new-password"
                     />
                   </div>
@@ -366,7 +374,8 @@ export default function AuthPage() {
                         min={10} max={120}
                         value={registerAge}
                         onChange={(e) => setRegisterAge(e.target.value)}
-                        className="bg-card/50 border-primary/20 focus:border-primary/50 focus:ring-primary/20 text-foreground"
+                        className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
+                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       />
                     </div>
                     <div className="space-y-2">
@@ -377,7 +386,8 @@ export default function AuthPage() {
                         id="register-device"
                         value={registerDevice}
                         onChange={(e) => setRegisterDevice(e.target.value)}
-                        className="w-full h-10 rounded-md border border-primary/20 bg-card/50 px-3 text-sm focus:outline-none focus:border-primary/50 text-foreground"
+                        className="w-full h-10 rounded-md border border-primary/20 px-3 text-sm focus:outline-none focus:border-primary/50"
+                        style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       >
                         <option value="muse_2">Muse 2</option>
                         <option value="muse_s">Muse S</option>

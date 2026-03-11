@@ -40,7 +40,7 @@ describe("ResearchEnroll page — sign-up form (not enrolled)", () => {
 
   it("shows the Join the Beta heading", () => {
     renderWithProviders(<ResearchEnroll />);
-    expect(screen.getByText("Join the Svapnastra Beta")).toBeInTheDocument();
+    expect(screen.getByText("Join the AntarAI Beta")).toBeInTheDocument();
   });
 
   it("shows the 'What you contribute' section", () => {
@@ -131,6 +131,6 @@ describe("ResearchEnroll page — already enrolled (localStorage stub)", () => {
     // The top-level mock still resolves getStudyCode() → null for safety.
     // This test just confirms the form path renders correctly.
     renderWithProviders(<ResearchEnroll />);
-    expect(screen.getByText("Join the Svapnastra Beta")).toBeInTheDocument();
+    expect(screen.getByText("Join the AntarAI Beta")).toBeInTheDocument();
   });
 });
