@@ -1,5 +1,6 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryCache, QueryFunction } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
+import { toast } from "@/hooks/use-toast";
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -93,7 +94,33 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+// Throttle error toasts so rapid failures don't spam the user
+let lastErrorToastMs = 0;
+
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      const now = Date.now();
+      if (now - lastErrorToastMs < 5000) return; // 5s cooldown
+      lastErrorToastMs = now;
+
+      const status = (error as any)?.status as number | undefined;
+      if (status === 401) return; // auth errors handled by ProtectedRoute
+
+      const queryName = Array.isArray(query.queryKey)
+        ? String(query.queryKey[0])
+        : "data";
+
+      toast({
+        title: "Failed to load " + queryName,
+        description:
+          status === 0 || !status
+            ? "Check your internet connection."
+            : `Server returned ${status}. Pull down to retry.`,
+        variant: "destructive",
+      });
+    },
+  }),
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
