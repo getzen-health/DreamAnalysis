@@ -23,10 +23,7 @@ import {
   Star,
   Music,
   Heart,
-  Mic,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { useDevice } from "@/hooks/use-device";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import type { BiometricPayload } from "@/lib/health-sync";
@@ -335,9 +332,6 @@ export default function Dashboard() {
   const { latestPayload } = useHealthSync();
   const healthState = !isStreaming && latestPayload ? deriveHealthState(latestPayload) : null;
 
-  // Voice emotion fallback — active when no EEG streaming
-  const voiceEmotion = useVoiceEmotion();
-
   // Extract live data
   const emotions = analysis?.emotions;
   const emotionShift = latestFrame?.emotion_shift;
@@ -496,56 +490,16 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Voice emotion card — shown when no EEG streaming */}
-      {!isStreaming && (
-        <div className="rounded-xl border p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Emotion via Voice</p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={voiceEmotion.startRecording}
-              disabled={voiceEmotion.isRecording || voiceEmotion.isAnalyzing}
-              className="gap-1.5 text-xs h-7"
-            >
-              <Mic className="w-3 h-3" />
-              {voiceEmotion.isRecording
-                ? "Recording…"
-                : voiceEmotion.isAnalyzing
-                ? "Analyzing…"
-                : "Tap to Detect"}
-            </Button>
-          </div>
-          {voiceEmotion.lastResult ? (
-            <div className="text-sm">
-              <span className="font-semibold capitalize">
-                {voiceEmotion.lastResult.emotion}
-              </span>
-              <span className="text-muted-foreground ml-2">
-                valence {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}
-                {voiceEmotion.lastResult.valence.toFixed(2)} ·{" "}
-                {Math.round(voiceEmotion.lastResult.confidence * 100)}% confidence
-              </span>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Tap to detect emotion via microphone. Voice and health power the main daily flow.
-            </p>
-          )}
-        </div>
-      )}
-
       {/* Voice micro check-in */}
       <VoiceCheckinCard userId={USER_ID} />
 
       {/* Daily streak tracker */}
       <StreakCard userId={USER_ID} />
 
-      {/* Weekly stress landscape */}
-      {(() => {
+      {/* Weekly stress landscape — only shown after user has session data */}
+      {totalSessions > 0 && (() => {
         const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
         const baseStress = (stressIndex ?? 0) / 100;
-        // Generate plausible weekly pattern seeded from current stress level
         const cells: HeatmapCell[] = [];
         for (const day of DAYS) {
           const dayMod = day === "Sat" || day === "Sun" ? -0.15 : 0.05;
@@ -576,21 +530,23 @@ export default function Dashboard() {
         </Link>
       )}
 
-      {/* 3. Capability Badges — always visible */}
-      <div className="mb-2">
-        <h3 className="text-sm font-medium text-muted-foreground mb-2">Active ML Models</h3>
-        <div className="flex flex-wrap gap-2">
-          {[
-            "Sleep", "Emotion", "Flow", "Creativity", "Spiritual", "Lucid Dream",
-            "Stress", "Focus", "Cognitive Load", "Attention", "Drowsiness", "Meditation",
-            "Memory", "Artifact", "Denoising", "Online Learning",
-          ].map((model) => (
-            <Badge key={model} variant="secondary" className="text-xs">
-              {model}
-            </Badge>
-          ))}
+      {/* 3. Capability Badges — shown after user has some data */}
+      {totalSessions > 0 && (
+        <div className="mb-2">
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">Active ML Models</h3>
+          <div className="flex flex-wrap gap-2">
+            {[
+              "Sleep", "Emotion", "Flow", "Creativity", "Spiritual", "Lucid Dream",
+              "Stress", "Focus", "Cognitive Load", "Attention", "Drowsiness", "Meditation",
+              "Memory", "Artifact", "Denoising", "Online Learning",
+            ].map((model) => (
+              <Badge key={model} variant="secondary" className="text-xs">
+                {model}
+              </Badge>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 4. Last Session Snapshot — always visible */}
       {sessionsLoading ? (
@@ -874,8 +830,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 4. Brain State — single clear card showing stress + emotion */}
-      {(() => {
+      {/* 4. Brain State — only shown when streaming EEG or health data connected */}
+      {(isStreaming || healthState) && (() => {
         const stress = Math.round(stressIndex);
         const focus  = Math.round(focusIndex);
         const flow   = Math.round(flowScore);
@@ -1036,8 +992,8 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* 5. Brain-Health Insights */}
-      <div className="grid grid-cols-1 gap-4">
+      {/* 5. Brain-Health Insights — hidden for brand-new users */}
+      {(totalSessions > 0 || insightsLoading || (healthInsights && healthInsights.length > 0)) && <div className="grid grid-cols-1 gap-4">
         <Card className="glass-card p-5 hover-glow">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="h-4 w-4 text-accent" />
@@ -1088,7 +1044,7 @@ export default function Dashboard() {
             </div>
           )}
         </Card>
-      </div>
+      </div>}
 
       {/* 6. Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">

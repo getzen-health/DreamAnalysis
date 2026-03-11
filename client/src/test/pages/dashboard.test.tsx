@@ -43,30 +43,6 @@ describe("Dashboard page", () => {
     renderWithProviders(<Dashboard />);
   });
 
-  it("shows the Brain-Health Insights section", () => {
-    renderWithProviders(<Dashboard />);
-    expect(screen.getByText("Brain-Health Insights")).toBeInTheDocument();
-  });
-
-  it("shows the Brain-Health Insights heading", () => {
-    renderWithProviders(<Dashboard />);
-    // Confirm heading (not the same element as the section card checked above)
-    expect(screen.getAllByText("Brain-Health Insights").length).toBeGreaterThan(0);
-  });
-
-  it("shows Brain State Now card", () => {
-    renderWithProviders(<Dashboard />);
-    expect(screen.getByText("Brain State Now")).toBeInTheDocument();
-  });
-
-  it("shows key health metric labels", () => {
-    renderWithProviders(<Dashboard />);
-    expect(screen.getByText("Stress")).toBeInTheDocument();
-    expect(screen.getByText("Focus")).toBeInTheDocument();
-    expect(screen.getByText("Flow")).toBeInTheDocument();
-    expect(screen.getByText("Creativity")).toBeInTheDocument();
-  });
-
   it("shows all four quick action cards", () => {
     renderWithProviders(<Dashboard />);
     expect(screen.getByText("Daily Report")).toBeInTheDocument();
@@ -82,19 +58,30 @@ describe("Dashboard page", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows empty state for Brain-Health Insights when no data", async () => {
+  // Progressive disclosure: advanced sections hidden for new users with 0 sessions
+  it("hides ML model badges for new users with no sessions", async () => {
     renderWithProviders(<Dashboard />);
     await waitFor(() => {
-      expect(
-        screen.getByText(/Insights appear after a few days of data/)
-      ).toBeInTheDocument();
+      expect(screen.queryByText("Active ML Models")).not.toBeInTheDocument();
     });
   });
 
-  it("shows empty state when not streaming", () => {
+  it("hides Brain State Now card when not streaming and no health data", () => {
     renderWithProviders(<Dashboard />);
-    expect(
-      screen.getByText(/Tap to detect emotion via microphone\. Voice and health power the main daily flow\./)
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Brain State Now")).not.toBeInTheDocument();
+  });
+
+  it("hides Brain-Health Insights for new users with no sessions", async () => {
+    renderWithProviders(<Dashboard />);
+    await waitFor(() => {
+      expect(screen.queryByText("Brain-Health Insights")).not.toBeInTheDocument();
+    });
+  });
+
+  it("hides Weekly Stress Landscape for new users with no sessions", async () => {
+    renderWithProviders(<Dashboard />);
+    await waitFor(() => {
+      expect(screen.queryByText("Weekly Stress Landscape")).not.toBeInTheDocument();
+    });
   });
 });
