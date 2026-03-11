@@ -29,6 +29,7 @@ import CalibrationPage from "@/pages/calibration";
 import DailyBrainReport from "@/pages/daily-brain-report";
 import Onboarding from "@/pages/onboarding";
 import OnboardingNew from "@/pages/onboarding-new";
+import WelcomeIntro from "@/pages/welcome-intro";
 import NotFound from "@/pages/not-found";
 
 // ── Intent selection page — lazy loaded ────────────────────────────────────
@@ -103,8 +104,9 @@ class ErrorBoundary extends Component<
 // Minimal fallback shown while a lazy chunk loads
 function PageLoader() {
   return (
-    <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground text-sm">
-      Loading…
+    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      <p className="text-sm text-muted-foreground">Loading…</p>
     </div>
   );
 }
@@ -232,6 +234,7 @@ function AppRoutes() {
       <Route path="/study/profile"><StudyProfile /></Route>
       <Route path="/study"><StudyLanding /></Route>
       {/* Fullscreen onboarding — no sidebar */}
+      <Route path="/welcome-intro" component={WelcomeIntro} />
       <Route path="/onboarding" component={Onboarding} />
       {/* Intent selection — study vs explore, shown after first login */}
       <Route path="/intent">
@@ -262,7 +265,7 @@ function AppRoutes() {
   );
 }
 
-const PUBLIC_ROUTES = new Set(["/auth", "/forgot-password", "/reset-password", "/welcome", "/onboarding-new"]);
+const PUBLIC_ROUTES = new Set(["/auth", "/forgot-password", "/reset-password", "/welcome", "/welcome-intro", "/onboarding-new"]);
 
 function App() {
   const [warmupDismissed, setWarmupDismissed] = useState(false);
