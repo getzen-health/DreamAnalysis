@@ -107,7 +107,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-lg font-semibold text-foreground">
-                {getGreeting()}
+                {getGreeting()}{user ? `, ${user.username}` : ""}
               </h1>
               <p className="text-xs text-muted-foreground">
                 {pageTitle} &middot; {dateStr}
