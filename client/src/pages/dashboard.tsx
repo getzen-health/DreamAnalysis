@@ -39,6 +39,7 @@ import {
 } from "@/lib/ml-api";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { StreakCard } from "@/components/streak-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import EmotionLandscape, { type HeatmapCell } from "@/components/emotion-landscape";
 
 /* ---------- helpers ---------- */
@@ -413,7 +414,7 @@ export default function Dashboard() {
   }, [latestFrame?.timestamp]);
 
   // --- Health insights query ---
-  const { data: healthInsights } = useQuery<HealthInsight[]>({
+  const { data: healthInsights, isLoading: insightsLoading } = useQuery<HealthInsight[]>({
     queryKey: ["health", "insights", USER_ID],
     queryFn: () => getHealthInsights(USER_ID),
     retry: false,
@@ -430,7 +431,7 @@ export default function Dashboard() {
   const baselineReady = baselineStatus?.ready ?? true; // optimistic: hide banner until data loads
 
   // --- Sessions for Yesterday's Insight + Personal Records ---
-  const { data: allSessions = [] } = useQuery<SessionSummary[]>({
+  const { data: allSessions = [], isLoading: sessionsLoading } = useQuery<SessionSummary[]>({
     queryKey: ["sessions"],
     queryFn: () => listSessions(),
     retry: false,
@@ -592,7 +593,24 @@ export default function Dashboard() {
       </div>
 
       {/* 4. Last Session Snapshot — always visible */}
-      {lastSession ? (
+      {sessionsLoading ? (
+        <Card className="glass-card hover-glow">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <Skeleton className="h-4 w-40 mb-1" />
+            <Skeleton className="h-3 w-24" />
+          </CardHeader>
+          <CardContent className="px-5 pb-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                  <Skeleton className="h-6 w-12 mx-auto mb-1" />
+                  <Skeleton className="h-2.5 w-10 mx-auto" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : lastSession ? (
         <Card className="glass-card hover-glow">
           <CardHeader className="pb-2 pt-4 px-5">
             <CardTitle className="text-sm font-semibold">Last Session Snapshot</CardTitle>
@@ -676,7 +694,38 @@ export default function Dashboard() {
       )}
 
       {/* 3. Yesterday's Insight + Personal Records */}
-      {(lastInsight || sessionsWithData.length > 0) && (
+      {sessionsLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Card className="glass-card p-4">
+            <div className="flex items-start gap-3">
+              <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-5 w-20 rounded-full" />
+              </div>
+            </div>
+          </Card>
+          <Card className="glass-card p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div>
+                    <Skeleton className="h-5 w-12 mb-1" />
+                    <Skeleton className="h-2.5 w-16" />
+                  </div>
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      ) : (lastInsight || sessionsWithData.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Yesterday's Insight */}
           {lastInsight && lastSession && (
@@ -995,7 +1044,18 @@ export default function Dashboard() {
             <h3 className="text-sm font-medium">Brain-Health Insights</h3>
           </div>
 
-          {!healthInsights || healthInsights.length === 0 || healthInsights[0]?.insight_type === "info" ? (
+          {insightsLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-3 rounded-xl bg-muted/50 border border-border">
+                  <Skeleton className="h-4 w-48 mb-2" />
+                  <Skeleton className="h-3 w-full mb-1" />
+                  <Skeleton className="h-3 w-2/3 mb-2" />
+                  <Skeleton className="h-4 w-28 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : !healthInsights || healthInsights.length === 0 || healthInsights[0]?.insight_type === "info" ? (
             <div className="py-6 flex flex-col items-center text-sm text-muted-foreground gap-2">
               <Brain className="h-8 w-8 text-muted-foreground/40" />
               <p>Insights appear after a few days of data</p>
