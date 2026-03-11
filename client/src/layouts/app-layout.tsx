@@ -1,5 +1,6 @@
 import { useState, useEffect, ReactNode } from "react";
 import { useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
 import { Sidebar } from "@/components/sidebar";
 import { NeuralBackground } from "@/components/neural-background";
 import { InterventionBanner } from "@/components/intervention-banner";
@@ -130,7 +131,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
         {/* pb-safe: extra bottom padding on devices with home indicator */}
         <div className="pb-[env(safe-area-inset-bottom,0px)]">
-          {children}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
 
