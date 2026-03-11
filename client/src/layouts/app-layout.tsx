@@ -10,8 +10,9 @@ import { useHealthSync } from "@/hooks/use-health-sync";
 import { usePullRefresh } from "@/hooks/use-pull-refresh";
 import { registerNativePush } from "@/lib/native-push";
 import { useAuth } from "@/hooks/use-auth";
+import { useTheme } from "@/hooks/use-theme";
 import { pingBackend } from "@/lib/ml-api";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sun, Moon } from "lucide-react";
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -78,6 +79,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, [user]);
 
   const { ref: pullRef, pullDistance, refreshing } = usePullRefresh<HTMLDivElement>();
+  const { theme, setTheme } = useTheme();
 
   const pageTitle = routeTitles[location] || "Dashboard";
   const dateStr = currentTime.toLocaleDateString("en-US", {
@@ -111,6 +113,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {pageTitle} &middot; {dateStr}
               </p>
             </div>
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
           </div>
         </header>
 
