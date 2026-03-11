@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import Dashboard from "@/pages/dashboard";
 
@@ -30,6 +30,7 @@ vi.mock("wouter", () => ({
 
 vi.mock("@/lib/ml-api", () => ({
   getHealthInsights: vi.fn().mockResolvedValue([]),
+  getBaselineStatus: vi.fn().mockResolvedValue({ ready: true }),
   listSessions: vi.fn().mockResolvedValue([]),
 }));
 
@@ -81,11 +82,13 @@ describe("Dashboard page", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows empty state for Brain-Health Insights when no data", () => {
+  it("shows empty state for Brain-Health Insights when no data", async () => {
     renderWithProviders(<Dashboard />);
-    expect(
-      screen.getByText(/Insights appear after a few days of data/)
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Insights appear after a few days of data/)
+      ).toBeInTheDocument();
+    });
   });
 
   it("shows empty state when not streaming", () => {
