@@ -8,7 +8,10 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.SESSION_SECRET || "neural-dream-jwt-secret";
+const JWT_SECRET = process.env.SESSION_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") throw new Error("SESSION_SECRET must be set in production");
+  return "neural-dream-dev-only-secret";
+})();
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { Pool as NeonPool } from "@neondatabase/serverless";
@@ -113,7 +116,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.use(session({
     store,
-    secret: process.env.SESSION_SECRET ?? "svapnastra-dev-secret-change-in-prod",
+    secret: process.env.SESSION_SECRET ?? (() => {
+      if (process.env.NODE_ENV === "production") throw new Error("SESSION_SECRET must be set in production");
+      return "svapnastra-dev-only-secret";
+    })(),
     resave: false,
     saveUninitialized: false,
     cookie: {

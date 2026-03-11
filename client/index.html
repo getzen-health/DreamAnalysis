@@ -1,27 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
   <head>
-    <!-- Datadog Browser RUM — replace YOUR_APPLICATION_ID and YOUR_CLIENT_TOKEN with values
-         from Datadog > UX Monitoring > RUM Applications before this activates. -->
-    <script>
-      (function(h,o,u,n,d) {
-        h=h[d]=h[d]||{q:[],onReady:function(c){h.q.push(c)}}
-        d=o.createElement(u);d.async=1;d.src=n
-        n=o.getElementsByTagName(u)[0];n.parentNode.insertBefore(d,n)
-      })(window,document,'script','https://www.datadoghq-browser-agent.com/us1/v5/datadog-rum.js','DD_RUM')
-      window.DD_RUM.onReady(function() {
-        window.DD_RUM.init({
-          applicationId: 'YOUR_APPLICATION_ID',
-          clientToken: 'YOUR_CLIENT_TOKEN',
-          site: 'datadoghq.com',
-          service: 'neural-dream-workshop',
-          env: 'production',
-          trackUserInteractions: true,
-          trackResources: true,
-          defaultPrivacyLevel: 'mask-user-input',
-        });
-      });
-    </script>
+    <!-- Datadog RUM is initialized via main.tsx using VITE_DD_* env vars -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#2dd4a0" />

@@ -126,4 +126,5 @@ async def _start_background_tasks():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("ML_PORT", "8000"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    is_dev = os.environ.get("ENV", "production") == "dev"
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=is_dev)
