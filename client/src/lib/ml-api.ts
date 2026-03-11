@@ -361,21 +361,6 @@ class NonRetryableError extends Error {
   }
 }
 
-/** Extracts the FastAPI error detail from a non-ok response and throws. */
-async function throwFromResponse(response: Response): Promise<never> {
-  try {
-    const body = await response.clone().json();
-    const detail = body?.detail;
-    if (typeof detail === "string") throw new Error(detail);
-    if (Array.isArray(detail)) {
-      throw new Error(detail.map((d: { msg?: string }) => d.msg).join("; "));
-    }
-  } catch (parseErr) {
-    if (parseErr instanceof Error && parseErr.message !== "") throw parseErr;
-  }
-  throw new Error(`Request failed (${response.status})`);
-}
-
 async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
   let lastError: Error = new Error("mlFetch: no attempts made");
 

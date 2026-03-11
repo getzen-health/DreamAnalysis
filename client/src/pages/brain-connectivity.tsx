@@ -185,7 +185,6 @@ export default function BrainConnectivity() {
               <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${result.connectivity_matrix.length}, 1fr)` }}>
                 {result.connectivity_matrix.map((row, i) =>
                   row.map((val, j) => {
-                    const intensity = Math.round(val * 255);
                     const bg = i === j
                       ? "rgb(50,50,50)"
                       : `rgb(${Math.round(68 + val * 185)},${Math.round(1 + val * 230)},${Math.round(84 - val * 47)})`;

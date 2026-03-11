@@ -21,8 +21,6 @@ const RECORD_SECONDS = 30;
 const SAMPLE_RATE    = 22050;
 const EMOTIONS = ["happy", "sad", "angry", "fear", "surprise", "neutral"] as const;
 
-type EmotionLabel = (typeof EMOTIONS)[number];
-
 const EMOTION_COLOR: Record<string, string> = {
   happy:    "text-green-400",
   sad:      "text-blue-400",

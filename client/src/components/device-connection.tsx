@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Wifi, WifiOff, Radio, Activity, Settings, Terminal, Wand2 } from "lucide-react";
+import { Wifi, WifiOff, Radio, Activity, Terminal, Wand2 } from "lucide-react";
 import { type DeviceState, type UseDeviceReturn } from "@/hooks/use-device";
 import { Link, useLocation } from "wouter";
 
@@ -45,8 +45,6 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
     selectedDevice,
     deviceStatus,
     error,
-    brainflowAvailable,
-    devicesLoaded,
     refreshDevices,
     connect,
     disconnect,

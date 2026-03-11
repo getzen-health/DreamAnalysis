@@ -5,7 +5,7 @@
  * EEG is checkpointed to DB every 30 seconds.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -160,7 +160,7 @@ export default function StudySession() {
   const [blockType, setBlockType] = useState<BlockType | null>(preBlock);
   const [phase, setPhase] = useState<Phase>(preBlock ? "muse-pair" : "block-pick");
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [useSimulation, setUseSimulation] = useState(false);
+  const [useSimulation, _setUseSimulation] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [eegActive, setEegActive] = useState(false);
   const [backendReady, setBackendReady] = useState<boolean | null>(null);

@@ -20,7 +20,6 @@ import {
   BarChart2,
   History,
   MessageCircle,
-  Leaf,
   CalendarDays,
   Bluetooth,
   Trophy,

@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChartTooltip } from "@/components/chart-tooltip";
 import { Card } from "@/components/ui/card";
 import {
   AreaChart,

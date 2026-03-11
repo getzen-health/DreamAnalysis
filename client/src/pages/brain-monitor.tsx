@@ -32,7 +32,7 @@ export default function BrainMonitor() {
 
   const [wavelet, setWavelet] = useState<WaveletResult | null>(null);
   const anomaly = (latestFrame?.analysis as { anomaly?: AnomalyResult } | undefined)?.anomaly ?? null;
-  const [isRecording, setIsRecording] = useState(false);
+  const [_isRecording, setIsRecording] = useState(false);
   const waveletTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const analysis = latestFrame?.analysis;

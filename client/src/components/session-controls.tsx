@@ -20,7 +20,7 @@ export function SessionControls({ onRecordingChange }: SessionControlsProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [sessionType, setSessionType] = useState("general");
   const [elapsed, setElapsed] = useState(0);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [_sessionId, setSessionId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {

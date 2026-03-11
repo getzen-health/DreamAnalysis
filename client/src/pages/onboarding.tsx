@@ -57,8 +57,8 @@ export default function Onboarding() {
 
   const [phase, setPhase] = useState<Phase>("intro");
   const [nFrames, setNFrames] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  const [isReady, setIsReady] = useState(false);
+  const [_elapsed, setElapsed] = useState(0);
+  const [_isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 

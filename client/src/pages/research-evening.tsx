@@ -128,7 +128,7 @@ export default function ResearchEvening() {
   const [, navigate] = useLocation();
 
   const [dayValence,     setDayValence]     = useState(5);
-  const [dayArousal,     setDayArousal]     = useState(5);
+  const [dayArousal,     _setDayArousal]     = useState(5);
   const [stressNow,      setStressNow]      = useState(5);
   const [peakIntensity,  setPeakIntensity]  = useState(5);
   const [peakDirection,  setPeakDirection]  = useState<"positive" | "negative" | null>(null);

@@ -77,7 +77,6 @@ async function pullAppleHealth(userId: string): Promise<BiometricPayload> {
   const { CapacitorHealthkit } = await import("@perfood/capacitor-healthkit");
 
   const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
   const fmt = (d: Date) => d.toISOString();

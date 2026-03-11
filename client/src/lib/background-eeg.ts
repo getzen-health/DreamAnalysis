@@ -47,10 +47,6 @@ export interface BackgroundEegStatus {
 /** Background task identifier — must match Info.plist BGTaskSchedulerPermittedIdentifiers */
 const BACKGROUND_TASK_ID = "com.neuraldreamworkshop.eeg-flush";
 
-/** Label shown in Android foreground service notification */
-const FOREGROUND_NOTIFICATION_TITLE = "Neural Dream — Sleep Recording";
-const FOREGROUND_NOTIFICATION_BODY  = "EEG monitoring active. Tap to open.";
-
 // ── Web Wake Lock ─────────────────────────────────────────────────────────────
 
 let _wakeLock: WakeLockSentinel | null = null;

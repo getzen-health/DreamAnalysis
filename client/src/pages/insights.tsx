@@ -24,10 +24,8 @@ import {
   Lightbulb,
   Bed,
   Radio,
-  Zap,
   Wind,
   Target,
-  ArrowRight,
   Activity,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";

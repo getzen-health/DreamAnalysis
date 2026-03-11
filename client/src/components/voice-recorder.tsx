@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Square } from "lucide-react";
+import { Mic, MicOff } from "lucide-react";
 
 interface VoiceRecorderProps {
   onTranscript: (text: string) => void;

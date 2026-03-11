@@ -309,13 +309,6 @@ function useDeviceInternal(): UseDeviceReturn {
     };
   }, []);
 
-  // Minimum static device list — always shown when backend returns empty or is unreachable
-  const STATIC_DEVICES: DeviceInfo[] = [
-    { type: "muse_2",    name: "Muse 2",           channels: 4,  sample_rate: 256, available: true },
-    { type: "muse_s",    name: "Muse S",            channels: 4,  sample_rate: 256, available: true },
-    { type: "synthetic", name: "Synthetic (demo)",  channels: 16, sample_rate: 256, available: true },
-  ];
-
   // Muse devices connect via Web Bluetooth — they MUST always appear in the list
   // regardless of whether the ML backend or BrainFlow is available.
   const MUSE_DEVICES: DeviceInfo[] = [

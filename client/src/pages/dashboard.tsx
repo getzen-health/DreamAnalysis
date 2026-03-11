@@ -339,8 +339,6 @@ export default function Dashboard() {
 
   // Extract live data
   const emotions = analysis?.emotions;
-  const bandPowers = analysis?.band_powers ?? {};
-  const sleepStaging = analysis?.sleep_staging;
   const emotionShift = latestFrame?.emotion_shift;
 
   // Live metrics from analysis sub-objects

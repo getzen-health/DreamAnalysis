@@ -18,14 +18,14 @@ import { Pool as NeonPool } from "@neondatabase/serverless";
 import SpotifyWebApi from "spotify-web-api-node";
 import nodemailer from "nodemailer";
 import {
-  insertHealthMetricsSchema, insertDreamAnalysisSchema, insertAiChatSchema,
+  insertHealthMetricsSchema,
   insertUserSettingsSchema, insertEmotionReadingSchema,
   studyParticipants, studySessions, studyMorningEntries,
   studyDaytimeEntries, studyEveningEntries, foodLogs,
   users, pushSubscriptions,
   pilotParticipants, pilotSessions,
   passwordResetTokens,
-  eegSessions, healthMetrics, healthSamples,
+  healthMetrics, healthSamples,
 } from "@shared/schema";
 import { db } from "./db";
 import { emotionReadings } from "@shared/schema";
@@ -487,7 +487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mood analysis endpoint
   app.post("/api/analyze-mood", async (req, res) => {
     try {
-      const { text, userId } = req.body;
+      const { text } = req.body;
 
       if (!text || typeof text !== "string") {
         return res.status(400).json({ message: "text is required" });
@@ -549,8 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/export/:userId", async (req, res) => {
     try {
       const metrics = await storage.getHealthMetrics(req.params.userId);
-      const dreams = await storage.getDreamAnalyses(req.params.userId);
-      
+
       // Convert to CSV format
       const csvData = metrics.map(m => ({
         timestamp: m.timestamp,

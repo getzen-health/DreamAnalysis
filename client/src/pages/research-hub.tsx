@@ -74,12 +74,6 @@ const MACRO_COLOR: Record<string, string> = {
   balanced: "text-green-400",
 };
 
-const GI_BADGE: Record<string, string> = {
-  low: "border-green-500/40 text-green-400 bg-green-500/10",
-  medium: "border-amber-500/40 text-amber-400 bg-amber-500/10",
-  high: "border-rose-500/40 text-rose-400 bg-rose-500/10",
-};
-
 function valenceEmoji(v: number | null) {
   if (v === null) return "—";
   if (v <= 3) return "😞";
