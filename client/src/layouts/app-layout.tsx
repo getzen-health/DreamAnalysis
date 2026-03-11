@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/sidebar";
 import { NeuralBackground } from "@/components/neural-background";
 import { InterventionBanner } from "@/components/intervention-banner";
 import OfflineSyncBanner from "@/components/offline-sync-banner";
+import { BottomTabs } from "@/components/bottom-tabs";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { usePullRefresh } from "@/hooks/use-pull-refresh";
 import { registerNativePush } from "@/lib/native-push";
@@ -129,8 +130,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
         )}
 
-        {/* pb-safe: extra bottom padding on devices with home indicator */}
-        <div className="pb-[env(safe-area-inset-bottom,0px)]">
+        {/* pb-safe: extra bottom padding on devices with home indicator + bottom tab bar on mobile */}
+        <div className="pb-[calc(env(safe-area-inset-bottom,0px)+3.5rem)] md:pb-[env(safe-area-inset-bottom,0px)]">
           <AnimatePresence mode="wait">
             <motion.div
               key={location}
@@ -145,6 +146,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
       </div>
 
+      {/* Bottom tab bar — mobile only */}
+      <BottomTabs />
       {/* Real-time intervention notifications — floats above all content */}
       <InterventionBanner />
       {/* Offline indicator + auto-sync when connection restores */}
