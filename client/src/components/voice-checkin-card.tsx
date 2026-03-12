@@ -13,6 +13,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -144,6 +145,7 @@ export function VoiceCheckinCard({
 }: VoiceCheckinCardProps) {
   const resolvedUserId = userId ?? getParticipantId();
   const period = getCurrentPeriod();
+  const queryClient = useQueryClient();
 
   const [cardState, setCardState] = useState<CardState>(() => {
     if (!period) return "dismissed";
@@ -275,6 +277,35 @@ export function VoiceCheckinCard({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: resolvedUserId, checkin_type: "voice" }),
         }).catch(() => {}); // ignore errors — streak is best-effort
+
+        // Save emotion reading to Express DB so Daily Report + Session History see it
+        fetch("/api/emotion-readings/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            readings: [{
+              userId: resolvedUserId,
+              sessionId: `voice-${checkinResult.checkin_id}`,
+              stress: checkinResult.stress_index,
+              happiness: checkinResult.valence > 0 ? checkinResult.valence : 0,
+              focus: checkinResult.focus_index,
+              energy: checkinResult.arousal,
+              dominantEmotion: checkinResult.emotion,
+              valence: checkinResult.valence,
+              arousal: checkinResult.arousal,
+            }],
+          }),
+        }).catch(() => {}); // best-effort — don't break the flow
+
+        // Invalidate cached queries so Daily Report, Sessions, and Streak update
+        queryClient.invalidateQueries({ queryKey: ["streak-status"] });
+        queryClient.invalidateQueries({ queryKey: ["sessions-brain-report"] });
+        queryClient.invalidateQueries({ queryKey: ["sessions"] });
+        queryClient.invalidateQueries({ queryKey: ["emotions"] });
+        queryClient.invalidateQueries({ queryKey: ["health-brain-report"] });
+        queryClient.invalidateQueries({ queryKey: ["voice-latest-brain-report"] });
+        queryClient.invalidateQueries({ queryKey: ["yesterday-insights"] });
+        queryClient.invalidateQueries({ queryKey: ["brain-patterns"] });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Check-in failed");
         setCardState("idle");

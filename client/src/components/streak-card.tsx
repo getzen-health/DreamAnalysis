@@ -6,6 +6,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -54,6 +55,8 @@ interface StreakCardProps {
 }
 
 export function StreakCard({ userId }: StreakCardProps) {
+  const [, navigate] = useLocation();
+
   const { data, isLoading, isError } = useQuery<StreakStatus>({
     queryKey: ["streak-status", userId],
     queryFn: async () => {
@@ -68,6 +71,11 @@ export function StreakCard({ userId }: StreakCardProps) {
     staleTime: 60_000,
     retry: 1,
   });
+
+  /** Navigate to the emotions page to start a voice check-in. */
+  const handleCheckin = () => {
+    navigate("/emotions");
+  };
 
   if (isLoading) {
     return (
@@ -114,7 +122,8 @@ export function StreakCard({ userId }: StreakCardProps) {
           {!today_checked_in && (
             <Badge
               variant="outline"
-              className="text-xs border-primary/40 text-primary"
+              className="text-xs border-primary/40 text-primary cursor-pointer hover:bg-primary/10 transition-colors"
+              onClick={handleCheckin}
             >
               Check in today
             </Badge>
@@ -148,7 +157,10 @@ export function StreakCard({ userId }: StreakCardProps) {
 
         {/* Prompt if not checked in today */}
         {!today_checked_in && hasStreak && (
-          <p className="text-xs text-muted-foreground">
+          <p
+            className="text-xs text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+            onClick={handleCheckin}
+          >
             Check in with voice, EEG, or health data to keep your streak alive.
           </p>
         )}

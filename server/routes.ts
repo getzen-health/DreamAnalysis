@@ -1469,13 +1469,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       let response;
       if (imageBase64) {
-        // Vision path — analyze a photo
+        // Vision path — analyze a photo (include user description if provided for better accuracy)
+        const textPrompt = textDescription
+          ? `Analyze this food photo. The user describes it as: "${textDescription}". Return ONLY valid JSON (no markdown fences) with this exact shape:\n${JSON_SCHEMA}`
+          : `Analyze this food photo. Return ONLY valid JSON (no markdown fences) with this exact shape:\n${JSON_SCHEMA}`;
         response = await openai.chat.completions.create({
           model: "gpt-5",
           messages: [{
             role: "user",
             content: [
-              { type: "text", text: `Analyze this food photo. Return ONLY valid JSON (no markdown fences) with this exact shape:\n${JSON_SCHEMA}` },
+              { type: "text", text: textPrompt },
               { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "low" } },
             ],
           }],
@@ -1525,9 +1528,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).returning();
 
       res.json({ ...analysis, id: log.id, loggedAt: log.loggedAt });
-    } catch (error) {
-      console.error("Food analyze error:", error);
-      res.status(500).json({ message: "Food analysis failed" });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      console.error("Food analyze error:", msg, error);
+      if (msg.includes("API key") || msg.includes("OPENAI_API_KEY")) {
+        res.status(503).json({ message: "AI service not configured. Set OPENAI_API_KEY." });
+      } else if (msg.includes("parse") || msg.includes("JSON")) {
+        res.status(502).json({ message: "AI returned invalid response. Please try again." });
+      } else {
+        res.status(500).json({ message: `Food analysis failed: ${msg}` });
+      }
     }
   });
 

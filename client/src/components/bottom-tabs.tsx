@@ -19,13 +19,13 @@ export function BottomTabs() {
       className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t"
       style={{
         background: "hsl(222, 25%, 6%, 0.92)",
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
         borderColor: "hsl(220, 18%, 15%, 0.5)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >
-      <div className="flex items-center justify-around h-14">
+      <div className="flex items-center justify-around" style={{ height: "56px" }}>
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive =
@@ -39,14 +39,20 @@ export function BottomTabs() {
               onClick={() => hapticLight()}
               aria-current={isActive ? "page" : undefined}
               aria-label={tab.label}
-              className={`flex flex-col items-center justify-center gap-0.5 w-16 py-1 transition-colors ${
+              className={`flex flex-col items-center justify-center gap-1 min-w-[48px] min-h-[44px] px-3 py-1.5 rounded-lg transition-colors ${
                 isActive
                   ? "text-primary"
-                  : "text-muted-foreground/60"
+                  : "text-muted-foreground/60 active:text-muted-foreground"
               }`}
             >
-              <Icon className={`h-5 w-5 ${isActive ? "text-primary" : ""}`} aria-hidden="true" />
-              <span className="text-[10px] leading-tight">{tab.label}</span>
+              <Icon
+                className={`h-[22px] w-[22px] ${isActive ? "text-primary" : ""}`}
+                aria-hidden="true"
+                strokeWidth={isActive ? 2.5 : 1.75}
+              />
+              <span className={`text-[11px] leading-tight ${isActive ? "font-semibold" : "font-normal"}`}>
+                {tab.label}
+              </span>
             </Link>
           );
         })}

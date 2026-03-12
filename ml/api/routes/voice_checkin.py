@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import logging
 import time
+import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -19,6 +22,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from models.context_prior import ContextPrior, blend_with_prior  # type: ignore
+
+# Session storage directory (shared with SessionRecorder)
+_SESSIONS_DIR = Path(__file__).parent.parent.parent / "sessions"
+_SESSIONS_DIR.mkdir(exist_ok=True)
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice-checkin", tags=["voice-checkin"])
@@ -279,6 +286,39 @@ def submit_checkin(req: CheckinRequest) -> Dict[str, Any]:
         "model_type": model_type,
     }
     _CHECKIN_HISTORY[req.user_id].append(record)
+
+    # Persist as a session JSON so it appears in /sessions list (Fix #8)
+    try:
+        session_id = str(uuid.uuid4())[:8]
+        session_meta: Dict[str, Any] = {
+            "session_id": session_id,
+            "user_id": req.user_id,
+            "session_type": "voice_checkin",
+            "start_time": ts,
+            "end_time": ts + 10,  # ~10s recording
+            "status": "completed",
+            "metadata": {"checkin_type": req.checkin_type, "model_type": model_type},
+            "summary": {
+                "duration_sec": 10,
+                "n_frames": 1,
+                "n_channels": 0,
+                "n_samples": 0,
+                "avg_stress": stress_index,
+                "avg_focus": focus_index,
+                "avg_relaxation": max(0.0, 1.0 - stress_index),
+                "avg_valence": valence,
+                "avg_arousal": arousal,
+                "dominant_emotion": emotion,
+                "avg_flow": 0.0,
+            },
+            "analysis_timeline": [],
+        }
+        meta_path = _SESSIONS_DIR / f"{session_id}.json"
+        with open(meta_path, "w") as f:
+            json.dump(session_meta, f, indent=2, default=str)
+        log.info("Voice check-in session saved: %s", session_id)
+    except Exception as exc:
+        log.warning("Failed to persist voice check-in session: %s", exc)
 
     return {
         "user_id": req.user_id,

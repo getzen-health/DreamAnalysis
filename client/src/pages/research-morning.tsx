@@ -397,13 +397,26 @@ export default function ResearchMorning() {
               <Textarea
                 id="dream-text"
                 placeholder="I was in a house I didn't recognise, and there was a strange light coming through the window…"
-                className="min-h-[100px] resize-none text-sm leading-relaxed"
+                className={`min-h-[100px] resize-none text-sm leading-relaxed ${
+                  dreamText.length > 0 && !dreamText.trim()
+                    ? "border-red-500/50 focus-visible:ring-red-500/30"
+                    : ""
+                }`}
                 value={dreamText}
                 onChange={(e) => setDreamText(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground text-right">
-                {dreamText.length} characters
-              </p>
+              <div className="flex items-center justify-between">
+                {!dreamText.trim() ? (
+                  <p className="text-xs text-muted-foreground">
+                    Write something to continue -- even a single word counts.
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {dreamText.length} characters
+                </p>
+              </div>
             </div>
 
             <Separator />

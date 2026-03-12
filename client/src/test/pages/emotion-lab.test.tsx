@@ -31,6 +31,7 @@ vi.mock("@/hooks/use-auth", () => ({
 vi.mock("@/hooks/use-voice-emotion", () => ({
   useVoiceEmotion: () => ({
     startRecording: vi.fn(),
+    stopRecording: vi.fn(),
     isRecording: false,
     isAnalyzing: false,
     lastResult: null,

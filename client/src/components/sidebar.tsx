@@ -68,6 +68,7 @@ const moreSections: NavSection[] = [
     title: "More",
     items: [
       { path: "/weekly-summary",        label: "Weekly Summary",   icon: CalendarDays },
+      { path: "/inner-energy",          label: "Inner Energy",     icon: Sparkles },
       { path: "/emotional-intelligence", label: "EI Dashboard",    icon: Brain },
       { path: "/insights",              label: "Insights",         icon: Lightbulb },
       { path: "/health-analytics",      label: "Health Analytics", icon: BarChart2 },
@@ -142,8 +143,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          // top-[calc(16px+env(safe-area-inset-top))] pushes below iOS notch/Dynamic Island
-          className="fixed z-50 w-11 h-11"
+          className="fixed z-50 min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl bg-background/80 backdrop-blur-md border border-border/40 shadow-lg"
           style={{
             top: "calc(12px + env(safe-area-inset-top, 0px))",
             left: "calc(12px + env(safe-area-inset-left, 0px))",
@@ -152,26 +152,31 @@ export function Sidebar() {
           aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
           aria-expanded={isOpen}
         >
-          <Menu className="h-5 w-5" aria-hidden="true" />
+          <Menu className="h-6 w-6" aria-hidden="true" />
         </Button>
       )}
 
       <div
-        className={`fixed left-0 top-0 w-56 h-screen z-40 transition-transform duration-200 border-r ${
+        className={`fixed left-0 top-0 w-64 h-screen z-40 transition-transform duration-200 ease-out border-r ${
           isMobile
             ? isOpen
               ? "translate-x-0"
               : "-translate-x-full"
-            : "translate-x-0"
+            : "translate-x-0 w-56"
         }`}
         style={{
-          background: isDark ? "hsl(222, 25%, 5%)" : "hsl(0, 0%, 100%)",
+          background: isDark ? "hsl(222, 25%, 5%, 0.97)" : "hsl(0, 0%, 100%, 0.97)",
+          backdropFilter: isMobile ? "blur(20px)" : undefined,
+          WebkitBackdropFilter: isMobile ? "blur(20px)" : undefined,
           borderColor: isDark ? "hsl(220, 20%, 10%)" : "hsl(220, 14%, 90%)",
         }}
       >
         <div className="flex flex-col h-full overflow-y-auto">
           {/* Logo */}
-          <div className="flex items-center px-5 pt-5 pb-3">
+          <div
+            className="flex items-center px-5 pb-3"
+            style={{ paddingTop: isMobile ? "calc(20px + env(safe-area-inset-top, 0px))" : "20px" }}
+          >
             <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3"
               style={{ background: "linear-gradient(135deg, hsl(152,60%,48%), hsl(38,85%,58%))" }}>
               <Brain className="h-4 w-4 text-white" />
@@ -349,7 +354,12 @@ export function Sidebar() {
 
       {isMobile && isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-30 backdrop-blur-sm"
+          className="fixed inset-0 z-30 animate-in fade-in duration-200"
+          style={{
+            background: "rgba(0, 0, 0, 0.5)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+          }}
           onClick={() => setIsOpen(false)}
         />
       )}

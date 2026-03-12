@@ -41,6 +41,11 @@ import EmotionLandscape, { type HeatmapCell } from "@/components/emotion-landsca
 
 /* ---------- helpers ---------- */
 
+/** Check whether a BiometricPayload contains any real sensor data. */
+function hasRealHealthData(p: BiometricPayload): boolean {
+  return !!(p.current_heart_rate || p.hrv_sdnn || p.sleep_efficiency || p.steps_today);
+}
+
 /** Derive approximate stress/focus/relaxation from health biometrics (no EEG). */
 function deriveHealthState(p: BiometricPayload) {
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -330,7 +335,7 @@ export default function Dashboard() {
 
   // Health data fallback (iOS/Android only — web returns null)
   const { latestPayload } = useHealthSync();
-  const healthState = !isStreaming && latestPayload ? deriveHealthState(latestPayload) : null;
+  const healthState = !isStreaming && latestPayload && hasRealHealthData(latestPayload) ? deriveHealthState(latestPayload) : null;
 
   // Extract live data
   const emotions = analysis?.emotions;

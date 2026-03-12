@@ -1,13 +1,23 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
-import { Sparkles, Activity, Radio } from "lucide-react";
+import { Sparkles, Activity, Radio, Heart } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { useQuery } from "@tanstack/react-query";
 
 const CURRENT_USER = getParticipantId();
+
+interface HealthMetric {
+  stressLevel?: number | null;
+  neuralActivity?: number | null;
+  sleepQuality?: number | null;
+  sleepDuration?: number | null;
+  heartRate?: number | null;
+  timestamp?: string;
+}
 
 /** Derive rough chakra activations from voice valence + arousal when no EEG. */
 function voiceChakraActivations(valence: number, arousal: number, stress: number): number[] {
@@ -23,6 +33,26 @@ function voiceChakraActivations(valence: number, arousal: number, stress: number
     Math.round(a * 50 + 15),                        // Throat — arousal → expression
     Math.round((s > 0.5 ? s * 50 : a * 40) + 10),  // Third Eye
     Math.round(v * 40 + 5),                         // Crown — positive state
+  ];
+}
+
+/** Derive chakra activations from health metrics (stress, sleep, focus). */
+function healthChakraActivations(stressLevel: number, sleepQuality: number, focus: number): number[] {
+  // stressLevel: 0-10 (lower = less stressed)
+  // sleepQuality: 0-10 (higher = better)
+  // focus: 0-100 (neuralActivity)
+  const relaxation = Math.max(0, (10 - stressLevel) / 10); // 0→1 (inverse of stress)
+  const sleep = sleepQuality / 10;                           // 0→1
+  const foc = focus / 100;                                   // 0→1
+
+  return [
+    Math.round(sleep * 55 + 15),                             // Root — grounded via good sleep
+    Math.round(relaxation * 50 + 10),                        // Sacral — creative when relaxed
+    Math.round(foc * 50 + 10),                               // Solar Plexus — focus = willpower
+    Math.round((relaxation * 0.6 + sleep * 0.4) * 60 + 10), // Heart — calm + rested
+    Math.round(foc * 45 + 10),                               // Throat — focus = expression
+    Math.round(foc * 40 + 10),                               // Third Eye — mental clarity
+    Math.round(relaxation * 35 + sleep * 10 + 5),            // Crown — deep rest + calm
   ];
 }
 
@@ -91,7 +121,27 @@ export default function InnerEnergy() {
     enabled: !isStreaming,
   });
 
+  // Fallback: fetch health metrics for when no voice or EEG is available
+  const { data: healthMetrics } = useQuery<HealthMetric[]>({
+    queryKey: ["/api/health-metrics-energy", CURRENT_USER],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/health-metrics/${CURRENT_USER}`));
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: !isStreaming,
+  });
+
+  // Get latest health metric as fallback
+  const latestHealth = useMemo(() => {
+    if (!healthMetrics || healthMetrics.length === 0) return null;
+    return healthMetrics[0]; // Already sorted by timestamp desc from API
+  }, [healthMetrics]);
+
   const hasVoice = !isStreaming && !!latestVoice;
+  const hasHealth = !isStreaming && !hasVoice && !!latestHealth;
+  const hasAnyData = isStreaming || hasVoice || hasHealth;
 
   const bandPowers = analysis?.band_powers ?? {};
   const meditation = analysis?.meditation;
@@ -124,26 +174,41 @@ export default function InnerEnergy() {
       voiceFallback = voiceChakraActivations(vv, va, vs);
     }
 
+    let healthFallback: number[] | null = null;
+    if (hasHealth && latestHealth) {
+      healthFallback = healthChakraActivations(
+        latestHealth.stressLevel ?? 5,
+        latestHealth.sleepQuality ?? 5,
+        latestHealth.neuralActivity ?? 50,
+      );
+    }
+
     return CHAKRA_INFO.map((c, i) => ({
       name: c.name,
       sanskrit: c.sanskrit,
       meaning: c.meaning,
       wave: c.wave,
-      activation: isStreaming ? activations[i] : (voiceFallback ? voiceFallback[i] : 0),
+      activation: isStreaming ? activations[i] : (voiceFallback ? voiceFallback[i] : (healthFallback ? healthFallback[i] : 0)),
       color: CHAKRA_COLORS[c.key],
     }));
-  }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming, hasVoice, latestVoice]);
+  }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming, hasVoice, latestVoice, hasHealth, latestHealth]);
 
   // Meditation depth from meditation model
   const meditationScore = meditation?.meditation_score ?? 0;
   const voiceArousal = (latestVoice?.arousal as number) ?? 0.5;
   const voiceValence = (latestVoice?.valence as number) ?? 0;
   const voiceFocusIndex = (latestVoice?.focus_index as number) ?? 0.4;
+  const healthStress = latestHealth?.stressLevel ?? 5;
+  const healthSleep = latestHealth?.sleepQuality ?? 5;
+  const healthFocus = latestHealth?.neuralActivity ?? 50;
+
   const meditationPercent = isStreaming
     ? Math.round(meditationScore * 100)
     : hasVoice
       ? Math.round(Math.max(10, (1 - voiceArousal) * 60 + ((voiceValence + 1) / 2) * 20))
-      : 0;
+      : hasHealth
+        ? Math.round(Math.max(10, ((10 - healthStress) / 10) * 50 + (healthSleep / 10) * 25))
+        : 0;
   const meditationStage = meditation?.depth ?? "—";
 
   // Consciousness level derived from attention + flow + meditation
@@ -151,7 +216,9 @@ export default function InnerEnergy() {
     ? (attention?.attention_score ?? 0) * 30 + (flowState?.flow_score ?? 0) * 40 + meditationScore * 30
     : hasVoice
       ? ((voiceValence + 1) / 2) * 40 + voiceArousal * 30
-      : 0;
+      : hasHealth
+        ? ((10 - healthStress) / 10) * 35 + (healthFocus / 100) * 35 + (healthSleep / 10) * 15
+        : 0;
   const consciousnessPercent = Math.round(Math.min(100, consciousnessRaw));
   const consciousnessLevels = ["Survival", "Desire", "Willpower", "Love", "Expression", "Insight", "Unity"];
   const consciousnessName = consciousnessLevels[Math.min(6, Math.floor(consciousnessPercent / 15))] || "—";
@@ -161,14 +228,17 @@ export default function InnerEnergy() {
     ? Math.round(Math.min(100, ((bandPowers.gamma ?? 0) + (bandPowers.beta ?? 0) * 0.3) * 150))
     : hasVoice
       ? Math.round(Math.max(0, voiceFocusIndex * 80))
-      : 0;
+      : hasHealth
+        ? Math.round(Math.max(0, (healthFocus / 100) * 60))
+        : 0;
 
   // Dominant energy center
   const dominantChakra = chakras.reduce((max, c) =>
     c.activation > max.activation ? c : max, chakras[0]);
 
   // Throttle guidance text to 10s so user can read it
-  const [guidance, setGuidance] = useState("Start with a voice check-in to estimate your energy state. Optional EEG can add live signal detail later.");
+  const defaultGuidance = "Start with a voice check-in to estimate your energy state. Optional EEG can add live signal detail later.";
+  const [guidance, setGuidance] = useState(defaultGuidance);
   const guidanceTimerRef = useRef(0);
   const GUIDANCE_THROTTLE = 10_000;
 
@@ -183,17 +253,25 @@ export default function InnerEnergy() {
           ? `Voice shows a ${emotion} state. Your heart center may benefit from a breathing pause. ${getGuidance("Heart", "—")}`
           : `Voice baseline captured (${emotion}). ${getGuidance(dominantChakra.name, "—")} Optional EEG can add live energy readings later.`;
         setGuidance(voiceGuide);
+      } else if (hasHealth && latestHealth) {
+        const stressDesc = healthStress <= 3 ? "low" : healthStress <= 6 ? "moderate" : "high";
+        const sleepDesc = healthSleep >= 7 ? "good" : healthSleep >= 4 ? "fair" : "poor";
+        setGuidance(
+          `Based on your health data: stress is ${stressDesc}, sleep quality is ${sleepDesc}. ` +
+          `${getGuidance(dominantChakra.name, "—")} ` +
+          `A voice check-in or EEG session can provide deeper spiritual insights.`
+        );
       } else {
-        setGuidance("Start with a voice check-in to estimate your energy state. Optional EEG can add live signal detail later.");
+        setGuidance(defaultGuidance);
       }
       return;
     }
     const now = Date.now();
-    if (now - guidanceTimerRef.current < GUIDANCE_THROTTLE && guidance !== "Start with a voice check-in to estimate your energy state. Optional EEG can add live signal detail later.") return;
+    if (now - guidanceTimerRef.current < GUIDANCE_THROTTLE && guidance !== defaultGuidance) return;
     guidanceTimerRef.current = now;
     setGuidance(getGuidance(dominantChakra.name, meditationStage));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestFrame?.timestamp, hasVoice]);
+  }, [latestFrame?.timestamp, hasVoice, hasHealth]);
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">
@@ -209,11 +287,27 @@ export default function InnerEnergy() {
 
       {/* Connection Banner */}
       {!isStreaming && (
-        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
-          <Radio className="h-4 w-4 shrink-0" />
-          {hasVoice
-            ? "Showing a voice-derived energy estimate. Optional EEG can add live chakra-style readings later."
-            : "Start with a voice check-in to unlock this page. EEG is optional later for live energy data."}
+        <div className={`p-4 rounded-xl border text-sm flex items-center gap-3 ${
+          hasVoice || hasHealth
+            ? "border-primary/30 bg-primary/5 text-primary"
+            : "border-warning/30 bg-warning/5 text-warning"
+        }`}>
+          {hasVoice ? (
+            <>
+              <Radio className="h-4 w-4 shrink-0" />
+              Showing a voice-derived energy estimate. Connect EEG for deeper spiritual insights.
+            </>
+          ) : hasHealth ? (
+            <>
+              <Heart className="h-4 w-4 shrink-0" />
+              Showing energy estimate from your health data. A voice check-in or EEG session can add more detail.
+            </>
+          ) : (
+            <>
+              <Radio className="h-4 w-4 shrink-0" />
+              Start with a voice check-in to see your energy state. EEG is optional for live readings.
+            </>
+          )}
         </div>
       )}
 
@@ -240,7 +334,7 @@ export default function InnerEnergy() {
             size="md"
           />
           <Badge variant="secondary" className="text-xs mt-2">
-            {isStreaming ? meditationStage : hasVoice ? "Voice-derived" : "—"}
+            {isStreaming ? meditationStage : hasVoice ? "Voice-derived" : hasHealth ? "Health-derived" : "—"}
           </Badge>
           <p className="text-[10px] text-muted-foreground mt-1 text-center">How calm & inward your mind is right now</p>
         </div>
@@ -255,7 +349,7 @@ export default function InnerEnergy() {
             size="md"
           />
           <Badge variant="secondary" className="text-xs mt-2">
-            {(isStreaming || hasVoice) ? consciousnessName : "—"}
+            {(isStreaming || hasVoice || hasHealth) ? consciousnessName : "—"}
           </Badge>
           <p className="text-[10px] text-muted-foreground mt-1 text-center">How present & aware you feel (attention + flow + calm)</p>
         </div>
@@ -317,11 +411,15 @@ export default function InnerEnergy() {
             </div>
           ))}
         </div>
-        {(isStreaming || hasVoice) && (
+        {(isStreaming || hasVoice || hasHealth) && (
           <div className="mt-4 pt-3 border-t border-border/30 text-sm text-muted-foreground">
             Most active: <span className="text-foreground font-medium">{dominantChakra.name}</span>
             <span className="text-muted-foreground/60 text-xs ml-2">— {dominantChakra.meaning}</span>
-            {!isStreaming && <span className="text-muted-foreground/40 text-xs ml-2">(voice estimate)</span>}
+            {!isStreaming && (
+              <span className="text-muted-foreground/40 text-xs ml-2">
+                ({hasVoice ? "voice estimate" : "health data estimate"})
+              </span>
+            )}
           </div>
         )}
       </Card>

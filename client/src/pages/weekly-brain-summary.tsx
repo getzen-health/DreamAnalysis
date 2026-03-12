@@ -1,13 +1,16 @@
 /**
  * Weekly Brain Summary — shareable card showing this week vs last week
- * for stress, focus, and sleep.  PNG export via Canvas 2D API (no extra deps).
+ * for stress, focus, and sleep.  Pulls from health metrics, voice check-ins,
+ * food logs, and dream entries.  PNG export via Canvas 2D API (no extra deps).
  */
 
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
+import { getMLApiUrl } from "@/lib/ml-api";
 import {
   TrendingUp,
   TrendingDown,
@@ -17,6 +20,8 @@ import {
   Moon,
   Zap,
   AlertCircle,
+  Utensils,
+  Mic,
 } from "lucide-react";
 
 const CURRENT_USER = getParticipantId();
@@ -30,6 +35,34 @@ interface HealthMetric {
   sleepDuration?: number | null;
   timestamp?: string;
   createdAt?: string;
+}
+
+interface VoiceRecord {
+  timestamp?: number;
+  emotion?: string;
+  valence?: number;
+  arousal?: number;
+  stress_index?: number;
+  focus_index?: number;
+}
+
+interface FoodLogEntry {
+  id: string;
+  loggedAt: string;
+  mealType: string | null;
+  summary: string | null;
+  totalCalories: number | null;
+  dominantMacro: string | null;
+  glycemicImpact: string | null;
+}
+
+interface DreamEntry {
+  id: string;
+  dreamText: string;
+  emotions: Array<{ emotion: string; intensity: number }> | null;
+  sleepQuality: number | null;
+  lucidityScore: number | null;
+  timestamp: string;
 }
 
 interface WeekStats {
@@ -64,6 +97,12 @@ function computeWeek(metrics: HealthMetric[], daysAgoStart: number, daysAgoEnd: 
     sleepHours:  avg(rows.map(r => r.sleepDuration ?? NaN)),
     sampleCount: rows.length,
   };
+}
+
+/** Filter records from the past N days */
+function withinDays<T>(items: T[], getTime: (item: T) => number, daysBack: number): T[] {
+  const cutoff = Date.now() - daysBack * 86_400_000;
+  return items.filter(item => getTime(item) >= cutoff);
 }
 
 function delta(now: number | null, prev: number | null): number | null {
@@ -252,15 +291,57 @@ function exportAsPng(
 export default function WeeklyBrainSummary() {
   const exportRef = useRef<HTMLDivElement>(null);
 
-  const { data: metrics = [], isLoading } = useQuery<HealthMetric[]>({
+  // ── Data source 1: Health metrics (stress, focus, sleep) ────────────────────
+  const { data: metrics = [], isLoading: loadingHealth } = useQuery<HealthMetric[]>({
     queryKey: ["/api/health-metrics", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(`/api/health-metrics/${CURRENT_USER}`);
+      const res = await fetch(resolveUrl(`/api/health-metrics/${CURRENT_USER}`));
       if (!res.ok) return [];
       return res.json();
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // ── Data source 2: Voice check-in history ───────────────────────────────────
+  const { data: voiceHistory = [], isLoading: loadingVoice } = useQuery<VoiceRecord[]>({
+    queryKey: ["voice-history-weekly", CURRENT_USER],
+    queryFn: async () => {
+      try {
+        const res = await fetch(`${getMLApiUrl()}/api/voice-watch/history/${CURRENT_USER}?last_n=100`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data?.history ?? []) as VoiceRecord[];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  // ── Data source 3: Food logs ────────────────────────────────────────────────
+  const { data: foodLogs = [], isLoading: loadingFood } = useQuery<FoodLogEntry[]>({
+    queryKey: ["/api/food/logs", CURRENT_USER],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/food/logs/${CURRENT_USER}`));
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ── Data source 4: Dream entries ────────────────────────────────────────────
+  const { data: dreamEntries = [], isLoading: loadingDreams } = useQuery<DreamEntry[]>({
+    queryKey: ["/api/dream-analysis", CURRENT_USER],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/dream-analysis/${CURRENT_USER}`));
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isLoading = loadingHealth || loadingVoice || loadingFood || loadingDreams;
 
   const thisWeek = computeWeek(metrics, 0, 7);
   const lastWeek = computeWeek(metrics, 7, 14);
@@ -270,7 +351,75 @@ export default function WeeklyBrainSummary() {
   const focusDelta  = delta(thisWeek.focus,  lastWeek.focus);
   const sleepDelta  = delta(thisWeek.sleep,  lastWeek.sleep);
 
+  // ── Voice check-in weekly stats ─────────────────────────────────────────────
+  const voiceThisWeek = useMemo(() => {
+    const cutoff7 = Date.now() - 7 * 86_400_000;
+    const recent = voiceHistory.filter(v => (v.timestamp ?? 0) * 1000 >= cutoff7);
+    if (recent.length === 0) return null;
+
+    const emotions = recent.map(v => v.emotion).filter(Boolean) as string[];
+    const emotionCounts: Record<string, number> = {};
+    emotions.forEach(e => { emotionCounts[e] = (emotionCounts[e] ?? 0) + 1; });
+    const dominant = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "neutral";
+
+    return {
+      count: recent.length,
+      avgValence: avg(recent.map(v => v.valence ?? NaN)),
+      avgArousal: avg(recent.map(v => v.arousal ?? NaN)),
+      avgStress: avg(recent.map(v => v.stress_index ?? NaN)),
+      avgFocus: avg(recent.map(v => v.focus_index ?? NaN)),
+      dominantEmotion: dominant,
+      emotionCounts,
+    };
+  }, [voiceHistory]);
+
+  // ── Food log weekly stats ───────────────────────────────────────────────────
+  const foodThisWeek = useMemo(() => {
+    const recent = withinDays(foodLogs, f => new Date(f.loggedAt).getTime(), 7);
+    if (recent.length === 0) return null;
+
+    const mealCounts: Record<string, number> = {};
+    recent.forEach(f => { mealCounts[f.mealType ?? "other"] = (mealCounts[f.mealType ?? "other"] ?? 0) + 1; });
+
+    const cals = recent.map(f => f.totalCalories).filter((c): c is number => c != null && c > 0);
+    const giCounts: Record<string, number> = {};
+    recent.forEach(f => { if (f.glycemicImpact) giCounts[f.glycemicImpact] = (giCounts[f.glycemicImpact] ?? 0) + 1; });
+
+    return {
+      count: recent.length,
+      avgCalories: cals.length > 0 ? Math.round(cals.reduce((a, b) => a + b, 0) / cals.length) : null,
+      mealCounts,
+      topGI: Object.entries(giCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+    };
+  }, [foodLogs]);
+
+  // ── Dream weekly stats ──────────────────────────────────────────────────────
+  const dreamsThisWeek = useMemo(() => {
+    const recent = withinDays(dreamEntries, d => new Date(d.timestamp).getTime(), 7);
+    if (recent.length === 0) return null;
+
+    const sleepQuals = recent.map(d => d.sleepQuality).filter((q): q is number => q != null);
+    const lucidity = recent.map(d => d.lucidityScore).filter((l): l is number => l != null);
+
+    const allEmotions: string[] = [];
+    recent.forEach(d => {
+      if (Array.isArray(d.emotions)) {
+        d.emotions.forEach((e: { emotion: string }) => allEmotions.push(e.emotion));
+      }
+    });
+
+    return {
+      count: recent.length,
+      avgSleepQuality: sleepQuals.length > 0 ? Math.round((sleepQuals.reduce((a, b) => a + b, 0) / sleepQuals.length) * 10) / 10 : null,
+      avgLucidity: lucidity.length > 0 ? Math.round(lucidity.reduce((a, b) => a + b, 0) / lucidity.length) : null,
+      dreamEmotions: allEmotions.slice(0, 5),
+    };
+  }, [dreamEntries]);
+
+  // Combined "has any data" check across all sources
   const hasData = thisWeek.sampleCount > 0;
+  const hasAnyData = hasData || !!voiceThisWeek || !!foodThisWeek || !!dreamsThisWeek;
+  const totalDataPoints = (thisWeek.sampleCount) + (voiceThisWeek?.count ?? 0) + (foodThisWeek?.count ?? 0) + (dreamsThisWeek?.count ?? 0);
 
   // ─── Metric row ─────────────────────────────────────────────────────────────
 
@@ -358,7 +507,7 @@ export default function WeeklyBrainSummary() {
         </div>
         <Button
           onClick={() => exportAsPng(thisWeek, lastWeek, weekRange)}
-          disabled={!hasData}
+          disabled={!hasAnyData}
           className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
           size="sm"
         >
@@ -368,21 +517,21 @@ export default function WeeklyBrainSummary() {
       </div>
 
       {/* No data state */}
-      {!isLoading && !hasData && (
+      {!isLoading && !hasAnyData && (
         <Card className="glass-card p-6 flex items-center gap-4">
           <AlertCircle className="h-5 w-5 text-muted-foreground shrink-0" />
           <div>
             <p className="text-sm font-medium">No data yet for this week</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Your weekly summary builds from check-ins, health signals, and guided sessions over time.
-              Optional EEG sessions can add more detail later, but they are not required.
+              Your weekly summary builds from voice check-ins, food logs, dream entries, and health signals.
+              Do a voice check-in or log a meal to get started.
             </p>
           </div>
         </Card>
       )}
 
       {/* Preview card — styled to match exported PNG */}
-      {hasData && (
+      {hasAnyData && (
         <div ref={exportRef}>
           {/* Summary hero */}
           <Card className="glass-card p-6 rounded-2xl mb-4">
@@ -398,7 +547,7 @@ export default function WeeklyBrainSummary() {
                   Data points
                 </p>
                 <p className="text-base font-mono font-bold text-primary">
-                  {thisWeek.sampleCount}
+                  {totalDataPoints}
                 </p>
               </div>
             </div>
@@ -428,51 +577,185 @@ export default function WeeklyBrainSummary() {
                       ? "sleep quality dropped"
                       : "sleep was consistent");
                 }
+                // Voice mood summary
+                if (voiceThisWeek && voiceThisWeek.avgValence != null) {
+                  parts.push(voiceThisWeek.avgValence > 0.1
+                    ? `mood trending positive (${voiceThisWeek.dominantEmotion})`
+                    : voiceThisWeek.avgValence < -0.1
+                      ? `mood leaning low (${voiceThisWeek.dominantEmotion})`
+                      : `mood was neutral overall`);
+                }
                 return parts.length > 0
                   ? parts.join(", ") + "."
-                  : "Not enough data to generate a week-in-review sentence yet.";
+                  : "Your first check-ins are recorded. Keep going to build trends.";
               })()}
             </p>
           </Card>
 
-          {/* Metric cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <MetricCard
-              icon={AlertCircle}
-              label="Stress"
-              thisVal={fmtSlash10(thisWeek.stress)}
-              lastVal={fmtSlash10(lastWeek.stress)}
-              d={stressDelta}
-              positiveIsGood={false}
-              color="hsl(0, 70%, 65%)"
-            />
-            <MetricCard
-              icon={Zap}
-              label="Focus"
-              thisVal={fmtPct100(thisWeek.focus)}
-              lastVal={fmtPct100(lastWeek.focus)}
-              d={focusDelta}
-              positiveIsGood={true}
-              color="hsl(210, 80%, 65%)"
-            />
-            <MetricCard
-              icon={Moon}
-              label="Sleep"
-              thisVal={
-                thisWeek.sleepHours != null
-                  ? `${fmtNum(thisWeek.sleepHours)}h`
-                  : fmtSlash10(thisWeek.sleep)
-              }
-              lastVal={
-                lastWeek.sleepHours != null
-                  ? `${fmtNum(lastWeek.sleepHours)}h`
-                  : fmtSlash10(lastWeek.sleep)
-              }
-              d={sleepDelta}
-              positiveIsGood={true}
-              color="hsl(270, 70%, 65%)"
-            />
-          </div>
+          {/* Health metric cards — only if health data exists */}
+          {hasData && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <MetricCard
+                icon={AlertCircle}
+                label="Stress"
+                thisVal={fmtSlash10(thisWeek.stress)}
+                lastVal={fmtSlash10(lastWeek.stress)}
+                d={stressDelta}
+                positiveIsGood={false}
+                color="hsl(0, 70%, 65%)"
+              />
+              <MetricCard
+                icon={Zap}
+                label="Focus"
+                thisVal={fmtPct100(thisWeek.focus)}
+                lastVal={fmtPct100(lastWeek.focus)}
+                d={focusDelta}
+                positiveIsGood={true}
+                color="hsl(210, 80%, 65%)"
+              />
+              <MetricCard
+                icon={Moon}
+                label="Sleep"
+                thisVal={
+                  thisWeek.sleepHours != null
+                    ? `${fmtNum(thisWeek.sleepHours)}h`
+                    : fmtSlash10(thisWeek.sleep)
+                }
+                lastVal={
+                  lastWeek.sleepHours != null
+                    ? `${fmtNum(lastWeek.sleepHours)}h`
+                    : fmtSlash10(lastWeek.sleep)
+                }
+                d={sleepDelta}
+                positiveIsGood={true}
+                color="hsl(270, 70%, 65%)"
+              />
+            </div>
+          )}
+
+          {/* Voice check-in mood summary */}
+          {voiceThisWeek && (
+            <Card className="glass-card p-5 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Mic className="h-4 w-4 text-emerald-400" />
+                <span className="text-sm font-medium">Voice Check-ins</span>
+                <span className="ml-auto text-xs text-muted-foreground">{voiceThisWeek.count} this week</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Mood</p>
+                  <p className="text-lg font-medium capitalize" style={{ color: (voiceThisWeek.avgValence ?? 0) > 0 ? "hsl(152, 60%, 48%)" : (voiceThisWeek.avgValence ?? 0) < -0.1 ? "hsl(0, 70%, 65%)" : "hsl(210, 20%, 60%)" }}>
+                    {voiceThisWeek.dominantEmotion}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Valence</p>
+                  <p className="text-lg font-mono font-bold text-blue-400">
+                    {voiceThisWeek.avgValence != null ? (voiceThisWeek.avgValence > 0 ? "+" : "") + voiceThisWeek.avgValence.toFixed(2) : "--"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Stress</p>
+                  <p className="text-lg font-mono font-bold text-rose-400">
+                    {voiceThisWeek.avgStress != null ? (voiceThisWeek.avgStress * 100).toFixed(0) + "%" : "--"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Focus</p>
+                  <p className="text-lg font-mono font-bold text-violet-400">
+                    {voiceThisWeek.avgFocus != null ? (voiceThisWeek.avgFocus * 100).toFixed(0) + "%" : "--"}
+                  </p>
+                </div>
+              </div>
+              {/* Emotion breakdown */}
+              {Object.keys(voiceThisWeek.emotionCounts).length > 1 && (
+                <div className="mt-3 pt-3 border-t border-border/30 flex flex-wrap gap-1.5">
+                  {Object.entries(voiceThisWeek.emotionCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 6)
+                    .map(([emotion, count]) => (
+                      <span key={emotion} className="text-[10px] px-2 py-0.5 rounded-full bg-muted/40 text-muted-foreground capitalize">
+                        {emotion} ({count})
+                      </span>
+                    ))}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Food log summary */}
+          {foodThisWeek && (
+            <Card className="glass-card p-5 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Utensils className="h-4 w-4 text-amber-400" />
+                <span className="text-sm font-medium">Food Log</span>
+                <span className="ml-auto text-xs text-muted-foreground">{foodThisWeek.count} meals logged</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {foodThisWeek.avgCalories != null && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Calories</p>
+                    <p className="text-lg font-mono font-bold text-amber-400">{foodThisWeek.avgCalories}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Meals</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {Object.entries(foodThisWeek.mealCounts).map(([type, count]) => (
+                      <span key={type} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 capitalize">
+                        {type} ({count})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                {foodThisWeek.topGI && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Typical GI</p>
+                    <p className="text-lg font-medium capitalize" style={{ color: foodThisWeek.topGI === "low" ? "hsl(152, 60%, 48%)" : foodThisWeek.topGI === "high" ? "hsl(0, 70%, 65%)" : "hsl(38, 85%, 58%)" }}>
+                      {foodThisWeek.topGI}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Dream summary */}
+          {dreamsThisWeek && (
+            <Card className="glass-card p-5 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Moon className="h-4 w-4 text-indigo-400" />
+                <span className="text-sm font-medium">Dreams</span>
+                <span className="ml-auto text-xs text-muted-foreground">{dreamsThisWeek.count} recorded</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {dreamsThisWeek.avgSleepQuality != null && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sleep Quality</p>
+                    <p className="text-lg font-mono font-bold text-indigo-400">{dreamsThisWeek.avgSleepQuality}/10</p>
+                  </div>
+                )}
+                {dreamsThisWeek.avgLucidity != null && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Lucidity</p>
+                    <p className="text-lg font-mono font-bold text-purple-400">{dreamsThisWeek.avgLucidity}%</p>
+                  </div>
+                )}
+                {dreamsThisWeek.dreamEmotions.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Dream Emotions</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {dreamsThisWeek.dreamEmotions.map((e, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 capitalize">
+                          {e}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -504,7 +787,7 @@ export default function WeeklyBrainSummary() {
       )}
 
       {/* Export hint */}
-      {hasData && (
+      {hasAnyData && (
         <p className="text-center text-xs text-muted-foreground">
           Tap "Export PNG" to download a shareable image of your weekly summary.
         </p>

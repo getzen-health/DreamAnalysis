@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Camera,
   CheckCircle2,
+  ImageIcon,
   Loader2,
   Utensils,
   Moon,
@@ -85,6 +86,12 @@ const MEAL_PROMPTS: Record<string, string> = {
   dinner:    "What did you have for dinner?\ne.g. salmon with roasted vegetables, brown rice, glass of wine",
   snack:     "Any snacks today?\ne.g. apple with almond butter, handful of almonds, yogurt",
 };
+const MEAL_SUGGESTIONS: Record<string, string[]> = {
+  breakfast: ["Oatmeal with berries", "Eggs & toast", "Smoothie bowl", "Avocado toast", "Cereal & milk", "Pancakes"],
+  lunch:     ["Chicken salad", "Sandwich", "Rice bowl", "Soup & bread", "Pasta", "Burrito"],
+  dinner:    ["Grilled chicken & veggies", "Pasta with sauce", "Stir fry & rice", "Curry & naan", "Salmon & salad", "Pizza"],
+  snack:     ["Apple & peanut butter", "Mixed nuts", "Yogurt", "Protein bar", "Banana", "Cheese & crackers"],
+};
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -136,6 +143,7 @@ export default function FoodLog() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [inputMode, setInputMode] = useState<InputMode>("photo");
   const [mealType, setMealType] = useState(autoMealType());
@@ -146,6 +154,8 @@ export default function FoodLog() {
   // When a specific filter tab is selected, also switch the log form to that meal type
   useEffect(() => {
     setAnalysis(null);
+    setDescription("");
+    setPhotoDescription("");
     if (filterType !== "all") {
       setMealType(filterType);
     }
@@ -153,6 +163,7 @@ export default function FoodLog() {
 
   // Photo mode state
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [photoDescription, setPhotoDescription] = useState("");
 
   // Text mode state
   const [description, setDescription] = useState("");
@@ -196,14 +207,23 @@ export default function FoodLog() {
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
     setMealType(autoMealType());
-    const b64 = await compressToBase64(file);
-    await submitAnalysis({ imageBase64: b64 });
+    setPhotoDescription("");
+    setAnalysis(null);
+    // Don't auto-submit — wait for the user to describe what's in the photo
+  };
+
+  const handlePhotoSubmit = async () => {
+    if (!photoDescription.trim()) return;
+    // Submit with text description only — Cerebras model is text-only, can't process images
+    await submitAnalysis({ textDescription: photoDescription.trim() });
   };
 
   const clearPhoto = () => {
     setPreviewUrl(null);
+    setPhotoDescription("");
     setAnalysis(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
   // ── Text mode handler ────────────────────────────────────────────────────────
@@ -222,7 +242,9 @@ export default function FoodLog() {
     setInputMode(mode);
     setAnalysis(null);
     setPreviewUrl(null);
+    setPhotoDescription("");
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (mode === "text") setDescription("");
   };
 
@@ -268,9 +290,16 @@ export default function FoodLog() {
       <Card>
         <CardContent className="pt-5 space-y-4">
 
-          {/* Hidden file input */}
+          {/* Hidden file inputs — one for gallery, one with capture for camera */}
           <input
             ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <input
+            ref={cameraInputRef}
             type="file"
             accept="image/*"
             capture="environment"
@@ -283,7 +312,7 @@ export default function FoodLog() {
             {MEAL_TYPES.map(t => (
               <button
                 key={t}
-                onClick={() => setMealType(t)}
+                onClick={() => { setMealType(t); setDescription(""); setPhotoDescription(""); setAnalysis(null); }}
                 className={`flex-1 py-1 rounded-md text-xs font-medium border transition-colors ${
                   mealType === t
                     ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
@@ -298,18 +327,31 @@ export default function FoodLog() {
           {/* ── PHOTO MODE ─────────────────────────────────────────────────── */}
           {inputMode === "photo" && (
             !previewUrl ? (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full h-40 rounded-xl border-2 border-dashed border-amber-500/30 hover:border-amber-500/60 bg-amber-500/5 hover:bg-amber-500/10 transition-all flex flex-col items-center justify-center gap-3 group"
-              >
-                <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Camera className="w-6 h-6 text-amber-400" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium">Photograph your meal</p>
-                  <p className="text-xs text-muted-foreground">Tap to use camera or pick a photo</p>
-                </div>
-              </button>
+              <div className="space-y-3">
+                {/* Take Photo — uses capture="environment" to open device camera on mobile */}
+                <button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="w-full h-28 rounded-xl border-2 border-dashed border-amber-500/30 hover:border-amber-500/60 bg-amber-500/5 hover:bg-amber-500/10 transition-all flex items-center justify-center gap-3 group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Camera className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium">Take Photo</p>
+                    <p className="text-xs text-muted-foreground">Open camera to snap your meal</p>
+                  </div>
+                </button>
+                {/* Choose from Gallery — standard file picker */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full h-14 rounded-xl border border-border/60 hover:border-amber-500/40 bg-muted/20 hover:bg-amber-500/5 transition-all flex items-center justify-center gap-2 group"
+                >
+                  <ImageIcon className="w-4 h-4 text-muted-foreground group-hover:text-amber-400 transition-colors" />
+                  <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                    Choose from Gallery
+                  </span>
+                </button>
+              </div>
             ) : (
               <div className="space-y-3">
                 <div className="relative rounded-xl overflow-hidden">
@@ -327,10 +369,53 @@ export default function FoodLog() {
                     </div>
                   )}
                 </div>
-                {!isAnalyzing && (
-                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
+                {!isAnalyzing && !analysis && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Describe what you see in the photo so we can analyze it:
+                    </p>
+                    <Textarea
+                      placeholder={MEAL_PROMPTS[mealType] ?? "e.g. grilled chicken with rice and vegetables"}
+                      value={photoDescription}
+                      onChange={e => setPhotoDescription(e.target.value)}
+                      className="min-h-[72px] resize-none text-sm"
+                      disabled={isAnalyzing}
+                    />
+                    {/* Quick suggestion chips for photo mode */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {(MEAL_SUGGESTIONS[mealType] ?? []).slice(0, 4).map(suggestion => (
+                        <button
+                          key={suggestion}
+                          onClick={() => setPhotoDescription(prev => prev ? `${prev}, ${suggestion.toLowerCase()}` : suggestion)}
+                          className="px-2 py-0.5 rounded-full text-[10px] border border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/15 transition-colors"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+                        onClick={handlePhotoSubmit}
+                        disabled={isAnalyzing || !photoDescription.trim()}
+                      >
+                        {isAnalyzing ? (
+                          <><Loader2 className="w-4 h-4 animate-spin mr-2" />Analyzing…</>
+                        ) : (
+                          "Log meal"
+                        )}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
+                        <Camera className="w-3.5 h-3.5" />
+                        Retake
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {!isAnalyzing && analysis && (
+                  <Button variant="outline" size="sm" onClick={clearPhoto} className="gap-1.5">
                     <Camera className="w-3.5 h-3.5" />
-                    Retake photo
+                    Log another meal
                   </Button>
                 )}
               </div>
@@ -344,9 +429,30 @@ export default function FoodLog() {
                 placeholder={MEAL_PROMPTS[mealType] ?? "Describe your meal…"}
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                className="min-h-[100px] resize-none text-sm"
+                className={`min-h-[100px] resize-none text-sm ${
+                  description.length > 0 && !description.trim()
+                    ? "border-red-500/50 focus-visible:ring-red-500/30"
+                    : ""
+                }`}
                 disabled={isAnalyzing}
               />
+              {/* Quick suggestion chips */}
+              {!isAnalyzing && !analysis && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Quick add</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(MEAL_SUGGESTIONS[mealType] ?? []).map(suggestion => (
+                      <button
+                        key={suggestion}
+                        onClick={() => setDescription(prev => prev ? `${prev}, ${suggestion.toLowerCase()}` : suggestion)}
+                        className="px-2.5 py-1 rounded-full text-xs border border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/15 hover:border-amber-500/50 transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"

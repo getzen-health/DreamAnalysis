@@ -122,8 +122,8 @@ export default function DataHub() {
   /* — Data fetches — */
   const { data: allSessions = [], isLoading: sessionsLoading, refetch: refetchSessions } =
     useQuery<SessionSummary[]>({
-      queryKey: ["sessions"],
-      queryFn: () => listSessions(),
+      queryKey: ["sessions", CURRENT_USER],
+      queryFn: () => listSessions(CURRENT_USER),
       retry: false,
       refetchInterval: 30_000,
     });

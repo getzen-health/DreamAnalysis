@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import logging
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -23,6 +25,10 @@ router = APIRouter(prefix="/voice-watch", tags=["voice-watch"])
 
 _ML_ROOT = Path(__file__).resolve().parent.parent.parent
 _LGBM_PATH = _ML_ROOT / "models" / "saved" / "audio_emotion_lgbm.pkl"
+
+# Session storage directory (shared with SessionRecorder)
+_SESSIONS_DIR = _ML_ROOT / "sessions"
+_SESSIONS_DIR.mkdir(exist_ok=True)
 
 # ── In-memory voice result cache (5-minute TTL) ───────────────────────────────
 _VOICE_CACHE: Dict[str, Dict] = {}
@@ -269,6 +275,44 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
         "stress_index": _voice_stress_index(result),
         "focus_index": _voice_focus_index(result),
     })
+
+    # Auto-cache so /voice-watch/latest/{user_id} returns this result
+    # (used by Daily Brain Report)
+    _VOICE_CACHE[req.user_id] = {"result": result, "ts": ts}
+
+    # Persist as a session JSON so it appears in /sessions list
+    try:
+        session_id = str(uuid.uuid4())[:8]
+        stress_idx = _voice_stress_index(result)
+        focus_idx = _voice_focus_index(result)
+        session_meta: Dict[str, Any] = {
+            "session_id": session_id,
+            "user_id": req.user_id,
+            "session_type": "voice_checkin",
+            "start_time": ts,
+            "end_time": ts + 10,
+            "status": "completed",
+            "metadata": {"source": "voice-watch", "model_type": result.get("model_type", "unknown")},
+            "summary": {
+                "duration_sec": 10,
+                "n_frames": 1,
+                "n_channels": 0,
+                "n_samples": 0,
+                "avg_stress": stress_idx,
+                "avg_focus": focus_idx,
+                "avg_relaxation": max(0.0, 1.0 - stress_idx),
+                "avg_valence": float(result.get("valence", 0.0)),
+                "avg_arousal": float(result.get("arousal", 0.5)),
+                "dominant_emotion": str(result.get("emotion", "neutral")),
+                "avg_flow": 0.0,
+            },
+            "analysis_timeline": [],
+        }
+        meta_path = _SESSIONS_DIR / f"{session_id}.json"
+        with open(meta_path, "w") as f:
+            json.dump(session_meta, f, indent=2, default=str)
+    except Exception as exc:
+        log.warning("Failed to persist voice-watch session: %s", exc)
 
     return result
 

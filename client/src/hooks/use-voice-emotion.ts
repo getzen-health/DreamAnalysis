@@ -35,6 +35,7 @@ export interface UseVoiceEmotionOptions {
 
 export interface UseVoiceEmotionReturn {
   startRecording: () => Promise<void>;
+  stopRecording: () => void;
   isRecording: boolean;
   isAnalyzing: boolean;
   lastResult: VoiceEmotionResult | null;
@@ -178,7 +179,17 @@ export function useVoiceEmotion(
     }, durationMs);
   }, [isRecording, isAnalyzing, durationMs, resolvedUserId, hr, hrv, spo2]);
 
-  return { startRecording, isRecording, isAnalyzing, lastResult, error };
+  const stopRecording = useCallback(() => {
+    if (stopTimerRef.current !== null) {
+      clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+    if (recorderRef.current && recorderRef.current.state === "recording") {
+      recorderRef.current.stop();
+    }
+  }, []);
+
+  return { startRecording, stopRecording, isRecording, isAnalyzing, lastResult, error };
 }
 
 /**

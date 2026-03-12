@@ -227,12 +227,12 @@ export default function EmotionLab() {
             <Button
               size="sm"
               variant={voiceEmotion.isRecording ? "destructive" : "outline"}
-              onClick={voiceEmotion.startRecording}
+              onClick={voiceEmotion.isRecording ? voiceEmotion.stopRecording : voiceEmotion.startRecording}
               disabled={voiceEmotion.isAnalyzing}
               className="gap-2"
             >
               {voiceEmotion.isRecording ? (
-                <><MicOff className="w-4 h-4" /> Recording…</>
+                <><MicOff className="w-4 h-4" /> Stop &amp; Analyze</>
               ) : voiceEmotion.isAnalyzing ? (
                 <><Mic className="w-4 h-4 animate-pulse" /> Analyzing…</>
               ) : (

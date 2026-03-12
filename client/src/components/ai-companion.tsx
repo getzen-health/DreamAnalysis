@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -199,6 +200,7 @@ export function AICompanion({ userId }: AICompanionProps) {
   const [isOffline, setIsOffline] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   const device = useDevice();
   const { latestFrame, state: deviceState } = device;
@@ -301,26 +303,30 @@ export function AICompanion({ userId }: AICompanionProps) {
     }
   };
 
-  const quickActions = [
+  const quickActions: {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    action: () => void;
+  }[] = [
     {
       icon: Wind,
       label: "Breathing Exercise",
-      prompt: "Guide me through a calming breathing exercise right now.",
+      action: () => navigate("/biofeedback"),
     },
     {
       icon: Bot,
       label: "Guided Meditation",
-      prompt: "Start a short guided meditation session for me.",
+      action: () => sendMessage("Guide me through a 5-minute meditation"),
     },
     {
       icon: Heart,
       label: "Mood Check-In",
-      prompt: "How am I doing emotionally? Give me a mood check-in.",
+      action: () => sendMessage("How am I feeling right now? Help me check in with my emotions"),
     },
     {
       icon: Leaf,
       label: "Stress Relief",
-      prompt: "What can I do right now to relieve stress?",
+      action: () => sendMessage("I'm feeling stressed. Give me a quick stress relief exercise"),
     },
   ];
 
@@ -491,17 +497,17 @@ export function AICompanion({ userId }: AICompanionProps) {
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <h3 className="text-sm font-semibold mb-4">Quick Actions</h3>
           <div className="space-y-2">
-            {quickActions.map((action, i) => {
-              const Icon = action.icon;
+            {quickActions.map((qa, i) => {
+              const Icon = qa.icon;
               return (
                 <button
                   key={i}
-                  onClick={() => sendMessage(action.prompt)}
+                  onClick={qa.action}
                   disabled={isTyping}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border/30 bg-card/30 hover:bg-card/60 transition-colors text-sm text-left disabled:opacity-50 cursor-pointer"
                 >
                   <Icon className="h-4 w-4 text-primary shrink-0" />
-                  <span>{action.label}</span>
+                  <span>{qa.label}</span>
                 </button>
               );
             })}

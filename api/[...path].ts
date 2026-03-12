@@ -755,26 +755,27 @@ const FOOD_JSON_SCHEMA = `{
 
 async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { userId, imageBase64, textDescription, mealType, moodBefore, notes } = req.body;
+  const body = req.body ?? {};
+  const { userId, imageBase64, textDescription, mealType, moodBefore, notes } = body;
   if (!userId) return badRequest(res, 'userId required');
-  if (!imageBase64 && !textDescription) return badRequest(res, 'imageBase64 or textDescription required');
-  const openai = getOpenAIClient();
+  if (!textDescription && !imageBase64) return badRequest(res, 'textDescription required — describe what you ate');
+  // Cerebras Llama 3.1 is text-only — image analysis is not supported.
+  // Always require a text description. If only an image was sent, ask for description.
+  if (imageBase64 && !textDescription) return badRequest(res, 'Please describe the food in your photo so we can analyze it');
+
+  let openai;
+  try {
+    openai = getOpenAIClient();
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'AI service not configured';
+    console.error('Food analyze — AI client init failed:', msg);
+    return error(res, `AI service unavailable: ${msg}`, 503);
+  }
+
   const db = getDb();
 
-  let content: string;
-  if (imageBase64) {
-    // Cerebras Llama is text-only — describe the image via text prompt instead
-    const resp = await openai.chat.completions.create({
-      model: 'llama3.1-8b',
-      messages: [{
-        role: 'user',
-        content: `A user uploaded a food photo for nutritional analysis. Estimate reasonable nutritional values for a typical meal and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`,
-      }],
-      response_format: { type: 'json_object' },
-    });
-    content = resp.choices[0].message.content ?? '{}';
-  } else {
-    // Text path
+  try {
+    // Use text description for analysis (Cerebras model is text-only, cannot process images)
     const resp = await openai.chat.completions.create({
       model: 'llama3.1-8b',
       messages: [{
@@ -783,28 +784,41 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
       }],
       response_format: { type: 'json_object' },
     });
-    content = resp.choices[0].message.content ?? '{}';
+    const content = resp.choices[0].message.content ?? '{}';
+
+    // Strip markdown fences if present
+    const stripped = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    let analysis;
+    try {
+      analysis = JSON.parse(stripped || '{}');
+    } catch (parseErr) {
+      console.error('Food analyze — AI returned invalid JSON:', stripped);
+      return error(res, 'AI returned invalid response. Please try again.', 502);
+    }
+
+    const [log] = await db.insert(schema.foodLogs).values({
+      userId,
+      mealType: mealType ?? 'snack',
+      foodItems: analysis.foodItems ?? [],
+      totalCalories: typeof analysis.totalCalories === 'number' ? analysis.totalCalories : null,
+      dominantMacro: typeof analysis.dominantMacro === 'string' ? analysis.dominantMacro : null,
+      glycemicImpact: typeof analysis.glycemicImpact === 'string' ? analysis.glycemicImpact : null,
+      aiMoodImpact: typeof analysis.moodImpact === 'string' ? analysis.moodImpact : null,
+      aiDreamRelevance: typeof analysis.dreamRelevance === 'string' ? analysis.dreamRelevance : null,
+      summary: typeof analysis.summary === 'string' ? analysis.summary : null,
+      moodBefore: moodBefore ?? null,
+      notes: notes ?? null,
+    }).returning();
+
+    return success(res, { ...analysis, id: log.id, loggedAt: log.loggedAt }, 201);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    console.error('Food analyze error:', msg);
+    if (msg.includes('API key') || msg.includes('auth') || msg.includes('401')) {
+      return error(res, 'AI service authentication failed. Check CEREBRAS_API_KEY.', 503);
+    }
+    return error(res, `Food analysis failed: ${msg}`, 500);
   }
-
-  // Strip markdown fences if present
-  const stripped = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-  const analysis = JSON.parse(stripped || '{}');
-
-  const [log] = await db.insert(schema.foodLogs).values({
-    userId,
-    mealType: mealType ?? 'snack',
-    foodItems: analysis.foodItems ?? [],
-    totalCalories: typeof analysis.totalCalories === 'number' ? analysis.totalCalories : null,
-    dominantMacro: typeof analysis.dominantMacro === 'string' ? analysis.dominantMacro : null,
-    glycemicImpact: typeof analysis.glycemicImpact === 'string' ? analysis.glycemicImpact : null,
-    aiMoodImpact: typeof analysis.moodImpact === 'string' ? analysis.moodImpact : null,
-    aiDreamRelevance: typeof analysis.dreamRelevance === 'string' ? analysis.dreamRelevance : null,
-    summary: typeof analysis.summary === 'string' ? analysis.summary : null,
-    moodBefore: moodBefore ?? null,
-    notes: notes ?? null,
-  }).returning();
-
-  return success(res, { ...analysis, id: log.id, loggedAt: log.loggedAt }, 201);
 }
 
 async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string) {

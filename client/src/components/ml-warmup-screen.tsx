@@ -76,19 +76,19 @@ export function MLWarmupScreen({ onSimulationMode }: MLWarmupScreenProps): JSX.E
     onSimulationMode !== undefined && elapsed >= SIMULATION_MODE_THRESHOLD_S;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-6 p-8">
-      {/* Animated brain icon */}
-      <Brain className="h-16 w-16 text-primary animate-pulse" aria-hidden="true" />
+    <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center gap-6 p-8 animate-in fade-in duration-500">
+      {/* Brain icon — small and static */}
+      <Brain className="h-8 w-8 text-primary/70" aria-hidden="true" />
 
       {/* Title */}
-      <h1 className="text-3xl font-bold text-foreground tracking-tight">
+      <h1 className="text-2xl font-semibold text-foreground tracking-tight">
         AntarAI
       </h1>
 
-      {/* Progress bar */}
-      <div className="w-full max-w-sm rounded-full bg-muted h-2 overflow-hidden">
+      {/* Progress bar — prominent, wider */}
+      <div className="w-full max-w-md rounded-full bg-muted h-1.5 overflow-hidden">
         <div
-          className="h-full bg-primary transition-all duration-300 ease-linear rounded-full"
+          className="h-full bg-primary transition-all duration-500 ease-out rounded-full"
           style={{ width: `${warmupProgress}%` }}
           role="progressbar"
           aria-valuenow={warmupProgress}
@@ -98,13 +98,13 @@ export function MLWarmupScreen({ onSimulationMode }: MLWarmupScreenProps): JSX.E
       </div>
 
       {/* Rotating status message */}
-      <p className="text-sm text-muted-foreground text-center">
+      <p className="text-sm text-muted-foreground/80 text-center">
         {ROTATING_MESSAGES[messageIndex]}
       </p>
 
       {/* Elapsed time */}
-      <p className="text-xs text-muted-foreground/60">
-        {elapsed}s elapsed
+      <p className="text-xs text-muted-foreground/40">
+        {elapsed}s
       </p>
 
       {/* Simulation mode button — appears after 40 s */}

@@ -58,7 +58,11 @@ export async function apiRequest(
     headers["Content-Type"] = "application/json";
     // Vercel's serverless runtime has a bug where req.body is consumed but
     // inaccessible. Send body as base64 header as a workaround.
-    headers["x-body-b64"] = btoa(body);
+    // Skip for large payloads (>6KB) — HTTP headers have ~8KB size limits.
+    // Large payloads (e.g. image uploads) fall through to the stream parser.
+    if (body.length < 6000) {
+      headers["x-body-b64"] = btoa(body);
+    }
   }
 
   const res = await fetch(resolveUrl(url), {
@@ -107,25 +111,9 @@ export const queryClient = new QueryClient({
       if (status === 401) return; // auth errors handled by ProtectedRoute
       // 404 = no data yet (expected for new users) — don't alarm them
       if (status === 404) return;
-      // Suppress background data-load failures — these are not user-initiated actions
-      const key = Array.isArray(query.queryKey) ? String(query.queryKey[0]) : "";
-      if (key.startsWith("/api/")) return; // Express API background fetches
-      if (key.startsWith("voice-") || key.startsWith("personal-") || key.startsWith("streak")) return;
-      if (key.startsWith("sessions-") || key.startsWith("dreams")) return;
-      if (key.startsWith("brain-")) return; // brain-patterns, brain-report, etc.
-
-      lastErrorToastMs = now;
-
-      const queryName = key || "data";
-
-      toast({
-        title: "Failed to load " + queryName,
-        description:
-          status === 0 || !status
-            ? "Check your internet connection."
-            : `Server returned ${status}. Pull down to retry.`,
-        variant: "destructive",
-      });
+      // Suppress ALL background query error toasts — these are not user-initiated
+      // actions. Mutation errors are handled by each mutation's own catch block.
+      return;
     },
   }),
   defaultOptions: {

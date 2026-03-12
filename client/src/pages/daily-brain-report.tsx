@@ -280,9 +280,9 @@ export default function DailyBrainReport() {
   /* — Data fetches — */
   const { data: sessions = [], isLoading: sessionsLoading } =
     useQuery<SessionSummary[]>({
-      queryKey: ["sessions-brain-report"],
+      queryKey: ["sessions-brain-report", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch("/api/ml/sessions");
+        const res = await fetch(`/api/ml/sessions?user_id=${encodeURIComponent(CURRENT_USER)}`);
         if (!res.ok) return [];
         return res.json();
       },

@@ -71,6 +71,7 @@ export default function SettingsPage() {
     google_fit: false,
   });
   const [isConnectingApple, setIsConnectingApple] = useState(false);
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [exportingHealthkit, setExportingHealthkit] = useState(false);
   const [seedingDemo, setSeedingDemo] = useState(false);
@@ -120,6 +121,68 @@ export default function SettingsPage() {
       // Silently fail — not critical
     } finally {
       setIsConnectingApple(false);
+    }
+  };
+
+  const handleGoogleFitConnect = async () => {
+    setIsConnectingGoogle(true);
+    try {
+      // Use the capacitor-health plugin (same as health-sync.ts Android path)
+      const { Capacitor } = await import("@capacitor/core");
+      const platform = Capacitor.getPlatform();
+
+      if (platform === "android") {
+        const { Health } = await import("capacitor-health");
+        // Check if Health Connect is available
+        const available = await Health.isHealthAvailable();
+        if (!available.available) {
+          toast({
+            title: "Health Connect Not Available",
+            description: "Please install Google Health Connect from the Play Store.",
+            variant: "destructive",
+          });
+          return;
+        }
+        // Request permissions
+        await Health.requestHealthPermissions({
+          permissions: [
+            "READ_STEPS",
+            "READ_HEART_RATE",
+            "READ_ACTIVE_CALORIES",
+            "READ_WORKOUTS",
+            "READ_MINDFULNESS",
+          ],
+        });
+        setHealthStatus((prev) => ({ ...prev, google_fit: true }));
+        toast({
+          title: "Google Health Connect",
+          description: "Connected successfully. Health data will sync automatically.",
+        });
+        // Also notify the server
+        await fetch("/api/health/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source: "google_fit" }),
+        }).catch(() => {});
+      } else if (platform === "web") {
+        toast({
+          title: "Health Connect",
+          description: "Google Health Connect is available on Android devices only. Use the mobile app to connect.",
+        });
+      } else {
+        toast({
+          title: "Health Connect",
+          description: "Google Health Connect is available on Android only. Use Apple Health on iOS.",
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Connection Failed",
+        description: `Could not connect to Health Connect: ${String(e)}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsConnectingGoogle(false);
     }
   };
 
@@ -339,16 +402,25 @@ export default function SettingsPage() {
                   : "Connect"}
               </Button>
             </div>
-            {/* Google Fit */}
+            {/* Google Health Connect */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Google Fit</p>
+                <p className="text-sm font-medium">Google Health Connect</p>
                 <p className="text-xs text-muted-foreground">
                   {healthStatus.google_fit ? "Connected" : "Not connected"}
                 </p>
               </div>
-              <Button variant="outline" size="sm" disabled>
-                Coming Soon
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleGoogleFitConnect}
+                disabled={isConnectingGoogle}
+              >
+                {isConnectingGoogle
+                  ? "Connecting..."
+                  : healthStatus.google_fit
+                  ? "Disconnect"
+                  : "Connect"}
               </Button>
             </div>
           </div>
@@ -411,14 +483,14 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Google Fit */}
+            {/* Google Health Connect */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10">
                   <Smartphone className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Google Fit</p>
+                  <p className="text-sm font-medium">Google Health Connect</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {healthStatus.google_fit ? (
                       <>

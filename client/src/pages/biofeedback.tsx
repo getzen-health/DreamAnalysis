@@ -863,10 +863,12 @@ export default function Biofeedback() {
             </p>
           </Card>
 
-          {/* Live stress chart */}
+          {/* Stress chart — live when EEG connected, simulated estimate otherwise */}
           <Card className="glass-card p-6 rounded-xl flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium">Live Stress Response</h3>
+              <h3 className="text-sm font-medium">
+                {isStreaming ? "Live Stress Response" : "Estimated Stress Response"}
+              </h3>
               <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
                 {startStress != null && (
                   <span>Start <span className="text-foreground">{Math.round(startStress)}</span></span>
@@ -946,7 +948,7 @@ export default function Biofeedback() {
               <div className="mt-4 pt-4 border-t border-border/20 flex items-center justify-between text-xs text-muted-foreground">
                 <span>{formatTime(elapsed)} elapsed</span>
                 {!isStreaming && (
-                  <span className="opacity-50">⚡ simulation mode</span>
+                  <span className="opacity-50">Estimated from voice/baseline — connect EEG for live data</span>
                 )}
               </div>
             )}
