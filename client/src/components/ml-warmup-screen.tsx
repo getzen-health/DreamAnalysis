@@ -21,7 +21,7 @@ const ROTATING_MESSAGES = [
 const MESSAGE_INTERVAL_MS = 8_000;
 const ELAPSED_TICK_MS = 1_000;
 /** Show "Browse app while loading" after this many seconds */
-const SIMULATION_MODE_THRESHOLD_S = 10;
+const SIMULATION_MODE_THRESHOLD_S = 3;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 

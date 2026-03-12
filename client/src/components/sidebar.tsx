@@ -24,6 +24,7 @@ import {
   Bluetooth,
   Trophy,
   Pill,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -45,44 +46,43 @@ interface NavSection {
   items: NavItem[];
 }
 
-const sections: NavSection[] = [
+// Always visible — core features for every user
+const coreSections: NavSection[] = [
   {
-    title: "Voice & Watch",
+    title: "",
     items: [
       { path: "/",               label: "Dashboard",      icon: LayoutDashboard },
       { path: "/brain-report",   label: "Daily Report",   icon: Sun },
-      { path: "/weekly-summary", label: "Weekly Summary", icon: CalendarDays },
+      { path: "/emotions",       label: "Emotions",       icon: Brain },
+      { path: "/food",           label: "Food & Mood",    icon: Utensils },
+      { path: "/dreams",         label: "Dreams",         icon: Moon },
+      { path: "/biofeedback",    label: "Breathe",        icon: Wind },
+      { path: "/ai-companion",   label: "AI Companion",   icon: MessageCircle },
     ],
   },
+];
+
+// Collapsed by default — analytics & extras
+const moreSections: NavSection[] = [
   {
-    title: "Mind & Recovery",
+    title: "More",
     items: [
-      { path: "/emotional-intelligence", label: "EI Dashboard",   icon: Brain },
-      { path: "/emotions",        label: "Emotions",         icon: Brain },
-      { path: "/insights",        label: "Insights",         icon: Lightbulb },
-      { path: "/health-analytics",label: "Health Analytics", icon: BarChart2 },
-      { path: "/sessions",        label: "History",          icon: History },
+      { path: "/weekly-summary",        label: "Weekly Summary",   icon: CalendarDays },
+      { path: "/emotional-intelligence", label: "EI Dashboard",    icon: Brain },
+      { path: "/insights",              label: "Insights",         icon: Lightbulb },
+      { path: "/health-analytics",      label: "Health Analytics", icon: BarChart2 },
+      { path: "/sessions",              label: "History",          icon: History },
+      { path: "/supplements",           label: "Supplements",      icon: Pill },
+      { path: "/sleep-session",         label: "Sleep",            icon: BedDouble },
+      { path: "/records",               label: "My Records",       icon: Trophy },
     ],
   },
+];
+
+// Only visible when EEG device is connected
+const eegSections: NavSection[] = [
   {
-    title: "Health & Life",
-    items: [
-      { path: "/food",          label: "Food & Mood",   icon: Utensils },
-      { path: "/supplements",   label: "Supplements",   icon: Pill },
-      { path: "/dreams",        label: "Dreams",        icon: Moon },
-      { path: "/sleep-session", label: "Sleep",         icon: BedDouble },
-      { path: "/biofeedback",   label: "Breathe",       icon: Wind },
-    ],
-  },
-  {
-    title: "Support",
-    items: [
-      { path: "/ai-companion", label: "AI Companion", icon: MessageCircle },
-      { path: "/records",      label: "My Records",   icon: Trophy },
-    ],
-  },
-  {
-    title: "Add EEG Later",
+    title: "EEG",
     items: [
       { path: "/brain-monitor",      label: "Brain Monitor",   icon: Activity },
       { path: "/brain-connectivity", label: "Connectivity",    icon: Network },
@@ -96,6 +96,7 @@ const sections: NavSection[] = [
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const isMobile = useIsMobile();
   const [location] = useLocation();
@@ -106,6 +107,22 @@ export function Sidebar() {
 
   const isConnected =
     device.state === "streaming" || device.state === "connected";
+
+  // Auto-expand "More" when user is on one of those pages
+  const moreVisible = moreOpen || moreSections[0].items.some(
+    (item) => location === item.path || (item.path !== "/" && location.startsWith(item.path + "/"))
+  );
+  // Auto-expand EEG when user is on one of those pages
+  const eegVisible = isConnected || eegSections[0].items.some(
+    (item) => location === item.path || (item.path !== "/" && location.startsWith(item.path + "/"))
+  );
+
+  // Build visible sections
+  const visibleSections = [
+    ...coreSections,
+    ...(moreVisible ? moreSections : []),
+    ...(eegVisible ? eegSections : []),
+  ];
 
   const { status: mlStatus, latencyMs, reconnect: mlReconnect } = useMLConnection();
 
@@ -166,7 +183,7 @@ export function Sidebar() {
 
           {/* Navigation Sections */}
           <nav aria-label="Sidebar navigation" className="flex-1 px-2 pb-4">
-            {sections.map((section, si) => (
+            {visibleSections.map((section, si) => (
               <div key={section.title || "main"} className={si > 0 ? "mt-1" : ""}>
                 {section.title && (
                   <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">
@@ -208,6 +225,17 @@ export function Sidebar() {
                 })}
               </div>
             ))}
+
+            {/* "More" toggle — only show when More section is collapsed */}
+            {!moreVisible && (
+              <button
+                onClick={() => setMoreOpen(true)}
+                className="flex items-center px-3 py-2.5 rounded-lg text-[13px] w-full mt-1 min-h-[44px] text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
+              >
+                <ChevronDown className="mr-3 h-4 w-4 shrink-0" />
+                <span>More</span>
+              </button>
+            )}
 
             {/* Settings (separate) */}
             <div className="mt-2 pt-2 border-t border-border/30">

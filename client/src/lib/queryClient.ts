@@ -8,7 +8,7 @@ const isNative = Capacitor.isNativePlatform();
  * On native Capacitor apps, relative URLs like /api/auth/register resolve to
  * file:// which fails. Prefix with the production backend URL.
  */
-function resolveUrl(url: string): string {
+export function resolveUrl(url: string): string {
   if (isNative && url.startsWith("/")) {
     const base = import.meta.env.VITE_EXPRESS_URL || "https://dream-analysis.vercel.app";
     return `${base}${url}`;
@@ -102,14 +102,21 @@ export const queryClient = new QueryClient({
     onError: (error, query) => {
       const now = Date.now();
       if (now - lastErrorToastMs < 5000) return; // 5s cooldown
-      lastErrorToastMs = now;
 
       const status = (error as any)?.status as number | undefined;
       if (status === 401) return; // auth errors handled by ProtectedRoute
+      // 404 = no data yet (expected for new users) — don't alarm them
+      if (status === 404) return;
+      // Suppress background data-load failures — these are not user-initiated actions
+      const key = Array.isArray(query.queryKey) ? String(query.queryKey[0]) : "";
+      if (key.startsWith("/api/")) return; // Express API background fetches
+      if (key.startsWith("voice-") || key.startsWith("personal-") || key.startsWith("streak")) return;
+      if (key.startsWith("sessions-") || key.startsWith("dreams")) return;
+      if (key.startsWith("brain-")) return; // brain-patterns, brain-report, etc.
 
-      const queryName = Array.isArray(query.queryKey)
-        ? String(query.queryKey[0])
-        : "data";
+      lastErrorToastMs = now;
+
+      const queryName = key || "data";
 
       toast({
         title: "Failed to load " + queryName,

@@ -1,6 +1,7 @@
 import { getParticipantId } from "@/lib/participant";
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { resolveUrl } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -160,7 +161,7 @@ export default function FoodLog() {
   const { data: history } = useQuery<FoodLog[]>({
     queryKey: ["/api/food/logs", USER_ID],
     queryFn: async () => {
-      const res = await fetch(`/api/food/logs/${USER_ID}`, { credentials: "include" });
+      const res = await fetch(resolveUrl(`/api/food/logs/${USER_ID}`), { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
