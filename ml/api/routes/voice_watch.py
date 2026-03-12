@@ -147,15 +147,25 @@ class EmotionResult(BaseModel):
     stress_from_watch: Optional[float] = None
 
 
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    """Extract a float from a value that may be a dict with 'risk_score'."""
+    if isinstance(val, dict):
+        return float(val.get("risk_score", default))
+    try:
+        return float(val) if val is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
 def _voice_stress_index(result: Dict[str, Any]) -> float:
     """Composite 0-1 stress score from voice biomarkers + watch signal."""
     biomarkers = result.get("biomarkers", {}) or {}
     mental = result.get("mental_health", {}) or {}
 
-    hnr_db = float(biomarkers.get("hnr_db", 20.0) or 20.0)
-    jitter = float(biomarkers.get("jitter_local", 0.01) or 0.01)
-    model_stress = float(mental.get("stress", 0.0) or 0.0)
-    watch_stress = float(result.get("stress_from_watch", 0.0) or 0.0)
+    hnr_db = _safe_float(biomarkers.get("hnr_db"), 20.0)
+    jitter = _safe_float(biomarkers.get("jitter_local"), 0.01)
+    model_stress = _safe_float(mental.get("stress"), 0.0)
+    watch_stress = _safe_float(result.get("stress_from_watch"), 0.0)
 
     low_hnr = float(np.clip((18.0 - hnr_db) / 18.0, 0.0, 1.0))
     jitter_tension = float(np.clip((0.01 - min(jitter, 0.01)) / 0.01, 0.0, 1.0))
@@ -189,12 +199,12 @@ def _auto_log_voice_brain_state(user_id: str, timestamp: float, result: Dict[str
             user_id=user_id,
             timestamp=timestamp,
             emotion_data={
-                "valence": float(result.get("valence", 0.0)),
-                "arousal": float(result.get("arousal", 0.0)),
+                "valence": _safe_float(result.get("valence"), 0.0),
+                "arousal": _safe_float(result.get("arousal"), 0.0),
                 "stress_index": _voice_stress_index(result),
                 "focus_index": _voice_focus_index(result),
                 "source": "voice",
-                "speech_rate": float(biomarkers.get("speech_rate", 0.0) or 0.0),
+                "speech_rate": _safe_float(biomarkers.get("speech_rate"), 0.0),
             },
         )
     except Exception as exc:
@@ -267,14 +277,17 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
     _auto_log_voice_brain_state(req.user_id, ts, result)
 
     # Persist to history for brain_report and other cross-route consumers
-    _VOICE_HISTORY[req.user_id].append({
-        "timestamp": ts,
-        "emotion": result.get("emotion", "neutral"),
-        "valence": float(result.get("valence", 0.0)),
-        "arousal": float(result.get("arousal", 0.5)),
-        "stress_index": _voice_stress_index(result),
-        "focus_index": _voice_focus_index(result),
-    })
+    try:
+        _VOICE_HISTORY[req.user_id].append({
+            "timestamp": ts,
+            "emotion": result.get("emotion", "neutral"),
+            "valence": _safe_float(result.get("valence"), 0.0),
+            "arousal": _safe_float(result.get("arousal"), 0.5),
+            "stress_index": _voice_stress_index(result),
+            "focus_index": _voice_focus_index(result),
+        })
+    except Exception as exc:
+        log.warning("Voice history append failed: %s", exc)
 
     # Auto-cache so /voice-watch/latest/{user_id} returns this result
     # (used by Daily Brain Report)
