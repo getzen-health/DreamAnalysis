@@ -153,7 +153,10 @@ async function verifyPassword(stored: string, supplied: string): Promise<boolean
 async function authRegister(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
-    const { username, password, email } = req.body as { username?: string; password?: string; email?: string };
+    // Use parsed body (may be pre-set by early parser, or parse again as fallback)
+    const body = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0)
+      ? req.body : await parseRequestBody(req);
+    const { username, password, email } = body as { username?: string; password?: string; email?: string };
     if (!username || typeof username !== 'string' || username.trim().length < 3)
       return badRequest(res, 'Username must be at least 3 characters');
     if (!password || typeof password !== 'string' || password.length < 6)
@@ -178,7 +181,9 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
 async function authLogin(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
-    const { username, password } = req.body as { username?: string; password?: string };
+    const body = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0)
+      ? req.body : await parseRequestBody(req);
+    const { username, password } = body as { username?: string; password?: string };
     if (!username || !password) return badRequest(res, 'Username and password required');
     const db = getDb();
     const [user] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
@@ -1288,7 +1293,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // the stream is consumed. Use Object.defineProperty to force-override the getter.
   if (['POST', 'PUT', 'PATCH'].includes(req.method || '')) {
     const parsed = await parseRequestBody(req);
-    Object.defineProperty(req, 'body', { value: parsed, writable: true, configurable: true });
+    try {
+      Object.defineProperty(req, 'body', { value: parsed, writable: true, configurable: true });
+    } catch {
+      // If defineProperty fails (non-configurable), mutate in place
+      (req as any).body = parsed;
+    }
   }
 
   // Extract path segments from /api/seg0/seg1/...
