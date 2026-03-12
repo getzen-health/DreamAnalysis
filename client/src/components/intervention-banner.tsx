@@ -24,6 +24,7 @@ import {
   Brain,
 } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { triggerSpotifyPlay } from "@/components/spotify-connect";
 
@@ -141,7 +142,7 @@ export function InterventionBanner() {
     // Just-in-time push notification trigger (fires even when app is backgrounded)
     // The server enforces a 15-minute per-user cooldown so this won't spam.
     if (_sharedStress >= 0.70 || _sharedFocus <= 0.25) {
-      fetch("/api/notifications/brain-state-trigger", {
+      fetch(resolveUrl("/api/notifications/brain-state-trigger"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

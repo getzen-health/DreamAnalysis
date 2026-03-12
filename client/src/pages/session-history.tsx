@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "wouter";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -139,7 +140,7 @@ export default function DataHub() {
     useQuery<DreamEntry[]>({
       queryKey: ["dreams", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch(`/api/dream-analysis/${CURRENT_USER}`);
+        const res = await fetch(resolveUrl(`/api/dream-analysis/${CURRENT_USER}`));
         if (!res.ok) return [];
         return res.json();
       },
@@ -150,7 +151,7 @@ export default function DataHub() {
     useQuery<HealthEntry[]>({
       queryKey: ["health", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch(`/api/health-metrics/${CURRENT_USER}`);
+        const res = await fetch(resolveUrl(`/api/health-metrics/${CURRENT_USER}`));
         if (!res.ok) return [];
         return res.json();
       },

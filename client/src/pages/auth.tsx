@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
+import { resolveUrl } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,7 +64,7 @@ export default function AuthPage() {
   // After login/register, route based on stored intent
   async function redirectByIntent() {
     try {
-      const res = await fetch('/api/user/intent', { credentials: 'include' });
+      const res = await fetch(resolveUrl('/api/user/intent'), { credentials: 'include' });
       const data = await res.json();
       if (data.intent === 'study') {
         setLocation('/study');

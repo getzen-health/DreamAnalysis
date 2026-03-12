@@ -8,6 +8,8 @@
  * Call `syncAll(userId)` when the device comes back online.
  */
 
+import { resolveUrl } from "@/lib/queryClient";
+
 const DB_NAME = "neural-dream-offline";
 const DB_VERSION = 2; // bumped to add eeg_queue store
 
@@ -223,7 +225,7 @@ export async function syncAll(userId: string): Promise<SyncResult> {
   const unsyncedDreams = await getUnsyncedDrafts();
   for (const draft of unsyncedDreams) {
     try {
-      const res = await fetch("/api/dream-analysis", {
+      const res = await fetch(resolveUrl("/api/dream-analysis"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -243,7 +245,7 @@ export async function syncAll(userId: string): Promise<SyncResult> {
   const unsyncedSessions = await getUnsyncedEEGSessions();
   for (const session of unsyncedSessions) {
     try {
-      const res = await fetch("/api/health-metrics", {
+      const res = await fetch(resolveUrl("/api/health-metrics"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -266,7 +268,7 @@ export async function syncAll(userId: string): Promise<SyncResult> {
   const unsyncedMetrics = await getUnsyncedHealthMetrics();
   for (const metric of unsyncedMetrics) {
     try {
-      const res = await fetch("/api/health-metrics", {
+      const res = await fetch(resolveUrl("/api/health-metrics"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

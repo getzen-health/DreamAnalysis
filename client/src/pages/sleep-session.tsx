@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { resolveUrl } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
@@ -143,7 +144,7 @@ export default function SleepSession() {
   const { data: healthMetrics } = useQuery<HealthMetric[]>({
     queryKey: ["/api/health-metrics", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(`/api/health-metrics/${CURRENT_USER}`);
+      const res = await fetch(resolveUrl(`/api/health-metrics/${CURRENT_USER}`));
       if (!res.ok) return [];
       return res.json();
     },

@@ -14,6 +14,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { resolveUrl } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -279,7 +280,7 @@ export function VoiceCheckinCard({
         }).catch(() => {}); // ignore errors — streak is best-effort
 
         // Save emotion reading to Express DB so Daily Report + Session History see it
-        fetch("/api/emotion-readings/batch", {
+        fetch(resolveUrl("/api/emotion-readings/batch"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Music, LogIn, LogOut, Play, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { resolveUrl } from "@/lib/queryClient";
 
 interface SpotifyStatus {
   connected: boolean;
@@ -38,7 +39,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/spotify/status", { credentials: "include" });
+      const res = await fetch(resolveUrl("/api/spotify/status"), { credentials: "include" });
       if (res.ok) setStatus(await res.json());
     } catch { /* server offline */ }
   }, []);
@@ -64,7 +65,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/spotify/play", {
+      const res = await fetch(resolveUrl("/api/spotify/play"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -88,7 +89,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
   }, []);
 
   const disconnect = useCallback(async () => {
-    await fetch("/api/spotify/disconnect", { method: "POST", credentials: "include" });
+    await fetch(resolveUrl("/api/spotify/disconnect"), { method: "POST", credentials: "include" });
     setStatus((s) => s ? { ...s, connected: false, username: null } : null);
   }, []);
 
@@ -201,7 +202,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
  */
 export async function triggerSpotifyPlay(mood: "calm" | "focus" | "sleep"): Promise<boolean> {
   try {
-    const res = await fetch("/api/spotify/play", {
+    const res = await fetch(resolveUrl("/api/spotify/play"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",

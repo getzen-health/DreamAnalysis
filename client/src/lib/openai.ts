@@ -1,4 +1,4 @@
-import { apiRequest } from "./queryClient";
+import { apiRequest, resolveUrl } from "./queryClient";
 
 export interface MoodAnalysisResult {
   mood: string;
@@ -119,7 +119,7 @@ export class OpenAIService {
    */
   static async getChatHistory(userId: string): Promise<ChatResponse[]> {
     try {
-      const response = await fetch(`/api/ai-chat/${userId}`);
+      const response = await fetch(resolveUrl(`/api/ai-chat/${userId}`));
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -148,7 +148,7 @@ export class OpenAIService {
    */
   static async exportUserData(userId: string): Promise<Blob> {
     try {
-      const response = await fetch(`/api/export/${userId}`);
+      const response = await fetch(resolveUrl(`/api/export/${userId}`));
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

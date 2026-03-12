@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 
 export interface HealthMetrics {
   heartRate: number;
@@ -55,7 +56,7 @@ export function useMetrics() {
   const { data: historicalMetrics, isLoading } = useQuery({
     queryKey: ["/api/health-metrics", USER_ID],
     queryFn: async () => {
-      const response = await fetch(`/api/health-metrics/${USER_ID}`);
+      const response = await fetch(resolveUrl(`/api/health-metrics/${USER_ID}`));
       if (!response.ok) throw new Error('Failed to fetch metrics');
       return response.json();
     }

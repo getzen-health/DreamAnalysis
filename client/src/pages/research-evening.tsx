@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Moon, CheckCircle2, Loader2, Activity } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 const USER_ID = getParticipantId();
@@ -146,7 +146,7 @@ export default function ResearchEvening() {
   const { data: status } = useQuery({
     queryKey: ["/api/study/status", USER_ID],
     queryFn: async () => {
-      const res = await fetch(`/api/study/status/${USER_ID}`, { credentials: "include" });
+      const res = await fetch(resolveUrl(`/api/study/status/${USER_ID}`), { credentials: "include" });
       if (!res.ok) throw new Error("Failed");
       return res.json() as Promise<{ enrolled: boolean; todaySession: { eveningCompleted: boolean } | null }>;
     },

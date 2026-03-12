@@ -11,7 +11,7 @@ import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { submitFeedback } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import {
@@ -242,7 +242,7 @@ export default function EmotionLab() {
     if (!user?.id || correcting) return;
     setCorrecting(true);
     try {
-      await fetch(`/api/emotions/correct-latest/${user.id}`, {
+      await fetch(resolveUrl(`/api/emotions/correct-latest/${user.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userCorrectedEmotion: value }),

@@ -1,4 +1,5 @@
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,7 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const response = await fetch(`/api/settings/${userId}`);
+        const response = await fetch(resolveUrl(`/api/settings/${userId}`));
         if (response.ok) {
           const data = await response.json();
           setSettings((prev) => ({ ...prev, ...data }));
@@ -98,7 +99,7 @@ export default function SettingsPage() {
   // Fetch health connection status on mount
   const refetchHealthStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/health/status");
+      const res = await fetch(resolveUrl("/api/health/status"));
       if (res.ok) {
         const data = await res.json();
         setHealthStatus((prev) => ({ ...prev, ...data }));
@@ -115,7 +116,7 @@ export default function SettingsPage() {
   const handleAppleHealthConnect = async () => {
     setIsConnectingApple(true);
     try {
-      await fetch("/api/health/connect", { method: "POST" });
+      await fetch(resolveUrl("/api/health/connect"), { method: "POST" });
       refetchHealthStatus();
     } catch {
       // Silently fail — not critical
@@ -159,7 +160,7 @@ export default function SettingsPage() {
           description: "Connected successfully. Health data will sync automatically.",
         });
         // Also notify the server
-        await fetch("/api/health/connect", {
+        await fetch(resolveUrl("/api/health/connect"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ source: "google_fit" }),
@@ -190,7 +191,7 @@ export default function SettingsPage() {
   const saveSettings = useCallback(
     async (updated: SettingsState) => {
       try {
-        await fetch(`/api/settings/${userId}`, {
+        await fetch(resolveUrl(`/api/settings/${userId}`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updated),
@@ -245,7 +246,7 @@ export default function SettingsPage() {
   const handleHealthkitExport = async () => {
     setExportingHealthkit(true);
     try {
-      const res = await fetch(`/api/ml/health/export-to-healthkit/${userId}`, { method: "POST" });
+      const res = await fetch(resolveUrl(`/api/ml/health/export-to-healthkit/${userId}`), { method: "POST" });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -270,7 +271,7 @@ export default function SettingsPage() {
 
   const handleDataExport = async () => {
     try {
-      const response = await fetch(`/api/export/${userId}`);
+      const response = await fetch(resolveUrl(`/api/export/${userId}`));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -285,7 +286,7 @@ export default function SettingsPage() {
 
   const handleDreamExport = async () => {
     try {
-      const response = await fetch(`/api/export/${userId}?type=dreams`);
+      const response = await fetch(resolveUrl(`/api/export/${userId}?type=dreams`));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -302,7 +303,7 @@ export default function SettingsPage() {
     setSeedingDemo(true);
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch("/api/seed-demo", {
+      const res = await fetch(resolveUrl("/api/seed-demo"), {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -321,7 +322,7 @@ export default function SettingsPage() {
 
   const handleClearAllData = async () => {
     try {
-      await fetch(`/api/settings/${userId}/data`, {
+      await fetch(resolveUrl(`/api/settings/${userId}/data`), {
         method: "DELETE",
       });
       setSettings(defaultSettings);
@@ -1173,7 +1174,7 @@ function NotificationsCard({ userId }: { userId: string }) {
       // Try to get VAPID key from server; gracefully handle missing key
       let sub: PushSubscription | null = null;
       try {
-        const vapidRes = await fetch("/api/notifications/vapid-public-key");
+        const vapidRes = await fetch(resolveUrl("/api/notifications/vapid-public-key"));
         if (vapidRes.ok) {
           const { publicKey } = await vapidRes.json();
           sub = await reg.pushManager.subscribe({
@@ -1187,7 +1188,7 @@ function NotificationsCard({ userId }: { userId: string }) {
 
       if (sub) {
         const { endpoint, keys } = sub.toJSON() as { endpoint: string; keys: Record<string, string> };
-        await fetch("/api/notifications/subscribe", {
+        await fetch(resolveUrl("/api/notifications/subscribe"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId, endpoint, keys }),

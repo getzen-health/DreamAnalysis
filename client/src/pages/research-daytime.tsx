@@ -10,7 +10,7 @@ import {
   Brain, CheckCircle2, Loader2, Wind, Utensils,
   ExternalLink, ChevronRight, Coffee, Timer,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 const USER_ID = getParticipantId();
@@ -249,7 +249,7 @@ export default function ResearchDaytime() {
   const { data: status } = useQuery({
     queryKey: ["/api/study/status", USER_ID],
     queryFn: async () => {
-      const res = await fetch(`/api/study/status/${USER_ID}`, { credentials: "include" });
+      const res = await fetch(resolveUrl(`/api/study/status/${USER_ID}`), { credentials: "include" });
       if (!res.ok) throw new Error("Failed");
       return res.json() as Promise<{ enrolled: boolean; todaySession: { daytimeCompleted: boolean } | null }>;
     },

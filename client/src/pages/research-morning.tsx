@@ -18,7 +18,7 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 const USER_ID = getParticipantId();
@@ -192,7 +192,7 @@ export default function ResearchMorning() {
   }>({
     queryKey: ["/api/study/status", USER_ID],
     queryFn: async () => {
-      const res = await fetch(`/api/study/status/${USER_ID}`, { credentials: "include" });
+      const res = await fetch(resolveUrl(`/api/study/status/${USER_ID}`), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load study status");
       return res.json();
     },

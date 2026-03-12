@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -178,7 +179,7 @@ export default function Insights() {
   const { data: latestVoice } = useQuery<Record<string, unknown> | null>({
     queryKey: ["voice-insights-fallback", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(`/api/ml/voice-watch/latest/${CURRENT_USER}`);
+      const res = await fetch(resolveUrl(`/api/ml/voice-watch/latest/${CURRENT_USER}`));
       if (!res.ok) return null;
       const data = await res.json();
       if (!data || Array.isArray(data) || typeof data !== "object") return null;
