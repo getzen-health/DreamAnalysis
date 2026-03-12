@@ -25,7 +25,6 @@ export default function AuthPage() {
   const [registerPassword, setRegisterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [registerAge, setRegisterAge] = useState('');
-  const [registerDevice, setRegisterDevice] = useState('muse_2');
   const [registerLoading, setRegisterLoading] = useState(false);
 
   // After login/register, route based on stored intent
@@ -131,13 +130,18 @@ export default function AuthPage() {
         password: registerPassword,
         email: registerEmail.trim() || undefined,
         age: registerAge ? Number(registerAge) : undefined,
-        deviceType: registerDevice || undefined,
       });
       toast({
         title: 'Account Created',
         description: 'Welcome to AntarAI!',
       });
-      await redirectByIntent();
+      // New users see welcome intro; returning users go through intent flow
+      const seen = localStorage.getItem("onboarding_complete");
+      if (!seen) {
+        setLocation("/welcome-intro");
+      } else {
+        await redirectByIntent();
+      }
     } catch (err: any) {
       const status = err.status as number | undefined;
       const description =
@@ -377,24 +381,6 @@ export default function AuthPage() {
                         className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
                       style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="register-device" className="text-foreground">
-                        EEG Device
-                      </Label>
-                      <select
-                        id="register-device"
-                        value={registerDevice}
-                        onChange={(e) => setRegisterDevice(e.target.value)}
-                        className="w-full h-10 rounded-md border border-primary/20 px-3 text-sm focus:outline-none focus:border-primary/50"
-                        style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
-                      >
-                        <option value="muse_2">Muse 2</option>
-                        <option value="muse_s">Muse S</option>
-                        <option value="openbci_cyton">OpenBCI Cyton</option>
-                        <option value="openbci_ganglion">OpenBCI Ganglion</option>
-                        <option value="none">No device yet</option>
-                      </select>
                     </div>
                   </div>
                   <Button

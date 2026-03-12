@@ -60,12 +60,21 @@
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>AntarAI can write mindfulness session data to Apple Health.</string>
 
-	<!-- Background modes for push notifications and data sync -->
+	<!-- Microphone - voice emotion analysis -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AntarAI uses the microphone to analyze voice patterns for emotion and stress detection.</string>
+
+	<!-- Speech Recognition -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>AntarAI uses speech recognition for voice-based journaling and emotion analysis.</string>
+
+	<!-- Background modes for push notifications, BLE, and data sync -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
 		<string>fetch</string>
 		<string>processing</string>
+		<string>bluetooth-central</string>
 	</array>
 
 	<!-- Motion - accelerometer during EEG sessions -->

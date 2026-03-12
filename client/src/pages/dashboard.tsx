@@ -993,7 +993,7 @@ export default function Dashboard() {
       })()}
 
       {/* 5. Brain-Health Insights — hidden for brand-new users */}
-      {(totalSessions > 0 || insightsLoading || (healthInsights && healthInsights.length > 0)) && <div className="grid grid-cols-1 gap-4">
+      {(totalSessions > 0 || (healthInsights && healthInsights.length > 0 && healthInsights[0]?.insight_type !== "info")) && <div className="grid grid-cols-1 gap-4">
         <Card className="glass-card p-5 hover-glow">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="h-4 w-4 text-accent" />
