@@ -474,7 +474,7 @@ class VoiceEmotionModel:
         return self._predict_features(audio, sample_rate)
 
     def predict_with_biomarkers(
-        self, audio: np.ndarray, sample_rate: int = 22050
+        self, audio: np.ndarray, sample_rate: int = 22050, **kwargs
     ) -> Optional[Dict]:
         """Predict emotion AND extract mental-health biomarkers.
 
@@ -485,7 +485,7 @@ class VoiceEmotionModel:
         This is an opt-in enrichment — callers who only need emotion
         should use ``predict()`` for lower latency.
         """
-        result = self.predict(audio, sample_rate)
+        result = self.predict(audio, sample_rate, **kwargs)
         if result is None:
             return None
 
