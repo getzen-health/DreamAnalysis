@@ -94,9 +94,9 @@ describe("EmotionLab page", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows Today's emotions section header", () => {
+  it("shows Recent Emotions section header", () => {
     renderWithProviders(<EmotionLab />);
-    expect(screen.getByText("Today's emotions")).toBeInTheDocument();
+    expect(screen.getByText("Recent Emotions")).toBeInTheDocument();
   });
 
   it("shows Right now card section", () => {
@@ -112,7 +112,7 @@ describe("EmotionLab page", () => {
   it("shows empty session message when not streaming", () => {
     renderWithProviders(<EmotionLab />);
     expect(
-      screen.getByText("Start a session to track your emotions today.")
+      screen.getByText("Log a mood or start a session to see your emotion history.")
     ).toBeInTheDocument();
   });
 });

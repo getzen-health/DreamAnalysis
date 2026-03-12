@@ -44,7 +44,7 @@ describe("InnerEnergy page", () => {
     renderWithProviders(<InnerEnergy />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Start with a voice check-in to unlock this page/)
+        screen.getByText(/Start with a voice check-in to see your energy state/)
       ).toBeInTheDocument();
     });
   });

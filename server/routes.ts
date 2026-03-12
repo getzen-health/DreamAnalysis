@@ -1103,8 +1103,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const parsed = readings.map((r: unknown) => insertEmotionReadingSchema.parse(r));
       const inserted = await storage.batchCreateEmotionReadings(parsed);
       res.json({ inserted: inserted.length });
-    } catch (error) {
-      res.status(400).json({ message: "Invalid emotion readings data" });
+    } catch (error: any) {
+      const detail = error?.issues ? error.issues.map((i: any) => `${i.path?.join('.')}: ${i.message}`).join('; ') : error?.message;
+      res.status(400).json({ message: "Invalid emotion readings data", detail });
     }
   });
 

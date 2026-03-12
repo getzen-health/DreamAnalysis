@@ -28,6 +28,14 @@ vi.mock("wouter", () => ({
   Link: (props: any) => <a href={props.href}>{props.children}</a>,
 }));
 
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => ({ user: null }),
+}));
+
+vi.mock("@/hooks/use-health-sync", () => ({
+  useHealthSync: () => ({ latestPayload: null }),
+}));
+
 vi.mock("@/lib/ml-api", () => ({
   getHealthInsights: vi.fn().mockResolvedValue([]),
   getBaselineStatus: vi.fn().mockResolvedValue({ ready: true }),
@@ -54,12 +62,19 @@ describe("Dashboard page", () => {
   it("shows connect device banner when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Start with voice check-ins or sync health data now\. EEG is an optional upgrade for live brain sensing later\./)
+      screen.getByText(/Start with a voice check-in or sync health data\. EEG is optional\./)
     ).toBeInTheDocument();
   });
 
-  // Progressive disclosure: advanced sections hidden for new users with 0 sessions
-  it("hides ML model badges for new users with no sessions", async () => {
+  it("shows a personalized greeting header", () => {
+    renderWithProviders(<Dashboard />);
+    // Greeting depends on time of day — one of these must be present
+    const greeting = screen.getByText(/Good (morning|afternoon|evening)/);
+    expect(greeting).toBeInTheDocument();
+  });
+
+  // Active ML Models section is hidden (consumer mode, gated by `false &&`)
+  it("hides ML model badges (consumer mode)", async () => {
     renderWithProviders(<Dashboard />);
     await waitFor(() => {
       expect(screen.queryByText("Active ML Models")).not.toBeInTheDocument();
