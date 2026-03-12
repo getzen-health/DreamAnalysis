@@ -71,62 +71,70 @@ export async function registerNativePush(): Promise<NativePushToken | null> {
   if (!isNative()) return null;
   if (_registered) return null;
 
-  const { PushNotifications } = await import("@capacitor/push-notifications");
-
-  // Check current permission
-  let permStatus = await PushNotifications.checkPermissions();
-  if (permStatus.receive === "prompt") {
-    permStatus = await PushNotifications.requestPermissions();
-  }
-  if (permStatus.receive !== "granted") {
-    console.warn("[native-push] Permission not granted");
+  // Skip on Android until google-services.json / Firebase is configured —
+  // calling PushNotifications.register() without Firebase crashes the native process.
+  if (Capacitor.getPlatform() === "android") {
+    console.info("[native-push] Skipping on Android — Firebase not configured");
     return null;
   }
 
-  // Set up listeners before registering
-  return new Promise((resolve) => {
-    // Registration success → got the FCM/APNs token
-    PushNotifications.addListener("registration", async (token) => {
-      _registered = true;
-      const payload: NativePushToken = { token: token.value, platform: getPlatform() };
-      try {
-        await registerTokenWithServer(token.value);
-      } catch (e) {
-        console.warn("[native-push] Failed to register token with server:", e);
-      }
-      resolve(payload);
-    });
+  const { PushNotifications } = await import("@capacitor/push-notifications");
 
-    // Registration error
-    PushNotifications.addListener("registrationError", (err) => {
-      console.error("[native-push] Registration error:", err);
-      resolve(null);
-    });
+  // Wrap everything in try-catch — PushNotifications.register() crashes on
+  // Android if google-services.json / Firebase is not configured.
+  try {
+    let permStatus = await PushNotifications.checkPermissions();
+    if (permStatus.receive === "prompt") {
+      permStatus = await PushNotifications.requestPermissions();
+    }
+    if (permStatus.receive !== "granted") {
+      console.warn("[native-push] Permission not granted");
+      return null;
+    }
 
-    // Foreground notification received
-    PushNotifications.addListener("pushNotificationReceived", (notification) => {
-      // When app is open: show an in-app toast or banner
-      // The notification object has title, body, data
-      window.dispatchEvent(
-        new CustomEvent("native-push-received", {
-          detail: notification,
-        })
-      );
-    });
+    return new Promise((resolve) => {
+      PushNotifications.addListener("registration", async (token) => {
+        _registered = true;
+        const payload: NativePushToken = { token: token.value, platform: getPlatform() };
+        try {
+          await registerTokenWithServer(token.value);
+        } catch (e) {
+          console.warn("[native-push] Failed to register token with server:", e);
+        }
+        resolve(payload);
+      });
 
-    // User tapped a notification → navigate
-    PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
-      const data = action.notification.data as Record<string, string> | undefined;
-      const route = data?.route ?? "/brain-report";
-      // Navigate using a custom event so we don't need to import wouter here
-      window.dispatchEvent(
-        new CustomEvent("native-push-navigate", { detail: { route } })
-      );
-    });
+      PushNotifications.addListener("registrationError", (err) => {
+        console.error("[native-push] Registration error:", err);
+        resolve(null);
+      });
 
-    // Trigger registration
-    PushNotifications.register();
-  });
+      PushNotifications.addListener("pushNotificationReceived", (notification) => {
+        window.dispatchEvent(
+          new CustomEvent("native-push-received", { detail: notification })
+        );
+      });
+
+      PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+        const data = action.notification.data as Record<string, string> | undefined;
+        const route = data?.route ?? "/brain-report";
+        window.dispatchEvent(
+          new CustomEvent("native-push-navigate", { detail: { route } })
+        );
+      });
+
+      // This crashes natively if Firebase is not set up — the registrationError
+      // listener above will catch the JS-side error, but the native crash needs
+      // the outer try-catch + a timeout to resolve the promise.
+      PushNotifications.register();
+
+      // Safety timeout: if neither registration nor error fires within 10s, resolve
+      setTimeout(() => resolve(null), 10_000);
+    });
+  } catch (e) {
+    console.warn("[native-push] Registration failed (Firebase not configured?):", e);
+    return null;
+  }
 }
 
 /**

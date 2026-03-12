@@ -267,11 +267,29 @@ function AppRoutes() {
 
 const PUBLIC_ROUTES = new Set(["/auth", "/forgot-password", "/reset-password", "/welcome", "/welcome-intro", "/onboarding-new"]);
 
-function App() {
+// Separated so it can access useAuth (must be inside AuthProvider)
+function AppShell() {
   const [warmupDismissed, setWarmupDismissed] = useState(false);
   const [location] = useLocation();
-  const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
+  const { user, isLoading } = useAuth();
   const isPublicRoute = PUBLIC_ROUTES.has(location);
+
+  // Only show warmup screen for authenticated users on non-public routes
+  const showWarmup = !warmupDismissed && !isPublicRoute && !isLoading && !!user;
+
+  return (
+    <TooltipProvider>
+      {showWarmup && (
+        <MLWarmupScreen onSimulationMode={() => setWarmupDismissed(true)} />
+      )}
+      <AppRoutes />
+      <Toaster />
+    </TooltipProvider>
+  );
+}
+
+function App() {
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
 
   if (pathname === "/architecture-guide") {
     return (
@@ -297,13 +315,7 @@ function App() {
         <AuthProvider>
           <MLConnectionProvider>
             <DeviceProvider>
-              <TooltipProvider>
-                {!warmupDismissed && !isPublicRoute && (
-                  <MLWarmupScreen onSimulationMode={() => setWarmupDismissed(true)} />
-                )}
-                <AppRoutes />
-                <Toaster />
-              </TooltipProvider>
+              <AppShell />
             </DeviceProvider>
           </MLConnectionProvider>
         </AuthProvider>
