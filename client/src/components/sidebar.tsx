@@ -87,7 +87,6 @@ const eegSections: NavSection[] = [
     items: [
       { path: "/brain-monitor",      label: "Brain Monitor",   icon: Activity },
       { path: "/brain-connectivity", label: "Connectivity",    icon: Network },
-      { path: "/inner-energy",       label: "Inner Energy",    icon: Sparkles },
       { path: "/neurofeedback",      label: "Neurofeedback",   icon: Radio },
       { path: "/calibration",        label: "EEG Calibration", icon: SlidersHorizontal },
       { path: "/device-setup",       label: "EEG Setup",       icon: Bluetooth },

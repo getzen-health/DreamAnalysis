@@ -38,6 +38,7 @@ import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { StreakCard } from "@/components/streak-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import EmotionLandscape, { type HeatmapCell } from "@/components/emotion-landscape";
+import { useAuth } from "@/hooks/use-auth";
 
 /* ---------- helpers ---------- */
 
@@ -329,6 +330,7 @@ const USER_ID = getParticipantId();
 
 /* ========== Component ========== */
 export default function Dashboard() {
+  const { user } = useAuth();
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
@@ -478,20 +480,40 @@ export default function Dashboard() {
     if (!isStreaming) recordTriggeredRef.current = false;
   }, [focusIndex, peakFocus, isStreaming]);
 
+  const greetingName = user?.username ? user.username.charAt(0).toUpperCase() + user.username.slice(1) : "";
+  const greetingTime = hour >= 5 && hour < 12 ? "Good morning" : hour >= 12 && hour < 17 ? "Good afternoon" : "Good evening";
+
   return (
-    <main className="p-6 space-y-6 max-w-6xl">
+    <main className="p-5 space-y-5 max-w-6xl mx-auto">
+      {/* Greeting */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">
+            {greetingTime}{greetingName ? `, ${greetingName}` : ""}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {isStreaming ? "EEG streaming live" : healthState ? `Connected to ${healthState.source}` : "How are you feeling today?"}
+          </p>
+        </div>
+        <Link href="/brain-report">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/10 hover:bg-primary/20 transition-colors">
+            <Activity className="h-5 w-5 text-primary" />
+          </div>
+        </Link>
+      </div>
+
       {/* 1. Voice + watch first banner */}
       {!isStreaming && !healthState && (
-        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
-          <Radio className="h-4 w-4 shrink-0" />
-          Start with voice check-ins or sync health data now. EEG is an optional upgrade for live brain sensing later.
+        <div className="p-4 rounded-2xl border border-border/50 bg-muted/30 text-sm text-muted-foreground flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0 text-primary" />
+          Start with a voice check-in or sync health data. EEG is optional.
         </div>
       )}
       {/* Health data mode banner */}
       {!isStreaming && healthState && (
-        <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400 flex items-center gap-2">
+        <div className="p-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400 flex items-center gap-2">
           <Heart className="h-3.5 w-3.5 shrink-0" />
-          Showing estimates from {healthState.source}. EEG is optional if you want live neural data later.
+          Showing estimates from {healthState.source}. EEG is optional for live neural data.
         </div>
       )}
 
@@ -501,23 +523,7 @@ export default function Dashboard() {
       {/* Daily streak tracker */}
       <StreakCard userId={USER_ID} />
 
-      {/* Weekly stress landscape — only shown after user has session data */}
-      {totalSessions > 0 && (() => {
-        const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-        const baseStress = (stressIndex ?? 0) / 100;
-        const cells: HeatmapCell[] = [];
-        for (const day of DAYS) {
-          const dayMod = day === "Sat" || day === "Sun" ? -0.15 : 0.05;
-          for (let hour = 6; hour <= 23; hour++) {
-            const morningSpike = hour >= 8 && hour <= 10 ? 0.1 : 0;
-            const afternoonDip = hour >= 13 && hour <= 15 ? 0.08 : 0;
-            const eveningDown = hour >= 20 ? -0.12 : 0;
-            const raw = baseStress + dayMod + morningSpike + afternoonDip + eveningDown;
-            cells.push({ day, hour, stress: Math.max(0, Math.min(1, raw)) });
-          }
-        }
-        return <EmotionLandscape data={cells} title="Weekly Stress Landscape" />;
-      })()}
+      {/* Weekly stress landscape — disabled: was generating fake data from single stress value */}
 
       {/* 2. Baseline calibration prompt (shown until calibrated) */}
       {!baselineReady && isStreaming && (
@@ -535,8 +541,8 @@ export default function Dashboard() {
         </Link>
       )}
 
-      {/* 3. Capability Badges — shown after user has some data */}
-      {totalSessions > 0 && (
+      {/* 3. Capability Badges — hidden in consumer mode, dev-only info */}
+      {false && totalSessions > 0 && (
         <div className="mb-2">
           <h3 className="text-sm font-medium text-muted-foreground mb-2">Active ML Models</h3>
           <div className="flex flex-wrap gap-2">
@@ -1052,22 +1058,22 @@ export default function Dashboard() {
       </div>}
 
       {/* 6. Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-2">
         {QUICK_ACTIONS.map((action) => {
           const Icon = action.icon;
           return (
             <Link key={action.href} href={action.href}>
-              <Card className="glass-card p-4 hover-glow cursor-pointer transition-all group text-center">
+              <div className="flex flex-col items-center gap-1.5 py-3 rounded-2xl cursor-pointer transition-all hover:bg-muted/40 active:scale-95 min-h-[44px]">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 transition-transform group-hover:scale-110"
-                  style={{ background: `${action.color}18` }}
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform"
+                  style={{ background: `${action.color}15` }}
                 >
                   <Icon className="h-5 w-5" style={{ color: action.color }} />
                 </div>
-                <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                <span className="text-[11px] text-muted-foreground leading-tight text-center">
                   {action.label}
                 </span>
-              </Card>
+              </div>
             </Link>
           );
         })}
