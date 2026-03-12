@@ -185,9 +185,26 @@ export function VoiceCheckinCard({
 
     let stream: MediaStream;
     try {
+      // On native Capacitor platforms (Android/iOS), the WebView's
+      // onPermissionRequest in MainActivity handles bridging the
+      // getUserMedia call to Android runtime permissions. We just
+      // need to call getUserMedia and the native layer takes care of
+      // prompting the user if app-level permissions aren't granted yet.
+      //
+      // On web, this goes through the standard browser permission flow.
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setError("Microphone access denied");
+    } catch (err) {
+      // Provide a more helpful error on native platforms
+      let message = "Microphone access denied";
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        if (Capacitor.isNativePlatform()) {
+          message = "Microphone access denied. Open your device Settings and enable microphone permission for this app.";
+        }
+      } catch {
+        // Not on Capacitor — use default message
+      }
+      setError(message);
       return;
     }
 

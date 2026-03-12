@@ -3,9 +3,11 @@ package com.neuraldreamworkshop.app;
 import android.os.Bundle;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
@@ -40,8 +42,17 @@ public class MainActivity extends BridgeActivity {
     public void onStart() {
         super.onStart();
 
-        // Override WebChromeClient to handle getUserMedia permission requests
         WebView webView = getBridge().getWebView();
+
+        // Configure WebView settings for media capture
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setMediaPlaybackRequiresUserGesture(false);
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setJavaScriptEnabled(true);
+
+        // Override WebChromeClient to handle getUserMedia permission requests.
+        // We only override onPermissionRequest; all other methods (alerts, file choosers,
+        // console messages) inherit the default WebChromeClient behavior.
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
@@ -58,6 +69,12 @@ public class MainActivity extends BridgeActivity {
                     }
                 }
 
+                // If the request is not for audio/video, deny to avoid granting unknown permissions
+                if (!needsAudio && !needsVideo) {
+                    request.deny();
+                    return;
+                }
+
                 // Check if Android runtime permissions are already granted
                 boolean audioGranted = !needsAudio ||
                     ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO)
@@ -67,16 +84,19 @@ public class MainActivity extends BridgeActivity {
                         == PackageManager.PERMISSION_GRANTED;
 
                 if (audioGranted && videoGranted) {
-                    // Runtime permissions already granted — allow WebView access
-                    request.grant(resources);
+                    // Runtime permissions already granted — allow WebView access on UI thread
+                    runOnUiThread(() -> request.grant(resources));
                 } else {
-                    // Need to request runtime permissions first
+                    // Need to request runtime permissions first — store pending request
                     pendingPermissionRequest = request;
-                    String[] permsNeeded = needsAudio && needsVideo
-                        ? new String[]{ Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA }
-                        : needsAudio
-                            ? new String[]{ Manifest.permission.RECORD_AUDIO }
-                            : new String[]{ Manifest.permission.CAMERA };
+                    String[] permsNeeded;
+                    if (needsAudio && needsVideo) {
+                        permsNeeded = new String[]{ Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA };
+                    } else if (needsAudio) {
+                        permsNeeded = new String[]{ Manifest.permission.RECORD_AUDIO };
+                    } else {
+                        permsNeeded = new String[]{ Manifest.permission.CAMERA };
+                    }
                     ActivityCompat.requestPermissions(MainActivity.this, permsNeeded, PERMISSION_REQUEST_CODE);
                 }
             }
@@ -84,7 +104,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
         if (requestCode == PERMISSION_REQUEST_CODE && pendingPermissionRequest != null) {
@@ -95,12 +115,14 @@ public class MainActivity extends BridgeActivity {
                     break;
                 }
             }
-            if (allGranted) {
-                pendingPermissionRequest.grant(pendingPermissionRequest.getResources());
-            } else {
-                pendingPermissionRequest.deny();
-            }
+            final PermissionRequest req = pendingPermissionRequest;
             pendingPermissionRequest = null;
+
+            if (allGranted) {
+                runOnUiThread(() -> req.grant(req.getResources()));
+            } else {
+                runOnUiThread(req::deny);
+            }
         }
     }
 }

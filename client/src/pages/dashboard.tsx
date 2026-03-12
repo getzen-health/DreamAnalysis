@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Moon,
   MessageSquare,
+  MessageCircle,
   Sparkles,
   Radio,
   Wind,
@@ -23,7 +24,12 @@ import {
   Star,
   Music,
   Heart,
+  Sun,
+  BedDouble,
+  UtensilsCrossed,
+  Lightbulb,
 } from "lucide-react";
+import { hapticLight } from "@/lib/haptics";
 import { useDevice } from "@/hooks/use-device";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import type { BiometricPayload } from "@/lib/health-sync";
@@ -319,11 +325,15 @@ function relativeDay(startTime: number): string {
   return `${Math.round(diffH / 24)} days ago`;
 }
 
-const QUICK_ACTIONS = [
-  { href: "/brain-report", icon: Activity, label: "Daily Report", color: "hsl(200, 70%, 55%)" },
-  { href: "/dreams", icon: Moon, label: "Dream Journal", color: "hsl(262, 45%, 65%)" },
-  { href: "/ai-companion", icon: MessageSquare, label: "AI Companion", color: "hsl(152, 60%, 48%)" },
-  { href: "/biofeedback", icon: Wind, label: "Breathe", color: "hsl(38, 85%, 58%)" },
+const FEATURE_CARDS = [
+  { href: "/emotions",       icon: Brain,            label: "Mood & Emotions",  subtitle: "Track how you feel",          color: "hsl(270, 60%, 60%)" },
+  { href: "/dreams",         icon: Moon,             label: "Dream Journal",    subtitle: "Record and analyze",          color: "hsl(230, 60%, 60%)" },
+  { href: "/biofeedback",    icon: Wind,             label: "Breathe",          subtitle: "Guided breathing",            color: "hsl(170, 55%, 48%)" },
+  { href: "/ai-companion",   icon: MessageCircle,    label: "AI Companion",     subtitle: "Talk to your guide",          color: "hsl(152, 60%, 48%)" },
+  { href: "/brain-report",   icon: Sun,              label: "Daily Report",     subtitle: "Today's brain summary",       color: "hsl(38, 85%, 58%)" },
+  { href: "/sleep-session",  icon: BedDouble,        label: "Sleep Session",    subtitle: "Track overnight sleep",       color: "hsl(217, 70%, 55%)" },
+  { href: "/food",           icon: UtensilsCrossed,  label: "Food & Mood",      subtitle: "What you eat matters",        color: "hsl(25, 80%, 55%)" },
+  { href: "/insights",       icon: Lightbulb,        label: "Insights",         subtitle: "Patterns and trends",         color: "hsl(190, 70%, 50%)" },
 ];
 
 const USER_ID = getParticipantId();
@@ -522,6 +532,42 @@ export default function Dashboard() {
 
       {/* Daily streak tracker */}
       <StreakCard userId={USER_ID} />
+
+      {/* Your Tools — navigation hub for all features */}
+      <div>
+        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">
+          Your Tools
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {FEATURE_CARDS.map((card) => {
+            const Icon = card.icon;
+            return (
+              <Link key={card.href} href={card.href} onClick={() => hapticLight()}>
+                <div
+                  className="flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all hover:bg-muted/40 active:scale-[0.98]"
+                  style={{
+                    background: "hsl(222, 25%, 8%, 0.5)",
+                    border: "1px solid hsl(220, 18%, 15%, 0.5)",
+                    borderLeft: `3px solid ${card.color}`,
+                    minHeight: "80px",
+                  }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: `${card.color}15` }}
+                  >
+                    <Icon className="h-5 w-5" style={{ color: card.color }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground leading-tight">{card.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{card.subtitle}</p>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Weekly stress landscape — disabled: was generating fake data from single stress value */}
 
@@ -1057,27 +1103,7 @@ export default function Dashboard() {
         </Card>
       </div>}
 
-      {/* 6. Quick Actions */}
-      <div className="grid grid-cols-4 gap-2">
-        {QUICK_ACTIONS.map((action) => {
-          const Icon = action.icon;
-          return (
-            <Link key={action.href} href={action.href}>
-              <div className="flex flex-col items-center gap-1.5 py-3 rounded-2xl cursor-pointer transition-all hover:bg-muted/40 active:scale-95 min-h-[44px]">
-                <div
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform"
-                  style={{ background: `${action.color}15` }}
-                >
-                  <Icon className="h-5 w-5" style={{ color: action.color }} />
-                </div>
-                <span className="text-[11px] text-muted-foreground leading-tight text-center">
-                  {action.label}
-                </span>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+      {/* Quick Actions removed — replaced by "Your Tools" feature cards above */}
     </main>
   );
 }

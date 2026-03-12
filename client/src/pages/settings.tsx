@@ -27,10 +27,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Cpu, Heart, Brain } from "lucide-react";
+import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Cpu, Heart, Brain, LogOut, User } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/use-theme";
 import { useLocation } from "wouter";
 import { useDevice } from "@/hooks/use-device";
+import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
@@ -746,6 +748,9 @@ export default function SettingsPage() {
       {/* Export Brain Data */}
       <ExportBrainDataCard userId={userId} />
 
+      {/* Account & Sign Out */}
+      <AccountCard />
+
     </main>
   );
 }
@@ -1422,6 +1427,74 @@ function ExportBrainDataCard({ userId }: { userId: string }) {
       <p className="text-[10px] text-muted-foreground mt-3">
         Exports raw 1Hz readings from TimescaleDB. Requires DATABASE_URL.
       </p>
+    </Card>
+  );
+}
+
+/* ── Account & Sign Out Card ────────────────────────────────────── */
+
+function AccountCard() {
+  const { user, logout } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
+  const [, setLocation] = useLocation();
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await logout();
+      setLocation("/auth");
+    } catch {
+      setSigningOut(false);
+    }
+  }
+
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
+  return (
+    <Card className="glass-card p-6 rounded-xl">
+      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <User className="h-4 w-4 text-primary" />
+        Account
+      </h3>
+
+      {user && (
+        <div className="space-y-2 mb-5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Username</span>
+            <span className="text-sm font-medium">{user.username}</span>
+          </div>
+          {user.email && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Email</span>
+              <span className="text-sm font-medium">{user.email}</span>
+            </div>
+          )}
+          {memberSince && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Member since</span>
+              <span className="text-sm font-medium">{memberSince}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Separator className="my-4" />
+
+      <Button
+        variant="destructive"
+        className="w-full"
+        onClick={handleSignOut}
+        disabled={signingOut}
+      >
+        <LogOut className="mr-2 h-4 w-4" />
+        {signingOut ? "Signing out..." : "Sign Out"}
+      </Button>
     </Card>
   );
 }

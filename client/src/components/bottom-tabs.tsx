@@ -1,13 +1,11 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Brain, Moon, MessageCircle, Settings } from "lucide-react";
+import { Home, Activity, CircleUser } from "lucide-react";
 import { hapticLight } from "@/lib/haptics";
 
 const tabs = [
-  { path: "/", icon: LayoutDashboard, label: "Home" },
-  { path: "/emotions", icon: Brain, label: "Emotions" },
-  { path: "/dreams", icon: Moon, label: "Dreams" },
-  { path: "/ai-companion", icon: MessageCircle, label: "AI Chat" },
-  { path: "/settings", icon: Settings, label: "Settings" },
+  { path: "/", icon: Home, label: "Home" },
+  { path: "/sessions", icon: Activity, label: "Activity" },
+  { path: "/settings", icon: CircleUser, label: "Profile" },
 ];
 
 export function BottomTabs() {
