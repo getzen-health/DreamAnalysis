@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { logger } from "./logger";
 import OpenAI from "openai";
 import webpush from "web-push";
 import cron from "node-cron";
@@ -278,7 +279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, { expiresIn: "30d" });
       return res.status(201).json({ user: newUser, token });
     } catch (err: any) {
-      console.error("Register error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err) }, "Register failed");
       return res.status(500).json({ error: "Registration failed." });
     }
   });
@@ -307,7 +308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "30d" });
       return res.json({ user: safeUser, token });
     } catch (err) {
-      console.error("Login error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err) }, "Login failed");
       return res.status(500).json({ error: "Login failed." });
     }
   });
@@ -393,18 +394,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `,
             });
           } catch (emailErr) {
-            console.error("Gmail SMTP error:", emailErr);
+            logger.error({ error: emailErr instanceof Error ? emailErr.message : String(emailErr) }, "Gmail SMTP error");
             return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
           }
         } else {
           // No email provider configured — log URL for local dev/testing
-          console.log(`[dev] Password reset link: ${resetUrl}`);
+          logger.info({ resetUrl }, "[dev] Password reset link");
         }
       }
 
       return res.json({ message: "If that email exists, a reset link was sent" });
     } catch (err) {
-      console.error("Forgot password error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err) }, "Forgot password failed");
       return res.json({ message: "If that email exists, a reset link was sent" });
     }
   });
@@ -436,7 +437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       return res.json({ message: "Password updated successfully" });
     } catch (err) {
-      console.error("Reset password error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err) }, "Reset password failed");
       return res.status(500).json({ message: "Reset failed" });
     }
   });
@@ -1239,7 +1240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const monitorName = String(payload.monitor_name ?? payload.title ?? "");
 
       // Log the webhook event
-      console.log(`[datadog-webhook] ${alertType} — ${monitorName} (${monitorId})`);
+      logger.info({ alertType, monitorName, monitorId }, "Datadog webhook received");
 
       let remediationAction: string | null = null;
       let remediationStatus = "skipped";
@@ -1619,8 +1620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log("GPT finish_reason:", response.choices[0].finish_reason);
-      console.log("GPT refusal:", response.choices[0].message.refusal);
+      logger.info({ finish_reason: response.choices[0].finish_reason, refusal: response.choices[0].message.refusal }, "GPT response received");
       const raw = response.choices[0].message.content ?? "{}";
       let analysis: Record<string, unknown>;
       try {
@@ -1631,7 +1631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           analysis = JSON.parse(stripped);
         } catch (parseErr) {
-          console.error("Food analyze — GPT raw response:", raw);
+          logger.error({ raw }, "Food analyze — GPT response parse failed");
           throw parseErr;
         }
       }
@@ -1653,7 +1653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ...analysis, id: log.id, loggedAt: log.loggedAt });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Unknown error";
-      console.error("Food analyze error:", msg, error);
+      logger.error({ error: msg }, "Food analyze error");
       if (msg.includes("API key") || msg.includes("OPENAI_API_KEY")) {
         res.status(503).json({ message: "AI service not configured. Set OPENAI_API_KEY." });
       } else if (msg.includes("parse") || msg.includes("JSON")) {
@@ -1912,7 +1912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     if (!serviceAccountJson) {
       // Firebase not configured — log and return graceful response
-      console.log(`[native-push] FIREBASE_SERVICE_ACCOUNT_KEY not set. Would send to ${userId}: "${title}"`);
+      logger.warn({ userId, title }, "[native-push] FIREBASE_SERVICE_ACCOUNT_KEY not set");
       return res.json({ sent: false, reason: "firebase_not_configured" });
     }
 
@@ -1944,7 +1944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await admin.default.messaging().send(message);
       res.json({ sent: true, messageId: result });
     } catch (err) {
-      console.error("[native-push] FCM error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), userId }, "[native-push] FCM error");
       res.status(500).json({ error: "Failed to send native push" });
     }
   });
@@ -2189,7 +2189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.redirect("/biofeedback?tab=music&spotify=connected");
     } catch (err) {
-      console.error("Spotify OAuth error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err) }, "Spotify OAuth error");
       res.redirect("/?spotify=error");
     }
   });
@@ -2254,7 +2254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "Open Spotify on any device first, then try again.",
         });
       }
-      console.error("Spotify play error:", err);
+      logger.error({ error: msg }, "Spotify play error");
       res.status(500).json({ error: "playback_failed", message: msg });
     }
   });
@@ -2310,7 +2310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .limit(1);
       return res.json({ available: !existing });
     } catch (err) {
-      console.error("GET /api/study/check-code error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/check-code" }, "Study check-code failed");
       return res.status(500).json({ error: "Failed to check code availability" });
     }
   });
@@ -2339,7 +2339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       return res.json({ success: true, participant_code });
     } catch (err) {
-      console.error("POST /api/study/consent error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/consent" }, "Study consent failed");
       return res.status(500).json({ error: "Failed to save consent" });
     }
   });
@@ -2359,7 +2359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).returning({ id: pilotSessions.id });
       return res.json({ session_id: row.id });
     } catch (err) {
-      console.error("POST /api/study/session/start error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/session/start" }, "Study session start failed");
       return res.status(500).json({ error: "Failed to start session" });
     }
   });
@@ -2409,7 +2409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(pilotSessions.id, Number(session_id)));
       return res.json({ success: true });
     } catch (err) {
-      console.error("POST /api/study/session/complete error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/session/complete" }, "Study session complete failed");
       return res.status(500).json({ error: "Failed to complete session" });
     }
   });
@@ -2435,7 +2435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(pilotSessions.id, sessionId));
       return res.json({ success: true });
     } catch (err) {
-      console.error("PATCH /api/study/session/:id/checkpoint error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/session/:id/checkpoint" }, "Study session checkpoint failed");
       return res.status(500).json({ error: "checkpoint failed" });
     }
   });
@@ -2464,7 +2464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rows = await db.select().from(pilotParticipants).orderBy(desc(pilotParticipants.createdAt));
       return res.json(rows);
     } catch (err) {
-      console.error("GET /api/study/admin/participants error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/admin/participants" }, "Fetch participants failed");
       return res.status(500).json({ error: "Failed to fetch participants" });
     }
   });
@@ -2486,7 +2486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       return res.json({ ok: true });
     } catch (err) {
-      console.error("PATCH /api/study/admin/participant/:code/notes error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/admin/participant/:code/notes" }, "Update researcher notes failed");
       return res.status(500).json({ error: "Failed to update researcher notes" });
     }
   });
@@ -2497,7 +2497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rows = await db.select().from(pilotSessions).orderBy(desc(pilotSessions.createdAt));
       return res.json(rows);
     } catch (err) {
-      console.error("GET /api/study/admin/sessions error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/admin/sessions" }, "Fetch sessions failed");
       return res.status(500).json({ error: "Failed to fetch sessions" });
     }
   });
@@ -2518,7 +2518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       return res.json({ success: true, deleted_id: deleted[0].id });
     } catch (err) {
-      console.error("DELETE /api/study/admin/session/:id error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/admin/session/:id" }, "Delete session failed");
       return res.status(500).json({ error: "Failed to delete session" });
     }
   });
@@ -2583,7 +2583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         avg_stress_reduction,
       });
     } catch (err) {
-      console.error("GET /api/study/admin/stats error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/admin/stats" }, "Compute stats failed");
       return res.status(500).json({ error: "Failed to compute stats" });
     }
   });
@@ -2676,7 +2676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Content-Disposition", `attachment; filename="study-data-${dateStr}.csv"`);
       return res.send(csvString);
     } catch (err) {
-      console.error("GET /api/study/admin/export-csv error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err), path: "/api/study/admin/export-csv" }, "Export CSV failed");
       return res.status(500).json({ error: "Failed to export CSV" });
     }
   });
@@ -2880,7 +2880,7 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
         );
       }
     } catch (err) {
-      console.error("[health-insights] GPT-5 error:", err);
+      logger.error({ error: err instanceof Error ? err.message : String(err) }, "[health-insights] GPT-5 error");
       return res.status(500).json({ message: "Failed to generate insights" });
     }
 
