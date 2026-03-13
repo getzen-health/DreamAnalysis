@@ -613,3 +613,236 @@ def get_daily_summary(user_id: str) -> Dict[str, Any]:
         "total_today": len(today),
         "trajectory": summary,
     }
+
+
+# ── Issue #366: Multi-speaker analysis endpoint ───────────────────────────────
+
+class MultiSpeakerRequest(BaseModel):
+    audio_b64: str = Field(..., description="Base64-encoded WAV")
+    sample_rate: int = Field(22050, description="Audio sample rate in Hz")
+    user_id: str = Field(..., description="User identifier")
+
+
+@router.post("/analyze-multi-speaker")
+def voice_analyze_multi_speaker(req: MultiSpeakerRequest) -> Dict[str, Any]:
+    """Diarize audio into per-speaker segments and return emotion timeline.
+
+    For each detected speaker segment the endpoint runs the VoiceEnsemble
+    pipeline and returns per-speaker emotion results in chronological order.
+
+    Request body:
+        audio_b64:   Base64-encoded WAV audio.
+        sample_rate: Sample rate in Hz (default 22050).
+        user_id:     User identifier.
+
+    Returns:
+        {
+          "user_id": str,
+          "n_speakers": int,
+          "segments": [
+            {
+              "speaker_id": str,
+              "start_time": float,
+              "end_time": float,
+              "duration": float,
+              "emotion": str,
+              "probabilities": {str: float},
+              "valence": float,
+              "arousal": float,
+              "confidence": float,
+              "model_type": str
+            },
+            ...
+          ]
+        }
+    """
+    try:
+        wav_bytes = base64.b64decode(req.audio_b64)
+    except Exception as exc:
+        raise HTTPException(422, f"Invalid base64 audio: {exc}")
+
+    # Decode audio
+    audio_arr: Optional[np.ndarray] = None
+    audio_sr: int = req.sample_rate
+
+    try:
+        import soundfile as sf  # type: ignore
+        audio_arr, audio_sr = sf.read(io.BytesIO(wav_bytes), dtype="float32")
+        if audio_arr.ndim > 1:
+            audio_arr = audio_arr.mean(axis=1)
+    except Exception as exc:
+        log.debug("soundfile decode failed: %s", exc)
+
+    if audio_arr is None:
+        if not _ensure_librosa():
+            raise HTTPException(503, "No audio processing library available")
+        try:
+            import librosa
+            audio_arr, audio_sr = librosa.load(io.BytesIO(wav_bytes), sr=_SR, mono=True)
+        except Exception as exc:
+            raise HTTPException(422, f"Could not decode WAV: {exc}")
+
+    if audio_arr is None or len(audio_arr) < audio_sr // 4:
+        raise HTTPException(422, "Audio too short — need at least 0.25s")
+
+    # Diarize
+    try:
+        from models.voice_ensemble import SimpleSpeakerDiarizer  # type: ignore
+        diarizer = SimpleSpeakerDiarizer()
+        segments = diarizer.diarize(audio_arr, sr=int(audio_sr))
+    except Exception as exc:
+        log.warning("Speaker diarization failed: %s", exc)
+        raise HTTPException(503, f"Speaker diarization failed: {exc}")
+
+    # Run ensemble on each segment
+    speaker_ids = sorted({s.speaker_id for s in segments})
+    results: List[Dict[str, Any]] = []
+
+    try:
+        from models.voice_ensemble import get_voice_ensemble  # type: ignore
+        ensemble = get_voice_ensemble()
+    except Exception as exc:
+        log.warning("VoiceEnsemble unavailable for multi-speaker: %s", exc)
+        ensemble = None
+
+    for seg in segments:
+        seg_result: Dict[str, Any] = {
+            "speaker_id": seg.speaker_id,
+            "start_time": round(seg.start_time, 3),
+            "end_time": round(seg.end_time, 3),
+            "duration": round(seg.end_time - seg.start_time, 3),
+            "emotion": "neutral",
+            "probabilities": {},
+            "valence": 0.0,
+            "arousal": 0.5,
+            "confidence": 0.0,
+            "model_type": "unavailable",
+        }
+        if ensemble is not None and len(seg.audio_segment) >= audio_sr // 4:
+            try:
+                pred = ensemble.predict(
+                    seg.audio_segment,
+                    sample_rate=int(audio_sr),
+                    apply_temporal_smoothing=False,
+                )
+                if pred is not None:
+                    seg_result.update({
+                        "emotion": pred.get("emotion", "neutral"),
+                        "probabilities": pred.get("probabilities", {}),
+                        "valence": pred.get("valence", 0.0),
+                        "arousal": pred.get("arousal", 0.5),
+                        "confidence": pred.get("confidence", 0.0),
+                        "model_type": pred.get("model_type", "unknown"),
+                    })
+            except Exception as exc:
+                log.debug("Ensemble failed on segment %s: %s", seg.speaker_id, exc)
+
+        results.append(seg_result)
+
+    return {
+        "user_id": req.user_id,
+        "n_speakers": len(speaker_ids),
+        "speaker_ids": speaker_ids,
+        "segments": results,
+    }
+
+
+# ── Issue #377: Voice fatigue scan endpoint ───────────────────────────────────
+
+class FatigueScanRequest(BaseModel):
+    audio_b64: str = Field(..., description="Base64-encoded WAV")
+    sample_rate: int = Field(22050, description="Audio sample rate in Hz")
+    user_id: str = Field(..., description="User identifier")
+    baseline: Optional[Dict[str, float]] = Field(
+        None,
+        description=(
+            "Personal rested-voice baseline. Keys: hnr_db, jitter_pct, "
+            "shimmer_db, speaking_rate_proxy. When omitted, population norms are used."
+        ),
+    )
+
+
+@router.post("/fatigue-scan")
+def voice_fatigue_scan(req: FatigueScanRequest) -> Dict[str, Any]:
+    """Analyse vocal fatigue from acoustic biomarkers (issue #377).
+
+    Extracts HNR, jitter, shimmer, and speaking rate from the provided audio
+    and computes a composite fatigue index (0-100).  Optionally compares
+    against a personal rested-voice baseline for more accurate scoring.
+
+    Request body:
+        audio_b64:   Base64-encoded WAV (recommend 3-10 s of continuous speech).
+        sample_rate: Sample rate in Hz (default 22050).
+        user_id:     User identifier.
+        baseline:    Optional personal baseline dict.
+
+    Returns:
+        {
+          "user_id": str,
+          "fatigue_index": float,   // 0-100, higher = more fatigued
+          "hnr_db": float,
+          "hnr_delta": float,
+          "jitter_pct": float,
+          "jitter_ratio": float,
+          "shimmer_db": float,
+          "shimmer_ratio": float,
+          "speaking_rate_proxy": float,
+          "speaking_rate_ratio": float,
+          "confidence": float,
+          "recommendations": [str, ...],
+          "baseline_used": bool
+        }
+    """
+    try:
+        wav_bytes = base64.b64decode(req.audio_b64)
+    except Exception as exc:
+        raise HTTPException(422, f"Invalid base64 audio: {exc}")
+
+    # Decode audio
+    audio_arr: Optional[np.ndarray] = None
+    audio_sr: int = req.sample_rate
+
+    try:
+        import soundfile as sf  # type: ignore
+        audio_arr, audio_sr = sf.read(io.BytesIO(wav_bytes), dtype="float32")
+        if audio_arr.ndim > 1:
+            audio_arr = audio_arr.mean(axis=1)
+    except Exception as exc:
+        log.debug("soundfile decode failed: %s", exc)
+
+    if audio_arr is None:
+        if not _ensure_librosa():
+            raise HTTPException(503, "No audio processing library available")
+        try:
+            import librosa
+            audio_arr, audio_sr = librosa.load(io.BytesIO(wav_bytes), sr=_SR, mono=True)
+        except Exception as exc:
+            raise HTTPException(422, f"Could not decode WAV: {exc}")
+
+    if audio_arr is None or len(audio_arr) < audio_sr // 4:
+        raise HTTPException(422, "Audio too short — need at least 0.25s")
+
+    # Run fatigue scan
+    try:
+        from models.voice_fatigue_model import get_voice_fatigue_scanner  # type: ignore
+        scanner = get_voice_fatigue_scanner()
+        result = scanner.scan(audio_arr, sr=int(audio_sr), baseline=req.baseline)
+    except Exception as exc:
+        log.warning("VoiceFatigueScanner failed: %s", exc)
+        raise HTTPException(503, f"Fatigue scan failed: {exc}")
+
+    return {
+        "user_id": req.user_id,
+        "fatigue_index": result.fatigue_index,
+        "hnr_db": result.hnr_db,
+        "hnr_delta": result.hnr_delta,
+        "jitter_pct": result.jitter_pct,
+        "jitter_ratio": result.jitter_ratio,
+        "shimmer_db": result.shimmer_db,
+        "shimmer_ratio": result.shimmer_ratio,
+        "speaking_rate_proxy": result.speaking_rate_proxy,
+        "speaking_rate_ratio": result.speaking_rate_ratio,
+        "confidence": result.confidence,
+        "recommendations": result.recommendations,
+        "baseline_used": result.baseline_used,
+    }

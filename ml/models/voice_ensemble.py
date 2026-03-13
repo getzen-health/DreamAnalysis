@@ -19,6 +19,10 @@ Architecture:
         * Rapid-flip guard: ignores transitions within 10 seconds when the
           emotion flips more than once (e.g. angry→happy→angry)
 
+Extensions (issue #366):
+    SimpleSpeakerDiarizer  — energy-based speaker segmentation + pitch clustering
+    LanguageDetector       — pitch statistics + phonetic density → ISO 639-1 code
+
 Output:
     Same schema as VoiceEmotionModel + extra keys:
         ensemble_active: bool
@@ -30,6 +34,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import deque
+from dataclasses import dataclass, field
 from typing import Deque, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -841,3 +846,290 @@ def get_voice_calibrator(user_id: str) -> VoiceBaselineCalibrator:
     if user_id not in _calibrator_registry:
         _calibrator_registry[user_id] = VoiceBaselineCalibrator()
     return _calibrator_registry[user_id]
+
+
+# ── Issue #366: Speaker diarization + language detection ───────────────────────
+
+@dataclass
+class SpeakerSegment:
+    """A contiguous audio segment attributed to one speaker.
+
+    Attributes:
+        speaker_id:    Label string, e.g. "Speaker_A", "Speaker_B".
+        start_time:    Start of segment in seconds.
+        end_time:      End of segment in seconds.
+        audio_segment: Raw float32 audio samples for this segment.
+    """
+    speaker_id: str
+    start_time: float
+    end_time: float
+    audio_segment: np.ndarray = field(repr=False)
+
+
+# Silence threshold: gaps longer than this (in seconds) mark a new segment
+_SILENCE_GAP_SEC = 0.500
+# RMS level below which a frame is considered silent
+_SILENCE_RMS_THRESHOLD = 0.01
+# Frame length for energy analysis (25 ms)
+_DIARIZE_FRAME_SEC = 0.025
+
+# Pitch ranges for speaker clustering (Hz) — 3 non-overlapping buckets
+# We assign each segment to a bucket based on its mean pitch, then merge
+# adjacent segments in the same bucket into a single labelled speaker.
+_PITCH_BUCKETS: List[Tuple[float, float]] = [
+    (60.0, 160.0),   # typically male voice range
+    (160.0, 260.0),  # mixed / higher male or low female
+    (260.0, 500.0),  # typically female voice range
+]
+
+
+class SimpleSpeakerDiarizer:
+    """Lightweight energy-based speaker segmentation with pitch clustering.
+
+    Algorithm:
+        1. Split audio into frames (25 ms).
+        2. Mark silent frames (RMS < threshold).
+        3. Merge consecutive non-silent frames separated by <500 ms of silence
+           into raw activity segments.
+        4. Estimate mean pitch (F0 via autocorrelation) for each segment.
+        5. Assign each segment to a pitch bucket → speaker label (Speaker_A/B/C).
+
+    No neural models or external libraries are required.
+    """
+
+    def diarize(self, audio: np.ndarray, sr: int) -> List[SpeakerSegment]:
+        """Segment audio by speaker using energy gaps and pitch clustering.
+
+        Args:
+            audio: 1-D float32 audio array.
+            sr:    Sample rate in Hz.
+
+        Returns:
+            List of SpeakerSegment, in chronological order.
+            Returns an empty list if audio is too short (< 0.5 s).
+        """
+        if audio is None or len(audio) < sr // 2:
+            return []
+
+        y = audio.astype(np.float32)
+        peak = np.abs(y).max()
+        if peak > 1e-9:
+            y = y / peak
+
+        frame_len = max(1, int(sr * _DIARIZE_FRAME_SEC))
+        hop_len = frame_len  # non-overlapping for simplicity
+        n_frames = len(y) // frame_len
+
+        # ── Step 1-2: compute per-frame RMS and flag silence ───────────────
+        is_silent = np.zeros(n_frames, dtype=bool)
+        for i in range(n_frames):
+            frame = y[i * frame_len: (i + 1) * frame_len]
+            rms = float(np.sqrt(np.mean(frame ** 2)))
+            is_silent[i] = rms < _SILENCE_RMS_THRESHOLD
+
+        # ── Step 3: merge activity into raw segments ───────────────────────
+        silence_frames_threshold = max(
+            1, int(_SILENCE_GAP_SEC / _DIARIZE_FRAME_SEC)
+        )
+        raw_segments: List[Tuple[int, int]] = []  # (start_frame, end_frame)
+        seg_start: Optional[int] = None
+        silent_run = 0
+
+        for i in range(n_frames):
+            if not is_silent[i]:
+                if seg_start is None:
+                    seg_start = i
+                silent_run = 0
+            else:
+                silent_run += 1
+                if seg_start is not None and silent_run >= silence_frames_threshold:
+                    raw_segments.append((seg_start, i - silent_run))
+                    seg_start = None
+                    silent_run = 0
+
+        # Close any open segment at end of audio
+        if seg_start is not None:
+            raw_segments.append((seg_start, n_frames - 1))
+
+        if not raw_segments:
+            # No speech detected — return whole audio as one segment
+            return [
+                SpeakerSegment(
+                    speaker_id="Speaker_A",
+                    start_time=0.0,
+                    end_time=len(y) / sr,
+                    audio_segment=y,
+                )
+            ]
+
+        # ── Step 4: estimate mean pitch per segment ────────────────────────
+        pitches: List[float] = []
+        for start_f, end_f in raw_segments:
+            seg_audio = y[start_f * frame_len: (end_f + 1) * frame_len]
+            f0_vals = _estimate_f0_autocorr(seg_audio, sr, frame_len, frame_len)
+            pitches.append(float(np.mean(f0_vals)) if f0_vals else 0.0)
+
+        # ── Step 5: assign pitch bucket → speaker label ────────────────────
+        bucket_to_label: Dict[int, str] = {}
+        label_counter = 0
+        labels = []
+        for p in pitches:
+            bucket = self._pitch_bucket(p)
+            if bucket not in bucket_to_label:
+                bucket_to_label[bucket] = f"Speaker_{chr(65 + label_counter)}"
+                label_counter += 1
+            labels.append(bucket_to_label[bucket])
+
+        # ── Build SpeakerSegment list ──────────────────────────────────────
+        segments: List[SpeakerSegment] = []
+        for (start_f, end_f), label in zip(raw_segments, labels):
+            start_sample = start_f * frame_len
+            end_sample = min((end_f + 1) * frame_len, len(y))
+            seg = SpeakerSegment(
+                speaker_id=label,
+                start_time=start_sample / sr,
+                end_time=end_sample / sr,
+                audio_segment=y[start_sample:end_sample],
+            )
+            segments.append(seg)
+
+        return segments
+
+    @staticmethod
+    def _pitch_bucket(f0: float) -> int:
+        """Return bucket index for a given F0 value (0, 1, or 2)."""
+        for idx, (lo, hi) in enumerate(_PITCH_BUCKETS):
+            if lo <= f0 < hi:
+                return idx
+        if f0 < _PITCH_BUCKETS[0][0]:
+            return 0   # below min → bucket 0
+        return len(_PITCH_BUCKETS) - 1  # above max → last bucket
+
+
+# ── Language detection (issue #366) ───────────────────────────────────────────
+
+# Language-specific pitch thresholds (mean F0 in Hz) for voice baseline calibration.
+# These are population-average speaking-pitch midpoints from literature.
+# Used to adjust pitch-based heuristics when language shifts expected register.
+LANGUAGE_PITCH_THRESHOLDS: Dict[str, Dict[str, float]] = {
+    "en": {"pitch_low": 130.0, "pitch_high": 220.0},
+    "es": {"pitch_low": 135.0, "pitch_high": 225.0},
+    "fr": {"pitch_low": 145.0, "pitch_high": 235.0},
+    "de": {"pitch_low": 120.0, "pitch_high": 210.0},
+    "zh": {"pitch_low": 155.0, "pitch_high": 260.0},
+    "ja": {"pitch_low": 140.0, "pitch_high": 245.0},
+    "ko": {"pitch_low": 145.0, "pitch_high": 240.0},
+    "hi": {"pitch_low": 150.0, "pitch_high": 250.0},
+    "ar": {"pitch_low": 125.0, "pitch_high": 215.0},
+}
+
+# Per-language zero-crossing rate (ZCR) density — phonetically dense languages
+# have higher average ZCR due to consonant clusters and tonal variation.
+# Values are normalised proxies (0-1 scale from speaking_rate_proxy units).
+_LANGUAGE_ZCR_SIGNATURES: Dict[str, float] = {
+    "zh": 0.75,  # tonal, dense
+    "ja": 0.70,  # mora-timed, many short syllables
+    "ko": 0.68,
+    "ar": 0.60,
+    "hi": 0.62,
+    "es": 0.55,
+    "fr": 0.52,
+    "en": 0.48,
+    "de": 0.45,  # stress-timed, fewer syllables per second
+}
+
+# Spectral centroid ranges differ across languages due to phoneme inventory.
+# Tonal/dense languages → higher centroid variance; stress-timed → lower.
+_LANGUAGE_CENTROID_SIGNATURES: Dict[str, float] = {
+    "zh": 2800.0,
+    "ja": 2700.0,
+    "ko": 2750.0,
+    "hi": 2600.0,
+    "ar": 2500.0,
+    "es": 2400.0,
+    "fr": 2450.0,
+    "en": 2300.0,
+    "de": 2200.0,
+}
+
+
+class LanguageDetector:
+    """Lightweight language detector using pitch statistics and phonetic density.
+
+    Does NOT require a speech recognition model or any external dependency.
+    Uses three acoustic proxies:
+        1. Mean F0 (pitch) — varies by language phonology and register.
+        2. ZCR density (speaking_rate_proxy) — tonal/syllable-timed languages
+           have systematically higher zero-crossing rates.
+        3. Spectral centroid — correlated with average place of articulation
+           and consonant-vowel density.
+
+    Each proxy is scored against per-language signatures using L1 distance,
+    the three distances are weighted (pitch 50%, ZCR 30%, centroid 20%) and
+    summed, then the language with the lowest combined distance wins.
+
+    Supported ISO 639-1 codes: en, es, fr, de, zh, ja, ko, hi, ar.
+    Returns "en" as the default when detection confidence is low.
+    """
+
+    # Minimum audio length to attempt detection (seconds)
+    _MIN_DURATION_SEC: float = 1.0
+
+    def detect_language(self, audio: np.ndarray, sr: int) -> str:
+        """Detect spoken language from acoustic features.
+
+        Args:
+            audio: 1-D float32 audio array (at least 1 second recommended).
+            sr:    Sample rate in Hz.
+
+        Returns:
+            ISO 639-1 language code string (e.g. "en", "zh").
+            Falls back to "en" if audio is too short or features are zero.
+        """
+        if audio is None or len(audio) < int(sr * self._MIN_DURATION_SEC):
+            return "en"
+
+        feats = extract_acoustic_features(audio, sr=sr)
+        pitch_mean = feats.get("pitch_mean", 0.0)
+        zcr = feats.get("speaking_rate_proxy", 0.0)
+        centroid = feats.get("spectral_centroid_mean", 0.0)
+
+        # If extraction produced all zeros (very short/silent audio) → default
+        if pitch_mean == 0.0 and zcr == 0.0:
+            return "en"
+
+        # Normalisation ranges for L1 distance scoring
+        PITCH_RANGE = 150.0    # typical spread across languages (Hz)
+        ZCR_RANGE = 0.40       # typical ZCR spread (normalised units)
+        CENTROID_RANGE = 800.0  # typical centroid spread (Hz)
+
+        best_lang = "en"
+        best_score = float("inf")
+
+        for lang in _LANGUAGE_ZCR_SIGNATURES:
+            pitch_ref = (
+                LANGUAGE_PITCH_THRESHOLDS[lang]["pitch_low"]
+                + LANGUAGE_PITCH_THRESHOLDS[lang]["pitch_high"]
+            ) / 2.0
+            zcr_ref = _LANGUAGE_ZCR_SIGNATURES[lang]
+            centroid_ref = _LANGUAGE_CENTROID_SIGNATURES[lang]
+
+            d_pitch = abs(pitch_mean - pitch_ref) / PITCH_RANGE if pitch_mean > 0 else 0.5
+            d_zcr = abs(zcr - zcr_ref) / ZCR_RANGE if zcr > 0 else 0.5
+            d_centroid = abs(centroid - centroid_ref) / CENTROID_RANGE if centroid > 0 else 0.5
+
+            score = 0.50 * d_pitch + 0.30 * d_zcr + 0.20 * d_centroid
+
+            if score < best_score:
+                best_score = score
+                best_lang = lang
+
+        log.debug(
+            "LanguageDetector: detected=%s score=%.3f pitch=%.1f zcr=%.3f centroid=%.0f",
+            best_lang,
+            best_score,
+            pitch_mean,
+            zcr,
+            centroid,
+        )
+        return best_lang
