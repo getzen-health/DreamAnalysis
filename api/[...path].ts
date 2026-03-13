@@ -155,10 +155,10 @@ async function verifyPassword(stored: string, supplied: string): Promise<boolean
 async function authRegister(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
-    // Rate limit: 10 registrations per IP per hour
+    // Rate limit: 20 registrations per IP per hour
     const db = getDb();
     const ip = getClientIp(req);
-    const rl = await checkRateLimit(db, `register:${ip}`, 10, 60);
+    const rl = await checkRateLimit(db, `register:${ip}`, 20, 60);
     if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
 
     // Use parsed body (may be pre-set by early parser, or parse again as fallback)
