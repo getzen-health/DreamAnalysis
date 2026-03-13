@@ -19,7 +19,9 @@ import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
 import Dashboard from "@/pages/dashboard";
 import EmotionLab from "@/pages/emotion-lab";
-import BrainMonitor from "@/pages/brain-monitor";
+// BrainMonitor lazy-loaded: it pulls in use-inference which triggers the
+// onnxruntime-web chunk. Deferring it keeps the initial bundle smaller.
+const BrainMonitor = lazy(() => import("@/pages/brain-monitor"));
 import DreamJournal from "@/pages/dream-journal";
 import AICompanionPage from "@/pages/ai-companion";
 import Biofeedback from "@/pages/biofeedback";

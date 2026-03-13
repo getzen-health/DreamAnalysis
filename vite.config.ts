@@ -39,6 +39,9 @@ export default defineConfig({
             "@radix-ui/react-tabs",
             "@radix-ui/react-tooltip",
           ],
+          // ONNX Runtime Web — 403KB, lazy-loaded only when EEG inference fires.
+          // Named chunk ensures stable cache key across deploys.
+          "vendor-onnx": ["onnxruntime-web"],
         },
       },
     },
