@@ -7,6 +7,7 @@ import cron from "node-cron";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 
 const JWT_SECRET = process.env.SESSION_SECRET || (() => {
   if (process.env.NODE_ENV === "production") throw new Error("SESSION_SECRET must be set in production");
@@ -134,7 +135,57 @@ async function checkAndMarkValidDay(sessionId: string): Promise<boolean> {
   return isValid;
 }
 
+// ── Rate limiters ─────────────────────────────────────────────────────────
+
+/** General API limiter: 100 req/min per IP (applied to all /api/* routes). */
+const generalApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please slow down and try again in a minute." },
+});
+
+/** Login: 5 attempts per 15 minutes per IP. */
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again in 15 minutes." },
+});
+
+/** Register: 3 attempts per hour per IP. */
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many registration attempts. Please try again in an hour." },
+});
+
+/** Forgot-password: 3 requests per hour per IP. */
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many password reset requests. Please try again in an hour." },
+});
+
+/** Reset-password confirm: 5 attempts per 15 minutes per IP. */
+const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many password reset attempts. Please try again in 15 minutes." },
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // ── General API rate limit (must be first, before route handlers) ─────────
+  app.use("/api", generalApiLimiter);
+
   // ── Session middleware (PostgreSQL-backed — persists across Vercel instances) ──
   const PgSession = connectPg(session);
   const useMemorySessionStore = process.env.NODE_ENV === "development";
@@ -169,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Auth routes ───────────────────────────────────────────────────────────
 
   // POST /api/auth/register
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", registerLimiter, async (req, res) => {
     try {
       const { username, password, email, age, deviceType } = req.body;
       if (!username || typeof username !== "string" || username.trim().length < 3)
@@ -212,7 +263,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/auth/login
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", loginLimiter, async (req, res) => {
     try {
       const { username, password } = req.body;
       if (!username || !password)
@@ -274,7 +325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/auth/forgot-password
-  app.post("/api/auth/forgot-password", async (req, res) => {
+  app.post("/api/auth/forgot-password", forgotPasswordLimiter, async (req, res) => {
     try {
       const { email } = req.body;
       if (!email) return res.json({ message: "If that email exists, a reset link was sent" });
@@ -338,7 +389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // POST /api/auth/reset-password
-  app.post("/api/auth/reset-password", async (req, res) => {
+  app.post("/api/auth/reset-password", resetPasswordLimiter, async (req, res) => {
     try {
       const { token, newPassword } = req.body;
       if (!token || !newPassword)
