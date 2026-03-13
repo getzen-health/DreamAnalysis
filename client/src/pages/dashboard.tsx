@@ -30,6 +30,7 @@ import {
   Lightbulb,
   Network,
   Zap,
+  Headphones,
 } from "lucide-react";
 import { hapticLight } from "@/lib/haptics";
 import { useDevice } from "@/hooks/use-device";
@@ -348,6 +349,7 @@ const DISCOVER_CARDS = [
   { href: "/weekly-summary",     icon: TrendingUp,     label: "Weekly Summary",  desc: "Trends over 7 days",       color: "hsl(190, 70%, 50%)" },
   { href: "/brain-connectivity", icon: Network,        label: "Connectivity",    desc: "Brain region links",       color: "hsl(160, 55%, 50%)" },
   { href: "/insights",           icon: Lightbulb,      label: "Insights",        desc: "Pattern analysis",         color: "hsl(50, 80%, 55%)"  },
+  { href: "/sleep-stories",      icon: Headphones,     label: "Sleep Stories",   desc: "EEG-triggered fade-out",   color: "hsl(248, 65%, 62%)" },
 ];
 
 // Keep FEATURE_CARDS for backward compat with tests that reference specific labels
