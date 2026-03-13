@@ -113,19 +113,21 @@ function PageLoader() {
   );
 }
 
-// Redirects unauthenticated users to /auth.
-// Redirects authenticated users who haven't finished onboarding to /onboarding.
+// Redirects new users to onboarding FIRST, then requires auth.
+// Flow: fresh install → /onboarding → /auth → dashboard
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
+
+  // Onboarding check runs BEFORE auth — new users see onboarding first, not a login wall
+  if (location !== "/onboarding" && !localStorage.getItem("ndw_onboarding_complete")) {
+    setLocation("/onboarding");
+    return null;
+  }
+
   if (isLoading) return <PageLoader />;
   if (!user) {
     setLocation("/auth");
-    return null;
-  }
-  // Only enforce onboarding redirect when NOT already on /onboarding
-  if (location !== "/onboarding" && !localStorage.getItem("ndw_onboarding_complete")) {
-    setLocation("/onboarding");
     return null;
   }
   return <>{children}</>;
