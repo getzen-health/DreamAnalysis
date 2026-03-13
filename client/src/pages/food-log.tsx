@@ -1,6 +1,6 @@
 import { getParticipantId } from "@/lib/participant";
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { resolveUrl } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import {
+  MealHistory,
+  type MealHistoryEntry,
+  type MealHistoryFoodItem,
+} from "@/components/meal-history";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -178,6 +183,39 @@ export default function FoodLog() {
       return res.json();
     },
   });
+
+  // ── Meal history (issues #367 + #378) ──────────────────────────────────────
+  const { data: mealHistoryData } = useQuery<MealHistoryEntry[]>({
+    queryKey: ["/api/meal-history", USER_ID],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/meal-history/${USER_ID}`), { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async ({ id, current }: { id: string; current: boolean }) => {
+      await apiRequest("PATCH", `/api/meal-history/${id}/favorite`, { isFavorite: !current });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/meal-history", USER_ID] }),
+    onError: () => toast({ title: "Could not update favorite", variant: "destructive" }),
+  });
+
+  function handleToggleFavorite(id: string, current: boolean) {
+    toggleFavoriteMutation.mutate({ id, current });
+  }
+
+  function handleRelog(items: MealHistoryFoodItem[], relogMealType: string | null) {
+    // Pre-fill the text description from the food items list
+    const desc = items.map(it => `${it.name} (${it.portion})`).join(", ");
+    setInputMode("text");
+    setDescription(desc);
+    if (relogMealType) setMealType(relogMealType);
+    setAnalysis(null);
+    // Scroll to top so the user sees the pre-filled form
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   // ── Shared submit logic ──────────────────────────────────────────────────────
   async function submitAnalysis(payload: { imageBase64?: string; textDescription?: string }) {
@@ -756,6 +794,20 @@ export default function FoodLog() {
           <p className="text-sm text-muted-foreground">
             Log your first meal to start tracking how food affects your mood and dreams.
           </p>
+        </div>
+      )}
+
+      {/* ── Meal history section (#378) ──────────────────────────────────────── */}
+      {mealHistoryData && mealHistoryData.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Meal history
+          </h2>
+          <MealHistory
+            meals={mealHistoryData}
+            onToggleFavorite={handleToggleFavorite}
+            onRelog={handleRelog}
+          />
         </div>
       )}
     </div>

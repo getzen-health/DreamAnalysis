@@ -1,25 +1,53 @@
 /**
  * FoodCapture — mobile-first food image capture component.
  *
+ * Supports:
+ *   - Camera / file-picker capture (up to 4 images per meal — #378)
+ *   - Barcode scanning via manual entry with OpenFoodFacts lookup (#367)
+ *   - Vision-AI fallback when barcode is not found
+ *
  * On native Capacitor (iOS/Android): uses @capacitor/camera plugin.
  * On web: falls back to <input type="file" accept="image/*" capture="environment">.
  *
- * Flow:
+ * Flow (camera):
  *   1. User taps "Capture Meal" → camera/file picker opens
- *   2. Image preview shown with "Analyze" / "Retake" buttons
- *   3. On "Analyze": calls /food/analyze-image via ml-api
- *   4. Results displayed: food items, calories, macros, glycemic impact
+ *   2. Up to 4 images shown as thumbnails; "+" to add more
+ *   3. On "Analyze": calls analyzeFoodImage for each image, aggregates results
+ *   4. Combined nutrition totals shown
+ *
+ * Flow (barcode):
+ *   1. User taps "Scan Barcode"
+ *   2. Text input for manual barcode entry (web fallback — native camera barcode requires plugin)
+ *   3. lookupBarcode() fetches OpenFoodFacts; portion size input shown
+ *   4. If not found, offers fallback to camera/AI analysis
  */
 
 import { useState, useRef, useCallback } from "react";
-import { Camera, Flame, Beef, Wheat, Droplet, Leaf, AlertCircle } from "lucide-react";
+import {
+  Camera,
+  Flame,
+  Beef,
+  Wheat,
+  Droplet,
+  Leaf,
+  AlertCircle,
+  Barcode,
+  Plus,
+  X,
+  ChevronRight,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { analyzeFoodImage, type FoodImageAnalysisResult } from "@/lib/ml-api";
+import { lookupBarcode, type BarcodeProduct } from "@/lib/barcode-api";
 import { hapticSuccess } from "@/lib/haptics";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const MAX_IMAGES = 4;
 
 function isCapacitorNative(): boolean {
   try {
@@ -31,16 +59,98 @@ function isCapacitorNative(): boolean {
 }
 
 function glycemicColor(impact: string): string {
-  if (impact === "low") return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+  if (impact === "low")  return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
   if (impact === "high") return "bg-rose-500/15 text-rose-400 border-rose-500/30";
   return "bg-amber-500/15 text-amber-400 border-amber-500/30";
 }
 
 function macroColor(macro: string): string {
   if (macro === "protein") return "bg-blue-500/15 text-blue-400 border-blue-500/30";
-  if (macro === "fat") return "bg-yellow-500/15 text-yellow-400 border-yellow-500/30";
-  if (macro === "carbs") return "bg-orange-500/15 text-orange-400 border-orange-500/30";
+  if (macro === "fat")     return "bg-yellow-500/15 text-yellow-400 border-yellow-500/30";
+  if (macro === "carbs")   return "bg-orange-500/15 text-orange-400 border-orange-500/30";
   return "bg-muted/50 text-muted-foreground border-border/40";
+}
+
+/** Aggregate multiple FoodImageAnalysisResult objects into one combined result. */
+function aggregateResults(results: FoodImageAnalysisResult[]): FoodImageAnalysisResult {
+  if (results.length === 1) return results[0];
+  const all = results.reduce(
+    (acc, r) => ({
+      food_items:      [...acc.food_items, ...r.food_items],
+      total_calories:  acc.total_calories  + r.total_calories,
+      total_protein_g: acc.total_protein_g + r.total_protein_g,
+      total_carbs_g:   acc.total_carbs_g   + r.total_carbs_g,
+      total_fat_g:     acc.total_fat_g     + r.total_fat_g,
+      total_fiber_g:   acc.total_fiber_g   + r.total_fiber_g,
+      // pick the "worst" (highest) glycemic and lowest confidence
+      glycemic_impact:  r.total_calories > acc.total_calories ? r.glycemic_impact : acc.glycemic_impact,
+      dominant_macro:   r.total_calories > acc.total_calories ? r.dominant_macro  : acc.dominant_macro,
+      confidence:      Math.min(acc.confidence, r.confidence),
+      summary:         `Combined meal (${results.length} images)`,
+    }),
+    {
+      food_items:      [] as FoodImageAnalysisResult["food_items"],
+      total_calories:  0,
+      total_protein_g: 0,
+      total_carbs_g:   0,
+      total_fat_g:     0,
+      total_fiber_g:   0,
+      glycemic_impact: results[0].glycemic_impact,
+      dominant_macro:  results[0].dominant_macro,
+      confidence:      results[0].confidence,
+      summary:         "",
+    }
+  );
+  return all;
+}
+
+/** Convert a BarcodeProduct + portion multiplier to FoodImageAnalysisResult. */
+function barcodeToAnalysisResult(
+  product: BarcodeProduct,
+  servings: number
+): FoodImageAnalysisResult {
+  const s = servings || 1;
+  const cal  = Math.round(product.calories  * s);
+  const prot = Math.round(product.protein_g * s * 10) / 10;
+  const carb = Math.round(product.carbs_g   * s * 10) / 10;
+  const fat  = Math.round(product.fat_g     * s * 10) / 10;
+  const fib  = Math.round(product.fiber_g   * s * 10) / 10;
+
+  // Determine dominant macro by calories contribution
+  const protCal = prot * 4;
+  const carbCal = carb * 4;
+  const fatCal  = fat  * 9;
+  const maxMacro = Math.max(protCal, carbCal, fatCal);
+  const dominant_macro =
+    maxMacro === protCal ? "protein" :
+    maxMacro === carbCal ? "carbs"   : "fat";
+
+  // Rough glycemic estimate from carb fraction
+  const carbFrac = cal > 0 ? carbCal / cal : 0;
+  const glycemic_impact = carbFrac > 0.6 ? "high" : carbFrac > 0.35 ? "medium" : "low";
+
+  return {
+    food_items: [{
+      name:      `${product.name}${product.brand ? ` (${product.brand})` : ""}`,
+      portion:   product.servingSize
+        ? `${s === 1 ? "" : `${s}× `}${product.servingSize}`
+        : `${s} serving${s !== 1 ? "s" : ""}`,
+      calories:  cal,
+      protein_g: prot,
+      carbs_g:   carb,
+      fat_g:     fat,
+      fiber_g:   fib,
+    }],
+    total_calories:  cal,
+    total_protein_g: prot,
+    total_carbs_g:   carb,
+    total_fat_g:     fat,
+    total_fiber_g:   fib,
+    glycemic_impact,
+    dominant_macro,
+    confidence:      1.0,
+    summary: `${product.name}${product.servingSize ? ` · ${product.servingSize}` : ""}`,
+  };
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -51,47 +161,79 @@ export interface FoodCaptureProps {
   className?: string;
 }
 
+// ── State types ───────────────────────────────────────────────────────────────
+
+type CaptureState = "idle" | "preview" | "analyzing" | "done" | "error" | "barcode-scan";
+
+interface CapturedImage {
+  previewUrl:  string;
+  base64:      string;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
-type CaptureState = "idle" | "preview" | "analyzing" | "done" | "error";
-
 export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
-  const [captureState, setCaptureState] = useState<CaptureState>("idle");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [result, setResult] = useState<FoodImageAnalysisResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [captureState, setCaptureState]   = useState<CaptureState>("idle");
+  const [images, setImages]               = useState<CapturedImage[]>([]);
+  const [result, setResult]               = useState<FoodImageAnalysisResult | null>(null);
+  const [errorMsg, setErrorMsg]           = useState<string | null>(null);
+
+  // Barcode state
+  const [barcodeInput, setBarcodeInput]   = useState("");
+  const [barcodeProduct, setBarcodeProduct] = useState<BarcodeProduct | null>(null);
+  const [barcodeServings, setBarcodeServings] = useState("1");
+  const [barcodeLoading, setBarcodeLoading]   = useState(false);
+  const [barcodeNotFound, setBarcodeNotFound] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Reset ──────────────────────────────────────────────────────────────────
+
+  const reset = useCallback(() => {
+    setImages([]);
+    setResult(null);
+    setErrorMsg(null);
+    setBarcodeInput("");
+    setBarcodeProduct(null);
+    setBarcodeServings("1");
+    setBarcodeLoading(false);
+    setBarcodeNotFound(false);
+    setCaptureState("idle");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
   // ── Image capture ──────────────────────────────────────────────────────────
+
+  const addBase64Image = useCallback((base64: string, mime: string) => {
+    const previewUrl = `data:${mime};base64,${base64}`;
+    const entry: CapturedImage = { previewUrl, base64: previewUrl };
+    setImages(prev => {
+      const next = [...prev, entry].slice(0, MAX_IMAGES);
+      return next;
+    });
+    setCaptureState("preview");
+    hapticSuccess();
+  }, []);
 
   const captureWithCapacitor = useCallback(async () => {
     try {
-      // Dynamic import so the module isn't bundled on web-only builds
       const { Camera: CapCamera, CameraResultType, CameraSource } = await import(
         "@capacitor/camera"
       );
       const photo = await CapCamera.getPhoto({
         resultType: CameraResultType.Base64,
-        source: CameraSource.Camera,
-        quality: 80,
+        source:     CameraSource.Camera,
+        quality:    80,
       });
-
       if (!photo.base64String) return;
-      const b64 = photo.base64String;
       const mime = photo.format === "png" ? "image/png" : "image/jpeg";
-      setPreviewUrl(`data:${mime};base64,${b64}`);
-      setImageBase64(`data:${mime};base64,${b64}`);
-      setCaptureState("preview");
-      hapticSuccess();
+      addBase64Image(photo.base64String, mime);
     } catch (err) {
-      // User cancelled — no error needed
       if ((err as Error)?.message?.toLowerCase().includes("cancel")) return;
       setErrorMsg((err as Error)?.message ?? "Camera unavailable");
       setCaptureState("error");
     }
-  }, []);
+  }, [addBase64Image]);
 
   const triggerFileInput = useCallback(() => {
     fileInputRef.current?.click();
@@ -101,17 +243,15 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = reader.result as string;
-        setPreviewUrl(dataUrl);
-        setImageBase64(dataUrl);
+        const entry: CapturedImage = { previewUrl: dataUrl, base64: dataUrl };
+        setImages(prev => [...prev, entry].slice(0, MAX_IMAGES));
         setCaptureState("preview");
         hapticSuccess();
       };
       reader.readAsDataURL(file);
-      // Reset so selecting the same file again triggers onChange
       e.target.value = "";
     },
     []
@@ -126,27 +266,68 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
     }
   }, [captureWithCapacitor, triggerFileInput]);
 
-  // ── Analyze ────────────────────────────────────────────────────────────────
+  const removeImage = useCallback((index: number) => {
+    setImages(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0) setCaptureState("idle");
+      return next;
+    });
+  }, []);
+
+  // ── Analyze (multi-image) ──────────────────────────────────────────────────
 
   const handleAnalyze = useCallback(async () => {
-    if (!imageBase64) return;
+    if (images.length === 0) return;
     setCaptureState("analyzing");
     try {
-      const analysis = await analyzeFoodImage(imageBase64);
-      setResult(analysis);
+      const promises = images.map(img => analyzeFoodImage(img.base64));
+      const results  = await Promise.all(promises);
+      const combined = aggregateResults(results);
+      setResult(combined);
       setCaptureState("done");
-      onAnalyzed?.(analysis);
+      onAnalyzed?.(combined);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Analysis failed");
       setCaptureState("error");
     }
-  }, [imageBase64, onAnalyzed]);
+  }, [images, onAnalyzed]);
 
-  const handleRetake = useCallback(() => {
-    setPreviewUrl(null);
-    setImageBase64(null);
-    setResult(null);
-    setErrorMsg(null);
+  // ── Barcode lookup ─────────────────────────────────────────────────────────
+
+  const handleBarcodeSubmit = useCallback(async () => {
+    if (!barcodeInput.trim()) return;
+    setBarcodeLoading(true);
+    setBarcodeNotFound(false);
+    setBarcodeProduct(null);
+    try {
+      const product = await lookupBarcode(barcodeInput.trim());
+      if (!product) {
+        setBarcodeNotFound(true);
+      } else {
+        setBarcodeProduct(product);
+        setBarcodeServings("1");
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Barcode lookup failed");
+      setCaptureState("error");
+    } finally {
+      setBarcodeLoading(false);
+    }
+  }, [barcodeInput]);
+
+  const handleBarcodeLog = useCallback(() => {
+    if (!barcodeProduct) return;
+    const servings = parseFloat(barcodeServings) || 1;
+    const analysisResult = barcodeToAnalysisResult(barcodeProduct, servings);
+    setResult(analysisResult);
+    setCaptureState("done");
+    onAnalyzed?.(analysisResult);
+  }, [barcodeProduct, barcodeServings, onAnalyzed]);
+
+  const handleBarcodeFallback = useCallback(() => {
+    // User wants to use camera/AI instead after barcode not found
+    setBarcodeNotFound(false);
+    setBarcodeInput("");
     setCaptureState("idle");
   }, []);
 
@@ -165,33 +346,218 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
         aria-label="Select food photo"
       />
 
-      {/* ── Idle — camera button ── */}
+      {/* ── Idle — capture + barcode buttons ── */}
       {captureState === "idle" && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleCapture}
-          className="w-full"
-        >
-          <Camera className="h-4 w-4 mr-2" />
-          Capture Meal
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCapture}
+            className="flex-1"
+          >
+            <Camera className="h-4 w-4 mr-2" />
+            Capture Meal
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCaptureState("barcode-scan")}
+            className="flex-1"
+          >
+            <Barcode className="h-4 w-4 mr-2" />
+            Scan Barcode
+          </Button>
+        </div>
       )}
 
-      {/* ── Preview — image + action buttons ── */}
-      {(captureState === "preview" || captureState === "analyzing") && previewUrl && (
+      {/* ── Barcode scan — manual entry (web fallback) ── */}
+      {captureState === "barcode-scan" && (
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Barcode className="h-4 w-4 text-amber-400" />
+              Barcode Lookup
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Enter the barcode number from the package (UPC/EAN).
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="barcode-input" className="text-xs">Barcode number</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="barcode-input"
+                  value={barcodeInput}
+                  onChange={e => {
+                    setBarcodeInput(e.target.value);
+                    setBarcodeNotFound(false);
+                    setBarcodeProduct(null);
+                  }}
+                  placeholder="e.g. 012345678901"
+                  className="text-sm"
+                  onKeyDown={e => { if (e.key === "Enter") handleBarcodeSubmit(); }}
+                  disabled={barcodeLoading}
+                />
+                <Button
+                  size="sm"
+                  onClick={handleBarcodeSubmit}
+                  disabled={barcodeLoading || !barcodeInput.trim()}
+                >
+                  {barcodeLoading ? (
+                    <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Product found — show info + servings */}
+            {barcodeProduct && (
+              <div className="space-y-3 rounded-md bg-muted/20 p-3 border border-border/40">
+                <div className="flex items-start gap-3">
+                  {barcodeProduct.imageUrl && (
+                    <img
+                      src={barcodeProduct.imageUrl}
+                      alt={barcodeProduct.name}
+                      className="w-14 h-14 rounded object-cover shrink-0 border border-border/30"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-snug truncate">{barcodeProduct.name}</p>
+                    {barcodeProduct.brand && (
+                      <p className="text-xs text-muted-foreground">{barcodeProduct.brand}</p>
+                    )}
+                    {barcodeProduct.servingSize && (
+                      <p className="text-xs text-muted-foreground">Per serving: {barcodeProduct.servingSize}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Nutrition per serving */}
+                <div className="grid grid-cols-4 gap-1 text-center">
+                  <div className="rounded bg-muted/30 p-1.5">
+                    <p className="text-xs font-semibold tabular-nums">{barcodeProduct.calories}</p>
+                    <p className="text-[10px] text-muted-foreground">kcal</p>
+                  </div>
+                  <div className="rounded bg-muted/30 p-1.5">
+                    <p className="text-xs font-semibold tabular-nums">{barcodeProduct.protein_g}g</p>
+                    <p className="text-[10px] text-muted-foreground">protein</p>
+                  </div>
+                  <div className="rounded bg-muted/30 p-1.5">
+                    <p className="text-xs font-semibold tabular-nums">{barcodeProduct.carbs_g}g</p>
+                    <p className="text-[10px] text-muted-foreground">carbs</p>
+                  </div>
+                  <div className="rounded bg-muted/30 p-1.5">
+                    <p className="text-xs font-semibold tabular-nums">{barcodeProduct.fat_g}g</p>
+                    <p className="text-[10px] text-muted-foreground">fat</p>
+                  </div>
+                </div>
+
+                {barcodeProduct.allergens && (
+                  <p className="text-[10px] text-amber-400/80">
+                    Contains: {barcodeProduct.allergens}
+                  </p>
+                )}
+
+                {/* Servings input */}
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="servings-input" className="text-xs shrink-0 text-muted-foreground">
+                    How many servings?
+                  </Label>
+                  <Input
+                    id="servings-input"
+                    type="number"
+                    min="0.25"
+                    step="0.25"
+                    value={barcodeServings}
+                    onChange={e => setBarcodeServings(e.target.value)}
+                    className="w-20 h-7 text-sm text-center"
+                  />
+                </div>
+
+                <Button size="sm" onClick={handleBarcodeLog} className="w-full">
+                  Log this meal
+                </Button>
+              </div>
+            )}
+
+            {/* Not found — offer fallback */}
+            {barcodeNotFound && (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3 space-y-2">
+                <p className="text-xs text-amber-400">
+                  Barcode not found in OpenFoodFacts database.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleBarcodeFallback}
+                  className="w-full"
+                >
+                  <Camera className="h-3.5 w-3.5 mr-2" />
+                  Use camera + AI instead
+                </Button>
+              </div>
+            )}
+
+            {/* Cancel */}
+            <Button size="sm" variant="ghost" onClick={reset} className="w-full text-muted-foreground">
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Preview — thumbnails row + analyze/add buttons ── */}
+      {(captureState === "preview" || captureState === "analyzing") && images.length > 0 && (
         <Card>
           <CardContent className="p-3 space-y-3">
-            <img
-              src={previewUrl}
-              alt="Meal preview"
-              className="w-full rounded-md object-cover max-h-56"
-            />
+            {/* Thumbnails row */}
+            <div className="flex gap-2 flex-wrap">
+              {images.map((img, i) => (
+                <div key={i} className="relative w-20 h-20 shrink-0">
+                  <img
+                    src={img.previewUrl}
+                    alt={`Meal photo ${i + 1}`}
+                    className="w-full h-full rounded-md object-cover border border-border/30"
+                  />
+                  {captureState !== "analyzing" && (
+                    <button
+                      onClick={() => removeImage(i)}
+                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border border-border/60 flex items-center justify-center"
+                      aria-label={`Remove photo ${i + 1}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              {/* "+" button to add another image */}
+              {images.length < MAX_IMAGES && captureState !== "analyzing" && (
+                <button
+                  onClick={handleCapture}
+                  className="w-20 h-20 rounded-md border-2 border-dashed border-border/50 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-border hover:text-foreground transition-colors"
+                  aria-label="Add another photo"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span className="text-[10px]">Add</span>
+                </button>
+              )}
+            </div>
+
+            {images.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                {images.length} photos — nutrition will be combined
+              </p>
+            )}
+
             <div className="flex gap-2">
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleRetake}
+                onClick={reset}
                 disabled={captureState === "analyzing"}
                 className="flex-1"
               >
@@ -305,11 +671,11 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
               </div>
             )}
 
-            {/* Retake button */}
+            {/* Capture another */}
             <Button
               size="sm"
               variant="outline"
-              onClick={handleRetake}
+              onClick={reset}
               className="w-full"
             >
               <Camera className="h-3.5 w-3.5 mr-2" />
@@ -326,7 +692,7 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{errorMsg ?? "Something went wrong"}</span>
           </div>
-          <Button size="sm" variant="outline" onClick={handleRetake} className="w-full">
+          <Button size="sm" variant="outline" onClick={reset} className="w-full">
             Try Again
           </Button>
         </div>

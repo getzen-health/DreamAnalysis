@@ -119,7 +119,7 @@ describe("FoodCapture", () => {
 
     await simulateFileSelect(fileInput);
 
-    expect(screen.getByAltText("Meal preview")).toBeInTheDocument();
+    expect(screen.getByAltText("Meal photo 1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^analyze$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retake/i })).toBeInTheDocument();
   });

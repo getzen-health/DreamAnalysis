@@ -451,6 +451,33 @@ export const insertFoodLogSchema = createInsertSchema(foodLogs).omit({ id: true,
 export type FoodLog = typeof foodLogs.$inferSelect;
 export type InsertFoodLog = z.infer<typeof insertFoodLogSchema>;
 
+// ── Meal history (issues #367 + #378) ──────────────────────────────────────
+// Stores multi-image meals with aggregated nutrition and favorite/re-log support.
+
+export const mealHistory = pgTable("meal_history", {
+  id:             varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId:         varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  images:         jsonb("images"),           // string[] — base64 or storage URLs
+  foodItems:      jsonb("food_items"),        // FoodItem[] — full per-item breakdown
+  totalCalories:  integer("total_calories"),
+  totalProtein:   real("total_protein"),
+  totalCarbs:     real("total_carbs"),
+  totalFat:       real("total_fat"),
+  totalFiber:     real("total_fiber"),
+  mealType:       text("meal_type"),          // "breakfast"|"lunch"|"dinner"|"snack"
+  isFavorite:     boolean("is_favorite").default(false),
+  createdAt:      timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("meal_history_user_ts_idx").on(table.userId, table.createdAt),
+]);
+
+export const insertMealHistorySchema = createInsertSchema(mealHistory).omit({
+  id: true,
+  createdAt: true,
+});
+export type MealHistory = typeof mealHistory.$inferSelect;
+export type InsertMealHistory = z.infer<typeof insertMealHistorySchema>;
+
 // ── Pilot study tables (US-001) ─────────────────────────────────────────────
 // Anonymous consent + EEG session records for the 2-week human pilot study.
 // Uses integer serial PKs and a participant_code slug (e.g. "P001") as the
