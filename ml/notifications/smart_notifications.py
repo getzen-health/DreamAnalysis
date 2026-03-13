@@ -244,6 +244,10 @@ class MorningReportGenerator:
     Pulls yesterday's voice check-in data and health data, computes three
     summary scores (brain/cognitive, sleep quality, readiness), then produces
     a short notification title + body and a suggested deep-link route.
+
+    If any health metric deviates more than 1.5 SD from the 30-day baseline,
+    the most extreme anomaly is appended to the notification body (capped at
+    one anomaly per notification so it stays concise).
     """
 
     def generate(
@@ -252,8 +256,9 @@ class MorningReportGenerator:
         *,
         voice_data: Optional[Dict[str, Any]] = None,
         health_data: Optional[Dict[str, Any]] = None,
+        baseline: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Return dict with: title, body, route, scores, has_data."""
+        """Return dict with: title, body, route, scores, has_data, anomalies."""
         voice = voice_data if voice_data is not None else _pull_yesterday_voice(user_id)
         health = health_data if health_data is not None else _pull_health_summary(user_id)
 
@@ -261,6 +266,24 @@ class MorningReportGenerator:
         has_data = bool(voice or health)
 
         title, body = self._build_message(scores, voice, health, has_data)
+
+        # ── Anomaly detection ──────────────────────────────────────────────
+        anomalies: List[Any] = []
+        anomaly_description: Optional[str] = None
+        try:
+            from notifications.anomaly_detector import AnomalyDetector  # type: ignore[import]
+            if baseline and (voice or health):
+                user_snapshot = self._build_user_snapshot(voice, health)
+                detector = AnomalyDetector()
+                anomalies = detector.detect_anomalies(user_snapshot, baseline)
+                if anomalies:
+                    # Only surface the single most extreme anomaly per notification
+                    top = anomalies[0]
+                    anomaly_description = top.description
+                    body = f"{body}  |  {anomaly_description}"
+        except Exception as exc:
+            log.debug("Anomaly detection skipped: %s", exc)
+
         return {
             "title": title,
             "body": body,
@@ -270,7 +293,52 @@ class MorningReportGenerator:
             "data_sources": (
                 (["voice"] if voice else []) + (["health"] if health else [])
             ),
+            "anomalies": [
+                {
+                    "metric": a.metric,
+                    "value": a.value,
+                    "baseline_mean": a.baseline_mean,
+                    "z_score": a.z_score,
+                    "direction": a.direction,
+                    "description": a.description,
+                }
+                for a in anomalies
+            ],
         }
+
+    @staticmethod
+    def _build_user_snapshot(
+        voice: Dict[str, Any],
+        health: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Assemble a flat metric snapshot from voice + health dicts."""
+        snapshot: Dict[str, Any] = {}
+
+        # Sleep quality: normalise to 0-1
+        sleep_raw = health.get("sleep_efficiency") or health.get("sleep_score")
+        if sleep_raw is not None:
+            sq = float(sleep_raw)
+            snapshot["sleep_quality"] = sq / 100.0 if sq > 1 else sq
+
+        # Voice valence
+        if voice.get("avg_valence") is not None:
+            snapshot["voice_valence"] = float(voice["avg_valence"])
+
+        # HRV
+        hrv = health.get("hrv_sdnn")
+        if hrv is not None:
+            snapshot["hrv_avg"] = float(hrv)
+
+        # Dream recall rate (dreams per night — caller must pre-compute)
+        dream_recall = health.get("dream_recall_rate")
+        if dream_recall is not None:
+            snapshot["dream_recall_rate"] = float(dream_recall)
+
+        # Stress index
+        if voice.get("avg_stress") is not None:
+            snapshot["stress_index"] = float(voice["avg_stress"])
+
+        return snapshot
 
     # ── Internal ──────────────────────────────────────────────────────────────
 

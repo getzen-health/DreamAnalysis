@@ -16,9 +16,22 @@ import {
   Eye,
   Activity,
   WifiOff,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Trash2,
+  Target,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { OpenAIService, type ChatResponse } from "@/lib/openai";
+import {
+  addMemory,
+  getMemories,
+  deleteMemory,
+  clearAll,
+  type CoachMemory,
+} from "@/lib/coach-memory";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AICompanionProps {
   userId: string;
@@ -493,6 +506,9 @@ export function AICompanion({ userId }: AICompanionProps) {
 
       {/* Sidebar */}
       <div className="space-y-6">
+        {/* Coach Panel */}
+        <CoachPanel userId={userId} eegAnalysis={analysis} />
+
         {/* Quick Actions */}
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <h3 className="text-sm font-semibold mb-4">Quick Actions</h3>
@@ -585,6 +601,244 @@ export function AICompanion({ userId }: AICompanionProps) {
         </Card>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CoachPanel — persistent memory + tone toggle + context-aware quick prompts
+// ---------------------------------------------------------------------------
+
+interface CoachContext {
+  sleep_quality?: number | null;
+  voice_valence?: number | null;
+  hrv_avg?: number | null;
+  dream_count?: number | null;
+  stress_index?: number | null;
+}
+
+function CoachPanel({
+  userId,
+  eegAnalysis,
+}: {
+  userId: string;
+  eegAnalysis: Record<string, unknown> | undefined;
+}) {
+  const [memories, setMemories] = useState<CoachMemory[]>([]);
+  const [memoriesOpen, setMemoriesOpen] = useState(false);
+  const [newMemoryText, setNewMemoryText] = useState("");
+  const [tone, setTone] = useState<"supportive" | "accountability">("supportive");
+  const [coachReply, setCoachReply] = useState<string | null>(null);
+  const [isCoachTyping, setIsCoachTyping] = useState(false);
+  const [coachHistory, setCoachHistory] = useState<Array<{ message: string; isUser: boolean }>>([]);
+
+  // Load memories from IndexedDB on mount
+  useEffect(() => {
+    getMemories().then(setMemories).catch(() => {});
+  }, []);
+
+  const refreshMemories = async () => {
+    try {
+      setMemories(await getMemories());
+    } catch {}
+  };
+
+  const handleAddMemory = async () => {
+    const text = newMemoryText.trim();
+    if (!text) return;
+    await addMemory(text);
+    setNewMemoryText("");
+    refreshMemories();
+  };
+
+  const handleDeleteMemory = async (id: string) => {
+    await deleteMemory(id);
+    refreshMemories();
+  };
+
+  const handleClearAll = async () => {
+    await clearAll();
+    refreshMemories();
+  };
+
+  // Build context from EEG analysis if streaming
+  const buildContext = (): CoachContext => {
+    if (!eegAnalysis) return {};
+    const emotions = eegAnalysis.emotions as Record<string, number> | undefined;
+    return {
+      stress_index: emotions?.stress_index ?? null,
+      voice_valence: emotions?.valence ?? null,
+    };
+  };
+
+  // Quick prompts derived from available data
+  const quickPrompts: string[] = [
+    "How does my sleep trend over the last week compare to normal?",
+    "What's driving my stress patterns and what can I change?",
+    "Give me a personalised focus plan for today based on my HRV.",
+  ];
+
+  const sendCoachMessage = async (prompt: string) => {
+    if (isCoachTyping) return;
+    setIsCoachTyping(true);
+    setCoachReply(null);
+
+    const context = buildContext();
+    const memTexts = memories.map((m) => m.text);
+
+    const userTurn = { message: prompt, isUser: true };
+    const nextHistory = [...coachHistory, userTurn];
+    setCoachHistory(nextHistory);
+
+    try {
+      const response = await apiRequest("POST", "/api/ai-coach", {
+        message: prompt,
+        userId,
+        history: coachHistory,
+        context,
+        memories: memTexts,
+        tone,
+      });
+      const data = await response.json();
+      const reply: string = data?.message ?? "I'm here to help.";
+      setCoachReply(reply);
+      setCoachHistory([...nextHistory, { message: reply, isUser: false }]);
+    } catch {
+      setCoachReply("Coach unavailable right now. Check back shortly.");
+    } finally {
+      setIsCoachTyping(false);
+    }
+  };
+
+  return (
+    <Card className="glass-card p-5 rounded-xl hover-glow space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Target className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold">AI Coach</h3>
+      </div>
+
+      {/* Tone toggle */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setTone("supportive")}
+          className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${
+            tone === "supportive"
+              ? "bg-primary/20 border-primary text-primary font-medium"
+              : "border-border/30 text-muted-foreground hover:bg-card/60"
+          }`}
+        >
+          Supportive
+        </button>
+        <button
+          onClick={() => setTone("accountability")}
+          className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${
+            tone === "accountability"
+              ? "bg-primary/20 border-primary text-primary font-medium"
+              : "border-border/30 text-muted-foreground hover:bg-card/60"
+          }`}
+        >
+          Accountability
+        </button>
+      </div>
+
+      {/* Quick coach prompts */}
+      <div className="space-y-1.5">
+        {quickPrompts.map((p, i) => (
+          <button
+            key={i}
+            onClick={() => sendCoachMessage(p)}
+            disabled={isCoachTyping}
+            className="w-full text-left text-xs px-3 py-2 rounded-lg border border-border/30 bg-card/30 hover:bg-card/60 transition-colors disabled:opacity-50 cursor-pointer leading-snug"
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+
+      {/* Coach reply bubble */}
+      {(isCoachTyping || coachReply) && (
+        <div className="bg-card/50 rounded-xl px-3 py-2 text-xs leading-relaxed">
+          {isCoachTyping ? (
+            <span className="text-muted-foreground animate-pulse">Coach is thinking…</span>
+          ) : (
+            coachReply
+          )}
+        </div>
+      )}
+
+      {/* Memories section */}
+      <div>
+        <button
+          onClick={() => setMemoriesOpen((o) => !o)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+        >
+          {memoriesOpen ? (
+            <ChevronUp className="h-3 w-3" />
+          ) : (
+            <ChevronDown className="h-3 w-3" />
+          )}
+          <span>
+            Memories ({memories.length})
+          </span>
+        </button>
+
+        {memoriesOpen && (
+          <div className="mt-3 space-y-2">
+            {memories.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">
+                No memories yet. Add context about yourself below.
+              </p>
+            )}
+            {memories.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-start gap-2 bg-card/30 rounded-lg px-2.5 py-2"
+              >
+                <span className="flex-1 text-xs leading-snug">{m.text}</span>
+                <button
+                  onClick={() => handleDeleteMemory(m.id)}
+                  className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                  aria-label="Delete memory"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+
+            {/* Add memory input */}
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={newMemoryText}
+                onChange={(e) => setNewMemoryText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddMemory();
+                }}
+                placeholder="e.g. I wake at 6 AM, do yoga"
+                className="flex-1 text-xs bg-card/30 border border-border/30 rounded-lg px-2.5 py-1.5 outline-none focus:border-primary/50"
+              />
+              <button
+                onClick={handleAddMemory}
+                disabled={!newMemoryText.trim()}
+                className="shrink-0 p-1.5 bg-primary/20 border border-primary/30 rounded-lg hover:bg-primary/30 disabled:opacity-50 transition-colors"
+                aria-label="Add memory"
+              >
+                <Plus className="h-3.5 w-3.5 text-primary" />
+              </button>
+            </div>
+
+            {memories.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+              >
+                Clear all memories
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 

@@ -604,6 +604,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── AI Coach endpoint (context-rich, memory-aware) ───────────────────────
+  app.post("/api/ai-coach", llmLimiter, async (req, res) => {
+    try {
+      const { message, userId, history, context, memories, tone } = req.body as {
+        message: string;
+        userId: string;
+        history?: Array<{ message: string; isUser: boolean }>;
+        context?: {
+          sleep_quality?: number | null;
+          voice_valence?: number | null;
+          hrv_avg?: number | null;
+          dream_count?: number | null;
+          stress_index?: number | null;
+        };
+        memories?: string[];
+        tone?: "supportive" | "accountability";
+      };
+
+      if (!message || typeof message !== "string") {
+        return res.status(400).json({ message: "message is required" });
+      }
+      if (message.length > 5000) {
+        return res.status(400).json({ message: "message exceeds max length (5000 chars)" });
+      }
+
+      if (!openai) return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
+
+      // ── Build context block ──────────────────────────────────────────────
+      const ctxParts: string[] = [];
+
+      if (context) {
+        const c = context;
+        if (c.sleep_quality != null)
+          ctxParts.push(`Sleep quality (last 7 days avg): ${(c.sleep_quality * 100).toFixed(0)}%`);
+        if (c.voice_valence != null) {
+          const valenceLabel =
+            c.voice_valence > 0.2 ? "positive" : c.voice_valence < -0.2 ? "negative" : "neutral";
+          ctxParts.push(`Voice valence (last 7 days avg): ${valenceLabel} (${c.voice_valence.toFixed(2)})`);
+        }
+        if (c.hrv_avg != null)
+          ctxParts.push(`HRV average (last 7 days): ${c.hrv_avg.toFixed(1)} ms`);
+        if (c.dream_count != null)
+          ctxParts.push(`Dreams recorded in last 7 days: ${c.dream_count}`);
+        if (c.stress_index != null)
+          ctxParts.push(`Stress index (last 7 days avg): ${(c.stress_index * 100).toFixed(0)}%`);
+      }
+
+      const contextBlock =
+        ctxParts.length > 0
+          ? `\n\nUser health context (last 7 days):\n${ctxParts.map((p) => `- ${p}`).join("\n")}`
+          : "";
+
+      // ── Persistent memories block ────────────────────────────────────────
+      const memoriesBlock =
+        Array.isArray(memories) && memories.length > 0
+          ? `\n\nThings the user has confirmed about themselves:\n${memories.map((m) => `- ${m}`).join("\n")}`
+          : "";
+
+      // ── Tone instruction ─────────────────────────────────────────────────
+      const toneInstruction =
+        tone === "accountability"
+          ? "Be direct and hold the user accountable — celebrate wins, name patterns that need attention, and give clear action steps."
+          : "Be warm, empathetic, and supportive — meet the user where they are and offer gentle encouragement.";
+
+      const systemPrompt = `You are an expert AI health coach for a Brain-Computer Interface system. You have access to the user's biometric and brainwave data.${contextBlock}${memoriesBlock}
+
+Coaching style: ${toneInstruction}
+
+Your role: give personalised, longitudinal coaching based on the user's actual data trends — not generic advice. Reference their specific numbers when relevant. Ask follow-up questions to deepen understanding. Keep responses concise (under 200 words unless the user asks for more).`;
+
+      // ── Build conversation history ────────────────────────────────────────
+      const historyMessages = Array.isArray(history)
+        ? (history as Array<{ message: string; isUser: boolean }>)
+            .slice(-20)
+            .map((h) => ({
+              role: (h.isUser ? "user" : "assistant") as "user" | "assistant",
+              content: h.message,
+            }))
+        : [];
+
+      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...historyMessages,
+          { role: "user", content: message },
+        ],
+      });
+
+      const aiResponse =
+        response.choices[0].message.content ??
+        "I'm here to help you with your wellness journey.";
+
+      // Store both sides of the conversation
+      await storage.createAiChat({ userId, message, isUser: true });
+      const aiChat = await storage.createAiChat({ userId, message: aiResponse, isUser: false });
+
+      res.json(aiChat);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to process coach message" });
+    }
+  });
+
   // Mood analysis endpoint
   app.post("/api/analyze-mood", llmLimiter, async (req, res) => {
     try {
