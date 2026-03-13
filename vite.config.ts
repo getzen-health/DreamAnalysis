@@ -21,6 +21,8 @@ export default defineConfig({
     emptyOutDir: true,
     // cache-bust: 2026-02-20
     rollupOptions: {
+      // @capacitor/camera is dynamically imported only on native — not available in web builds
+      external: ["@capacitor/camera"],
       output: {
         manualChunks: {
           // Core React runtime — cached aggressively by browsers
