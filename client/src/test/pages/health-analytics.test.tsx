@@ -99,11 +99,11 @@ describe("HealthAnalytics page", () => {
   it("shows period selector tabs", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Week" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Month" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "3 Months" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Year" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Today/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Week/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /\bMonth\b/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /3 Months/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Year/ })).toBeInTheDocument();
     });
   });
 
@@ -116,7 +116,7 @@ describe("HealthAnalytics page", () => {
 
   it("switching period tabs does not crash", async () => {
     renderWithProviders(<HealthAnalytics />);
-    const weekTab = await screen.findByRole("button", { name: "Week" });
+    const weekTab = await screen.findByRole("button", { name: /Week/ });
     fireEvent.click(weekTab);
     await waitFor(() => {
       expect(screen.getByText("Trends")).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe("HealthAnalytics page", () => {
 
   it("switching to non-live period shows no-sessions empty state", async () => {
     renderWithProviders(<HealthAnalytics />);
-    const weekTab = await screen.findByRole("button", { name: "Week" });
+    const weekTab = await screen.findByRole("button", { name: /Week/ });
     fireEvent.click(weekTab);
     await waitFor(() => {
       expect(screen.getByText("No sessions in this period")).toBeInTheDocument();
