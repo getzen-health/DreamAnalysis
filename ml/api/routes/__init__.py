@@ -159,6 +159,7 @@ from .music_therapy import router as _music_therapy
 from .child import router as _child
 from .garmin import router as _garmin
 from .notifications import router as _notifications
+from .health_status import router as _health_status
 
 router = APIRouter()
 
@@ -175,6 +176,7 @@ router.include_router(_connectivity)
 router.include_router(_devices)
 router.include_router(_datasets)
 router.include_router(_health)
+router.include_router(_health_status)
 router.include_router(_brain_timeline)
 router.include_router(_spiritual)
 router.include_router(_emotion_shift)

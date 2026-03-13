@@ -601,3 +601,174 @@ def get_voice_ensemble() -> VoiceEnsemble:
     if _ensemble_instance is None:
         _ensemble_instance = VoiceEnsemble()
     return _ensemble_instance
+
+
+# ── Per-user voice baseline calibration ───────────────────────────────────────
+
+# Keys in the acoustic feature dict that are used for calibration normalization.
+# These map directly to the keys returned by extract_acoustic_features().
+_CALIBRATION_KEYS: List[str] = [
+    "pitch_mean",
+    "pitch_std",
+    "energy_mean",
+    "energy_std",
+    "speaking_rate_proxy",
+    "spectral_centroid_mean",
+]
+
+_MIN_CALIBRATION_FRAMES = 10  # minimum frames before calibration is considered ready
+
+
+class VoiceBaselineCalibrator:
+    """Per-user voice baseline calibration for acoustic feature normalization.
+
+    Collects neutral-speech acoustic features over ~30s (multiple frames) and
+    computes a personal baseline (mean + std per feature).  All subsequent
+    feature dicts can then be z-score normalized against that baseline before
+    emotion classification, correcting for individual voice variation such as
+    naturally high/low pitch, energy range, and speaking rate.
+
+    Mirrors the ``BaselineCalibrator`` pattern in
+    ``ml/processing/eeg_processor.py``.
+
+    Usage::
+
+        cal = VoiceBaselineCalibrator()
+        # During neutral-speech calibration phase (send 10+ frames of ~1s audio):
+        for audio_features in neutral_frames:
+            cal.add_frame(audio_features)
+        # During live analysis:
+        if cal.is_ready:
+            norm_features = cal.normalize(raw_acoustic_features)
+
+    Calibration features (subset of acoustic feature dict):
+        pitch_mean, pitch_std, energy_mean, energy_std,
+        speaking_rate_proxy, spectral_centroid_mean
+    """
+
+    _MIN_FRAMES: int = _MIN_CALIBRATION_FRAMES
+
+    def __init__(self) -> None:
+        self._frames: List[Dict[str, float]] = []
+        self._mean: Dict[str, float] = {}
+        self._std: Dict[str, float] = {}
+        self._ready: bool = False
+
+    # ── Properties ─────────────────────────────────────────────────────────
+
+    @property
+    def is_ready(self) -> bool:
+        """True once enough calibration frames have been collected."""
+        return self._ready
+
+    @property
+    def n_frames(self) -> int:
+        """Number of calibration frames accumulated so far."""
+        return len(self._frames)
+
+    # ── Frame accumulation ──────────────────────────────────────────────────
+
+    def add_frame(self, audio_features: Dict[str, float]) -> bool:
+        """Accumulate one neutral-speech acoustic feature frame.
+
+        Automatically triggers statistics computation when ``_MIN_FRAMES``
+        frames have been collected.
+
+        Args:
+            audio_features: dict returned by ``extract_acoustic_features()``.
+                Only the keys listed in ``_CALIBRATION_KEYS`` are used.
+
+        Returns:
+            True if calibration just became ready (crossed the threshold on
+            this call), False otherwise.
+        """
+        # Keep only the relevant calibration keys; fill missing keys with 0
+        frame: Dict[str, float] = {
+            k: float(audio_features.get(k, 0.0)) for k in _CALIBRATION_KEYS
+        }
+        self._frames.append(frame)
+
+        if len(self._frames) >= self._MIN_FRAMES and not self._ready:
+            self._compute_statistics()
+            return True
+        return False
+
+    def _compute_statistics(self) -> None:
+        """Compute per-feature mean and std across all accumulated frames."""
+        for k in _CALIBRATION_KEYS:
+            vals = [f[k] for f in self._frames]
+            self._mean[k] = float(np.mean(vals))
+            self._std[k] = float(np.std(vals))
+        self._ready = True
+        log.debug(
+            "VoiceBaselineCalibrator ready after %d frames — mean pitch=%.1f Hz",
+            len(self._frames),
+            self._mean.get("pitch_mean", 0.0),
+        )
+
+    # ── Normalization ───────────────────────────────────────────────────────
+
+    def normalize(self, features: Dict[str, float]) -> Dict[str, float]:
+        """Z-score normalize a feature dict against the personal baseline.
+
+        Only calibration keys are normalized; all other keys pass through
+        unchanged.  Features with near-zero baseline variance are set to 0.0
+        to avoid division-by-zero issues (constant-at-rest features carry no
+        discriminative information anyway).
+
+        Returns the features dict unchanged if calibration is not yet ready.
+        """
+        if not self._ready:
+            return features
+
+        out = dict(features)
+        for k in _CALIBRATION_KEYS:
+            if k not in features:
+                continue
+            std = self._std.get(k, 0.0)
+            mean = self._mean.get(k, features[k])
+            out[k] = float((features[k] - mean) / std) if std > 1e-8 else 0.0
+        return out
+
+    # ── Status & lifecycle ──────────────────────────────────────────────────
+
+    def get_status(self) -> Dict[str, object]:
+        """Return calibration progress information.
+
+        Returns:
+            dict with keys:
+                is_ready      — bool: calibration complete
+                n_frames      — int: frames collected so far
+                frames_needed — int: minimum frames required
+                progress_pct  — float: 0-100 completion percentage
+                baseline_mean — dict[str, float]: per-feature means (empty if not ready)
+        """
+        return {
+            "is_ready": self._ready,
+            "n_frames": len(self._frames),
+            "frames_needed": self._MIN_FRAMES,
+            "progress_pct": round(
+                min(100.0, len(self._frames) / self._MIN_FRAMES * 100), 1
+            ),
+            "baseline_mean": dict(self._mean) if self._ready else {},
+        }
+
+    def reset(self) -> None:
+        """Clear all calibration data (call to restart the calibration phase)."""
+        self._frames.clear()
+        self._mean.clear()
+        self._std.clear()
+        self._ready = False
+        log.debug("VoiceBaselineCalibrator reset")
+
+
+# ── Per-user calibrator registry ───────────────────────────────────────────────
+
+_calibrator_registry: Dict[str, VoiceBaselineCalibrator] = {}
+
+
+def get_voice_calibrator(user_id: str) -> VoiceBaselineCalibrator:
+    """Return (or create) a per-user VoiceBaselineCalibrator instance."""
+    if user_id not in _calibrator_registry:
+        _calibrator_registry[user_id] = VoiceBaselineCalibrator()
+    return _calibrator_registry[user_id]

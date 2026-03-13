@@ -132,6 +132,18 @@ class VoiceWatchRequest(BaseModel):
     )
 
 
+class CalibrationFrameRequest(BaseModel):
+    user_id: str = Field(..., description="User identifier")
+    audio_features: Dict[str, float] = Field(
+        ...,
+        description=(
+            "Acoustic feature dict (from extract_acoustic_features). "
+            "Keys: pitch_mean, pitch_std, energy_mean, energy_std, "
+            "speaking_rate_proxy, spectral_centroid_mean."
+        ),
+    )
+
+
 class CacheRequest(BaseModel):
     user_id: str = Field(..., description="User identifier")
     emotion_result: Dict[str, Any] = Field(..., description="Voice emotion result dict")
@@ -250,13 +262,41 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
     if audio_arr is None or len(audio_arr) < audio_sr // 4:
         raise HTTPException(422, "Audio too short — need at least 0.25s")
 
+    # ── Per-user baseline calibration — normalize acoustic features if ready ──
     try:
-        from models.voice_ensemble import get_voice_ensemble  # type: ignore
-        result = get_voice_ensemble().predict(
+        from models.voice_ensemble import (  # type: ignore
+            extract_acoustic_features,
+            get_voice_calibrator,
+            get_voice_ensemble,
+        )
+        calibrator = get_voice_calibrator(req.user_id)
+        if calibrator.is_ready:
+            raw_acoustic = extract_acoustic_features(audio_arr, sr=int(audio_sr))
+            normalized_acoustic = calibrator.normalize(raw_acoustic)
+            log.debug(
+                "Voice calibration active for user %s — normalizing acoustic features",
+                req.user_id,
+            )
+        else:
+            normalized_acoustic = None
+    except Exception as exc:
+        log.debug("Voice calibrator lookup failed: %s", exc)
+        normalized_acoustic = None
+        from models.voice_ensemble import get_voice_ensemble  # type: ignore  # noqa: F811
+
+    try:
+        ensemble = get_voice_ensemble()
+        result = ensemble.predict(
             audio_arr,
             sample_rate=int(audio_sr),
             real_time=req.real_time,
         )
+        # If calibration is active, overwrite the acoustic_features in the
+        # result with the normalized version so the ensemble blending uses
+        # per-user baseline-corrected features in subsequent frames.
+        if result is not None and normalized_acoustic is not None:
+            result["acoustic_features"] = normalized_acoustic
+            result["calibration_applied"] = True
         _required = {"emotion", "probabilities", "valence", "arousal", "confidence", "model_type"}
         if result is not None and not _required.issubset(result.keys()):
             log.warning("VoiceEnsemble returned incomplete result: %s", list(result.keys()))
@@ -346,6 +386,82 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
         log.warning("Failed to persist voice-watch session: %s", exc)
 
     return result
+
+
+# ── Calibration endpoints (#352) ──────────────────────────────────────────────
+
+@router.post("/calibrate/add-frame")
+def calibrate_add_frame(req: CalibrationFrameRequest) -> Dict[str, Any]:
+    """Add one neutral-speech acoustic feature frame to the user's calibrator.
+
+    Call this endpoint repeatedly (10+ times, ~1s audio per frame) while the
+    user speaks neutrally.  Once 10 frames are collected, ``is_ready`` becomes
+    True and the ``/analyze`` endpoint will automatically normalize features
+    before emotion classification.
+
+    Request body:
+        user_id:        User identifier.
+        audio_features: Acoustic feature dict with keys pitch_mean, pitch_std,
+                        energy_mean, energy_std, speaking_rate_proxy,
+                        spectral_centroid_mean.
+
+    Returns:
+        Calibration status including ``is_ready``, ``n_frames``, and
+        ``progress_pct``.
+    """
+    try:
+        from models.voice_ensemble import get_voice_calibrator  # type: ignore
+        calibrator = get_voice_calibrator(req.user_id)
+    except Exception as exc:
+        raise HTTPException(503, f"Calibration unavailable: {exc}")
+
+    just_ready = calibrator.add_frame(req.audio_features)
+    status = calibrator.get_status()
+    status["just_became_ready"] = just_ready
+    return status
+
+
+@router.get("/calibrate/status")
+def calibrate_status(user_id: str) -> Dict[str, Any]:
+    """Return calibration progress for a user.
+
+    Query params:
+        user_id: User identifier.
+
+    Returns:
+        dict with is_ready, n_frames, frames_needed, progress_pct, baseline_mean.
+    """
+    try:
+        from models.voice_ensemble import get_voice_calibrator  # type: ignore
+        calibrator = get_voice_calibrator(user_id)
+    except Exception as exc:
+        raise HTTPException(503, f"Calibration unavailable: {exc}")
+
+    return calibrator.get_status()
+
+
+@router.post("/calibrate/reset")
+def calibrate_reset(req: Dict[str, str]) -> Dict[str, str]:
+    """Clear calibration data for a user and restart the calibration phase.
+
+    Request body:
+        {"user_id": "<id>"}
+
+    Returns:
+        {"status": "reset", "user_id": "<id>"}
+    """
+    user_id = req.get("user_id", "")
+    if not user_id:
+        raise HTTPException(422, "user_id is required")
+
+    try:
+        from models.voice_ensemble import get_voice_calibrator  # type: ignore
+        calibrator = get_voice_calibrator(user_id)
+    except Exception as exc:
+        raise HTTPException(503, f"Calibration unavailable: {exc}")
+
+    calibrator.reset()
+    return {"status": "reset", "user_id": user_id}
 
 
 # ── Cache endpoints ────────────────────────────────────────────────────────────

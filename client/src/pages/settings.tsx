@@ -37,6 +37,7 @@ import { useQuery } from "@tanstack/react-query";
 const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
 import { ingestHealthData, addBaselineFrame, getBaselineStatus, resetBaselineCalibration, getCalibrationStatus, getPersonalStatus, triggerPersonalFineTune } from "@/lib/ml-api";
+import HealthSyncDashboard from "@/components/health-sync-dashboard";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface SettingsState {
@@ -429,6 +430,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Health Sync Status Dashboard */}
+      <HealthSyncDashboard />
 
       {/* ML Backend URL */}
       <MLBackendCard />
