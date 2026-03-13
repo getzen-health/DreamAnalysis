@@ -183,6 +183,8 @@ export function EEGWaveformCanvas({
   return (
     <canvas
       ref={canvasRef}
+      role="img"
+      aria-label="Live EEG waveform — 4 channels: TP9 (left ear), AF7 (left brow), AF8 (right brow), TP10 (right ear)"
       style={{ width: "100%", height, display: "block", borderRadius: "0.5rem" }}
     />
   );

@@ -19,13 +19,12 @@ export function BottomTabs() {
 
   return (
     <nav
+      role="navigation"
       aria-label="Main navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t"
+      className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t bg-background/95 border-border/60"
       style={{
-        background: "hsl(222, 25%, 5%, 0.95)",
         backdropFilter: "blur(24px)",
         WebkitBackdropFilter: "blur(24px)",
-        borderColor: "hsl(220, 18%, 13%, 0.6)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
     >

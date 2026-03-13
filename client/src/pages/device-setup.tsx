@@ -47,8 +47,15 @@ function channelColor(q: number): string {
 function WizardProgress({ step, totalSteps }: { step: Step; totalSteps: number }) {
   return (
     <div className="w-full space-y-1.5">
-      <Progress value={((step + 1) / totalSteps) * 100} className="h-1.5" />
-      <p className="text-[11px] text-muted-foreground text-right">
+      <Progress
+        value={((step + 1) / totalSteps) * 100}
+        className="h-1.5"
+        aria-label={`Setup progress: step ${step + 1} of ${totalSteps}`}
+        aria-valuenow={step + 1}
+        aria-valuemin={1}
+        aria-valuemax={totalSteps}
+      />
+      <p className="text-[11px] text-muted-foreground text-right" aria-live="polite">
         Step {step + 1} of {totalSteps}
       </p>
     </div>
@@ -111,6 +118,7 @@ function StepSelectDevice({
             <button
               key={dev.type}
               onClick={() => onSelect(dev.type)}
+              aria-label={`Connect ${dev.name} — ${dev.channels} channels at ${dev.sample_rate} Hz${isSynthetic(dev.type) ? ", no headset required" : ""}`}
               className="w-full text-left"
             >
               <Card className="p-4 border-border/40 hover:border-primary/40 hover:bg-card/80 transition-all cursor-pointer group">
@@ -313,13 +321,18 @@ function StepSignalQuality({
             const q = channelQ[i] ?? 0;
             const pct = Math.round(q * 100);
             const col = channelColor(q);
+            const statusText = q >= 0.70 ? "Excellent" : q >= 0.40 ? "Fair" : "Poor";
             return (
-              <Card key={i} className="p-3 border-border/30 space-y-2">
+              <Card
+                key={i}
+                className="p-3 border-border/30 space-y-2"
+                aria-label={`${CHANNEL_SHORT[i]} signal quality: ${statusText} (${pct}%)`}
+              >
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono font-semibold">{CHANNEL_SHORT[i]}</span>
-                  <span className="text-muted-foreground">{pct}%</span>
+                  <span className="text-muted-foreground">{pct}% — {statusText}</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${CHANNEL_SHORT[i]} quality`}>
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${col}`}
                     style={{ width: `${pct}%` }}
@@ -364,6 +377,7 @@ function StepSignalQuality({
         </Button>
         <button
           onClick={onSkip}
+          aria-label="Skip signal quality check and proceed"
           className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
         >
           Skip quality check
@@ -411,6 +425,10 @@ function StepDone({
           <Card
             className="p-4 border-primary/20 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors text-left"
             onClick={onCalibrate}
+            role="button"
+            tabIndex={0}
+            aria-label="Calibrate baseline — 2-minute resting recording"
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onCalibrate()}
           >
             <div className="flex items-start gap-3">
               <Brain className="h-5 w-5 text-primary shrink-0 mt-0.5" />
@@ -537,9 +555,10 @@ export default function DeviceSetup() {
           {step > 0 && step < 4 && (
             <button
               onClick={handleBack}
+              aria-label="Go back to previous step"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
           <div className="flex-1">
@@ -547,6 +566,7 @@ export default function DeviceSetup() {
           </div>
           <button
             onClick={() => navigate("/emotions")}
+            aria-label="Skip device setup and go to Emotions"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Skip

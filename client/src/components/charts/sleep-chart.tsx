@@ -66,7 +66,12 @@ export function SleepChart({ data }: SleepChartProps) {
 
   return (
     <div className="chart-container h-48">
-      <canvas ref={chartRef} data-testid="chart-sleep" />
+      <canvas
+        ref={chartRef}
+        role="img"
+        aria-label="Sleep duration chart by night"
+        data-testid="chart-sleep"
+      />
     </div>
   );
 }

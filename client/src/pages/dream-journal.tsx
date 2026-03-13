@@ -90,6 +90,7 @@ export default function DreamJournal() {
             <div className="flex items-center gap-3">
               <div
                 className="w-3 h-3 rounded-full shrink-0"
+                aria-hidden="true"
                 style={{
                   background: stageInfo.color,
                   boxShadow: `0 0 8px ${stageInfo.color}80`,
@@ -184,6 +185,7 @@ export default function DreamJournal() {
       {/* ── Card 3: Record on waking ─────────────────────────────────────── */}
       <button
         onClick={() => navigate("/research/morning")}
+        aria-label="Record this morning's dream — open dream journal entry"
         className={`w-full flex items-center gap-3 rounded-xl px-4 py-3.5 transition-colors text-left ${
           !isStreaming
             ? "border border-primary/30 bg-primary/5 hover:bg-primary/10"

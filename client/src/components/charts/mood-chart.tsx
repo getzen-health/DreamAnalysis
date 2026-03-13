@@ -67,7 +67,12 @@ export function MoodChart({ data }: MoodChartProps) {
 
   return (
     <div className="chart-container h-48">
-      <canvas ref={chartRef} data-testid="chart-mood" />
+      <canvas
+        ref={chartRef}
+        role="img"
+        aria-label="Mood trend chart over time"
+        data-testid="chart-mood"
+      />
     </div>
   );
 }

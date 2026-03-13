@@ -98,7 +98,12 @@ export function EEGChart({ alphaWaves, betaWaves }: EEGChartProps) {
 
   return (
     <div className="chart-container h-64">
-      <canvas ref={chartRef} data-testid="chart-eeg" />
+      <canvas
+        ref={chartRef}
+        role="img"
+        aria-label="EEG alpha and beta wave power chart over time"
+        data-testid="chart-eeg"
+      />
     </div>
   );
 }

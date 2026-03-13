@@ -396,6 +396,8 @@ export default function ResearchMorning() {
               </p>
               <Textarea
                 id="dream-text"
+                aria-label="Dream description — describe what you remember, even a single word counts"
+                aria-describedby="dream-text-count"
                 placeholder="I was in a house I didn't recognise, and there was a strange light coming through the window…"
                 className={`min-h-[100px] resize-none text-sm leading-relaxed ${
                   dreamText.length > 0 && !dreamText.trim()
@@ -413,7 +415,7 @@ export default function ResearchMorning() {
                 ) : (
                   <span />
                 )}
-                <p className="text-xs text-muted-foreground">
+                <p id="dream-text-count" className="text-xs text-muted-foreground" aria-live="polite">
                   {dreamText.length} characters
                 </p>
               </div>

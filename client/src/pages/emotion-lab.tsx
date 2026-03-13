@@ -958,6 +958,7 @@ export default function EmotionLab() {
                       >
                         <span
                           className="w-3 h-3 rounded-full shrink-0"
+                          aria-hidden="true"
                           style={{ backgroundColor: dotColor }}
                         />
                         <div className="flex-1 min-w-0">
@@ -999,6 +1000,7 @@ export default function EmotionLab() {
                       >
                         <span
                           className="w-3 h-3 rounded-full shrink-0"
+                          aria-hidden="true"
                           style={{ backgroundColor: dotColor }}
                         />
                         <div className="flex-1 min-w-0">
@@ -1048,6 +1050,7 @@ export default function EmotionLab() {
                   >
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
+                      aria-hidden="true"
                       style={{ backgroundColor: dotColor }}
                     />
                     <div className="flex-1 min-w-0">

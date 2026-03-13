@@ -178,7 +178,12 @@ export function SpectrogramChart({
 
   return (
     <div ref={containerRef} className="w-full" style={{ height: 200 }}>
-      <canvas ref={canvasRef} className="rounded" />
+      <canvas
+        ref={canvasRef}
+        role="img"
+        aria-label="EEG spectrogram — frequency power over time, dark purple (low) to yellow (high), with sleep spindle and K-complex event markers"
+        className="rounded"
+      />
     </div>
   );
 }
