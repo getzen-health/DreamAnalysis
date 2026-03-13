@@ -8,6 +8,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
       "@shared": path.resolve(__dirname, "shared"),
+      // Stub native-only Capacitor plugins that aren't installed in the web/test env
+      "@capacitor/camera": path.resolve(__dirname, "client/src/test/__mocks__/capacitor-camera.ts"),
     },
   },
   test: {

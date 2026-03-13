@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import {
   predictFoodEmotion,
   calibrateFoodEmotion,
   type FoodEmotionResult,
+  type FoodImageAnalysisResult,
 } from "@/lib/ml-api";
 import {
   Card,
@@ -15,6 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Utensils, RefreshCw, CheckCircle } from "lucide-react";
+import { FoodCapture } from "@/components/food-capture";
 import {
   BarChart,
   Bar,
@@ -88,6 +91,7 @@ function topState(probs: Record<string, number>): string {
 export default function FoodEmotion() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
+  const [mealResult, setMealResult] = useState<FoodImageAnalysisResult | null>(null);
   const liveEmotions = latestFrame?.analysis?.emotions;
   const voiceEmotion = useVoiceEmotion();
 
@@ -180,19 +184,22 @@ export default function FoodEmotion() {
                 <p className="text-sm text-muted-foreground">
                   Start with a voice check-in and meal log. EEG is optional for live food-state biomarkers.
                 </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={voiceEmotion.startRecording}
-                  disabled={voiceEmotion.isRecording || voiceEmotion.isAnalyzing}
-                  className="w-full"
-                >
-                  {voiceEmotion.isRecording
-                    ? "Recording…"
-                    : voiceEmotion.isAnalyzing
-                    ? "Analyzing…"
-                    : "Run Voice Check-In"}
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={voiceEmotion.startRecording}
+                    disabled={voiceEmotion.isRecording || voiceEmotion.isAnalyzing}
+                    className="w-full"
+                  >
+                    {voiceEmotion.isRecording
+                      ? "Recording…"
+                      : voiceEmotion.isAnalyzing
+                      ? "Analyzing…"
+                      : "Run Voice Check-In"}
+                  </Button>
+                  <FoodCapture onAnalyzed={setMealResult} />
+                </div>
                 {voiceEmotion.lastResult && (
                   <div className="rounded-md bg-muted/40 p-3 text-xs space-y-1">
                     <div className="flex justify-between gap-3">
@@ -302,6 +309,47 @@ export default function FoodEmotion() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Meal nutritional breakdown (shown after image capture) ───────────── */}
+      {mealResult && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Utensils className="h-4 w-4 text-amber-400" />
+              Meal Captured
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-muted-foreground">{mealResult.summary}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-center">
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="font-semibold tabular-nums">{Math.round(mealResult.total_calories)}</p>
+                <p className="text-muted-foreground">kcal</p>
+              </div>
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="font-semibold tabular-nums">{mealResult.total_protein_g}g</p>
+                <p className="text-muted-foreground">protein</p>
+              </div>
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="font-semibold tabular-nums">{mealResult.total_carbs_g}g</p>
+                <p className="text-muted-foreground">carbs</p>
+              </div>
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="font-semibold tabular-nums">{mealResult.total_fat_g}g</p>
+                <p className="text-muted-foreground">fat</p>
+              </div>
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              <Badge variant="outline" className="text-xs">
+                GI: {mealResult.glycemic_impact}
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                {mealResult.dominant_macro}-dominant
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Food State Distribution Chart (US-011 / US-012) ─────────────────── */}
       <Card>
