@@ -17,6 +17,10 @@ vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({ theme: "dark", setTheme: vi.fn() }),
 }));
 
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => ({ user: { id: 1, username: "testuser", email: "test@test.com" }, logout: vi.fn() }),
+}));
+
 vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));

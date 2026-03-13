@@ -62,7 +62,7 @@ describe("Dashboard page", () => {
   it("shows connect device banner when not streaming", () => {
     renderWithProviders(<Dashboard />);
     expect(
-      screen.getByText(/Start with a voice check-in or sync health data\. EEG is optional\./)
+      screen.getByText(/Voice check-in or sync health data to start\. EEG optional\./)
     ).toBeInTheDocument();
   });
 

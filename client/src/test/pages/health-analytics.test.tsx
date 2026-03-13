@@ -20,6 +20,14 @@ vi.mock("@/hooks/use-device", () => ({
   }),
 }));
 
+vi.mock("@/hooks/use-voice-emotion", () => ({
+  useVoiceEmotion: () => ({ lastResult: null }),
+}));
+
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => ({ user: null }),
+}));
+
 vi.mock("@/lib/ml-api", () => ({
   listSessions: vi.fn().mockResolvedValue([]),
 }));
@@ -57,7 +65,7 @@ describe("HealthAnalytics page", () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Showing baseline estimates/)
+        screen.getByText(/Run a voice check-in or connect EEG/)
       ).toBeInTheDocument();
     });
   });
@@ -74,16 +82,17 @@ describe("HealthAnalytics page", () => {
   it("shows score label names in placeholders", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      expect(screen.getByText("Brain Health")).toBeInTheDocument();
+      // When no real data, placeholder circles show label text
+      expect(screen.getByText("Brain")).toBeInTheDocument();
       expect(screen.getByText("Cognitive")).toBeInTheDocument();
       expect(screen.getByText("Wellbeing")).toBeInTheDocument();
     });
   });
 
-  it("shows Brain Health Trends card", async () => {
+  it("shows Trends card", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      expect(screen.getByText("Brain Health Trends")).toBeInTheDocument();
+      expect(screen.getByText("Trends")).toBeInTheDocument();
     });
   });
 
@@ -110,7 +119,7 @@ describe("HealthAnalytics page", () => {
     const weekTab = await screen.findByRole("button", { name: "Week" });
     fireEvent.click(weekTab);
     await waitFor(() => {
-      expect(screen.getByText("Brain Health Trends")).toBeInTheDocument();
+      expect(screen.getByText("Trends")).toBeInTheDocument();
     });
   });
 
@@ -123,11 +132,10 @@ describe("HealthAnalytics page", () => {
     });
   });
 
-  it("shows No data text for each score when not streaming", async () => {
+  it("shows Today's Scores section when not streaming", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      const noDataLabels = screen.getAllByText("No data");
-      expect(noDataLabels.length).toBe(3);
+      expect(screen.getByText("Today's Scores")).toBeInTheDocument();
     });
   });
 });
