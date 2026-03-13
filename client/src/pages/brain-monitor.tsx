@@ -516,7 +516,7 @@ export default function BrainMonitor() {
                 No EEG signal — showing voice + health estimates
               </p>
               {voiceEmotion.lastResult ? (
-                <div className="space-y-2 w-full max-w-[200px]">
+                <div className="space-y-2 w-full max-w-[160px] sm:max-w-[200px]">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Emotion</span>
                     <span className="capitalize font-medium">{voiceEmotion.lastResult.emotion}</span>

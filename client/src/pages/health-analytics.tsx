@@ -322,7 +322,7 @@ export default function HealthAnalytics() {
                   size="sm"
                 />
               ) : (
-                <div className="w-[100px] h-[100px] rounded-full border-4 border-muted/30 flex flex-col items-center justify-center">
+                <div className="w-20 h-20 sm:w-[100px] sm:h-[100px] rounded-full border-4 border-muted/30 flex flex-col items-center justify-center">
                   <span className="text-xl font-bold text-muted-foreground/40" aria-hidden="true">—</span>
                   <span className="text-[9px] text-muted-foreground/40 mt-0.5" aria-hidden="true">{s.label}</span>
                 </div>

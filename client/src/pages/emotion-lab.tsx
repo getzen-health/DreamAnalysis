@@ -620,7 +620,7 @@ export default function EmotionLab() {
                 <Mic className="h-7 w-7 text-muted-foreground/50" />
               </div>
               <p className="text-sm font-medium">Voice mode is ready</p>
-              <p className="text-xs text-muted-foreground max-w-[260px]">
+              <p className="text-xs text-muted-foreground max-w-[200px] sm:max-w-[260px]">
                 Run a voice check-in above for emotion detection. Connect an EEG
                 headband for continuous live readings.
               </p>
