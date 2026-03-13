@@ -68,6 +68,7 @@ const ArchitectureGuide      = lazy(() => import("@/pages/architecture-guide"));
 const SupplementsPage        = lazy(() => import("@/pages/supplements"));
 const EmotionalIntelligence  = lazy(() => import("@/pages/emotional-intelligence"));
 const SleepStories           = lazy(() => import("@/components/sleep-stories"));
+const CbtiModule             = lazy(() => import("@/pages/cbti-module"));
 
 // ── Error Boundary — prevents a single page crash from taking down the whole app ──
 class ErrorBoundary extends Component<
@@ -286,6 +287,13 @@ function AppRoutes() {
         <ProtectedRoute>
           <Suspense fallback={<PageLoader />}>
             <AppLayout><SleepStories /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/cbti">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><CbtiModule /></AppLayout>
           </Suspense>
         </ProtectedRoute>
       </Route>

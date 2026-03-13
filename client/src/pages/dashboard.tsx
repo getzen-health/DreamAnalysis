@@ -31,6 +31,7 @@ import {
   Network,
   Zap,
   Headphones,
+  BookOpen,
 } from "lucide-react";
 import { hapticLight } from "@/lib/haptics";
 import { useDevice } from "@/hooks/use-device";
@@ -350,6 +351,7 @@ const DISCOVER_CARDS = [
   { href: "/brain-connectivity", icon: Network,        label: "Connectivity",    desc: "Brain region links",       color: "hsl(160, 55%, 50%)" },
   { href: "/insights",           icon: Lightbulb,      label: "Insights",        desc: "Pattern analysis",         color: "hsl(50, 80%, 55%)"  },
   { href: "/sleep-stories",      icon: Headphones,     label: "Sleep Stories",   desc: "EEG-triggered fade-out",   color: "hsl(248, 65%, 62%)" },
+  { href: "/cbti",               icon: BookOpen,       label: "CBT-i Program",   desc: "6-week sleep restriction", color: "hsl(210, 70%, 55%)" },
 ];
 
 // Keep FEATURE_CARDS for backward compat with tests that reference specific labels
