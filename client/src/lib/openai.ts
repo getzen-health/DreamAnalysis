@@ -23,6 +23,20 @@ export interface ChatResponse {
   timestamp: Date;
 }
 
+/** Shape of a raw emotion entry returned by the dream analysis API (before normalization). */
+interface RawEmotionEntry {
+  emotion?: string;
+  intensity?: number;
+}
+
+/** Shape of a chat record as returned by the API (timestamp is a serialized string/number). */
+interface RawChatRecord {
+  id: string;
+  message: string;
+  isUser: boolean;
+  timestamp: string | number;
+}
+
 export class OpenAIService {
   /**
    * Analyze mood and emotional state from text input
@@ -72,7 +86,7 @@ export class OpenAIService {
       
       return {
         symbols: Array.isArray(result.symbols) ? result.symbols : [],
-        emotions: Array.isArray(result.emotions) ? result.emotions.map((e: any) => ({
+        emotions: Array.isArray(result.emotions) ? result.emotions.map((e: RawEmotionEntry) => ({
           emotion: e.emotion || 'Unknown',
           intensity: Math.max(0, Math.min(10, e.intensity || 0))
         })) : [],
@@ -131,7 +145,7 @@ export class OpenAIService {
         throw new Error('Invalid response format: expected array');
       }
       
-      return result.map((chat: any) => ({
+      return result.map((chat: RawChatRecord) => ({
         id: chat.id,
         message: chat.message,
         isUser: chat.isUser,
