@@ -7,7 +7,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(), // bcrypt hashed
-  email: text("email"),
+  email: text("email").unique(),
   age: integer("age"),                  // for research demographics
   deviceType: text("device_type"),      // "muse_2" | "openbci_cyton" | "none"
   intent: varchar("intent", { length: 10 }), // 'study' | 'explore' | null (not yet chosen)

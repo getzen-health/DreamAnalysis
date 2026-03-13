@@ -44,6 +44,42 @@ const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
+// ── Auth helpers (Express) ────────────────────────────────────────────────
+
+const ADMIN_USERNAMES = new Set(["sravya", "admin"]);
+
+/** Extract the authenticated user's ID from session or JWT Bearer token. */
+function getAuthUserId(req: import("express").Request): string | null {
+  const sessionUserId = (req.session as any)?.userId;
+  if (sessionUserId) return sessionUserId;
+  const auth = req.headers.authorization;
+  if (auth?.startsWith("Bearer ")) {
+    try {
+      const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as { userId: string };
+      return decoded.userId;
+    } catch { return null; }
+  }
+  return null;
+}
+
+/** Require auth + verify the authenticated user matches the :userId param. */
+function requireOwnerExpress(
+  req: import("express").Request,
+  res: import("express").Response,
+): string | null {
+  const authUserId = getAuthUserId(req);
+  if (!authUserId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return null;
+  }
+  const requestedUserId = req.params.userId;
+  if (authUserId !== requestedUserId) {
+    res.status(403).json({ error: "Forbidden — you can only access your own data" });
+    return null;
+  }
+  return authUserId;
+}
+
 // ── Research module helpers ────────────────────────────────────────────────
 
 async function getActiveParticipant(userId: string) {
@@ -146,11 +182,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existing.length > 0)
         return res.status(409).json({ error: "Username already taken." });
 
+      if (email && typeof email === "string" && email.trim()) {
+        const existingEmail = await db.select().from(users)
+          .where(eq(users.email, email.trim().toLowerCase())).limit(1);
+        if (existingEmail.length > 0)
+          return res.status(409).json({ error: "An account with this email already exists." });
+      }
+
       const hashed = await bcrypt.hash(password, 12);
       const [newUser] = await db.insert(users).values({
         username: username.trim().toLowerCase(),
         password: hashed,
-        email: email?.trim() || null,
+        email: email?.trim().toLowerCase() || null,
         age: age ? Number(age) : null,
         deviceType: deviceType || null,
       }).returning({ id: users.id, username: users.username, email: users.email,
@@ -328,6 +371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Health metrics endpoints
   app.get("/api/health-metrics/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const metrics = await storage.getHealthMetrics(req.params.userId);
       res.json(metrics);
@@ -348,6 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Dream analysis endpoints
   app.get("/api/dream-analysis/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const analyses = await storage.getDreamAnalyses(req.params.userId);
       res.json(analyses);
@@ -408,6 +453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // AI chat endpoints
   app.get("/api/ai-chat/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const chats = await storage.getAiChats(req.params.userId);
       res.json(chats);
@@ -527,6 +573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // User settings endpoints
   app.get("/api/settings/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const settings = await storage.getUserSettings(req.params.userId);
       res.json(settings);
@@ -536,6 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/settings/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const validatedData = insertUserSettingsSchema.parse(req.body);
       const settings = await storage.updateUserSettings(req.params.userId, validatedData);
@@ -547,6 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Data export endpoint
   app.get("/api/export/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const metrics = await storage.getHealthMetrics(req.params.userId);
 
@@ -1411,6 +1460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // GET /api/study/history/:userId — all sessions for calendar view
   app.get("/api/study/history/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const participant = await getActiveParticipant(req.params.userId);
       if (!participant) return res.json([]);
@@ -1544,6 +1594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // GET /api/food/logs/:userId — recent food logs (last 20)
   app.get("/api/food/logs/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const logs = await db.select().from(foodLogs)
         .where(eq(foodLogs.userId, req.params.userId))
@@ -1557,6 +1608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // GET /api/research/correlation/:userId — last 7 days with food + EEG mood + dream data joined
   app.get("/api/research/correlation/:userId", async (req, res) => {
+    if (!requireOwnerExpress(req, res)) return;
     try {
       const userId = req.params.userId;
 
@@ -2152,15 +2204,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // These routes are independent of the 30-day longitudinal study routes above.
   // They operate on pilot_participants and pilot_sessions tables.
 
-  // Auth guard reused for admin routes
-  function requireStudyAdmin(
+  // Auth guard reused for admin routes — checks login AND admin role
+  async function requireStudyAdmin(
     req: import("express").Request,
     res: import("express").Response,
     next: import("express").NextFunction,
   ) {
-    const userId = (req.session as { userId?: string }).userId;
+    const userId = getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    next();
+    try {
+      const [user] = await db.select({ username: users.username }).from(users)
+        .where(eq(users.id, userId)).limit(1);
+      if (!user || !ADMIN_USERNAMES.has(user.username?.toLowerCase())) {
+        return res.status(403).json({ error: "Forbidden — admin access required" });
+      }
+      next();
+    } catch {
+      return res.status(500).json({ error: "Authorization check failed" });
+    }
   }
 
   // GET /api/study/check-code — check if a participant code is available

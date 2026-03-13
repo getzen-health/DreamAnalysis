@@ -73,3 +73,34 @@ export function setAuthCookie(res: VercelResponse, token: string) {
 export function clearAuthCookie(res: VercelResponse) {
   res.setHeader('Set-Cookie', 'auth_token=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/');
 }
+
+/**
+ * Require auth AND verify the authenticated user matches the requested userId.
+ * Returns the JWT payload if authorized, null if not (response already sent).
+ */
+export function requireOwner(req: VercelRequest, res: VercelResponse, requestedUserId: string): JWTPayload | null {
+  const auth = requireAuth(req, res);
+  if (!auth) return null; // 401 already sent
+  if (auth.userId !== requestedUserId) {
+    res.status(403).json({ error: 'Forbidden — you can only access your own data' });
+    return null;
+  }
+  return auth;
+}
+
+/** List of usernames that have admin access to study endpoints. */
+const ADMIN_USERNAMES = new Set(['sravya', 'admin']);
+
+/**
+ * Require auth AND verify the user has admin role.
+ * Returns the JWT payload if authorized, null if not (response already sent).
+ */
+export function requireAdmin(req: VercelRequest, res: VercelResponse): JWTPayload | null {
+  const auth = requireAuth(req, res);
+  if (!auth) return null; // 401 already sent
+  if (!ADMIN_USERNAMES.has(auth.username?.toLowerCase())) {
+    res.status(403).json({ error: 'Forbidden — admin access required' });
+    return null;
+  }
+  return auth;
+}

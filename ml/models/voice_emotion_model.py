@@ -49,6 +49,12 @@ _6CLASS: List[str] = ["happy", "sad", "angry", "fear", "surprise", "neutral"]
 
 _MIN_SAMPLES = 8000  # ~0.5s at 16 kHz minimum
 
+# ── Quality thresholds ─────────────────────────────────────────────────────────
+_CONFIDENCE_THRESHOLD = 0.60  # suppress results below this — return None instead
+_WINDOW_DURATION_S = 3.0      # each analysis window in seconds
+_WINDOW_HOP_S = 1.5           # hop between windows (50% overlap)
+_MIN_WINDOWS = 1              # minimum windows needed to aggregate
+
 
 class SenseVoiceEmotionDetector:
     """Fast voice emotion using SenseVoice-Small (Alibaba, 2024).
@@ -430,22 +436,47 @@ class VoiceEmotionModel:
     ) -> Optional[Dict]:
         """Predict 6-class emotion from audio array.
 
+        Uses multi-window analysis: splits audio into overlapping windows,
+        runs inference on each, then aggregates by probability averaging.
+        Results below _CONFIDENCE_THRESHOLD are suppressed (returns None).
+
         Args:
             audio: 1D float32 audio array
             sample_rate: sampling rate in Hz
             real_time: if True, prefer SenseVoice fast path (<100ms)
+            apply_confidence_gate: if False, skip confidence threshold check
+                (used internally for window-level predictions)
 
-        Returns None if audio is too short or all models fail.
+        Returns None if audio is too short, all models fail, or aggregated
+        confidence is below 60%.
         """
         if audio is None or len(audio) < _MIN_SAMPLES:
             return None
 
         # Fast path: SenseVoice (<100ms) — use when real_time=True
+        # SenseVoice is designed for streaming; skip multi-window for it
         if kwargs.get("real_time", False) and self._sensevoice.available:
             result = self._sensevoice.predict(audio, fs=sample_rate)
             if result is not None:
                 return result
 
+        # Multi-window analysis for longer audio clips
+        apply_gate = kwargs.get("apply_confidence_gate", True)
+        result = self._predict_multi_window(audio, sample_rate)
+        if result is not None and apply_gate:
+            if result["confidence"] < _CONFIDENCE_THRESHOLD:
+                log.debug(
+                    "Voice emotion suppressed — confidence %.3f below threshold %.2f",
+                    result["confidence"],
+                    _CONFIDENCE_THRESHOLD,
+                )
+                return None
+        return result
+
+    def _predict_single(
+        self, audio: np.ndarray, sample_rate: int
+    ) -> Optional[Dict]:
+        """Run the model fallback chain on a single audio segment."""
         # Tier 0: emotion2vec+ large (300M, ACL 2024) — highest accuracy
         if self._load_e2v_large():
             result = self._predict_e2v(audio, sample_rate, model=self._e2v_large_model)
@@ -473,6 +504,79 @@ class VoiceEmotionModel:
         # Last resort: feature-based heuristics (no saved model needed)
         return self._predict_features(audio, sample_rate)
 
+    def _predict_multi_window(
+        self, audio: np.ndarray, sample_rate: int
+    ) -> Optional[Dict]:
+        """Split audio into overlapping windows, aggregate results by averaging.
+
+        Window size: _WINDOW_DURATION_S seconds.
+        Hop: _WINDOW_HOP_S seconds (50% overlap by default).
+        If audio is shorter than one window, falls back to single-segment predict.
+
+        Returns aggregated result dict or None if all windows fail.
+        """
+        window_samples = int(_WINDOW_DURATION_S * sample_rate)
+        hop_samples = int(_WINDOW_HOP_S * sample_rate)
+
+        # For short clips or when windowing gains nothing, use whole segment
+        if len(audio) <= window_samples:
+            return self._predict_single(audio, sample_rate)
+
+        # Build windows
+        windows: List[np.ndarray] = []
+        start = 0
+        while start + window_samples <= len(audio):
+            windows.append(audio[start: start + window_samples])
+            start += hop_samples
+        # Include trailing segment if meaningful (>= half a window)
+        remainder = audio[start:]
+        if len(remainder) >= window_samples // 2 and len(remainder) >= _MIN_SAMPLES:
+            windows.append(remainder)
+
+        if not windows:
+            return self._predict_single(audio, sample_rate)
+
+        # Run inference per window; collect probabilities
+        window_results: List[Dict] = []
+        for win in windows:
+            r = self._predict_single(win, sample_rate)
+            if r is not None:
+                window_results.append(r)
+
+        if not window_results:
+            return None
+
+        # Aggregate: probability-average across windows
+        agg_probs: Dict[str, float] = {c: 0.0 for c in _6CLASS}
+        for r in window_results:
+            for cls, prob in r.get("probabilities", {}).items():
+                if cls in agg_probs:
+                    agg_probs[cls] += float(prob)
+
+        n = len(window_results)
+        agg_probs = {k: v / n for k, v in agg_probs.items()}
+
+        # Re-normalize to handle floating-point drift
+        total = sum(agg_probs.values()) or 1.0
+        agg_probs = {k: round(v / total, 4) for k, v in agg_probs.items()}
+
+        emotion = max(agg_probs, key=agg_probs.__getitem__)
+        confidence = agg_probs[emotion]
+        valence, arousal = _valence_arousal(agg_probs)
+
+        # Use model_type from last window (all windows use same model chain)
+        model_type = window_results[-1].get("model_type", "voice_feature_heuristic")
+
+        return {
+            "emotion": emotion,
+            "probabilities": agg_probs,
+            "valence": round(valence, 4),
+            "arousal": round(arousal, 4),
+            "confidence": round(confidence, 4),
+            "model_type": model_type,
+            "windows_analyzed": n,
+        }
+
     def predict_with_biomarkers(
         self, audio: np.ndarray, sample_rate: int = 22050, **kwargs
     ) -> Optional[Dict]:
@@ -481,6 +585,9 @@ class VoiceEmotionModel:
         Returns the standard emotion dict enriched with:
           - biomarkers: raw jitter/shimmer/HNR/pause/GFCC values
           - mental_health: depression, anxiety, and stress screening scores
+
+        Applies the 60% confidence gate: returns None if confidence is too low,
+        even if a raw emotion prediction was available.
 
         This is an opt-in enrichment — callers who only need emotion
         should use ``predict()`` for lower latency.

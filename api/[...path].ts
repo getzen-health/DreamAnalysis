@@ -52,7 +52,7 @@ import { promisify } from 'util';
 import { eq, desc, asc, and, gte, lt, sql, isNull } from 'drizzle-orm';
 
 import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response.js';
-import { generateToken, setAuthCookie, clearAuthCookie, requireAuth } from './_lib/auth.js';
+import { generateToken, setAuthCookie, clearAuthCookie, requireAuth, requireOwner, requireAdmin } from './_lib/auth.js';
 
 // Lazy-load heavy modules at handler runtime to avoid Vercel cold-start crash.
 // drizzle-orm/neon-http and openai can crash the Node.js process if loaded at
@@ -162,10 +162,15 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
     if (!password || typeof password !== 'string' || password.length < 6)
       return badRequest(res, 'Password must be at least 6 characters');
     const db = getDb();
-    const [existing] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
+    const [existing] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim().toLowerCase()));
     if (existing) return badRequest(res, 'Username already exists');
+    const normalizedEmail = email?.trim().toLowerCase() || null;
+    if (normalizedEmail) {
+      const [emailExists] = await db.select().from(schema.users).where(eq(schema.users.email, normalizedEmail));
+      if (emailExists) return badRequest(res, 'An account with this email already exists');
+    }
     const [user] = await db.insert(schema.users).values({
-      username: username.trim(), password: await hashPassword(password), email: email || null,
+      username: username.trim().toLowerCase(), password: await hashPassword(password), email: normalizedEmail,
     }).returning();
     if (!user) throw new Error('Insert returned no rows — check DB schema/migrations');
     const token = generateToken({ userId: user.id, username: user.username });
@@ -410,6 +415,7 @@ async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
 
 async function dreamAnalysisGet(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const rows = await db.select().from(schema.dreamAnalysis)
     .where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)).limit(20);
@@ -442,6 +448,7 @@ async function aiChatPost(req: VercelRequest, res: VercelResponse) {
 
 async function aiChatGet(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const chats = await db.select().from(schema.aiChats)
     .where(eq(schema.aiChats.userId, userId)).orderBy(desc(schema.aiChats.timestamp)).limit(50);
@@ -525,6 +532,7 @@ async function healthMetricsPost(req: VercelRequest, res: VercelResponse) {
 
 async function healthMetricsGet(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const rows = await db.select().from(schema.healthMetrics)
     .where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp)).limit(50);
@@ -532,6 +540,7 @@ async function healthMetricsGet(req: VercelRequest, res: VercelResponse, userId:
 }
 
 async function settingsHandler(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   if (req.method === 'GET') {
     const [s] = await db.select().from(schema.userSettings).where(eq(schema.userSettings.userId, userId)).limit(1);
@@ -555,6 +564,7 @@ async function settingsHandler(req: VercelRequest, res: VercelResponse, userId: 
 
 async function exportHandler(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const type = (req.query.type as string) || 'health';
   const db = getDb();
 
@@ -828,6 +838,7 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
 
 async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const logs = await db.select().from(schema.foodLogs)
     .where(eq(schema.foodLogs.userId, userId))
@@ -1030,6 +1041,7 @@ async function studyEvening(req: VercelRequest, res: VercelResponse) {
 
 async function studyHistory(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const participant = await getActiveParticipant(userId);
   if (!participant) return success(res, []);
   const db = getDb();
@@ -1102,8 +1114,7 @@ async function pilotSessionComplete(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminParticipants(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req, res);
-  if (!authResult) return unauthorized(res);
+  if (!requireAdmin(req, res)) return;
   const db = getDb();
   const rows = await db.select().from(schema.pilotParticipants).orderBy(desc(schema.pilotParticipants.createdAt));
   return success(res, rows);
@@ -1111,8 +1122,7 @@ async function pilotAdminParticipants(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminSessions(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req, res);
-  if (!authResult) return unauthorized(res);
+  if (!requireAdmin(req, res)) return;
   const db = getDb();
   const rows = await db.select().from(schema.pilotSessions).orderBy(desc(schema.pilotSessions.createdAt));
   return success(res, rows);
@@ -1120,8 +1130,7 @@ async function pilotAdminSessions(req: VercelRequest, res: VercelResponse) {
 
 async function pilotAdminExportCsv(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  const authResult = requireAuth(req, res);
-  if (!authResult) return unauthorized(res);
+  if (!requireAdmin(req, res)) return;
   const db = getDb();
   const rows = await db
     .select({
