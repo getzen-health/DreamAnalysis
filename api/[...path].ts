@@ -40,9 +40,10 @@
  *   POST   /api/study/consent              (pilot study)
  *   POST   /api/study/session/start        (pilot study)
  *   POST   /api/study/session/complete     (pilot study)
- *   GET    /api/study/admin/participants   (pilot study, auth required)
- *   GET    /api/study/admin/sessions       (pilot study, auth required)
- *   GET    /api/study/admin/export-csv     (pilot study, auth required)
+ *   GET    /api/study/admin/participants   (pilot study, admin required)
+ *   GET    /api/study/admin/sessions       (pilot study, admin required)
+ *   GET    /api/study/admin/stats          (pilot study, admin required)
+ *   GET    /api/study/admin/export-csv     (pilot study, admin required)
  *   ALL    /api/ml/*                      (ML backend proxy → FastAPI)
  */
 
@@ -1128,6 +1129,41 @@ async function pilotAdminSessions(req: VercelRequest, res: VercelResponse) {
   return success(res, rows);
 }
 
+async function pilotAdminStats(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireAdmin(req, res)) return;
+  const db = getDb();
+  const participants = await db.select().from(schema.pilotParticipants);
+  const sessions = await db.select().from(schema.pilotSessions);
+
+  const total_participants = participants.length;
+  const total_sessions = sessions.length;
+  const stress_sessions = sessions.filter((s: any) => s.blockType === 'stress').length;
+  const food_sessions = sessions.filter((s: any) => s.blockType === 'food').length;
+  const complete_sessions = sessions.filter((s: any) => !s.partial && s.surveyJson !== null).length;
+  const partial_sessions = sessions.filter((s: any) => s.partial === true).length;
+
+  const qualityScores = sessions.map((s: any) => s.dataQualityScore).filter((v: any): v is number => v != null);
+  const avg_quality_score = qualityScores.length > 0 ? qualityScores.reduce((a: number, b: number) => a + b, 0) / qualityScores.length : 0;
+
+  const durations = sessions.map((s: any) => s.durationSeconds).filter((v: any): v is number => v != null);
+  const avg_duration_seconds = durations.length > 0 ? durations.reduce((a: number, b: number) => a + b, 0) / durations.length : 0;
+
+  const stressReductions: number[] = [];
+  for (const s of sessions) {
+    if ((s as any).blockType !== 'stress') continue;
+    const pre = (s as any).preEegJson as Record<string, unknown> | null;
+    const post = (s as any).postEegJson as Record<string, unknown> | null;
+    if (pre && typeof pre === 'object' && typeof pre.stress_level === 'number' &&
+        post && typeof post === 'object' && typeof post.stress_level === 'number') {
+      stressReductions.push(pre.stress_level - post.stress_level);
+    }
+  }
+  const avg_stress_reduction = stressReductions.length > 0 ? stressReductions.reduce((a, b) => a + b, 0) / stressReductions.length : 0;
+
+  return success(res, { total_participants, total_sessions, stress_sessions, food_sessions, complete_sessions, partial_sessions, avg_quality_score, avg_duration_seconds, avg_stress_reduction });
+}
+
 async function pilotAdminExportCsv(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   if (!requireAdmin(req, res)) return;
@@ -1390,6 +1426,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (s1 === 'session' && segs[2] && segs[3] === 'checkpoint') return await pilotSessionCheckpoint(req, res, Number(segs[2]));
       if (s1 === 'admin' && segs[2] === 'participants')        return await pilotAdminParticipants(req, res);
       if (s1 === 'admin' && segs[2] === 'sessions')            return await pilotAdminSessions(req, res);
+      if (s1 === 'admin' && segs[2] === 'stats')              return await pilotAdminStats(req, res);
       if (s1 === 'admin' && segs[2] === 'export-csv')          return await pilotAdminExportCsv(req, res);
     }
 
