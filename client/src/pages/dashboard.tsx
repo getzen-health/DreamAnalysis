@@ -494,73 +494,81 @@ export default function Dashboard() {
   const greetingTime = hour >= 5 && hour < 12 ? "Good morning" : hour >= 12 && hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
-    <main className="p-5 space-y-5 max-w-6xl mx-auto">
-      {/* Greeting */}
-      <div className="flex items-center justify-between">
+    <main className="px-4 pt-2 pb-4 space-y-4 max-w-xl mx-auto">
+
+      {/* ── Greeting header ─────────────────────────────────── */}
+      <div className="flex items-center justify-between pt-1">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">
+          <h1 className="text-[22px] font-bold text-foreground tracking-tight leading-tight">
             {greetingTime}{greetingName ? `, ${greetingName}` : ""}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isStreaming ? "EEG streaming live" : healthState ? `Connected to ${healthState.source}` : "How are you feeling today?"}
+          <p className="text-[13px] text-muted-foreground mt-0.5">
+            {isStreaming
+              ? "EEG streaming live"
+              : healthState
+              ? `Connected to ${healthState.source}`
+              : "How are you feeling today?"}
           </p>
         </div>
-        <Link href="/brain-report">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/10 hover:bg-primary/20 transition-colors">
-            <Activity className="h-5 w-5 text-primary" />
+        <Link href="/brain-report" onClick={() => hapticLight()}>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-primary/12 hover:bg-primary/20 active:bg-primary/25 transition-colors">
+            <Activity className="h-5 w-5 text-primary" strokeWidth={2} />
           </div>
         </Link>
       </div>
 
-      {/* 1. Voice + watch first banner */}
+      {/* ── Status pill ─────────────────────────────────────── */}
       {!isStreaming && !healthState && (
-        <div className="p-4 rounded-2xl border border-border/50 bg-muted/30 text-sm text-muted-foreground flex items-center gap-3">
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-muted/25 border border-border/30">
           <Radio className="h-4 w-4 shrink-0 text-primary" />
-          Start with a voice check-in or sync health data. EEG is optional.
+          <span className="text-[13px] text-muted-foreground">
+            Voice check-in or sync health data to start. EEG optional.
+          </span>
         </div>
       )}
-      {/* Health data mode banner */}
       {!isStreaming && healthState && (
-        <div className="p-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-emerald-400 flex items-center gap-2">
-          <Heart className="h-3.5 w-3.5 shrink-0" />
-          Showing estimates from {healthState.source}. EEG is optional for live neural data.
+        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-500/6 border border-emerald-500/20">
+          <Heart className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+          <span className="text-xs text-emerald-400">
+            Estimates from {healthState.source} · EEG adds live neural data
+          </span>
         </div>
       )}
 
-      {/* Voice micro check-in */}
+      {/* ── Voice micro check-in ────────────────────────────── */}
       <VoiceCheckinCard userId={USER_ID} />
 
-      {/* Daily streak tracker */}
+      {/* ── Daily streak ────────────────────────────────────── */}
       <StreakCard userId={USER_ID} />
 
-      {/* Your Tools — navigation hub for all features */}
+      {/* ── Quick-access feature grid ───────────────────────── */}
       <div>
-        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">
+        <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em] mb-3 px-0.5">
           Your Tools
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2.5">
           {FEATURE_CARDS.map((card) => {
             const Icon = card.icon;
             return (
               <Link key={card.href} href={card.href} onClick={() => hapticLight()}>
                 <div
-                  className="flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all hover:bg-muted/40 active:scale-[0.98]"
+                  className="group flex items-center gap-3 px-3.5 py-3.5 rounded-2xl active:scale-[0.97] transition-all duration-150"
                   style={{
-                    background: "hsl(222, 25%, 8%, 0.5)",
-                    border: "1px solid hsl(220, 18%, 15%, 0.5)",
-                    borderLeft: `3px solid ${card.color}`,
-                    minHeight: "80px",
+                    background: "hsl(222, 28%, 9%, 0.7)",
+                    border: "1px solid hsl(220, 18%, 17%, 0.6)",
+                    minHeight: "72px",
+                    boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
                   }}
                 >
                   <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: `${card.color}15` }}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-active:scale-95"
+                    style={{ background: `${card.color}18` }}
                   >
-                    <Icon className="h-5 w-5" style={{ color: card.color }} />
+                    <Icon className="h-[18px] w-[18px]" style={{ color: card.color }} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground leading-tight">{card.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{card.subtitle}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-foreground leading-tight truncate">{card.label}</p>
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-tight truncate">{card.subtitle}</p>
                   </div>
                 </div>
               </Link>
@@ -605,66 +613,57 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 4. Last Session Snapshot — always visible */}
+      {/* ── Last Session Snapshot ───────────────────────────── */}
       {sessionsLoading ? (
-        <Card className="glass-card hover-glow">
-          <CardHeader className="pb-2 pt-4 px-5">
-            <Skeleton className="h-4 w-40 mb-1" />
-            <Skeleton className="h-3 w-24" />
-          </CardHeader>
-          <CardContent className="px-5 pb-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-lg bg-muted/50 px-3 py-2 text-center">
-                  <Skeleton className="h-6 w-12 mx-auto mb-1" />
-                  <Skeleton className="h-2.5 w-10 mx-auto" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl p-4"
+          style={{
+            background: "hsl(222,28%,9%,0.7)",
+            border: "1px solid hsl(220,18%,17%,0.6)",
+          }}>
+          <Skeleton className="h-3.5 w-36 mb-3" />
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-xl bg-muted/40 p-2.5 text-center">
+                <Skeleton className="h-5 w-10 mx-auto mb-1.5" />
+                <Skeleton className="h-2 w-8 mx-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
       ) : lastSession ? (
-        <Card className="glass-card hover-glow">
-          <CardHeader className="pb-2 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold">Last Session Snapshot</CardTitle>
-            <CardDescription className="text-xs">
-              {lastSession.start_time
-                ? relativeDay(lastSession.start_time)
-                : "Recent session"}
+        <div className="rounded-2xl p-4"
+          style={{
+            background: "hsl(222,28%,9%,0.7)",
+            border: "1px solid hsl(220,18%,17%,0.6)",
+            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+          }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em]">
+              Last Session
+            </p>
+            <span className="text-[10px] text-muted-foreground/50">
+              {lastSession.start_time ? relativeDay(lastSession.start_time) : "Recent"}
               {lastSession.summary?.duration_sec
                 ? ` · ${Math.round(lastSession.summary.duration_sec / 60)}m`
                 : ""}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-5 pb-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-bold font-mono text-destructive leading-none">
-                  {Math.round((lastSession.summary?.avg_stress ?? 0) * 100)}%
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { value: Math.round((lastSession.summary?.avg_stress ?? 0) * 100), label: "Stress", color: "text-rose-400" },
+              { value: Math.round((lastSession.summary?.avg_focus ?? 0) * 100), label: "Focus", color: "text-primary" },
+              { value: Math.round((lastSession.summary?.avg_flow ?? 0) * 100), label: "Flow", color: "text-emerald-400" },
+              { value: lastSession.summary?.dominant_emotion ?? "—", label: "Mood", color: "text-violet-400", isText: true },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-muted/30 px-2 py-2.5 text-center">
+                <p className={`text-[15px] font-bold font-mono leading-none ${item.color} ${item.isText ? "capitalize text-[12px]" : ""}`}>
+                  {item.isText ? item.value : `${item.value}%`}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Stress</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-1.5 leading-none">{item.label}</p>
               </div>
-              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-bold font-mono text-primary leading-none">
-                  {Math.round((lastSession.summary?.avg_focus ?? 0) * 100)}%
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Focus</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-bold font-mono text-success leading-none">
-                  {Math.round((lastSession.summary?.avg_flow ?? 0) * 100)}%
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Flow</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
-                <p className="text-lg font-bold font-mono text-secondary leading-none capitalize">
-                  {lastSession.summary?.dominant_emotion ?? "—"}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Emotion</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       {/* 5. Emotional Shift Alert */}
@@ -887,165 +886,125 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 4. Brain State — only shown when streaming EEG or health data connected */}
+      {/* ── Brain State Now card ───────────────────────────── */}
       {(isStreaming || healthState) && (() => {
-        const stress = Math.round(stressIndex);
-        const focus  = Math.round(focusIndex);
-        const flow   = Math.round(flowScore);
-        const stressLevel = stress > 65 ? "HIGH" : stress > 35 ? "MEDIUM" : "LOW";
-        const stressColor = stress > 65
-          ? { bg: "bg-destructive/10", text: "text-destructive", bar: "hsl(4,72%,55%)" }
+        const stress = Math.round(isStreaming ? stressIndex : healthState!.stress);
+        const focus  = Math.round(isStreaming ? focusIndex  : healthState!.focus);
+        const flow   = Math.round(isStreaming ? flowScore   : healthState!.relaxation);
+        const stressBarColor = stress > 65
+          ? "hsl(4,72%,55%)"
           : stress > 35
-          ? { bg: "bg-warning/10", text: "text-warning", bar: "hsl(38,85%,58%)" }
-          : { bg: "bg-success/10", text: "text-success", bar: "hsl(152,60%,48%)" };
-        const focusLevel = focus > 60 ? "HIGH" : focus > 30 ? "MEDIUM" : "LOW";
-        const focusColor = focus > 60
+          ? "hsl(38,85%,58%)"
+          : "hsl(152,60%,48%)";
+        const focusBarColor = focus > 60
           ? "hsl(152,60%,48%)"
           : focus > 30
           ? "hsl(38,85%,58%)"
           : "hsl(4,72%,55%)";
         const emotionLabel = EMOTION_LABELS[currentEmotion] || currentEmotion;
         const actionHref  = stress > 65 ? "/biofeedback" : "/brain-report";
-        const actionLabel = stress > 65 ? "Start breathing session →" : "View Daily Report →";
+        const actionLabel = stress > 65 ? "Breathe →" : "Daily Report →";
+
+        /* Mini ring helper — renders a 56px arc gauge */
+        const MiniRing = ({
+          value,
+          color,
+          label,
+          sublabel,
+        }: {
+          value: number;
+          color: string;
+          label: string;
+          sublabel?: string;
+        }) => {
+          const size = 64;
+          const r = 24;
+          const c = size / 2;
+          const circ = 2 * Math.PI * r;
+          const arc = circ * 0.78;
+          const gap = circ * 0.22;
+          const offset = arc * (1 - value / 100);
+          return (
+            <div className="flex flex-col items-center gap-1">
+              <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                <circle cx={c} cy={c} r={r} fill="none"
+                  stroke="hsl(220,18%,15%)" strokeWidth={5}
+                  strokeDasharray={`${arc} ${gap}`} strokeLinecap="round"
+                  transform={`rotate(129 ${c} ${c})`} />
+                <circle cx={c} cy={c} r={r} fill="none"
+                  stroke={color} strokeWidth={5}
+                  strokeDasharray={`${arc} ${gap}`} strokeDashoffset={offset}
+                  strokeLinecap="round"
+                  transform={`rotate(129 ${c} ${c})`}
+                  style={{ transition: "stroke-dashoffset 0.9s cubic-bezier(0.34,1.56,0.64,1)" }}
+                />
+                <text x={c} y={c + 1} textAnchor="middle" dominantBaseline="central"
+                  fill="hsl(38,20%,92%)" fontSize={13} fontWeight="700"
+                  fontFamily="Inter,system-ui,sans-serif">
+                  {value}
+                </text>
+              </svg>
+              <span className="text-[11px] font-semibold text-foreground leading-none">{label}</span>
+              {sublabel && <span className="text-[10px] text-muted-foreground/60 leading-none">{sublabel}</span>}
+            </div>
+          );
+        };
 
         return (
-          <Card className="glass-card p-5 hover-glow">
+          <div
+            className="rounded-2xl p-4"
+            style={{
+              background: "hsl(222, 28%, 9%, 0.7)",
+              border: "1px solid hsl(220, 18%, 17%, 0.6)",
+              boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+            }}
+          >
+            {/* Card header */}
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Brain State Now</p>
-              {isStreaming && (
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${stressColor.bg} ${stressColor.text}`}>
-                  {emotionLabel !== "—" && emotionLabel !== "Calibrating…" ? emotionLabel : stressLevel + " STRESS"}
+              <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em]">
+                Brain State Now
+              </p>
+              {isStreaming ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  Live
                 </span>
+              ) : (
+                <span className="text-[10px] text-muted-foreground/50">from {healthState?.source}</span>
               )}
             </div>
 
-            {isStreaming ? (
-              <div className="space-y-4">
-                {/* Stress */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-foreground">Stress</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-mono text-muted-foreground">{stress}%</span>
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${stressColor.bg} ${stressColor.text}`}>
-                        {stressLevel}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${stress}%`, backgroundColor: stressColor.bar }} />
-                  </div>
-                </div>
+            {/* Three metric rings */}
+            <div className="flex items-center justify-around mb-4">
+              <MiniRing value={stress} color={stressBarColor} label="Stress" sublabel={stress > 65 ? "High" : stress > 35 ? "Moderate" : "Low"} />
+              <MiniRing value={focus}  color={focusBarColor}  label="Focus"  sublabel={focus > 60 ? "Sharp" : focus > 30 ? "Steady" : "Low"} />
+              <MiniRing value={flow}   color="hsl(200,70%,55%)" label={isStreaming ? "Flow" : "Relax"} />
+            </div>
 
-                {/* Focus */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-foreground">Focus</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-mono text-muted-foreground">{focus}%</span>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                        {focusLevel}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${focus}%`, backgroundColor: focusColor }} />
-                  </div>
-                </div>
-
-                {/* Flow */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-foreground">Flow</span>
-                    <span className="text-sm font-mono text-muted-foreground">{flow}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${flow}%`, backgroundColor: "hsl(200,70%,55%)" }} />
-                  </div>
-                </div>
-
-                {/* Emotion + Action */}
-                <div className="flex items-center justify-between pt-1 border-t border-border/30">
-                  <span className="text-xs text-muted-foreground">
-                    {emotionLabel !== "—" && emotionLabel !== "Calibrating…"
-                      ? `Feeling: ${emotionLabel} · ${Math.round(confidence * 100)}% confident`
-                      : insightText || "Calibrating…"}
-                  </span>
-                  <div className="flex items-center gap-2 shrink-0 ml-3">
-                    <Link
-                      href={`/biofeedback?tab=music&mood=${stress > 35 ? "calm" : "focus"}`}
-                      className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors font-medium"
-                    >
-                      <Music className="h-3 w-3" />
-                      Full music session
-                    </Link>
-                    <Link href={actionHref}
-                      className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">
-                      {actionLabel}
-                    </Link>
-                  </div>
-                </div>
+            {/* Bottom action row */}
+            <div className="flex items-center justify-between pt-3 border-t border-border/20">
+              <span className="text-[11px] text-muted-foreground/60 leading-tight max-w-[180px]">
+                {isStreaming && emotionLabel !== "—" && emotionLabel !== "Calibrating…"
+                  ? `${emotionLabel} · ${Math.round(confidence * 100)}% confident`
+                  : isStreaming
+                  ? insightText || "Calibrating…"
+                  : `Estimated from ${healthState?.source}`}
+              </span>
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/biofeedback?tab=music&mood=${stress > 35 ? "calm" : "focus"}`}
+                  className="text-[11px] font-medium text-violet-400"
+                >
+                  <Music className="h-3 w-3 inline mr-1" />
+                  Music
+                </Link>
+                <Link href={actionHref}
+                  className="text-[11px] font-semibold text-primary">
+                  {actionLabel}
+                </Link>
               </div>
-            ) : healthState ? (
-              /* Health data mode — no EEG, but Apple/Google Health connected */
-              <div className="space-y-4">
-                {/* Stress */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-foreground">Stress</span>
-                    <span className="text-sm font-mono text-muted-foreground">{healthState.stress}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${healthState.stress}%`, backgroundColor: healthState.stress > 65 ? "hsl(0,72%,55%)" : healthState.stress > 35 ? "hsl(38,85%,55%)" : "hsl(152,60%,48%)" }} />
-                  </div>
-                </div>
-                {/* Focus */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-foreground">Focus</span>
-                    <span className="text-sm font-mono text-muted-foreground">{healthState.focus}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${healthState.focus}%`, backgroundColor: "hsl(152,60%,48%)" }} />
-                  </div>
-                </div>
-                {/* Relaxation */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-foreground">Relaxation</span>
-                    <span className="text-sm font-mono text-muted-foreground">{healthState.relaxation}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${healthState.relaxation}%`, backgroundColor: "hsl(217,91%,60%)" }} />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between pt-1 border-t border-border/30">
-                  <span className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
-                    <Heart className="h-3 w-3" />
-                    From {healthState.source} · less precise than EEG
-                  </span>
-                  <Link
-                    href={`/biofeedback?tab=music&mood=${healthState.stress > 35 ? "calm" : "focus"}`}
-                    className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors font-medium"
-                  >
-                    <Music className="h-3 w-3" />
-                    Full music session
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                <Brain className="h-8 w-8 mx-auto mb-2 text-muted-foreground/30" />
-                Start with a voice check-in or sync Apple Health. EEG is optional for live brain metrics.
-              </div>
-            )}
-          </Card>
+            </div>
+          </div>
         );
       })()}
 

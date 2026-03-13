@@ -164,6 +164,7 @@ export default function FoodLog() {
   // Photo mode state
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [photoDescription, setPhotoDescription] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   // Text mode state
   const [description, setDescription] = useState("");
@@ -206,20 +207,32 @@ export default function FoodLog() {
     if (!file) return;
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
+    setPendingFile(file);
     setMealType(autoMealType());
     setPhotoDescription("");
     setAnalysis(null);
-    // Don't auto-submit — wait for the user to describe what's in the photo
   };
 
   const handlePhotoSubmit = async () => {
-    if (!photoDescription.trim()) return;
-    // Submit with text description only — Cerebras model is text-only, can't process images
-    await submitAnalysis({ textDescription: photoDescription.trim() });
+    if (!pendingFile && !photoDescription.trim()) return;
+    const payload: { imageBase64?: string; textDescription?: string } = {};
+    if (pendingFile) {
+      try {
+        payload.imageBase64 = await compressToBase64(pendingFile);
+      } catch {
+        // Image compression failed — continue with text-only
+      }
+    }
+    if (photoDescription.trim()) {
+      payload.textDescription = photoDescription.trim();
+    }
+    if (!payload.imageBase64 && !payload.textDescription) return;
+    await submitAnalysis(payload);
   };
 
   const clearPhoto = () => {
     setPreviewUrl(null);
+    setPendingFile(null);
     setPhotoDescription("");
     setAnalysis(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -242,6 +255,7 @@ export default function FoodLog() {
     setInputMode(mode);
     setAnalysis(null);
     setPreviewUrl(null);
+    setPendingFile(null);
     setPhotoDescription("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
@@ -250,45 +264,57 @@ export default function FoodLog() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-lg mx-auto py-6 px-4 space-y-5">
+    <div className="max-w-lg mx-auto py-4 px-4 space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Utensils className="w-6 h-6 text-amber-400" />
+      <div className="flex items-center gap-3 pt-1">
+        <Utensils className="w-5 h-5 text-amber-400 shrink-0" />
         <div>
-          <h1 className="text-xl font-bold">Meal Log</h1>
-          <p className="text-xs text-muted-foreground">Track what you eat · see how food shapes mood & dreams</p>
+          <h1 className="text-[18px] font-bold leading-tight">Meal Log</h1>
+          <p className="text-[12px] text-muted-foreground">Food shapes mood &amp; dreams</p>
         </div>
       </div>
 
       {/* ── Input mode toggle ─────────────────────────────────────────────────── */}
-      <div className="flex rounded-lg border border-border/60 p-1 gap-1 bg-muted/20">
+      <div
+        className="flex rounded-2xl p-1 gap-1"
+        style={{
+          background: "hsl(222,28%,9%,0.7)",
+          border: "1px solid hsl(220,18%,17%,0.6)",
+        }}
+      >
         <button
           onClick={() => switchMode("photo")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[13px] font-semibold transition-colors ${
             inputMode === "photo"
-              ? "bg-background shadow-sm text-foreground"
+              ? "bg-amber-500 text-white shadow-md"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Camera className="w-4 h-4" />
+          <Camera className="w-3.5 h-3.5" />
           Photo
         </button>
         <button
           onClick={() => switchMode("text")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[13px] font-semibold transition-colors ${
             inputMode === "text"
-              ? "bg-background shadow-sm text-foreground"
+              ? "bg-amber-500 text-white shadow-md"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <PenLine className="w-4 h-4" />
+          <PenLine className="w-3.5 h-3.5" />
           Describe
         </button>
       </div>
 
       {/* ── Capture card ─────────────────────────────────────────────────────── */}
-      <Card>
-        <CardContent className="pt-5 space-y-4">
+      <div
+        className="rounded-2xl p-4 space-y-4"
+        style={{
+          background: "hsl(222,28%,9%,0.7)",
+          border: "1px solid hsl(220,18%,17%,0.6)",
+          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+        }}
+      >
 
           {/* Hidden file inputs — one for gallery, one with capture for camera */}
           <input
@@ -307,16 +333,16 @@ export default function FoodLog() {
             onChange={handleFileChange}
           />
 
-          {/* Meal type selector — inside the log form */}
+          {/* Meal type selector */}
           <div className="flex gap-1.5">
             {MEAL_TYPES.map(t => (
               <button
                 key={t}
                 onClick={() => { setMealType(t); setDescription(""); setPhotoDescription(""); setAnalysis(null); }}
-                className={`flex-1 py-1 rounded-md text-xs font-medium border transition-colors ${
+                className={`flex-1 py-1.5 rounded-xl text-[11px] font-semibold border transition-colors ${
                   mealType === t
                     ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
-                    : "border-border/50 bg-muted/20 text-muted-foreground hover:text-foreground"
+                    : "border-border/40 bg-muted/10 text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {MEAL_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -328,26 +354,26 @@ export default function FoodLog() {
           {inputMode === "photo" && (
             !previewUrl ? (
               <div className="space-y-3">
-                {/* Take Photo — uses capture="environment" to open device camera on mobile */}
+                {/* Large camera CTA — primary action on mobile */}
                 <button
                   onClick={() => cameraInputRef.current?.click()}
-                  className="w-full h-28 rounded-xl border-2 border-dashed border-amber-500/30 hover:border-amber-500/60 bg-amber-500/5 hover:bg-amber-500/10 transition-all flex items-center justify-center gap-3 group"
+                  className="w-full flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-dashed border-amber-500/35 bg-amber-500/5 active:bg-amber-500/12 transition-all active:scale-[0.99]"
                 >
-                  <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Camera className="w-5 h-5 text-amber-400" />
+                  <div className="w-16 h-16 rounded-full bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/25">
+                    <Camera className="w-8 h-8 text-white" />
                   </div>
-                  <div className="text-left">
-                    <p className="text-sm font-medium">Take Photo</p>
-                    <p className="text-xs text-muted-foreground">Open camera to snap your meal</p>
+                  <div className="text-center">
+                    <p className="text-[15px] font-bold text-foreground">Take a Photo</p>
+                    <p className="text-[12px] text-muted-foreground mt-0.5">Tap to open camera</p>
                   </div>
                 </button>
-                {/* Choose from Gallery — standard file picker */}
+                {/* Choose from Gallery — secondary action */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-14 rounded-xl border border-border/60 hover:border-amber-500/40 bg-muted/20 hover:bg-amber-500/5 transition-all flex items-center justify-center gap-2 group"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border/50 bg-muted/15 active:bg-muted/30 transition-colors"
                 >
-                  <ImageIcon className="w-4 h-4 text-muted-foreground group-hover:text-amber-400 transition-colors" />
-                  <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                  <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-[13px] font-medium text-muted-foreground">
                     Choose from Gallery
                   </span>
                 </button>
@@ -372,7 +398,7 @@ export default function FoodLog() {
                 {!isAnalyzing && !analysis && (
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">
-                      Describe what you see in the photo so we can analyze it:
+                      Photo captured. Add a description to improve accuracy (optional):
                     </p>
                     <Textarea
                       placeholder={MEAL_PROMPTS[mealType] ?? "e.g. grilled chicken with rice and vegetables"}
@@ -397,7 +423,7 @@ export default function FoodLog() {
                       <Button
                         className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={handlePhotoSubmit}
-                        disabled={isAnalyzing || !photoDescription.trim()}
+                        disabled={isAnalyzing || (!pendingFile && !photoDescription.trim())}
                       >
                         {isAnalyzing ? (
                           <><Loader2 className="w-4 h-4 animate-spin mr-2" />Analyzing…</>
@@ -405,7 +431,7 @@ export default function FoodLog() {
                           "Log meal"
                         )}
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
+                      <Button variant="outline" size="sm" onClick={() => cameraInputRef.current?.click()} className="gap-1.5">
                         <Camera className="w-3.5 h-3.5" />
                         Retake
                       </Button>
@@ -473,13 +499,17 @@ export default function FoodLog() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
       {/* ── Analysis result ───────────────────────────────────────────────────── */}
       {analysis && !isAnalyzing && (
-        <Card className="border-green-500/30 bg-green-500/5">
-          <CardContent className="pt-5 space-y-4">
+        <div
+          className="rounded-2xl p-4 space-y-4"
+          style={{
+            background: "hsl(152,25%,8%,0.7)",
+            border: "1px solid hsl(152,30%,18%,0.6)",
+          }}
+        >
             {/* Header */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
@@ -510,19 +540,50 @@ export default function FoodLog() {
               )}
             </div>
 
-            {/* Food items */}
+            {/* Food items with macro breakdown */}
             {analysis.foodItems?.length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {analysis.foodItems.map((item, i) => (
-                  <div key={i} className="flex justify-between items-baseline text-sm">
-                    <span className="text-muted-foreground">
-                      {item.name} <span className="text-xs">({item.portion})</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground/70 shrink-0 ml-2">
-                      {item.calories} kcal
-                    </span>
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex justify-between items-baseline text-sm">
+                      <span className="text-muted-foreground">
+                        {item.name} <span className="text-xs opacity-70">({item.portion})</span>
+                      </span>
+                      <span className="text-xs font-medium shrink-0 ml-2">
+                        {item.calories} kcal
+                      </span>
+                    </div>
+                    <div className="flex gap-3 text-[10px] text-muted-foreground/70 pl-0">
+                      <span><span className="text-blue-400">P</span> {item.protein_g}g</span>
+                      <span><span className="text-amber-400">C</span> {item.carbs_g}g</span>
+                      <span><span className="text-rose-400">F</span> {item.fat_g}g</span>
+                    </div>
                   </div>
                 ))}
+                {/* Meal macro totals bar */}
+                {(() => {
+                  const totalP = analysis.foodItems.reduce((s, f) => s + (f.protein_g ?? 0), 0);
+                  const totalC = analysis.foodItems.reduce((s, f) => s + (f.carbs_g ?? 0), 0);
+                  const totalF = analysis.foodItems.reduce((s, f) => s + (f.fat_g ?? 0), 0);
+                  const totalCal = totalP * 4 + totalC * 4 + totalF * 9 || 1;
+                  const pPct = Math.round(totalP * 4 / totalCal * 100);
+                  const cPct = Math.round(totalC * 4 / totalCal * 100);
+                  const fPct = 100 - pPct - cPct;
+                  return (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span><span className="text-blue-400">{totalP.toFixed(1)}g protein</span></span>
+                        <span><span className="text-amber-400">{totalC.toFixed(1)}g carbs</span></span>
+                        <span><span className="text-rose-400">{totalF.toFixed(1)}g fat</span></span>
+                      </div>
+                      <div className="flex h-2 rounded-full overflow-hidden gap-px">
+                        <div style={{ width: `${pPct}%` }} className="bg-blue-500/70 rounded-l-full" />
+                        <div style={{ width: `${cPct}%` }} className="bg-amber-500/70" />
+                        <div style={{ width: `${Math.max(fPct, 0)}%` }} className="bg-rose-500/70 rounded-r-full" />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -543,9 +604,70 @@ export default function FoodLog() {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </div>
       )}
+
+      {/* ── Daily nutrition totals ────────────────────────────────────────────── */}
+      {history && history.length > 0 && (() => {
+        const todayStr = new Date().toDateString();
+        const todayLogs = history.filter(l => new Date(l.loggedAt).toDateString() === todayStr);
+        if (todayLogs.length === 0) return null;
+        const totalCal = todayLogs.reduce((s, l) => s + (l.totalCalories ?? 0), 0);
+        // Sum macros from foodItems arrays
+        let totalP = 0, totalC = 0, totalFat = 0, totalFib = 0;
+        for (const l of todayLogs) {
+          for (const fi of (l.foodItems ?? [])) {
+            totalP += fi.protein_g ?? 0;
+            totalC += fi.carbs_g ?? 0;
+            totalFat += fi.fat_g ?? 0;
+          }
+        }
+        // Daily targets (rough averages)
+        const CAL_GOAL = 2000, P_GOAL = 50, C_GOAL = 275, FAT_GOAL = 78, FIB_GOAL = 28;
+        const ring = (val: number, goal: number, color: string, label: string, unit: string) => {
+          const pct = Math.min(val / goal * 100, 100);
+          const r = 18, circ = 2 * Math.PI * r;
+          const dash = circ * pct / 100;
+          return (
+            <div className="flex flex-col items-center gap-1">
+              <div className="relative w-12 h-12">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 44 44">
+                  <circle cx="22" cy="22" r={r} fill="none" stroke="currentColor" className="text-muted/30" strokeWidth="4" />
+                  <circle
+                    cx="22" cy="22" r={r} fill="none"
+                    stroke="currentColor" className={color} strokeWidth="4"
+                    strokeDasharray={`${dash} ${circ}`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold">
+                  {Math.round(pct)}%
+                </span>
+              </div>
+              <span className="text-[9px] text-muted-foreground text-center leading-tight">
+                {label}<br />{val % 1 === 0 ? val : val.toFixed(0)}{unit}
+              </span>
+            </div>
+          );
+        };
+        return (
+          <Card className="border-amber-500/20 bg-amber-500/5">
+            <CardContent className="pt-4 pb-3">
+              <p className="text-xs font-semibold text-amber-400 mb-3">Today's nutrition</p>
+              <div className="flex justify-around">
+                {ring(Math.round(totalCal), CAL_GOAL, "text-amber-400", "Calories", " kcal")}
+                {ring(Math.round(totalP), P_GOAL, "text-blue-400", "Protein", "g")}
+                {ring(Math.round(totalC), C_GOAL, "text-green-400", "Carbs", "g")}
+                {ring(Math.round(totalFat), FAT_GOAL, "text-rose-400", "Fat", "g")}
+                {ring(Math.round(totalFib), FIB_GOAL, "text-violet-400", "Fiber", "g")}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                Based on {todayLogs.length} meal{todayLogs.length !== 1 ? "s" : ""} logged today · targets are population averages
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* ── History ───────────────────────────────────────────────────────────── */}
       {history && history.length > 0 && (

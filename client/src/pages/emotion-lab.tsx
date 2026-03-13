@@ -424,145 +424,177 @@ export default function EmotionLab() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+    <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
       {isStreaming && reconnectCount > 0 && (
-        <div className="rounded-md bg-amber-500/10 border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-400">
+        <div className="rounded-2xl bg-amber-500/10 border border-amber-500/40 px-4 py-2.5 text-[13px] font-medium text-amber-400">
           Reconnecting to EEG stream... (attempt {reconnectCount})
         </div>
       )}
       <SimulationModeBanner />
 
       {/* ── Hero header ────────────────────────────────────────────────── */}
-      <div className="text-center space-y-1 pt-2">
-        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
-          Mood & Emotions
+      <div className="text-center space-y-1 pt-1">
+        <h1 className="text-[22px] font-bold tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent">
+          Mood &amp; Emotions
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           Track how you feel, discover patterns
         </p>
       </div>
 
       {/* ── Quick Mood Log ─────────────────────────────────────────────── */}
-      <Card className="relative overflow-hidden border-border/50">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-indigo-500/5 pointer-events-none" />
-        <div className="relative p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Heart className="h-4 w-4 text-violet-400" />
-            <p className="text-sm font-semibold">How are you feeling?</p>
-          </div>
-          <div className="grid grid-cols-3 gap-2.5">
-            {QUICK_MOODS.map((mood) => (
-              <button
-                key={mood.value}
-                onClick={() => handleQuickMood(mood.value)}
-                disabled={quickMoodMutation.isPending}
-                className={`
-                  flex flex-col items-center justify-center gap-1.5 rounded-xl border
-                  px-3 py-3.5 min-h-[52px] transition-all duration-200 cursor-pointer
-                  ${mood.bgClass}
-                  ${selectedQuickMood === mood.value ? "ring-2 ring-violet-400 scale-[0.97]" : ""}
-                  disabled:opacity-50
-                `}
-              >
-                <span
-                  className="w-3 h-3 rounded-full shrink-0"
-                  style={{ backgroundColor: mood.color }}
-                />
-                <span className="text-xs font-medium text-foreground/80">
-                  {mood.label}
-                </span>
-              </button>
-            ))}
-          </div>
-          {quickMoodMutation.isSuccess && (
-            <p className="text-xs text-emerald-400 text-center animate-in fade-in duration-300">
-              Logged successfully
-            </p>
-          )}
+      <div
+        className="rounded-2xl p-4 space-y-4"
+        style={{
+          background: "hsl(270,20%,8%,0.7)",
+          border: "1px solid hsl(270,20%,18%,0.5)",
+          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <Heart className="h-4 w-4 text-violet-400" />
+          <p className="text-[13px] font-semibold">How are you feeling?</p>
         </div>
-      </Card>
+        <div className="grid grid-cols-3 gap-2">
+          {QUICK_MOODS.map((mood) => (
+            <button
+              key={mood.value}
+              onClick={() => handleQuickMood(mood.value)}
+              disabled={quickMoodMutation.isPending}
+              className={`
+                flex flex-col items-center justify-center gap-1.5 rounded-2xl border
+                px-2 py-3.5 min-h-[64px] transition-all duration-200 cursor-pointer
+                ${mood.bgClass}
+                ${selectedQuickMood === mood.value ? "ring-2 ring-violet-400 scale-[0.97]" : "active:scale-[0.97]"}
+                disabled:opacity-50
+              `}
+            >
+              <span
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: mood.color }}
+              />
+              <span className="text-[12px] font-semibold text-foreground/80">
+                {mood.label}
+              </span>
+            </button>
+          ))}
+        </div>
+        {quickMoodMutation.isSuccess && (
+          <p className="text-xs text-emerald-400 text-center animate-in fade-in duration-300">
+            Logged successfully
+          </p>
+        )}
+      </div>
 
       {/* ── Voice check-in card ────────────────────────────────────────── */}
       <VoiceCheckinCard userId={participantId} />
 
-      {/* ── Voice emotion fallback — shown when EEG not streaming ─────── */}
+      {/* ── Voice Emotion Analysis — centered large mic button ─────────── */}
       {deviceState !== "streaming" && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <div className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-amber-400">
-                  Voice Emotion Analysis
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  No EEG headband connected -- detect emotion via microphone
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant={voiceEmotion.isRecording ? "destructive" : "outline"}
-                onClick={
-                  voiceEmotion.isRecording
-                    ? voiceEmotion.stopRecording
-                    : voiceEmotion.startRecording
-                }
-                disabled={voiceEmotion.isAnalyzing}
-                className="gap-2 min-h-[44px] min-w-[44px]"
-              >
-                {voiceEmotion.isRecording ? (
-                  <>
-                    <MicOff className="w-4 h-4" /> Stop &amp; Analyze
-                  </>
-                ) : voiceEmotion.isAnalyzing ? (
-                  <>
-                    <Mic className="w-4 h-4 animate-pulse" /> Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-4 h-4" /> Detect Emotion
-                  </>
-                )}
-              </Button>
-            </div>
+        <div
+          className="rounded-2xl p-5 space-y-5"
+          style={{
+            background: "hsl(38,25%,7%,0.7)",
+            border: "1px solid hsl(38,30%,18%,0.5)",
+            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+          }}
+        >
+          <div className="text-center">
+            <p className="text-[13px] font-semibold text-amber-400 mb-0.5">
+              Voice Emotion Analysis
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {voiceEmotion.isRecording
+                ? "Recording… speak naturally"
+                : voiceEmotion.isAnalyzing
+                ? "Analyzing your voice…"
+                : "Tap to detect emotion from your voice"}
+            </p>
+          </div>
 
-            {voiceEmotion.lastResult && (
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="rounded-lg bg-background/50 p-2.5">
-                  <div className="font-semibold capitalize">
-                    {voiceEmotion.lastResult.emotion}
-                  </div>
-                  <div className="text-muted-foreground">Emotion</div>
+          {/* Large centered mic button */}
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onClick={
+                voiceEmotion.isRecording
+                  ? voiceEmotion.stopRecording
+                  : voiceEmotion.startRecording
+              }
+              disabled={voiceEmotion.isAnalyzing}
+              className={`
+                relative w-20 h-20 rounded-full flex items-center justify-center
+                transition-all duration-200 active:scale-95 disabled:opacity-50
+                ${voiceEmotion.isRecording
+                  ? "bg-red-500 shadow-lg shadow-red-500/40"
+                  : voiceEmotion.isAnalyzing
+                  ? "bg-amber-500/80 shadow-lg shadow-amber-500/30"
+                  : "bg-amber-500 shadow-lg shadow-amber-500/30 hover:bg-amber-400"
+                }
+              `}
+            >
+              {voiceEmotion.isRecording && (
+                <span className="absolute inset-0 rounded-full bg-red-400/30 animate-ping" />
+              )}
+              {voiceEmotion.isRecording ? (
+                <MicOff className="w-9 h-9 text-white" />
+              ) : voiceEmotion.isAnalyzing ? (
+                <Mic className="w-9 h-9 text-white animate-pulse" />
+              ) : (
+                <Mic className="w-9 h-9 text-white" />
+              )}
+            </button>
+            <p className="text-[11px] font-medium text-muted-foreground">
+              {voiceEmotion.isRecording
+                ? "Tap to stop &amp; analyze"
+                : voiceEmotion.isAnalyzing
+                ? "Please wait…"
+                : "Hold to record"}
+            </p>
+          </div>
+
+          {voiceEmotion.lastResult && (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-muted/20 p-2.5">
+                <div className="text-[14px] font-bold capitalize text-amber-400">
+                  {voiceEmotion.lastResult.emotion}
                 </div>
-                <div className="rounded-lg bg-background/50 p-2.5">
-                  <div className="font-semibold">
-                    {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}
-                    {voiceEmotion.lastResult.valence.toFixed(2)}
-                  </div>
-                  <div className="text-muted-foreground">Valence</div>
-                </div>
-                <div className="rounded-lg bg-background/50 p-2.5">
-                  <div className="font-semibold">
-                    {Math.round(voiceEmotion.lastResult.confidence * 100)}%
-                  </div>
-                  <div className="text-muted-foreground">Confidence</div>
-                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Emotion</div>
               </div>
+              <div className="rounded-xl bg-muted/20 p-2.5">
+                <div className="text-[14px] font-bold text-violet-400">
+                  {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}
+                  {voiceEmotion.lastResult.valence.toFixed(2)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Valence</div>
+              </div>
+              <div className="rounded-xl bg-muted/20 p-2.5">
+                <div className="text-[14px] font-bold text-emerald-400">
+                  {Math.round(voiceEmotion.lastResult.confidence * 100)}%
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Confidence</div>
+              </div>
+            </div>
             )}
 
             {voiceEmotion.error && (
               <p className="text-xs text-destructive">{voiceEmotion.error}</p>
             )}
-          </div>
-        </Card>
+        </div>
       )}
 
       {/* ── Card 1: Right now (live EEG) ───────────────────────────────── */}
-      <Card className="relative overflow-hidden border-border/50">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-cyan-500/5 pointer-events-none" />
-        <div className="relative p-5">
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{
+          background: "hsl(165,20%,7%,0.7)",
+          border: "1px solid hsl(165,20%,17%,0.5)",
+          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+        }}
+      >
+        <div className="p-5">
           <div className="flex items-center gap-2 mb-4">
             <Brain className="h-4 w-4 text-emerald-400" />
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
               Right now
             </p>
           </div>
@@ -753,7 +785,7 @@ export default function EmotionLab() {
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* ── EmotionFlow chart (live session) ──────────────────────────── */}
       {emotionReadings.length > 0 && (
@@ -761,13 +793,19 @@ export default function EmotionLab() {
       )}
 
       {/* ── Mood Trend (7-day) ─────────────────────────────────────────── */}
-      <Card className="relative overflow-hidden border-border/50">
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5 pointer-events-none" />
-        <div className="relative p-5 space-y-3">
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{
+          background: "hsl(38,20%,7%,0.7)",
+          border: "1px solid hsl(38,20%,17%,0.5)",
+          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+        }}
+      >
+        <div className="p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-amber-400" />
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
                 Mood Trend
               </p>
             </div>
@@ -843,16 +881,22 @@ export default function EmotionLab() {
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* ── Recent Emotions ────────────────────────────────────────────── */}
-      <Card className="relative overflow-hidden border-border/50">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 pointer-events-none" />
-        <div className="relative p-5 space-y-3">
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{
+          background: "hsl(220,20%,7%,0.7)",
+          border: "1px solid hsl(220,20%,17%,0.5)",
+          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+        }}
+      >
+        <div className="p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-blue-400" />
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
                 Recent Emotions
               </p>
             </div>
@@ -959,15 +1003,22 @@ export default function EmotionLab() {
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* ── Today's Session Emotions (live EEG history) ────────────────── */}
       {history.length > 0 && isStreaming && (
-        <Card className="border-border/50">
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{
+            background: "hsl(165,20%,7%,0.7)",
+            border: "1px solid hsl(165,20%,17%,0.5)",
+            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+          }}
+        >
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <Brain className="h-4 w-4 text-emerald-400" />
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
                 This Session
               </p>
             </div>
@@ -1000,7 +1051,7 @@ export default function EmotionLab() {
               })}
             </div>
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );

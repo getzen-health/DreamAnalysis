@@ -251,73 +251,103 @@ export default function HealthAnalytics() {
   }, [latestFrame?.timestamp]);
 
   return (
-    <main className="p-6 space-y-6 max-w-5xl">
+    <main className="px-4 pt-2 pb-4 space-y-4 max-w-xl mx-auto">
       {/* Connection Banner */}
       {!isStreaming && (
-        <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 text-sm text-muted-foreground flex items-center gap-3">
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/20">
           <Radio className="h-4 w-4 shrink-0 text-primary" />
-          {voiceResult
-            ? "Showing voice-derived estimates. Connect EEG for precise live brain data."
-            : "Showing baseline estimates. Run a voice check-in or connect EEG for live analytics."}
+          <span className="text-[12px] text-muted-foreground">
+            {voiceResult
+              ? "Voice-derived estimates. Connect EEG for live brain data."
+              : "Run a voice check-in or connect EEG for live analytics."}
+          </span>
         </div>
       )}
 
-      {/* Score Gauges */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {hasRealData && brainHealthScore !== null ? (
-          <div className="score-card p-4 flex flex-col items-center hover-glow">
-            <ScoreCircle value={brainHealthScore} label="Brain Health" gradientId="grad-brain-health" colorFrom="hsl(152, 60%, 48%)" colorTo="hsl(200, 70%, 55%)" size="sm" />
-            <p className="text-xs text-muted-foreground mt-1">Focus + Relaxation + Low Stress</p>
-          </div>
-        ) : (
-          <div className="score-card p-4 flex flex-col items-center justify-center hover-glow h-[140px]">
-            <span className="text-3xl font-semibold text-muted-foreground">—</span>
-            <span className="text-xs font-medium text-muted-foreground mt-1">Brain Health</span>
-            <p className="text-[10px] text-muted-foreground mt-1">No data</p>
-          </div>
-        )}
-        {hasRealData && cognitiveScore !== null ? (
-          <div className="score-card p-4 flex flex-col items-center hover-glow">
-            <ScoreCircle value={cognitiveScore} label="Cognitive" gradientId="grad-cognitive" colorFrom="hsl(262, 45%, 65%)" colorTo="hsl(220, 50%, 50%)" size="sm" />
-            <p className="text-xs text-muted-foreground mt-1">Focus + Creativity + Memory</p>
-          </div>
-        ) : (
-          <div className="score-card p-4 flex flex-col items-center justify-center hover-glow h-[140px]">
-            <span className="text-3xl font-semibold text-muted-foreground">—</span>
-            <span className="text-xs font-medium text-muted-foreground mt-1">Cognitive</span>
-            <p className="text-[10px] text-muted-foreground mt-1">No data</p>
-          </div>
-        )}
-        {hasRealData && wellbeingScore !== null ? (
-          <div className="score-card p-4 flex flex-col items-center hover-glow">
-            <ScoreCircle value={wellbeingScore} label="Wellbeing" gradientId="grad-wellbeing" colorFrom="hsl(38, 85%, 58%)" colorTo="hsl(25, 85%, 55%)" size="sm" />
-            <p className="text-xs text-muted-foreground mt-1">Relaxation + Low Stress + Flow</p>
-          </div>
-        ) : (
-          <div className="score-card p-4 flex flex-col items-center justify-center hover-glow h-[140px]">
-            <span className="text-3xl font-semibold text-muted-foreground">—</span>
-            <span className="text-xs font-medium text-muted-foreground mt-1">Wellbeing</span>
-            <p className="text-[10px] text-muted-foreground mt-1">No data</p>
-          </div>
-        )}
+      {/* Score Gauges — horizontal row on mobile */}
+      <div
+        className="rounded-2xl p-4"
+        style={{
+          background: "hsl(222,28%,9%,0.7)",
+          border: "1px solid hsl(220,18%,17%,0.6)",
+          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+        }}
+      >
+        <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em] mb-4">
+          Today's Scores
+        </p>
+        <div className="flex items-start justify-around">
+          {[
+            {
+              value: brainHealthScore,
+              label: "Brain",
+              sub: "Health",
+              gradientId: "grad-brain-health",
+              colorFrom: "hsl(152, 60%, 48%)",
+              colorTo: "hsl(200, 70%, 55%)",
+            },
+            {
+              value: cognitiveScore,
+              label: "Cognitive",
+              sub: "Focus + Memory",
+              gradientId: "grad-cognitive",
+              colorFrom: "hsl(262, 45%, 65%)",
+              colorTo: "hsl(220, 50%, 50%)",
+            },
+            {
+              value: wellbeingScore,
+              label: "Wellbeing",
+              sub: "Relax + Flow",
+              gradientId: "grad-wellbeing",
+              colorFrom: "hsl(38, 85%, 58%)",
+              colorTo: "hsl(25, 85%, 55%)",
+            },
+          ].map((s) => (
+            <div key={s.label} className="flex flex-col items-center gap-1">
+              {hasRealData && s.value !== null ? (
+                <ScoreCircle
+                  value={s.value}
+                  label={s.label}
+                  sublabel={s.sub}
+                  gradientId={s.gradientId}
+                  colorFrom={s.colorFrom}
+                  colorTo={s.colorTo}
+                  size="sm"
+                />
+              ) : (
+                <div className="w-[100px] h-[100px] rounded-full border-4 border-muted/30 flex flex-col items-center justify-center">
+                  <span className="text-xl font-bold text-muted-foreground/40">—</span>
+                  <span className="text-[9px] text-muted-foreground/40 mt-0.5">{s.label}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Brain Health Trends */}
-      <Card className="glass-card p-5 hover-glow">
+      <div
+        className="rounded-2xl p-4"
+        style={{
+          background: "hsl(222,28%,9%,0.7)",
+          border: "1px solid hsl(220,18%,17%,0.6)",
+          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+        }}
+      >
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-medium">Brain Health Trends</h3>
+            <p className="text-[13px] font-semibold">Trends</p>
             {isLiveToday && isStreaming && (
               <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
             )}
           </div>
-          <div className="flex gap-1 flex-wrap">
+          <div className="flex gap-1 overflow-x-auto">
             {PERIOD_TABS.map((tab) => (
               <button
                 key={tab.days}
                 onClick={() => setPeriodDays(tab.days)}
-                className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                className={`shrink-0 px-2.5 py-1 text-[11px] rounded-full transition-colors ${
                   periodDays === tab.days
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-muted"
@@ -412,29 +442,36 @@ export default function HealthAnalytics() {
             </div>
           </>
         )}
-      </Card>
+      </div>
 
       {/* Brain-Health Insights (live only) */}
       {insights.length > 0 && (
-        <Card className="glass-card p-5 hover-glow">
+        <div
+          className="rounded-2xl p-4"
+          style={{
+            background: "hsl(222,28%,9%,0.7)",
+            border: "1px solid hsl(220,18%,17%,0.6)",
+            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+          }}
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-medium">Brain-Health Insights</h3>
+              <p className="text-[13px] font-semibold">Insights</p>
             </div>
             <Badge variant={isStreaming ? "default" : "secondary"} className="text-[10px]">
-              {isStreaming ? "Live Data" : "No Data"}
+              {isStreaming ? "Live" : "No Data"}
             </Badge>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-3">
             {insights.map((insight, i) => (
               <div
                 key={i}
-                className="p-4 rounded-xl"
+                className="p-3.5 rounded-2xl"
                 style={{ background: "hsl(220, 22%, 8%)", border: "1px solid hsl(220, 18%, 13%)" }}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium text-foreground">{insight.title}</h4>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[13px] font-semibold text-foreground">{insight.title}</p>
                   <span
                     className="text-[10px] font-mono px-2 py-0.5 rounded-full"
                     style={{ background: `hsl(152, 60%, 48%, ${insight.strength * 0.2})`, color: "hsl(152, 60%, 48%)" }}
@@ -442,15 +479,15 @@ export default function HealthAnalytics() {
                     {Math.round(insight.strength * 100)}%
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{insight.description}</p>
+                <p className="text-[12px] text-muted-foreground leading-relaxed">{insight.description}</p>
                 <div className="flex gap-2 mt-2">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">{insight.brain.replace(/_/g, " ")}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">{insight.health}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-lg bg-primary/10 text-primary">{insight.brain.replace(/_/g, " ")}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-lg bg-accent/10 text-accent">{insight.health}</span>
                 </div>
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       )}
     </main>
   );

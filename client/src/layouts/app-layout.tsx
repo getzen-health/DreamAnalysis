@@ -96,26 +96,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
       {/* md:ml-56 = sidebar width; on mobile sidebar overlays so no margin needed */}
       <main ref={pullRef} className="md:ml-56 min-h-screen overflow-x-hidden" role="main">
         <header
-          className="sticky top-0 z-30 border-b pl-14 pr-4 py-3 md:px-6"
+          className="sticky top-0 z-30 border-b md:px-6"
           style={{
-            background: "hsl(222, 25%, 6%, 0.85)",
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            borderColor: "hsl(220, 18%, 15%, 0.5)",
+            background: "hsl(222, 25%, 5%, 0.92)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            borderColor: "hsl(220, 18%, 13%, 0.5)",
+            paddingTop: "env(safe-area-inset-top, 0px)",
           }}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pl-14 pr-4 py-2.5 md:pl-4 md:py-3">
+            {/* Left: title */}
             <div>
-              <h1 className="text-lg font-semibold text-foreground">
-                {getGreeting()}{user ? `, ${user.username}` : ""}
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                {pageTitle} &middot; {dateStr}
+              <p className="text-[15px] font-semibold text-foreground leading-tight">
+                {pageTitle}
+              </p>
+              <p className="text-[11px] text-muted-foreground/60 leading-tight">
+                {dateStr}
               </p>
             </div>
+            {/* Right: theme toggle */}
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              className="w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/40 active:bg-muted/60 transition-colors"
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
