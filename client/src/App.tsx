@@ -1,4 +1,4 @@
-import { lazy, Suspense, Component, useState, type ReactNode, type ErrorInfo } from "react";
+import { lazy, Suspense, Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -30,8 +30,6 @@ import SettingsPage from "@/pages/settings";
 import CalibrationPage from "@/pages/calibration";
 import DailyBrainReport from "@/pages/daily-brain-report";
 import Onboarding from "@/pages/onboarding";
-import OnboardingNew from "@/pages/onboarding-new";
-import WelcomeIntro from "@/pages/welcome-intro";
 import NotFound from "@/pages/not-found";
 
 // ── Intent selection page — lazy loaded ────────────────────────────────────
@@ -113,16 +111,29 @@ function PageLoader() {
   );
 }
 
-// Redirects unauthenticated users to /auth
+// Redirects unauthenticated users to /auth.
+// Redirects authenticated users who haven't finished onboarding to /onboarding.
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   if (isLoading) return <PageLoader />;
   if (!user) {
     setLocation("/auth");
     return null;
   }
+  // Only enforce onboarding redirect when NOT already on /onboarding
+  if (location !== "/onboarding" && !localStorage.getItem("ndw_onboarding_complete")) {
+    setLocation("/onboarding");
+    return null;
+  }
   return <>{children}</>;
+}
+
+// Simple redirect component for legacy onboarding routes
+function RedirectTo({ to }: { to: string }) {
+  const [, setLocation] = useLocation();
+  useEffect(() => { setLocation(to); }, [to, setLocation]);
+  return null;
 }
 
 function AppRoutes() {
@@ -135,7 +146,10 @@ function AppRoutes() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
-      <Route path="/onboarding-new" component={OnboardingNew} />
+      <Route path="/onboarding-new">
+        {/* Legacy route — redirect to unified onboarding */}
+        <RedirectTo to="/onboarding" />
+      </Route>
       <Route path="/architecture-guide">
         <AppLayout><ArchitectureGuide /></AppLayout>
       </Route>
@@ -246,7 +260,10 @@ function AppRoutes() {
       <Route path="/study/profile"><StudyProfile /></Route>
       <Route path="/study"><StudyLanding /></Route>
       {/* Fullscreen onboarding — no sidebar */}
-      <Route path="/welcome-intro" component={WelcomeIntro} />
+      <Route path="/welcome-intro">
+        {/* Legacy route — redirect to unified onboarding */}
+        <RedirectTo to="/onboarding" />
+      </Route>
       <Route path="/onboarding" component={Onboarding} />
       {/* Intent selection — study vs explore, shown after first login */}
       <Route path="/intent">
@@ -277,7 +294,7 @@ function AppRoutes() {
   );
 }
 
-const PUBLIC_ROUTES = new Set(["/auth", "/forgot-password", "/reset-password", "/welcome", "/welcome-intro", "/onboarding-new"]);
+const PUBLIC_ROUTES = new Set(["/auth", "/forgot-password", "/reset-password", "/welcome", "/onboarding", "/welcome-intro", "/onboarding-new"]);
 
 // Separated so it can access useAuth (must be inside AuthProvider)
 function AppShell() {
