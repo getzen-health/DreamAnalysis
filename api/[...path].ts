@@ -54,6 +54,7 @@ import { eq, desc, asc, and, gte, lt, sql, isNull } from 'drizzle-orm';
 
 import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response.js';
 import { generateToken, setAuthCookie, clearAuthCookie, requireAuth, requireOwner, requireAdmin } from './_lib/auth.js';
+import { checkRateLimit, getClientIp, tooManyRequests } from './_lib/rate-limit.js';
 
 // Lazy-load heavy modules at handler runtime to avoid Vercel cold-start crash.
 // drizzle-orm/neon-http and openai can crash the Node.js process if loaded at
@@ -154,6 +155,12 @@ async function verifyPassword(stored: string, supplied: string): Promise<boolean
 async function authRegister(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
+    // Rate limit: 3 attempts per IP per hour
+    const db = getDb();
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(db, `register:${ip}`, 3, 60);
+    if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+
     // Use parsed body (may be pre-set by early parser, or parse again as fallback)
     const body = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0)
       ? req.body : await parseRequestBody(req);
@@ -162,7 +169,6 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
       return badRequest(res, 'Username must be at least 3 characters');
     if (!password || typeof password !== 'string' || password.length < 6)
       return badRequest(res, 'Password must be at least 6 characters');
-    const db = getDb();
     const [existing] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim().toLowerCase()));
     if (existing) return badRequest(res, 'Username already exists');
     const normalizedEmail = email?.trim().toLowerCase() || null;
@@ -187,11 +193,16 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
 async function authLogin(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
+    // Rate limit: 5 attempts per IP per 15 minutes
+    const db = getDb();
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(db, `login:${ip}`, 5, 15);
+    if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+
     const body = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0)
       ? req.body : await parseRequestBody(req);
     const { username, password } = body as { username?: string; password?: string };
     if (!username || !password) return badRequest(res, 'Username and password required');
-    const db = getDb();
     const [user] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
     if (!user || !(await verifyPassword(user.password, password)))
       return unauthorized(res, 'Invalid username or password');
@@ -230,7 +241,10 @@ async function authForgotPassword(req: VercelRequest, res: VercelResponse) {
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (!email) return res.status(200).json({ message: GENERIC });
 
+    // Rate limit: 3 attempts per email per hour
     const db = getDb();
+    const rl = await checkRateLimit(db, `forgot-password:${email}`, 3, 60);
+    if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
     const [user] = await db.select().from(schema.users)
       .where(eq(schema.users.email, email)).limit(1);
 
@@ -774,33 +788,46 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
   const body = req.body ?? {};
   const { userId, imageBase64, textDescription, mealType, moodBefore, notes } = body;
   if (!userId) return badRequest(res, 'userId required');
-  if (!textDescription && !imageBase64) return badRequest(res, 'textDescription required — describe what you ate');
-  // Cerebras Llama 3.1 is text-only — image analysis is not supported.
-  // Always require a text description. If only an image was sent, ask for description.
-  if (imageBase64 && !textDescription) return badRequest(res, 'Please describe the food in your photo so we can analyze it');
-
-  let openai;
-  try {
-    openai = getOpenAIClient();
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'AI service not configured';
-    console.error('Food analyze — AI client init failed:', msg);
-    return error(res, `AI service unavailable: ${msg}`, 503);
-  }
+  if (!textDescription && !imageBase64) return badRequest(res, 'Provide a photo or describe what you ate');
 
   const db = getDb();
+  const jsonPrompt = `Estimate nutrition and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`;
 
   try {
-    // Use text description for analysis (Cerebras model is text-only, cannot process images)
-    const resp = await openai.chat.completions.create({
-      model: 'llama3.1-8b',
-      messages: [{
-        role: 'user',
-        content: `The user describes their ${mealType ?? 'meal'}: "${textDescription}"\n\nEstimate nutrition and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`,
-      }],
-      response_format: { type: 'json_object' },
-    });
-    const content = resp.choices[0].message.content ?? '{}';
+    let content: string;
+
+    if (imageBase64) {
+      // Vision path: GPT-4o-mini analyzes the food photo directly
+      const openaiKey = process.env.OPENAI_API_KEY;
+      if (!openaiKey) return error(res, 'Vision AI not configured (OPENAI_API_KEY missing)', 503);
+      const { default: OpenAI } = await import('openai');
+      const visionClient = new OpenAI({ apiKey: openaiKey });
+      const textPart = textDescription
+        ? `The user describes their ${mealType ?? 'meal'}: "${textDescription}". Also analyze the photo.`
+        : `Analyze this ${mealType ?? 'meal'} photo.`;
+      const resp = await visionClient.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: 'low' } },
+          { type: 'text', text: `${textPart}\n\n${jsonPrompt}` },
+        ] }],
+        max_tokens: 1024,
+      });
+      content = resp.choices[0].message.content ?? '{}';
+    } else {
+      // Text-only path: Cerebras Llama 3.1
+      let openai;
+      try { openai = getOpenAIClient(); } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'AI service not configured';
+        return error(res, `AI service unavailable: ${msg}`, 503);
+      }
+      const resp = await openai.chat.completions.create({
+        model: 'llama3.1-8b',
+        messages: [{ role: 'user', content: `The user describes their ${mealType ?? 'meal'}: "${textDescription}"\n\n${jsonPrompt}` }],
+        response_format: { type: 'json_object' },
+      });
+      content = resp.choices[0].message.content ?? '{}';
+    }
 
     // Strip markdown fences if present
     const stripped = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();

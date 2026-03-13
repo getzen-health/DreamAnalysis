@@ -423,7 +423,7 @@ export default function FoodLog() {
                       <Button
                         className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={handlePhotoSubmit}
-                        disabled={isAnalyzing || (!pendingFile && !photoDescription.trim())}
+                        disabled={isAnalyzing || !pendingFile}
                       >
                         {isAnalyzing ? (
                           <><Loader2 className="w-4 h-4 animate-spin mr-2" />Analyzing…</>
