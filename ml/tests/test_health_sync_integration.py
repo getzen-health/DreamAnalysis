@@ -6,9 +6,9 @@ import pytest
 # ── Apple HealthKit ─────────────────────────────────────────────────────────────
 
 class TestHealthkitTypeMap:
-    def test_map_has_16_types(self):
+    def test_map_has_17_types(self):
         from health.apple_health import HEALTHKIT_TYPE_MAP
-        assert len(HEALTHKIT_TYPE_MAP) == 16
+        assert len(HEALTHKIT_TYPE_MAP) == 17
 
     def test_vital_signs_present(self):
         from health.apple_health import HEALTHKIT_TYPE_MAP
@@ -261,9 +261,9 @@ class TestFormatBrainDataForHealthkit:
 # ── Google Fit ──────────────────────────────────────────────────────────────────
 
 class TestHealthConnectTypeMap:
-    def test_map_has_8_types(self):
+    def test_map_has_9_types(self):
         from health.google_fit import HEALTH_CONNECT_TYPE_MAP
-        assert len(HEALTH_CONNECT_TYPE_MAP) == 8
+        assert len(HEALTH_CONNECT_TYPE_MAP) == 9
 
     def test_heart_rate_present(self):
         from health.google_fit import HEALTH_CONNECT_TYPE_MAP
@@ -290,6 +290,7 @@ class TestHealthConnectTypeMap:
             "ExerciseSessionRecord",
             "HeartRateVariabilityRmssdRecord",
             "RestingHeartRateRecord",
+            "BloodGlucoseRecord",
         }
         assert set(HEALTH_CONNECT_TYPE_MAP.keys()) == expected
 
