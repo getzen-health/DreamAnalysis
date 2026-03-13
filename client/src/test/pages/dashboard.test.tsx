@@ -53,10 +53,17 @@ describe("Dashboard page", () => {
 
   it("shows all four quick action cards", () => {
     renderWithProviders(<Dashboard />);
-    expect(screen.getByText("Daily Report")).toBeInTheDocument();
+    expect(screen.getByText("Voice Check-in")).toBeInTheDocument();
     expect(screen.getByText("Dream Journal")).toBeInTheDocument();
     expect(screen.getByText("AI Companion")).toBeInTheDocument();
     expect(screen.getByText("Breathe")).toBeInTheDocument();
+  });
+
+  it("shows the Discover section with feature cards", () => {
+    renderWithProviders(<Dashboard />);
+    expect(screen.getByText("Discover")).toBeInTheDocument();
+    expect(screen.getByText("Brain Monitor")).toBeInTheDocument();
+    expect(screen.getByText("Neurofeedback")).toBeInTheDocument();
   });
 
   it("shows connect device banner when not streaming", () => {
@@ -98,5 +105,10 @@ describe("Dashboard page", () => {
     await waitFor(() => {
       expect(screen.queryByText("Weekly Stress Landscape")).not.toBeInTheDocument();
     });
+  });
+
+  it("shows Quick Actions section label", () => {
+    renderWithProviders(<Dashboard />);
+    expect(screen.getByText("Quick Actions")).toBeInTheDocument();
   });
 });

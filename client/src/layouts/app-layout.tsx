@@ -95,8 +95,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
       {/* md:ml-56 = sidebar width; on mobile sidebar overlays so no margin needed */}
       <main ref={pullRef} className="md:ml-56 min-h-screen overflow-x-hidden" role="main">
+        {/* Header: desktop only — mobile pages carry their own inline title */}
         <header
-          className="sticky top-0 z-30 border-b md:px-6"
+          className="hidden md:block sticky top-0 z-30 border-b md:px-6"
           style={{
             background: "hsl(222, 25%, 5%, 0.92)",
             backdropFilter: "blur(20px)",
@@ -105,7 +106,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             paddingTop: "env(safe-area-inset-top, 0px)",
           }}
         >
-          <div className="flex items-center justify-between pl-14 pr-4 py-2.5 md:pl-4 md:py-3">
+          <div className="flex items-center justify-between pl-4 pr-4 py-3">
             {/* Left: title */}
             <div>
               <p className="text-[15px] font-semibold text-foreground leading-tight">
@@ -143,7 +144,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
         )}
 
         {/* pb-safe: extra bottom padding on devices with home indicator + bottom tab bar on mobile */}
-        <div className="pb-[calc(env(safe-area-inset-bottom,0px)+3.5rem)] md:pb-[env(safe-area-inset-bottom,0px)]">
+        {/* Tab bar is 56px tall — 3.75rem */}
+        <div className="pb-[calc(env(safe-area-inset-bottom,0px)+3.75rem)] md:pb-[env(safe-area-inset-bottom,0px)]">
           <AnimatePresence mode="wait">
             <motion.div
               key={location}

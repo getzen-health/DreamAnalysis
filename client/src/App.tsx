@@ -145,6 +145,16 @@ function AppRoutes() {
       <Route path="/emotions">
         <ProtectedRoute><AppLayout><EmotionLab /></AppLayout></ProtectedRoute>
       </Route>
+      {/* Bottom tab route aliases */}
+      <Route path="/journal">
+        <ProtectedRoute><AppLayout><EmotionLab /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/trends">
+        <ProtectedRoute><AppLayout><HealthAnalytics /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/you">
+        <ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>
+      </Route>
       <Route path="/brain-monitor">
         <ProtectedRoute><AppLayout><BrainMonitor /></AppLayout></ProtectedRoute>
       </Route>

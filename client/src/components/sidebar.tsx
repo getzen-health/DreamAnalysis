@@ -138,7 +138,8 @@ export function Sidebar() {
 
   return (
     <>
-      {isMobile && (
+      {/* Hamburger button — desktop only. Mobile uses bottom tabs. */}
+      {!isMobile && (
         <Button
           variant="ghost"
           size="icon"
@@ -158,9 +159,7 @@ export function Sidebar() {
       <div
         className={`fixed left-0 top-0 w-64 h-screen z-40 transition-transform duration-200 ease-out border-r ${
           isMobile
-            ? isOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
+            ? "-translate-x-full"
             : "translate-x-0 w-56"
         }`}
         style={{
@@ -351,7 +350,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      {isMobile && isOpen && (
+      {/* Sidebar overlay — desktop only when sidebar is open over content */}
+      {!isMobile && isOpen && (
         <div
           className="fixed inset-0 z-30 animate-in fade-in duration-200"
           style={{

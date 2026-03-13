@@ -28,6 +28,8 @@ import {
   BedDouble,
   UtensilsCrossed,
   Lightbulb,
+  Network,
+  Zap,
 } from "lucide-react";
 import { hapticLight } from "@/lib/haptics";
 import { useDevice } from "@/hooks/use-device";
@@ -47,6 +49,7 @@ import { StreakBadge } from "@/components/streak-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import EmotionLandscape, { type HeatmapCell } from "@/components/emotion-landscape";
 import { useAuth } from "@/hooks/use-auth";
+import { useTheme } from "@/hooks/use-theme";
 
 /* ---------- helpers ---------- */
 
@@ -327,16 +330,28 @@ function relativeDay(startTime: number): string {
   return `${Math.round(diffH / 24)} days ago`;
 }
 
-const FEATURE_CARDS = [
-  { href: "/emotions",       icon: Brain,            label: "Mood & Emotions",  subtitle: "Track how you feel",          color: "hsl(270, 60%, 60%)" },
-  { href: "/dreams",         icon: Moon,             label: "Dream Journal",    subtitle: "Record and analyze",          color: "hsl(230, 60%, 60%)" },
-  { href: "/biofeedback",    icon: Wind,             label: "Breathe",          subtitle: "Guided breathing",            color: "hsl(170, 55%, 48%)" },
-  { href: "/ai-companion",   icon: MessageCircle,    label: "AI Companion",     subtitle: "Talk to your guide",          color: "hsl(152, 60%, 48%)" },
-  { href: "/brain-report",   icon: Sun,              label: "Daily Report",     subtitle: "Today's brain summary",       color: "hsl(38, 85%, 58%)" },
-  { href: "/sleep-session",  icon: BedDouble,        label: "Sleep Session",    subtitle: "Track overnight sleep",       color: "hsl(217, 70%, 55%)" },
-  { href: "/food",           icon: UtensilsCrossed,  label: "Food & Mood",      subtitle: "What you eat matters",        color: "hsl(25, 80%, 55%)" },
-  { href: "/insights",       icon: Lightbulb,        label: "Insights",         subtitle: "Patterns and trends",         color: "hsl(190, 70%, 50%)" },
+// Primary 2x2 quick-action grid — most-used features
+const QUICK_ACTION_CARDS = [
+  { href: "/journal",      icon: MessageSquare, label: "Voice Check-in",  subtitle: "Log how you feel",    color: "hsl(270, 60%, 60%)" },
+  { href: "/dreams",       icon: Moon,          label: "Dream Journal",   subtitle: "Record and analyze",  color: "hsl(230, 60%, 60%)" },
+  { href: "/biofeedback",  icon: Wind,          label: "Breathe",         subtitle: "Guided breathing",    color: "hsl(170, 55%, 48%)" },
+  { href: "/ai-companion", icon: MessageCircle, label: "AI Companion",    subtitle: "Talk to your guide",  color: "hsl(152, 60%, 48%)" },
 ];
+
+// Discover section — horizontal scroll, links to deeper features
+const DISCOVER_CARDS = [
+  { href: "/brain-monitor",      icon: Brain,          label: "Brain Monitor",   desc: "Live EEG waveforms",       color: "hsl(152, 60%, 48%)" },
+  { href: "/neurofeedback",      icon: Zap,            label: "Neurofeedback",   desc: "Train your focus",         color: "hsl(38, 85%, 58%)" },
+  { href: "/inner-energy",       icon: Sparkles,       label: "Inner Energy",    desc: "Chakra & energy map",      color: "hsl(270, 65%, 65%)" },
+  { href: "/food",               icon: UtensilsCrossed,label: "Food & Mood",     desc: "What you eat matters",     color: "hsl(25, 80%, 55%)" },
+  { href: "/sleep-session",      icon: BedDouble,      label: "Sleep Session",   desc: "Track overnight rest",     color: "hsl(217, 70%, 55%)" },
+  { href: "/weekly-summary",     icon: TrendingUp,     label: "Weekly Summary",  desc: "Trends over 7 days",       color: "hsl(190, 70%, 50%)" },
+  { href: "/brain-connectivity", icon: Network,        label: "Connectivity",    desc: "Brain region links",       color: "hsl(160, 55%, 50%)" },
+  { href: "/insights",           icon: Lightbulb,      label: "Insights",        desc: "Pattern analysis",         color: "hsl(50, 80%, 55%)"  },
+];
+
+// Keep FEATURE_CARDS for backward compat with tests that reference specific labels
+const FEATURE_CARDS = QUICK_ACTION_CARDS;
 
 const USER_ID = getParticipantId();
 
@@ -494,29 +509,54 @@ export default function Dashboard() {
 
   const greetingName = user?.username ? user.username.charAt(0).toUpperCase() + user.username.slice(1) : "";
   const greetingTime = hour >= 5 && hour < 12 ? "Good morning" : hour >= 12 && hour < 17 ? "Good afternoon" : "Good evening";
+  const { theme, setTheme } = useTheme();
 
   return (
     <main className="px-4 pt-2 pb-4 space-y-4 max-w-xl mx-auto">
 
-      {/* ── Greeting header ─────────────────────────────────── */}
-      <div className="flex items-center justify-between pt-1">
-        <div>
-          <h1 className="text-[22px] font-bold text-foreground tracking-tight leading-tight">
-            {greetingTime}{greetingName ? `, ${greetingName}` : ""}
-          </h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
-            {isStreaming
-              ? "EEG streaming live"
-              : healthState
-              ? `Connected to ${healthState.source}`
-              : "How are you feeling today?"}
-          </p>
-        </div>
-        <Link href="/brain-report" onClick={() => hapticLight()}>
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-primary/12 hover:bg-primary/20 active:bg-primary/25 transition-colors">
-            <Activity className="h-5 w-5 text-primary" strokeWidth={2} />
+      {/* ── Greeting header — Oura-style inline row ─────────── */}
+      <div
+        className="flex items-center justify-between"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)" }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Avatar */}
+          {user ? (
+            <div
+              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 text-[14px] font-bold text-white"
+              style={{ background: "linear-gradient(135deg, hsl(152,60%,40%), hsl(38,85%,50%))" }}
+            >
+              {user.username.charAt(0).toUpperCase()}
+            </div>
+          ) : (
+            <div
+              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: "hsl(222, 28%, 12%)", border: "1px solid hsl(220,18%,17%)" }}
+            >
+              <Activity className="h-4 w-4 text-muted-foreground/60" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-[20px] font-bold text-foreground tracking-tight leading-tight truncate">
+              {greetingTime}{greetingName ? `, ${greetingName}` : ""}
+            </h1>
+            <p className="text-[12px] text-muted-foreground leading-tight">
+              {isStreaming
+                ? "EEG streaming live"
+                : healthState
+                ? `Connected to ${healthState.source}`
+                : "How are you feeling today?"}
+            </p>
           </div>
-        </Link>
+        </div>
+        {/* Theme toggle */}
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          className="w-10 h-10 shrink-0 flex items-center justify-center rounded-2xl text-muted-foreground hover:text-foreground hover:bg-muted/40 active:bg-muted/60 transition-colors"
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        >
+          {theme === "dark" ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+        </button>
       </div>
 
       {/* ── Status pill ─────────────────────────────────────── */}
@@ -549,34 +589,80 @@ export default function Dashboard() {
       {/* ── Habit Streak Badge (#354) ────────────────────────── */}
       <StreakBadge userId={USER_ID} />
 
-      {/* ── Quick-access feature grid ───────────────────────── */}
+      {/* ── Quick actions — 2x2 card grid ───────────────────── */}
       <div>
         <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em] mb-3 px-0.5">
-          Your Tools
+          Quick Actions
         </p>
         <div className="grid grid-cols-2 gap-2.5">
-          {FEATURE_CARDS.map((card) => {
+          {QUICK_ACTION_CARDS.map((card) => {
             const Icon = card.icon;
             return (
               <Link key={card.href} href={card.href} onClick={() => hapticLight()} aria-label={`${card.label}: ${card.subtitle}`}>
                 <div
-                  className="group flex items-center gap-3 px-3.5 py-3.5 rounded-2xl active:scale-[0.97] transition-all duration-150"
+                  className="group flex items-center gap-3 px-3.5 py-4 rounded-2xl active:scale-[0.97] transition-all duration-150"
                   style={{
                     background: "hsl(222, 28%, 9%, 0.7)",
                     border: "1px solid hsl(220, 18%, 17%, 0.6)",
-                    minHeight: "72px",
+                    minHeight: "80px",
                     boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
                   }}
                 >
                   <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-active:scale-95"
-                    style={{ background: `${card.color}18` }}
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-active:scale-95"
+                    style={{ background: `${card.color}1a` }}
                   >
-                    <Icon className="h-[18px] w-[18px]" style={{ color: card.color }} aria-hidden="true" />
+                    <Icon className="h-5 w-5" style={{ color: card.color }} aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-foreground leading-tight truncate">{card.label}</p>
                     <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-tight truncate">{card.subtitle}</p>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Discover — horizontal scroll chips ───────────────── */}
+      <div>
+        <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em] mb-3 px-0.5">
+          Discover
+        </p>
+        <div
+          className="flex gap-3 overflow-x-auto pb-1"
+          style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
+        >
+          {DISCOVER_CARDS.map((card) => {
+            const Icon = card.icon;
+            return (
+              <Link
+                key={card.href}
+                href={card.href}
+                onClick={() => hapticLight()}
+                aria-label={`${card.label}: ${card.desc}`}
+                className="shrink-0"
+              >
+                <div
+                  className="flex flex-col gap-2 p-3.5 rounded-2xl active:scale-[0.97] transition-all duration-150"
+                  style={{
+                    background: "hsl(222, 28%, 9%, 0.7)",
+                    border: "1px solid hsl(220, 18%, 17%, 0.6)",
+                    width: "120px",
+                    minHeight: "100px",
+                    boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+                  }}
+                >
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center"
+                    style={{ background: `${card.color}1a` }}
+                  >
+                    <Icon className="h-4.5 w-4.5" style={{ color: card.color }} aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-[12px] font-semibold text-foreground leading-tight">{card.label}</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5 leading-tight">{card.desc}</p>
                   </div>
                 </div>
               </Link>
