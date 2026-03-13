@@ -9,6 +9,7 @@ import { startSession, stopSession } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import { backgroundEeg } from "@/lib/background-eeg";
+import CGMSleepOverlay from "@/components/cgm-sleep-overlay";
 import {
   Moon,
   BrainCircuit,
@@ -633,6 +634,16 @@ export default function SleepSession() {
             View Dream Journal
           </Button>
         </Link>
+      </div>
+
+      {/* CGM + Sleep Overlay */}
+      <div className="pt-4">
+        <CGMSleepOverlay
+          glucoseReadings={[]}
+          sleepStages={[]}
+          awakeningTimes={[]}
+          metrics={undefined}
+        />
       </div>
     </main>
   );

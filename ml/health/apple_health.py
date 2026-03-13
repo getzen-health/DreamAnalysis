@@ -46,6 +46,9 @@ HEALTHKIT_TYPE_MAP = {
 
     # Noise
     "HKQuantityTypeIdentifierEnvironmentalAudioExposure": "noise_exposure",
+
+    # Metabolic
+    "HKQuantityTypeIdentifierBloodGlucose": "blood_glucose",
 }
 
 # HealthKit sleep stage values → our sleep stage names

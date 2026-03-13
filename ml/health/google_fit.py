@@ -61,6 +61,7 @@ HEALTH_CONNECT_TYPE_MAP = {
     "ExerciseSessionRecord": "exercise_minutes",
     "HeartRateVariabilityRmssdRecord": "hrv_rmssd",
     "RestingHeartRateRecord": "resting_heart_rate",
+    "BloodGlucoseRecord": "blood_glucose",
 }
 
 
