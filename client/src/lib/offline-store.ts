@@ -1,19 +1,44 @@
 /**
  * offline-store.ts — IndexedDB queue for offline data capture.
  *
- * Two stores:
- *   dream_drafts   — dream journal entries written offline
- *   eeg_queue      — EEG session results + health metrics queued when server unreachable
+ * Stores:
+ *   dream_drafts      — dream journal entries written offline
+ *   eeg_queue         — EEG session results + health metrics queued when server unreachable
+ *   voice_emotion_queue — voice check-in emotion results pending sync
+ *   food_log_queue    — food log entries pending sync
  *
  * Call `syncAll(userId)` when the device comes back online.
+ * Call `registerBackgroundSync()` to request a Background Sync event from the SW.
  */
 
 import { resolveUrl } from "@/lib/queryClient";
 
 const DB_NAME = "neural-dream-offline";
-const DB_VERSION = 2; // bumped to add eeg_queue store
+const DB_VERSION = 3; // v3 adds voice_emotion_queue + food_log_queue
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface QueuedVoiceEmotion {
+  id: string;
+  userId: string;
+  emotion: string;
+  valence: number;
+  arousal: number;
+  confidence: number;
+  probabilities: Record<string, number>;
+  timestamp: number;
+  synced: boolean;
+}
+
+export interface QueuedFoodLog {
+  id: string;
+  userId: string;
+  foodName: string;
+  calories?: number;
+  mealType: string;  // "breakfast" | "lunch" | "dinner" | "snack"
+  timestamp: number;
+  synced: boolean;
+}
 
 interface DreamDraft {
   id: string;
@@ -65,7 +90,7 @@ function openDB(): Promise<IDBDatabase> {
         store.createIndex("timestamp", "timestamp", { unique: false });
       }
 
-      // v2 — eeg_queue
+      // v2 — eeg_queue + health_queue
       if (oldVersion < 2) {
         if (!db.objectStoreNames.contains("eeg_queue")) {
           const eegStore = db.createObjectStore("eeg_queue", { keyPath: "id" });
@@ -77,6 +102,22 @@ function openDB(): Promise<IDBDatabase> {
           const healthStore = db.createObjectStore("health_queue", { keyPath: "id" });
           healthStore.createIndex("synced", "synced", { unique: false });
           healthStore.createIndex("userId", "userId", { unique: false });
+        }
+      }
+
+      // v3 — voice_emotion_queue + food_log_queue
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains("voice_emotion_queue")) {
+          const voiceStore = db.createObjectStore("voice_emotion_queue", { keyPath: "id" });
+          voiceStore.createIndex("synced", "synced", { unique: false });
+          voiceStore.createIndex("userId", "userId", { unique: false });
+          voiceStore.createIndex("timestamp", "timestamp", { unique: false });
+        }
+        if (!db.objectStoreNames.contains("food_log_queue")) {
+          const foodStore = db.createObjectStore("food_log_queue", { keyPath: "id" });
+          foodStore.createIndex("synced", "synced", { unique: false });
+          foodStore.createIndex("userId", "userId", { unique: false });
+          foodStore.createIndex("timestamp", "timestamp", { unique: false });
         }
       }
     };
@@ -210,16 +251,140 @@ async function markHealthMetricSynced(id: string): Promise<void> {
   });
 }
 
+// ─── Voice Emotion Queue ──────────────────────────────────────────────────────
+
+export async function queueVoiceEmotion(
+  entry: Omit<QueuedVoiceEmotion, "synced">
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("voice_emotion_queue", "readwrite");
+    tx.objectStore("voice_emotion_queue").put({ ...entry, synced: false });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getUnsyncedVoiceEmotions(): Promise<QueuedVoiceEmotion[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("voice_emotion_queue", "readonly");
+    const request = tx
+      .objectStore("voice_emotion_queue")
+      .index("synced")
+      .getAll(0 as unknown as IDBValidKey);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function markVoiceEmotionSynced(id: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("voice_emotion_queue", "readwrite");
+    const store = tx.objectStore("voice_emotion_queue");
+    const req = store.get(id);
+    req.onsuccess = () => {
+      if (req.result) store.put({ ...req.result, synced: true });
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ─── Food Log Queue ───────────────────────────────────────────────────────────
+
+export async function queueFoodLog(
+  entry: Omit<QueuedFoodLog, "synced">
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("food_log_queue", "readwrite");
+    tx.objectStore("food_log_queue").put({ ...entry, synced: false });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getUnsyncedFoodLogs(): Promise<QueuedFoodLog[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("food_log_queue", "readonly");
+    const request = tx
+      .objectStore("food_log_queue")
+      .index("synced")
+      .getAll(0 as unknown as IDBValidKey);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function markFoodLogSynced(id: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("food_log_queue", "readwrite");
+    const store = tx.objectStore("food_log_queue");
+    const req = store.get(id);
+    req.onsuccess = () => {
+      if (req.result) store.put({ ...req.result, synced: true });
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ─── Queue Size Helper ────────────────────────────────────────────────────────
+
+/** Returns the total number of unsynced items across all queues. */
+export async function getOfflineQueueSize(): Promise<number> {
+  const [dreams, sessions, metrics, voice, food] = await Promise.all([
+    getUnsyncedDrafts(),
+    getUnsyncedEEGSessions(),
+    getUnsyncedHealthMetrics(),
+    getUnsyncedVoiceEmotions(),
+    getUnsyncedFoodLogs(),
+  ]);
+  return (
+    dreams.length +
+    sessions.length +
+    metrics.length +
+    voice.length +
+    food.length
+  );
+}
+
+// ─── Background Sync Registration ─────────────────────────────────────────────
+
+/**
+ * Registers a Background Sync event with the service worker.
+ * When the device comes back online the SW fires "sync-offline-data",
+ * which posts SW_BACKGROUND_SYNC to all clients, triggering syncAll().
+ *
+ * Call this whenever data is written to any offline queue.
+ */
+export async function registerBackgroundSync(): Promise<void> {
+  if (!("serviceWorker" in navigator) || !("SyncManager" in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    // @ts-expect-error — SyncManager types are not in all lib.dom versions
+    await reg.sync.register("sync-offline-data");
+  } catch {
+    // Silently fail — background sync is a progressive enhancement
+  }
+}
+
 // ─── Sync All ─────────────────────────────────────────────────────────────────
 
 export interface SyncResult {
   dreams: number;
   sessions: number;
   metrics: number;
+  voice: number;
+  food: number;
 }
 
 export async function syncAll(userId: string): Promise<SyncResult> {
-  const result: SyncResult = { dreams: 0, sessions: 0, metrics: 0 };
+  const result: SyncResult = { dreams: 0, sessions: 0, metrics: 0, voice: 0, food: 0 };
 
   // Sync dream drafts
   const unsyncedDreams = await getUnsyncedDrafts();
@@ -280,6 +445,48 @@ export async function syncAll(userId: string): Promise<SyncResult> {
         }),
       });
       if (res.ok) { await markHealthMetricSynced(metric.id); result.metrics++; }
+    } catch { /* still offline */ }
+  }
+
+  // Sync voice emotion results
+  const unsyncedVoice = await getUnsyncedVoiceEmotions();
+  for (const entry of unsyncedVoice) {
+    try {
+      const res = await fetch(resolveUrl("/api/voice-emotion"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          userId,
+          emotion: entry.emotion,
+          valence: entry.valence,
+          arousal: entry.arousal,
+          confidence: entry.confidence,
+          probabilities: entry.probabilities,
+          timestamp: new Date(entry.timestamp).toISOString(),
+        }),
+      });
+      if (res.ok) { await markVoiceEmotionSynced(entry.id); result.voice++; }
+    } catch { /* still offline */ }
+  }
+
+  // Sync food log entries
+  const unsyncedFood = await getUnsyncedFoodLogs();
+  for (const entry of unsyncedFood) {
+    try {
+      const res = await fetch(resolveUrl("/api/food-log"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          userId,
+          foodName: entry.foodName,
+          calories: entry.calories,
+          mealType: entry.mealType,
+          timestamp: new Date(entry.timestamp).toISOString(),
+        }),
+      });
+      if (res.ok) { await markFoodLogSynced(entry.id); result.food++; }
     } catch { /* still offline */ }
   }
 

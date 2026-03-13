@@ -145,6 +145,8 @@ class EmotionResult(BaseModel):
     confidence: float
     model_type: str
     stress_from_watch: Optional[float] = None
+    ensemble_active: Optional[bool] = None
+    smoothed: Optional[bool] = None
 
 
 def _safe_float(val: Any, default: float = 0.0) -> float:
@@ -224,42 +226,58 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
 
     result: Optional[Dict] = None
 
-    # ── Primary: VoiceEmotionModel (emotion2vec+ or LightGBM fallback) ────────
+    # ── Primary: VoiceEnsemble (emotion2vec+ + acoustic features + smoothing) ──
+    audio_arr: Optional[np.ndarray] = None
+    audio_sr: int = _SR
+
     try:
         import soundfile as sf  # type: ignore
-        audio, sr = sf.read(io.BytesIO(wav_bytes), dtype="float32")
-        if audio.ndim > 1:
-            audio = audio.mean(axis=1)
-        from models.voice_emotion_model import get_voice_model
-        result = get_voice_model().predict_with_biomarkers(
-            audio, sample_rate=int(sr), real_time=req.real_time
-        )
-        # Validate result has all required keys
-        _required = {"emotion", "probabilities", "valence", "arousal", "confidence", "model_type"}
-        if result is not None and not _required.issubset(result.keys()):
-            log.warning("VoiceEmotionModel returned incomplete result: %s", list(result.keys()))
-            result = None
+        audio_arr, audio_sr = sf.read(io.BytesIO(wav_bytes), dtype="float32")
+        if audio_arr.ndim > 1:
+            audio_arr = audio_arr.mean(axis=1)
     except Exception as exc:
-        log.warning("VoiceEmotionModel path failed: %s", exc)
+        log.debug("soundfile decode failed — will retry with librosa: %s", exc)
 
-    # ── Fallback: re-load audio with librosa and retry VoiceEmotionModel ────────
-    if result is None:
+    if audio_arr is None:
         if not _ensure_librosa():
             raise HTTPException(503, "No audio processing library available")
         try:
             import librosa
-            y, _ = librosa.load(io.BytesIO(wav_bytes), sr=_SR, mono=True)
+            audio_arr, audio_sr = librosa.load(io.BytesIO(wav_bytes), sr=_SR, mono=True)
         except Exception as exc:
             raise HTTPException(422, f"Could not decode WAV: {exc}")
-        if len(y) < _SR // 4:
-            raise HTTPException(422, "Audio too short — need at least 0.25s")
+
+    if audio_arr is None or len(audio_arr) < audio_sr // 4:
+        raise HTTPException(422, "Audio too short — need at least 0.25s")
+
+    try:
+        from models.voice_ensemble import get_voice_ensemble  # type: ignore
+        result = get_voice_ensemble().predict(
+            audio_arr,
+            sample_rate=int(audio_sr),
+            real_time=req.real_time,
+        )
+        _required = {"emotion", "probabilities", "valence", "arousal", "confidence", "model_type"}
+        if result is not None and not _required.issubset(result.keys()):
+            log.warning("VoiceEnsemble returned incomplete result: %s", list(result.keys()))
+            result = None
+    except Exception as exc:
+        log.warning("VoiceEnsemble path failed: %s", exc)
+        result = None
+
+    # ── Fallback: VoiceEmotionModel without ensemble ─────────────────────────
+    if result is None:
         try:
             from models.voice_emotion_model import get_voice_model
             result = get_voice_model().predict_with_biomarkers(
-                y, sample_rate=_SR, real_time=req.real_time
+                audio_arr, sample_rate=int(audio_sr), real_time=req.real_time
             )
+            _required = {"emotion", "probabilities", "valence", "arousal", "confidence", "model_type"}
+            if result is not None and not _required.issubset(result.keys()):
+                log.warning("VoiceEmotionModel returned incomplete result: %s", list(result.keys()))
+                result = None
         except Exception as exc:
-            log.warning("VoiceEmotionModel librosa fallback failed: %s", exc)
+            log.warning("VoiceEmotionModel fallback failed: %s", exc)
 
     # ── Fail honestly if all paths failed ───────────────────────────────────────
     if result is None:
@@ -381,13 +399,22 @@ def voice_watch_status() -> Dict[str, Any]:
             preferred_tier = "lgbm_fallback"
         elif librosa_ok:
             preferred_tier = "feature_heuristic"
+    ensemble_ok = False
+    try:
+        from models.voice_ensemble import get_voice_ensemble  # type: ignore
+        get_voice_ensemble()  # instantiate singleton
+        ensemble_ok = True
+    except Exception:
+        pass
+
     return {
         "emotion2vec_large_available": e2v_large_ok,
         "emotion2vec_available": e2v_ok,
         "sensevoice_available": sensevoice_ok,
         "lgbm_fallback_available": lgbm_ok,
         "librosa_available": librosa_ok,
-        "preferred_model_tier": preferred_tier,
+        "ensemble_available": ensemble_ok,
+        "preferred_model_tier": ("ensemble_" + preferred_tier) if ensemble_ok else preferred_tier,
         "ready": e2v_large_ok or e2v_ok or sensevoice_ok or lgbm_ok or librosa_ok,
     }
 
