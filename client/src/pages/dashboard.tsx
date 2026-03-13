@@ -550,7 +550,7 @@ export default function Dashboard() {
           {FEATURE_CARDS.map((card) => {
             const Icon = card.icon;
             return (
-              <Link key={card.href} href={card.href} onClick={() => hapticLight()}>
+              <Link key={card.href} href={card.href} onClick={() => hapticLight()} aria-label={`${card.label}: ${card.subtitle}`}>
                 <div
                   className="group flex items-center gap-3 px-3.5 py-3.5 rounded-2xl active:scale-[0.97] transition-all duration-150"
                   style={{
@@ -564,7 +564,7 @@ export default function Dashboard() {
                     className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-active:scale-95"
                     style={{ background: `${card.color}18` }}
                   >
-                    <Icon className="h-[18px] w-[18px]" style={{ color: card.color }} />
+                    <Icon className="h-[18px] w-[18px]" style={{ color: card.color }} aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-foreground leading-tight truncate">{card.label}</p>
@@ -926,7 +926,13 @@ export default function Dashboard() {
           const offset = arc * (1 - value / 100);
           return (
             <div className="flex flex-col items-center gap-1">
-              <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+              <svg
+                width={size}
+                height={size}
+                viewBox={`0 0 ${size} ${size}`}
+                role="img"
+                aria-label={`${label}: ${value}%${sublabel ? `, ${sublabel}` : ""}`}
+              >
                 <circle cx={c} cy={c} r={r} fill="none"
                   stroke="hsl(220,18%,15%)" strokeWidth={5}
                   strokeDasharray={`${arc} ${gap}`} strokeLinecap="round"
@@ -975,7 +981,7 @@ export default function Dashboard() {
             </div>
 
             {/* Three metric rings */}
-            <div className="flex items-center justify-around mb-4">
+            <div className="flex items-center justify-around mb-4" aria-live="polite" aria-label="Live brain state metrics">
               <MiniRing value={stress} color={stressBarColor} label="Stress" sublabel={stress > 65 ? "High" : stress > 35 ? "Moderate" : "Low"} />
               <MiniRing value={focus}  color={focusBarColor}  label="Focus"  sublabel={focus > 60 ? "Sharp" : focus > 30 ? "Steady" : "Low"} />
               <MiniRing value={flow}   color="hsl(200,70%,55%)" label={isStreaming ? "Flow" : "Relax"} />

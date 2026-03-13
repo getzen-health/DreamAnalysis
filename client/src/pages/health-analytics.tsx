@@ -267,6 +267,8 @@ export default function HealthAnalytics() {
       {/* Score Gauges — horizontal row on mobile */}
       <div
         className="rounded-2xl p-4"
+        aria-live="polite"
+        aria-label="Today's health scores"
         style={{
           background: "hsl(222,28%,9%,0.7)",
           border: "1px solid hsl(220,18%,17%,0.6)",
@@ -303,7 +305,12 @@ export default function HealthAnalytics() {
               colorTo: "hsl(25, 85%, 55%)",
             },
           ].map((s) => (
-            <div key={s.label} className="flex flex-col items-center gap-1">
+            <div
+              key={s.label}
+              className="flex flex-col items-center gap-1"
+              role="img"
+              aria-label={`${s.label} score: ${s.value !== null && hasRealData ? `${s.value}%` : "unavailable"}`}
+            >
               {hasRealData && s.value !== null ? (
                 <ScoreCircle
                   value={s.value}
@@ -316,8 +323,8 @@ export default function HealthAnalytics() {
                 />
               ) : (
                 <div className="w-[100px] h-[100px] rounded-full border-4 border-muted/30 flex flex-col items-center justify-center">
-                  <span className="text-xl font-bold text-muted-foreground/40">—</span>
-                  <span className="text-[9px] text-muted-foreground/40 mt-0.5">{s.label}</span>
+                  <span className="text-xl font-bold text-muted-foreground/40" aria-hidden="true">—</span>
+                  <span className="text-[9px] text-muted-foreground/40 mt-0.5" aria-hidden="true">{s.label}</span>
                 </div>
               )}
             </div>
@@ -342,11 +349,13 @@ export default function HealthAnalytics() {
               <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
             )}
           </div>
-          <div className="flex gap-1 overflow-x-auto">
+          <div className="flex gap-1 overflow-x-auto" role="group" aria-label="Time period">
             {PERIOD_TABS.map((tab) => (
               <button
                 key={tab.days}
                 onClick={() => setPeriodDays(tab.days)}
+                aria-label={`Show trends for ${tab.label}`}
+                aria-pressed={periodDays === tab.days}
                 className={`shrink-0 px-2.5 py-1 text-[11px] rounded-full transition-colors ${
                   periodDays === tab.days
                     ? "bg-primary text-primary-foreground"
@@ -362,13 +371,16 @@ export default function HealthAnalytics() {
         {/* Live: per-frame band-power chart — changes every 1.5 s */}
         {isLiveToday && isStreaming ? (
           liveBands.length < 2 ? (
-            <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-              <Brain className="h-8 w-8 opacity-30" />
+            <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2" aria-live="polite">
+              <Brain className="h-8 w-8 opacity-30" aria-hidden="true" />
               <p>Collecting live data…</p>
             </div>
           ) : (
             <>
               <p className="text-[10px] text-muted-foreground mb-2">% of total EEG power per band — updates every 1.5 s</p>
+              <p className="sr-only" aria-live="polite">
+                Live EEG band power chart: Calm (alpha), Alert (beta), and Creative (theta) percentage over time. Latest values — Calm: {liveBands[liveBands.length - 1]?.calm ?? 0}%, Alert: {liveBands[liveBands.length - 1]?.alert ?? 0}%, Creative: {liveBands[liveBands.length - 1]?.creative ?? 0}%.
+              </p>
               <ResponsiveContainer width="100%" height={192}>
                 <LineChart data={liveBands}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
@@ -448,6 +460,8 @@ export default function HealthAnalytics() {
       {insights.length > 0 && (
         <div
           className="rounded-2xl p-4"
+          aria-live="polite"
+          aria-label="Brain-health insights"
           style={{
             background: "hsl(222,28%,9%,0.7)",
             border: "1px solid hsl(220,18%,17%,0.6)",

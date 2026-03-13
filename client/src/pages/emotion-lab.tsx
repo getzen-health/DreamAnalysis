@@ -455,12 +455,14 @@ export default function EmotionLab() {
           <Heart className="h-4 w-4 text-violet-400" />
           <p className="text-[13px] font-semibold">How are you feeling?</p>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Quick mood selection">
           {QUICK_MOODS.map((mood) => (
             <button
               key={mood.value}
               onClick={() => handleQuickMood(mood.value)}
               disabled={quickMoodMutation.isPending}
+              aria-label={`Log mood: ${mood.label}`}
+              aria-pressed={selectedQuickMood === mood.value}
               className={`
                 flex flex-col items-center justify-center gap-1.5 rounded-2xl border
                 px-2 py-3.5 min-h-[64px] transition-all duration-200 cursor-pointer
@@ -472,6 +474,7 @@ export default function EmotionLab() {
               <span
                 className="w-3 h-3 rounded-full shrink-0"
                 style={{ backgroundColor: mood.color }}
+                aria-hidden="true"
               />
               <span className="text-[12px] font-semibold text-foreground/80">
                 {mood.label}
@@ -480,7 +483,7 @@ export default function EmotionLab() {
           ))}
         </div>
         {quickMoodMutation.isSuccess && (
-          <p className="text-xs text-emerald-400 text-center animate-in fade-in duration-300">
+          <p className="text-xs text-emerald-400 text-center animate-in fade-in duration-300" aria-live="polite">
             Logged successfully
           </p>
         )}
@@ -503,7 +506,11 @@ export default function EmotionLab() {
             <p className="text-[13px] font-semibold text-amber-400 mb-0.5">
               Voice Emotion Analysis
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p
+              className="text-[11px] text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
               {voiceEmotion.isRecording
                 ? "Recording… speak naturally"
                 : voiceEmotion.isAnalyzing
@@ -521,6 +528,14 @@ export default function EmotionLab() {
                   : voiceEmotion.startRecording
               }
               disabled={voiceEmotion.isAnalyzing}
+              aria-label={
+                voiceEmotion.isRecording
+                  ? "Stop voice recording"
+                  : voiceEmotion.isAnalyzing
+                  ? "Analyzing voice, please wait"
+                  : "Start voice recording"
+              }
+              aria-pressed={voiceEmotion.isRecording}
               className={`
                 relative w-20 h-20 rounded-full flex items-center justify-center
                 transition-all duration-200 active:scale-95 disabled:opacity-50
@@ -533,14 +548,14 @@ export default function EmotionLab() {
               `}
             >
               {voiceEmotion.isRecording && (
-                <span className="absolute inset-0 rounded-full bg-red-400/30 animate-ping" />
+                <span className="absolute inset-0 rounded-full bg-red-400/30 animate-ping" aria-hidden="true" />
               )}
               {voiceEmotion.isRecording ? (
-                <MicOff className="w-9 h-9 text-white" />
+                <MicOff className="w-9 h-9 text-white" aria-hidden="true" />
               ) : voiceEmotion.isAnalyzing ? (
-                <Mic className="w-9 h-9 text-white animate-pulse" />
+                <Mic className="w-9 h-9 text-white animate-pulse" aria-hidden="true" />
               ) : (
-                <Mic className="w-9 h-9 text-white" />
+                <Mic className="w-9 h-9 text-white" aria-hidden="true" />
               )}
             </button>
             <p className="text-[11px] font-medium text-muted-foreground">
@@ -553,7 +568,7 @@ export default function EmotionLab() {
           </div>
 
           {voiceEmotion.lastResult && (
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-3 gap-2 text-center" aria-live="assertive" aria-label="Voice emotion analysis result">
               <div className="rounded-xl bg-muted/20 p-2.5">
                 <div className="text-[14px] font-bold capitalize text-amber-400">
                   {voiceEmotion.lastResult.emotion}

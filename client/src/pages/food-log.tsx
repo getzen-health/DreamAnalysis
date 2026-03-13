@@ -277,6 +277,8 @@ export default function FoodLog() {
       {/* ── Input mode toggle ─────────────────────────────────────────────────── */}
       <div
         className="flex rounded-2xl p-1 gap-1"
+        role="group"
+        aria-label="Input method"
         style={{
           background: "hsl(222,28%,9%,0.7)",
           border: "1px solid hsl(220,18%,17%,0.6)",
@@ -284,24 +286,28 @@ export default function FoodLog() {
       >
         <button
           onClick={() => switchMode("photo")}
+          aria-label="Log meal by photo"
+          aria-pressed={inputMode === "photo"}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[13px] font-semibold transition-colors ${
             inputMode === "photo"
               ? "bg-amber-500 text-white shadow-md"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Camera className="w-3.5 h-3.5" />
+          <Camera className="w-3.5 h-3.5" aria-hidden="true" />
           Photo
         </button>
         <button
           onClick={() => switchMode("text")}
+          aria-label="Log meal by text description"
+          aria-pressed={inputMode === "text"}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[13px] font-semibold transition-colors ${
             inputMode === "text"
               ? "bg-amber-500 text-white shadow-md"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <PenLine className="w-3.5 h-3.5" />
+          <PenLine className="w-3.5 h-3.5" aria-hidden="true" />
           Describe
         </button>
       </div>
@@ -334,18 +340,20 @@ export default function FoodLog() {
           />
 
           {/* Meal type selector */}
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5" role="group" aria-label="Meal type">
             {MEAL_TYPES.map(t => (
               <button
                 key={t}
                 onClick={() => { setMealType(t); setDescription(""); setPhotoDescription(""); setAnalysis(null); }}
+                aria-label={`Meal type: ${t.charAt(0).toUpperCase() + t.slice(1)}`}
+                aria-pressed={mealType === t}
                 className={`flex-1 py-1.5 rounded-xl text-[11px] font-semibold border transition-colors ${
                   mealType === t
                     ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
                     : "border-border/40 bg-muted/10 text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {MEAL_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
+                <span aria-hidden="true">{MEAL_ICONS[t]}</span> {t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
             ))}
           </div>
@@ -357,10 +365,11 @@ export default function FoodLog() {
                 {/* Large camera CTA — primary action on mobile */}
                 <button
                   onClick={() => cameraInputRef.current?.click()}
+                  aria-label="Take food photo"
                   className="w-full flex flex-col items-center justify-center gap-3 py-8 rounded-2xl border-2 border-dashed border-amber-500/35 bg-amber-500/5 active:bg-amber-500/12 transition-all active:scale-[0.99]"
                 >
                   <div className="w-16 h-16 rounded-full bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/25">
-                    <Camera className="w-8 h-8 text-white" />
+                    <Camera className="w-8 h-8 text-white" aria-hidden="true" />
                   </div>
                   <div className="text-center">
                     <p className="text-[15px] font-bold text-foreground">Take a Photo</p>
@@ -370,9 +379,10 @@ export default function FoodLog() {
                 {/* Choose from Gallery — secondary action */}
                 <button
                   onClick={() => fileInputRef.current?.click()}
+                  aria-label="Choose food photo from gallery"
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border/50 bg-muted/15 active:bg-muted/30 transition-colors"
                 >
-                  <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                  <ImageIcon className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
                   <span className="text-[13px] font-medium text-muted-foreground">
                     Choose from Gallery
                   </span>
@@ -631,7 +641,12 @@ export default function FoodLog() {
           return (
             <div className="flex flex-col items-center gap-1">
               <div className="relative w-12 h-12">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 44 44">
+                <svg
+                  className="w-full h-full -rotate-90"
+                  viewBox="0 0 44 44"
+                  role="img"
+                  aria-label={`${label}: ${val % 1 === 0 ? val : val.toFixed(0)}${unit} (${Math.round(pct)}% of daily goal)`}
+                >
                   <circle cx="22" cy="22" r={r} fill="none" stroke="currentColor" className="text-muted/30" strokeWidth="4" />
                   <circle
                     cx="22" cy="22" r={r} fill="none"
@@ -640,11 +655,11 @@ export default function FoodLog() {
                     strokeLinecap="round"
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold">
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold" aria-hidden="true">
                   {Math.round(pct)}%
                 </span>
               </div>
-              <span className="text-[9px] text-muted-foreground text-center leading-tight">
+              <span className="text-[9px] text-muted-foreground text-center leading-tight" aria-hidden="true">
                 {label}<br />{val % 1 === 0 ? val : val.toFixed(0)}{unit}
               </span>
             </div>
