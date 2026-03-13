@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   deviceType: text("device_type"),      // "muse_2" | "openbci_cyton" | "none"
   intent: varchar("intent", { length: 10 }), // 'study' | 'explore' | null (not yet chosen)
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletionRequestedAt: timestamp("deletion_requested_at"), // GDPR soft-delete; null = active
 });
 
 export const healthMetrics = pgTable("health_metrics", {

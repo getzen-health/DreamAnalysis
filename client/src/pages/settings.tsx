@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Cpu, Heart, Brain, LogOut, User } from "lucide-react";
+import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Cpu, Heart, Brain, LogOut, User, Shield } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/use-theme";
 import { useLocation } from "wouter";
@@ -751,6 +751,9 @@ export default function SettingsPage() {
 
       {/* Export Brain Data */}
       <ExportBrainDataCard userId={userId} />
+
+      {/* Data & Privacy (GDPR) */}
+      <DataPrivacyCard userId={userId} />
 
       {/* Account & Sign Out */}
       <AccountCard />
@@ -1600,6 +1603,167 @@ function PersonalModelCard({ userId }: { userId: string }) {
           )}
         </>
       )}
+    </Card>
+  );
+}
+
+/* ── Data & Privacy Card (GDPR Art. 15 / 17 / 20) ───────────────────────── */
+
+function DataPrivacyCard({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const { data: historyData } = useQuery({
+    queryKey: ["export-history", userId],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(resolveUrl(`/api/user/${userId}/export-history`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { exportHistory: [] as string[] };
+      return res.json() as Promise<{ exportHistory: string[] }>;
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const lastExport = historyData?.exportHistory?.at(-1);
+
+  const handleFullExport = async () => {
+    setIsExporting(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(resolveUrl(`/api/user/${userId}/export-all`), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error ?? "Export failed");
+      }
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `neural_dream_export_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const totalRows = Object.values(data.metadata?.rowCounts ?? {}).reduce(
+        (acc: number, v) => acc + (v as number),
+        0
+      );
+      toast({
+        title: "Data export ready",
+        description: `Downloaded ${totalRows} records across ${data.metadata?.dataCategories?.length ?? 0} categories.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(resolveUrl(`/api/user/${userId}`), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as any).error ?? "Deletion request failed");
+      }
+      toast({
+        title: "Deletion request submitted",
+        description: `Your account is scheduled for permanent deletion on ${new Date((data as any).scheduledDeletionDate).toLocaleDateString()}. You have 30 days to cancel by contacting support.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Request failed",
+        description: String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <Card className="glass-card p-6 rounded-xl">
+      <div className="flex items-center gap-2 mb-4">
+        <Shield className="h-5 w-5 text-primary" />
+        <h3 className="text-lg font-semibold">Data &amp; Privacy</h3>
+      </div>
+      <p className="text-sm text-muted-foreground mb-5">
+        Under GDPR Art. 20 you can download all your data, and under Art. 17 you can
+        request permanent deletion. Deletion requests have a 30-day grace period.
+      </p>
+
+      <div className="space-y-3">
+        <Button
+          className="w-full bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20"
+          onClick={handleFullExport}
+          disabled={isExporting}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          {isExporting ? "Preparing export…" : "Download My Data (JSON)"}
+        </Button>
+
+        {lastExport && (
+          <p className="text-xs text-muted-foreground text-center">
+            Last exported: {new Date(lastExport).toLocaleString()}
+          </p>
+        )}
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="destructive"
+              className="w-full bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/20"
+              disabled={isDeleting}
+            >
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              {isDeleting ? "Submitting request…" : "Delete My Account"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="glass-card border-destructive/30">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-medium text-destructive">
+                Request Account Deletion
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This will schedule permanent deletion of your account and all associated
+                data — EEG sessions, dream journals, health metrics, emotion readings,
+                and AI chat history. You have a <strong>30-day grace period</strong> to
+                cancel by contacting support. After that, all data is permanently removed
+                and cannot be recovered.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteAccount}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Yes, Request Deletion
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </Card>
   );
 }

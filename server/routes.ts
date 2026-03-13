@@ -28,9 +28,10 @@ import {
   pilotParticipants, pilotSessions,
   passwordResetTokens,
   healthMetrics, healthSamples,
+  dreamAnalysis, dreamSymbols, eegSessions, userSettings,
+  aiChats, brainReadings, emotionReadings,
 } from "@shared/schema";
 import { db } from "./db";
-import { emotionReadings } from "@shared/schema";
 import { eq, gte, lt, and, asc, desc, sql } from "drizzle-orm";
 
 // ── VAPID setup (web push) ─────────────────────────────────────────────────
@@ -2885,6 +2886,183 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
     }
 
     res.json({ insights });
+  });
+
+  // ── GDPR / Privacy endpoints ──────────────────────────────────────────────
+
+  // GET /api/user/:userId/export-all — full GDPR data export (Art. 20)
+  app.get("/api/user/:userId/export-all", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const exportedAt = new Date().toISOString();
+
+      const [
+        userRows,
+        healthMetricsRows,
+        dreamAnalysisRows,
+        dreamSymbolsRows,
+        emotionReadingsRows,
+        eegSessionsRows,
+        userSettingsRows,
+        pushSubscriptionsRows,
+        aiChatsRows,
+        foodLogsRows,
+        brainReadingsRows,
+        healthSamplesRows,
+        studyParticipantsRows,
+      ] = await Promise.all([
+        db.select().from(users).where(eq(users.id, userId)),
+        db.select().from(healthMetrics).where(eq(healthMetrics.userId, userId)),
+        db.select().from(dreamAnalysis).where(eq(dreamAnalysis.userId, userId)),
+        db.select().from(dreamSymbols).where(eq(dreamSymbols.userId, userId)),
+        db.select().from(emotionReadings).where(eq(emotionReadings.userId, userId)),
+        db.select().from(eegSessions).where(eq(eegSessions.userId, userId)),
+        db.select().from(userSettings).where(eq(userSettings.userId, userId)),
+        db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId)),
+        db.select().from(aiChats).where(eq(aiChats.userId, userId)),
+        db.select().from(foodLogs).where(eq(foodLogs.userId as any, userId)),
+        db.select().from(brainReadings).where(eq(brainReadings.userId, userId)),
+        db.select().from(healthSamples).where(eq(healthSamples.userId, userId)),
+        db.select().from(studyParticipants).where(eq(studyParticipants.userId, userId)),
+      ]);
+
+      // Omit password hash from user export
+      const sanitisedUser = userRows.map(({ password: _pw, ...u }) => u);
+
+      const payload = {
+        metadata: {
+          exportedAt,
+          userId,
+          dataCategories: [
+            "account", "healthMetrics", "dreamAnalysis", "dreamSymbols",
+            "emotionReadings", "eegSessions", "userSettings",
+            "pushSubscriptions", "aiChats", "foodLogs", "brainReadings",
+            "healthSamples", "studyParticipants",
+          ],
+          rowCounts: {
+            account:            sanitisedUser.length,
+            healthMetrics:      healthMetricsRows.length,
+            dreamAnalysis:      dreamAnalysisRows.length,
+            dreamSymbols:       dreamSymbolsRows.length,
+            emotionReadings:    emotionReadingsRows.length,
+            eegSessions:        eegSessionsRows.length,
+            userSettings:       userSettingsRows.length,
+            pushSubscriptions:  pushSubscriptionsRows.length,
+            aiChats:            aiChatsRows.length,
+            foodLogs:           foodLogsRows.length,
+            brainReadings:      brainReadingsRows.length,
+            healthSamples:      healthSamplesRows.length,
+            studyParticipants:  studyParticipantsRows.length,
+          },
+        },
+        data: {
+          account:            sanitisedUser,
+          healthMetrics:      healthMetricsRows,
+          dreamAnalysis:      dreamAnalysisRows,
+          dreamSymbols:       dreamSymbolsRows,
+          emotionReadings:    emotionReadingsRows,
+          eegSessions:        eegSessionsRows,
+          userSettings:       userSettingsRows,
+          pushSubscriptions:  pushSubscriptionsRows,
+          aiChats:            aiChatsRows,
+          foodLogs:           foodLogsRows,
+          brainReadings:      brainReadingsRows,
+          healthSamples:      healthSamplesRows,
+          studyParticipants:  studyParticipantsRows,
+        },
+      };
+
+      // Record export timestamp in user settings (best-effort)
+      try {
+        const [existing] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
+        if (existing) {
+          const thresholds = (existing.alertThresholds as Record<string, unknown> | null) ?? {};
+          const exportHistory: string[] = Array.isArray((thresholds as any).__exportHistory)
+            ? (thresholds as any).__exportHistory
+            : [];
+          exportHistory.push(exportedAt);
+          await db.update(userSettings)
+            .set({ alertThresholds: { ...thresholds, __exportHistory: exportHistory.slice(-20) } })
+            .where(eq(userSettings.userId, userId));
+        } else {
+          await db.insert(userSettings).values({
+            userId,
+            alertThresholds: { __exportHistory: [exportedAt] },
+          });
+        }
+      } catch { /* non-fatal */ }
+
+      res.json(payload);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "GDPR export failed");
+      res.status(500).json({ error: "Failed to export data" });
+    }
+  });
+
+  // DELETE /api/user/:userId — soft-delete (GDPR Art. 17 right-to-erasure request)
+  app.delete("/api/user/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    const { confirm } = req.body as { confirm?: boolean };
+    if (confirm !== true) {
+      return res.status(400).json({
+        error: "Deletion requires { confirm: true } in request body",
+      });
+    }
+
+    try {
+      const [updated] = await db
+        .update(users)
+        .set({ deletionRequestedAt: new Date() })
+        .where(eq(users.id, userId))
+        .returning({ id: users.id, deletionRequestedAt: users.deletionRequestedAt });
+
+      if (!updated) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const gracePeriodDays = 30;
+      const scheduledDeletionDate = new Date(updated.deletionRequestedAt!);
+      scheduledDeletionDate.setDate(scheduledDeletionDate.getDate() + gracePeriodDays);
+
+      logger.info({ userId, scheduledDeletion: scheduledDeletionDate.toISOString() }, "GDPR deletion requested");
+
+      return res.json({
+        message: "Deletion request recorded. Your account and all data will be permanently deleted after the grace period.",
+        gracePeriodDays,
+        requestedAt: updated.deletionRequestedAt,
+        scheduledDeletionDate: scheduledDeletionDate.toISOString(),
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "GDPR deletion request failed");
+      return res.status(500).json({ error: "Failed to record deletion request" });
+    }
+  });
+
+  // GET /api/user/:userId/export-history — list of past export timestamps
+  app.get("/api/user/:userId/export-history", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const [settings] = await db
+        .select({ alertThresholds: userSettings.alertThresholds })
+        .from(userSettings)
+        .where(eq(userSettings.userId, userId));
+
+      const thresholds = (settings?.alertThresholds as Record<string, unknown> | null) ?? {};
+      const exportHistory: string[] = Array.isArray((thresholds as any).__exportHistory)
+        ? (thresholds as any).__exportHistory
+        : [];
+
+      return res.json({ userId, exportHistory });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Export history fetch failed");
+      return res.status(500).json({ error: "Failed to fetch export history" });
+    }
   });
 
   const httpServer = createServer(app);
