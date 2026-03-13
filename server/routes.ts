@@ -182,6 +182,27 @@ const resetPasswordLimiter = rateLimit({
   message: { error: "Too many password reset attempts. Please try again in 15 minutes." },
 });
 
+/** LLM endpoints: 10 requests per user per minute, keyed by session userId or IP. */
+const llmLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const sessionUserId = (req.session as any)?.userId;
+    if (sessionUserId) return sessionUserId;
+    const auth = req.headers.authorization;
+    if (auth?.startsWith("Bearer ")) {
+      try {
+        const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as { userId: string };
+        return decoded.userId;
+      } catch { /* fall through to IP */ }
+    }
+    return req.ip ?? "unknown";
+  },
+  message: { error: "Too many AI requests. Please wait a moment." },
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // ── General API rate limit (must be first, before route handlers) ─────────
   app.use("/api", generalApiLimiter);
@@ -452,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/dream-analysis", async (req, res) => {
+  app.post("/api/dream-analysis", llmLimiter, async (req, res) => {
     try {
       const { dreamText, userId } = req.body;
 
@@ -513,7 +534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/ai-chat", async (req, res) => {
+  app.post("/api/ai-chat", llmLimiter, async (req, res) => {
     try {
       const { message, userId, history } = req.body;
 
@@ -582,7 +603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Mood analysis endpoint
-  app.post("/api/analyze-mood", async (req, res) => {
+  app.post("/api/analyze-mood", llmLimiter, async (req, res) => {
     try {
       const { text } = req.body;
 
