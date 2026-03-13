@@ -157,6 +157,7 @@ from .brain_report import router as _brain_report
 from .breathing import router as _breathing
 from .music_therapy import router as _music_therapy
 from .child import router as _child
+from .garmin import router as _garmin
 
 router = APIRouter()
 
@@ -283,3 +284,4 @@ router.include_router(_brain_report)
 router.include_router(_breathing)
 router.include_router(_music_therapy)
 router.include_router(_child)
+router.include_router(_garmin)
