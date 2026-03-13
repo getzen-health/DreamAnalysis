@@ -42,6 +42,8 @@ import {
 } from "@/lib/ml-api";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { StreakCard } from "@/components/streak-card";
+import { ReadinessScore } from "@/components/readiness-score";
+import { StreakBadge } from "@/components/streak-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import EmotionLandscape, { type HeatmapCell } from "@/components/emotion-landscape";
 import { useAuth } from "@/hooks/use-auth";
@@ -540,6 +542,12 @@ export default function Dashboard() {
 
       {/* ── Daily streak ────────────────────────────────────── */}
       <StreakCard userId={USER_ID} />
+
+      {/* ── Brain Readiness Score (#353) ────────────────────── */}
+      <ReadinessScore userId={USER_ID} />
+
+      {/* ── Habit Streak Badge (#354) ────────────────────────── */}
+      <StreakBadge userId={USER_ID} />
 
       {/* ── Quick-access feature grid ───────────────────────── */}
       <div>

@@ -888,6 +888,64 @@ export async function exportToHealthKit(
   return mlFetch("/health/export-to-healthkit/" + userId, { method: "POST" });
 }
 
+// ─── Brain Readiness Score ───────────────────────────────────────────────
+
+export interface ReadinessFactors {
+  sleep_quality: number | null;
+  stress_avg: number | null;
+  hrv_trend: number | null;
+  voice_emotion: number | null;
+}
+
+export interface ReadinessHistoryPoint {
+  date: string;
+  score: number | null;
+}
+
+export interface ReadinessScoreResult {
+  user_id: string;
+  score: number;
+  factors: ReadinessFactors;
+  history: ReadinessHistoryPoint[];
+  color: "red" | "yellow" | "green";
+  label: string;
+}
+
+export async function getReadinessScore(
+  userId: string
+): Promise<ReadinessScoreResult> {
+  return mlFetch<ReadinessScoreResult>(
+    `/brain-report/readiness-score/${encodeURIComponent(userId)}`
+  );
+}
+
+// ─── Habit Streak ────────────────────────────────────────────────────────
+
+export interface StreakResult {
+  user_id: string;
+  current_streak: number;
+  best_streak: number;
+  today_checked_in: boolean;
+  milestones: number[];
+  next_milestone: number | null;
+  total_checkins: number;
+}
+
+export async function getBrainStreak(userId: string): Promise<StreakResult> {
+  return mlFetch<StreakResult>(
+    `/brain-report/streak/${encodeURIComponent(userId)}`
+  );
+}
+
+export async function recordStreakCheckin(
+  userId: string
+): Promise<{ status: string; current_streak: number; best_streak: number }> {
+  return mlFetch(
+    `/brain-report/streak/${encodeURIComponent(userId)}/checkin`,
+    { method: "POST" }
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Food Emotion
 // ---------------------------------------------------------------------------
@@ -1406,6 +1464,49 @@ export async function analyzeDreamNarrative(
   return mlFetch("/analyze-dream-narrative", {
     method: "POST",
     body: JSON.stringify({ text, user_id: resolvedUserId }),
+  });
+}
+
+// ── Food Image Analysis (#351) ───────────────────────────────────────────────
+
+export interface FoodItem {
+  name: string;
+  portion: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+}
+
+export interface FoodImageAnalysisResult {
+  food_items: FoodItem[];
+  total_calories: number;
+  total_protein_g: number;
+  total_carbs_g: number;
+  total_fat_g: number;
+  total_fiber_g: number;
+  dominant_macro: string;
+  glycemic_impact: string;
+  confidence: number;
+  analysis_method: string;
+  summary: string;
+  error?: string;
+}
+
+export async function analyzeFoodImage(
+  base64: string,
+  textDescription?: string,
+  mealType?: string
+): Promise<FoodImageAnalysisResult> {
+  return mlFetch<FoodImageAnalysisResult>("/food/analyze-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      image_base64: base64,
+      text_description: textDescription,
+      meal_type: mealType ?? "meal",
+    }),
   });
 }
 

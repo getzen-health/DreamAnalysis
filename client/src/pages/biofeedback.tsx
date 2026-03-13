@@ -11,6 +11,7 @@ import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Head
 import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticMedium, hapticSuccess } from "@/lib/haptics";
 import SpotifyConnect from "@/components/spotify-connect";
+import { InterventionSummary, type InterventionMetrics } from "@/components/intervention-summary";
 
 // ─── Breathing exercise definitions ──────────────────────────────────────────
 
@@ -332,6 +333,9 @@ export default function Biofeedback() {
   const [breathPhaseProgress, setBreathPhaseProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [startStress, setStartStress] = useState<number | null>(null);
+  // Before/after snapshots for InterventionSummary
+  const [beforeSnapshot, setBeforeSnapshot] = useState<InterventionMetrics | null>(null);
+  const [afterSnapshot, setAfterSnapshot] = useState<InterventionMetrics | null>(null);
 
   const sessionStartRef = useRef<number>(0);
   const elapsedSecRef = useRef(0);
@@ -354,6 +358,20 @@ export default function Biofeedback() {
     const progress = elapsedSecRef.current / 180;
     const base = voiceBase - (voiceBase * 0.45) * Math.min(progress * 1.3, 1);
     return Math.max(8, Math.min(92, base + (Math.random() - 0.5) * 9));
+  };
+
+  // ── Build InterventionMetrics snapshot from current frame ─────────────────
+  const buildSnapshot = (): InterventionMetrics => {
+    const stress =
+      latestFrame?.analysis?.emotions?.stress_index ??
+      latestFrame?.analysis?.stress?.stress_index ??
+      getStress() / 100;
+    const focus =
+      latestFrame?.analysis?.emotions?.focus_index ??
+      0.5; // default when not streaming
+    const hrv: number | null =
+      ((latestFrame?.analysis as Record<string, unknown> | undefined)?.hrv as number | undefined) ?? null;
+    return { stress, focus, hrv };
   };
 
   // ── Breathing animation (50ms, smooth) ────────────────────────────────────
@@ -416,10 +434,13 @@ export default function Biofeedback() {
     setBreathPhaseIdx(0);
     setBreathPhaseProgress(0);
     setStartStress(getStress());
+    setBeforeSnapshot(buildSnapshot());
+    setAfterSnapshot(null);
     setSessionPhase("active");
   };
 
   const handleStop = () => {
+    setAfterSnapshot(buildSnapshot());
     setSessionPhase("done");
     hapticSuccess(); // celebrate session completion on mobile
     // Record session to breathing API for coherence scoring
@@ -454,6 +475,8 @@ export default function Biofeedback() {
     setSessionPhase("idle");
     setReadings([]);
     setStartStress(null);
+    setBeforeSnapshot(null);
+    setAfterSnapshot(null);
     setElapsed(0);
   };
 
@@ -1047,6 +1070,16 @@ export default function Biofeedback() {
               </Button>
             </div>
           </Card>
+
+          {/* Detailed before/after summary card */}
+          {beforeSnapshot && afterSnapshot && (
+            <InterventionSummary
+              beforeMetrics={beforeSnapshot}
+              afterMetrics={afterSnapshot}
+              duration={elapsed}
+              type={`${exercise.name} breathing`}
+            />
+          )}
         </div>
       )}
 
