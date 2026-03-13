@@ -6,8 +6,8 @@
  * and that the Retry-After header is present on 429 responses.
  *
  * NOTE: These tests hit the login endpoint with bad credentials.
- * The rate limit is 5 attempts per IP per 15 minutes.
- * After 5 requests, the 6th should return 429.
+ * The rate limit is 10 attempts per IP per 15 minutes.
+ * After 10 requests, the 11th should return 429.
  */
 import { describe, it, expect } from "vitest";
 
@@ -38,21 +38,21 @@ describe("Issue #322: Rate limiting on auth endpoints", () => {
   it("should return 429 after exceeding login rate limit", async () => {
     const results: number[] = [];
 
-    // Send 6 login attempts rapidly with bad credentials.
-    // The rate limit is 5 per 15 minutes, so attempt #6 should be 429.
-    for (let i = 0; i < 6; i++) {
+    // Send 11 login attempts rapidly with bad credentials.
+    // The rate limit is 10 per 15 minutes, so attempt #11 should be 429.
+    for (let i = 0; i < 11; i++) {
       const res = await postLogin(fakeUser, fakePass);
       results.push(res.status);
     }
 
-    // First 5 should be 401 (bad credentials) or 400 (bad request) — not 429
-    const firstFive = results.slice(0, 5);
-    for (const status of firstFive) {
+    // First 10 should be 401 (bad credentials) or 400 (bad request) — not 429
+    const firstTen = results.slice(0, 10);
+    for (const status of firstTen) {
       expect(status).not.toBe(429);
     }
 
-    // The 6th should be 429
-    expect(results[5]).toBe(429);
+    // The 11th should be 429
+    expect(results[10]).toBe(429);
   });
 
   it("should include Retry-After header on 429 responses", async () => {

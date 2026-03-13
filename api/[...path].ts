@@ -155,10 +155,10 @@ async function verifyPassword(stored: string, supplied: string): Promise<boolean
 async function authRegister(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
-    // Rate limit: 3 attempts per IP per hour
+    // Rate limit: 10 registrations per IP per hour
     const db = getDb();
     const ip = getClientIp(req);
-    const rl = await checkRateLimit(db, `register:${ip}`, 3, 60);
+    const rl = await checkRateLimit(db, `register:${ip}`, 10, 60);
     if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
 
     // Use parsed body (may be pre-set by early parser, or parse again as fallback)
@@ -193,10 +193,10 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
 async function authLogin(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
-    // Rate limit: 5 attempts per IP per 15 minutes
+    // Rate limit: 10 login attempts per IP per 15 minutes
     const db = getDb();
     const ip = getClientIp(req);
-    const rl = await checkRateLimit(db, `login:${ip}`, 5, 15);
+    const rl = await checkRateLimit(db, `login:${ip}`, 10, 15);
     if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
 
     const body = (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0)
@@ -241,9 +241,9 @@ async function authForgotPassword(req: VercelRequest, res: VercelResponse) {
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (!email) return res.status(200).json({ message: GENERIC });
 
-    // Rate limit: 3 attempts per email per hour
+    // Rate limit: 5 forgot-password attempts per email per hour
     const db = getDb();
-    const rl = await checkRateLimit(db, `forgot-password:${email}`, 3, 60);
+    const rl = await checkRateLimit(db, `forgot-password:${email}`, 5, 60);
     if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
     const [user] = await db.select().from(schema.users)
       .where(eq(schema.users.email, email)).limit(1);
