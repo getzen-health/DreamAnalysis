@@ -402,6 +402,14 @@ export type InsertHealthSample = z.infer<typeof insertHealthSampleSchema>;
 
 export type DatadogErrorLog = typeof datadogErrorLog.$inferSelect;
 
+// ── Rate limiting ────────────────────────────────────────────────────────────
+
+export const rateLimitEntries = pgTable("rate_limit_entries", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  windowStart: timestamp("window_start").notNull().defaultNow(),
+});
+
 // ── Password reset tokens ───────────────────────────────────────────────────
 
 export const passwordResetTokens = pgTable("password_reset_tokens", {
