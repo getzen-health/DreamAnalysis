@@ -11,10 +11,63 @@ import { extractFeatures, extractBandPowers } from "./eeg-features";
 // onnxruntime-web is loaded dynamically to avoid hard failures if not installed
 let ort: typeof import("onnxruntime-web") | null = null;
 
+/**
+ * Detect WebAssembly SIMD support at runtime.
+ *
+ * The threaded SIMD variant (`ort-wasm-simd-threaded.wasm`) is 24 MB and
+ * requires both SIMD and SharedArrayBuffer (cross-origin isolation).
+ * Browsers that lack either will hang or error at decode time.
+ *
+ * Strategy:
+ *   - SIMD + SAB available  → threaded SIMD (default, fastest)
+ *   - SIMD only             → single-threaded SIMD (ort-wasm-simd.wasm)
+ *   - Neither               → plain WASM scalar fallback
+ *
+ * Returns true if SIMD is supported (SAB check is a separate gate).
+ */
+function detectSimd(): boolean {
+  try {
+    // WebAssembly SIMD feature-detect: attempt to validate a tiny SIMD module.
+    // This is the canonical check used by the wasm-feature-detect library.
+    const simdBytes = new Uint8Array([
+      0x00, 0x61, 0x73, 0x6d, // magic: \0asm
+      0x01, 0x00, 0x00, 0x00, // version: 1
+      0x01, 0x05, 0x01,       // type section
+      0x60, 0x00, 0x01, 0x7b, // () -> v128
+    ]);
+    return WebAssembly.validate(simdBytes);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Configure onnxruntime-web WASM backend based on runtime capabilities.
+ * Must be called before the first InferenceSession.create().
+ */
+function configureOrtWasm(ortModule: typeof import("onnxruntime-web")): void {
+  const hasSab = typeof SharedArrayBuffer !== "undefined";
+  const hasSimd = detectSimd();
+
+  if (!hasSimd) {
+    // Scalar fallback — disable threading and SIMD to avoid loading the wrong binary
+    ortModule.env.wasm.simd = false;
+    ortModule.env.wasm.numThreads = 1;
+  } else if (!hasSab) {
+    // SIMD available but no SharedArrayBuffer (no cross-origin isolation) —
+    // disable threading so ORT doesn't attempt the threaded WASM variant
+    ortModule.env.wasm.simd = true;
+    ortModule.env.wasm.numThreads = 1;
+  }
+  // If both SIMD and SAB are available, ORT defaults to threaded SIMD — no override needed.
+}
+
 async function loadOrt() {
   if (ort) return ort;
   try {
     ort = await import("onnxruntime-web");
+    // Apply SIMD/threading configuration before any InferenceSession is created.
+    configureOrtWasm(ort);
     return ort;
   } catch {
     return null;
