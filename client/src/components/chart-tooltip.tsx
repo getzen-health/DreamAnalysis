@@ -10,9 +10,8 @@ export function ChartTooltip({ active, payload, label, unit = "%", formatter }: 
 
   return (
     <div
-      className="rounded-xl border border-border/60 shadow-xl text-xs"
+      className="rounded-xl border border-border/60 shadow-xl text-xs bg-card/95"
       style={{
-        background: "hsl(220, 22%, 9%)",
         padding: "8px 10px",
         minWidth: 90,
         pointerEvents: "none",

@@ -19,7 +19,6 @@ import {
 } from "recharts";
 import { Card, CardContent } from "@/components/ui/card";
 import { getMLApiUrl } from "@/lib/ml-api";
-import { useTheme } from "@/hooks/use-theme";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -95,7 +94,7 @@ function ScoreArc({
         cy={cy}
         r={r}
         fill="none"
-        stroke="hsl(220, 18%, 15%)"
+        stroke="hsl(var(--border))"
         strokeWidth={strokeWidth}
         strokeDasharray={`${arcLength} ${gapLength}`}
         strokeLinecap="round"
@@ -124,7 +123,7 @@ function ScoreArc({
         y={cy - 2}
         textAnchor="middle"
         dominantBaseline="central"
-        fill="hsl(38, 20%, 92%)"
+        fill="hsl(var(--foreground))"
         fontSize={24}
         fontWeight="700"
         fontFamily="Inter, system-ui, sans-serif"
@@ -137,7 +136,7 @@ function ScoreArc({
         y={cy + 16}
         textAnchor="middle"
         dominantBaseline="central"
-        fill="hsl(220, 12%, 52%)"
+        fill="hsl(var(--muted-foreground))"
         fontSize={9}
         fontFamily="Inter, system-ui, sans-serif"
       >
@@ -190,8 +189,6 @@ function FactorRow({
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ReadinessScore({ userId }: ReadinessScoreProps) {
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
   const [expanded, setExpanded] = useState(false);
 
   const { data, isLoading, isError } = useQuery<ReadinessScoreData>({
@@ -260,8 +257,8 @@ export function ReadinessScore({ userId }: ReadinessScoreProps) {
               />
               <Tooltip
                 contentStyle={{
-                  background: isDark ? "hsl(222,28%,9%)" : "#fff",
-                  border: "1px solid hsl(220,18%,20%)",
+                  background: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
                   borderRadius: 6,
                   fontSize: 11,
                   padding: "2px 8px",

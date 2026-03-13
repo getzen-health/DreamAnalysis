@@ -30,7 +30,6 @@ import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDevice } from "@/hooks/use-device";
 import { DeviceConnection } from "@/components/device-connection";
-import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/hooks/use-auth";
 import { useMLConnection } from "@/hooks/use-ml-connection";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -101,8 +100,6 @@ export function Sidebar() {
   const isMobile = useIsMobile();
   const [location] = useLocation();
   const device = useDevice();
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
   const { user, logout } = useAuth();
 
   const isConnected =
@@ -163,10 +160,10 @@ export function Sidebar() {
             : "translate-x-0 w-56"
         }`}
         style={{
-          background: isDark ? "hsl(222, 25%, 5%, 0.97)" : "hsl(0, 0%, 100%, 0.97)",
+          background: "hsl(var(--background) / 0.97)",
           backdropFilter: isMobile ? "blur(20px)" : undefined,
           WebkitBackdropFilter: isMobile ? "blur(20px)" : undefined,
-          borderColor: isDark ? "hsl(220, 20%, 10%)" : "hsl(220, 14%, 90%)",
+          borderColor: "hsl(var(--border))",
         }}
       >
         <div className="flex flex-col h-full overflow-y-auto">
@@ -207,9 +204,7 @@ export function Sidebar() {
                       className={`flex items-center px-3 py-2.5 rounded-lg text-[13px] transition-all mb-0.5 min-h-[44px] ${
                         isActive
                           ? "text-primary font-medium"
-                          : isDark
-                            ? "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                            : "text-muted-foreground hover:text-foreground/70 hover:bg-muted/40"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                       }`}
                       style={
                         isActive
@@ -248,9 +243,7 @@ export function Sidebar() {
                 className={`flex items-center px-3 py-2.5 rounded-lg text-[13px] transition-all min-h-[44px] ${
                   location === "/settings"
                     ? "text-primary font-medium"
-                    : isDark
-                      ? "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                      : "text-muted-foreground hover:text-foreground/70 hover:bg-muted/40"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
                 style={
                   location === "/settings"
@@ -273,8 +266,8 @@ export function Sidebar() {
             onClick={() => setDeviceModalOpen(true)}
             className="mx-3 mb-3 p-3 rounded-xl text-left transition-colors cursor-pointer hover:bg-muted/30"
             style={{
-              background: isDark ? "hsl(220, 22%, 8%)" : "hsl(220, 14%, 96%)",
-              border: isDark ? "1px solid hsl(220, 18%, 13%)" : "1px solid hsl(220, 14%, 88%)",
+              background: "hsl(var(--muted))",
+              border: "1px solid hsl(var(--border))",
             }}
           >
             <div className="flex items-center gap-2">
@@ -325,8 +318,8 @@ export function Sidebar() {
               className="mx-3 px-3 py-2 rounded-xl flex items-center gap-2"
               style={{
                 marginBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
-                background: isDark ? "hsl(220, 22%, 7%)" : "hsl(220, 14%, 95%)",
-                border: isDark ? "1px solid hsl(220, 18%, 12%)" : "1px solid hsl(220, 14%, 87%)",
+                background: "hsl(var(--muted))",
+                border: "1px solid hsl(var(--border))",
               }}
             >
               <div

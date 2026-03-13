@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
-import { useTheme } from "@/hooks/use-theme";
 
 interface ScoreCircleProps {
   value: number;
@@ -29,8 +28,6 @@ export function ScoreCircle({
   size = "lg",
   trend,
 }: ScoreCircleProps) {
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
   const [animatedValue, setAnimatedValue] = useState(0);
   const s = SIZES[size];
   const cx = s.svg / 2;
@@ -73,7 +70,7 @@ export function ScoreCircle({
           cy={cy}
           r={s.r}
           fill="none"
-          stroke={isDark ? "hsl(220, 18%, 15%)" : "hsl(220, 14%, 88%)"}
+          stroke="hsl(var(--border))"
           strokeWidth={s.stroke}
           strokeDasharray={`${arcLength} ${gapLength}`}
           strokeLinecap="round"
@@ -104,7 +101,7 @@ export function ScoreCircle({
           y={cy - 2}
           textAnchor="middle"
           dominantBaseline="central"
-          fill={isDark ? "hsl(38, 20%, 92%)" : "hsl(222, 25%, 10%)"}
+          fill="hsl(var(--foreground))"
           fontSize={s.fontSize}
           fontWeight="600"
           fontFamily="Inter, system-ui, sans-serif"
@@ -118,7 +115,7 @@ export function ScoreCircle({
           y={cy + s.fontSize * 0.55}
           textAnchor="middle"
           dominantBaseline="central"
-          fill={isDark ? "hsl(220, 12%, 52%)" : "hsl(220, 12%, 42%)"}
+          fill="hsl(var(--muted-foreground))"
           fontSize={s.labelSize}
           fontFamily="Inter, system-ui, sans-serif"
         >
