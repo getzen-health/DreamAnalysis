@@ -850,7 +850,7 @@ export default function FormalBenchmarksDashboard() {
               { label: "Training Samples", value: "123K+" },
               { label: "Hardware Cost", value: "$250" },
             ].map((s) => (
-              <div key={s.label} className="rounded-2xl border border-white/8 bg-white/[0.04] p-4 text-center">
+              <div key={s.label} className="rounded-2xl border border-white/8 bg-muted/30 p-4 text-center">
                 <p className="text-2xl font-bold">{s.value}</p>
                 <p className="mt-1 text-xs uppercase tracking-widest text-white/50">{s.label}</p>
               </div>
@@ -900,11 +900,11 @@ export default function FormalBenchmarksDashboard() {
 
                 {/* Accuracy */}
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-white/[0.04] p-3">
+                  <div className="rounded-xl bg-muted/30 p-3">
                     <p className="text-[10px] uppercase tracking-wide text-white/40">Live Accuracy</p>
                     <p className="mt-1 text-sm font-semibold">{m.liveAccuracy}</p>
                   </div>
-                  <div className="rounded-xl bg-white/[0.04] p-3">
+                  <div className="rounded-xl bg-muted/30 p-3">
                     <p className="text-[10px] uppercase tracking-wide text-white/40">Cross-Subject</p>
                     <p className="mt-1 text-sm font-semibold">{m.crossSubject}</p>
                   </div>
@@ -971,7 +971,7 @@ export default function FormalBenchmarksDashboard() {
                     { label: "Channels", value: d.channels },
                     { label: "Classes", value: d.classes },
                   ].map((s) => (
-                    <div key={s.label} className="rounded-lg bg-white/[0.04] p-2">
+                    <div key={s.label} className="rounded-lg bg-muted/30 p-2">
                       <p className="text-sm font-medium">{s.value}</p>
                       <p className="text-[10px] text-white/40">{s.label}</p>
                     </div>

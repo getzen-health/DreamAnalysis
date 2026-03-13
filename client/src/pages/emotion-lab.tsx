@@ -196,9 +196,9 @@ function MoodTooltip({ active, payload, label }: MoodTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const val = payload[0].value;
   return (
-    <div className="rounded-lg bg-gray-800 border border-gray-700 px-3 py-2 text-xs shadow-lg">
-      <p className="text-gray-400">{label}</p>
-      <p className="text-gray-100 font-medium mt-0.5">
+    <div className="rounded-lg bg-muted border border-border px-3 py-2 text-xs shadow-lg">
+      <p className="text-muted-foreground">{label}</p>
+      <p className="text-foreground font-medium mt-0.5">
         Valence: {val >= 0 ? "+" : ""}
         {val.toFixed(2)}
       </p>

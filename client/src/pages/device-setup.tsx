@@ -90,7 +90,7 @@ function StepSelectDevice({
           <p className="text-xs text-muted-foreground">
             Start the backend first:
           </p>
-          <code className="block text-[11px] bg-black/40 text-emerald-400 px-3 py-2 rounded font-mono">
+          <code className="block text-[11px] bg-background/40 text-emerald-400 px-3 py-2 rounded font-mono">
             cd ~/NeuralDreamWorkshop/ml &amp;&amp; ./start.sh
           </code>
         </Card>
@@ -155,7 +155,7 @@ function StepPlacement({ deviceName, onContinue }: { deviceName: string; onConti
       </div>
 
       {/* ASCII electrode map */}
-      <Card className="p-4 font-mono text-xs bg-black/20 border-border/30 leading-relaxed text-center">
+      <Card className="p-4 font-mono text-xs bg-background/20 border-border/30 leading-relaxed text-center">
         <pre className="text-muted-foreground select-none">{`
         Front
           AF7 ──── AF8

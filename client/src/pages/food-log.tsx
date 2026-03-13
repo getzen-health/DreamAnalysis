@@ -394,14 +394,14 @@ export default function FoodLog() {
                   <img src={previewUrl} alt="Meal preview" className="w-full h-48 object-cover" />
                   <button
                     onClick={clearPhoto}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/60 flex items-center justify-center hover:bg-background/80 transition-colors"
                   >
-                    <X className="w-3.5 h-3.5 text-white" />
+                    <X className="w-3.5 h-3.5 text-foreground" />
                   </button>
                   {isAnalyzing && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2">
-                      <Loader2 className="w-5 h-5 animate-spin text-white" />
-                      <span className="text-white text-sm font-medium">Analyzing…</span>
+                    <div className="absolute inset-0 bg-background/50 flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin text-foreground" />
+                      <span className="text-foreground text-sm font-medium">Analyzing…</span>
                     </div>
                   )}
                 </div>
