@@ -8,6 +8,17 @@ Output format matches EEG EmotionClassifier (6-class):
     confidence: 0.0 to 1.0
     model_type: "voice_emotion2vec" | "voice_distilhubert" | "voice_lgbm_fallback"
 
+Compound emotion detection (issue #375):
+    After base 6-class classification, compound emotions are detected by
+    examining the raw probability distribution against acoustic cues.
+    Compound labels (12-class extension):
+        "nostalgic"   — sad + happy both > 0.2 (bittersweet blend)
+        "content"     — happy dominant + low arousal (pitch variance < baseline)
+        "bored"       — neutral dominant + low energy + slow speaking rate
+        "anticipation"— happy + fear both present + high arousal
+        "frustrated"  — angry moderate (0.3–0.6) + sad > 0.15
+        "guilt"       — sad + fear both > 0.2 + low pitch
+
 Fallback chain (highest to lowest priority):
     1. emotion2vec_plus_large (funasr, 300M) — 9-class, ACL 2024, highest accuracy
     2. emotion2vec_plus_base (funasr) — 9-class, faster, lower memory
@@ -49,11 +60,129 @@ _6CLASS: List[str] = ["happy", "sad", "angry", "fear", "surprise", "neutral"]
 
 _MIN_SAMPLES = 8000  # ~0.5s at 16 kHz minimum
 
+# ── 12-class compound emotion labels (issue #375) ──────────────────────────────
+# The base 6 classes are augmented with 6 compound emotions detected from the
+# probability distribution + acoustic cues.  Compound labels are only assigned
+# when a clear pattern is found; otherwise the base label is preserved.
+_COMPOUND_EMOTIONS: List[str] = [
+    "nostalgic",    # sad + happy both > 0.2 (bittersweet)
+    "content",      # happy dominant + low arousal (low pitch variance)
+    "bored",        # neutral dominant + low energy + slow speaking rate
+    "anticipation", # happy + fear both present + high arousal
+    "frustrated",   # angry moderate (0.3-0.6) + sad > 0.15
+    "guilt",        # sad + fear both > 0.2 + low pitch
+]
+_ALL_12_EMOTIONS: List[str] = _6CLASS + _COMPOUND_EMOTIONS
+
+# Acoustic thresholds used by compound detection
+_COMPOUND_AROUSAL_HIGH = 0.55   # above this → "high arousal"
+_COMPOUND_AROUSAL_LOW = 0.35    # below this → "low arousal"
+_COMPOUND_PITCH_VARIANCE_LOW = 30.0  # Hz — below this = flat/monotone delivery
+
 # ── Quality thresholds ─────────────────────────────────────────────────────────
-_CONFIDENCE_THRESHOLD = 0.60  # suppress results below this — return None instead
+_CONFIDENCE_THRESHOLD = 0.60  # global fallback — per-user threshold takes priority
 _WINDOW_DURATION_S = 3.0      # each analysis window in seconds
 _WINDOW_HOP_S = 1.5           # hop between windows (50% overlap)
 _MIN_WINDOWS = 1              # minimum windows needed to aggregate
+
+
+def detect_compound_emotion(
+    probs: Dict[str, float],
+    arousal: float,
+    pitch_std: float = 0.0,
+    energy_mean: float = 0.0,
+    speaking_rate: float = 0.5,
+    pitch_mean: float = 150.0,
+) -> Optional[str]:
+    """Detect compound emotion from base probabilities + acoustic cues.
+
+    Runs AFTER base 6-class classification.  Returns a compound label string
+    when the probability pattern and acoustic features match one of the six
+    compound patterns.  Returns None if no compound pattern is matched, meaning
+    the base emotion label should be used unchanged.
+
+    Args:
+        probs:         6-class probability dict from the base classifier.
+        arousal:       Arousal score (0.0–1.0) derived from the prediction.
+        pitch_std:     F0 standard deviation in Hz (measure of pitch variance).
+        energy_mean:   Mean RMS energy of the audio segment.
+        speaking_rate: Speaking rate proxy (0–1, higher = faster).
+        pitch_mean:    Mean F0 in Hz (used to detect low-pitch delivery).
+
+    Returns:
+        Compound emotion label string, or None.
+
+    Compound patterns (ordered by priority — first match wins):
+
+        1. "anticipation" — happy AND fear signals both present + high arousal
+           Rationale: excitement mixed with nervousness, e.g. before a big event.
+           Conditions: happy > 0.20, fear > 0.20, arousal > _COMPOUND_AROUSAL_HIGH
+
+        2. "nostalgic" — sad AND happy signals both present (bittersweet blend)
+           Conditions: sad > 0.20, happy > 0.20
+           (does not require arousal signal — can be low or medium)
+
+        3. "frustrated" — moderate anger + underlying sadness
+           Conditions: 0.30 ≤ angry ≤ 0.60, sad > 0.15
+
+        4. "guilt" — sad + fear both present + low pitch delivery
+           Conditions: sad > 0.20, fear > 0.20, pitch_mean < 150 Hz
+           (low pitch = quiet, subdued delivery typical of guilt)
+
+        5. "content" — happy dominant but low arousal + low pitch variance
+           Conditions: happy is argmax, arousal < _COMPOUND_AROUSAL_LOW,
+                       pitch_std < _COMPOUND_PITCH_VARIANCE_LOW
+
+        6. "bored" — neutral dominant + low energy + slow speaking rate
+           Conditions: neutral is argmax, energy_mean < 0.02,
+                       speaking_rate < 0.30
+    """
+    happy    = probs.get("happy",    0.0)
+    sad      = probs.get("sad",      0.0)
+    angry    = probs.get("angry",    0.0)
+    fear     = probs.get("fear",     0.0)
+    neutral  = probs.get("neutral",  0.0)
+    surprise = probs.get("surprise", 0.0)  # noqa: F841 — not used in compound rules
+
+    dominant = max(probs, key=probs.__getitem__)
+
+    # 1. anticipation: happy + fear both present + high arousal
+    if (
+        happy > 0.20
+        and fear > 0.20
+        and arousal > _COMPOUND_AROUSAL_HIGH
+    ):
+        return "anticipation"
+
+    # 2. nostalgic: sad + happy bittersweet blend
+    if sad > 0.20 and happy > 0.20:
+        return "nostalgic"
+
+    # 3. frustrated: moderate anger + underlying sadness
+    if 0.30 <= angry <= 0.60 and sad > 0.15:
+        return "frustrated"
+
+    # 4. guilt: sad + fear + low-pitch subdued delivery
+    if sad > 0.20 and fear > 0.20 and pitch_mean < 150.0:
+        return "guilt"
+
+    # 5. content: happy dominant, low arousal, monotone delivery
+    if (
+        dominant == "happy"
+        and arousal < _COMPOUND_AROUSAL_LOW
+        and pitch_std < _COMPOUND_PITCH_VARIANCE_LOW
+    ):
+        return "content"
+
+    # 6. bored: neutral dominant, low energy, slow rate
+    if (
+        dominant == "neutral"
+        and energy_mean < 0.02
+        and speaking_rate < 0.30
+    ):
+        return "bored"
+
+    return None
 
 
 class SenseVoiceEmotionDetector:
@@ -432,26 +561,48 @@ class VoiceEmotionModel:
     # ── Public API ────────────────────────────────────────────────────────────
 
     def predict(
-        self, audio: np.ndarray, sample_rate: int = 22050, **kwargs
+        self,
+        audio: np.ndarray,
+        sample_rate: int = 22050,
+        user_threshold: Optional[float] = None,
+        **kwargs,
     ) -> Optional[Dict]:
-        """Predict 6-class emotion from audio array.
+        """Predict emotion from audio array (6-class base + optional compound).
 
         Uses multi-window analysis: splits audio into overlapping windows,
         runs inference on each, then aggregates by probability averaging.
-        Results below _CONFIDENCE_THRESHOLD are suppressed (returns None).
+        After aggregation, compound emotion detection (issue #375) is applied
+        to the probability distribution + acoustic cues to resolve one of six
+        compound labels (nostalgic, content, bored, anticipation, frustrated,
+        guilt) when the pattern is unambiguous.
+
+        Confidence gating:
+            Uses ``user_threshold`` when provided (per-user calibrated value
+            from ``VoiceBaselineCalibrator.get_optimal_threshold()``).
+            Falls back to the global ``_CONFIDENCE_THRESHOLD`` (0.60).
 
         Args:
-            audio: 1D float32 audio array
-            sample_rate: sampling rate in Hz
-            real_time: if True, prefer SenseVoice fast path (<100ms)
-            apply_confidence_gate: if False, skip confidence threshold check
-                (used internally for window-level predictions)
+            audio:          1D float32 audio array.
+            sample_rate:    Sampling rate in Hz.
+            user_threshold: Per-user calibrated confidence threshold (0.45–0.80).
+                            When None, the global default 0.60 is used.
+            real_time:      If True, prefer SenseVoice fast path (<100 ms).
+            apply_confidence_gate:
+                            If False, skip confidence threshold check.
+                            Used internally for window-level predictions.
 
         Returns None if audio is too short, all models fail, or aggregated
-        confidence is below 60%.
+        confidence is below the effective threshold.
         """
         if audio is None or len(audio) < _MIN_SAMPLES:
             return None
+
+        # Resolve effective confidence threshold
+        effective_threshold = (
+            float(np.clip(user_threshold, 0.45, 0.80))
+            if user_threshold is not None
+            else _CONFIDENCE_THRESHOLD
+        )
 
         # Fast path: SenseVoice (<100ms) — use when real_time=True
         # SenseVoice is designed for streaming; skip multi-window for it
@@ -463,14 +614,40 @@ class VoiceEmotionModel:
         # Multi-window analysis for longer audio clips
         apply_gate = kwargs.get("apply_confidence_gate", True)
         result = self._predict_multi_window(audio, sample_rate)
-        if result is not None and apply_gate:
-            if result["confidence"] < _CONFIDENCE_THRESHOLD:
-                log.debug(
-                    "Voice emotion suppressed — confidence %.3f below threshold %.2f",
-                    result["confidence"],
-                    _CONFIDENCE_THRESHOLD,
-                )
-                return None
+        if result is None:
+            return None
+
+        if apply_gate and result["confidence"] < effective_threshold:
+            log.debug(
+                "Voice emotion suppressed — confidence %.3f below threshold %.2f",
+                result["confidence"],
+                effective_threshold,
+            )
+            return None
+
+        # ── Compound emotion detection (issue #375) ───────────────────────────
+        # Extract acoustic cues needed for compound rules.  Use lightweight
+        # feature extraction — these fields may already be present if the
+        # heuristic path was used, otherwise fall back to 0 defaults.
+        prosodic = result.get("prosodic_features", {})
+        pitch_std = float(prosodic.get("f0_std", 0.0))
+        pitch_mean = float(prosodic.get("f0_mean", 150.0))
+        energy_mean = float(prosodic.get("energy_mean", 0.0))
+        speaking_rate = float(prosodic.get("speech_rate", 0.5))
+
+        compound = detect_compound_emotion(
+            probs=result["probabilities"],
+            arousal=result.get("arousal", 0.5),
+            pitch_std=pitch_std,
+            energy_mean=energy_mean,
+            speaking_rate=speaking_rate,
+            pitch_mean=pitch_mean,
+        )
+        if compound is not None:
+            result["compound_emotion"] = compound
+        else:
+            result["compound_emotion"] = None
+
         return result
 
     def _predict_single(

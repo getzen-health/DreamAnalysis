@@ -753,6 +753,75 @@ class VoiceBaselineCalibrator:
             "baseline_mean": dict(self._mean) if self._ready else {},
         }
 
+    def get_optimal_threshold(self) -> float:
+        """Return a calibrated confidence threshold based on voice quality.
+
+        The threshold is derived from the mean Harmonics-to-Noise Ratio (HNR)
+        observed across the calibration frames.  HNR is a proxy for vocal
+        clarity: high HNR → clean, tonal voice → the model is more likely to
+        produce reliable high-confidence predictions → use a stricter threshold.
+        Low HNR → breathy, nasal, or noisy voice → the model may produce lower
+        peak probabilities for correct predictions → use a more lenient threshold.
+
+        Mapping:
+            HNR ≥ 20 dB  (clear voice):  threshold = 0.80
+            HNR ≥ 15 dB  (good voice):   threshold ≈ 0.70
+            HNR ≥ 10 dB  (average):      threshold ≈ 0.60
+            HNR <  10 dB  (breathy/noisy):threshold ≈ 0.50
+            HNR ≤ 5 dB   (very noisy):   threshold = 0.45
+
+        When calibration is not yet ready (``is_ready == False``), or when no
+        HNR data is available in the accumulated frames, the global default of
+        0.60 is returned unchanged.
+
+        Returns:
+            float in [0.45, 0.80] — the recommended per-user confidence
+            threshold for ``VoiceEmotionModel.predict(user_threshold=...)``.
+        """
+        _GLOBAL_DEFAULT = 0.60
+        if not self._ready:
+            return _GLOBAL_DEFAULT
+
+        # HNR may not be present in all acoustic feature frames (it is an
+        # optional key that arrives from voice_biomarkers extraction).
+        hnr_values = [
+            f["hnr"] for f in self._frames if "hnr" in f and f["hnr"] > 0
+        ]
+
+        if not hnr_values:
+            # HNR not available in calibration data — return global default
+            return _GLOBAL_DEFAULT
+
+        mean_hnr = float(np.mean(hnr_values))
+
+        # Linear interpolation between anchor points:
+        #   HNR ≤ 5 dB  → threshold = 0.45
+        #   HNR = 10 dB → threshold = 0.55
+        #   HNR = 15 dB → threshold = 0.65
+        #   HNR ≥ 20 dB → threshold = 0.80
+        if mean_hnr >= 20.0:
+            threshold = 0.80
+        elif mean_hnr >= 15.0:
+            # Linear: 15→0.65, 20→0.80
+            threshold = 0.65 + (mean_hnr - 15.0) / 5.0 * (0.80 - 0.65)
+        elif mean_hnr >= 10.0:
+            # Linear: 10→0.55, 15→0.65
+            threshold = 0.55 + (mean_hnr - 10.0) / 5.0 * (0.65 - 0.55)
+        elif mean_hnr >= 5.0:
+            # Linear: 5→0.45, 10→0.55
+            threshold = 0.45 + (mean_hnr - 5.0) / 5.0 * (0.55 - 0.45)
+        else:
+            threshold = 0.45
+
+        threshold = round(float(np.clip(threshold, 0.45, 0.80)), 4)
+        log.debug(
+            "VoiceBaselineCalibrator.get_optimal_threshold: HNR=%.1f dB → "
+            "threshold=%.2f",
+            mean_hnr,
+            threshold,
+        )
+        return threshold
+
     def reset(self) -> None:
         """Clear all calibration data (call to restart the calibration phase)."""
         self._frames.clear()
