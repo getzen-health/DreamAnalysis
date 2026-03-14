@@ -144,7 +144,7 @@ export default function AuthPage() {
       });
       toast({
         title: 'Account Created',
-        description: 'Welcome to AntarAI!',
+        description: 'Welcome to Neural Dream Workshop!',
       });
       // New users see welcome intro; returning users go through intent flow
       const seen = localStorage.getItem("onboarding_complete");
@@ -193,7 +193,7 @@ export default function AuthPage() {
             </div>
           </div>
           <h1 className="text-5xl font-futuristic font-bold text-gradient leading-tight">
-            AntarAI
+            Neural Dream Workshop
           </h1>
           <p className="text-xl text-foreground/70 leading-relaxed">
             Unlock the secrets of your mind through advanced neural monitoring,
@@ -222,7 +222,7 @@ export default function AuthPage() {
           <CardHeader className="text-center pb-2">
             <div className="flex items-center justify-center space-x-2 mb-4 lg:hidden">
               <Brain className="h-8 w-8 text-primary" />
-              <span className="text-xl font-futuristic font-bold text-gradient">AntarAI</span>
+              <span className="text-xl font-futuristic font-bold text-gradient">Neural Dream Workshop</span>
             </div>
             <CardTitle className="text-2xl font-futuristic text-gradient">
               Access Portal

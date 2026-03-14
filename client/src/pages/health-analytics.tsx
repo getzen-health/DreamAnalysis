@@ -251,7 +251,7 @@ export default function HealthAnalytics() {
   }, [latestFrame?.timestamp]);
 
   return (
-    <main className="px-4 pt-2 pb-4 space-y-4 max-w-xl mx-auto">
+    <main className="px-4 pt-2 pb-24 space-y-4 max-w-xl mx-auto">
       {/* Connection Banner */}
       {!isStreaming && (
         <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/20">

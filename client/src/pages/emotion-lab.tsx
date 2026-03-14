@@ -424,7 +424,7 @@ export default function EmotionLab() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+    <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4">
       {isStreaming && reconnectCount > 0 && (
         <div className="rounded-2xl bg-amber-500/10 border border-amber-500/40 px-4 py-2.5 text-[13px] font-medium text-amber-400">
           Reconnecting to EEG stream... (attempt {reconnectCount})

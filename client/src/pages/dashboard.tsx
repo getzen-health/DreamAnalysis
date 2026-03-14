@@ -32,6 +32,8 @@ import {
   Zap,
   Headphones,
   BookOpen,
+  X as XIcon,
+  AlertTriangle,
 } from "lucide-react";
 import { hapticLight } from "@/lib/haptics";
 import { useDevice } from "@/hooks/use-device";
@@ -362,6 +364,14 @@ const USER_ID = getParticipantId();
 /* ========== Component ========== */
 export default function Dashboard() {
   const { user } = useAuth();
+  const [calibrationBannerDismissed, setCalibrationBannerDismissed] = useState(() => {
+    return localStorage.getItem("ndw_calibration_banner_dismissed") === "true";
+  });
+  const showCalibrationBanner =
+    !calibrationBannerDismissed &&
+    localStorage.getItem("ndw_onboarding_complete") === "true" &&
+    localStorage.getItem("ndw_baseline_complete") === null;
+
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
@@ -516,7 +526,34 @@ export default function Dashboard() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <main className="px-4 pt-2 pb-4 space-y-4 max-w-xl mx-auto">
+    <main className="px-4 pt-2 pb-24 space-y-4 max-w-xl mx-auto">
+
+      {/* ── Calibration banner — show when baseline not complete ─── */}
+      {showCalibrationBanner && (
+        <div className="relative flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground leading-snug">
+              EEG baseline not calibrated — emotion accuracy is reduced. A 2-minute setup improves accuracy by up to 29%.
+            </p>
+            <Link href="/calibration">
+              <span className="inline-block mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors cursor-pointer">
+                Calibrate Now &rarr;
+              </span>
+            </Link>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.setItem("ndw_calibration_banner_dismissed", "true");
+              setCalibrationBannerDismissed(true);
+            }}
+            className="shrink-0 p-1 rounded hover:bg-amber-500/20 transition-colors"
+            aria-label="Dismiss calibration banner"
+          >
+            <XIcon className="h-4 w-4 text-amber-500/70" />
+          </button>
+        </div>
+      )}
 
       {/* ── Greeting header — Oura-style inline row ─────────── */}
       <div
@@ -583,6 +620,44 @@ export default function Dashboard() {
 
       {/* ── Voice micro check-in ────────────────────────────── */}
       <VoiceCheckinCard userId={USER_ID} />
+
+      {/* ── Empty state for brand-new users ────────────────── */}
+      {!isStreaming && !healthState && sessionsWithData.length === 0 && !sessionsLoading && (
+        <div
+          className="rounded-2xl p-6 text-center space-y-4"
+          style={{
+            background: "hsl(222, 28%, 9%, 0.7)",
+            border: "1px solid hsl(220, 18%, 17%, 0.6)",
+            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+          }}
+        >
+          <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center bg-primary/10 border border-primary/20">
+            <Brain className="h-7 w-7 text-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-foreground">Welcome to Neural Dream Workshop</h2>
+            <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+              Start your first voice check-in or connect your EEG headset to begin tracking your brain health.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3">
+            <Link href="/emotions">
+              <button
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all"
+              >
+                Voice Check-in
+              </button>
+            </Link>
+            <Link href="/device-setup">
+              <button
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-border bg-muted/30 text-foreground hover:bg-muted/50 active:scale-[0.97] transition-all"
+              >
+                Connect Device
+              </button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ── Daily streak ────────────────────────────────────── */}
       <StreakCard userId={USER_ID} />

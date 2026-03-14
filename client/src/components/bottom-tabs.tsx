@@ -8,10 +8,10 @@ import {
 import { hapticLight } from "@/lib/haptics";
 
 const tabs = [
-  { path: "/",        icon: Sun,        label: "Today"   },
-  { path: "/journal", icon: BookOpen,   label: "Journal" },
-  { path: "/trends",  icon: TrendingUp, label: "Trends"  },
-  { path: "/you",     icon: CircleUser, label: "You"     },
+  { path: "/",        icon: Sun,        label: "Today",   aliases: [] as string[] },
+  { path: "/journal", icon: BookOpen,   label: "Journal", aliases: ["/emotions", "/dream-journal", "/dreams"] },
+  { path: "/trends",  icon: TrendingUp, label: "Trends",  aliases: ["/health-analytics", "/insights"] },
+  { path: "/you",     icon: CircleUser, label: "You",     aliases: ["/settings", "/profile"] },
 ];
 
 export function BottomTabs() {
@@ -33,7 +33,8 @@ export function BottomTabs() {
           const Icon = tab.icon;
           const isActive =
             location === tab.path ||
-            (tab.path !== "/" && location.startsWith(tab.path));
+            (tab.path !== "/" && location.startsWith(tab.path)) ||
+            tab.aliases.some((alias) => location === alias || location.startsWith(alias + "/"));
 
           return (
             <Link

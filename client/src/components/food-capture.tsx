@@ -35,6 +35,7 @@ import {
   Plus,
   X,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -186,6 +187,7 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
   const [barcodeNotFound, setBarcodeNotFound] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // ── Reset ──────────────────────────────────────────────────────────────────
 
@@ -276,21 +278,58 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
 
   // ── Analyze (multi-image) ──────────────────────────────────────────────────
 
+  const ANALYSIS_TIMEOUT_MS = 30_000;
+
   const handleAnalyze = useCallback(async () => {
     if (images.length === 0) return;
     setCaptureState("analyzing");
+    setErrorMsg(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const promises = images.map(img => analyzeFoodImage(img.base64));
+      const promises = images.map(img => {
+        const timeout = new Promise<never>((_, reject) => {
+          const id = setTimeout(() => {
+            reject(new DOMException("Analysis timed out", "TimeoutError"));
+            controller.abort();
+          }, ANALYSIS_TIMEOUT_MS);
+          // Clear timeout if the controller is aborted externally (cancel button)
+          controller.signal.addEventListener("abort", () => clearTimeout(id), { once: true });
+        });
+        return Promise.race([analyzeFoodImage(img.base64), timeout]);
+      });
+
       const results  = await Promise.all(promises);
       const combined = aggregateResults(results);
       setResult(combined);
       setCaptureState("done");
       onAnalyzed?.(combined);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Analysis failed");
+      // Don't show error if user explicitly cancelled
+      if (controller.signal.aborted && !(err instanceof DOMException && err.name === "TimeoutError")) {
+        setCaptureState("preview");
+        return;
+      }
+
+      if (err instanceof DOMException && err.name === "TimeoutError") {
+        setErrorMsg("Analysis timed out — ML backend may be offline. Try again later.");
+      } else if (err instanceof TypeError || (err instanceof Error && /fetch|network|ECONNREFUSED/i.test(err.message))) {
+        setErrorMsg("Could not reach the analysis server. Check your connection.");
+      } else {
+        setErrorMsg(err instanceof Error ? err.message : "Analysis failed");
+      }
       setCaptureState("error");
+    } finally {
+      abortRef.current = null;
     }
   }, [images, onAnalyzed]);
+
+  const handleCancelAnalysis = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }, []);
 
   // ── Barcode lookup ─────────────────────────────────────────────────────────
 
@@ -525,10 +564,10 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
                   {captureState !== "analyzing" && (
                     <button
                       onClick={() => removeImage(i)}
-                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border border-border/60 flex items-center justify-center"
+                      className="absolute -top-2 -right-2 h-6 w-6 min-w-[44px] min-h-[44px] rounded-full bg-background border border-border/60 flex items-center justify-center"
                       aria-label={`Remove photo ${i + 1}`}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
@@ -553,32 +592,44 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
               </p>
             )}
 
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={reset}
-                disabled={captureState === "analyzing"}
-                className="flex-1"
-              >
-                Retake
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleAnalyze}
-                disabled={captureState === "analyzing"}
-                className="flex-1"
-              >
-                {captureState === "analyzing" ? (
-                  <>
-                    <span className="h-3 w-3 mr-2 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />
-                    Analyzing…
-                  </>
-                ) : (
-                  "Analyze"
-                )}
-              </Button>
-            </div>
+            {captureState === "analyzing" ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-sm font-medium animate-pulse">Analyzing your meal...</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-muted/30 overflow-hidden">
+                  <div className="h-full rounded-full bg-primary/60 animate-pulse" style={{ width: "100%" }} />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCancelAnalysis}
+                  className="w-full"
+                >
+                  <X className="h-3.5 w-3.5 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={reset}
+                  className="flex-1"
+                >
+                  Retake
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAnalyze}
+                  className="flex-1"
+                >
+                  Analyze
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

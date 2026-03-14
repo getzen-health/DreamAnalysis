@@ -17,26 +17,9 @@ public class MainActivity extends BridgeActivity {
     private static final int PERMISSION_REQUEST_CODE = 1001;
     private PermissionRequest pendingPermissionRequest;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        // Request microphone + camera permissions upfront on launch
-        String[] permissions = {
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.CAMERA
-        };
-        boolean needsRequest = false;
-        for (String perm : permissions) {
-            if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
-                needsRequest = true;
-                break;
-            }
-        }
-        if (needsRequest) {
-            ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE);
-        }
-    }
+    // Permissions are requested lazily — only when the WebView needs camera/mic
+    // via the WebChromeClient.onPermissionRequest handler below.
+    // No upfront permission prompts on app launch.
 
     @Override
     public void onStart() {

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Dark background matching app theme -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#0d0f14" />
+        </shape>
+    </item>
+    <!-- Centered brain icon -->
+    <item
+        android:drawable="@drawable/splash_brain"
+        android:gravity="center"
+        android:width="96dp"
+        android:height="96dp" />
+</layer-list>

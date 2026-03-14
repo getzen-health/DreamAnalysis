@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.neuraldreamworkshop.app",
-  appName: "AntarAI",
+  appName: "Neural Dream Workshop",
   // Vite builds the React app to dist/public
   webDir: "dist/public",
   server: {
@@ -27,15 +27,12 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
+      // Skip the Capacitor splash image — our web PageLoader shows a branded splash.
+      // The native windowBackground (splash_screen.xml) covers the brief native load.
+      launchShowDuration: 0,
       launchAutoHide: true,
       backgroundColor: "#0d0f14",
-      iosSpinnerStyle: "small",
-      spinnerColor: "#6366f1",
       showSpinner: false,
-      androidScaleType: "CENTER_CROP",
-      splashFullScreen: true,
-      splashImmersive: true,
     },
     StatusBar: {
       style: "DARK",
