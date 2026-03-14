@@ -268,7 +268,7 @@ export default function DataHub() {
   ];
 
   return (
-    <main className="p-4 md:p-6 space-y-5 max-w-5xl">
+    <main className="p-4 md:p-6 pb-24 space-y-5 max-w-5xl">
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -398,13 +398,15 @@ export default function DataHub() {
 
           {!sessionsLoading && periodSessions.length === 0 && (
             <Card className="glass-card p-10 text-center">
-              <Brain className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No sessions in this period.</p>
-              <p className="text-xs text-muted-foreground/60 mt-1 mb-3">Start a voice check-in or EEG recording to build your history.</p>
-              <Link href="/">
-                <Button size="sm" variant="outline" className="text-xs">
-                  <Activity className="h-3 w-3 mr-1.5" />
-                  Go to Dashboard
+              <Clock className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+              <h3 className="text-base font-semibold mb-1">No sessions yet</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">
+                Record your first voice check-in or connect an EEG device to start tracking your brain health over time.
+              </p>
+              <Link href="/emotions">
+                <Button size="sm">
+                  <Activity className="h-3.5 w-3.5 mr-1.5" />
+                  Start Voice Check-in
                 </Button>
               </Link>
             </Card>

@@ -19,6 +19,7 @@ import {
   stopNeurofeedback,
 } from "@/lib/ml-api";
 import { useDevice } from "@/hooks/use-device";
+import { useToast } from "@/hooks/use-toast";
 
 type SessionPhase = "idle" | "calibrating" | "training" | "summary";
 
@@ -47,14 +48,43 @@ export default function Neurofeedback() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [stats, setStats] = useState<SessionStats | null>(null);
 
+  const { toast } = useToast();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const calibrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load protocols on mount
   useEffect(() => {
     getNeurofeedbackProtocols().then(setProtocols).catch(() => {});
   }, []);
+
+  // Calibration timeout — skip to training after 30 seconds
+  useEffect(() => {
+    if (phase === "calibrating") {
+      calibrationTimeoutRef.current = setTimeout(() => {
+        if (phase === "calibrating") {
+          toast({
+            title: "Calibration timed out",
+            description: "Skipping to training phase with default baseline.",
+            variant: "destructive",
+          });
+          setPhase("training");
+        }
+      }, 30_000);
+    } else {
+      if (calibrationTimeoutRef.current) {
+        clearTimeout(calibrationTimeoutRef.current);
+        calibrationTimeoutRef.current = null;
+      }
+    }
+    return () => {
+      if (calibrationTimeoutRef.current) {
+        clearTimeout(calibrationTimeoutRef.current);
+        calibrationTimeoutRef.current = null;
+      }
+    };
+  }, [phase, toast]);
 
   const playRewardTone = useCallback(() => {
     if (!audioEnabled) return;
@@ -175,7 +205,7 @@ export default function Neurofeedback() {
   const dashOffset = circumference * (1 - score / 100);
 
   return (
-    <main className="p-4 md:p-6 space-y-6">
+    <main className="p-4 md:p-6 pb-24 space-y-6">
       {/* Connection Banner */}
       {!isStreaming && (
         <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
@@ -286,7 +316,7 @@ export default function Neurofeedback() {
 
       {/* Calibrating */}
       {phase === "calibrating" && (
-        <Card className="glass-card p-8 rounded-xl hover-glow max-w-lg mx-auto text-center">
+        <Card className="glass-card p-8 rounded-xl hover-glow max-w-lg mx-auto text-center" aria-live="polite">
           <h3 className="text-lg font-semibold mb-4">Calibrating Baseline</h3>
           <p className="text-sm text-foreground/60 mb-6">
             Relax and breathe normally. Measuring your baseline brain activity from your Muse 2...
@@ -302,7 +332,7 @@ export default function Neurofeedback() {
       {phase === "training" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Score Gauge */}
-          <div className="lg:col-span-2 flex justify-center">
+          <div className="lg:col-span-2 flex justify-center" aria-live="polite" aria-label="Neurofeedback score">
             <Card
               className={`glass-card p-8 rounded-xl hover-glow w-full flex flex-col items-center transition-colors duration-300 ${
                 reward ? "bg-success/5 border-success/30" : ""

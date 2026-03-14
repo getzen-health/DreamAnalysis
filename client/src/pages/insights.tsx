@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "wouter";
 import { getParticipantId } from "@/lib/participant";
 import { resolveUrl } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   LineChart,
   Line,
@@ -28,6 +30,7 @@ import {
   Wind,
   Target,
   Activity,
+  Mic,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { useQuery } from "@tanstack/react-query";
@@ -369,15 +372,13 @@ export default function Insights() {
   };
 
   return (
-    <main className="p-4 md:p-6 space-y-6">
+    <main className="p-4 md:p-6 pb-24 space-y-6">
 
       {/* ── Connection Banner ── */}
-      {!isStreaming && (
-        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
-          <Radio className="h-4 w-4 shrink-0" />
-          {latestVoice
-            ? "Showing voice-based insights. Health and watch signals can refine this further, and EEG is optional later."
-            : "Run a voice check-in first to unlock this page. EEG is optional later if you want live neural narrative."}
+      {!isStreaming && latestVoice && (
+        <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 text-sm text-muted-foreground flex items-center gap-3">
+          <Radio className="h-4 w-4 shrink-0 text-primary" />
+          Showing voice-based insights. Health and watch signals can refine this further, and EEG is optional later.
         </div>
       )}
 
@@ -414,19 +415,29 @@ export default function Insights() {
         </Card>
       )}
 
-      {/* ── Offline: What to expect (only when no voice data either) ── */}
+      {/* ── Offline: empty state — no voice data, no EEG ── */}
       {!isStreaming && !latestVoice && (
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-secondary" />
-            What You'll See Here
+        <Card className="glass-card p-8 rounded-xl text-center">
+          <Mic className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">
+            Complete a voice check-in to unlock your first insights
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+            A 30-second voice check-in analyzes your emotional tone, stress level, and energy.
+            Once recorded, this page will show personalized insights, recommended actions, and trends over time.
+          </p>
+          <Link href="/emotions">
+            <Button size="default" className="mb-6">
+              <Mic className="h-4 w-4 mr-2" />
+              Start Voice Check-in
+            </Button>
+          </Link>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-muted-foreground text-left max-w-lg mx-auto">
             {[
-              { icon: Brain, title: "Brain State Narrative", desc: "A plain-English story of what your brain is doing right now — not just numbers, but what they mean." },
-              { icon: Lightbulb, title: "AI-Generated Insights", desc: "Personalized observations about your focus, creativity, stress, and flow states as they evolve." },
-              { icon: Target, title: "Recommended Actions", desc: "3 specific things you can do right now based on your current brain state." },
-              { icon: Activity, title: "Band Wave Trends", desc: "A live chart showing how your calm, alert, and creative signals shift second by second." },
+              { icon: Brain, title: "Brain State Narrative", desc: "A plain-English story of what your brain is doing — not just numbers, but what they mean." },
+              { icon: Lightbulb, title: "AI-Generated Insights", desc: "Personalized observations about your focus, creativity, stress, and flow states." },
+              { icon: Target, title: "Recommended Actions", desc: "Specific things you can do right now based on your current state." },
+              { icon: Activity, title: "Trends Over Time", desc: "Charts showing how your calm, alert, and creative signals shift over sessions." },
             ].map(({ icon: Icon, title, desc }) => (
               <div key={title} className="flex gap-3">
                 <Icon className="h-4 w-4 text-primary shrink-0 mt-0.5" />

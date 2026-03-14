@@ -302,7 +302,7 @@ export default function FoodLog() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-lg mx-auto py-4 px-4 space-y-4">
+    <div className="max-w-lg mx-auto py-4 px-4 pb-24 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3 pt-1">
         <Utensils className="w-5 h-5 text-amber-400 shrink-0" />

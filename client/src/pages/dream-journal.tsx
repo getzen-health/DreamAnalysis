@@ -68,7 +68,7 @@ export default function DreamJournal() {
   }, [isDreaming, isStreaming]);
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8 space-y-4">
+    <div className="max-w-lg mx-auto px-4 py-8 pb-24 space-y-4">
 
       {/* ── Card 1: Tonight ──────────────────────────────────────────────── */}
       <Card className="p-5">
@@ -85,7 +85,7 @@ export default function DreamJournal() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4" aria-live="polite" aria-label="Dream detection status">
             {/* Sleep stage pill */}
             <div className="flex items-center gap-3">
               <div

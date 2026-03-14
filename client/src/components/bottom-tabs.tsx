@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import {
   Sun,
-  BookOpen,
+  Activity,
   TrendingUp,
   CircleUser,
 } from "lucide-react";
@@ -9,7 +9,7 @@ import { hapticLight } from "@/lib/haptics";
 
 const tabs = [
   { path: "/",        icon: Sun,        label: "Today",   aliases: [] as string[] },
-  { path: "/journal", icon: BookOpen,   label: "Journal", aliases: ["/emotions", "/dream-journal", "/dreams"] },
+  { path: "/emotions", icon: Activity,   label: "Emotions", aliases: ["/journal", "/dream-journal", "/dreams"] },
   { path: "/trends",  icon: TrendingUp, label: "Trends",  aliases: ["/health-analytics", "/insights"] },
   { path: "/you",     icon: CircleUser, label: "You",     aliases: ["/settings", "/profile"] },
 ];
@@ -43,7 +43,7 @@ export function BottomTabs() {
               onClick={() => hapticLight()}
               aria-current={isActive ? "page" : undefined}
               aria-label={tab.label}
-              className="relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 transition-all active:scale-95"
+              className="relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
             >
               {/* Active indicator pill above icon */}
               {isActive && (

@@ -19,10 +19,13 @@ import {
   Sparkles,
   TrendingUp,
   Radio,
+  Mic,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -382,10 +385,10 @@ export default function HealthAnalytics() {
                 Live EEG band power chart: Calm (alpha), Alert (beta), and Creative (theta) percentage over time. Latest values — Calm: {liveBands[liveBands.length - 1]?.calm ?? 0}%, Alert: {liveBands[liveBands.length - 1]?.alert ?? 0}%, Creative: {liveBands[liveBands.length - 1]?.creative ?? 0}%.
               </p>
               <ResponsiveContainer width="100%" height={192}>
-                <LineChart data={liveBands}>
+                <LineChart data={liveBands} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
                   <XAxis dataKey="time" tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 60]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}%`} />
+                  <YAxis domain={[0, 60]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={24} tickFormatter={(v) => `${v}%`} />
                   <Tooltip
                     cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
                     contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
@@ -396,29 +399,43 @@ export default function HealthAnalytics() {
                   <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
-              <div className="flex gap-4 mt-2 flex-wrap">
+              <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">
                 {[
-                  { label: "Calm (α — alpha)",    color: "hsl(152,65%,50%)" },
-                  { label: "Alert (β — beta)",     color: "hsl(200,70%,55%)" },
-                  { label: "Creative (θ — theta)", color: "hsl(270,65%,62%)", dashed: true },
+                  { short: "Calm (α)", full: "Calm (α -- alpha)",    color: "hsl(152,65%,50%)" },
+                  { short: "Alert (β)", full: "Alert (β -- beta)",     color: "hsl(200,70%,55%)" },
+                  { short: "Creative (θ)", full: "Creative (θ -- theta)", color: "hsl(270,65%,62%)", dashed: true },
                 ].map((l) => (
-                  <div key={l.label} className="flex items-center gap-1.5">
-                    <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
-                    <span className="text-[10px] text-muted-foreground">{l.label}</span>
+                  <div key={l.short} className="flex items-center gap-1">
+                    <svg width="14" height="8"><line x1="0" y1="4" x2="14" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
+                    <span className="text-[10px] text-muted-foreground hidden sm:inline">{l.full}</span>
+                    <span className="text-[9px] text-muted-foreground sm:hidden">{l.short}</span>
                   </div>
                 ))}
               </div>
             </>
           )
         ) : !hasChartData ? (
-          <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-            <Brain className="h-8 w-8 opacity-30" />
-            <p>{isLiveToday ? "Connect device to see trends" : "No sessions in this period"}</p>
+          <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-3">
+            <Brain className="h-8 w-8 opacity-30" aria-hidden="true" />
+            <p className="font-medium text-foreground/70">
+              {isLiveToday ? "Start your first session to see trends" : "No sessions in this period"}
+            </p>
+            {isLiveToday && (
+              <Link href="/emotions">
+                <Button
+                  size="sm"
+                  className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
+                >
+                  <Mic className="h-3.5 w-3.5 mr-1.5" />
+                  Voice Check-in
+                </Button>
+              </Link>
+            )}
           </div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={192}>
-              <AreaChart data={chartData}>
+              <AreaChart data={chartData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
                 <defs>
                   <linearGradient id="focusGradH" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(200,70%,55%)" stopOpacity={0.25} />
@@ -439,16 +456,16 @@ export default function HealthAnalytics() {
                 <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(262,45%,65%)" strokeWidth={1.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
               </AreaChart>
             </ResponsiveContainer>
-            <div className="flex gap-4 mt-2 flex-wrap">
+            <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">
               {[
                 { label: "Focus",   color: "hsl(200,70%,55%)" },
                 { label: "Stress",  color: "hsl(38,85%,58%)",  dashed: true },
                 { label: "Relax",   color: "hsl(152,60%,48%)" },
                 { label: "Flow",    color: "hsl(262,45%,65%)", dashed: true },
               ].map((l) => (
-                <div key={l.label} className="flex items-center gap-1.5">
-                  <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
-                  <span className="text-[10px] text-muted-foreground">{l.label}</span>
+                <div key={l.label} className="flex items-center gap-1">
+                  <svg width="14" height="8"><line x1="0" y1="4" x2="14" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
+                  <span className="text-[9px] sm:text-[10px] text-muted-foreground">{l.label}</span>
                 </div>
               ))}
             </div>

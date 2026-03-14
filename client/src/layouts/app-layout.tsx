@@ -11,6 +11,7 @@ import { usePullRefresh } from "@/hooks/use-pull-refresh";
 import { registerNativePush } from "@/lib/native-push";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
+import { useKeyboardScroll } from "@/hooks/use-keyboard-scroll";
 import { pingBackend } from "@/lib/ml-api";
 import { Loader2, Sun, Moon } from "lucide-react";
 
@@ -47,6 +48,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
   // Start HealthKit / Health Connect auto-sync on first mount (no-op on web)
   useHealthSync();
+  // On mobile, scroll focused inputs into view when the virtual keyboard opens
+  useKeyboardScroll();
 
   // Android hardware back button: navigate back instead of exiting the app.
   // In Capacitor WebView, the hardware back button fires "backbutton" on document.

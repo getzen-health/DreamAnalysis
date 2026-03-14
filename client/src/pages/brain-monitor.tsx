@@ -7,10 +7,12 @@ import { SessionControls } from "@/components/session-controls";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Radio,
   Brain,
   Zap,
+  Play,
 } from "lucide-react";
 import { useInference } from "@/hooks/use-inference";
 import { useDevice } from "@/hooks/use-device";
@@ -248,7 +250,7 @@ export default function BrainMonitor() {
   ];
 
   return (
-    <main className="p-4 md:p-6 space-y-6">
+    <main className="p-4 md:p-6 pb-24 space-y-6">
       {isStreaming && reconnectCount > 0 && (
         <div className="rounded-md bg-amber-500/10 border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-400">
           Reconnecting to EEG stream… (attempt {reconnectCount})
@@ -258,9 +260,21 @@ export default function BrainMonitor() {
 
       {/* Connection Banner */}
       {!isStreaming && (
-        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning flex items-center gap-3">
-          <Radio className="h-4 w-4 shrink-0" />
-          EEG is offline. You can still use voice + health features elsewhere; connect Muse only for live brain data here.
+        <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 text-sm text-warning">
+          <div className="flex items-center gap-3">
+            <Radio className="h-4 w-4 shrink-0" />
+            EEG is offline. You can still use voice + health features elsewhere; connect Muse only for live brain data here.
+          </div>
+          <div className="mt-3 flex justify-start">
+            <Button
+              size="sm"
+              onClick={() => device.connect("synthetic")}
+              className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
+            >
+              <Play className="h-3.5 w-3.5 mr-1.5" />
+              Try Synthetic Device
+            </Button>
+          </div>
         </div>
       )}
 
@@ -369,7 +383,7 @@ export default function BrainMonitor() {
               {isStreaming && (
                 <Radio className="h-4 w-4 text-primary animate-pulse" />
               )}
-              <span className={`text-sm font-mono ${sourceColor}`}>
+              <span className={`text-sm font-mono ${sourceColor}`} aria-live="polite">
                 {sourceLabel}
               </span>
               {isReady && isStreaming && (
