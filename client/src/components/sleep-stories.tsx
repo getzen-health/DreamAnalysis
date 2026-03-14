@@ -31,6 +31,8 @@ import { SleepStoryPlayer } from "@/components/sleep-story-player";
 
 // ─── Story catalogue ──────────────────────────────────────────────────────────
 
+import type { AmbientType } from "@/lib/ambient-audio";
+
 interface StoryMeta {
   id: string;
   title: string;
@@ -38,8 +40,8 @@ interface StoryMeta {
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
-  /** Placeholder src — in production replace with real hosted audio URLs */
-  audioSrc: string;
+  /** Which procedural ambient generator to use (Web Audio API) */
+  audioType: AmbientType;
 }
 
 const STORIES: StoryMeta[] = [
@@ -50,7 +52,7 @@ const STORIES: StoryMeta[] = [
     description: "Slow, rhythmic waves lapping a quiet shore at night.",
     icon: Waves,
     color: "hsl(210, 80%, 55%)",
-    audioSrc: "https://cdn.freesound.org/previews/422/422937_5121236-lq.mp3",
+    audioType: "ocean",
   },
   {
     id: "mountain-rain",
@@ -59,7 +61,7 @@ const STORIES: StoryMeta[] = [
     description: "Steady rain on pine trees in an alpine clearing.",
     icon: CloudRain,
     color: "hsl(230, 60%, 58%)",
-    audioSrc: "https://cdn.freesound.org/previews/346/346642_5450487-lq.mp3",
+    audioType: "rain",
   },
   {
     id: "forest-walk",
@@ -68,7 +70,7 @@ const STORIES: StoryMeta[] = [
     description: "Birdsong, distant wind, and the creak of tall oaks.",
     icon: Trees,
     color: "hsl(152, 60%, 46%)",
-    audioSrc: "https://cdn.freesound.org/previews/531/531947_11861866-lq.mp3",
+    audioType: "forest",
   },
   {
     id: "night-sky",
@@ -77,7 +79,7 @@ const STORIES: StoryMeta[] = [
     description: "Deep silence with occasional distant owl calls and soft wind.",
     icon: Star,
     color: "hsl(260, 65%, 60%)",
-    audioSrc: "https://cdn.freesound.org/previews/586/586178_7037-lq.mp3",
+    audioType: "night",
   },
   {
     id: "gentle-stream",
@@ -86,7 +88,7 @@ const STORIES: StoryMeta[] = [
     description: "A babbling brook flowing over smooth stones.",
     icon: Droplets,
     color: "hsl(190, 70%, 50%)",
-    audioSrc: "https://cdn.freesound.org/previews/531/531940_11861866-lq.mp3",
+    audioType: "stream",
   },
   {
     id: "campfire",
@@ -95,7 +97,7 @@ const STORIES: StoryMeta[] = [
     description: "The soft crackle and warmth of a campfire under open stars.",
     icon: Flame,
     color: "hsl(30, 85%, 55%)",
-    audioSrc: "https://cdn.freesound.org/previews/476/476178_6852861-lq.mp3",
+    audioType: "campfire",
   },
 ];
 
@@ -176,7 +178,7 @@ function StoryCard({
       {/* Inline player — shown when this story is selected */}
       {isSelected && (
         <SleepStoryPlayer
-          audioSrc={story.audioSrc}
+          audioType={story.audioType}
           title={story.title}
           eegConnected={eegConnected}
           onSleepDetected={onSleepDetected}

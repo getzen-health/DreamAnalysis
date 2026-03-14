@@ -1,7 +1,7 @@
 /**
  * sleep-story-player.tsx
  *
- * Plays a single sleep story audio track.
+ * Plays a procedurally generated ambient soundscape using Web Audio API.
  *
  * Two operating modes:
  *   - Timer mode  (eegConnected === false / undefined):
@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { fadeOutAudio, cancelFade } from "@/lib/audio-fade";
+import { createAmbientAudio, type AmbientType, type AmbientHandle } from "@/lib/ambient-audio";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ const TIMER_PRESETS = [
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface SleepStoryPlayerProps {
-  audioSrc: string;
+  audioType: AmbientType;
   title: string;
   eegConnected?: boolean;
   onSleepDetected?: (latencyMs: number) => void;
@@ -96,23 +97,22 @@ export interface SleepStoryPlayerProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SleepStoryPlayer({
-  audioSrc,
+  audioType,
   title,
   eegConnected = false,
   onSleepDetected,
 }: SleepStoryPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ambientRef = useRef<AmbientHandle | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
-  const [progress, setProgress] = useState(0); // 0–100
-  const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [elapsed, setElapsed] = useState(0); // seconds since play started
 
   // Timer mode state
   const [selectedPreset, setSelectedPreset] = useState(TIMER_PRESETS[1]); // 30 min default
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // EEG Auto mode state
   const [fadeStarted, setFadeStarted] = useState(false);
@@ -125,41 +125,29 @@ export function SleepStoryPlayer({
     return records.find((r) => r.storyTitle === title) ?? null;
   });
 
-  // ── Audio element bootstrap ──────────────────────────────────────────────
+  // ── Cleanup on unmount or audioType change ─────────────────────────────────
   useEffect(() => {
-    const audio = new Audio(audioSrc);
-    audio.preload = "metadata";
-    audio.volume = volume;
-    audio.loop = true;
-    audioRef.current = audio;
-
-    const onLoadedMetadata = () => setDuration(audio.duration);
-    const onTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-      if (audio.duration > 0) {
-        setProgress((audio.currentTime / audio.duration) * 100);
-      }
-    };
-
-    audio.addEventListener("loadedmetadata", onLoadedMetadata);
-    audio.addEventListener("timeupdate", onTimeUpdate);
-
     return () => {
-      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
-      audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.pause();
-      cancelFade(audio);
+      if (ambientRef.current) {
+        ambientRef.current.stop();
+        ambientRef.current = null;
+      }
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
     };
-  }, [audioSrc]); // re-create when src changes
+  }, [audioType]);
 
-  // ── Sync volume changes to audio element ─────────────────────────────────
+  // ── Sync volume changes to gain node ───────────────────────────────────────
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
+    if (ambientRef.current && !fadeStarted) {
+      ambientRef.current.gainNode.gain.setValueAtTime(
+        isMuted ? 0 : volume,
+        ambientRef.current.audioContext.currentTime,
+      );
     }
-  }, [volume, isMuted]);
+  }, [volume, isMuted, fadeStarted]);
 
-  // ── Timer mode: schedule fade after preset ───────────────────────────────
+  // ── Timer mode: schedule fade after preset ─────────────────────────────────
   useEffect(() => {
     if (!isPlaying || eegConnected || fadeStarted) return;
 
@@ -167,9 +155,14 @@ export function SleepStoryPlayer({
     if (timerRef.current) clearTimeout(timerRef.current);
 
     timerRef.current = setTimeout(() => {
-      if (audioRef.current) {
+      const ambient = ambientRef.current;
+      if (ambient) {
         setFadeStarted(true);
-        fadeOutAudio(audioRef.current).then(() => setIsPlaying(false));
+        fadeOutAudio(ambient.gainNode, 90_000, () => {
+          ambient.stop();
+          ambientRef.current = null;
+          setIsPlaying(false);
+        });
       }
     }, selectedPreset.ms);
 
@@ -178,14 +171,15 @@ export function SleepStoryPlayer({
     };
   }, [isPlaying, eegConnected, fadeStarted, selectedPreset]);
 
-  // ── EEG Auto mode: listen for sleep-stage-transition event ───────────────
+  // ── EEG Auto mode: listen for sleep-stage-transition event ─────────────────
   useEffect(() => {
     if (!eegConnected) return;
 
     const handleTransition = (evt: Event) => {
       const e = evt as SleepStageTransitionEvent;
       if (e.detail?.from === "N1" && e.detail?.to === "N2") {
-        if (audioRef.current && isPlaying && !fadeStarted) {
+        const ambient = ambientRef.current;
+        if (ambient && isPlaying && !fadeStarted) {
           setFadeStarted(true);
 
           // Compute sleep latency
@@ -206,7 +200,11 @@ export function SleepStoryPlayer({
           saveLatencyRecord(record);
           setLastRecord(record);
 
-          fadeOutAudio(audioRef.current).then(() => setIsPlaying(false));
+          fadeOutAudio(ambient.gainNode, 90_000, () => {
+            ambient.stop();
+            ambientRef.current = null;
+            setIsPlaying(false);
+          });
         }
       }
     };
@@ -215,34 +213,42 @@ export function SleepStoryPlayer({
     return () => window.removeEventListener("sleep-stage-transition", handleTransition);
   }, [eegConnected, isPlaying, fadeStarted, title, onSleepDetected]);
 
-  // ── Transport controls ────────────────────────────────────────────────────
+  // ── Transport controls ──────────────────────────────────────────────────────
   const togglePlayPause = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
     if (isPlaying) {
-      audio.pause();
+      // Stop
+      if (ambientRef.current) {
+        cancelFade(ambientRef.current.gainNode);
+        ambientRef.current.stop();
+        ambientRef.current = null;
+      }
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (elapsedIntervalRef.current) clearInterval(elapsedIntervalRef.current);
       setIsPlaying(false);
+      setElapsed(0);
     } else {
-      // Reset fade state when starting fresh
+      // Start fresh
       setFadeStarted(false);
       setSleepLatencyMs(null);
-      cancelFade(audio);
-      audio.volume = isMuted ? 0 : volume;
-      playStartRef.current = Date.now();
-      audio.play().catch(() => {
-        // Autoplay blocked — user gesture already present, so this is unusual
-      });
-      setIsPlaying(true);
-    }
-  }, [isPlaying, isMuted, volume]);
+      setElapsed(0);
 
-  const handleSeek = useCallback((value: number[]) => {
-    const audio = audioRef.current;
-    if (!audio || !duration) return;
-    audio.currentTime = (value[0] / 100) * duration;
-  }, [duration]);
+      const ambient = createAmbientAudio(audioType);
+      ambient.gainNode.gain.setValueAtTime(
+        isMuted ? 0 : volume,
+        ambient.audioContext.currentTime,
+      );
+      ambient.start();
+      ambientRef.current = ambient;
+
+      playStartRef.current = Date.now();
+      setIsPlaying(true);
+
+      // Track elapsed time for display
+      elapsedIntervalRef.current = setInterval(() => {
+        setElapsed((prev) => prev + 1);
+      }, 1000);
+    }
+  }, [isPlaying, isMuted, volume, audioType]);
 
   const handleVolumeChange = useCallback((value: number[]) => {
     setVolume(value[0] / 100);
@@ -251,14 +257,14 @@ export function SleepStoryPlayer({
 
   const toggleMute = useCallback(() => setIsMuted((m) => !m), []);
 
-  // ── Time formatting ───────────────────────────────────────────────────────
+  // ── Time formatting ─────────────────────────────────────────────────────────
   function fmtTime(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <Card className="glass-card p-5 space-y-5">
       {/* Header */}
@@ -294,20 +300,10 @@ export function SleepStoryPlayer({
         </Badge>
       </div>
 
-      {/* Progress bar */}
-      <div className="space-y-1">
-        <Slider
-          min={0}
-          max={100}
-          step={0.1}
-          value={[progress]}
-          onValueChange={handleSeek}
-          className="cursor-pointer"
-        />
-        <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-          <span>{fmtTime(currentTime)}</span>
-          <span>{duration > 0 ? fmtTime(duration) : "—"}</span>
-        </div>
+      {/* Elapsed time display */}
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+        <span>{fmtTime(elapsed)}</span>
+        <span>{isPlaying ? "playing" : "stopped"}</span>
       </div>
 
       {/* Transport + volume row */}
@@ -390,7 +386,7 @@ export function SleepStoryPlayer({
       {fadeStarted && isPlaying && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
           <Moon className="h-3.5 w-3.5 text-primary" />
-          Fading out gently over 90 seconds…
+          Fading out gently over 90 seconds...
         </div>
       )}
 

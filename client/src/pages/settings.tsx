@@ -37,8 +37,10 @@ import { useQuery } from "@tanstack/react-query";
 const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
 import { ingestHealthData, addBaselineFrame, getBaselineStatus, resetBaselineCalibration, getCalibrationStatus, getPersonalStatus, triggerPersonalFineTune } from "@/lib/ml-api";
+import { getPushStatus, type PushStatusResult } from "@/lib/native-push";
 import HealthSyncDashboard from "@/components/health-sync-dashboard";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SettingsState {
   chartAnimations: boolean;
@@ -78,7 +80,20 @@ export default function SettingsPage() {
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [exportingHealthkit, setExportingHealthkit] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+  const [exportingDreams, setExportingDreams] = useState(false);
   const [seedingDemo, setSeedingDemo] = useState(false);
+  const [platform, setPlatform] = useState<"web" | "ios" | "android">("web");
+
+  // Detect platform once on mount
+  useEffect(() => {
+    import("@capacitor/core").then(({ Capacitor }) => {
+      const p = Capacitor.getPlatform();
+      setPlatform(p === "ios" ? "ios" : p === "android" ? "android" : "web");
+    }).catch(() => {
+      // Capacitor not available — running in browser
+    });
+  }, []);
 
   const appleFileRef = useRef<HTMLInputElement>(null);
   const googleFileRef = useRef<HTMLInputElement>(null);
@@ -273,32 +288,42 @@ export default function SettingsPage() {
   };
 
   const handleDataExport = async () => {
+    setExportingData(true);
     try {
       const response = await fetch(resolveUrl(`/api/export/${userId}`));
+      if (!response.ok) throw new Error("Export request failed");
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const dlUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = dlUrl;
       a.download = "neural_data.csv";
       a.click();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(dlUrl);
+      toast({ title: "Export complete", description: "Health data CSV downloaded." });
     } catch (error) {
-      console.error("Export failed:", error);
+      toast({ title: "Export failed", description: String(error), variant: "destructive" });
+    } finally {
+      setExportingData(false);
     }
   };
 
   const handleDreamExport = async () => {
+    setExportingDreams(true);
     try {
       const response = await fetch(resolveUrl(`/api/export/${userId}?type=dreams`));
+      if (!response.ok) throw new Error("Export request failed");
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const dlUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = dlUrl;
       a.download = "dream_analysis.csv";
       a.click();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(dlUrl);
+      toast({ title: "Export complete", description: "Dream analysis CSV downloaded." });
     } catch (error) {
-      console.error("Dream export failed:", error);
+      toast({ title: "Export failed", description: String(error), variant: "destructive" });
+    } finally {
+      setExportingDreams(false);
     }
   };
 
@@ -411,7 +436,11 @@ export default function SettingsPage() {
               <div>
                 <p className="text-sm font-medium">Google Health Connect</p>
                 <p className="text-xs text-muted-foreground">
-                  {healthStatus.google_fit ? "Connected" : "Not connected"}
+                  {healthStatus.google_fit
+                    ? "Connected"
+                    : platform === "android"
+                    ? "Install Google Health Connect from Play Store to sync health data"
+                    : "Not connected"}
                 </p>
               </div>
               <Button
@@ -507,7 +536,11 @@ export default function SettingsPage() {
                     ) : (
                       <>
                         <XCircle className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Not Connected</span>
+                        <span className="text-xs text-muted-foreground">
+                          {platform === "android"
+                            ? "Install Google Health Connect from Play Store to sync health data"
+                            : "Not Connected"}
+                        </span>
                       </>
                     )}
                   </div>
@@ -632,20 +665,22 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <Button
               onClick={handleDataExport}
+              disabled={exportingData}
               className="w-full bg-success/10 border border-success/30 text-success hover:bg-success/20"
               data-testid="button-export-health-data"
             >
               <Download className="mr-2 h-4 w-4" />
-              Export Health Data (CSV)
+              {exportingData ? "Exporting..." : "Export Health Data (CSV)"}
             </Button>
             <Button
               variant="outline"
               className="w-full bg-secondary/10 border border-secondary/30 text-secondary hover:bg-secondary/20"
               onClick={handleDreamExport}
+              disabled={exportingDreams}
               data-testid="button-export-dream-analysis"
             >
               <Download className="mr-2 h-4 w-4" />
-              Export Dream Analysis
+              {exportingDreams ? "Exporting..." : "Export Dream Analysis"}
             </Button>
           </div>
           <div className="mt-6 text-xs text-foreground/50">
@@ -659,23 +694,19 @@ export default function SettingsPage() {
             Privacy & Security
           </h3>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Local Data Processing</Label>
+            <div className="flex items-center justify-between opacity-50">
+              <Label className="text-sm">Local Data Processing <span className="text-xs text-muted-foreground">(Coming soon)</span></Label>
               <Switch
-                checked={settings.localProcessing}
-                onCheckedChange={(checked) =>
-                  updateSetting("localProcessing", checked)
-                }
+                checked={false}
+                disabled
                 data-testid="switch-local-processing"
               />
             </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Data Encryption</Label>
+            <div className="flex items-center justify-between opacity-50">
+              <Label className="text-sm">Data Encryption <span className="text-xs text-muted-foreground">(Coming soon)</span></Label>
               <Switch
-                checked={settings.dataEncryption}
-                onCheckedChange={(checked) =>
-                  updateSetting("dataEncryption", checked)
-                }
+                checked={false}
+                disabled
                 data-testid="switch-data-encryption"
               />
             </div>
@@ -1064,6 +1095,10 @@ function MLBackendCard() {
   function save() {
     try {
       const trimmed = url.trim().replace(/\/$/, "");
+      if (trimmed && !/^https?:\/\/.+/.test(trimmed)) {
+        toast({ title: "Invalid URL", description: "URL must start with http:// or https://", variant: "destructive" });
+        return;
+      }
       if (trimmed) {
         localStorage.setItem("ml_backend_url", trimmed);
       } else {
@@ -1161,6 +1196,14 @@ function NotificationsCard({ userId }: { userId: string }) {
     typeof Notification !== "undefined" ? Notification.permission : "default"
   );
   const [subscribing, setSubscribing] = useState(false);
+  const [pushStatus, setPushStatus] = useState<PushStatusResult | null>(null);
+
+  // Check native push availability on mount
+  useEffect(() => {
+    getPushStatus().then(setPushStatus).catch(() => {
+      setPushStatus({ available: false, reason: "Could not determine push notification status." });
+    });
+  }, []);
 
   const supported =
     typeof window !== "undefined" &&
@@ -1232,6 +1275,9 @@ function NotificationsCard({ userId }: { userId: string }) {
     }
   }
 
+  // If native push status says unavailable, show the reason instead of a broken toggle
+  const nativeUnavailable = pushStatus !== null && !pushStatus.available;
+
   return (
     <Card className="glass-card p-6 rounded-xl">
       <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
@@ -1242,21 +1288,28 @@ function NotificationsCard({ userId }: { userId: string }) {
         Get a daily push notification at 8 am with your Brain Report — sleep quality, focus forecast, and top recommended action.
       </p>
 
-      {!supported && (
+      {nativeUnavailable && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
+          <BellOff className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{pushStatus.reason}</span>
+        </div>
+      )}
+
+      {!nativeUnavailable && !supported && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
           <Info className="h-4 w-4 shrink-0 mt-0.5" />
           <span>Push notifications are not supported in this browser.</span>
         </div>
       )}
 
-      {supported && permission === "denied" && (
+      {!nativeUnavailable && supported && permission === "denied" && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive">
           <BellOff className="h-4 w-4 shrink-0 mt-0.5" />
           <span>Notifications are blocked. Enable them in your browser's site settings, then reload.</span>
         </div>
       )}
 
-      {supported && permission !== "denied" && (
+      {!nativeUnavailable && supported && permission !== "denied" && (
         <div className="flex items-center justify-between">
           <div>
             {permission === "granted" ? (
@@ -1276,7 +1329,7 @@ function NotificationsCard({ userId }: { userId: string }) {
           ) : (
             <Button size="sm" onClick={enableNotifications} disabled={subscribing}>
               <Bell className="h-3.5 w-3.5 mr-1.5" />
-              {subscribing ? "Enabling…" : "Enable notifications"}
+              {subscribing ? "Enabling..." : "Enable notifications"}
             </Button>
           )}
         </div>
@@ -1553,7 +1606,17 @@ function PersonalModelCard({ userId }: { userId: string }) {
       </div>
 
       {isLoading && (
-        <p className="text-xs text-muted-foreground animate-pulse">Loading personalization status…</p>
+        <div className="space-y-3">
+          <Skeleton className="h-3 w-3/4" />
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-12" />
+            </div>
+            <Skeleton className="h-2 w-full rounded-full" />
+          </div>
+          <Skeleton className="h-8 w-full rounded-md" />
+        </div>
       )}
 
       {status && (

@@ -138,6 +138,67 @@ export async function registerNativePush(): Promise<NativePushToken | null> {
   }
 }
 
+// ── Push status helper ────────────────────────────────────────────────────────
+
+export interface PushStatusResult {
+  available: boolean;
+  reason?: string;
+}
+
+/**
+ * Returns the current push notification availability and an explanation
+ * if unavailable. Use this in Settings to show honest status to the user
+ * instead of a broken toggle.
+ */
+export async function getPushStatus(): Promise<PushStatusResult> {
+  // Web browser
+  if (!isNative()) {
+    const supported =
+      typeof window !== "undefined" &&
+      "serviceWorker" in navigator &&
+      "Notification" in window;
+    if (!supported) {
+      return { available: false, reason: "Push notifications are not supported in this browser." };
+    }
+    // Web push is supported — availability depends on permission
+    const perm = Notification.permission;
+    if (perm === "denied") {
+      return { available: false, reason: "Notifications are blocked. Enable them in your browser settings." };
+    }
+    return { available: true };
+  }
+
+  // Native: Android — Firebase not configured
+  if (Capacitor.getPlatform() === "android") {
+    return {
+      available: false,
+      reason: "Push notifications require Firebase setup, which is not configured yet.",
+    };
+  }
+
+  // Native: iOS — check actual permission status
+  try {
+    const { PushNotifications } = await import("@capacitor/push-notifications");
+    const permStatus = await PushNotifications.checkPermissions();
+    if (permStatus.receive === "granted") {
+      return { available: true };
+    }
+    if (permStatus.receive === "denied") {
+      return {
+        available: false,
+        reason: "Notifications are blocked. Enable them in Settings > Notifications.",
+      };
+    }
+    // "prompt" — user hasn't decided yet, but it's available
+    return { available: true };
+  } catch {
+    return {
+      available: false,
+      reason: "Could not check notification permissions.",
+    };
+  }
+}
+
 /**
  * Clear the stored notification badge count (iOS).
  * Call this when the user opens a notification-triggered page.

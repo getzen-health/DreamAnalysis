@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Bot,
   Send,
@@ -221,7 +222,7 @@ export function AICompanion({ userId }: AICompanionProps) {
   const analysis = latestFrame?.analysis;
 
   // Load chat history — swallow errors so the component always mounts cleanly
-  const { data: chatHistory = [] } = useQuery<ChatResponse[]>({
+  const { data: chatHistory = [], isLoading: chatLoading } = useQuery<ChatResponse[]>({
     queryKey: ["ai-chat", userId],
     queryFn: async () => {
       try {
@@ -389,7 +390,37 @@ export function AICompanion({ userId }: AICompanionProps) {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {chatHistory.length === 0 && !isTyping && (
+          {chatLoading && (
+            <div className="space-y-4">
+              {/* Skeleton AI message */}
+              <div className="flex items-end gap-2">
+                <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                <div className="space-y-2 max-w-lg">
+                  <Skeleton className="h-3 w-48" />
+                  <Skeleton className="h-3 w-36" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              </div>
+              {/* Skeleton user message */}
+              <div className="flex items-end gap-2 justify-end">
+                <div className="space-y-2 max-w-lg">
+                  <Skeleton className="h-3 w-32 ml-auto" />
+                  <Skeleton className="h-3 w-20 ml-auto" />
+                </div>
+                <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+              </div>
+              {/* Skeleton AI response */}
+              <div className="flex items-end gap-2">
+                <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                <div className="space-y-2 max-w-lg">
+                  <Skeleton className="h-3 w-56" />
+                  <Skeleton className="h-3 w-44" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!chatLoading && chatHistory.length === 0 && !isTyping && (
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shrink-0">
                 <Bot className="h-4 w-4 text-white" />

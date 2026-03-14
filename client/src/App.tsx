@@ -88,14 +88,62 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return this.props.fallback ?? (
-        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-muted-foreground text-sm p-8">
-          <p>Something went wrong on this page.</p>
-          <button
-            className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-xs"
-            onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
-          >
-            Reload
-          </button>
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-6 bg-background text-foreground p-8">
+          {/* Brain icon for brand consistency */}
+          <div className="relative">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-destructive/70"
+            >
+              <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+              <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+              <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+              <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+              <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+              <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+              <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+              <path d="M6 18a4 4 0 0 1-1.967-.516" />
+              <path d="M19.967 17.484A4 4 0 0 1 18 18" />
+            </svg>
+          </div>
+
+          <div className="text-center space-y-2 max-w-md">
+            <h2 className="text-lg font-semibold text-foreground">Something went wrong</h2>
+            {this.state.error?.message && (
+              <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2 font-mono break-words">
+                {this.state.error.message}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+            >
+              Reload Page
+            </button>
+            <button
+              className="px-4 py-2 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
+              onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = "/"; }}
+            >
+              Go Home
+            </button>
+            <button
+              className="px-4 py-2 rounded-lg border border-destructive/30 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+              onClick={() => { localStorage.clear(); window.location.href = "/"; }}
+            >
+              Clear Data & Reload
+            </button>
+          </div>
         </div>
       );
     }

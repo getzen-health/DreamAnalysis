@@ -30,6 +30,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   listSessions,
   deleteSession,
@@ -369,7 +370,31 @@ export default function DataHub() {
       {/* ══ Sessions Tab ══════════════════════════════════════════ */}
       {tab === "sessions" && (
         <div className="space-y-4">
-          {sessionsLoading && <p className="text-sm text-muted-foreground">Loading sessions...</p>}
+          {sessionsLoading && (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="glass-card p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-3 w-12" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      <div className="flex gap-1">
+                        <Skeleton className="h-5 w-14 rounded-full" />
+                        <Skeleton className="h-5 w-14 rounded-full" />
+                        <Skeleton className="h-5 w-14 rounded-full" />
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Skeleton className="h-7 w-7 rounded-md" />
+                      <Skeleton className="h-7 w-7 rounded-md" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {!sessionsLoading && periodSessions.length === 0 && (
             <Card className="glass-card p-10 text-center">
@@ -583,7 +608,23 @@ export default function DataHub() {
       {/* ══ Emotions Tab ══════════════════════════════════════════ */}
       {tab === "emotions" && (
         <div className="space-y-4">
-          {emotionsLoading && <p className="text-sm text-muted-foreground">Loading readings...</p>}
+          {emotionsLoading && (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="glass-card p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-3 w-14" />
+                    <Skeleton className="h-3 w-20" />
+                    <div className="flex gap-2">
+                      <Skeleton className="h-3 w-10" />
+                      <Skeleton className="h-3 w-10" />
+                      <Skeleton className="h-3 w-10" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {!emotionsLoading && emotions.length === 0 && (
             <Card className="glass-card p-10 text-center">
@@ -652,7 +693,21 @@ export default function DataHub() {
       {/* ══ Dreams Tab ════════════════════════════════════════════ */}
       {tab === "dreams" && (
         <div className="space-y-4">
-          {dreamsLoading && <p className="text-sm text-muted-foreground">Loading dreams...</p>}
+          {dreamsLoading && (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="glass-card p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                  <Skeleton className="h-3 w-full mb-1.5" />
+                  <Skeleton className="h-3 w-4/5 mb-1.5" />
+                  <Skeleton className="h-3 w-3/5" />
+                </Card>
+              ))}
+            </div>
+          )}
 
           {!dreamsLoading && periodDreams.length === 0 && (
             <Card className="glass-card p-10 text-center">
@@ -701,7 +756,23 @@ export default function DataHub() {
       {/* ══ Health Tab ════════════════════════════════════════════ */}
       {tab === "health" && (
         <div className="space-y-4">
-          {healthLoading && <p className="text-sm text-muted-foreground">Loading health data...</p>}
+          {healthLoading && (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="glass-card p-4">
+                  <div className="flex items-center gap-4">
+                    <Skeleton className="h-3 w-28" />
+                    <div className="flex gap-3">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {!healthLoading && periodHealth.length === 0 && (
             <Card className="glass-card p-10 text-center">
