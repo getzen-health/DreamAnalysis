@@ -31,9 +31,11 @@ import {
   Target,
   Activity,
   Mic,
+  Share2,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 interface BandHistoryPoint {
   time: string;
@@ -177,6 +179,7 @@ function voiceNarrative(voice: Record<string, unknown>): { headline: string; sto
 
 export default function Insights() {
   const { latestFrame, state: deviceState } = useDevice();
+  const { toast } = useToast();
   const isStreaming = deviceState === "streaming";
 
   const { data: latestVoice } = useQuery<Record<string, unknown> | null>({
@@ -459,9 +462,28 @@ export default function Insights() {
               <Sparkles className="h-4 w-4 text-secondary" />
               {isStreaming ? "AI Brain Insights" : "Voice Insights"}
             </h3>
-            <Badge variant="outline" className={`text-[10px] ${isStreaming ? "border-primary/30 text-primary animate-pulse" : "border-secondary/30 text-secondary"}`}>
-              {isStreaming ? "LIVE" : "VOICE"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  const items = isStreaming ? liveInsights : voiceInsightItems;
+                  const summary = items.map((i) => `${i.title}: ${i.description}`).join("\n");
+                  const text = `My insights from Neural Dream Workshop:\n${summary}`;
+                  if (navigator.share) {
+                    try { await navigator.share({ text }); } catch { /* cancelled */ }
+                  } else {
+                    await navigator.clipboard.writeText(text);
+                    toast({ title: "Copied to clipboard!" });
+                  }
+                }}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+                aria-label="Share insights"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </button>
+              <Badge variant="outline" className={`text-[10px] ${isStreaming ? "border-primary/30 text-primary animate-pulse" : "border-secondary/30 text-secondary"}`}>
+                {isStreaming ? "LIVE" : "VOICE"}
+              </Badge>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(isStreaming ? liveInsights : voiceInsightItems).map((insight, i) => {

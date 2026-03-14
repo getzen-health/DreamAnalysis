@@ -96,23 +96,35 @@ export function StreakCard({ userId }: StreakCardProps) {
   const hasStreak = streak_days > 0;
   const isGreen = streak_days >= 7;
 
+  // Calculate hours remaining until midnight for streak reset warning
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const hoursUntilReset = Math.round((midnight.getTime() - now.getTime()) / 3_600_000);
+
+  // Milestone badges — 7d, 14d, 30d, 100d
+  const STREAK_MILESTONES = [7, 14, 30, 100];
+
   return (
     <Card className="bg-card rounded-xl border border-border/50 shadow-sm">
       <CardContent className="p-4 space-y-3">
-        {/* Header */}
+        {/* Header — prominent streak number */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Flame
-              className={`h-5 w-5 ${isGreen ? "text-emerald-500" : "text-orange-400"}`}
+              className={`h-6 w-6 ${isGreen ? "text-emerald-500" : "text-orange-400"}`}
             />
             <div>
-              <p className="text-sm font-semibold leading-tight">
-                {hasStreak
-                  ? `${streak_days} day streak${isGreen ? " 🔥" : ""}`
-                  : "Start your streak today"}
-              </p>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-extrabold tabular-nums leading-none text-foreground">
+                  {streak_days}
+                </span>
+                <span className="text-sm font-semibold text-muted-foreground">
+                  day{streak_days !== 1 ? "s" : ""}
+                </span>
+              </div>
               {data.longest_streak > streak_days && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground mt-0.5">
                   Best: {data.longest_streak} days
                 </p>
               )}
@@ -130,6 +142,27 @@ export function StreakCard({ userId }: StreakCardProps) {
           )}
         </div>
 
+        {/* Milestone badges row */}
+        <div className="flex items-center gap-2">
+          {STREAK_MILESTONES.map((m) => {
+            const reached = data.longest_streak >= m;
+            return (
+              <span
+                key={m}
+                className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                  reached
+                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                    : "bg-muted/20 text-muted-foreground/40 border-border/30"
+                }`}
+                title={reached ? `${m}-day milestone reached` : `Reach a ${m}-day streak to unlock`}
+              >
+                {reached && <span aria-label="unlocked">&#10003;</span>}
+                {m}d
+              </span>
+            );
+          })}
+        </div>
+
         {/* Progress to next milestone */}
         {next_milestone !== null && (
           <div className="space-y-1">
@@ -139,6 +172,13 @@ export function StreakCard({ userId }: StreakCardProps) {
             </div>
             <Progress value={pct} className="h-1.5" />
           </div>
+        )}
+
+        {/* Midnight reset warning */}
+        {!today_checked_in && hasStreak && (
+          <p className="text-[11px] text-amber-400/80">
+            Check in by midnight to keep your streak ({hoursUntilReset}h remaining)
+          </p>
         )}
 
         {/* Unlocked features */}
@@ -153,16 +193,6 @@ export function StreakCard({ userId }: StreakCardProps) {
               </Badge>
             ))}
           </div>
-        )}
-
-        {/* Prompt if not checked in today */}
-        {!today_checked_in && hasStreak && (
-          <p
-            className="text-xs text-muted-foreground cursor-pointer hover:text-primary transition-colors"
-            onClick={handleCheckin}
-          >
-            Check in with voice, EEG, or health data to keep your streak alive.
-          </p>
         )}
       </CardContent>
     </Card>

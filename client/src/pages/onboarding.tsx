@@ -17,6 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
   CheckCircle,
@@ -41,6 +42,8 @@ import {
   simulateEEG,
 } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
+import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import { playSuccessChime } from "@/lib/sound-effects";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -180,7 +183,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
         ))}
       </div>
 
-      <Button className="w-full" onClick={onNext}>
+      <Button className="w-full" onClick={() => { hapticLight(); onNext(); }}>
         Get started
         <ChevronRight className="ml-1 h-4 w-4" />
       </Button>
@@ -226,7 +229,7 @@ function StepChoosePath({ onChoose }: { onChoose: (path: "voice" | "eeg") => voi
               EEG optional upgrade later
             </li>
           </ul>
-          <Button className="w-full" onClick={() => onChoose("voice")}>
+          <Button className="w-full" onClick={() => { hapticLight(); onChoose("voice"); }}>
             Quick Start (Voice)
             <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
@@ -254,7 +257,7 @@ function StepChoosePath({ onChoose }: { onChoose: (path: "voice" | "eeg") => voi
               Neurofeedback training
             </li>
           </ul>
-          <Button variant="outline" className="w-full" onClick={() => onChoose("eeg")}>
+          <Button variant="outline" className="w-full" onClick={() => { hapticLight(); onChoose("eeg"); }}>
             Full Setup (EEG)
           </Button>
         </Card>
@@ -358,7 +361,7 @@ function StepVoice({ onNext }: { onNext: () => void }) {
       <div className="space-y-3">
         <Button
           className="w-full"
-          onClick={voiceEmotion.startRecording}
+          onClick={() => { hapticLight(); voiceEmotion.startRecording(); }}
           disabled={voiceEmotion.isRecording || voiceEmotion.isAnalyzing}
         >
           {voiceEmotion.isRecording
@@ -367,7 +370,7 @@ function StepVoice({ onNext }: { onNext: () => void }) {
             ? "Analyzing…"
             : "Start 10-second voice check-in"}
         </Button>
-        <Button variant="outline" className="w-full" onClick={onNext}>
+        <Button variant="outline" className="w-full" onClick={() => { hapticLight(); onNext(); }}>
           Skip for now
         </Button>
         {voiceEmotion.error && (
@@ -474,11 +477,11 @@ function StepEeg({ onNext }: { onNext: () => void }) {
         </Card>
 
         <div className="space-y-3">
-          <Button className="w-full" onClick={() => setEegPhase("recording")}>
+          <Button className="w-full" onClick={() => { hapticLight(); setEegPhase("recording"); }}>
             Start calibration
             <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
-          <Button variant="outline" className="w-full" onClick={onNext}>
+          <Button variant="outline" className="w-full" onClick={() => { hapticLight(); onNext(); }}>
             Skip for now
           </Button>
         </div>
@@ -587,7 +590,7 @@ function StepEeg({ onNext }: { onNext: () => void }) {
         </Card>
       </div>
 
-      <Button className="w-full" onClick={onNext}>
+      <Button className="w-full" onClick={() => { hapticLight(); onNext(); }}>
         Continue
         <ChevronRight className="ml-1 h-4 w-4" />
       </Button>
@@ -741,8 +744,63 @@ function StepHealthSync({ onNext }: { onNext: () => void }) {
 // ── Step 5: Done ─────────────────────────────────────────────────────────────
 
 function StepDone({ pathChoice, onFinish }: { pathChoice: PathChoice; onFinish: () => void }) {
+  const [confettiPieces] = useState(() =>
+    Array.from({ length: 25 }, (_, i) => ({
+      id: i,
+      color: ["#10b981", "#34d399", "#6ee7b7", "#d4a017", "#a7f3d0"][i % 5],
+      size: 6 + Math.random() * 6,
+      angle: (i / 25) * 360 + Math.random() * 15,
+      distance: 80 + Math.random() * 120,
+      duration: 1.2 + Math.random() * 0.6,
+      shape: i % 3 === 0 ? "50%" : "2px",
+    }))
+  );
+
+  useEffect(() => {
+    hapticSuccess();
+    playSuccessChime();
+  }, []);
+
   return (
     <div className="space-y-6 text-center">
+      {/* Confetti burst */}
+      <div
+        className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
+        aria-hidden="true"
+      >
+        {confettiPieces.map((p) => (
+          <span
+            key={p.id}
+            style={{
+              position: "absolute",
+              width: p.size,
+              height: p.size,
+              borderRadius: p.shape,
+              backgroundColor: p.color,
+              opacity: 0,
+              animation: `confetti-burst ${p.duration}s ease-out forwards`,
+              ["--confetti-x" as string]: `${Math.cos((p.angle * Math.PI) / 180) * p.distance}px`,
+              ["--confetti-y" as string]: `${Math.sin((p.angle * Math.PI) / 180) * p.distance}px`,
+            }}
+          />
+        ))}
+        <style>{`
+          @keyframes confetti-burst {
+            0% {
+              opacity: 1;
+              transform: translate(0, 0) scale(1) rotate(0deg);
+            }
+            70% {
+              opacity: 1;
+            }
+            100% {
+              opacity: 0;
+              transform: translate(var(--confetti-x), var(--confetti-y)) scale(0.3) rotate(360deg);
+            }
+          }
+        `}</style>
+      </div>
+
       <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-emerald-400/10 mx-auto">
         <CheckCircle className="h-10 w-10 text-emerald-400" />
       </div>
@@ -770,7 +828,7 @@ function StepDone({ pathChoice, onFinish }: { pathChoice: PathChoice; onFinish: 
         ))}
       </div>
 
-      <Button className="w-full" size="lg" onClick={onFinish}>
+      <Button className="w-full" size="lg" onClick={() => { hapticSuccess(); onFinish(); }}>
         Go to dashboard
         <ChevronRight className="ml-1 h-4 w-4" />
       </Button>
@@ -816,29 +874,38 @@ export default function Onboarding() {
         {/* Progress bar */}
         <ProgressBar step={step} />
 
-        {/* Step content */}
-        {step === 1 && <StepWelcome onNext={goNext} />}
+        {/* Step content — slide transition between steps */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25 }}
+          >
+            {step === 1 && <StepWelcome onNext={goNext} />}
 
-        {step === 2 && <StepChoosePath onChoose={chooseAndAdvance} />}
+            {step === 2 && <StepChoosePath onChoose={chooseAndAdvance} />}
 
-        {step === 3 && pathChoice === "voice" && (
-          <StepVoice onNext={goNext} />
-        )}
+            {step === 3 && pathChoice === "voice" && (
+              <StepVoice onNext={goNext} />
+            )}
 
-        {step === 3 && pathChoice === "eeg" && (
-          <StepEeg onNext={goNext} />
-        )}
+            {step === 3 && pathChoice === "eeg" && (
+              <StepEeg onNext={goNext} />
+            )}
 
-        {step === 3 && pathChoice === null && (
-          // Fallback if path not set (shouldn't happen, but defensive)
-          <StepVoice onNext={goNext} />
-        )}
+            {step === 3 && pathChoice === null && (
+              <StepVoice onNext={goNext} />
+            )}
 
-        {step === 4 && <StepHealthSync onNext={goNext} />}
+            {step === 4 && <StepHealthSync onNext={goNext} />}
 
-        {step === 5 && (
-          <StepDone pathChoice={pathChoice} onFinish={finish} />
-        )}
+            {step === 5 && (
+              <StepDone pathChoice={pathChoice} onFinish={finish} />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

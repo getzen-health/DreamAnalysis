@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "wouter";
+import { motion } from "framer-motion";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -25,6 +26,7 @@ import {
   ChevronRight,
   Brain,
   RefreshCw,
+  Share2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -36,6 +38,8 @@ import {
 } from "recharts";
 import EmotionStateCard from "@/components/emotion-state-card";
 import EmotionFlow, { type EmotionDataPoint } from "@/components/emotion-flow";
+import { hapticMedium, hapticSuccess } from "@/lib/haptics";
+import { playStartBeep, playSuccessChime } from "@/lib/sound-effects";
 
 /* ---------- constants & helpers ---------- */
 
@@ -224,6 +228,9 @@ export default function EmotionLab() {
       setVoiceCountdown(VOICE_DURATION_SEC);
       return;
     }
+    // Haptic + sound feedback on recording start
+    hapticMedium();
+    playStartBeep();
     const interval = setInterval(() => {
       setVoiceCountdown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
@@ -234,12 +241,44 @@ export default function EmotionLab() {
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [lastAnalysisAgo, setLastAnalysisAgo] = useState<string>("");
   const prevResultRef = useRef(voiceEmotion.lastResult);
+  const [hasNewAnalysis, setHasNewAnalysis] = useState(false);
   useEffect(() => {
     if (voiceEmotion.lastResult && voiceEmotion.lastResult !== prevResultRef.current) {
       setLastAnalysisTime(new Date());
+      setHasNewAnalysis(true);
+      // Haptic + sound feedback on analysis complete
+      hapticSuccess();
+      playSuccessChime();
+      // Persist to localStorage for cross-page access
+      try {
+        localStorage.setItem("ndw_last_emotion", JSON.stringify({
+          result: voiceEmotion.lastResult,
+          timestamp: Date.now(),
+        }));
+      } catch { /* storage full */ }
     }
     prevResultRef.current = voiceEmotion.lastResult;
   }, [voiceEmotion.lastResult]);
+
+  // Load last result from localStorage on mount (if < 24h old)
+  const [savedCheckin, setSavedCheckin] = useState<{
+    emotion: string; confidence: number; valence: number; timestamp: number;
+  } | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("ndw_last_emotion");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?.timestamp && Date.now() - parsed.timestamp < 86_400_000) {
+        setSavedCheckin({
+          emotion: parsed.result?.emotion ?? "neutral",
+          confidence: parsed.result?.confidence ?? 0,
+          valence: parsed.result?.valence ?? 0,
+          timestamp: parsed.timestamp,
+        });
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   // Update relative time string every 30s
   useEffect(() => {
@@ -498,12 +537,7 @@ export default function EmotionLab() {
 
       {/* ── Quick Mood Log ─────────────────────────────────────────────── */}
       <div
-        className="rounded-2xl p-4 space-y-4"
-        style={{
-          background: "hsl(270,20%,8%,0.7)",
-          border: "1px solid hsl(270,20%,18%,0.5)",
-          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-        }}
+        className="rounded-2xl p-4 space-y-4 bg-card/70 border border-border/50 shadow-sm"
       >
         <div className="flex items-center gap-2">
           <Heart className="h-4 w-4 text-violet-400" />
@@ -546,15 +580,36 @@ export default function EmotionLab() {
       {/* ── Voice check-in card ────────────────────────────────────────── */}
       <VoiceCheckinCard userId={participantId} />
 
+      {/* ── Last check-in (from localStorage, shown when no new analysis this session) */}
+      {savedCheckin && !hasNewAnalysis && !voiceEmotion.lastResult && (
+        <div
+          className="rounded-2xl p-4 flex items-center gap-3 bg-card/50 border border-border/40"
+        >
+          <Heart className="h-4 w-4 text-violet-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] text-muted-foreground">Last check-in</p>
+            <p className="text-sm font-semibold capitalize text-foreground">
+              {EMOTION_LABELS[savedCheckin.emotion] ?? savedCheckin.emotion}
+              <span className="text-muted-foreground font-normal ml-1.5">
+                ({Math.round(savedCheckin.confidence * 100)}%)
+              </span>
+            </p>
+          </div>
+          <span className="text-[11px] text-muted-foreground/60 shrink-0">
+            {(() => {
+              const diffH = Math.round((Date.now() - savedCheckin.timestamp) / 3_600_000);
+              if (diffH < 1) return "just now";
+              if (diffH === 1) return "1h ago";
+              return `${diffH}h ago`;
+            })()}
+          </span>
+        </div>
+      )}
+
       {/* ── Voice Emotion Analysis — centered large mic button ─────────── */}
       {deviceState !== "streaming" && (
         <div
-          className="rounded-2xl p-5 space-y-5"
-          style={{
-            background: "hsl(38,25%,7%,0.7)",
-            border: "1px solid hsl(38,30%,18%,0.5)",
-            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-          }}
+          className="rounded-2xl p-5 space-y-5 bg-card/70 border border-border/50 shadow-sm"
         >
           <div className="text-center">
             <p className="text-[13px] font-semibold text-amber-400 mb-0.5">
@@ -638,7 +693,14 @@ export default function EmotionLab() {
           </div>
 
           {voiceEmotion.lastResult && (
-            <div className="grid grid-cols-3 gap-2 text-center" aria-live="assertive" aria-label="Voice emotion analysis result">
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="grid grid-cols-3 gap-2 text-center"
+              aria-live="assertive"
+              aria-label="Voice emotion analysis result"
+            >
               <div className="rounded-xl bg-muted/20 p-2.5">
                 <div className="text-[14px] font-bold capitalize text-amber-400">
                   {voiceEmotion.lastResult.emotion}
@@ -658,7 +720,31 @@ export default function EmotionLab() {
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">Confidence</div>
               </div>
-            </div>
+            </motion.div>
+            )}
+
+            {/* Share button for voice results */}
+            {voiceEmotion.lastResult && (
+              <div className="flex justify-center">
+                <button
+                  onClick={async () => {
+                    const r = voiceEmotion.lastResult!;
+                    const label = EMOTION_LABELS[r.emotion] ?? r.emotion;
+                    const text = `My current state: ${label} (${Math.round(r.confidence * 100)}% confidence) — Neural Dream Workshop`;
+                    if (navigator.share) {
+                      try { await navigator.share({ text }); } catch { /* cancelled */ }
+                    } else {
+                      await navigator.clipboard.writeText(text);
+                      toast({ title: "Copied to clipboard!" });
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg border border-border/30 hover:bg-muted/30"
+                  aria-label="Share emotion result"
+                >
+                  <Share2 className="h-3 w-3" />
+                  Share
+                </button>
+              </div>
             )}
 
             {voiceEmotion.error && (
@@ -678,12 +764,7 @@ export default function EmotionLab() {
 
       {/* ── Card 1: Right now (live EEG) ───────────────────────────────── */}
       <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: "hsl(165,20%,7%,0.7)",
-          border: "1px solid hsl(165,20%,17%,0.5)",
-          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-        }}
+        className="rounded-2xl overflow-hidden bg-card/70 border border-border/50 shadow-sm"
       >
         <div className="p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -888,12 +969,7 @@ export default function EmotionLab() {
 
       {/* ── Mood Trend (7-day) ─────────────────────────────────────────── */}
       <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: "hsl(38,20%,7%,0.7)",
-          border: "1px solid hsl(38,20%,17%,0.5)",
-          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-        }}
+        className="rounded-2xl overflow-hidden bg-card/70 border border-border/50 shadow-sm"
       >
         <div className="p-5 space-y-3">
           <div className="flex items-center justify-between">
@@ -979,12 +1055,7 @@ export default function EmotionLab() {
 
       {/* ── Recent Emotions ────────────────────────────────────────────── */}
       <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: "hsl(220,20%,7%,0.7)",
-          border: "1px solid hsl(220,20%,17%,0.5)",
-          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-        }}
+        className="rounded-2xl overflow-hidden bg-card/70 border border-border/50 shadow-sm"
       >
         <div className="p-5 space-y-3">
           <div className="flex items-center justify-between">
@@ -1104,12 +1175,7 @@ export default function EmotionLab() {
       {/* ── Today's Session Emotions (live EEG history) ────────────────── */}
       {history.length > 0 && isStreaming && (
         <div
-          className="rounded-2xl overflow-hidden"
-          style={{
-            background: "hsl(165,20%,7%,0.7)",
-            border: "1px solid hsl(165,20%,17%,0.5)",
-            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-          }}
+          className="rounded-2xl overflow-hidden bg-card/70 border border-border/50 shadow-sm"
         >
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">

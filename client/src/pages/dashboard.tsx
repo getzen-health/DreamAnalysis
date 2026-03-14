@@ -1,6 +1,7 @@
 import { getParticipantId } from "@/lib/participant";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
+import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -380,6 +381,31 @@ export default function Dashboard() {
   const { latestPayload } = useHealthSync();
   const healthState = !isStreaming && latestPayload && hasRealHealthData(latestPayload) ? deriveHealthState(latestPayload) : null;
 
+  // Last emotion check-in from localStorage (persisted by emotion-lab page)
+  const [lastEmotionCheckin, setLastEmotionCheckin] = useState<{
+    emotion: string;
+    confidence: number;
+    timestamp: number;
+  } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("ndw_last_emotion");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      // Only show if less than 24 hours old
+      if (parsed?.timestamp && Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+        setLastEmotionCheckin({
+          emotion: parsed.result?.emotion ?? "neutral",
+          confidence: parsed.result?.confidence ?? 0,
+          timestamp: parsed.timestamp,
+        });
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, []);
+
   // Extract live data
   const emotions = analysis?.emotions;
   const emotionShift = latestFrame?.emotion_shift;
@@ -571,8 +597,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ background: "hsl(222, 28%, 12%)", border: "1px solid hsl(220,18%,17%)" }}
+              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-muted border border-border"
             >
               <Activity className="h-4 w-4 text-muted-foreground/60" />
             </div>
@@ -618,18 +643,37 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Last emotion check-in (from localStorage) ─────── */}
+      {lastEmotionCheckin && (
+        <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-violet-500/6 border border-violet-500/20">
+          <Heart className="h-3.5 w-3.5 shrink-0 text-violet-400" />
+          <span className="text-xs text-foreground">
+            Last check-in:{" "}
+            <span className="font-semibold capitalize">{lastEmotionCheckin.emotion}</span>
+            {lastEmotionCheckin.confidence > 0 && (
+              <span className="text-muted-foreground">
+                {" "}({Math.round(lastEmotionCheckin.confidence * 100)}%)
+              </span>
+            )}
+            <span className="text-muted-foreground/60 ml-1">
+              {(() => {
+                const diffH = Math.round((Date.now() - lastEmotionCheckin.timestamp) / 3_600_000);
+                if (diffH < 1) return "just now";
+                if (diffH === 1) return "1h ago";
+                return `${diffH}h ago`;
+              })()}
+            </span>
+          </span>
+        </div>
+      )}
+
       {/* ── Voice micro check-in ────────────────────────────── */}
       <VoiceCheckinCard userId={USER_ID} />
 
       {/* ── Empty state for brand-new users ────────────────── */}
       {!isStreaming && !healthState && sessionsWithData.length === 0 && !sessionsLoading && (
         <div
-          className="rounded-2xl p-6 text-center space-y-4"
-          style={{
-            background: "hsl(222, 28%, 9%, 0.7)",
-            border: "1px solid hsl(220, 18%, 17%, 0.6)",
-            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-          }}
+          className="rounded-2xl p-6 text-center space-y-4 bg-card/70 border border-border/60 shadow-sm"
         >
           <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center bg-primary/10 border border-primary/20">
             <Brain className="h-7 w-7 text-primary" />
@@ -674,31 +718,33 @@ export default function Dashboard() {
           Quick Actions
         </p>
         <div className="grid grid-cols-2 gap-2.5">
-          {QUICK_ACTION_CARDS.map((card) => {
+          {QUICK_ACTION_CARDS.map((card, index) => {
             const Icon = card.icon;
             return (
-              <Link key={card.href} href={card.href} onClick={() => hapticLight()} aria-label={`${card.label}: ${card.subtitle}`}>
-                <div
-                  className="group flex items-center gap-3 px-3.5 py-4 rounded-2xl active:scale-[0.97] transition-all duration-150"
-                  style={{
-                    background: "hsl(222, 28%, 9%, 0.7)",
-                    border: "1px solid hsl(220, 18%, 17%, 0.6)",
-                    minHeight: "80px",
-                    boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-                  }}
-                >
+              <motion.div
+                key={card.href}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Link href={card.href} onClick={() => hapticLight()} aria-label={`${card.label}: ${card.subtitle}`}>
                   <div
-                    className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-active:scale-95"
-                    style={{ background: `${card.color}1a` }}
+                    className="group flex items-center gap-3 px-3.5 py-4 rounded-2xl active:scale-[0.97] transition-all duration-150 bg-card/70 border border-border/60 shadow-sm"
+                    style={{ minHeight: "80px" }}
                   >
-                    <Icon className="h-5 w-5" style={{ color: card.color }} aria-hidden="true" />
+                    <div
+                      className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-active:scale-95"
+                      style={{ background: `${card.color}1a` }}
+                    >
+                      <Icon className="h-5 w-5" style={{ color: card.color }} aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-foreground leading-tight truncate">{card.label}</p>
+                      <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-tight truncate">{card.subtitle}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-foreground leading-tight truncate">{card.label}</p>
-                    <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-tight truncate">{card.subtitle}</p>
-                  </div>
-                </div>
-              </Link>
+                </Link>
+              </motion.div>
             );
           })}
         </div>
@@ -724,14 +770,8 @@ export default function Dashboard() {
                 className="shrink-0"
               >
                 <div
-                  className="flex flex-col gap-2 p-3.5 rounded-2xl active:scale-[0.97] transition-all duration-150"
-                  style={{
-                    background: "hsl(222, 28%, 9%, 0.7)",
-                    border: "1px solid hsl(220, 18%, 17%, 0.6)",
-                    width: "120px",
-                    minHeight: "100px",
-                    boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-                  }}
+                  className="flex flex-col gap-2 p-3.5 rounded-2xl active:scale-[0.97] transition-all duration-150 bg-card/70 border border-border/60 shadow-sm"
+                  style={{ width: "120px", minHeight: "100px" }}
                 >
                   <div
                     className="w-9 h-9 rounded-xl flex items-center justify-center"
@@ -788,11 +828,7 @@ export default function Dashboard() {
 
       {/* ── Last Session Snapshot ───────────────────────────── */}
       {sessionsLoading ? (
-        <div className="rounded-2xl p-4"
-          style={{
-            background: "hsl(222,28%,9%,0.7)",
-            border: "1px solid hsl(220,18%,17%,0.6)",
-          }}>
+        <div className="rounded-2xl p-4 bg-card/70 border border-border/60">
           <Skeleton className="h-3.5 w-36 mb-3" />
           <div className="grid grid-cols-4 gap-2">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -804,12 +840,7 @@ export default function Dashboard() {
           </div>
         </div>
       ) : lastSession ? (
-        <div className="rounded-2xl p-4"
-          style={{
-            background: "hsl(222,28%,9%,0.7)",
-            border: "1px solid hsl(220,18%,17%,0.6)",
-            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-          }}>
+        <div className="rounded-2xl p-4 bg-card/70 border border-border/60 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em]">
               Last Session
@@ -1107,7 +1138,7 @@ export default function Dashboard() {
                 aria-label={`${label}: ${value}%${sublabel ? `, ${sublabel}` : ""}`}
               >
                 <circle cx={c} cy={c} r={r} fill="none"
-                  stroke="hsl(220,18%,15%)" strokeWidth={5}
+                  stroke="hsl(var(--border))" strokeWidth={5}
                   strokeDasharray={`${arc} ${gap}`} strokeLinecap="round"
                   transform={`rotate(129 ${c} ${c})`} />
                 <circle cx={c} cy={c} r={r} fill="none"
@@ -1131,12 +1162,7 @@ export default function Dashboard() {
 
         return (
           <div
-            className="rounded-2xl p-4"
-            style={{
-              background: "hsl(222, 28%, 9%, 0.7)",
-              border: "1px solid hsl(220, 18%, 17%, 0.6)",
-              boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-            }}
+            className="rounded-2xl p-4 bg-card/70 border border-border/60 shadow-sm"
           >
             {/* Card header */}
             <div className="flex items-center justify-between mb-4">
