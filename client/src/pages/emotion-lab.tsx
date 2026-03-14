@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -24,6 +24,7 @@ import {
   Sparkles,
   ChevronRight,
   Brain,
+  RefreshCw,
 } from "lucide-react";
 import {
   AreaChart,
@@ -214,6 +215,54 @@ export default function EmotionLab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const voiceEmotion = useVoiceEmotion();
+
+  // Voice recording countdown timer (30s default duration)
+  const VOICE_DURATION_SEC = 30;
+  const [voiceCountdown, setVoiceCountdown] = useState(VOICE_DURATION_SEC);
+  useEffect(() => {
+    if (!voiceEmotion.isRecording) {
+      setVoiceCountdown(VOICE_DURATION_SEC);
+      return;
+    }
+    const interval = setInterval(() => {
+      setVoiceCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [voiceEmotion.isRecording]);
+
+  // Track last analysis timestamp for "Last synced" display
+  const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
+  const [lastAnalysisAgo, setLastAnalysisAgo] = useState<string>("");
+  const prevResultRef = useRef(voiceEmotion.lastResult);
+  useEffect(() => {
+    if (voiceEmotion.lastResult && voiceEmotion.lastResult !== prevResultRef.current) {
+      setLastAnalysisTime(new Date());
+    }
+    prevResultRef.current = voiceEmotion.lastResult;
+  }, [voiceEmotion.lastResult]);
+
+  // Update relative time string every 30s
+  useEffect(() => {
+    function formatAgo(date: Date): string {
+      const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (diffSec < 10) return "just now";
+      if (diffSec < 60) return `${diffSec}s ago`;
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHr = Math.floor(diffMin / 60);
+      return `${diffHr}h ago`;
+    }
+    if (!lastAnalysisTime) {
+      setLastAnalysisAgo("");
+      return;
+    }
+    setLastAnalysisAgo(formatAgo(lastAnalysisTime));
+    const interval = setInterval(() => {
+      setLastAnalysisAgo(formatAgo(lastAnalysisTime));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [lastAnalysisTime]);
+
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
   const emotions = analysis?.emotions;
@@ -440,6 +489,11 @@ export default function EmotionLab() {
         <p className="text-[13px] text-muted-foreground">
           Track how you feel, discover patterns
         </p>
+        <p className="text-[11px] text-muted-foreground/50 mt-1">
+          {lastAnalysisTime
+            ? `Last check-in ${lastAnalysisAgo}`
+            : "No check-in yet today"}
+        </p>
       </div>
 
       {/* ── Quick Mood Log ─────────────────────────────────────────────── */}
@@ -558,13 +612,29 @@ export default function EmotionLab() {
                 <Mic className="w-9 h-9 text-white" aria-hidden="true" />
               )}
             </button>
-            <p className="text-[11px] font-medium text-muted-foreground">
-              {voiceEmotion.isRecording
-                ? "Tap to stop &amp; analyze"
-                : voiceEmotion.isAnalyzing
-                ? "Please wait…"
-                : "Hold to record"}
-            </p>
+            {voiceEmotion.isRecording ? (
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold text-amber-400">
+                  <span>{voiceCountdown}s</span>
+                  <span className="text-[11px] font-normal text-muted-foreground">remaining</span>
+                </div>
+                <div className="w-32 h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-amber-400 transition-all duration-1000 ease-linear"
+                    style={{ width: `${(voiceCountdown / VOICE_DURATION_SEC) * 100}%` }}
+                  />
+                </div>
+                <p className="text-[11px] font-medium text-muted-foreground">
+                  Tap to stop &amp; analyze
+                </p>
+              </div>
+            ) : (
+              <p className="text-[11px] font-medium text-muted-foreground">
+                {voiceEmotion.isAnalyzing
+                  ? "Please wait…"
+                  : "Tap to record"}
+              </p>
+            )}
           </div>
 
           {voiceEmotion.lastResult && (
@@ -592,7 +662,16 @@ export default function EmotionLab() {
             )}
 
             {voiceEmotion.error && (
-              <p className="text-xs text-destructive">{voiceEmotion.error}</p>
+              <div className="flex items-center justify-center gap-2">
+                <p className="text-xs text-destructive">{voiceEmotion.error}</p>
+                <button
+                  onClick={() => voiceEmotion.startRecording()}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors px-2 py-1 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Retry
+                </button>
+              </div>
             )}
         </div>
       )}

@@ -48,6 +48,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Start HealthKit / Health Connect auto-sync on first mount (no-op on web)
   useHealthSync();
 
+  // Android hardware back button: navigate back instead of exiting the app.
+  // In Capacitor WebView, the hardware back button fires "backbutton" on document.
+  // On root/dashboard, let the default behavior (exit) happen.
+  useEffect(() => {
+    const handleBackButton = (e: Event) => {
+      if (location === "/") {
+        // On dashboard — let default behavior exit the app
+        return;
+      }
+      e.preventDefault();
+      window.history.back();
+    };
+    document.addEventListener("backbutton", handleBackButton);
+    return () => document.removeEventListener("backbutton", handleBackButton);
+  }, [location]);
+
   // Register for native push notifications on iOS/Android (no-op on web)
   useEffect(() => {
     registerNativePush().catch(() => {});

@@ -35,7 +35,7 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     StatusBar: {
-      style: "DARK",
+      style: "LIGHT",
       backgroundColor: "#0d0f14",
     },
     PushNotifications: {
