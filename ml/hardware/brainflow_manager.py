@@ -183,6 +183,11 @@ class BrainFlowManager:
         """Start data streaming from the connected board.  Idempotent — safe to
         call when already streaming.
 
+        For Muse 2/S devices, also enables the PPG + 5th EEG channel via
+        board.config_board("p50") after the stream starts.  This activates the
+        ANCILLARY preset that exposes PPG data at 64 Hz.  The config call is
+        best-effort — a failure logs a warning but does not abort streaming.
+
         Args:
             callback: Optional function called with (signals, timestamp) at each read.
         """
@@ -195,6 +200,21 @@ class BrainFlowManager:
         self.is_streaming = True
         self._stream_callback = callback
         self._stop_event.clear()
+
+        # Enable PPG ANCILLARY preset for Muse 2/S devices.
+        # "p50" activates the PPG sensor + 5th EEG channel simultaneously.
+        # Must be called AFTER start_stream() — calling before has no effect.
+        is_muse = self.current_device_type and self.current_device_type.startswith("muse_")
+        if is_muse:
+            try:
+                self.board.config_board("p50")
+                log.info("PPG ANCILLARY preset enabled for %s", self.current_device_type)
+            except Exception as e:
+                log.warning(
+                    "Could not enable PPG on %s (config_board('p50') failed): %s. "
+                    "EEG streaming continues without PPG.",
+                    self.current_device_type, e,
+                )
 
     def stop_streaming(self):
         """Stop data streaming."""

@@ -335,8 +335,10 @@ export default function EmotionLab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userCorrectedEmotion: value }),
       });
-      const signals = latestFrame?.signals;
-      submitFeedback(signals ?? [], emotion, value, user.id.toString()).catch(
+      // Pass signals only when live EEG is available; null triggers label-only
+      // correction path which still counts toward the 5-session fine-tune threshold.
+      const signals = latestFrame?.signals ?? null;
+      submitFeedback(signals, emotion, value, user.id.toString()).catch(
         () => {}
       );
       setCorrected(value);

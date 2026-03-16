@@ -658,17 +658,21 @@ export async function submitCalibration(
 }
 
 export async function submitFeedback(
-  signals: number[][],
+  signals: number[][] | null | undefined,
   predictedLabel: string,
   correctLabel: string,
   userId?: string
 ): Promise<{ updated: boolean }> {
   const resolvedUserId = userId ?? getParticipantId();
+  // Send signals only when a non-empty array is provided; null tells the backend
+  // this is a label-only correction (no raw EEG attached). The backend still
+  // counts label-only corrections toward the 5-session fine-tuning threshold.
+  const signalsPayload = signals && signals.length > 0 ? signals : null;
   return mlFetch("/feedback", {
     method: "POST",
     body: JSON.stringify({
       user_id: resolvedUserId,
-      signals,
+      signals: signalsPayload,
       predicted_label: predictedLabel,
       correct_label: correctLabel,
     }),

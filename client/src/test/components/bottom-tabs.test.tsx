@@ -32,7 +32,7 @@ describe("BottomTabs", () => {
   it("renders all 4 tab labels", () => {
     renderWithProviders(<BottomTabs />);
     expect(screen.getByText("Today")).toBeInTheDocument();
-    expect(screen.getByText("Journal")).toBeInTheDocument();
+    expect(screen.getByText("Emotions")).toBeInTheDocument();
     expect(screen.getByText("Trends")).toBeInTheDocument();
     expect(screen.getByText("You")).toBeInTheDocument();
   });
@@ -48,7 +48,7 @@ describe("BottomTabs", () => {
     const links = screen.getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/");
-    expect(hrefs).toContain("/journal");
+    expect(hrefs).toContain("/emotions");
     expect(hrefs).toContain("/trends");
     expect(hrefs).toContain("/you");
   });
@@ -68,15 +68,15 @@ describe("BottomTabs", () => {
   it("does not highlight non-active tabs when on Today", () => {
     currentLocation = "/";
     renderWithProviders(<BottomTabs />);
-    const journalLabel = screen.getByText("Journal");
-    expect(journalLabel.className).not.toContain("text-primary");
+    const emotionsLabel = screen.getByText("Emotions");
+    expect(emotionsLabel.className).not.toContain("text-primary");
   });
 
-  it("highlights Journal tab when location is /journal", () => {
-    currentLocation = "/journal";
+  it("highlights Emotions tab when location is /emotions", () => {
+    currentLocation = "/emotions";
     renderWithProviders(<BottomTabs />);
-    const journalLabel = screen.getByText("Journal");
-    expect(journalLabel.className).toContain("text-primary");
+    const emotionsLabel = screen.getByText("Emotions");
+    expect(emotionsLabel.className).toContain("text-primary");
     const todayLabel = screen.getByText("Today");
     expect(todayLabel.className).not.toContain("text-primary");
   });
@@ -95,11 +95,11 @@ describe("BottomTabs", () => {
     expect(youLabel.className).toContain("text-primary");
   });
 
-  it("highlights You tab when location is /settings (legacy path)", () => {
+  it("highlights You tab when location is /settings (alias path)", () => {
     currentLocation = "/settings";
     renderWithProviders(<BottomTabs />);
-    // /settings does not match /you — You tab should NOT be active
+    // /settings is an alias for /you — You tab SHOULD be active
     const youLabel = screen.getByText("You");
-    expect(youLabel.className).not.toContain("text-primary");
+    expect(youLabel.className).toContain("text-primary");
   });
 });

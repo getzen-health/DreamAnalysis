@@ -212,7 +212,7 @@ Frontend                     ██████████  97%
   Vite bundle splitting + React.lazy() on 14 pages (faster load). ✅
   Session history 24-hour timeline strip (Today view — green/orange/cyan session blocks). ✅
   Push notification service worker + Settings subscribe UI (morning reminder to /brain-report). ✅
-  ~282 Vitest tests across 34 files; 262 passing, ~20 failing (page copy assertions + no-EEG regression gaps). ⚠️
+  401 Vitest tests across 43 files; all passing. ✅
   Voice Emotion Fallback UI (2026-03-04): useVoiceEmotion hook (7s MediaRecorder + backend), ✅
     Emotion Lab amber panel shown when no EEG, Dashboard voice emotion card, Brain Monitor
     signal source badge (EEG/Voice/Health/EEG+Voice). Intervention engine triggers on voice
@@ -361,12 +361,10 @@ Fixed three root causes:
    rewrite in `vercel.json`.
 All endpoints verified working: ping, auth, dreams, health-metrics, emotions, ai-chat.
 
-### 12. Page tests have stale copy assertions (known gap) ⚠️
-~20 Vitest tests fail due to copy changes in Daily Brain Report, settings, and study pages.
-The failures are copy-assertion mismatches (e.g., page heading changed from "EEG Connect" to
-"Voice Check-in"), not functional regressions. The core auth, API, and component tests pass.
-Fix: update test assertions to match current copy, then add no-EEG rendering tests for
-pages with voice fallback (brain-monitor, insights, emotion-lab, health-analytics).
+### ~~12. Page tests have stale copy assertions~~ ✅ Fixed
+~~~20 Vitest tests fail due to copy changes in Daily Brain Report, settings, and study pages.~~
+Fixed: all 43 test files, 401 tests passing. Updated assertions in bottom-tabs, onboarding,
+insights, health-analytics, and session-history to match current component copy.
 
 ---
 

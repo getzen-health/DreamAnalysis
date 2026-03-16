@@ -15,7 +15,7 @@ _FINE_TUNE_INTERVAL = 1
 
 
 def _should_fine_tune(n: int) -> bool:
-    """True at the first milestone (30) and every 20 samples beyond."""
+    """True at the first milestone (5 corrected sessions) and every session beyond."""
     if n < _FINE_TUNE_FIRST:
         return False
     if n == _FINE_TUNE_FIRST:
@@ -103,9 +103,14 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
     """User corrects a prediction — records correction and optionally adds labeled epoch.
 
     Signals are optional: label-only corrections (from the web UI) are recorded
-    in the FeedbackCollector JSONL store and count toward the correction log.
-    When signals ARE provided (e.g. from a live session), the labeled epoch is
-    also added to the PersonalModel buffer so fine-tuning can use it.
+    in the FeedbackCollector JSONL store and always count toward the per-user
+    session total that gates fine-tuning.
+
+    When signals ARE provided (non-empty list), the labeled epoch is also added
+    to the PersonalModel buffer so fine-tuning has EEG training data.
+
+    Fine-tuning is triggered after every correction once the user has 5+ sessions,
+    regardless of whether raw EEG signals were submitted with the correction.
     """
     from processing.user_feedback import FeedbackCollector
 
@@ -124,29 +129,37 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
     labeled = False
     fine_tune_triggered = False
 
-    if request.signals is not None:
-        # EEG provided — add to personal model buffer and maybe auto-fine-tune.
-        # Uses PersonalModel (EEGNet-backed) which has add_labeled_epoch() + fine_tune().
-        n_channels = len(request.signals) if request.signals else 4
-        pm = _get_personal_model_for_feedback(request.user_id, n_channels=n_channels)
-        if pm is not None:
-            label_map = {"happy": 0, "sad": 1, "angry": 2, "fearful": 3, "relaxed": 4, "focused": 5}
-            label_idx = label_map.get(request.correct_label, -1)
-            if label_idx >= 0:
+    # Always get the PersonalModel so we can count this correction as a session.
+    # Use n_channels from signals when present, else default to 4.
+    has_signals = bool(request.signals)  # True only if list is non-empty
+    n_channels = len(request.signals) if has_signals else 4
+    pm = _get_personal_model_for_feedback(request.user_id, n_channels=n_channels)
+
+    if pm is not None:
+        label_map = {"happy": 0, "sad": 1, "angry": 2, "fearful": 3, "relaxed": 4, "focused": 5}
+        label_idx = label_map.get(request.correct_label, -1)
+
+        if label_idx >= 0:
+            # Add EEG epoch to buffer only when real signals were submitted.
+            if has_signals:
                 signal = np.array(request.signals)
                 pm.add_labeled_epoch(signal, label_idx)
-                pm.record_feedback_session()
                 labeled = True
-                n = pm.total_sessions
-                if _should_fine_tune(n):
-                    fine_tune_triggered = True
-                    t = threading.Thread(target=_fine_tune_bg, args=(pm,), daemon=True)
-                    t.start()
+
+            # Every correction — with or without signals — counts as one corrected
+            # session toward the 5-session personalization threshold.
+            pm.record_feedback_session()
+            n = pm.total_sessions
+            if _should_fine_tune(n):
+                fine_tune_triggered = True
+                t = threading.Thread(target=_fine_tune_bg, args=(pm,), daemon=True)
+                t.start()
 
     return {
         "recorded": True,
         "labeled_epoch_added": labeled,
         "fine_tune_triggered": fine_tune_triggered,
+        "total_sessions": pm.total_sessions if pm is not None else 0,
         "user_id": request.user_id,
         "predicted": request.predicted_label,
         "corrected": request.correct_label,

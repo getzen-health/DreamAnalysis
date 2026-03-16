@@ -160,6 +160,9 @@ from .child import router as _child
 from .garmin import router as _garmin
 from .notifications import router as _notifications
 from .health_status import router as _health_status
+from .cnn_kan import router as _cnn_kan
+from .barlow_twins import router as _barlow_twins
+from .eegnet_lite import router as _eegnet_lite
 
 router = APIRouter()
 
@@ -289,3 +292,6 @@ router.include_router(_music_therapy)
 router.include_router(_child)
 router.include_router(_garmin)
 router.include_router(_notifications)
+router.include_router(_cnn_kan)
+router.include_router(_barlow_twins)
+router.include_router(_eegnet_lite)

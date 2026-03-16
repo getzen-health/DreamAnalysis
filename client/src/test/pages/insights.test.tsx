@@ -44,38 +44,60 @@ describe("Insights page", () => {
     });
   });
 
-  it("shows What You'll See Here card when not streaming", async () => {
+  it("shows empty state prompt when no voice data and not streaming", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => null,
+    }) as unknown as typeof fetch;
     renderWithProviders(<Insights />);
     await waitFor(() => {
-      expect(screen.getByText("What You'll See Here")).toBeInTheDocument();
+      expect(
+        screen.getByText("Complete a voice check-in to unlock your first insights")
+      ).toBeInTheDocument();
     });
   });
 
-  it("shows Brain State Narrative feature preview", async () => {
+  it("shows Brain State Narrative feature preview in empty state", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => null,
+    }) as unknown as typeof fetch;
     renderWithProviders(<Insights />);
     await waitFor(() => {
       expect(screen.getByText("Brain State Narrative")).toBeInTheDocument();
     });
   });
 
-  it("shows AI-Generated Insights feature preview", async () => {
+  it("shows AI-Generated Insights feature preview in empty state", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => null,
+    }) as unknown as typeof fetch;
     renderWithProviders(<Insights />);
     await waitFor(() => {
       expect(screen.getByText("AI-Generated Insights")).toBeInTheDocument();
     });
   });
 
-  it("shows Recommended Actions feature preview", async () => {
+  it("shows Recommended Actions feature preview in empty state", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => null,
+    }) as unknown as typeof fetch;
     renderWithProviders(<Insights />);
     await waitFor(() => {
       expect(screen.getByText("Recommended Actions")).toBeInTheDocument();
     });
   });
 
-  it("shows Band Wave Trends feature preview", async () => {
+  it("shows Trends Over Time feature preview in empty state", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => null,
+    }) as unknown as typeof fetch;
     renderWithProviders(<Insights />);
     await waitFor(() => {
-      expect(screen.getByText("Band Wave Trends")).toBeInTheDocument();
+      expect(screen.getByText("Trends Over Time")).toBeInTheDocument();
     });
   });
 

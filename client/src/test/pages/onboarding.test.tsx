@@ -5,6 +5,13 @@ import Onboarding from "@/pages/onboarding";
 
 // ── Shared mocks ─────────────────────────────────────────────────────────────
 
+vi.mock("framer-motion", () => ({
+  motion: {
+    div: ({ children, ...rest }: any) => <div {...rest}>{children}</div>,
+  },
+  AnimatePresence: ({ children }: any) => <>{children}</>,
+}));
+
 vi.mock("@/hooks/use-device", () => ({
   useDevice: () => ({
     latestFrame: null,

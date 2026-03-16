@@ -110,7 +110,7 @@ describe("HealthAnalytics page", () => {
   it("shows empty state message when no data and not streaming", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      expect(screen.getByText("Connect device to see trends")).toBeInTheDocument();
+      expect(screen.getByText("Start your first session to see trends")).toBeInTheDocument();
     });
   });
 

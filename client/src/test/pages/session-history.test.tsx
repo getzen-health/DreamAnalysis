@@ -78,7 +78,7 @@ describe("session-history (DataHub) page", () => {
   it("shows empty state when no sessions in the period", async () => {
     renderWithProviders(<DataHub />);
     await waitFor(() => {
-      expect(screen.getByText("No sessions in this period.")).toBeInTheDocument();
+      expect(screen.getByText("No sessions yet")).toBeInTheDocument();
     });
   });
 
