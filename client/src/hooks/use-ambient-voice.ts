@@ -269,8 +269,13 @@ export function useAmbientVoice(): UseAmbientVoiceReturn {
             },
           }),
         }).catch(() => {});
-      } catch {
-        setError("Chunk analysis failed");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        if (/fetch|network|ECONNREFUSED/i.test(msg)) {
+          setError("Cannot reach ML backend — check your connection");
+        } else {
+          setError(`Voice analysis failed: ${msg}`);
+        }
       } finally {
         isAnalyzingRef.current = false;
         setIsAnalyzing(false);

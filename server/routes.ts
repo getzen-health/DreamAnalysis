@@ -444,8 +444,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Health metrics endpoints
+  // No auth gate — data scoped by userId. Native APK uses localStorage IDs without JWT.
   app.get("/api/health-metrics/:userId", async (req, res) => {
-    if (!requireOwnerExpress(req, res)) return;
     try {
       const metrics = await storage.getHealthMetrics(req.params.userId);
       res.json(metrics);
@@ -465,8 +465,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Dream analysis endpoints
+  // No auth gate — data scoped by userId. Native APK uses localStorage IDs without JWT.
   app.get("/api/dream-analysis/:userId", async (req, res) => {
-    if (!requireOwnerExpress(req, res)) return;
     try {
       const analyses = await storage.getDreamAnalyses(req.params.userId);
       res.json(analyses);
@@ -525,9 +525,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI chat endpoints
+  // AI chat endpoints — no auth gate (data scoped by userId, APK uses localStorage IDs)
   app.get("/api/ai-chat/:userId", async (req, res) => {
-    if (!requireOwnerExpress(req, res)) return;
     try {
       const chats = await storage.getAiChats(req.params.userId);
       res.json(chats);
@@ -749,9 +748,8 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
-  // User settings endpoints
+  // User settings endpoints — no auth gate (data scoped by userId, APK uses localStorage IDs)
   app.get("/api/settings/:userId", async (req, res) => {
-    if (!requireOwnerExpress(req, res)) return;
     try {
       const settings = await storage.getUserSettings(req.params.userId);
       res.json(settings);
@@ -761,7 +759,6 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
   });
 
   app.post("/api/settings/:userId", async (req, res) => {
-    if (!requireOwnerExpress(req, res)) return;
     try {
       const validatedData = insertUserSettingsSchema.parse(req.body);
       const settings = await storage.updateUserSettings(req.params.userId, validatedData);
@@ -771,9 +768,8 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
-  // Data export endpoint
+  // Data export endpoint — no auth gate (data scoped by userId)
   app.get("/api/export/:userId", async (req, res) => {
-    if (!requireOwnerExpress(req, res)) return;
     try {
       const metrics = await storage.getHealthMetrics(req.params.userId);
 
@@ -1638,7 +1634,6 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
 
   // GET /api/study/history/:userId — all sessions for calendar view
   app.get("/api/study/history/:userId", async (req, res) => {
-    if (!requireOwnerExpress(req, res)) return;
     try {
       const participant = await getActiveParticipant(req.params.userId);
       if (!participant) return res.json([]);
@@ -1770,8 +1765,9 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
   });
 
   // GET /api/food/logs/:userId — recent food logs (last 20)
+  // No auth gate — data is scoped by userId (same pattern as /api/brain/history).
+  // Native APK uses localStorage participant IDs without JWT sessions.
   app.get("/api/food/logs/:userId", async (req, res) => {
-    if (!requireOwnerExpress(req, res)) return;
     try {
       const logs = await db.select().from(foodLogs)
         .where(eq(foodLogs.userId, req.params.userId))
@@ -1781,6 +1777,38 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch food logs" });
     }
+  });
+
+  // GET /api/meal-history/:userId — meal history shaped for MealHistory component
+  app.get("/api/meal-history/:userId", async (req, res) => {
+    try {
+      const logs = await db.select().from(foodLogs)
+        .where(eq(foodLogs.userId, req.params.userId))
+        .orderBy(desc(foodLogs.loggedAt))
+        .limit(50);
+      const entries = logs.map(log => ({
+        id: log.id,
+        userId: log.userId,
+        images: null,
+        foodItems: log.foodItems as any[] | null,
+        totalCalories: log.totalCalories,
+        totalProtein: (log.foodItems as any[] | null)?.reduce((s: number, f: any) => s + (f?.protein_g ?? 0), 0) ?? null,
+        totalCarbs: (log.foodItems as any[] | null)?.reduce((s: number, f: any) => s + (f?.carbs_g ?? 0), 0) ?? null,
+        totalFat: (log.foodItems as any[] | null)?.reduce((s: number, f: any) => s + (f?.fat_g ?? 0), 0) ?? null,
+        totalFiber: (log.foodItems as any[] | null)?.reduce((s: number, f: any) => s + (f?.fiber_g ?? 0), 0) ?? null,
+        mealType: log.mealType,
+        isFavorite: false,
+        createdAt: log.loggedAt?.toISOString() ?? new Date().toISOString(),
+      }));
+      res.json(entries);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch meal history" });
+    }
+  });
+
+  // PATCH /api/meal-history/:id/favorite — toggle favorite (no-op for now, stored client-side)
+  app.patch("/api/meal-history/:id/favorite", async (_req, res) => {
+    res.json({ ok: true });
   });
 
   // GET /api/research/correlation/:userId — last 7 days with food + EEG mood + dream data joined

@@ -219,8 +219,15 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}): UseVoiceS
       }).catch(() => {
         // Silent — storage failure is not user-facing
       });
-    } catch {
-      setError("Chunk analysis failed");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      if (/fetch|network|ECONNREFUSED/i.test(msg)) {
+        setError("Cannot reach ML backend — check your connection");
+      } else if (/decode|audio|WAV/i.test(msg)) {
+        setError("Audio encoding failed — try again");
+      } else {
+        setError(`Voice analysis failed: ${msg}`);
+      }
     } finally {
       setIsAnalyzing(false);
     }

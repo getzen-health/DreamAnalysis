@@ -315,7 +315,7 @@ export function VoiceCheckinCard({
           }),
         }).catch(() => {}); // best-effort — don't break the flow
 
-        // Invalidate cached queries so Daily Report, Sessions, and Streak update
+        // Invalidate cached queries so Daily Report, Sessions, Streak, and Emotion Lab update
         queryClient.invalidateQueries({ queryKey: ["streak-status"] });
         queryClient.invalidateQueries({ queryKey: ["sessions-brain-report"] });
         queryClient.invalidateQueries({ queryKey: ["sessions"] });
@@ -324,6 +324,13 @@ export function VoiceCheckinCard({
         queryClient.invalidateQueries({ queryKey: ["voice-latest-brain-report"] });
         queryClient.invalidateQueries({ queryKey: ["yesterday-insights"] });
         queryClient.invalidateQueries({ queryKey: ["brain-patterns"] });
+        // Emotion Lab mood trends + recent readings
+        queryClient.invalidateQueries({ queryKey: [`/api/brain/history/${resolvedUserId}?days=1`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/brain/history/${resolvedUserId}?days=7`] });
+        // Inner Energy voice fallback
+        queryClient.invalidateQueries({ queryKey: ["voice-inner-energy", resolvedUserId] });
+        // Food-emotion correlation
+        queryClient.invalidateQueries({ queryKey: ["/api/food/logs", resolvedUserId] });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Check-in failed");
         setCardState("idle");

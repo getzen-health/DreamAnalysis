@@ -27,9 +27,14 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <title>AntarAI</title>
     <style>
-      /* Prevent white flash on mobile — dark theme is default */
-      html, body { background-color: hsl(222, 25%, 6%); color: hsl(38, 20%, 92%); }
+      /* Theme-aware flash prevention — matches Tailwind dark/light tokens */
+      html.dark, html.dark body { background-color: hsl(222, 25%, 6%); color: hsl(38, 20%, 92%); }
+      html:not(.dark), html:not(.dark) body { background-color: hsl(0, 0%, 100%); color: hsl(222, 25%, 10%); }
     </style>
+    <script>
+      // Apply saved theme before first paint to prevent flash
+      (function(){var t=localStorage.getItem('neural-theme');if(t==='light')document.documentElement.classList.remove('dark');})();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@200..800&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
