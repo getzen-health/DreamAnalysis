@@ -287,7 +287,7 @@ This is the novel publishable contribution. No prior paper maps real-time consum
 - [x] **Connectivity Graph** — coherence + PLV across channel pairs
 - [x] **PPG sensor integration** — HR/HRV/respiratory rate from Muse 2 forehead PPG, emotion heuristics, 3 API endpoints (#46)
 - [x] **DreamNet NLP** — dream text analysis with 15 theme categories, 26 symbol patterns, sentiment, lucidity scoring (#48)
-- [ ] Brain age SpecParam (#59)
+- [x] **Brain age SpecParam** — aperiodic 1/f + alpha peak decomposition, normative brain age estimation, BAG scoring (#59)
 - [x] **CNN-KAN hybrid** — Conv1D + Kolmogorov-Arnold Network B-spline layers, 337K params, 3-class emotion (#65)
 - [x] **Self-supervised Barlow Twins** — EEG representation learning with 5 augmentations, 128-dim embeddings, k-NN downstream (#66)
 - [x] **EEGNet-Lite edge** — 2707-param depthwise separable CNN, ONNX export (12 KB), browser-deployable (#67)
