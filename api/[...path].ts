@@ -185,8 +185,8 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
     const { password: _, ...safe } = user;
     return success(res, { user: safe, token }, 201);
   } catch (err: any) {
-    console.error('[authRegister]', err?.message ?? err);
-    return error(res, 'Registration failed. Please try again.', 500);
+    console.error('[authRegister]', err?.message ?? err, err?.stack);
+    return error(res, `Registration failed: ${err?.message || 'Unknown error'}`, 500);
   }
 }
 
@@ -211,8 +211,8 @@ async function authLogin(req: VercelRequest, res: VercelResponse) {
     const { password: _, ...safe } = user;
     return success(res, { user: safe, token });
   } catch (err: any) {
-    console.error('[authLogin]', err?.message ?? err);
-    return error(res, 'Login failed. Please try again.', 500);
+    console.error('[authLogin]', err?.message ?? err, err?.stack);
+    return error(res, `Login failed: ${err?.message || 'Unknown error'}`, 500);
   }
 }
 
