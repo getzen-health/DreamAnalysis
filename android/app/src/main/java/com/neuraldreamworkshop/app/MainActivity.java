@@ -2,7 +2,6 @@ package com.neuraldreamworkshop.app;
 
 import android.os.Bundle;
 import android.webkit.PermissionRequest;
-import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.Manifest;
@@ -12,100 +11,57 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
 
+/**
+ * Main activity — extends Capacitor's BridgeActivity.
+ *
+ * DO NOT call setWebChromeClient() — that replaces Capacitor's internal
+ * BridgeWebChromeClient and breaks the JS bridge, dialogs, and file uploads.
+ *
+ * Instead, we request mic/camera permissions eagerly in onCreate so that by
+ * the time the WebView fires getUserMedia, Android runtime permissions are
+ * already granted and Capacitor's default handler can approve them.
+ */
 public class MainActivity extends BridgeActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 1001;
-    private PermissionRequest pendingPermissionRequest;
-
-    // Permissions are requested lazily — only when the WebView needs camera/mic
-    // via the WebChromeClient.onPermissionRequest handler below.
-    // No upfront permission prompts on app launch.
 
     @Override
-    public void onStart() {
-        super.onStart();
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
+        // Allow autoplay of audio/video without requiring a user gesture
         WebView webView = getBridge().getWebView();
+        WebSettings ws = webView.getSettings();
+        ws.setMediaPlaybackRequiresUserGesture(false);
 
-        // Configure WebView settings for media capture
-        WebSettings webSettings = webView.getSettings();
-        webSettings.setMediaPlaybackRequiresUserGesture(false);
-        webSettings.setDomStorageEnabled(true);
-        webSettings.setJavaScriptEnabled(true);
+        // Request mic + camera permissions upfront so that getUserMedia works
+        // inside the WebView without hitting "Permission denied".
+        requestMediaPermissionsIfNeeded();
+    }
 
-        // Override WebChromeClient to handle getUserMedia permission requests.
-        // We only override onPermissionRequest; all other methods (alerts, file choosers,
-        // console messages) inherit the default WebChromeClient behavior.
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onPermissionRequest(final PermissionRequest request) {
-                String[] resources = request.getResources();
-                boolean needsAudio = false;
-                boolean needsVideo = false;
+    private void requestMediaPermissionsIfNeeded() {
+        boolean needsMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED;
+        boolean needsCam = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED;
 
-                for (String resource : resources) {
-                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
-                        needsAudio = true;
-                    }
-                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
-                        needsVideo = true;
-                    }
-                }
-
-                // If the request is not for audio/video, deny to avoid granting unknown permissions
-                if (!needsAudio && !needsVideo) {
-                    request.deny();
-                    return;
-                }
-
-                // Check if Android runtime permissions are already granted
-                boolean audioGranted = !needsAudio ||
-                    ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO)
-                        == PackageManager.PERMISSION_GRANTED;
-                boolean videoGranted = !needsVideo ||
-                    ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
-                        == PackageManager.PERMISSION_GRANTED;
-
-                if (audioGranted && videoGranted) {
-                    // Runtime permissions already granted — allow WebView access on UI thread
-                    runOnUiThread(() -> request.grant(resources));
-                } else {
-                    // Need to request runtime permissions first — store pending request
-                    pendingPermissionRequest = request;
-                    String[] permsNeeded;
-                    if (needsAudio && needsVideo) {
-                        permsNeeded = new String[]{ Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA };
-                    } else if (needsAudio) {
-                        permsNeeded = new String[]{ Manifest.permission.RECORD_AUDIO };
-                    } else {
-                        permsNeeded = new String[]{ Manifest.permission.CAMERA };
-                    }
-                    ActivityCompat.requestPermissions(MainActivity.this, permsNeeded, PERMISSION_REQUEST_CODE);
-                }
+        if (needsMic || needsCam) {
+            String[] perms;
+            if (needsMic && needsCam) {
+                perms = new String[]{ Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA };
+            } else if (needsMic) {
+                perms = new String[]{ Manifest.permission.RECORD_AUDIO };
+            } else {
+                perms = new String[]{ Manifest.permission.CAMERA };
             }
-        });
+            ActivityCompat.requestPermissions(this, perms, PERMISSION_REQUEST_CODE);
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == PERMISSION_REQUEST_CODE && pendingPermissionRequest != null) {
-            boolean allGranted = true;
-            for (int result : grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    break;
-                }
-            }
-            final PermissionRequest req = pendingPermissionRequest;
-            pendingPermissionRequest = null;
-
-            if (allGranted) {
-                runOnUiThread(() -> req.grant(req.getResources()));
-            } else {
-                runOnUiThread(req::deny);
-            }
-        }
+        // Capacitor's bridge handles the result propagation to plugins.
+        // No additional handling needed here.
     }
 }
