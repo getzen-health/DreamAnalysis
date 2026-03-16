@@ -48,6 +48,8 @@ import {
   type SessionSummary,
 } from "@/lib/ml-api";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
+import { VoiceSessionCard } from "@/components/voice-session-card";
+import { HealthEmotionCard } from "@/components/health-emotion-card";
 import { StreakCard } from "@/components/streak-card";
 import { ReadinessScore } from "@/components/readiness-score";
 import { StreakBadge } from "@/components/streak-badge";
@@ -378,7 +380,7 @@ export default function Dashboard() {
   const analysis = latestFrame?.analysis;
 
   // Health data fallback (iOS/Android only — web returns null)
-  const { latestPayload } = useHealthSync();
+  const { latestPayload, lastSyncAt } = useHealthSync();
   const healthState = !isStreaming && latestPayload && hasRealHealthData(latestPayload) ? deriveHealthState(latestPayload) : null;
 
   // Last emotion check-in from localStorage (persisted by emotion-lab page)
@@ -667,8 +669,16 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Passive health emotion (Apple Watch / Google Health) ── */}
+      {!isStreaming && latestPayload && hasRealHealthData(latestPayload) && (
+        <HealthEmotionCard payload={latestPayload} lastSyncAt={lastSyncAt} />
+      )}
+
       {/* ── Voice micro check-in ────────────────────────────── */}
       <VoiceCheckinCard userId={USER_ID} />
+
+      {/* ── Voice session (continuous tracking) ─────────────── */}
+      <VoiceSessionCard userId={USER_ID} />
 
       {/* ── Empty state for brand-new users ────────────────── */}
       {!isStreaming && !healthState && sessionsWithData.length === 0 && !sessionsLoading && (

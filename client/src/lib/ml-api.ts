@@ -1542,3 +1542,34 @@ export async function getMusicTherapyPrescription(
     }),
   });
 }
+
+// ─── Health Emotion Estimation ───────────────────────────────────────────────
+
+export interface HealthEmotionRequest {
+  hr_bpm: number;
+  hrv_rmssd_ms?: number;
+  respiratory_rate?: number;
+  steps_last_hour?: number;
+  sleep_hours?: number;
+  timestamp?: string;
+}
+
+export interface HealthEmotionResult {
+  emotion: string;
+  valence: number;
+  arousal: number;
+  stress: number;
+  confidence: number;
+  source: "health";
+  watch_says: string;
+  explanation: string;
+}
+
+export async function estimateHealthEmotion(
+  payload: HealthEmotionRequest
+): Promise<HealthEmotionResult> {
+  return mlFetch("/health-emotion/estimate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

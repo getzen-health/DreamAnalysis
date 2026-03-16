@@ -163,6 +163,7 @@ from .health_status import router as _health_status
 from .cnn_kan import router as _cnn_kan
 from .barlow_twins import router as _barlow_twins
 from .eegnet_lite import router as _eegnet_lite
+from .health_emotion import router as _health_emotion
 
 router = APIRouter()
 
@@ -295,3 +296,4 @@ router.include_router(_notifications)
 router.include_router(_cnn_kan)
 router.include_router(_barlow_twins)
 router.include_router(_eegnet_lite)
+router.include_router(_health_emotion)
