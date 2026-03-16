@@ -83,7 +83,7 @@ def test_voice_watch_analyze_auto_logs_supplement_state(monkeypatch):
     tracker.reset("voice_supp_test")
 
     fake_soundfile = types.SimpleNamespace(
-        read=lambda *_args, **_kwargs: (np.zeros(8, dtype=np.float32), 22050),
+        read=lambda *_args, **_kwargs: (np.zeros(22050, dtype=np.float32), 22050),
     )
 
     class FakeVoiceModel:
@@ -107,11 +107,18 @@ def test_voice_watch_analyze_auto_logs_supplement_state(monkeypatch):
 
     fake_vm_module = types.SimpleNamespace(get_voice_model=lambda: FakeVoiceModel())
 
+    # Make voice_ensemble import fail so the code falls through to the legacy path
+    fake_ensemble = types.SimpleNamespace(
+        get_voice_ensemble=lambda: (_ for _ in ()).throw(RuntimeError("no ensemble")),
+        VoiceEnsembleRequest=None,
+    )
+
     monkeypatch.setitem(sys.modules, "soundfile", fake_soundfile)
     monkeypatch.setitem(sys.modules, "models.voice_emotion_model", fake_vm_module)
+    monkeypatch.setitem(sys.modules, "models.voice_ensemble", fake_ensemble)
 
     result = voice_watch_analyze(VoiceWatchRequest(
-        audio_b64=_make_silent_wav_b64(1),
+        audio_b64=_make_silent_wav_b64(3),
         user_id="voice_supp_test",
     ))
 
@@ -142,5 +149,6 @@ def test_voice_watch_status_reports_large_tier(monkeypatch):
 
     status = voice_watch_status()
     assert status["emotion2vec_large_available"] is True
-    assert status["preferred_model_tier"] == "emotion2vec_large"
+    # ensemble prefix added when voice_ensemble module is importable
+    assert "emotion2vec_large" in status["preferred_model_tier"]
     assert status["ready"] is True
