@@ -44,6 +44,8 @@
  *   GET    /api/study/admin/sessions       (pilot study, admin required)
  *   GET    /api/study/admin/stats          (pilot study, admin required)
  *   GET    /api/study/admin/export-csv     (pilot study, admin required)
+ *   POST   /api/readings                  (store voice/food/health/eeg reading)
+ *   GET    /api/readings/:userId          (export readings for training)
  *   ALL    /api/ml/*                      (ML backend proxy → FastAPI)
  */
 
@@ -1286,6 +1288,75 @@ async function userIntentPatch(req: VercelRequest, res: VercelResponse) {
   return success(res, { success: true, intent });
 }
 
+// ── User readings (voice / food / health / EEG training data) ────────────────
+
+async function readingsCreate(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  try {
+    const body = req.body ?? {};
+    const { userId, source, emotion, valence, arousal, stress, confidence, modelType, features } = body as {
+      userId?: string;
+      source?: string;
+      emotion?: string;
+      valence?: number;
+      arousal?: number;
+      stress?: number;
+      confidence?: number;
+      modelType?: string;
+      features?: unknown;
+    };
+
+    if (!source || !['voice', 'food', 'health', 'eeg'].includes(source)) {
+      return badRequest(res, 'source must be one of: voice, food, health, eeg');
+    }
+
+    const db = getDb();
+    const [row] = await db.insert(schema.userReadings).values({
+      userId: userId ?? null,
+      source,
+      emotion: emotion ?? null,
+      valence: typeof valence === 'number' ? valence : null,
+      arousal: typeof arousal === 'number' ? arousal : null,
+      stress: typeof stress === 'number' ? stress : null,
+      confidence: typeof confidence === 'number' ? confidence : null,
+      modelType: modelType ?? null,
+      features: features ?? null,
+    }).returning();
+
+    return success(res, row, 201);
+  } catch (err: any) {
+    console.error('[readingsCreate]', err?.message ?? err);
+    return error(res, `Failed to store reading: ${err?.message || 'Unknown error'}`, 500);
+  }
+}
+
+async function readingsList(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  try {
+    const db = getDb();
+    const sourceFilter = req.query.source as string | undefined;
+    const limit = Math.min(parseInt(req.query.limit as string) || 1000, 5000);
+
+    const conditions = [eq(schema.userReadings.userId, userId)];
+    if (sourceFilter && ['voice', 'food', 'health', 'eeg'].includes(sourceFilter)) {
+      conditions.push(eq(schema.userReadings.source, sourceFilter));
+    }
+
+    const rows = await db
+      .select()
+      .from(schema.userReadings)
+      .where(and(...conditions))
+      .orderBy(desc(schema.userReadings.createdAt))
+      .limit(limit);
+
+    return success(res, { readings: rows, count: rows.length });
+  } catch (err: any) {
+    console.error('[readingsList]', err?.message ?? err);
+    return error(res, `Failed to fetch readings: ${err?.message || 'Unknown error'}`, 500);
+  }
+}
+
 // ── Demo data seeder ─────────────────────────────────────────────────────────
 
 async function seedDemo(req: VercelRequest, res: VercelResponse) {
@@ -1460,6 +1531,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'user') {
       if (s1 === 'intent' && req.method === 'GET')   return await userIntentGet(req, res);
       if (s1 === 'intent' && req.method === 'PATCH')  return await userIntentPatch(req, res);
+    }
+
+    if (s0 === 'readings') {
+      if (!s1 && req.method === 'POST') return await readingsCreate(req, res);
+      if (s1 && req.method === 'GET')   return await readingsList(req, res, s1);
     }
 
     if (s0 === 'seed-demo') return await seedDemo(req, res);

@@ -6,9 +6,11 @@
  *
  * Never throws — errors are surfaced via the `error` return value.
  */
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useContext } from "react";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
+import { VoiceCacheContext } from "./use-voice-cache";
+import { resolveUrl } from "@/lib/queryClient";
 
 export interface VoiceEmotionResult {
   emotion: string;
@@ -58,6 +60,11 @@ export function useVoiceEmotion(
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastResult, setLastResult] = useState<VoiceEmotionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Update shared cross-page cache when a recording completes.
+  // useContext is safe here: falls back to the default (no-op) when
+  // VoiceCacheProvider is not mounted (e.g. in tests or story previews).
+  const { setVoiceCacheResult } = useContext(VoiceCacheContext);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -152,6 +159,27 @@ export function useVoiceEmotion(
 
         const result: VoiceEmotionResult = await res.json();
         setLastResult(result);
+        // Propagate to shared cross-page cache immediately (no 30-s poll wait)
+        setVoiceCacheResult(result);
+
+        // Persist to user_readings for model retraining (fire-and-forget)
+        fetch(resolveUrl("/api/readings"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: resolvedUserId,
+            source: "voice",
+            emotion: result.emotion,
+            valence: result.valence,
+            arousal: result.arousal,
+            stress: result.stress_from_watch ?? null,
+            confidence: result.confidence,
+            modelType: result.model_type,
+            features: { probabilities: result.probabilities },
+          }),
+        }).catch(() => {
+          // Silent — storage failure is not user-facing
+        });
 
         // Cache result for WebSocket EEG fusion (fire-and-forget)
         fetch(`${baseUrl}/api/voice-watch/cache`, {

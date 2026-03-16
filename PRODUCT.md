@@ -191,7 +191,7 @@ Backend API                  █████████░  96%
   Per-user state isolation fixed. Food-emotion + simulation support added.
   RL training endpoint runs in isolated subprocess (no GIL/OpenMP deadlock). ✅
   Parallel inference (ThreadPoolExecutor) on hot paths. ✅
-  Prod deployment: Render free tier (neural-dream-ml.onrender.com). ✅
+  Prod deployment: Railway (neural-dream-ml-production.up.railway.app). ✅
   Spotify OAuth + play + status + disconnect endpoints added. ✅
   Just-in-time push notification trigger (POST /api/notifications/brain-state-trigger). ✅
   Yesterday's Insights endpoint (GET /api/brain/yesterday-insights/:userId). ✅
@@ -255,12 +255,12 @@ Retention mechanics          ████████░░  82%
 
 Infrastructure               █████████░  93%
   Frontend on Vercel (dream-analysis.vercel.app).
-  ML backend on Render free tier (neural-dream-ml.onrender.com). ✅
+  ML backend on Railway (neural-dream-ml-production.up.railway.app). ✅
   Per-user isolation: fixed. No monitoring. No auth enforcement.
   Bundle optimized: Vite vendor splitting + lazy loading. ✅
   Offline: IndexedDB queue + auto-sync on reconnect. ✅
   PWA: manifest, service worker, installable. ✅
-  Cold-start handled gracefully: animated MLWarmupScreen overlay during Render spin-up;
+  Cold-start handled gracefully: animated MLWarmupScreen overlay during ML backend cold start;
     keep-alive ping every 14 min prevents sleep; mlFetch 3-retry backoff (1s/3s/9s) + 30s timeout. ✅
   ML status dot in sidebar (green/amber/red) with latency tooltip and Reconnect button. ✅
   SimulationModeBanner on emotion-lab + brain-monitor when ML unreachable. ✅
@@ -306,7 +306,7 @@ Fixed: buffering progress bar shown; emotion predictions blocked until
 
 ### ~~5. ML backend is not deployed~~ ✅ Fixed
 ~~Every demo requires running `uvicorn` locally.~~
-Fixed: deployed to Render free tier (neural-dream-ml.onrender.com).
+Fixed: deployed to Railway (neural-dream-ml-production.up.railway.app).
 
 ### ~~6. Neurofeedback uses a static, fixed difficulty threshold~~ ✅ Fixed
 ~~The protocol threshold never changes. Too easy → boredom. Too hard → disengagement.
@@ -323,7 +323,7 @@ Fixed: "Connect Device" in sidebar links to `/device-setup`. Dashboard banner
 also links there. `/device-setup` routes into `/onboarding` for guided calibration.
 
 ### ~~8. ML backend cold start causes blank screen~~ ✅ Fixed
-~~Render free tier spins down after 15 min of inactivity. First request after idle
+~~ML backend spins down after idle. First request after idle
 takes 30–60 seconds — no feedback to the user, app appears broken.~~
 Fixed: `MLWarmupScreen` full-screen animated overlay shown during cold start.
 `useMLConnection` state machine (idle → connecting → warming → ready | error) manages
@@ -371,7 +371,7 @@ insights, health-analytics, and session-history to match current component copy.
 ## The Build Order That Actually Matters
 
 ### Phase 0 — Make it not embarrassing ✅ COMPLETE
-- [x] Deploy ML backend to Render (neural-dream-ml.onrender.com)
+- [x] Deploy ML backend to Railway (neural-dream-ml-production.up.railway.app)
 - [x] Fix per-user state isolation (epoch buffer + baseline cal now per-user dicts)
 - [x] Restore all hidden pages: Inner Energy/Chakra, Brain Connectivity, Dream Patterns,
       Health Analytics, Insights — all back in routing and sidebar

@@ -17,7 +17,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 const ML_URL =
   process.env.VITE_ML_API_URL ||
   process.env.ML_API_URL ||
-  "https://neural-dream-ml.onrender.com";
+  "https://neural-dream-ml-production.up.railway.app";
 
 export default async function handler(
   _req: VercelRequest,

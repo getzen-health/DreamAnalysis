@@ -22,7 +22,7 @@ import {
   Mic,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
-import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
+import { useVoiceCache } from "@/hooks/use-voice-cache";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -121,7 +121,7 @@ export default function HealthAnalytics() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
-  const { lastResult: voiceResult } = useVoiceEmotion();
+  const { cachedEmotion: voiceResult } = useVoiceCache();
 
   // Extract live metrics from ML models
   const emotions = analysis?.emotions;

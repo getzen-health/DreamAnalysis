@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useInference } from "@/hooks/use-inference";
 import { useDevice } from "@/hooks/use-device";
-import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
+import { useVoiceCache } from "@/hooks/use-voice-cache";
 import {
   analyzeWavelet,
   type WaveletResult,
@@ -30,7 +30,7 @@ export default function BrainMonitor() {
   const device = useDevice();
   const { state: deviceState, latestFrame, deviceStatus, selectedDevice, reconnectCount, epochReady } = device;
   const isStreaming = deviceState === "streaming";
-  const voiceEmotion = useVoiceEmotion();
+  const { cachedEmotion: voiceResult } = useVoiceCache();
 
   const [wavelet, setWavelet] = useState<WaveletResult | null>(null);
   const anomaly = (latestFrame?.analysis as { anomaly?: AnomalyResult } | undefined)?.anomaly ?? null;
@@ -364,7 +364,7 @@ export default function BrainMonitor() {
               {(() => {
                 const source: string =
                   (a?.emotions as { signal_source?: string } | undefined)?.signal_source ??
-                  (isStreaming ? "eeg" : voiceEmotion.lastResult ? "voice" : "health");
+                  (isStreaming ? "eeg" : voiceResult ? "voice" : "health");
 
                 const config: Record<string, { label: string; className: string }> = {
                   "eeg":       { label: "EEG",          className: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
@@ -438,14 +438,14 @@ export default function BrainMonitor() {
               <p className="text-sm text-muted-foreground text-center">
                 No EEG signal — showing voice + health estimates
               </p>
-              {voiceEmotion.lastResult && (
+              {voiceResult && (
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="capitalize font-medium text-foreground/80">{voiceEmotion.lastResult.emotion}</span>
+                  <span className="capitalize font-medium text-foreground/80">{voiceResult.emotion}</span>
                   <span className="text-muted-foreground">
-                    valence {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}{voiceEmotion.lastResult.valence.toFixed(2)}
+                    valence {voiceResult.valence >= 0 ? "+" : ""}{voiceResult.valence.toFixed(2)}
                   </span>
                   <span className="text-muted-foreground">·</span>
-                  <span className="text-muted-foreground">{Math.round(voiceEmotion.lastResult.confidence * 100)}% conf</span>
+                  <span className="text-muted-foreground">{Math.round(voiceResult.confidence * 100)}% conf</span>
                 </div>
               )}
             </div>
@@ -529,29 +529,29 @@ export default function BrainMonitor() {
               <p className="text-sm text-muted-foreground text-center">
                 No EEG signal — showing voice + health estimates
               </p>
-              {voiceEmotion.lastResult ? (
+              {voiceResult ? (
                 <div className="space-y-2 w-full max-w-[160px] sm:max-w-[200px]">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Emotion</span>
-                    <span className="capitalize font-medium">{voiceEmotion.lastResult.emotion}</span>
+                    <span className="capitalize font-medium">{voiceResult.emotion}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Valence</span>
                     <span className="font-mono">
-                      {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}
-                      {voiceEmotion.lastResult.valence.toFixed(2)}
+                      {voiceResult.valence >= 0 ? "+" : ""}
+                      {voiceResult.valence.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Arousal</span>
-                    <span className="font-mono">{voiceEmotion.lastResult.arousal.toFixed(2)}</span>
+                    <span className="font-mono">{voiceResult.arousal.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">Confidence</span>
-                    <span className="font-mono">{Math.round(voiceEmotion.lastResult.confidence * 100)}%</span>
+                    <span className="font-mono">{Math.round(voiceResult.confidence * 100)}%</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground/60 text-center pt-1">
-                    via {voiceEmotion.lastResult.model_type}
+                    via {voiceResult.model_type}
                   </p>
                 </div>
               ) : (

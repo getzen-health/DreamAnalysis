@@ -8,11 +8,13 @@
  * Renders nothing when health data is unavailable (web platform, no permissions).
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Heart, Activity, Moon, Footprints } from "lucide-react";
 import { estimateHealthEmotion, type HealthEmotionResult } from "@/lib/ml-api";
 import type { BiometricPayload } from "@/lib/health-sync";
+import { resolveUrl } from "@/lib/queryClient";
+import { getParticipantId } from "@/lib/participant";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -146,6 +148,41 @@ export function HealthEmotionCard({ payload, lastSyncAt }: HealthEmotionCardProp
     staleTime: 15 * 60 * 1000,   // sync cadence is 15 min; don't over-fetch
     retry: 1,
   });
+
+  // Track last saved emotion+confidence to avoid duplicate saves on re-render
+  const lastSavedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!data) return;
+    const key = `${data.emotion}:${data.confidence}`;
+    if (lastSavedRef.current === key) return;
+    lastSavedRef.current = key;
+
+    // Persist to user_readings for model retraining (fire-and-forget)
+    fetch(resolveUrl("/api/readings"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: getParticipantId(),
+        source: "health",
+        emotion: data.emotion,
+        valence: data.valence ?? null,
+        arousal: data.arousal ?? null,
+        stress: data.stress ?? null,
+        confidence: data.confidence,
+        modelType: "health-heuristic",
+        features: {
+          hr_bpm: hr,
+          hrv_rmssd_ms: hrv ?? null,
+          respiratory_rate: resp ?? null,
+          steps_last_hour: stepsLastHour ?? null,
+          sleep_hours: sleep ?? null,
+        },
+      }),
+    }).catch(() => {
+      // Silent — storage failure is not user-facing
+    });
+  }, [data, hr, hrv, resp, stepsLastHour, sleep]);
 
   if (!hr || hr <= 20) return null;
 

@@ -12,6 +12,7 @@ import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { VoiceSessionCard } from "@/components/voice-session-card";
+import { AmbientVoiceCard } from "@/components/ambient-voice-card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { submitFeedback } from "@/lib/ml-api";
@@ -585,6 +586,9 @@ export default function EmotionLab() {
 
       {/* ── Voice session card ──────────────────────────────────────────── */}
       <VoiceSessionCard userId={participantId} />
+
+      {/* ── Ambient voice mode ──────────────────────────────────────────── */}
+      <AmbientVoiceCard />
 
       {/* ── Last check-in (from localStorage, shown when no new analysis this session) */}
       {savedCheckin && !hasNewAnalysis && !voiceEmotion.lastResult && (

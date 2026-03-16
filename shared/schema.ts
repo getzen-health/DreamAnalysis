@@ -478,6 +478,36 @@ export const insertMealHistorySchema = createInsertSchema(mealHistory).omit({
 export type MealHistory = typeof mealHistory.$inferSelect;
 export type InsertMealHistory = z.infer<typeof insertMealHistorySchema>;
 
+// ── User readings (voice / food / health / EEG) — training data accumulator ──
+// Every analysis result from voice check-ins, food emotion, health emotion
+// estimates, and EEG is persisted here so the ML pipeline can retrain on real
+// user data over time.  The `features` column stores the raw feature vector
+// used by the model so retraining does not need to re-compute features.
+
+export const userReadings = pgTable("user_readings", {
+  id:            varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId:        varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  source:        varchar("source", { length: 20 }).notNull(), // "voice" | "food" | "health" | "eeg"
+  emotion:       varchar("emotion", { length: 30 }),
+  valence:       real("valence"),
+  arousal:       real("arousal"),
+  stress:        real("stress"),
+  confidence:    real("confidence"),
+  modelType:     varchar("model_type", { length: 50 }),
+  features:      jsonb("features"),                            // raw feature vector for retraining
+  userCorrected: varchar("user_corrected", { length: 30 }),   // if user corrected the label
+  createdAt:     timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("user_readings_user_source_ts_idx").on(table.userId, table.source, table.createdAt),
+]);
+
+export const insertUserReadingSchema = createInsertSchema(userReadings).omit({
+  id: true,
+  createdAt: true,
+});
+export type UserReading = typeof userReadings.$inferSelect;
+export type InsertUserReading = z.infer<typeof insertUserReadingSchema>;
+
 // ── Pilot study tables (US-001) ─────────────────────────────────────────────
 // Anonymous consent + EEG session records for the 2-week human pilot study.
 // Uses integer serial PKs and a participant_code slug (e.g. "P001") as the

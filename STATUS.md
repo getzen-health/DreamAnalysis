@@ -61,9 +61,9 @@
 
 ### Connection UX & ML Reliability (thursday-launch-ready branch)
 - [x] **useMLConnection hook** (`client/src/hooks/use-ml-connection.tsx`) — state machine tracking ML backend health: idle → connecting → warming → ready | error
-- [x] **MLWarmupScreen** (`client/src/components/ml-warmup-screen.tsx`) — full-screen animated loading overlay shown during ML backend cold start (Render free-tier spin-up)
+- [x] **MLWarmupScreen** (`client/src/components/ml-warmup-screen.tsx`) — full-screen animated loading overlay shown during ML backend cold start (ML backend cold start)
 - [x] **App.tsx integration** — MLConnectionProvider wraps all authenticated routes; MLWarmupScreen renders as overlay during warming state
-- [x] **Keep-alive ping** — AppLayout pings ML backend every 14 minutes to prevent Render free-tier sleep
+- [x] **Keep-alive ping** — AppLayout pings ML backend every 14 minutes to prevent Railway idle timeout
 - [x] **ML status dot** — 8px indicator in sidebar (green/amber/red) with Tooltip showing latency and Reconnect button on error
 - [x] **mlFetch retry logic** — 3 retries with 1s/3s/9s exponential backoff + 30s AbortController timeout
 - [x] **SimulationModeBanner** (`client/src/components/simulation-mode-banner.tsx`) — amber banner on emotion-lab and brain-monitor pages when ML backend is unreachable; prompts simulation mode
@@ -76,7 +76,7 @@
 - [x] **Vercel API fully working** — all `/api/*` routes functional; fixed ESM `.js` extension resolution, lazy-loaded heavy packages to prevent cold-start crash, added explicit `/api/:path*` rewrite for catch-all routing
 - [x] **Cerebras LLM** — switched from OpenAI to Cerebras (`llama3.1-8b`, 1M tokens/day free, no Vercel IP blocking); `CEREBRAS_API_KEY` env var; all AI chat + dream analysis endpoints working on production
 - [x] **Enhanced data export** — `/api/export/:userId?type=` supports `health` (default CSV), `dreams` (CSV with symbols/analysis), `emotions` (CSV with userCorrectedEmotion), `all` (multi-section), `healthkit` (Apple Health XML)
-- [x] Render deployment (ML backend at neural-dream-ml.onrender.com)
+- [x] Railway deployment (ML backend at neural-dream-ml-production.up.railway.app)
 - [x] Neon PostgreSQL (7 tables via Drizzle ORM)
 - [x] BrainFlow hardware support (Muse 2, board_id=38)
 - [x] Apple Health + Google Fit integration

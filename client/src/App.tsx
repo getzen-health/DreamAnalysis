@@ -8,6 +8,7 @@ import { ThemeProvider } from "./hooks/use-theme";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { DeviceProvider } from "./hooks/use-device";
 import { MLConnectionProvider } from "@/hooks/use-ml-connection";
+import { VoiceCacheProvider } from "@/hooks/use-voice-cache";
 import { MLWarmupScreen } from "@/components/ml-warmup-screen";
 import { NeuralBackground } from "@/components/neural-background";
 import AppLayout from "./layouts/app-layout";
@@ -437,9 +438,11 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <MLConnectionProvider>
-            <DeviceProvider>
-              <AppShell />
-            </DeviceProvider>
+            <VoiceCacheProvider>
+              <DeviceProvider>
+                <AppShell />
+              </DeviceProvider>
+            </VoiceCacheProvider>
           </MLConnectionProvider>
         </AuthProvider>
       </ThemeProvider>

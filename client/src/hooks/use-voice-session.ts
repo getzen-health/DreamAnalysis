@@ -22,6 +22,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 
 export interface VoiceSessionResult {
   emotion: string;
@@ -194,6 +195,30 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}): UseVoiceS
       setSmoothedArousal(newA);
       setResults((prev) => [...prev, { timestamp: Date.now(), elapsed, result }]);
       setError(null);
+
+      // Persist to user_readings for model retraining (fire-and-forget)
+      fetch(resolveUrl("/api/readings"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: resolvedUserId,
+          source: "voice",
+          emotion: result.emotion,
+          valence: result.valence,
+          arousal: result.arousal,
+          stress: result.stress_index ?? null,
+          confidence: result.confidence,
+          modelType: result.model_type,
+          features: {
+            probabilities: result.probabilities,
+            focus_index: result.focus_index,
+            stress_index: result.stress_index,
+            elapsed_seconds: elapsed,
+          },
+        }),
+      }).catch(() => {
+        // Silent — storage failure is not user-facing
+      });
     } catch {
       setError("Chunk analysis failed");
     } finally {
