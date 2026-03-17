@@ -435,25 +435,43 @@ export default function Today() {
       {/* ── Stress Relief — appears when stress > 50% ── */}
       {(checkin?.stress_index ?? 0) > 0.5 && (
         <div
-          onClick={() => window.location.href = "/biofeedback"}
           style={{
             background: "linear-gradient(135deg, #1f1210, #111827)",
             border: "1px solid #2d1f18",
             borderRadius: 14,
-            padding: 14,
+            padding: 16,
             marginBottom: 14,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
           }}
         >
-          <span style={{ fontSize: 28 }}>🎵</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#f87171" }}>Stress is elevated</div>
-            <div style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>Tap for a calming music session</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <span style={{ fontSize: 24 }}>😮‍💨</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#f87171" }}>Your stress is elevated</div>
+              <div style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>
+                A quick breathing exercise can lower stress by up to 40%
+              </div>
+            </div>
           </div>
-          <span style={{ color: "#4b5563", fontSize: 16 }}>›</span>
+          <button
+            onClick={() => window.location.href = "/biofeedback"}
+            style={{
+              width: "100%",
+              background: "linear-gradient(135deg, #2dd4a0, #059669)",
+              color: "#0a0e17",
+              border: "none",
+              borderRadius: 10,
+              padding: "10px 16px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+          >
+            🧘 Try a breathing exercise
+          </button>
         </div>
       )}
 
