@@ -95,82 +95,89 @@ function formatDate(): string {
   return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
 }
 
-// ── Readiness Arc ──────────────────────────────────────────────────────────
+// ── Emotion emojis ────────────────────────────────────────────────────────
 
-function ReadinessArc({ score }: { score: number }) {
-  // 270° arc. r=68, circumference ≈ 427. 270/360 * 427 ≈ 321
-  const r = 68;
-  const cx = 80;
-  const cy = 80;
-  const totalArc = 321;
-  const filled = (score / 100) * totalArc;
-  const circumference = 2 * Math.PI * r; // 427.26
-  const rotation = 135; // start at bottom-left
+const EMOTION_EMOJI: Record<string, string> = {
+  happy: "😊", sad: "😢", angry: "😠", fear: "😨",
+  surprise: "😲", neutral: "😐",
+};
 
+const EMOTION_COLOR: Record<string, string> = {
+  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
+  surprise: "#fbbf24", neutral: "#94a3b8",
+};
+
+// ── Hero Section: Emotion + Readiness ─────────────────────────────────────
+
+function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score: number }) {
+  const emotion = checkin?.emotion ?? "neutral";
+  const emoji = EMOTION_EMOJI[emotion] ?? "😐";
+  const color = EMOTION_COLOR[emotion] ?? "#94a3b8";
+  // Read confidence from the raw localStorage result
+  const confidence = (() => {
+    try {
+      const raw = localStorage.getItem("ndw_last_emotion");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return Math.round((parsed?.result?.confidence ?? 0) * 100);
+      }
+    } catch { /* ignore */ }
+    return 0;
+  })();
   const label = getReadinessLabel(score);
-  const labelColor = score === 0 ? "#8b8578" : "#2dd4a0";
+  const hasData = !!checkin?.emotion;
+
+  // Arc params
+  const r = 52;
+  const cx = 65;
+  const cy = 65;
+  const totalArc = (270 / 360) * 2 * Math.PI * r; // ~245
+  const circumference = 2 * Math.PI * r;
+  const filled = (score / 100) * totalArc;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-      <svg width={160} height={160} viewBox="0 0 160 160">
-        <defs>
-          <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#2dd4a0" />
-            <stop offset="100%" stopColor="#059669" />
-          </linearGradient>
-        </defs>
-        {/* Track */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke="#1a1f2e"
-          strokeWidth={8}
-          strokeDasharray={`${totalArc} ${circumference - totalArc}`}
-          strokeDashoffset={0}
-          strokeLinecap="round"
-          transform={`rotate(${rotation} ${cx} ${cy})`}
-        />
-        {/* Fill */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke="url(#arcGrad)"
-          strokeWidth={8}
-          strokeDasharray={`${filled} ${circumference - filled}`}
-          strokeDashoffset={0}
-          strokeLinecap="round"
-          transform={`rotate(${rotation} ${cx} ${cy})`}
-          style={{ transition: "stroke-dasharray 0.8s ease" }}
-        />
-        {/* Score number */}
-        <text
-          x={cx}
-          y={cy - 6}
-          textAnchor="middle"
-          fill="#e8e0d4"
-          fontSize={42}
-          fontWeight={700}
-          fontFamily="system-ui, -apple-system, sans-serif"
-        >
-          {score}
-        </text>
-        {/* Readiness label under number */}
-        <text
-          x={cx}
-          y={cy + 16}
-          textAnchor="middle"
-          fill="#8b8578"
-          fontSize={12}
-          fontFamily="system-ui, -apple-system, sans-serif"
-        >
-          Readiness
-        </text>
-      </svg>
-      <p style={{ fontSize: 13, color: labelColor, margin: 0, textAlign: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, margin: "8px 0 4px" }}>
+      {/* Emotion emoji + label */}
+      {hasData ? (
+        <>
+          <div style={{ fontSize: 52, lineHeight: 1 }}>{emoji}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color, textTransform: "capitalize" as const }}>{emotion}</div>
+          <div style={{ fontSize: 11, color: "#8b8578" }}>
+            {confidence > 0 ? `${confidence}% confidence` : "via voice"} · valence {(checkin?.valence ?? 0) >= 0 ? "+" : ""}{(checkin?.valence ?? 0).toFixed(1)}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 48, lineHeight: 1, opacity: 0.4 }}>🎙️</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#8b8578" }}>How are you feeling?</div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>Tap the mic button to check in</div>
+        </>
+      )}
+
+      {/* Readiness arc (smaller, below emotion) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 8 }}>
+        <svg width={130} height={130} viewBox="0 0 130 130">
+          <defs>
+            <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#2dd4a0" />
+              <stop offset="100%" stopColor="#059669" />
+            </linearGradient>
+          </defs>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1a1f2e" strokeWidth={7}
+            strokeDasharray={`${totalArc} ${circumference - totalArc}`}
+            strokeLinecap="round" transform={`rotate(135 ${cx} ${cy})`} />
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#arcGrad)" strokeWidth={7}
+            strokeDasharray={`${filled} ${circumference - filled}`}
+            strokeLinecap="round" transform={`rotate(135 ${cx} ${cy})`}
+            style={{ transition: "stroke-dasharray 0.8s ease" }} />
+          <text x={cx} y={cy - 4} textAnchor="middle" fill="#e8e0d4" fontSize={32} fontWeight={700}
+            fontFamily="system-ui, -apple-system, sans-serif">{score}</text>
+          <text x={cx} y={cy + 14} textAnchor="middle" fill="#8b8578" fontSize={10}
+            fontFamily="system-ui, -apple-system, sans-serif">Readiness</text>
+        </svg>
+      </div>
+
+      <p style={{ fontSize: 12, color: score === 0 ? "#8b8578" : "#2dd4a0", margin: 0, textAlign: "center" }}>
         {label}
       </p>
     </div>
@@ -374,7 +381,7 @@ export default function Today() {
 
       {/* ── Readiness Score ── */}
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-        <ReadinessArc score={readiness} />
+        <EmotionHero checkin={checkin} score={readiness} />
       </div>
 
       {/* ── Mini Score Cards ── */}
@@ -424,6 +431,31 @@ export default function Today() {
           {aiInsight}
         </p>
       </div>
+
+      {/* ── Stress Relief — appears when stress > 50% ── */}
+      {(checkin?.stress_index ?? 0) > 0.5 && (
+        <div
+          onClick={() => window.location.href = "/biofeedback"}
+          style={{
+            background: "linear-gradient(135deg, #1f1210, #111827)",
+            border: "1px solid #2d1f18",
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 14,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 28 }}>🎵</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#f87171" }}>Stress is elevated</div>
+            <div style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>Tap for a calming music session</div>
+          </div>
+          <span style={{ color: "#4b5563", fontSize: 16 }}>›</span>
+        </div>
+      )}
 
       {/* ── Sleep Card ── */}
       <div
