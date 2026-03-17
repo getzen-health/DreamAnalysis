@@ -78,7 +78,7 @@ export function ScoreSplash({ emotion, readiness, stress, focus, onDismiss }: Sc
         position: "fixed",
         inset: 0,
         zIndex: 60,
-        background: "#0a0e17",
+        background: "var(--background)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -117,7 +117,7 @@ export function ScoreSplash({ emotion, readiness, stress, focus, onDismiss }: Sc
           <div style={{ fontSize: 36, fontWeight: 700, color: "#2dd4a0" }}>
             <AnimatedNumber target={readiness} />
           </div>
-          <div style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>Readiness</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>Readiness</div>
         </div>
         {/* Stress */}
         <div style={{ textAlign: "center" }}>
@@ -129,7 +129,7 @@ export function ScoreSplash({ emotion, readiness, stress, focus, onDismiss }: Sc
             <AnimatedNumber target={stressPercent} />
             <span style={{ fontSize: 16, fontWeight: 400 }}>%</span>
           </div>
-          <div style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>Stress</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>Stress</div>
         </div>
         {/* Focus */}
         <div style={{ textAlign: "center" }}>
@@ -137,14 +137,14 @@ export function ScoreSplash({ emotion, readiness, stress, focus, onDismiss }: Sc
             <AnimatedNumber target={focusPercent} />
             <span style={{ fontSize: 16, fontWeight: 400 }}>%</span>
           </div>
-          <div style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>Focus</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>Focus</div>
         </div>
       </div>
 
       {/* Tap hint */}
       <div style={{
         fontSize: 12,
-        color: "#6b7280",
+        color: "var(--muted-foreground)",
         marginTop: 24,
         animation: "fadeInUp 0.6s ease 0.5s both",
       }}>

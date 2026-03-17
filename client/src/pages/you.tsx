@@ -62,7 +62,7 @@ function StatusBadge({ connected }: { connected: boolean }) {
       style={{
         fontSize: 10,
         fontWeight: 600,
-        color: connected ? "#2dd4a0" : "#8b8578",
+        color: connected ? "#2dd4a0" : "var(--muted-foreground)",
         background: connected ? "rgba(45,212,160,0.12)" : "rgba(139,133,120,0.12)",
         border: `1px solid ${connected ? "rgba(45,212,160,0.3)" : "rgba(139,133,120,0.3)"}`,
         borderRadius: 20,
@@ -100,17 +100,17 @@ function ListItem({
         display: "flex",
         alignItems: "center",
         padding: "13px 14px",
-        borderBottom: isLast ? "none" : "1px solid #1f2937",
+        borderBottom: isLast ? "none" : "1px solid var(--border)",
         cursor: onClick ? "pointer" : "default",
       }}
     >
       <span style={{ fontSize: 18, marginRight: 10 }}>{emoji}</span>
-      <div style={{ flex: 1, fontSize: 14, color: "#e8e0d4" }}>{title}</div>
+      <div style={{ flex: 1, fontSize: 14, color: "var(--foreground)" }}>{title}</div>
       {rightBadge}
       {rightText && (
-        <span style={{ fontSize: 11, color: "#8b8578", marginRight: 6 }}>{rightText}</span>
+        <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginRight: 6 }}>{rightText}</span>
       )}
-      {onClick && <span style={{ color: "#4b5563", fontSize: 16 }}>›</span>}
+      {onClick && <span style={{ color: "var(--muted-foreground)", fontSize: 16 }}>›</span>}
     </div>
   );
 }
@@ -123,7 +123,7 @@ function SectionLabel({ children }: { children: string }) {
       style={{
         fontSize: 11,
         fontWeight: 600,
-        color: "#8b8578",
+        color: "var(--muted-foreground)",
         textTransform: "uppercase",
         letterSpacing: "0.5px",
         marginBottom: 8,
@@ -140,9 +140,9 @@ function GroupedList({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        background: "#111827",
+        background: "var(--card)",
         borderRadius: 14,
-        border: "1px solid #1f2937",
+        border: "1px solid var(--border)",
         overflow: "hidden",
         marginBottom: 14,
       }}
@@ -217,11 +217,11 @@ export default function You() {
   return (
     <main
       style={{
-        background: "#0a0e17",
+        background: "var(--background)",
         minHeight: "100vh",
         padding: 16,
         paddingBottom: 100,
-        color: "#e8e0d4",
+        color: "var(--foreground)",
         fontFamily: "Inter, system-ui, sans-serif",
       }}
     >
@@ -253,12 +253,12 @@ export default function You() {
         </div>
 
         {/* Name */}
-        <div style={{ fontSize: 18, fontWeight: 600, color: "#e8e0d4", marginBottom: 4 }}>
+        <div style={{ fontSize: 18, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>
           {displayName}
         </div>
 
         {/* Member since */}
-        <div style={{ fontSize: 12, color: "#8b8578" }}>Member since {memberSince}</div>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Member since {memberSince}</div>
       </div>
 
       {/* Stats Row */}
@@ -273,29 +273,29 @@ export default function You() {
         {/* Streak */}
         <div
           style={{
-            background: "#111827",
+            background: "var(--card)",
             borderRadius: 14,
-            border: "1px solid #1f2937",
+            border: "1px solid var(--border)",
             padding: 14,
             textAlign: "center",
           }}
         >
           <div style={{ fontSize: 24, fontWeight: 700, color: "#f59e0b" }}>{streak}</div>
-          <div style={{ fontSize: 11, color: "#8b8578", marginTop: 3 }}>Day Streak 🔥</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>Day Streak 🔥</div>
         </div>
 
         {/* Sessions */}
         <div
           style={{
-            background: "#111827",
+            background: "var(--card)",
             borderRadius: 14,
-            border: "1px solid #1f2937",
+            border: "1px solid var(--border)",
             padding: 14,
             textAlign: "center",
           }}
         >
           <div style={{ fontSize: 24, fontWeight: 700, color: "#2dd4a0" }}>{sessions}</div>
-          <div style={{ fontSize: 11, color: "#8b8578", marginTop: 3 }}>Sessions Total</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>Sessions Total</div>
         </div>
       </div>
 
@@ -394,7 +394,7 @@ export default function You() {
         style={{
           width: "100%",
           background: "transparent",
-          border: "1px solid #374151",
+          border: "1px solid var(--border)",
           borderRadius: 12,
           padding: 12,
           color: "#f87171",

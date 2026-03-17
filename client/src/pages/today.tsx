@@ -144,15 +144,15 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
         <>
           <div style={{ fontSize: 52, lineHeight: 1 }}>{emoji}</div>
           <div style={{ fontSize: 22, fontWeight: 700, color, textTransform: "capitalize" as const }}>{emotion}</div>
-          <div style={{ fontSize: 11, color: "#8b8578" }}>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
             {confidence > 0 ? `${confidence}% confidence` : "via voice"} · valence {(checkin?.valence ?? 0) >= 0 ? "+" : ""}{(checkin?.valence ?? 0).toFixed(1)}
           </div>
         </>
       ) : (
         <>
           <div style={{ fontSize: 48, lineHeight: 1, opacity: 0.4 }}>🎙️</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "#8b8578" }}>How are you feeling?</div>
-          <div style={{ fontSize: 11, color: "#6b7280" }}>Tap the mic button to check in</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--muted-foreground)" }}>How are you feeling?</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Tap the mic button to check in</div>
         </>
       )}
 
@@ -165,21 +165,21 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
               <stop offset="100%" stopColor="#059669" />
             </linearGradient>
           </defs>
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1a1f2e" strokeWidth={7}
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--muted)" strokeWidth={7}
             strokeDasharray={`${totalArc} ${circumference - totalArc}`}
             strokeLinecap="round" transform={`rotate(135 ${cx} ${cy})`} />
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#arcGrad)" strokeWidth={7}
             strokeDasharray={`${filled} ${circumference - filled}`}
             strokeLinecap="round" transform={`rotate(135 ${cx} ${cy})`}
             style={{ transition: "stroke-dasharray 0.8s ease" }} />
-          <text x={cx} y={cy - 4} textAnchor="middle" fill="#e8e0d4" fontSize={32} fontWeight={700}
+          <text x={cx} y={cy - 4} textAnchor="middle" fill="var(--foreground)" fontSize={32} fontWeight={700}
             fontFamily="system-ui, -apple-system, sans-serif">{score}</text>
-          <text x={cx} y={cy + 14} textAnchor="middle" fill="#8b8578" fontSize={10}
+          <text x={cx} y={cy + 14} textAnchor="middle" fill="var(--muted-foreground)" fontSize={10}
             fontFamily="system-ui, -apple-system, sans-serif">Score</text>
         </svg>
       </div>
 
-      <p style={{ fontSize: 12, color: score === 0 ? "#8b8578" : "#2dd4a0", margin: 0, textAlign: "center" }}>
+      <p style={{ fontSize: 12, color: score === 0 ? "var(--muted-foreground)" : "#2dd4a0", margin: 0, textAlign: "center" }}>
         {label}
       </p>
     </div>
@@ -205,8 +205,8 @@ function MiniCard({
     <div
       onClick={onClick}
       style={{
-        background: "#111827",
-        border: "1px solid #1f2937",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
         borderRadius: 14,
         padding: "14px 10px",
         textAlign: "center",
@@ -214,13 +214,13 @@ function MiniCard({
         cursor: onClick ? "pointer" : "default",
       }}
     >
-      <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 6px 0" }}>{label}</p>
+      <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>{label}</p>
       <p style={{ fontSize: 22, fontWeight: 700, color: valueColor, margin: "0 0 4px 0", lineHeight: 1 }}>
         {value}
       </p>
-      <p style={{ fontSize: 10, color: "#6b7280", margin: 0 }}>{sub}</p>
+      <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>{sub}</p>
       {onClick && (
-        <span style={{ color: "#4b5563", fontSize: 16, position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>›</span>
+        <span style={{ color: "var(--muted-foreground)", fontSize: 16, position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>›</span>
       )}
     </div>
   );
@@ -255,7 +255,7 @@ function SleepStageBar({
           height: 6,
           borderRadius: 3,
           overflow: "hidden",
-          background: "#1f2937",
+          background: "var(--border)",
           marginBottom: 6,
         }}
       >
@@ -273,7 +273,7 @@ function SleepStageBar({
         ].map(({ label, color }) => (
           <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
-            <span style={{ fontSize: 9, color: "#6b7280" }}>{label}</span>
+            <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{label}</span>
           </div>
         ))}
       </div>
@@ -377,7 +377,7 @@ export default function Today() {
     )}
     <main
       style={{
-        background: "#0a0e17",
+        background: "var(--background)",
         minHeight: "100vh",
         padding: 16,
         paddingBottom: 100,
@@ -394,8 +394,8 @@ export default function Today() {
         }}
       >
         <div>
-          <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 2px 0" }}>{formatDate()}</p>
-          <p style={{ fontSize: 18, fontWeight: 600, color: "#e8e0d4", margin: 0 }}>
+          <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 2px 0" }}>{formatDate()}</p>
+          <p style={{ fontSize: 18, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
             Good{" "}
             {new Date().getHours() < 12
               ? "morning"
@@ -449,7 +449,7 @@ export default function Today() {
           label="Stress"
           value={stressVal > 0 ? `${Math.round(stressVal * 100)}%` : "—"}
           sub={stressVal > 0 ? getStressLabel(stressVal) : "No data"}
-          valueColor={stressVal > 0 ? getStressColor(stressVal) : "#8b8578"}
+          valueColor={stressVal > 0 ? getStressColor(stressVal) : "var(--muted-foreground)"}
           onClick={() => navigate("/emotions")}
         />
         <MiniCard
@@ -464,7 +464,7 @@ export default function Today() {
       {/* ── AI Insight ── */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0f1f1a, #111827)",
+          background: "var(--card)",
           border: "1px solid #1f3a2e",
           borderRadius: 14,
           padding: 14,
@@ -475,7 +475,7 @@ export default function Today() {
           <Sparkles size={13} color="#2dd4a0" />
           <span style={{ fontSize: 11, fontWeight: 600, color: "#2dd4a0" }}>AI Insight</span>
         </div>
-        <p style={{ fontSize: 13, color: "#d1cdc4", margin: 0, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0, lineHeight: 1.5 }}>
           {aiInsight}
         </p>
       </div>
@@ -484,7 +484,7 @@ export default function Today() {
       {(checkin?.stress_index ?? 0) > 0.5 && (
         <div
           style={{
-            background: "linear-gradient(135deg, #1f1210, #111827)",
+            background: "var(--card)",
             border: "1px solid #2d1f18",
             borderRadius: 14,
             padding: 16,
@@ -495,7 +495,7 @@ export default function Today() {
             <span style={{ fontSize: 24 }}>😮‍💨</span>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#f87171" }}>Your stress is elevated</div>
-              <div style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
                 A quick breathing exercise can lower stress by up to 40%
               </div>
             </div>
@@ -527,8 +527,8 @@ export default function Today() {
       <div
         onClick={() => navigate("/sleep-session")}
         style={{
-          background: "#111827",
-          border: "1px solid #1f2937",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
           borderRadius: 14,
           padding: 14,
           marginBottom: 14,
@@ -545,19 +545,19 @@ export default function Today() {
           }}
         >
           <div>
-            <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 4px 0" }}>Sleep</p>
+            <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 4px 0" }}>Sleep</p>
             <p style={{ fontSize: 20, fontWeight: 700, color: "#a78bfa", margin: 0 }}>
               {sleepTotal > 0 ? `${sleepTotal.toFixed(1)}h` : "—"}
             </p>
           </div>
           <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 6 }}>
             <div>
-              <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 4px 0" }}>Quality</p>
+              <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 4px 0" }}>Quality</p>
               <p style={{ fontSize: 20, fontWeight: 700, color: "#a78bfa", margin: 0 }}>
                 {sleepEfficiency > 0 ? `${Math.round(sleepEfficiency)}%` : "—"}
               </p>
             </div>
-            <span style={{ color: "#4b5563", fontSize: 18, lineHeight: 1 }}>›</span>
+            <span style={{ color: "var(--muted-foreground)", fontSize: 18, lineHeight: 1 }}>›</span>
           </div>
         </div>
         <SleepStageBar
@@ -582,16 +582,16 @@ export default function Today() {
         <div
           onClick={() => navigate("/health-analytics")}
           style={{
-            background: "#111827",
-            border: "1px solid #1f2937",
+            background: "var(--card)",
+            border: "1px solid var(--border)",
             borderRadius: 14,
             padding: 14,
             cursor: "pointer",
             position: "relative",
           }}
         >
-          <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 6px 0" }}>Heart Rate</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: "#e8e0d4", margin: "0 0 4px 0" }}>
+          <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>Heart Rate</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
             {heartRate ? `${Math.round(heartRate)} bpm` : "—"}
           </p>
           <p style={{ fontSize: 10, color: "#34d399", margin: 0 }}>
@@ -603,29 +603,29 @@ export default function Today() {
                 : "Elevated"
               : "No data"}
           </p>
-          <span style={{ color: "#4b5563", fontSize: 16, position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>›</span>
+          <span style={{ color: "var(--muted-foreground)", fontSize: 16, position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>›</span>
         </div>
 
         {/* Steps */}
         <div
           onClick={() => navigate("/health-analytics")}
           style={{
-            background: "#111827",
-            border: "1px solid #1f2937",
+            background: "var(--card)",
+            border: "1px solid var(--border)",
             borderRadius: 14,
             padding: 14,
             cursor: "pointer",
             position: "relative",
           }}
         >
-          <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 6px 0" }}>Steps</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: "#e8e0d4", margin: "0 0 4px 0" }}>
+          <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>Steps</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
             {steps > 0 ? steps.toLocaleString() : "—"}
           </p>
-          <p style={{ fontSize: 10, color: "#8b8578", margin: 0 }}>
+          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>
             {steps > 0 ? `${stepsPct}% of goal` : "No data"}
           </p>
-          <span style={{ color: "#4b5563", fontSize: 16, position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>›</span>
+          <span style={{ color: "var(--muted-foreground)", fontSize: 16, position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>›</span>
         </div>
       </div>
 
@@ -633,8 +633,8 @@ export default function Today() {
       <div
         onClick={() => navigate("/nutrition")}
         style={{
-          background: "#111827",
-          border: "1px solid #1f2937",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
           borderRadius: 14,
           padding: 14,
           cursor: "pointer",
@@ -648,21 +648,21 @@ export default function Today() {
             marginBottom: 10,
           }}
         >
-          <span style={{ fontSize: 11, color: "#8b8578" }}>Today's Nutrition</span>
+          <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Today's Nutrition</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 11, color: "#f59e0b" }}>
               {todayCalories > 0
                 ? `${todayCalories.toLocaleString()} / ${calGoal.toLocaleString()} kcal`
                 : `— / ${calGoal.toLocaleString()} kcal`}
             </span>
-            <span style={{ color: "#4b5563", fontSize: 16, lineHeight: 1 }}>›</span>
+            <span style={{ color: "var(--muted-foreground)", fontSize: 16, lineHeight: 1 }}>›</span>
           </div>
         </div>
         <div
           style={{
             height: 6,
             borderRadius: 3,
-            background: "#1f2937",
+            background: "var(--border)",
             overflow: "hidden",
           }}
         >

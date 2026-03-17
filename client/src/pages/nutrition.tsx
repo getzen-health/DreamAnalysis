@@ -102,7 +102,7 @@ function CalorieRing({ calories }: { calories: number }) {
             cy={cx}
             r={r}
             fill="none"
-            stroke="#1f2937"
+            stroke="var(--border)"
             strokeWidth={stroke}
           />
           {/* Fill arc */}
@@ -134,10 +134,10 @@ function CalorieRing({ calories }: { calories: number }) {
             justifyContent: "center",
           }}
         >
-          <span style={{ fontSize: 28, fontWeight: 700, color: "#e8e0d4", lineHeight: 1 }}>
+          <span style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", lineHeight: 1 }}>
             {calories}
           </span>
-          <span style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>of {CAL_GOAL} kcal</span>
+          <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>of {CAL_GOAL} kcal</span>
         </div>
       </div>
     </div>
@@ -152,7 +152,7 @@ function MacroBar({ value, goal, color }: { value: number; goal: number; color: 
     <div
       style={{
         height: 3,
-        background: "#1f2937",
+        background: "var(--border)",
         borderRadius: 2,
         marginTop: 6,
         overflow: "hidden",
@@ -228,11 +228,11 @@ export default function Nutrition() {
   return (
     <main
       style={{
-        background: "#0a0e17",
+        background: "var(--background)",
         minHeight: "100vh",
         padding: 16,
         paddingBottom: 100,
-        color: "#e8e0d4",
+        color: "var(--foreground)",
         fontFamily: "Inter, system-ui, sans-serif",
       }}
     >
@@ -256,9 +256,9 @@ export default function Nutrition() {
         {/* Protein */}
         <div
           style={{
-            background: "#111827",
+            background: "var(--card)",
             borderRadius: 12,
-            border: "1px solid #1f2937",
+            border: "1px solid var(--border)",
             padding: "12px 8px",
             textAlign: "center",
           }}
@@ -266,16 +266,16 @@ export default function Nutrition() {
           <div style={{ fontSize: 16, fontWeight: 700, color: "#60a5fa" }}>
             {Math.round(totalProtein)}g
           </div>
-          <div style={{ fontSize: 10, color: "#8b8578", marginTop: 2 }}>Protein</div>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Protein</div>
           <MacroBar value={totalProtein} goal={PROTEIN_GOAL} color="#60a5fa" />
         </div>
 
         {/* Carbs */}
         <div
           style={{
-            background: "#111827",
+            background: "var(--card)",
             borderRadius: 12,
-            border: "1px solid #1f2937",
+            border: "1px solid var(--border)",
             padding: "12px 8px",
             textAlign: "center",
           }}
@@ -283,16 +283,16 @@ export default function Nutrition() {
           <div style={{ fontSize: 16, fontWeight: 700, color: "#f59e0b" }}>
             {Math.round(totalCarbs)}g
           </div>
-          <div style={{ fontSize: 10, color: "#8b8578", marginTop: 2 }}>Carbs</div>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Carbs</div>
           <MacroBar value={totalCarbs} goal={CARBS_GOAL} color="#f59e0b" />
         </div>
 
         {/* Fat */}
         <div
           style={{
-            background: "#111827",
+            background: "var(--card)",
             borderRadius: 12,
-            border: "1px solid #1f2937",
+            border: "1px solid var(--border)",
             padding: "12px 8px",
             textAlign: "center",
           }}
@@ -300,7 +300,7 @@ export default function Nutrition() {
           <div style={{ fontSize: 16, fontWeight: 700, color: "#f87171" }}>
             {Math.round(totalFat)}g
           </div>
-          <div style={{ fontSize: 10, color: "#8b8578", marginTop: 2 }}>Fat</div>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Fat</div>
           <MacroBar value={totalFat} goal={FAT_GOAL} color="#f87171" />
         </div>
       </div>
@@ -308,7 +308,7 @@ export default function Nutrition() {
       {/* Craving Analysis Card */}
       <div
         style={{
-          background: "linear-gradient(135deg, #1a1410, #111827)",
+          background: "var(--card)",
           border: "1px solid #2d2418",
           borderRadius: 14,
           padding: 14,
@@ -329,8 +329,8 @@ export default function Nutrition() {
           <span>🧠</span>
           <span>Craving Analysis</span>
         </div>
-        <p style={{ fontSize: 13, color: "#d1cdc4", lineHeight: 1.5, margin: 0 }}>
-          Right now you show signs of <strong style={{ color: "#e8e0d4" }}>{craving.text}</strong>.
+        <p style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5, margin: 0 }}>
+          Right now you show signs of <strong style={{ color: "var(--foreground)" }}>{craving.text}</strong>.
           Track your meals to see how your emotional state shapes your eating patterns.
         </p>
       </div>
@@ -429,8 +429,8 @@ export default function Nutrition() {
           <button
             onClick={() => setCaptureMode("text")}
             style={{
-              flex: 1, background: "#111827", color: "#e8e0d4", borderRadius: 12,
-              padding: 12, fontSize: 13, fontWeight: 500, border: "1px solid #1f2937", cursor: "pointer",
+              flex: 1, background: "var(--card)", color: "var(--foreground)", borderRadius: 12,
+              padding: 12, fontSize: 13, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer",
             }}
           >
             ✍ Describe
@@ -441,12 +441,12 @@ export default function Nutrition() {
       {/* Analyzing state */}
       {isAnalyzing && (
         <div style={{
-          background: "#111827", borderRadius: 14, border: "1px solid #1f2937",
+          background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
           padding: 20, marginBottom: 14, textAlign: "center",
         }}>
           <div style={{ width: 28, height: 28, border: "3px solid #f59e0b", borderTopColor: "transparent",
             borderRadius: "50%", margin: "0 auto 8px", animation: "spin 0.8s linear infinite" }} />
-          <p style={{ fontSize: 13, color: "#e8e0d4", margin: 0 }}>Analyzing your meal...</p>
+          <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0 }}>Analyzing your meal...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
@@ -454,12 +454,12 @@ export default function Nutrition() {
       {/* Error */}
       {analysisError && (
         <div style={{
-          background: "#1f1210", borderRadius: 14, border: "1px solid #2d1f18",
+          background: "var(--card)", borderRadius: 14, border: "1px solid #2d1f18",
           padding: 14, marginBottom: 14,
         }}>
           <p style={{ fontSize: 12, color: "#f87171", margin: 0 }}>{analysisError}</p>
           <button onClick={() => { setAnalysisError(null); setCaptureMode("none"); }}
-            style={{ marginTop: 8, fontSize: 12, color: "#8b8578", background: "none", border: "none", cursor: "pointer" }}>
+            style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", background: "none", border: "none", cursor: "pointer" }}>
             Try again
           </button>
         </div>
@@ -468,10 +468,10 @@ export default function Nutrition() {
       {/* Describe mode — text input */}
       {captureMode === "text" && (
         <div style={{
-          background: "#111827", borderRadius: 14, border: "1px solid #1f2937",
+          background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
           padding: 14, marginBottom: 14,
         }}>
-          <p style={{ fontSize: 12, color: "#8b8578", margin: "0 0 8px 0" }}>
+          <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "0 0 8px 0" }}>
             What did you eat? Be specific for better accuracy.
           </p>
           <textarea
@@ -479,8 +479,8 @@ export default function Nutrition() {
             onChange={(e) => setMealText(e.target.value)}
             placeholder="e.g. rice bowl with grilled chicken, steamed vegetables, and soy sauce"
             style={{
-              width: "100%", minHeight: 80, background: "#0a0e17", color: "#e8e0d4",
-              border: "1px solid #1f2937", borderRadius: 10, padding: 12, fontSize: 13,
+              width: "100%", minHeight: 80, background: "var(--background)", color: "var(--foreground)",
+              border: "1px solid var(--border)", borderRadius: 10, padding: 12, fontSize: 13,
               resize: "none", outline: "none", fontFamily: "inherit",
             }}
           />
@@ -488,8 +488,8 @@ export default function Nutrition() {
             <button
               onClick={() => { setCaptureMode("none"); setMealText(""); }}
               style={{
-                flex: 1, background: "transparent", color: "#8b8578", borderRadius: 10,
-                padding: 10, fontSize: 13, border: "1px solid #1f2937", cursor: "pointer",
+                flex: 1, background: "transparent", color: "var(--muted-foreground)", borderRadius: 10,
+                padding: 10, fontSize: 13, border: "1px solid var(--border)", cursor: "pointer",
               }}
             >
               Cancel
@@ -518,8 +518,8 @@ export default function Nutrition() {
                 }
               }}
               style={{
-                flex: 1, background: mealText.trim() ? "#f59e0b" : "#374151",
-                color: mealText.trim() ? "#0a0e17" : "#6b7280", borderRadius: 10,
+                flex: 1, background: mealText.trim() ? "#f59e0b" : "var(--muted)",
+                color: mealText.trim() ? "#0a0e17" : "var(--muted-foreground)", borderRadius: 10,
                 padding: 10, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
               }}
             >
@@ -535,7 +535,7 @@ export default function Nutrition() {
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: "#8b8578",
+            color: "var(--muted-foreground)",
             textTransform: "uppercase",
             letterSpacing: "0.5px",
             marginBottom: 8,
@@ -546,9 +546,9 @@ export default function Nutrition() {
 
         <div
           style={{
-            background: "#111827",
+            background: "var(--card)",
             borderRadius: 14,
-            border: "1px solid #1f2937",
+            border: "1px solid var(--border)",
             overflow: "hidden",
           }}
         >
@@ -558,7 +558,7 @@ export default function Nutrition() {
                 padding: "24px 16px",
                 textAlign: "center",
                 fontSize: 13,
-                color: "#8b8578",
+                color: "var(--muted-foreground)",
               }}
             >
               Log your first meal to start tracking
@@ -572,7 +572,7 @@ export default function Nutrition() {
                   alignItems: "center",
                   padding: "12px 14px",
                   borderBottom:
-                    idx < todayLogs.length - 1 ? "1px solid #1f2937" : "none",
+                    idx < todayLogs.length - 1 ? "1px solid var(--border)" : "none",
                 }}
               >
                 {/* Meal icon */}
@@ -586,7 +586,7 @@ export default function Nutrition() {
                     style={{
                       fontSize: 13,
                       fontWeight: 500,
-                      color: "#e8e0d4",
+                      color: "var(--foreground)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
@@ -594,7 +594,7 @@ export default function Nutrition() {
                   >
                     {log.summary ?? "Meal"}
                   </div>
-                  <div style={{ fontSize: 10, color: "#8b8578", marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
                     {formatTime(log.loggedAt)} · {getMealLabel(log.mealType)}
                   </div>
                 </div>
