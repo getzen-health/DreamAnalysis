@@ -57,7 +57,8 @@ class DrowsinessDetector:
 
     def calibrate(self, alert_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with alert-state EEG for personalized baseline."""
-        processed = preprocess(alert_eeg, fs)
+        signal = alert_eeg[0] if alert_eeg.ndim == 2 else alert_eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         self.baseline_alpha = bands.get("alpha", 0.2)
         self.baseline_beta = bands.get("beta", 0.2)
@@ -128,7 +129,8 @@ class DrowsinessDetector:
             except Exception:
                 pass  # fall through to feature-based
 
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         hjorth = compute_hjorth_parameters(processed)
 
@@ -136,7 +138,6 @@ class DrowsinessDetector:
         beta = bands.get("beta", 0)
         theta = bands.get("theta", 0)
         delta = bands.get("delta", 0)
-        gamma = bands.get("gamma", 0)
 
         base_alpha = self.baseline_alpha or 0.2
         base_beta = self.baseline_beta or 0.2
@@ -160,7 +161,8 @@ class DrowsinessDetector:
         beta_suppression = float(np.clip(beta_suppression, 0, 1))
 
         # 4. Delta/Theta Increase (sleepiness)
-        slow_wave_increase = (delta + theta) / (alpha + beta + gamma + 1e-10)
+        # Gamma excluded: on Muse 2 AF7/AF8, gamma is predominantly EMG artifact
+        slow_wave_increase = (delta + theta) / (alpha + beta + 1e-10)
 
         # 5. Theta trend (increasing theta = increasing drowsiness)
         if len(self._theta_beta_history) >= 5:
@@ -221,7 +223,8 @@ class DrowsinessDetector:
         return result
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
         fv = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)

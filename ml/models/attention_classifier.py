@@ -59,7 +59,8 @@ class AttentionClassifier:
 
     def calibrate(self, focused_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with focused-state EEG for personalized thresholds."""
-        processed = preprocess(focused_eeg, fs)
+        signal = focused_eeg[0] if focused_eeg.ndim == 2 else focused_eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         self.baseline_beta = bands.get("beta", 0.2)
         self.baseline_theta = bands.get("theta", 0.15)
@@ -77,7 +78,8 @@ class AttentionClassifier:
             except Exception:
                 pass  # fall through to feature-based
 
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         hjorth = compute_hjorth_parameters(processed)
         se = spectral_entropy(processed, fs)
@@ -86,7 +88,8 @@ class AttentionClassifier:
         beta = bands.get("beta", 0)
         theta = bands.get("theta", 0)
         delta = bands.get("delta", 0)
-        gamma = bands.get("gamma", 0)
+        # Gamma (30-100 Hz) excluded: on Muse 2 AF7/AF8 it is predominantly EMG
+        # artifact (jaw/forehead muscle). Using it would falsely inflate attention scores.
         low_beta = bands.get("low_beta", 0)   # 12-20 Hz: working memory and attention
 
         base_beta = self.baseline_beta or 0.2
@@ -119,23 +122,22 @@ class AttentionClassifier:
         mobility = hjorth.get("mobility", 0.5) if isinstance(hjorth, dict) else 0.5
         signal_stability = float(np.clip(1.0 - np.tanh(mobility * 2), 0, 1))
 
-        # 6. Gamma Presence (active cortical processing)
-        # Fixed saturation: gamma is typically 0.03-0.15 on Muse 2
-        # ×15 saturated to 1.0 even for resting gamma. ×5 gives useful 0.15-0.75 range.
-        gamma_processing = float(np.clip(np.tanh(gamma * 5), 0, 1))
+        # 6. (Gamma processing removed — gamma is EMG artifact on Muse 2 AF7/AF8,
+        #     not neural signal. It would inflate attention scores spuriously.)
 
         # 7. Delta Penalty (high delta = drowsiness / deep fatigue; incompatible with attention)
         # A high-delta EEG is almost certainly not focused — apply a downward pressure
         delta_penalty = float(np.clip(delta * 3, 0, 0.4))  # cap penalty at 0.4
 
         # === Overall Attention Score ===
+        # Gamma processing removed (EMG artifact on Muse 2).
+        # Its 0.09 weight redistributed: spectral_focus 0.13→0.18, signal_stability 0.10→0.14.
         attention_score = float(np.clip(
             0.25 * tbr_score +
             0.20 * beta_engagement +
             0.18 * alpha_focus_penalty +
-            0.13 * spectral_focus +
-            0.10 * signal_stability +
-            0.09 * gamma_processing -
+            0.18 * spectral_focus +
+            0.14 * signal_stability -
             0.05 * delta_penalty,
             0, 1
         ))
@@ -181,14 +183,14 @@ class AttentionClassifier:
                 "alpha_focus_penalty": round(alpha_focus_penalty, 3),
                 "spectral_focus": round(spectral_focus, 3),
                 "signal_stability": round(signal_stability, 3),
-                "gamma_processing": round(gamma_processing, 3),
                 "delta_penalty": round(delta_penalty, 3),
             },
             "band_powers": bands,
         }
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
         fv = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
@@ -216,7 +218,6 @@ class AttentionClassifier:
                 "alpha_focus_penalty": round(float(1.0 - bands.get("alpha", 0.2)), 3),
                 "spectral_focus": 0.5,
                 "signal_stability": 0.5,
-                "gamma_processing": round(float(bands.get("gamma", 0.05)), 3),
             },
             "band_powers": bands,
         }

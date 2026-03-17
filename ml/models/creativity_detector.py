@@ -7,9 +7,15 @@ Two novel detectors that no one has deployed as real-time tools:
    Scientific basis:
    - Increased right-hemisphere alpha (reduced inhibition)
    - Alpha synchronization across frontal regions
-   - Gamma bursts during "aha!" moments / insight
+   - Theta oscillations during incubation / associative thinking
    - Reduced beta (less analytical, more associative thinking)
-   Reference: Fink & Benedek (2014), Lustenberger et al. (2015)
+   Reference: Kounios & Beeman (2014), Fink & Benedek (2014)
+
+   NOTE: Gamma (30-100 Hz) is NOT used here.  On Muse 2's AF7/AF8 channels
+   gamma is predominantly EMG muscle artifact (jaw clench, frontalis tension),
+   not neural signal.  Insight-related gamma bursts from Lustenberger et al.
+   (2015) were recorded with scalp gel electrodes at occipital sites — not
+   applicable to Muse 2 frontal dry electrodes.
 
 2. MEMORY ENCODING PREDICTOR
    Predicts whether current information is being encoded into memory.
@@ -37,7 +43,7 @@ class CreativityDetector:
         self.feature_names = None
         self.scaler = None
         self.baseline_alpha = None
-        self.baseline_gamma = None
+        # NOTE: baseline_gamma removed — gamma on Muse 2 AF7/AF8 is EMG artifact
 
         if model_path:
             self._load_model(model_path)
@@ -56,10 +62,12 @@ class CreativityDetector:
 
     def calibrate(self, resting_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with resting EEG baseline."""
-        processed = preprocess(resting_eeg, fs)
+        # Multichannel safety: preprocess expects 1D — use first channel if 2D
+        signal = resting_eeg[0] if resting_eeg.ndim == 2 else resting_eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         self.baseline_alpha = bands.get("alpha", 0.2)
-        self.baseline_gamma = bands.get("gamma", 0.05)
+        # baseline_gamma intentionally not stored — EMG artifact on Muse 2
 
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
         """Detect creativity state from EEG.
@@ -75,58 +83,61 @@ class CreativityDetector:
             except Exception:
                 pass  # fall through to feature-based
 
-        processed = preprocess(eeg, fs)
+        # Multichannel safety: preprocess expects 1D — use first channel if 2D
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
 
         alpha = bands.get("alpha", 0)
         beta = bands.get("beta", 0)
         theta = bands.get("theta", 0)
-        gamma = bands.get("gamma", 0)
         delta = bands.get("delta", 0)
+        # gamma intentionally not used — EMG artifact on Muse 2 AF7/AF8
 
         base_alpha = self.baseline_alpha or 0.2
-        base_gamma = self.baseline_gamma or 0.05
 
         # === Creativity Components ===
 
         # 1. Divergent Thinking: internal-focus mode
-        # High alpha = cortical inhibition of external input
-        # Brain "turns inward" for creative ideation
+        # High alpha = cortical inhibition of external input → brain "turns inward"
+        # Kounios & Beeman (2014): alpha increase precedes creative insight
         alpha_increase = alpha / (base_alpha + 1e-10)
         alpha_beta_ratio = alpha / (beta + 1e-10)
+        theta_alpha_ratio = theta / (alpha + 1e-10)
         divergent = float(np.clip(
-            0.4 * np.tanh(alpha_increase - 0.8) +
-            0.3 * np.tanh(alpha_beta_ratio - 1.0) +
-            0.3 * np.tanh(theta * 5),
+            0.35 * np.tanh(alpha_increase - 0.8) +
+            0.35 * np.tanh(alpha_beta_ratio - 1.0) +
+            0.30 * np.tanh(theta * 5),
             0, 1
         ))
 
         # 2. Insight Potential: "aha!" readiness
-        # Gamma bursts above baseline indicate binding / insight moments
-        gamma_increase = gamma / (base_gamma + 1e-10)
+        # Alpha burst + theta incubation are the validated Muse-compatible markers
+        # (gamma removed: Lustenberger 2015 used occipital gel electrodes, not AF7/AF8)
         insight = float(np.clip(
-            0.5 * np.tanh(gamma_increase - 1.0) +
-            0.3 * np.tanh(theta * 5) +
-            0.2 * np.tanh(alpha * 3),
+            0.50 * np.tanh(alpha_increase - 0.5) +
+            0.30 * np.tanh(theta * 5) +
+            0.20 * np.tanh(theta_alpha_ratio - 0.3),
             0, 1
         ))
 
         # 3. Internal Attention: mind-wandering / daydreaming
         # Default mode network activation (theta + low beta)
         internal_attention = float(np.clip(
-            0.4 * np.tanh(theta * 5) +
-            0.3 * np.tanh(alpha * 3) +
-            0.3 * (1 - np.tanh(beta * 5)),  # low beta = less external focus
+            0.40 * np.tanh(theta * 5) +
+            0.30 * np.tanh(alpha * 3) +
+            0.30 * (1 - np.tanh(beta * 5)),  # low beta = less external focus
             0, 1
         ))
 
         # 4. Associative Richness: making novel connections
-        # Theta-gamma coupling proxy + alpha desynchronization variability
-        tg_coupling = theta * gamma * 100  # cross-frequency proxy
+        # Theta drives hippocampal memory retrieval for novel associations
+        # (theta-gamma coupling replaced with theta-alpha product — no EMG gamma)
+        theta_alpha_product = theta * alpha * 100
         associative = float(np.clip(
-            0.4 * np.tanh(tg_coupling) +
-            0.3 * divergent +
-            0.3 * np.tanh(alpha * 3),
+            0.40 * np.tanh(theta_alpha_product) +
+            0.30 * divergent +
+            0.30 * np.tanh(alpha * 3),
             0, 1
         ))
 
@@ -168,7 +179,9 @@ class CreativityDetector:
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
         """Sklearn model inference using extracted features."""
-        processed = preprocess(eeg, fs)
+        # Multichannel safety: preprocess/extract_features expect 1D
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
         feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
@@ -229,7 +242,9 @@ class MemoryEncodingPredictor:
 
     def calibrate(self, resting_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with resting EEG baseline."""
-        processed = preprocess(resting_eeg, fs)
+        # Multichannel safety: preprocess expects 1D — use first channel if 2D
+        signal = resting_eeg[0] if resting_eeg.ndim == 2 else resting_eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         self.baseline_theta = bands.get("theta", 0.15)
         self.baseline_alpha = bands.get("alpha", 0.2)
@@ -248,14 +263,16 @@ class MemoryEncodingPredictor:
             except Exception:
                 pass  # fall through to feature-based
 
-        processed = preprocess(eeg, fs)
+        # Multichannel safety: preprocess expects 1D — use first channel if 2D
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
 
         alpha = bands.get("alpha", 0)
         beta = bands.get("beta", 0)
         theta = bands.get("theta", 0)
-        gamma = bands.get("gamma", 0)
         delta = bands.get("delta", 0)
+        # gamma intentionally not used — EMG artifact on Muse 2 AF7/AF8
 
         base_theta = self.baseline_theta or 0.15
         base_alpha = self.baseline_alpha or 0.2
@@ -280,12 +297,13 @@ class MemoryEncodingPredictor:
             0, 1
         ))
 
-        # 3. Encoding Depth: theta-gamma coupling
-        # Theta provides temporal structure, gamma carries content
-        # Their coupling = information being bound into memory
-        tg_coupling = theta * gamma * 100
+        # 3. Encoding Depth: theta-beta interaction
+        # Theta provides temporal structure for binding (Lisman & Jensen, 2013)
+        # Replaced theta-gamma coupling — gamma on Muse 2 AF7/AF8 is EMG artifact,
+        # not the neural theta-gamma coupling present in Lisman's hippocampal theory
+        theta_beta_product = theta * beta * 100  # theta × beta cross-frequency proxy
         encoding_depth = float(np.clip(
-            0.4 * np.tanh(tg_coupling) +
+            0.4 * np.tanh(theta_beta_product) +
             0.3 * hippocampal_theta +
             0.3 * attention,
             0, 1
@@ -344,7 +362,9 @@ class MemoryEncodingPredictor:
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
         """Sklearn model inference using extracted features."""
-        processed = preprocess(eeg, fs)
+        # Multichannel safety: preprocess/extract_features expect 1D
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
         feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)

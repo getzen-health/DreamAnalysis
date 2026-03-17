@@ -9,8 +9,13 @@ Scientific basis:
 - Frontal theta increases with working memory load (Gevins et al., 1997)
 - Parietal alpha decreases with task difficulty (Klimesch, 1999)
 - Theta/alpha ratio correlates with cognitive load (Holm et al., 2009)
-- Gamma bursts during high-demand processing
-- Pupil dilation proxy: beta variability increases under load
+- Beta activity (12-30 Hz) reflects active processing
+- Hjorth complexity reflects signal intricacy under load
+
+NOTE: Gamma (30-100 Hz) is NOT used here.  On Muse 2's AF7/AF8 dry electrodes,
+gamma is predominantly EMG muscle artifact (jaw clench, frontalis tension), not
+the neural gamma cited in "high-demand processing" literature.  The 10% gamma
+weight has been replaced with additional Hjorth complexity weight.
 
 Reference: Antonenko et al. (2010), Paas et al. (2003)
 """
@@ -52,7 +57,9 @@ class CognitiveLoadEstimator:
 
     def calibrate(self, resting_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with resting EEG baseline."""
-        processed = preprocess(resting_eeg, fs)
+        # Multichannel safety: preprocess expects 1D — use first channel if 2D
+        signal = resting_eeg[0] if resting_eeg.ndim == 2 else resting_eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         self.baseline_theta = bands.get("theta", 0.15)
         self.baseline_alpha = bands.get("alpha", 0.25)
@@ -70,7 +77,9 @@ class CognitiveLoadEstimator:
             except Exception:
                 pass  # fall through to feature-based
 
-        processed = preprocess(eeg, fs)
+        # Multichannel safety: preprocess expects 1D — use first channel if 2D
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         hjorth = compute_hjorth_parameters(processed)
 
@@ -78,7 +87,7 @@ class CognitiveLoadEstimator:
         beta = bands.get("beta", 0)
         theta = bands.get("theta", 0)
         delta = bands.get("delta", 0)
-        gamma = bands.get("gamma", 0)
+        # gamma intentionally not used — EMG artifact on Muse 2 AF7/AF8
 
         base_theta = self.baseline_theta or 0.15
         base_alpha = self.baseline_alpha or 0.25
@@ -100,21 +109,20 @@ class CognitiveLoadEstimator:
         # 4. Beta Activity (active processing)
         processing_intensity = float(np.clip(np.tanh(beta * 5 - 0.5), 0, 1))
 
-        # 5. Gamma Bursts (high-demand processing)
-        gamma_activity = float(np.clip(np.tanh(gamma * 15), 0, 1))
-
-        # 6. Complexity (Hjorth — more complex = more processing)
+        # 5. Complexity (Hjorth — more complex = more processing)
+        # Weight increased from 10% → 20% to absorb the removed gamma weight
         complexity = hjorth.get("complexity", 1.0) if isinstance(hjorth, dict) else 1.0
         signal_complexity = float(np.clip(np.tanh(complexity - 1.0), 0, 1))
 
         # === Overall Load Index ===
+        # gamma_activity removed (was 10%) — redistributed: +5% signal_complexity,
+        # +5% processing_intensity.  Gamma on Muse 2 AF7/AF8 = EMG artifact.
         load_index = float(np.clip(
             0.25 * working_memory_load +
             0.20 * task_engagement +
             0.20 * cognitive_demand +
-            0.15 * processing_intensity +
-            0.10 * gamma_activity +
-            0.10 * signal_complexity,
+            0.20 * processing_intensity +
+            0.15 * signal_complexity,
             0, 1
         ))
 
@@ -143,14 +151,16 @@ class CognitiveLoadEstimator:
                 "task_engagement": round(task_engagement, 3),
                 "cognitive_demand": round(cognitive_demand, 3),
                 "processing_intensity": round(processing_intensity, 3),
-                "gamma_activity": round(gamma_activity, 3),
+                # gamma_activity removed — EMG artifact on Muse 2 AF7/AF8, not neural
                 "signal_complexity": round(signal_complexity, 3),
             },
             "band_powers": bands,
         }
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
-        processed = preprocess(eeg, fs)
+        # Multichannel safety: preprocess/extract_features expect 1D
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
         fv = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
@@ -171,7 +181,7 @@ class CognitiveLoadEstimator:
                 "task_engagement": round(float(1.0 - bands.get("alpha", 0.2) / 0.25), 3),
                 "cognitive_demand": round(float(bands.get("theta", 0) / (bands.get("alpha", 0.01) + 1e-10)), 3),
                 "processing_intensity": round(float(bands.get("beta", 0.15)), 3),
-                "gamma_activity": round(float(bands.get("gamma", 0.05)), 3),
+                # gamma_activity removed — EMG artifact on Muse 2 AF7/AF8, not neural
                 "signal_complexity": 0.5,
             },
             "band_powers": bands,

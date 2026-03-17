@@ -59,7 +59,8 @@ class StressDetector:
 
     def calibrate(self, relaxed_eeg: np.ndarray, fs: float = 256.0):
         """Calibrate with relaxed-state EEG baseline."""
-        processed = preprocess(relaxed_eeg, fs)
+        signal = relaxed_eeg[0] if relaxed_eeg.ndim == 2 else relaxed_eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         self.baseline_alpha = bands.get("alpha", 0.25)
         self.baseline_beta = bands.get("beta", 0.15)
@@ -77,7 +78,8 @@ class StressDetector:
             except Exception:
                 pass  # fall through to feature-based
 
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         hjorth = compute_hjorth_parameters(processed)
 
@@ -85,8 +87,9 @@ class StressDetector:
         beta = bands.get("beta", 0)
         theta = bands.get("theta", 0)
         delta = bands.get("delta", 0)
-        gamma = bands.get("gamma", 0)
         high_beta = bands.get("high_beta", 0)  # 20-30 Hz: primary anxiety marker
+        # Gamma (30-100 Hz) excluded: on Muse 2 AF7/AF8 it is predominantly EMG
+        # artifact (jaw/forehead muscle). Using it would falsely inflate stress scores.
 
         # Auto-calibration: collect first 30 readings (~7-8 seconds at 4 Hz) for a
         # stable personal baseline. 30 readings vs 7 reduces outlier influence by ~2×
@@ -119,9 +122,8 @@ class StressDetector:
         # 4. Theta Increase (under acute stress, theta can increase)
         theta_stress = float(np.clip(np.tanh(theta * 5 - 0.5), 0, 1))
 
-        # 5. Gamma Suppression (chronic stress suppresses gamma)
-        # Linear mapping: 0.0 when gamma >= 0.05 (healthy), 1.0 only when gamma = 0
-        gamma_suppression = float(np.clip((0.05 - gamma) / 0.05, 0, 1))
+        # 5. (Gamma suppression removed — gamma is EMG artifact on Muse 2 AF7/AF8,
+        #     not neural signal. It would inflate stress scores spuriously.)
 
         # 6. High-Beta Elevation (20-30 Hz: strongest single-feature anxiety marker)
         # Distinct from total-beta anxiety_activation — captures spectral distribution shift
@@ -145,16 +147,16 @@ class StressDetector:
             0, 1
         ))
 
-        # === Overall Stress Index (7 components) ===
-        # high_beta_stress replaces part of neural_irregularity weight (more specific)
+        # === Overall Stress Index (6 components) ===
+        # Gamma suppression removed (EMG artifact on Muse 2).
+        # Its 0.08 weight redistributed to neural_irregularity (Hjorth complexity).
         stress_index_raw = float(
             0.22 * anxiety_activation +
             0.18 * alpha_suppression +
             0.18 * arousal_index +
-            0.18 * high_beta_stress +      # new: high-beta explicit component
+            0.18 * high_beta_stress +      # high-beta explicit component
             0.08 * theta_stress +
-            0.08 * gamma_suppression +
-            0.08 * neural_irregularity
+            0.16 * neural_irregularity
         )
         stress_index = float(np.clip(stress_index_raw, 0, 1))
 
@@ -210,14 +212,14 @@ class StressDetector:
                 "arousal_index": round(arousal_index, 3),
                 "high_beta_stress": round(high_beta_stress, 3),
                 "theta_stress": round(theta_stress, 3),
-                "gamma_suppression": round(gamma_suppression, 3),
                 "neural_irregularity": round(neural_irregularity, 3),
             },
             "band_powers": bands,
         }
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
         fv = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
@@ -243,7 +245,6 @@ class StressDetector:
                 "alpha_suppression": round(float(1.0 - bands.get("alpha", 0.2) / 0.25), 3),
                 "arousal_index": round(float(bands.get("beta", 0) / (bands.get("alpha", 0.01) + 1e-10) - 0.8), 3),
                 "theta_stress": round(float(bands.get("theta", 0.15)), 3),
-                "gamma_suppression": round(float(1.0 - bands.get("gamma", 0.05) * 15), 3),
                 "neural_irregularity": 0.5,
             },
             "band_powers": bands,
