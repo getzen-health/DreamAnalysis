@@ -43,6 +43,76 @@ function useCheckinData(): CheckinData | null {
   return data;
 }
 
+// ── Emotion Timeline Component ─────────────────────────────────────────────
+
+const TIMELINE_COLORS: Record<string, string> = {
+  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
+  surprise: "#fbbf24", neutral: "#94a3b8",
+};
+
+function EmotionTimeline({ userId }: { userId: string }) {
+  const { data } = useQuery<Array<{ dominantEmotion: string; timestamp: string }>>({
+    queryKey: [`/api/brain/history/${userId}?days=7`],
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!data || data.length === 0) return null;
+
+  // Group by day, take last emotion per day
+  const dayMap = new Map<string, { emotion: string; label: string }>();
+  for (const r of data) {
+    const d = new Date(r.timestamp);
+    const key = d.toISOString().slice(0, 10);
+    const label = d.toLocaleDateString(undefined, { weekday: "short" });
+    dayMap.set(key, { emotion: r.dominantEmotion, label });
+  }
+
+  const days = Array.from(dayMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-7);
+
+  if (days.length === 0) return null;
+
+  return (
+    <div style={{
+      background: "var(--card)", border: "1px solid var(--border)",
+      borderRadius: 14, padding: "14px 16px", marginBottom: 14,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 10,
+      }}>
+        Your week in emotions
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {days.map(([key, { emotion, label }]) => {
+          const color = TIMELINE_COLORS[emotion] ?? "#94a3b8";
+          return (
+            <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%", background: color,
+                opacity: 0.85, transition: "transform 0.2s",
+              }} />
+              <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{label}</span>
+            </div>
+          );
+        })}
+      </div>
+      {days.length >= 3 && (
+        <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 8, textAlign: "center" }}>
+          {(() => {
+            const counts: Record<string, number> = {};
+            days.forEach(([, { emotion }]) => { counts[emotion] = (counts[emotion] || 0) + 1; });
+            const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+            return top ? `Mostly ${top[0]} this week` : "";
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface FeatureCard {
@@ -444,6 +514,9 @@ export default function Discover() {
           </div>
         </button>
       </div>
+
+      {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
+      <EmotionTimeline userId={userId} />
 
       {/* ── Section label ── */}
       <div style={{
