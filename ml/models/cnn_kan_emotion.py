@@ -231,18 +231,35 @@ def _feature_based_predict(signals: np.ndarray, fs: float) -> Dict[str, Any]:
     """Threshold-based 4-quadrant emotion classification from band powers.
 
     Used when PyTorch is unavailable or signals are too short for CNN.
-    Computes valence from FAA + alpha/beta ratio, arousal from beta ratio.
+    Computes valence from FAA + DASM/RASM + alpha/beta ratio, arousal from
+    beta ratio. Uses full multichannel array to avoid the single-channel
+    stripping bug — same fix applied to emotion_classifier.py.
     """
-    # Use first channel (AF7) as primary signal; use all channels if available
-    primary = signals[0] if signals.ndim == 2 else signals
+    # Keep reference to full multichannel array for FAA / DASM/RASM
+    channels = signals if signals.ndim == 2 else None
+    # AF7 (ch1 in Muse 2 BrainFlow order) as primary for per-channel band powers
+    signal = signals[0] if signals.ndim == 2 else signals
     n_channels = signals.shape[0] if signals.ndim == 2 else 1
 
-    # Band powers from primary channel
-    delta = _extract_band_power(primary, fs, 0.5, 4.0)
-    theta = _extract_band_power(primary, fs, 4.0, 8.0)
-    alpha = _extract_band_power(primary, fs, 8.0, 13.0)
-    beta  = _extract_band_power(primary, fs, 13.0, 30.0)
-    high_beta = _extract_band_power(primary, fs, 20.0, 30.0)
+    # Attempt to use richer multichannel features (includes DASM/RASM + FAA)
+    dasm_rasm_valence: Optional[float] = None
+    if channels is not None and n_channels >= 2:
+        try:
+            from processing.eeg_processor import compute_dasm_rasm
+            dasm_rasm = compute_dasm_rasm(channels, fs)
+            # dasm_alpha (DASM in the alpha band) is the closest analog to FAA
+            dasm_alpha = dasm_rasm.get("dasm_alpha", None)
+            if dasm_alpha is not None:
+                dasm_rasm_valence = float(np.clip(np.tanh(float(dasm_alpha) * 2.0), -1.0, 1.0))
+        except Exception:
+            pass  # fall through to FAA-only path
+
+    # Band powers from primary channel (AF7)
+    delta = _extract_band_power(signal, fs, 0.5, 4.0)
+    theta = _extract_band_power(signal, fs, 4.0, 8.0)
+    alpha = _extract_band_power(signal, fs, 8.0, 13.0)
+    beta  = _extract_band_power(signal, fs, 13.0, 30.0)
+    high_beta = _extract_band_power(signal, fs, 20.0, 30.0)
 
     # Protect against zero
     denom = alpha + beta
@@ -256,11 +273,18 @@ def _feature_based_predict(signals: np.ndarray, fs: float) -> Dict[str, Any]:
     ab_ratio = float(alpha / max(beta, 1e-12))
     valence_ab = float(np.tanh((ab_ratio - 0.7) * 2.0))
 
-    # FAA component (if multichannel)
-    if n_channels >= 3:
-        faa = _compute_faa(signals, fs)
+    # FAA component (requires AF7=ch1, AF8=ch2 — full multichannel array)
+    if channels is not None and n_channels >= 3:
+        faa = _compute_faa(channels, fs)
         faa_valence = float(np.clip(np.tanh(faa * 2.0), -1.0, 1.0))
-        valence = float(np.clip(0.5 * valence_ab + 0.5 * faa_valence, -1.0, 1.0))
+        if dasm_rasm_valence is not None:
+            # Blend: 40% alpha/beta + 35% FAA + 25% DASM_alpha
+            valence = float(np.clip(
+                0.40 * valence_ab + 0.35 * faa_valence + 0.25 * dasm_rasm_valence,
+                -1.0, 1.0,
+            ))
+        else:
+            valence = float(np.clip(0.5 * valence_ab + 0.5 * faa_valence, -1.0, 1.0))
     else:
         valence = float(np.clip(valence_ab, -1.0, 1.0))
 

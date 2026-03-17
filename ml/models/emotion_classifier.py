@@ -89,6 +89,148 @@ def _compute_dominance(beta_alpha: float, theta_beta_ratio: float) -> float:
         0, 1))
 
 
+# ── Russell Circumplex emotion centers (valence, arousal) ─────────────────────
+# Coordinates calibrated to the Muse 2 EEG output range:
+#   valence in [-1, +1], arousal in [0, 1]
+#
+# Sources:
+#   Russell (1980) — original 2D circumplex model
+#   Davidson (1992) — FAA valence anchors
+#   Posner, Russell & Peterson (2005) — updated center estimates
+#
+# Emotion mapping to EMOTIONS list indices:
+#   0=happy, 1=sad, 2=angry, 3=fearful, 4=relaxed, 5=focused
+#
+# "relaxed" maps to low-arousal positive quadrant; "focused" maps to moderate
+# arousal with near-neutral valence (task engagement without strong affect).
+# "fearful" (freeze/flight) occupies high-arousal negative quadrant distinct
+# from "angry" (approach/fight) which is also high-arousal negative but with
+# stronger beta dominance — the FAA/arousal split differentiates them.
+_CIRCUMPLEX_CENTERS: dict = {
+    # emotion: (valence_center, arousal_center) — Russell's Circumplex
+    # Uses the standard 6 emotions: happy, sad, angry, fear, surprise, neutral
+    "happy":    ( 0.60,  0.65),  # high positive valence, moderately high arousal
+    "sad":      (-0.55,  0.22),  # negative valence, clearly low arousal
+    "angry":    (-0.40,  0.75),  # negative valence, high arousal (approach drive)
+    "fear":     (-0.50,  0.70),  # negative valence, high arousal (freeze/flight)
+    "surprise": ( 0.15,  0.85),  # slightly positive valence, very high arousal
+    "neutral":  ( 0.00,  0.40),  # near-zero valence, moderate arousal
+}
+
+# Elliptical half-axes for each emotion in the circumplex space.
+# Wider valence axis for happy/sad (gradual onset); narrower for angry/fear
+# (requires stronger signals before those labels fire).
+# Format: (sigma_valence, sigma_arousal)
+_CIRCUMPLEX_SIGMA: dict = {
+    "happy":    (0.45, 0.40),
+    "sad":      (0.45, 0.35),
+    "angry":    (0.35, 0.30),
+    "fear":     (0.35, 0.30),
+    "surprise": (0.35, 0.30),
+    "neutral":  (0.50, 0.45),  # wider — neutral is the "default" region
+}
+
+# Softmax temperature for converting inverse-distances to probabilities.
+# Higher value → sharper peaks (more decisive); lower → more uniform.
+_CIRCUMPLEX_TEMPERATURE: float = 4.0
+
+
+def _expand_3class_to_6(
+    p_pos: float,
+    p_neu: float,
+    p_neg: float,
+    valence: float,
+    arousal: float,
+) -> np.ndarray:
+    """Expand 3-class LGBM output (positive/neutral/negative) to 6-class
+    probabilities using soft distance-based blending in valence-arousal space.
+
+    Algorithm
+    ---------
+    1. Compute a per-emotion weight from the elliptical Gaussian distance of
+       (valence, arousal) from each emotion's circumplex center.
+    2. Apply a positivity mask: positive-class probability is gated to
+       positive-valence emotions (happy, relaxed); neutral to near-neutral
+       emotions (focused, relaxed); negative to negative-valence emotions
+       (sad, angry, fearful).  The mask is *soft* — cross-quadrant leakage is
+       allowed but suppressed, avoiding hard cutoffs.
+    3. Multiply each masked weight by the corresponding class probability
+       (p_pos, p_neu, p_neg) and softmax-normalize.
+
+    This replaces the previous hard if/elif threshold routing which assigned
+    100% of each class probability to a single bucket, making the output
+    extremely sensitive to threshold crossings.
+
+    Parameters
+    ----------
+    p_pos, p_neu, p_neg : float
+        LGBM probabilities for positive / neutral / negative class.
+        Must sum to ≈ 1.0.
+    valence : float
+        Blended valence estimate in [-1, +1] (FAA + alpha/beta ratio).
+    arousal : float
+        Arousal estimate in [0, 1] (beta/alpha + delta).
+
+    Returns
+    -------
+    np.ndarray, shape (6,)
+        Probability vector over EMOTIONS = [happy, sad, angry, fear, surprise, neutral].
+        Sums to 1.0.
+    """
+    emotions_ordered = ["happy", "sad", "angry", "fear", "surprise", "neutral"]
+
+    # Step 1: Gaussian distance weight for each emotion center
+    weights = np.zeros(6, dtype=np.float64)
+    for i, emo in enumerate(emotions_ordered):
+        cv, ca = _CIRCUMPLEX_CENTERS[emo]
+        sv, sa = _CIRCUMPLEX_SIGMA[emo]
+        dv = (valence - cv) / sv
+        da = (arousal - ca) / sa
+        weights[i] = np.exp(-0.5 * (dv * dv + da * da))
+
+    # Step 2: Soft class-membership masks
+    # Gate function: sigmoid(k * (x - threshold))
+    def _sigmoid(x: float, k: float = 4.0) -> float:
+        return float(1.0 / (1.0 + np.exp(-k * x)))
+
+    pos_gate = _sigmoid(valence, k=4.0)        # 1 when valence >> 0
+    neg_gate = _sigmoid(-valence, k=4.0)       # 1 when valence << 0
+    neu_gate = 1.0 - abs(valence) * 0.7        # peaks at valence=0
+
+    hi_arousal_gate = _sigmoid(arousal - 0.50, k=6.0)
+    lo_arousal_gate = _sigmoid(0.50 - arousal, k=6.0)
+    very_hi_arousal = _sigmoid(arousal - 0.70, k=6.0)
+
+    # Per-emotion class affinity:
+    # happy:    positive valence, moderate-high arousal
+    # sad:      negative valence, low arousal
+    # angry:    negative valence, high arousal (splits with fear)
+    # fear:     negative valence, high arousal (splits with angry)
+    # surprise: any valence, very high arousal
+    # neutral:  near-zero valence, moderate arousal
+    class_affinity = np.array([
+        p_pos * pos_gate,                                    # happy
+        p_neg * neg_gate * lo_arousal_gate,                  # sad
+        p_neg * neg_gate * hi_arousal_gate * 0.5,            # angry
+        p_neg * neg_gate * hi_arousal_gate * 0.5,            # fear
+        (p_pos * 0.3 + p_neu * 0.3 + p_neg * 0.1) * very_hi_arousal,  # surprise (any valence, very high arousal)
+        p_neu * neu_gate * (1.0 - very_hi_arousal),          # neutral (not high arousal)
+    ], dtype=np.float64)
+
+    # Step 3: Element-wise product: circumplex weight × class affinity
+    combined = weights * class_affinity
+
+    # Softmax with temperature to keep output smooth
+    combined_temp = combined * _CIRCUMPLEX_TEMPERATURE
+    combined_temp -= combined_temp.max()   # numerical stability
+    exp_vals = np.exp(combined_temp)
+    total = exp_vals.sum()
+    if total < 1e-10:
+        # Degenerate: fall back to uniform
+        return np.ones(6, dtype=np.float32) / 6.0
+    return (exp_vals / total).astype(np.float32)
+
+
 # Singleton RunningNormalizer for session drift correction
 _running_normalizer: Optional[object] = None
 
@@ -650,32 +792,18 @@ class EmotionClassifier:
             + 0.25 * (1 - delta / max(delta + beta, 1e-6)),
             0, 1))
         faa_val = float(np.clip(np.tanh(faa * 2.0), -1, 1))
+        valence_for_expand = float(np.clip(
+            0.65 * np.tanh((alpha / max(beta, 1e-6) - 0.7) * 2.0)
+            + 0.35 * np.tanh((alpha - 0.15) * 4),
+            -1, 1,
+        ))
+        # Blend FAA into valence for expansion (same weights as _build_muse_result)
+        valence_for_expand = float(np.clip(
+            0.50 * valence_for_expand + 0.50 * faa_val, -1, 1,
+        ))
 
-        # 3→6 class expansion
-        probs6 = np.zeros(6, dtype=np.float32)
-        # positive → happy (0) or relaxed (4)
-        if arousal > 0.5:
-            probs6[0] += p_pos
-        else:
-            probs6[4] += p_pos
-        # neutral → focused (5) or relaxed (4)
-        if beta_alpha > 1.2:
-            probs6[5] += p_neu
-        else:
-            probs6[4] += p_neu
-        # negative → sad (1), angry (2), fearful (3)
-        if faa_val < -0.2 and arousal < 0.5:
-            probs6[1] += p_neg   # sad
-        elif faa_val < 0.0 and arousal > 0.5:
-            probs6[2] += p_neg   # angry
-        elif arousal > 0.55:
-            probs6[3] += p_neg   # fearful
-        else:
-            probs6[1] += p_neg   # default → sad
-
-        total = probs6.sum()
-        if total > 0:
-            probs6 /= total
+        # 3→6 class expansion — soft distance-based blending via Russell circumplex
+        probs6 = _expand_3class_to_6(p_pos, p_neu, p_neg, valence_for_expand, arousal)
 
         # EMA smoothing
         if self._ema_probs is None:
@@ -869,28 +997,18 @@ class EmotionClassifier:
             + 0.30 * (1 - alpha / max(alpha + beta + theta, 1e-6))
             + 0.25 * (1 - delta / max(delta + beta, 1e-6)), 0, 1))
         faa_val = float(np.clip(np.tanh(faa * 2.0), -1, 1))
+        valence_for_expand = float(np.clip(
+            0.65 * np.tanh((alpha / max(beta, 1e-6) - 0.7) * 2.0)
+            + 0.35 * np.tanh((alpha - 0.15) * 4),
+            -1, 1,
+        ))
+        # Blend FAA into valence for expansion (same weights as _build_muse_result)
+        valence_for_expand = float(np.clip(
+            0.50 * valence_for_expand + 0.50 * faa_val, -1, 1,
+        ))
 
-        probs6 = np.zeros(6, dtype=np.float32)
-        if arousal > 0.5:
-            probs6[0] += p_pos
-        else:
-            probs6[4] += p_pos
-        if beta_alpha > 1.2:
-            probs6[5] += p_neu
-        else:
-            probs6[4] += p_neu
-        if faa_val < -0.2 and arousal < 0.5:
-            probs6[1] += p_neg
-        elif faa_val < 0.0 and arousal > 0.5:
-            probs6[2] += p_neg
-        elif arousal > 0.55:
-            probs6[3] += p_neg
-        else:
-            probs6[1] += p_neg
-
-        total = probs6.sum()
-        if total > 0:
-            probs6 /= total
+        # 3→6 class expansion — soft distance-based blending via Russell circumplex
+        probs6 = _expand_3class_to_6(p_pos, p_neu, p_neg, valence_for_expand, arousal)
 
         if self._ema_probs is None:
             self._ema_probs = probs6.copy()

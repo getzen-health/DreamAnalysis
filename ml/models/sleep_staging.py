@@ -75,8 +75,19 @@ class SleepStagingModel:
 
     def _predict_sklearn(self, eeg_epoch: np.ndarray, fs: float) -> Dict:
         """Sklearn model inference using extracted features."""
-        processed = preprocess(eeg_epoch, fs)
-        features = extract_features(processed, fs)
+        # Use multichannel features when available — delta asymmetry between
+        # hemispheres improves N3 vs REM discrimination.
+        if eeg_epoch.ndim == 2 and eeg_epoch.shape[0] >= 2:
+            try:
+                from processing.eeg_processor import extract_features_multichannel
+                features = extract_features_multichannel(eeg_epoch, fs)
+                processed = preprocess(eeg_epoch[0], fs)  # AF7 channel for spindle detection
+            except Exception:
+                processed = preprocess(eeg_epoch[0], fs)
+                features = extract_features(processed, fs)
+        else:
+            processed = preprocess(eeg_epoch, fs)
+            features = extract_features(processed, fs)
         feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
 
         probs = self.sklearn_model.predict_proba(feature_vector)[0]
