@@ -13,7 +13,7 @@ Supports three inference paths: ONNX > sklearn > feature-based fallback.
 
 import numpy as np
 from typing import Dict, List, Optional
-from processing.eeg_processor import extract_features, extract_band_powers, preprocess, detect_sleep_spindles
+from processing.eeg_processor import extract_features, extract_band_powers, preprocess, detect_sleep_spindles, detect_k_complexes
 
 SLEEP_STAGES = ["Wake", "N1", "N2", "N3", "REM"]
 STAGE_MAP = {0: "Wake", 1: "N1", 2: "N2", 3: "N3", 4: "REM"}
@@ -110,6 +110,15 @@ class SleepStagingModel:
                 probs = probs / probs.sum()
         except Exception:
             pass  # spindle detection failure must not break staging
+
+        # K-complex detection: boosts N2 probability (K-complexes = defining N2 feature)
+        try:
+            k_complexes = detect_k_complexes(processed, fs)
+            if len(k_complexes) > 0:
+                probs[2] = min(1.0, probs[2] + 0.10)
+                probs = probs / probs.sum()
+        except Exception:
+            pass  # K-complex detection failure must not break staging
 
         stage_idx = int(np.argmax(probs))
 
