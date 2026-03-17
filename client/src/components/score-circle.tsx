@@ -70,7 +70,7 @@ export function ScoreCircle({
           cy={cy}
           r={s.r}
           fill="none"
-          stroke="hsl(var(--border))"
+          stroke="var(--border)"
           strokeWidth={s.stroke}
           strokeDasharray={`${arcLength} ${gapLength}`}
           strokeLinecap="round"
@@ -101,7 +101,7 @@ export function ScoreCircle({
           y={cy - 2}
           textAnchor="middle"
           dominantBaseline="central"
-          fill="hsl(var(--foreground))"
+          fill="var(--foreground)"
           fontSize={s.fontSize}
           fontWeight="600"
           fontFamily="Inter, system-ui, sans-serif"
@@ -115,7 +115,7 @@ export function ScoreCircle({
           y={cy + s.fontSize * 0.55}
           textAnchor="middle"
           dominantBaseline="central"
-          fill="hsl(var(--muted-foreground))"
+          fill="var(--muted-foreground)"
           fontSize={s.labelSize}
           fontFamily="Inter, system-ui, sans-serif"
         >

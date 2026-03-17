@@ -581,14 +581,18 @@ export default function EmotionLab() {
         )}
       </div>
 
-      {/* ── Voice check-in card ────────────────────────────────────────── */}
-      <VoiceCheckinCard userId={participantId} />
+      {/* ── Voice check-in card — only show if no recent data today ───── */}
+      {!savedCheckin && !hasNewAnalysis && !voiceEmotion.lastResult && (
+        <VoiceCheckinCard userId={participantId} />
+      )}
 
-      {/* ── Voice session card ──────────────────────────────────────────── */}
-      <VoiceSessionCard userId={participantId} />
-
-      {/* ── Ambient voice mode ──────────────────────────────────────────── */}
-      <AmbientVoiceCard />
+      {/* ── Voice session / ambient — collapsed behind a toggle when data exists */}
+      {!savedCheckin && !hasNewAnalysis && (
+        <>
+          <VoiceSessionCard userId={participantId} />
+          <AmbientVoiceCard />
+        </>
+      )}
 
       {/* ── Last check-in (from localStorage, shown when no new analysis this session) */}
       {savedCheckin && !hasNewAnalysis && !voiceEmotion.lastResult && (
@@ -617,7 +621,7 @@ export default function EmotionLab() {
       )}
 
       {/* ── Voice Emotion Analysis — centered large mic button ─────────── */}
-      {deviceState !== "streaming" && (
+      {deviceState !== "streaming" && !savedCheckin && !hasNewAnalysis && (
         <div
           className="rounded-2xl p-5 space-y-5 bg-card/70 border border-border/50 shadow-sm"
         >
@@ -784,15 +788,33 @@ export default function EmotionLab() {
             </p>
           </div>
 
-          {!isStreaming ? (
+          {!isStreaming && savedCheckin ? (
+            <div className="flex flex-col items-center gap-3 py-4 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <Heart className="h-7 w-7 text-primary" />
+              </div>
+              <p className="text-sm font-semibold capitalize">{EMOTION_LABELS[savedCheckin.emotion] ?? savedCheckin.emotion}</p>
+              <p className="text-xs text-muted-foreground">
+                From your latest voice check-in ({Math.round(savedCheckin.confidence * 100)}% confidence)
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs mt-1"
+                onClick={() => { setSavedCheckin(null); setHasNewAnalysis(false); }}
+              >
+                <RefreshCw className="h-3 w-3 mr-1.5" />
+                New check-in
+              </Button>
+            </div>
+          ) : !isStreaming ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <div className="w-16 h-16 rounded-2xl bg-muted/20 border border-border/30 flex items-center justify-center">
                 <Mic className="h-7 w-7 text-muted-foreground/50" />
               </div>
               <p className="text-sm font-medium">Voice mode is ready</p>
               <p className="text-xs text-muted-foreground max-w-[200px] sm:max-w-[260px]">
-                Run a voice check-in above for emotion detection. Connect an EEG
-                headband for continuous live readings.
+                Tap the mic above for emotion detection.
               </p>
             </div>
           ) : !emotionReady ? (

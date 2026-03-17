@@ -229,7 +229,10 @@ export default function FoodLog() {
       });
       const data: FoodAnalysis = await res.json();
       setAnalysis(data);
+      // Small delay to ensure DB write completes before refetch
+      await new Promise(r => setTimeout(r, 500));
       qc.invalidateQueries({ queryKey: ["/api/food/logs", USER_ID] });
+      qc.invalidateQueries({ queryKey: ["/api/meal-history", USER_ID] });
       qc.invalidateQueries({ queryKey: ["/api/research/correlation", USER_ID] });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Analysis failed";
