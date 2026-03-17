@@ -2,8 +2,8 @@ import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import {
   Sun,
-  Activity,
-  TrendingUp,
+  Compass,
+  UtensilsCrossed,
   CircleUser,
   Mic,
 } from "lucide-react";
@@ -13,10 +13,11 @@ import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { getParticipantId } from "@/lib/participant";
 
 const tabs = [
-  { path: "/",        icon: Sun,        label: "Today",   aliases: [] as string[] },
-  { path: "/emotions", icon: Activity,   label: "Emotions", aliases: ["/journal", "/dream-journal", "/dreams"] },
-  { path: "/trends",  icon: TrendingUp, label: "Trends",  aliases: ["/health-analytics", "/insights"] },
-  { path: "/you",     icon: CircleUser, label: "You",     aliases: ["/settings", "/profile"] },
+  { path: "/",          icon: Sun,              label: "Today",     aliases: [] as string[] },
+  { path: "/discover",  icon: Compass,          label: "Discover",  aliases: ["/inner-energy", "/ai-companion", "/brain-monitor", "/dreams", "/neurofeedback", "/biofeedback", "/sleep-session", "/insights", "/weekly-summary", "/emotions"] },
+  // mic button stays in center (already implemented)
+  { path: "/nutrition",  icon: UtensilsCrossed, label: "Nutrition", aliases: ["/food", "/food-log", "/food-emotion"] },
+  { path: "/you",        icon: CircleUser,      label: "You",       aliases: ["/settings", "/profile", "/sessions", "/records"] },
 ];
 
 const LEFT_TABS = tabs.slice(0, 2);

@@ -5,6 +5,7 @@ import { BottomTabs } from "@/components/bottom-tabs";
 
 vi.mock("@/lib/haptics", () => ({
   hapticLight: vi.fn(),
+  hapticMedium: vi.fn(),
 }));
 
 /** Mutable location that the hoisted mock reads at call time. */
@@ -32,8 +33,8 @@ describe("BottomTabs", () => {
   it("renders all 4 tab labels", () => {
     renderWithProviders(<BottomTabs />);
     expect(screen.getByText("Today")).toBeInTheDocument();
-    expect(screen.getByText("Emotions")).toBeInTheDocument();
-    expect(screen.getByText("Trends")).toBeInTheDocument();
+    expect(screen.getByText("Discover")).toBeInTheDocument();
+    expect(screen.getByText("Nutrition")).toBeInTheDocument();
     expect(screen.getByText("You")).toBeInTheDocument();
   });
 
@@ -48,8 +49,8 @@ describe("BottomTabs", () => {
     const links = screen.getAllByRole("link");
     const hrefs = links.map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/");
-    expect(hrefs).toContain("/emotions");
-    expect(hrefs).toContain("/trends");
+    expect(hrefs).toContain("/discover");
+    expect(hrefs).toContain("/nutrition");
     expect(hrefs).toContain("/you");
   });
 
@@ -68,24 +69,24 @@ describe("BottomTabs", () => {
   it("does not highlight non-active tabs when on Today", () => {
     currentLocation = "/";
     renderWithProviders(<BottomTabs />);
-    const emotionsLabel = screen.getByText("Emotions");
-    expect(emotionsLabel.className).not.toContain("text-primary");
+    const discoverLabel = screen.getByText("Discover");
+    expect(discoverLabel.className).not.toContain("text-primary");
   });
 
-  it("highlights Emotions tab when location is /emotions", () => {
-    currentLocation = "/emotions";
+  it("highlights Discover tab when location is /discover", () => {
+    currentLocation = "/discover";
     renderWithProviders(<BottomTabs />);
-    const emotionsLabel = screen.getByText("Emotions");
-    expect(emotionsLabel.className).toContain("text-primary");
+    const discoverLabel = screen.getByText("Discover");
+    expect(discoverLabel.className).toContain("text-primary");
     const todayLabel = screen.getByText("Today");
     expect(todayLabel.className).not.toContain("text-primary");
   });
 
-  it("highlights Trends tab when location is /trends", () => {
-    currentLocation = "/trends";
+  it("highlights Nutrition tab when location is /nutrition", () => {
+    currentLocation = "/nutrition";
     renderWithProviders(<BottomTabs />);
-    const trendsLabel = screen.getByText("Trends");
-    expect(trendsLabel.className).toContain("text-primary");
+    const nutritionLabel = screen.getByText("Nutrition");
+    expect(nutritionLabel.className).toContain("text-primary");
   });
 
   it("highlights You tab when location is /you", () => {
@@ -98,7 +99,6 @@ describe("BottomTabs", () => {
   it("highlights You tab when location is /settings (alias path)", () => {
     currentLocation = "/settings";
     renderWithProviders(<BottomTabs />);
-    // /settings is an alias for /you — You tab SHOULD be active
     const youLabel = screen.getByText("You");
     expect(youLabel.className).toContain("text-primary");
   });

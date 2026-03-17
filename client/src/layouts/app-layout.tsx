@@ -1,8 +1,6 @@
 import { useState, useEffect, ReactNode } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sidebar } from "@/components/sidebar";
-import { NeuralBackground } from "@/components/neural-background";
 import { InterventionBanner } from "@/components/intervention-banner";
 import OfflineSyncBanner from "@/components/offline-sync-banner";
 import { BottomTabs } from "@/components/bottom-tabs";
@@ -16,7 +14,10 @@ import { pingBackend } from "@/lib/ml-api";
 import { Loader2, Sun, Moon, ChevronLeft } from "lucide-react";
 
 const routeTitles: Record<string, string> = {
-  "/": "Dashboard",
+  "/": "Today",
+  "/discover": "Discover",
+  "/nutrition": "Nutrition",
+  "/you": "You",
   "/emotions": "Emotion Lab",
   "/inner-energy": "Inner Energy",
   "/brain-monitor": "Brain Monitor",
@@ -109,20 +110,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <NeuralBackground />
-      <Sidebar />
-
-      {/* md:ml-56 = sidebar width; on mobile sidebar overlays so no margin needed */}
-      <main ref={pullRef} className="md:ml-56 min-h-screen overflow-x-hidden" role="main">
+      <main ref={pullRef} className="min-h-screen overflow-x-hidden" role="main">
         {/* Mobile top bar with back button — shown on subpages only */}
         {location !== "/" && (
           <header
-            className="md:hidden sticky top-0 z-30 border-b flex items-center gap-2 px-3 py-2.5"
+            className="sticky top-0 z-30 border-b flex items-center gap-2 px-3 py-2.5"
             style={{
-              background: theme === "dark" ? "hsl(222, 25%, 5%, 0.92)" : "hsl(0, 0%, 100%, 0.92)",
+              background: theme === "dark" ? "hsl(225, 40%, 4%, 0.92)" : "hsl(0, 0%, 100%, 0.92)",
               backdropFilter: "blur(20px)",
               WebkitBackdropFilter: "blur(20px)",
-              borderColor: theme === "dark" ? "hsl(220, 18%, 13%, 0.5)" : "hsl(220, 14%, 85%, 0.5)",
+              borderColor: theme === "dark" ? "hsl(220, 25%, 14%, 0.5)" : "hsl(220, 14%, 85%, 0.5)",
               paddingTop: "env(safe-area-inset-top, 0px)",
             }}
           >
@@ -147,38 +144,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
           </header>
         )}
-
-        {/* Header: desktop only — mobile pages carry their own inline title */}
-        <header
-          className="hidden md:block sticky top-0 z-30 border-b md:px-6"
-          style={{
-            background: "hsl(222, 25%, 5%, 0.92)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            borderColor: "hsl(220, 18%, 13%, 0.5)",
-            paddingTop: "env(safe-area-inset-top, 0px)",
-          }}
-        >
-          <div className="flex items-center justify-between pl-4 pr-4 py-3">
-            {/* Left: title */}
-            <div>
-              <p className="text-[15px] font-semibold text-foreground leading-tight">
-                {pageTitle}
-              </p>
-              <p className="text-[11px] text-muted-foreground/60 leading-tight">
-                {dateStr}
-              </p>
-            </div>
-            {/* Right: theme toggle */}
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/40 active:bg-muted/60 transition-colors"
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
-          </div>
-        </header>
 
         {/* Pull-to-refresh indicator */}
         {(pullDistance > 0 || refreshing) && (

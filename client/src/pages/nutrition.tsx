@@ -1,0 +1,459 @@
+import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { resolveUrl } from "@/lib/queryClient";
+import { getParticipantId } from "@/lib/participant";
+import { FoodCapture } from "@/components/food-capture";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface FoodItem {
+  name: string;
+  portion: string;
+  calories: number;
+  carbs_g: number;
+  protein_g: number;
+  fat_g: number;
+}
+
+interface FoodLog {
+  id: string;
+  loggedAt: string;
+  mealType: string | null;
+  summary: string | null;
+  totalCalories: number | null;
+  dominantMacro: string | null;
+  foodItems: FoodItem[] | null;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const MEAL_ICONS: Record<string, string> = {
+  breakfast: "🌅",
+  lunch: "☀️",
+  dinner: "🌙",
+  snack: "🍎",
+};
+
+function isToday(iso: string): boolean {
+  return new Date(iso).toDateString() === new Date().toDateString();
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getMealLabel(mealType: string | null): string {
+  if (!mealType) return "Meal";
+  return mealType.charAt(0).toUpperCase() + mealType.slice(1);
+}
+
+function getCravingAnalysis(): { text: string; label: string } {
+  try {
+    const raw = localStorage.getItem("ndw_last_emotion");
+    if (!raw) return { text: "balanced — you're eating from hunger, not emotion", label: "Balanced" };
+    const emotion = JSON.parse(raw) as { stress_index?: number; valence?: number };
+    const stress = emotion.stress_index ?? 0;
+    const valence = emotion.valence ?? 0;
+    if (stress > 0.6) {
+      return { text: "stress eating — your body seeks comfort food", label: "Stress" };
+    }
+    if (valence > 0.3) {
+      return { text: "mindful eating — you're calm and present", label: "Mindful" };
+    }
+    if (valence < -0.2) {
+      return { text: "comfort seeking — emotional eating tendency", label: "Comfort" };
+    }
+    return { text: "balanced — you're eating from hunger, not emotion", label: "Balanced" };
+  } catch {
+    return { text: "balanced — you're eating from hunger, not emotion", label: "Balanced" };
+  }
+}
+
+// ── Calorie Ring ──────────────────────────────────────────────────────────────
+
+const CAL_GOAL = 2000;
+const PROTEIN_GOAL = 50;
+const CARBS_GOAL = 275;
+const FAT_GOAL = 78;
+
+function CalorieRing({ calories }: { calories: number }) {
+  const r = 58;
+  const stroke = 8;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min(calories / CAL_GOAL, 1);
+  const dash = circ * pct;
+  const size = 140;
+  const cx = size / 2;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
+      <div style={{ position: "relative", width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          {/* Background track */}
+          <circle
+            cx={cx}
+            cy={cx}
+            r={r}
+            fill="none"
+            stroke="#1f2937"
+            strokeWidth={stroke}
+          />
+          {/* Fill arc */}
+          <circle
+            cx={cx}
+            cy={cx}
+            r={r}
+            fill="none"
+            stroke="url(#calGrad)"
+            strokeWidth={stroke}
+            strokeDasharray={`${dash} ${circ}`}
+            strokeLinecap="round"
+          />
+          <defs>
+            <linearGradient id="calGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#f97316" />
+            </linearGradient>
+          </defs>
+        </svg>
+        {/* Center text */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <span style={{ fontSize: 28, fontWeight: 700, color: "#e8e0d4", lineHeight: 1 }}>
+            {calories}
+          </span>
+          <span style={{ fontSize: 11, color: "#8b8578", marginTop: 2 }}>of {CAL_GOAL} kcal</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Macro Progress Bar ────────────────────────────────────────────────────────
+
+function MacroBar({ value, goal, color }: { value: number; goal: number; color: string }) {
+  const pct = Math.min((value / goal) * 100, 100);
+  return (
+    <div
+      style={{
+        height: 3,
+        background: "#1f2937",
+        borderRadius: 2,
+        marginTop: 6,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          width: `${pct}%`,
+          height: "100%",
+          background: color,
+          borderRadius: 2,
+          transition: "width 0.4s ease",
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
+export default function Nutrition() {
+  const userId = getParticipantId();
+  const qc = useQueryClient();
+  const [captureMode, setCaptureMode] = useState<"none" | "camera" | "text">("none");
+
+  const { data: logs } = useQuery<FoodLog[]>({
+    queryKey: ["/api/food/logs", userId],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const todayLogs = useMemo(() => {
+    if (!logs) return [];
+    return logs.filter((l) => isToday(l.loggedAt)).sort(
+      (a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()
+    );
+  }, [logs]);
+
+  const totalCalories = useMemo(
+    () => todayLogs.reduce((s, l) => s + (l.totalCalories ?? 0), 0),
+    [todayLogs]
+  );
+
+  const { totalProtein, totalCarbs, totalFat } = useMemo(() => {
+    let p = 0, c = 0, f = 0;
+    for (const l of todayLogs) {
+      for (const fi of l.foodItems ?? []) {
+        p += fi.protein_g ?? 0;
+        c += fi.carbs_g ?? 0;
+        f += fi.fat_g ?? 0;
+      }
+    }
+    return { totalProtein: p, totalCarbs: c, totalFat: f };
+  }, [todayLogs]);
+
+  const craving = useMemo(() => getCravingAnalysis(), []);
+
+  function handleAnalyzed() {
+    // Delay slightly so the DB write completes before refetch
+    setTimeout(() => {
+      qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+    }, 600);
+  }
+
+  return (
+    <main
+      style={{
+        background: "#0a0e17",
+        minHeight: "100vh",
+        padding: 16,
+        paddingBottom: 100,
+        color: "#e8e0d4",
+        fontFamily: "Inter, system-ui, sans-serif",
+      }}
+    >
+      {/* Header */}
+      <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 20, marginTop: 4 }}>
+        Nutrition
+      </h1>
+
+      {/* Calorie Ring */}
+      <CalorieRing calories={totalCalories} />
+
+      {/* Macro Cards */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: 8,
+          marginBottom: 16,
+        }}
+      >
+        {/* Protein */}
+        <div
+          style={{
+            background: "#111827",
+            borderRadius: 12,
+            border: "1px solid #1f2937",
+            padding: "12px 8px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#60a5fa" }}>
+            {Math.round(totalProtein)}g
+          </div>
+          <div style={{ fontSize: 10, color: "#8b8578", marginTop: 2 }}>Protein</div>
+          <MacroBar value={totalProtein} goal={PROTEIN_GOAL} color="#60a5fa" />
+        </div>
+
+        {/* Carbs */}
+        <div
+          style={{
+            background: "#111827",
+            borderRadius: 12,
+            border: "1px solid #1f2937",
+            padding: "12px 8px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#f59e0b" }}>
+            {Math.round(totalCarbs)}g
+          </div>
+          <div style={{ fontSize: 10, color: "#8b8578", marginTop: 2 }}>Carbs</div>
+          <MacroBar value={totalCarbs} goal={CARBS_GOAL} color="#f59e0b" />
+        </div>
+
+        {/* Fat */}
+        <div
+          style={{
+            background: "#111827",
+            borderRadius: 12,
+            border: "1px solid #1f2937",
+            padding: "12px 8px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#f87171" }}>
+            {Math.round(totalFat)}g
+          </div>
+          <div style={{ fontSize: 10, color: "#8b8578", marginTop: 2 }}>Fat</div>
+          <MacroBar value={totalFat} goal={FAT_GOAL} color="#f87171" />
+        </div>
+      </div>
+
+      {/* Craving Analysis Card */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, #1a1410, #111827)",
+          border: "1px solid #2d2418",
+          borderRadius: 14,
+          padding: 14,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: "#f59e0b",
+            marginBottom: 8,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>🧠</span>
+          <span>Craving Analysis</span>
+        </div>
+        <p style={{ fontSize: 13, color: "#d1cdc4", lineHeight: 1.5, margin: 0 }}>
+          Right now you show signs of <strong style={{ color: "#e8e0d4" }}>{craving.text}</strong>.
+          Track your meals to see how your emotional state shapes your eating patterns.
+        </p>
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <button
+          onClick={() => setCaptureMode(captureMode === "camera" ? "none" : "camera")}
+          style={{
+            flex: 1,
+            background: captureMode === "camera" ? "#d97706" : "#f59e0b",
+            color: "#0a0e17",
+            borderRadius: 12,
+            padding: 12,
+            fontSize: 13,
+            fontWeight: 600,
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          📷 Capture Meal
+        </button>
+        <button
+          onClick={() => setCaptureMode(captureMode === "text" ? "none" : "text")}
+          style={{
+            flex: 1,
+            background: "#111827",
+            color: "#e8e0d4",
+            borderRadius: 12,
+            padding: 12,
+            fontSize: 13,
+            fontWeight: 500,
+            border: "1px solid #1f2937",
+            cursor: "pointer",
+          }}
+        >
+          ✍ Describe
+        </button>
+      </div>
+
+      {/* FoodCapture component — shown when capture mode is active */}
+      {captureMode !== "none" && (
+        <div style={{ marginBottom: 20 }}>
+          <FoodCapture onAnalyzed={handleAnalyzed} />
+        </div>
+      )}
+
+      {/* Today's Meals */}
+      <div>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: "#8b8578",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            marginBottom: 8,
+          }}
+        >
+          Today's Meals
+        </div>
+
+        <div
+          style={{
+            background: "#111827",
+            borderRadius: 14,
+            border: "1px solid #1f2937",
+            overflow: "hidden",
+          }}
+        >
+          {todayLogs.length === 0 ? (
+            <div
+              style={{
+                padding: "24px 16px",
+                textAlign: "center",
+                fontSize: 13,
+                color: "#8b8578",
+              }}
+            >
+              Log your first meal to start tracking
+            </div>
+          ) : (
+            todayLogs.map((log, idx) => (
+              <div
+                key={log.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "12px 14px",
+                  borderBottom:
+                    idx < todayLogs.length - 1 ? "1px solid #1f2937" : "none",
+                }}
+              >
+                {/* Meal icon */}
+                <span style={{ fontSize: 18, marginRight: 10 }}>
+                  {MEAL_ICONS[log.mealType ?? "snack"] ?? "🍽️"}
+                </span>
+
+                {/* Name + time */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: "#e8e0d4",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {log.summary ?? "Meal"}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#8b8578", marginTop: 2 }}>
+                    {formatTime(log.loggedAt)} · {getMealLabel(log.mealType)}
+                  </div>
+                </div>
+
+                {/* Calories */}
+                {log.totalCalories != null && (
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#f59e0b",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {log.totalCalories} kcal
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}

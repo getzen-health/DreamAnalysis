@@ -19,6 +19,10 @@ import AuthPage from "@/pages/auth";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
 import Dashboard from "@/pages/dashboard";
+import Today from "@/pages/today";
+import Discover from "@/pages/discover";
+import Nutrition from "@/pages/nutrition";
+import You from "@/pages/you";
 import EmotionLab from "@/pages/emotion-lab";
 // BrainMonitor lazy-loaded: it pulls in use-inference which triggers the
 // onnxruntime-web chunk. Deferring it keeps the initial bundle smaller.
@@ -235,7 +239,16 @@ function AppRoutes() {
         <AppLayout><ArchitectureGuide /></AppLayout>
       </Route>
       <Route path="/">
-        <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+        <ProtectedRoute><AppLayout><Today /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/discover">
+        <ProtectedRoute><AppLayout><Discover /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/nutrition">
+        <ProtectedRoute><AppLayout><Nutrition /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/you">
+        <ProtectedRoute><AppLayout><You /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/emotions">
         <ProtectedRoute><AppLayout><EmotionLab /></AppLayout></ProtectedRoute>
@@ -246,9 +259,6 @@ function AppRoutes() {
       </Route>
       <Route path="/trends">
         <ProtectedRoute><AppLayout><HealthAnalytics /></AppLayout></ProtectedRoute>
-      </Route>
-      <Route path="/you">
-        <ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/brain-monitor">
         <ProtectedRoute><AppLayout><BrainMonitor /></AppLayout></ProtectedRoute>
@@ -294,7 +304,7 @@ function AppRoutes() {
         <ProtectedRoute><AppLayout><PersonalRecords /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/food">
-        <ProtectedRoute><AppLayout><FoodLog /></AppLayout></ProtectedRoute>
+        <ProtectedRoute><AppLayout><Nutrition /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/food-emotion">
         <ProtectedRoute><AppLayout><FoodEmotion /></AppLayout></ProtectedRoute>
@@ -318,7 +328,7 @@ function AppRoutes() {
         <ProtectedRoute><AppLayout><ResearchHub /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/food-log">
-        <ProtectedRoute><AppLayout><FoodLog /></AppLayout></ProtectedRoute>
+        <ProtectedRoute><AppLayout><Nutrition /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/sleep-session">
         <ProtectedRoute><AppLayout><SleepSession /></AppLayout></ProtectedRoute>
