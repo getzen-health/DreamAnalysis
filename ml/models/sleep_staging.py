@@ -13,7 +13,7 @@ Supports three inference paths: ONNX > sklearn > feature-based fallback.
 
 import numpy as np
 from typing import Dict, List, Optional
-from processing.eeg_processor import extract_features, extract_band_powers, preprocess
+from processing.eeg_processor import extract_features, extract_band_powers, preprocess, detect_sleep_spindles
 
 SLEEP_STAGES = ["Wake", "N1", "N2", "N3", "REM"]
 STAGE_MAP = {0: "Wake", 1: "N1", 2: "N2", 3: "N3", 4: "REM"}
@@ -80,6 +80,16 @@ class SleepStagingModel:
         feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
 
         probs = self.sklearn_model.predict_proba(feature_vector)[0]
+
+        # Boost N2 probability when sleep spindles are detected
+        try:
+            spindles = detect_sleep_spindles(processed, fs)
+            if spindles.get("spindles_detected", False):
+                probs[2] = min(1.0, probs[2] + 0.15)
+                probs = probs / probs.sum()
+        except Exception:
+            pass  # spindle detection failure must not break staging
+
         stage_idx = int(np.argmax(probs))
 
         return {
@@ -104,8 +114,8 @@ class SleepStagingModel:
         # Compute probabilities based on physiological characteristics
         probs = np.zeros(5)
 
-        # Wake: high alpha + beta, low delta
-        probs[0] = alpha * 0.4 + beta * 0.3 + gamma * 0.2 + (1 - delta) * 0.1
+        # Wake: high alpha + beta, low delta (no gamma — EMG contamination at AF7/AF8)
+        probs[0] = alpha * 0.4 + beta * 0.4 + (1 - delta) * 0.2
 
         # N1: theta dominant, reduced alpha
         probs[1] = theta * 0.5 + (1 - alpha) * 0.2 + (1 - beta) * 0.2 + delta * 0.1
@@ -117,8 +127,8 @@ class SleepStagingModel:
         # N3: high delta (slow-wave sleep)
         probs[3] = delta * 0.7 + theta * 0.15 + (1 - beta) * 0.1 + (1 - alpha) * 0.05
 
-        # REM: mixed frequency, theta + beta, low delta
-        probs[4] = theta * 0.3 + beta * 0.3 + (1 - delta) * 0.2 + gamma * 0.1 + (1 - alpha) * 0.1
+        # REM: mixed frequency, theta + beta, low delta (no gamma — EMG contamination)
+        probs[4] = theta * 0.3 + beta * 0.3 + (1 - delta) * 0.2 + (1 - alpha) * 0.1 + (1 - alpha) * 0.1
 
         # Add noise for realism
         probs += np.random.uniform(0, 0.05, 5)
@@ -159,8 +169,23 @@ class SleepStagingModel:
             results.append(result)
         return self._smooth_predictions(results)
 
+    # Biologically invalid transition penalties (Markov prior).
+    # Stage indices: Wake=0, N1=1, N2=2, N3=3, REM=4.
+    # Tuple format: (from_stage, to_stage) → multiplier for the destination probability.
+    _TRANSITION_PENALTIES = {
+        (0, 4): 0.1,  # Wake → REM direct: essentially impossible
+        (3, 1): 0.2,  # N3 → N1 direct: must surface through N2 first
+        (4, 3): 0.2,  # REM → N3 direct: very rare, REM usually lightens to N1/N2
+    }
+
     def _smooth_predictions(self, predictions: List[Dict]) -> List[Dict]:
-        """Apply temporal smoothing — adjacent epochs rarely jump more than 1 stage."""
+        """Apply temporal smoothing with Markov transition priors.
+
+        1. Penalise biologically invalid stage jumps by scaling down the
+           destination-stage probability before argmax.
+        2. Fall back to the previous stage if confidence is low and the
+           jump is large (legacy behaviour retained).
+        """
         if len(predictions) <= 1:
             return predictions
 
@@ -170,9 +195,28 @@ class SleepStagingModel:
             prev_stage = smoothed[i - 1]["stage_index"]
             curr_stage = current["stage_index"]
 
-            # Allow natural transitions, but penalize large jumps
+            # --- Markov transition prior ---
+            penalty = self._TRANSITION_PENALTIES.get((prev_stage, curr_stage))
+            if penalty is not None:
+                # Re-weight probabilities: scale down the invalid destination,
+                # then renormalise so all probs still sum to 1.
+                raw_probs = np.array(
+                    [current["probabilities"][STAGE_MAP[j]] for j in range(5)]
+                )
+                raw_probs[curr_stage] *= penalty
+                raw_probs = raw_probs / raw_probs.sum()
+                new_stage_idx = int(np.argmax(raw_probs))
+                current = {
+                    **current,
+                    "stage": STAGE_MAP[new_stage_idx],
+                    "stage_index": new_stage_idx,
+                    "confidence": float(raw_probs[new_stage_idx]),
+                    "probabilities": {STAGE_MAP[j]: float(raw_probs[j]) for j in range(5)},
+                }
+                curr_stage = new_stage_idx
+
+            # --- Legacy large-jump guard (unchanged) ---
             if abs(curr_stage - prev_stage) > 2 and current["confidence"] < 0.6:
-                # Revert to previous stage if confidence is low and jump is large
                 current = {**current, "stage": STAGE_MAP[prev_stage], "stage_index": prev_stage}
 
             smoothed.append(current)

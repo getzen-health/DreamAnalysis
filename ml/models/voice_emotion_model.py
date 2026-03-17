@@ -723,15 +723,19 @@ class VoiceEmotionModel:
         if not window_results:
             return None
 
-        # Aggregate: probability-average across windows
-        agg_probs: Dict[str, float] = {c: 0.0 for c in _6CLASS}
-        for r in window_results:
-            for cls, prob in r.get("probabilities", {}).items():
-                if cls in agg_probs:
-                    agg_probs[cls] += float(prob)
+        # Aggregate: confidence-weighted average across windows
+        weights = np.array([r.get("confidence", 0.5) for r in window_results])
+        weights = np.maximum(weights, 0.1)  # floor to avoid zero weight
+        weights /= weights.sum()
+
+        all_probs = np.array([
+            [r.get("probabilities", {}).get(c, 0.0) for c in _6CLASS]
+            for r in window_results
+        ])
+        weighted_probs = np.average(all_probs, axis=0, weights=weights)
 
         n = len(window_results)
-        agg_probs = {k: v / n for k, v in agg_probs.items()}
+        agg_probs: Dict[str, float] = dict(zip(_6CLASS, weighted_probs.tolist()))
 
         # Re-normalize to handle floating-point drift
         total = sum(agg_probs.values()) or 1.0

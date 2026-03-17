@@ -331,6 +331,26 @@ def voice_watch_analyze(req: VoiceWatchRequest) -> Dict[str, Any]:
         result["arousal"] = float(np.clip(result["arousal"] + stress_w * 0.2, 0.0, 1.0))
         result["stress_from_watch"] = round(stress_w, 4)
 
+    # Enrich with voice cognitive load (lightweight, no model file needed)
+    try:
+        from models.voice_cognitive_load import VoiceCognitiveLoadEstimator
+        cog_estimator = VoiceCognitiveLoadEstimator()
+        cog_result = cog_estimator.predict(audio_arr, sample_rate=int(audio_sr))
+        if cog_result:
+            result["voice_cognitive_load"] = cog_result.get("voice_load_index", None)
+    except Exception as exc:
+        log.debug("Voice cognitive load enrichment failed: %s", exc)
+
+    # Enrich with fatigue biomarkers for better stress estimation
+    try:
+        from models.voice_fatigue_model import get_voice_fatigue_scanner
+        scanner = get_voice_fatigue_scanner()
+        fatigue = scanner.scan(audio_arr, sr=int(audio_sr))
+        result["fatigue_index"] = fatigue.fatigue_index
+        result["fatigue_hnr_db"] = fatigue.hnr_db
+    except Exception as exc:
+        log.debug("Voice fatigue enrichment failed: %s", exc)
+
     ts = time.time()
     _auto_log_voice_brain_state(req.user_id, ts, result)
 
