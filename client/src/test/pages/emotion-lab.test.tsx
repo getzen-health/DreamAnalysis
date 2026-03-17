@@ -87,10 +87,10 @@ describe("EmotionLab page", () => {
     renderWithProviders(<EmotionLab />);
   });
 
-  it("shows connect-device message when Muse 2 not streaming", () => {
+  it("shows no-data message when no voice check-in exists", () => {
     renderWithProviders(<EmotionLab />);
     expect(
-      screen.getByText(/Voice mode is ready/)
+      screen.getByText(/No emotion data yet/)
     ).toBeInTheDocument();
   });
 
@@ -104,9 +104,9 @@ describe("EmotionLab page", () => {
     expect(screen.getByText("Right now")).toBeInTheDocument();
   });
 
-  it("shows connect device heading when not streaming", () => {
+  it("shows dashboard redirect message when not streaming", () => {
     renderWithProviders(<EmotionLab />);
-    expect(screen.getByText("Voice mode is ready")).toBeInTheDocument();
+    expect(screen.getByText(/Do a voice check-in on the Dashboard/)).toBeInTheDocument();
   });
 
   it("shows empty session message when not streaming", () => {

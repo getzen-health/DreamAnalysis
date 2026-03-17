@@ -132,15 +132,34 @@ Does this match how you're actually feeling? Sometimes the brain signals things 
 
 Would you like to explore any of these states further, or try a quick exercise to shift your mental state?`;
     }
-    return `Let's do a quick mood check-in 🌱
+    // Check if voice data already exists today
+    try {
+      const raw = localStorage.getItem("ndw_last_emotion");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.timestamp && Date.now() - parsed.timestamp < 86_400_000) {
+          const r = parsed.result;
+          const emotion = r?.emotion ?? "neutral";
+          const valence = (r?.valence ?? 0);
+          const stress = Math.round((r?.stress_index ?? r?.stress_from_watch ?? 0) * 100);
+          const focus = Math.round((r?.focus_index ?? 0) * 100);
+          const vLabel = valence > 0.2 ? "positive" : valence < -0.2 ? "negative" : "neutral";
+          return `Here's your current state from your voice check-in 🎙️
 
-Rate yourself 1–10 on these right now:
-- ⚡ **Energy** (1 = exhausted, 10 = fully alive)
-- 😤 **Stress** (1 = totally calm, 10 = overwhelmed)
-- 🎯 **Focus** (1 = scattered, 10 = laser-sharp)
-- 😊 **Mood** (1 = very low, 10 = excellent)
+- **Emotion**: ${emotion.charAt(0).toUpperCase() + emotion.slice(1)}
+- **Mood**: ${vLabel} (valence: ${valence.toFixed(2)})
+- **Stress**: ${stress}%
+- **Focus**: ${focus}%
 
-Start with your own words or a voice check-in for guidance now. Add Muse 2 later if you want live brain-wave insights. 💙`;
+${stress > 60 ? "Your stress is elevated. Want a quick breathing exercise or a guided relaxation?" : valence > 0.2 ? "You're in a good space! This is a great time for creative work or learning." : "Your mood is neutral. Would you like to try a mindfulness exercise to center yourself?"}
+
+Ask me anything about your emotional state, or try a guided exercise. 💙`;
+        }
+      }
+    } catch { /* ignore */ }
+    return `I don't have voice data from today yet. Do a voice check-in on the dashboard first, then come back here for a personalized mood summary.
+
+Or tell me in your own words — how are you feeling right now? 💙`;
   }
 
   if (msg.includes("sleep") || msg.includes("tired") || msg.includes("insomnia") || msg.includes("rest")) {
@@ -335,7 +354,29 @@ export function AICompanion({ userId }: AICompanionProps) {
     {
       icon: Heart,
       label: "Mood Check-In",
-      action: () => sendMessage("How am I feeling right now? Help me check in with my emotions"),
+      action: () => {
+        // Pull existing voice check-in data instead of asking again
+        let moodContext = "";
+        try {
+          const raw = localStorage.getItem("ndw_last_emotion");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.timestamp && Date.now() - parsed.timestamp < 86_400_000) {
+              const r = parsed.result;
+              const emotion = r?.emotion ?? "neutral";
+              const valence = r?.valence ?? 0;
+              const confidence = r?.confidence ?? 0;
+              const stress = r?.stress_index ?? r?.stress_from_watch ?? 0;
+              const focus = r?.focus_index ?? 0;
+              moodContext = `My latest voice check-in shows: emotion=${emotion} (${Math.round(confidence * 100)}% confidence), valence=${valence.toFixed(2)}, stress=${Math.round(stress * 100)}%, focus=${Math.round(focus * 100)}%. Based on this data, give me a personalized mood summary and suggestions.`;
+            }
+          }
+        } catch { /* ignore */ }
+        if (!moodContext) {
+          moodContext = "How am I feeling right now? Help me check in with my emotions";
+        }
+        sendMessage(moodContext);
+      },
     },
     {
       icon: Leaf,
