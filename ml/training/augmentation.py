@@ -179,3 +179,117 @@ def temporal_jitter(eeg: np.ndarray, max_shift: int = 5) -> np.ndarray:
     """
     shift = np.random.randint(-max_shift, max_shift + 1)
     return np.roll(eeg, shift, axis=-1)
+
+
+# ── Audio / Voice Augmentation ────────────────────────────────────────────────
+# For voice emotion model training. Based on:
+# - Springer 2024: "Real-time speech emotion recognition using deep learning
+#   and data augmentation" — noise injection + pitch shift → +5-10% accuracy
+# - Taylor & Francis 2024: "Data augmentation using 1D-CNN with MFCC/MFMC"
+
+
+def augment_audio_noise(
+    audio: np.ndarray, snr_db: float = 20.0
+) -> np.ndarray:
+    """Add white Gaussian noise at a specified signal-to-noise ratio.
+
+    Args:
+        audio: 1D float audio array
+        snr_db: target SNR in decibels (lower = more noise). 20 dB is subtle.
+
+    Returns:
+        Noisy copy of audio.
+    """
+    rms_signal = np.sqrt(np.mean(audio ** 2)) + 1e-10
+    rms_noise = rms_signal / (10 ** (snr_db / 20))
+    noise = np.random.normal(0, rms_noise, audio.shape)
+    return (audio + noise).astype(audio.dtype)
+
+
+def augment_audio_pitch(
+    audio: np.ndarray, sr: int = 16000, n_steps: float = 0.0
+) -> np.ndarray:
+    """Shift pitch by n_steps semitones without changing duration.
+
+    Args:
+        audio: 1D float audio
+        sr: sample rate
+        n_steps: semitones to shift (positive = higher, negative = lower).
+                 Random if 0: uniform(-2, 2).
+
+    Returns:
+        Pitch-shifted copy.
+    """
+    try:
+        import librosa
+    except ImportError:
+        return audio  # librosa not available — return original
+
+    if n_steps == 0.0:
+        n_steps = np.random.uniform(-2.0, 2.0)
+    return librosa.effects.pitch_shift(y=audio, sr=sr, n_steps=n_steps)
+
+
+def augment_audio_speed(
+    audio: np.ndarray, rate: float = 0.0
+) -> np.ndarray:
+    """Time-stretch audio by a rate factor without changing pitch.
+
+    Args:
+        audio: 1D float audio
+        rate: stretch factor (>1 = faster, <1 = slower).
+              Random if 0: uniform(0.85, 1.15).
+
+    Returns:
+        Time-stretched copy.
+    """
+    try:
+        import librosa
+    except ImportError:
+        return audio
+
+    if rate == 0.0:
+        rate = np.random.uniform(0.85, 1.15)
+    stretched = librosa.effects.time_stretch(y=audio, rate=rate)
+    return stretched.astype(audio.dtype)
+
+
+def augment_audio_gain(
+    audio: np.ndarray, gain_db: float = 0.0
+) -> np.ndarray:
+    """Apply random volume gain in decibels.
+
+    Args:
+        audio: 1D float audio
+        gain_db: gain in dB. Random if 0: uniform(-6, 6).
+
+    Returns:
+        Gain-adjusted copy.
+    """
+    if gain_db == 0.0:
+        gain_db = np.random.uniform(-6.0, 6.0)
+    factor = 10 ** (gain_db / 20)
+    return (audio * factor).astype(audio.dtype)
+
+
+def augment_audio_full(
+    audio: np.ndarray, sr: int = 16000
+) -> np.ndarray:
+    """Apply a random combination of noise + pitch + speed + gain augmentation.
+
+    Each augmentation is applied with 50% probability.
+    Suitable for voice emotion training data expansion.
+
+    Returns:
+        Augmented copy.
+    """
+    out = audio.copy()
+    if np.random.random() < 0.5:
+        out = augment_audio_noise(out, snr_db=np.random.uniform(15, 30))
+    if np.random.random() < 0.5:
+        out = augment_audio_pitch(out, sr=sr)
+    if np.random.random() < 0.5:
+        out = augment_audio_speed(out)
+    if np.random.random() < 0.5:
+        out = augment_audio_gain(out)
+    return out
