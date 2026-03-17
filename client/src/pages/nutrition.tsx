@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { hapticSuccess } from "@/lib/haptics";
+import { useVoiceData } from "@/hooks/use-voice-data";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -55,26 +56,14 @@ function autoMealType(): string {
   return "snack";
 }
 
-function getCravingAnalysis(): { text: string; label: string } {
-  try {
-    const raw = localStorage.getItem("ndw_last_emotion");
-    if (!raw) return { text: "balanced — you're eating from hunger, not emotion", label: "Balanced" };
-    const emotion = JSON.parse(raw) as { stress_index?: number; valence?: number };
-    const stress = emotion.stress_index ?? 0;
-    const valence = emotion.valence ?? 0;
-    if (stress > 0.6) {
-      return { text: "stress eating — your body seeks comfort food", label: "Stress" };
-    }
-    if (valence > 0.3) {
-      return { text: "mindful eating — you're calm and present", label: "Mindful" };
-    }
-    if (valence < -0.2) {
-      return { text: "comfort seeking — emotional eating tendency", label: "Comfort" };
-    }
-    return { text: "balanced — you're eating from hunger, not emotion", label: "Balanced" };
-  } catch {
-    return { text: "balanced — you're eating from hunger, not emotion", label: "Balanced" };
-  }
+function getCravingFromVoice(voice: { stress_index?: number; valence?: number } | null): { text: string; label: string } {
+  if (!voice) return { text: "balanced — you're eating from hunger, not emotion", label: "Balanced" };
+  const stress = voice.stress_index ?? 0;
+  const valence = voice.valence ?? 0;
+  if (stress > 0.6) return { text: "stress eating — your body seeks comfort food", label: "Stress" };
+  if (valence > 0.3) return { text: "mindful eating — you're calm and present", label: "Mindful" };
+  if (valence < -0.2) return { text: "comfort seeking — emotional eating tendency", label: "Comfort" };
+  return { text: "balanced — you're eating from hunger, not emotion", label: "Balanced" };
 }
 
 // ── Calorie Ring ──────────────────────────────────────────────────────────────
@@ -217,7 +206,8 @@ export default function Nutrition() {
     return { totalProtein: p, totalCarbs: c, totalFat: f };
   }, [todayLogs]);
 
-  const craving = useMemo(() => getCravingAnalysis(), []);
+  const voiceData = useVoiceData();
+  const craving = useMemo(() => getCravingFromVoice(voiceData), [voiceData]);
 
   function handleAnalyzed() {
     // Delay slightly so the DB write completes before refetch
