@@ -1,8 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { resolveUrl } from "@/lib/queryClient";
+import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
-import { FoodCapture } from "@/components/food-capture";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +44,14 @@ function formatTime(iso: string): string {
 function getMealLabel(mealType: string | null): string {
   if (!mealType) return "Meal";
   return mealType.charAt(0).toUpperCase() + mealType.slice(1);
+}
+
+function autoMealType(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 10) return "breakfast";
+  if (h >= 11 && h < 15) return "lunch";
+  if (h >= 17 && h < 22) return "dinner";
+  return "snack";
 }
 
 function getCravingAnalysis(): { text: string; label: string } {
@@ -170,6 +177,11 @@ export default function Nutrition() {
   const userId = getParticipantId();
   const qc = useQueryClient();
   const [captureMode, setCaptureMode] = useState<"none" | "camera" | "text">("none");
+  const [mealText, setMealText] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const { data: logs } = useQuery<FoodLog[]>({
     queryKey: ["/api/food/logs", userId],
@@ -323,46 +335,197 @@ export default function Nutrition() {
         </p>
       </div>
 
-      {/* Action Buttons */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        <button
-          onClick={() => setCaptureMode(captureMode === "camera" ? "none" : "camera")}
-          style={{
-            flex: 1,
-            background: captureMode === "camera" ? "#d97706" : "#f59e0b",
-            color: "#0a0e17",
-            borderRadius: 12,
-            padding: 12,
-            fontSize: 13,
-            fontWeight: 600,
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          📷 Capture Meal
-        </button>
-        <button
-          onClick={() => setCaptureMode(captureMode === "text" ? "none" : "text")}
-          style={{
-            flex: 1,
-            background: "#111827",
-            color: "#e8e0d4",
-            borderRadius: 12,
-            padding: 12,
-            fontSize: 13,
-            fontWeight: 500,
-            border: "1px solid #1f2937",
-            cursor: "pointer",
-          }}
-        >
-          ✍ Describe
-        </button>
-      </div>
+      {/* Hidden file inputs */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: "none" }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          setIsAnalyzing(true);
+          setAnalysisError(null);
+          setCaptureMode("camera");
+          try {
+            const reader = new FileReader();
+            const base64 = await new Promise<string>((resolve, reject) => {
+              reader.onload = () => {
+                const result = reader.result as string;
+                resolve(result.split(",")[1]); // strip data:image/...;base64,
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            const res = await apiRequest("POST", "/api/food/analyze", {
+              userId,
+              mealType: autoMealType(),
+              imageBase64: base64,
+            });
+            await res.json();
+            await new Promise(r => setTimeout(r, 500));
+            qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
+            setCaptureMode("none");
+          } catch (err) {
+            setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
+          } finally {
+            setIsAnalyzing(false);
+            if (cameraInputRef.current) cameraInputRef.current.value = "";
+          }
+        }}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          setIsAnalyzing(true);
+          setAnalysisError(null);
+          setCaptureMode("camera");
+          try {
+            const reader = new FileReader();
+            const base64 = await new Promise<string>((resolve, reject) => {
+              reader.onload = () => {
+                const result = reader.result as string;
+                resolve(result.split(",")[1]);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+            const res = await apiRequest("POST", "/api/food/analyze", {
+              userId,
+              mealType: autoMealType(),
+              imageBase64: base64,
+            });
+            await res.json();
+            await new Promise(r => setTimeout(r, 500));
+            qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
+            setCaptureMode("none");
+          } catch (err) {
+            setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
+          } finally {
+            setIsAnalyzing(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+          }
+        }}
+      />
 
-      {/* FoodCapture component — shown when capture mode is active */}
-      {captureMode !== "none" && (
-        <div style={{ marginBottom: 20 }}>
-          <FoodCapture onAnalyzed={handleAnalyzed} />
+      {/* Action Buttons */}
+      {captureMode === "none" && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <button
+            onClick={() => cameraInputRef.current?.click()}
+            style={{
+              flex: 1, background: "#f59e0b", color: "#0a0e17", borderRadius: 12,
+              padding: 12, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+            }}
+          >
+            📷 Capture Meal
+          </button>
+          <button
+            onClick={() => setCaptureMode("text")}
+            style={{
+              flex: 1, background: "#111827", color: "#e8e0d4", borderRadius: 12,
+              padding: 12, fontSize: 13, fontWeight: 500, border: "1px solid #1f2937", cursor: "pointer",
+            }}
+          >
+            ✍ Describe
+          </button>
+        </div>
+      )}
+
+      {/* Analyzing state */}
+      {isAnalyzing && (
+        <div style={{
+          background: "#111827", borderRadius: 14, border: "1px solid #1f2937",
+          padding: 20, marginBottom: 14, textAlign: "center",
+        }}>
+          <div style={{ width: 28, height: 28, border: "3px solid #f59e0b", borderTopColor: "transparent",
+            borderRadius: "50%", margin: "0 auto 8px", animation: "spin 0.8s linear infinite" }} />
+          <p style={{ fontSize: 13, color: "#e8e0d4", margin: 0 }}>Analyzing your meal...</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
+      {/* Error */}
+      {analysisError && (
+        <div style={{
+          background: "#1f1210", borderRadius: 14, border: "1px solid #2d1f18",
+          padding: 14, marginBottom: 14,
+        }}>
+          <p style={{ fontSize: 12, color: "#f87171", margin: 0 }}>{analysisError}</p>
+          <button onClick={() => { setAnalysisError(null); setCaptureMode("none"); }}
+            style={{ marginTop: 8, fontSize: 12, color: "#8b8578", background: "none", border: "none", cursor: "pointer" }}>
+            Try again
+          </button>
+        </div>
+      )}
+
+      {/* Describe mode — text input */}
+      {captureMode === "text" && (
+        <div style={{
+          background: "#111827", borderRadius: 14, border: "1px solid #1f2937",
+          padding: 14, marginBottom: 14,
+        }}>
+          <p style={{ fontSize: 12, color: "#8b8578", margin: "0 0 8px 0" }}>
+            What did you eat? Be specific for better accuracy.
+          </p>
+          <textarea
+            value={mealText}
+            onChange={(e) => setMealText(e.target.value)}
+            placeholder="e.g. rice bowl with grilled chicken, steamed vegetables, and soy sauce"
+            style={{
+              width: "100%", minHeight: 80, background: "#0a0e17", color: "#e8e0d4",
+              border: "1px solid #1f2937", borderRadius: 10, padding: 12, fontSize: 13,
+              resize: "none", outline: "none", fontFamily: "inherit",
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button
+              onClick={() => { setCaptureMode("none"); setMealText(""); }}
+              style={{
+                flex: 1, background: "transparent", color: "#8b8578", borderRadius: 10,
+                padding: 10, fontSize: 13, border: "1px solid #1f2937", cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              disabled={!mealText.trim() || isAnalyzing}
+              onClick={async () => {
+                if (!mealText.trim()) return;
+                setIsAnalyzing(true);
+                setAnalysisError(null);
+                try {
+                  const res = await apiRequest("POST", "/api/food/analyze", {
+                    userId,
+                    mealType: autoMealType(),
+                    textDescription: mealText.trim(),
+                  });
+                  await res.json();
+                  setMealText("");
+                  await new Promise(r => setTimeout(r, 500));
+                  qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
+                  setCaptureMode("none");
+                } catch (err) {
+                  setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
+                } finally {
+                  setIsAnalyzing(false);
+                }
+              }}
+              style={{
+                flex: 1, background: mealText.trim() ? "#f59e0b" : "#374151",
+                color: mealText.trim() ? "#0a0e17" : "#6b7280", borderRadius: 10,
+                padding: 10, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+              }}
+            >
+              {isAnalyzing ? "Analyzing..." : "Log Meal"}
+            </button>
+          </div>
         </div>
       )}
 

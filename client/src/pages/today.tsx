@@ -278,15 +278,22 @@ export default function Today() {
   const { latestPayload, lastSyncAt } = useHealthSync();
   const userId = useMemo(() => getParticipantId(), []);
 
-  // Load last emotion check-in from localStorage
+  // Load last emotion check-in from localStorage — re-read on voice update
   const [checkin, setCheckin] = useState<EmotionCheckin | null>(null);
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("ndw_last_emotion");
-      if (raw) setCheckin(JSON.parse(raw));
-    } catch {
-      // ignore
+    function loadCheckin() {
+      try {
+        const raw = localStorage.getItem("ndw_last_emotion");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setCheckin(parsed?.result ?? parsed);
+        }
+      } catch { /* ignore */ }
     }
+    loadCheckin();
+    // Listen for voice check-in updates from bottom tab mic
+    window.addEventListener("ndw-voice-updated", loadCheckin);
+    return () => window.removeEventListener("ndw-voice-updated", loadCheckin);
   }, []);
 
   // Fetch food logs for today

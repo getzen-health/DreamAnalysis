@@ -167,6 +167,8 @@ function valenceLabel(v: number): { text: string; className: string } {
 interface VoiceCheckinCardProps {
   userId?: string;
   onComplete?: (result: VoiceWatchCheckinResult) => void;
+  /** When true, always show the card regardless of period/completion status. Used by bottom tab mic. */
+  forceShow?: boolean;
 }
 
 type CardState = "idle" | "recording" | "analyzing" | "done" | "dismissed";
@@ -176,12 +178,14 @@ const RECORD_SEC = 10;
 export function VoiceCheckinCard({
   userId,
   onComplete,
+  forceShow = false,
 }: VoiceCheckinCardProps) {
   const resolvedUserId = userId ?? getParticipantId();
   const period = getCurrentPeriod();
   const queryClient = useQueryClient();
 
   const [cardState, setCardState] = useState<CardState>(() => {
+    if (forceShow) return "idle";
     if (!period) return "dismissed";
     if (isCheckinDone(period)) return "dismissed";
     return "idle";
@@ -399,9 +403,9 @@ export function VoiceCheckinCard({
     }, RECORD_SEC * 1000);
   }, [cardState, resolvedUserId, period, onComplete]);
 
-  // Don't render if dismissed or outside all windows
-  if (cardState === "dismissed") return null;
-  if (!period) return null;
+  // Don't render if dismissed or outside all windows (unless forceShow)
+  if (!forceShow && cardState === "dismissed") return null;
+  if (!forceShow && !period) return null;
 
   const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
 

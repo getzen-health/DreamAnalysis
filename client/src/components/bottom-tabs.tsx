@@ -32,9 +32,18 @@ export function BottomTabs() {
 
   function handleCheckinComplete() {
     setShowCheckin(false);
-    queryClient.invalidateQueries({ queryKey: ["/api/voice-checkins"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/emotion-history"] });
+    // Invalidate everything so all pages reflect the new voice data
+    const uid = USER_ID;
     queryClient.invalidateQueries({ queryKey: ["voice-checkins"] });
+    queryClient.invalidateQueries({ queryKey: ["streak-status"] });
+    queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    queryClient.invalidateQueries({ queryKey: ["emotions"] });
+    queryClient.invalidateQueries({ queryKey: [`/api/brain/history/${uid}?days=1`] });
+    queryClient.invalidateQueries({ queryKey: [`/api/brain/history/${uid}?days=7`] });
+    queryClient.invalidateQueries({ queryKey: ["voice-inner-energy", uid] });
+    queryClient.invalidateQueries({ queryKey: ["health-brain-report"] });
+    // Force Today page to re-read localStorage on next render
+    window.dispatchEvent(new Event("ndw-voice-updated"));
   }
 
   function renderTab(tab: (typeof tabs)[number]) {
@@ -132,7 +141,7 @@ export function BottomTabs() {
             style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <VoiceCheckinCard userId={USER_ID} onComplete={handleCheckinComplete} />
+            <VoiceCheckinCard userId={USER_ID} onComplete={handleCheckinComplete} forceShow />
           </div>
         </div>
       )}
