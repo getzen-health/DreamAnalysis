@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { Sparkles } from "lucide-react";
+import { ScoreSplash } from "@/components/score-splash";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -329,7 +330,34 @@ export default function Today() {
   const stepsGoal = 10000;
   const stepsPct = Math.min(100, Math.round((steps / stepsGoal) * 100));
 
+  // Score splash — show once per session when data exists
+  const [showSplash, setShowSplash] = useState(() => {
+    if (!checkin?.emotion) return false;
+    const shown = sessionStorage.getItem("ndw_splash_shown");
+    return !shown;
+  });
+  // Re-check when checkin loads (it's async from localStorage)
+  useEffect(() => {
+    if (checkin?.emotion && !sessionStorage.getItem("ndw_splash_shown")) {
+      setShowSplash(true);
+    }
+  }, [checkin]);
+  const dismissSplash = useCallback(() => {
+    setShowSplash(false);
+    sessionStorage.setItem("ndw_splash_shown", "1");
+  }, []);
+
   return (
+    <>
+    {showSplash && checkin?.emotion && (
+      <ScoreSplash
+        emotion={checkin.emotion}
+        readiness={readiness}
+        stress={stressVal}
+        focus={focusVal}
+        onDismiss={dismissSplash}
+      />
+    )}
     <main
       style={{
         background: "#0a0e17",
@@ -611,5 +639,6 @@ export default function Today() {
         </div>
       </div>
     </main>
+    </>
   );
 }
