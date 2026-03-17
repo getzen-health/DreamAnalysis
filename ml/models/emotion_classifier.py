@@ -744,11 +744,15 @@ class EmotionClassifier:
                 eeg, fs, artifact_detected=True, device_type=device_type
             )
 
-        # Feature extraction + scale
+        # Feature extraction + running normalization + scale
         feat = self._extract_muse_live_features(eeg, fs)
         # Zero gamma features for consumer dry-electrode devices (gamma = EMG)
         if self._is_consumer_device:
             feat[_GAMMA_FEAT_IDX] = 0.0
+        # Apply running normalization for session drift correction
+        rn = _get_running_normalizer()
+        if rn is not None and device_type:
+            feat = rn.normalize(feat, device_type)
         feat_scaled = self.lgbm_muse_scaler.transform(feat.reshape(1, -1))
 
         # LGBM predict → (positive=0, neutral=1, negative=2) probabilities
