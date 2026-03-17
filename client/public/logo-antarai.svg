@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bg" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#0f1729"/>
+      <stop offset="100%" stop-color="#070b14"/>
+    </radialGradient>
+    <!-- Main accent gradient (teal → emerald) -->
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2dd4a0"/>
+      <stop offset="50%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <!-- Warm glow for the heart/feeling center -->
+    <radialGradient id="heartGlow" cx="50%" cy="55%" r="35%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.4"/>
+      <stop offset="60%" stop-color="#f59e0b" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Emotion ripple gradient -->
+    <linearGradient id="ripple1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2dd4a0" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="ripple2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="ripple3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#c4b5fd" stop-opacity="0.2"/>
+    </linearGradient>
+    <!-- Face gradient -->
+    <linearGradient id="face" x1="30%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+
+  <!-- Subtle star dots -->
+  <circle cx="80" cy="90" r="1.5" fill="#ffffff" opacity="0.3"/>
+  <circle cx="420" cy="75" r="1.2" fill="#ffffff" opacity="0.25"/>
+  <circle cx="440" cy="380" r="1.3" fill="#ffffff" opacity="0.2"/>
+  <circle cx="70" cy="400" r="1.4" fill="#ffffff" opacity="0.22"/>
+  <circle cx="390" cy="160" r="1" fill="#ffffff" opacity="0.18"/>
+  <circle cx="130" cy="420" r="1.1" fill="#ffffff" opacity="0.15"/>
+
+  <!-- Warm glow behind the feeling center -->
+  <circle cx="256" cy="290" r="180" fill="url(#heartGlow)"/>
+
+  <!-- Emotion ripple waves — concentric arcs radiating from chest -->
+  <!-- Outermost ripple -->
+  <path d="M140,290 Q256,170 372,290" fill="none" stroke="url(#ripple3)" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M120,310 Q256,160 392,310" fill="none" stroke="url(#ripple3)" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Middle ripple -->
+  <path d="M165,285 Q256,195 347,285" fill="none" stroke="url(#ripple2)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M155,305 Q256,190 357,305" fill="none" stroke="url(#ripple2)" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Inner ripple -->
+  <path d="M195,282 Q256,225 317,282" fill="none" stroke="url(#ripple1)" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M188,298 Q256,220 324,298" fill="none" stroke="url(#ripple1)" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Stylized face silhouette — abstract, minimal -->
+  <!-- Head circle -->
+  <circle cx="256" cy="200" r="72" fill="url(#face)" opacity="0.95"/>
+
+  <!-- Closed eyes — peaceful/feeling expression -->
+  <path d="M228,190 Q236,200 244,190" fill="none" stroke="#0f1729" stroke-width="3" stroke-linecap="round"/>
+  <path d="M268,190 Q276,200 284,190" fill="none" stroke="#0f1729" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Gentle smile -->
+  <path d="M238,218 Q256,232 274,218" fill="none" stroke="#0f1729" stroke-width="2.8" stroke-linecap="round"/>
+
+  <!-- Third eye dot — awareness/insight -->
+  <circle cx="256" cy="170" r="4" fill="#f59e0b" opacity="0.85"/>
+  <!-- Third eye glow -->
+  <circle cx="256" cy="170" r="8" fill="#f59e0b" opacity="0.15"/>
+
+  <!-- Heart/feeling point at chest -->
+  <circle cx="256" cy="290" r="8" fill="#f59e0b" opacity="0.9"/>
+  <circle cx="256" cy="290" r="14" fill="#f59e0b" opacity="0.2"/>
+  <circle cx="256" cy="290" r="22" fill="#f59e0b" opacity="0.08"/>
+
+  <!-- Thin connection line from third eye to heart — the feeling pathway -->
+  <line x1="256" y1="178" x2="256" y2="280" stroke="url(#accent)" stroke-width="1.8" stroke-dasharray="4,6" opacity="0.5"/>
+
+  <!-- Bottom EEG-like wave — signature brainwave element -->
+  <path d="M100,400 Q130,380 160,400 Q190,420 220,400 Q250,380 280,400 Q310,420 340,400 Q370,380 400,400"
+        fill="none" stroke="url(#ripple1)" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- "A" lettermark hint — very subtle, integrated into the design -->
+  <!-- The face + heart connection already forms an abstract "A" shape -->
+</svg>
