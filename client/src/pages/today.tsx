@@ -98,6 +98,65 @@ function formatDate(): string {
   return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
 }
 
+// ── Weekly Mood Strip ──────────────────────────────────────────────────────
+
+const MOOD_COLORS: Record<string, string> = {
+  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
+  surprise: "#fbbf24", neutral: "#94a3b8",
+};
+
+function WeeklyMoodStrip({ userId }: { userId: string }) {
+  const { data } = useQuery<Array<{ dominantEmotion: string; timestamp: string }>>({
+    queryKey: [`/api/brain/history/${userId}?days=7`],
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!data || data.length === 0) return null;
+
+  // Group by day, take last emotion per day
+  const dayMap = new Map<string, { emotion: string; label: string }>();
+  for (const r of data) {
+    const d = new Date(r.timestamp);
+    const key = d.toISOString().slice(0, 10);
+    const label = d.toLocaleDateString(undefined, { weekday: "narrow" });
+    dayMap.set(key, { emotion: r.dominantEmotion, label });
+  }
+
+  const days = Array.from(dayMap.entries()).sort(([a], [b]) => a.localeCompare(b)).slice(-7);
+  if (days.length < 2) return null;
+
+  return (
+    <div
+      onClick={() => window.location.href = "/discover"}
+      style={{
+        background: "var(--card)", border: "1px solid var(--border)",
+        borderRadius: 14, padding: "12px 14px", marginBottom: 14, cursor: "pointer",
+      }}
+    >
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8,
+      }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase" as const, letterSpacing: "0.5px" }}>
+          This week
+        </span>
+        <span style={{ fontSize: 16, color: "var(--muted-foreground)" }}>›</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {days.map(([key, { emotion, label }]) => (
+          <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: "50%",
+              background: MOOD_COLORS[emotion] ?? "#94a3b8", opacity: 0.85,
+            }} />
+            <span style={{ fontSize: 8, color: "var(--muted-foreground)" }}>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Emotion emojis ────────────────────────────────────────────────────────
 
 const EMOTION_EMOJI: Record<string, string> = {
@@ -469,6 +528,9 @@ export default function Today() {
           onClick={() => navigate("/emotions")}
         />
       </div>
+
+      {/* ── Weekly Mood Strip ── */}
+      <WeeklyMoodStrip userId={userId} />
 
       {/* ── AI Insight ── */}
       <div
