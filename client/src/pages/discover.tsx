@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { resolveUrl } from "@/lib/queryClient";
+import { getParticipantId } from "@/lib/participant";
+import { useHealthSync } from "@/hooks/use-health-sync";
 
 // ── Emotion data from localStorage ──────────────────────────────────────
 
@@ -210,6 +214,14 @@ function RowCard({
 export default function Discover() {
   const [, navigate] = useLocation();
   const checkin = useCheckinData();
+  const { latestPayload } = useHealthSync();
+  const userId = getParticipantId();
+
+  // Fetch today's food logs for calorie sum
+  const { data: foodLogs } = useQuery<{ calories?: number }[]>({
+    queryKey: [resolveUrl(`/api/food/logs/${userId}`)],
+    retry: false,
+  });
 
   const emotion = checkin?.emotion ?? "—";
   const emoColor = EMOTION_COLOR[emotion] ?? "#8b8578";
@@ -218,6 +230,29 @@ export default function Discover() {
   const relaxation = checkin?.relaxation_index ?? (1 - stress);
   const valence = checkin?.valence ?? 0;
   const hasData = !!checkin?.emotion;
+
+  // ── Health metric derived values ─────────────────────────────────────────
+  const heartRate = latestPayload?.current_heart_rate ?? latestPayload?.resting_heart_rate ?? null;
+  const steps = latestPayload?.steps_today ?? null;
+  const stepsGoal = 10000;
+  const stepsPercent = steps != null ? Math.round((steps / stepsGoal) * 100) : null;
+
+  const sleepHours = latestPayload?.sleep_total_hours ?? null;
+  const sleepEfficiency = latestPayload?.sleep_efficiency ?? null;
+  const sleepLabel: string | null = sleepHours != null
+    ? `${Math.floor(sleepHours)}h ${Math.round((sleepHours % 1) * 60)}m`
+    : null;
+
+  // Calorie sum from today's logs
+  const caloriesToday = foodLogs
+    ? foodLogs.reduce((sum: number, log: { calories?: number }) => sum + (log.calories ?? 0), 0)
+    : null;
+
+  // Emotion/readiness score: use valence remapped to 0-100 if available
+  const emotionScore = hasData
+    ? Math.round(((valence + 1) / 2) * 100)
+    : null;
+  const emotionLabel = hasData ? emotion : null;
 
   return (
     <main
@@ -302,6 +337,113 @@ export default function Discover() {
           <div style={{ fontSize: 13, color: "#8b8578" }}>Do a voice check-in to see your scores</div>
         </div>
       )}
+
+      {/* ── Health metrics row — 3 columns ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+        {/* Heart Rate */}
+        <button
+          onClick={() => navigate("/health-analytics")}
+          style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Heart Rate</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#f87171" }}>
+            {heartRate != null ? `${Math.round(heartRate)}` : "—"}
+            {heartRate != null && (
+              <span style={{ fontSize: 11, fontWeight: 400, color: "#f87171", marginLeft: 2 }}>bpm</span>
+            )}
+          </div>
+          <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>Resting</div>
+        </button>
+
+        {/* Steps */}
+        <button
+          onClick={() => navigate("/health-analytics")}
+          style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Steps</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#34d399" }}>
+            {steps != null ? steps.toLocaleString() : "—"}
+          </div>
+          <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+            {stepsPercent != null ? `${stepsPercent}% of 10K goal` : "No data"}
+          </div>
+        </button>
+
+        {/* Sleep */}
+        <button
+          onClick={() => navigate("/sleep-session")}
+          style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Sleep</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#a78bfa" }}>
+            {sleepLabel ?? "—"}
+          </div>
+          <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+            {sleepEfficiency != null ? `${Math.round(sleepEfficiency)}% quality` : "No data"}
+          </div>
+        </button>
+      </div>
+
+      {/* ── Nutrition + Emotion row — 2 columns ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        {/* Calories / Nutrition */}
+        <button
+          onClick={() => navigate("/nutrition")}
+          style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Nutrition</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#f59e0b" }}>
+            {caloriesToday != null && caloriesToday > 0
+              ? caloriesToday.toLocaleString()
+              : "—"}
+            {caloriesToday != null && caloriesToday > 0 && (
+              <span style={{ fontSize: 11, fontWeight: 400, color: "#f59e0b", marginLeft: 2 }}>kcal</span>
+            )}
+          </div>
+          <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+            {caloriesToday != null && caloriesToday > 0
+              ? `of 2,000 goal`
+              : "No logs today"}
+          </div>
+        </button>
+
+        {/* Emotion Score */}
+        <button
+          onClick={() => navigate("/emotions")}
+          style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Emotion Score</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#2dd4bf" }}>
+            {emotionScore != null ? `${emotionScore}` : "—"}
+          </div>
+          <div style={{
+            fontSize: 10, color: "#6b7280", marginTop: 2,
+            textTransform: "capitalize" as const,
+          }}>
+            {emotionLabel ?? "No check-in"}
+          </div>
+        </button>
+      </div>
 
       {/* ── Section label ── */}
       <div style={{

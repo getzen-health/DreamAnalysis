@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
@@ -38,12 +39,12 @@ function computeReadiness(checkin: EmotionCheckin | null): number {
   return clamp(Math.round(raw), 0, 100);
 }
 
-function getReadinessLabel(score: number): string {
+function getEmotionScoreLabel(score: number): string {
   if (score === 0) return "Do a voice check-in to see your score";
-  if (score >= 80) return "You're at peak performance today";
-  if (score >= 60) return "You're feeling good today";
-  if (score >= 40) return "Moderate readiness — pace yourself";
-  return "Rest and recover today";
+  if (score >= 80) return "You're thriving emotionally";
+  if (score >= 60) return "Positive emotional state";
+  if (score >= 40) return "Mixed emotional state";
+  return "Take care of yourself today";
 }
 
 function getStressLabel(stress: number): string {
@@ -125,7 +126,7 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
     } catch { /* ignore */ }
     return 0;
   })();
-  const label = getReadinessLabel(score);
+  const label = getEmotionScoreLabel(score);
   const hasData = !!checkin?.emotion;
 
   // Arc params
@@ -174,7 +175,7 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
           <text x={cx} y={cy - 4} textAnchor="middle" fill="#e8e0d4" fontSize={32} fontWeight={700}
             fontFamily="system-ui, -apple-system, sans-serif">{score}</text>
           <text x={cx} y={cy + 14} textAnchor="middle" fill="#8b8578" fontSize={10}
-            fontFamily="system-ui, -apple-system, sans-serif">Readiness</text>
+            fontFamily="system-ui, -apple-system, sans-serif">Score</text>
         </svg>
       </div>
 
@@ -192,20 +193,25 @@ function MiniCard({
   value,
   sub,
   valueColor,
+  onClick,
 }: {
   label: string;
   value: string;
   sub: string;
   valueColor: string;
+  onClick?: () => void;
 }) {
   return (
     <div
+      onClick={onClick}
       style={{
         background: "#111827",
         border: "1px solid #1f2937",
         borderRadius: 14,
         padding: "14px 10px",
         textAlign: "center",
+        position: "relative",
+        cursor: onClick ? "pointer" : "default",
       }}
     >
       <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 6px 0" }}>{label}</p>
@@ -213,6 +219,9 @@ function MiniCard({
         {value}
       </p>
       <p style={{ fontSize: 10, color: "#6b7280", margin: 0 }}>{sub}</p>
+      {onClick && (
+        <span style={{ color: "#4b5563", fontSize: 16, position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>›</span>
+      )}
     </div>
   );
 }
@@ -277,6 +286,7 @@ function SleepStageBar({
 export default function Today() {
   const { latestPayload, lastSyncAt } = useHealthSync();
   const userId = useMemo(() => getParticipantId(), []);
+  const [, navigate] = useLocation();
 
   // Load last emotion check-in from localStorage — re-read on voice update
   const [checkin, setCheckin] = useState<EmotionCheckin | null>(null);
@@ -433,18 +443,21 @@ export default function Today() {
           value={emotion === "—" ? "—" : emotion.charAt(0).toUpperCase() + emotion.slice(1)}
           sub={topProb > 0 ? `${Math.round(topProb * 100)}% confidence` : "No data"}
           valueColor="#34d399"
+          onClick={() => navigate("/emotions")}
         />
         <MiniCard
           label="Stress"
           value={stressVal > 0 ? `${Math.round(stressVal * 100)}%` : "—"}
           sub={stressVal > 0 ? getStressLabel(stressVal) : "No data"}
           valueColor={stressVal > 0 ? getStressColor(stressVal) : "#8b8578"}
+          onClick={() => navigate("/emotions")}
         />
         <MiniCard
           label="Focus"
           value={focusVal > 0 ? `${Math.round(focusVal * 100)}%` : "—"}
           sub={focusVal > 0 ? getFocusLabel(focusVal) : "No data"}
           valueColor="#60a5fa"
+          onClick={() => navigate("/emotions")}
         />
       </div>
 
@@ -512,12 +525,15 @@ export default function Today() {
 
       {/* ── Sleep Card ── */}
       <div
+        onClick={() => navigate("/sleep-session")}
         style={{
           background: "#111827",
           border: "1px solid #1f2937",
           borderRadius: 14,
           padding: 14,
           marginBottom: 14,
+          cursor: "pointer",
+          position: "relative",
         }}
       >
         <div
@@ -534,11 +550,14 @@ export default function Today() {
               {sleepTotal > 0 ? `${sleepTotal.toFixed(1)}h` : "—"}
             </p>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 4px 0" }}>Quality</p>
-            <p style={{ fontSize: 20, fontWeight: 700, color: "#a78bfa", margin: 0 }}>
-              {sleepEfficiency > 0 ? `${Math.round(sleepEfficiency)}%` : "—"}
-            </p>
+          <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 6 }}>
+            <div>
+              <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 4px 0" }}>Quality</p>
+              <p style={{ fontSize: 20, fontWeight: 700, color: "#a78bfa", margin: 0 }}>
+                {sleepEfficiency > 0 ? `${Math.round(sleepEfficiency)}%` : "—"}
+              </p>
+            </div>
+            <span style={{ color: "#4b5563", fontSize: 18, lineHeight: 1 }}>›</span>
           </div>
         </div>
         <SleepStageBar
@@ -561,11 +580,14 @@ export default function Today() {
       >
         {/* Heart Rate */}
         <div
+          onClick={() => navigate("/health-analytics")}
           style={{
             background: "#111827",
             border: "1px solid #1f2937",
             borderRadius: 14,
             padding: 14,
+            cursor: "pointer",
+            position: "relative",
           }}
         >
           <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 6px 0" }}>Heart Rate</p>
@@ -581,15 +603,19 @@ export default function Today() {
                 : "Elevated"
               : "No data"}
           </p>
+          <span style={{ color: "#4b5563", fontSize: 16, position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>›</span>
         </div>
 
         {/* Steps */}
         <div
+          onClick={() => navigate("/health-analytics")}
           style={{
             background: "#111827",
             border: "1px solid #1f2937",
             borderRadius: 14,
             padding: 14,
+            cursor: "pointer",
+            position: "relative",
           }}
         >
           <p style={{ fontSize: 11, color: "#8b8578", margin: "0 0 6px 0" }}>Steps</p>
@@ -599,16 +625,19 @@ export default function Today() {
           <p style={{ fontSize: 10, color: "#8b8578", margin: 0 }}>
             {steps > 0 ? `${stepsPct}% of goal` : "No data"}
           </p>
+          <span style={{ color: "#4b5563", fontSize: 16, position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>›</span>
         </div>
       </div>
 
       {/* ── Nutrition Summary ── */}
       <div
+        onClick={() => navigate("/nutrition")}
         style={{
           background: "#111827",
           border: "1px solid #1f2937",
           borderRadius: 14,
           padding: 14,
+          cursor: "pointer",
         }}
       >
         <div
@@ -620,11 +649,14 @@ export default function Today() {
           }}
         >
           <span style={{ fontSize: 11, color: "#8b8578" }}>Today's Nutrition</span>
-          <span style={{ fontSize: 11, color: "#f59e0b" }}>
-            {todayCalories > 0
-              ? `${todayCalories.toLocaleString()} / ${calGoal.toLocaleString()} kcal`
-              : `— / ${calGoal.toLocaleString()} kcal`}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, color: "#f59e0b" }}>
+              {todayCalories > 0
+                ? `${todayCalories.toLocaleString()} / ${calGoal.toLocaleString()} kcal`
+                : `— / ${calGoal.toLocaleString()} kcal`}
+            </span>
+            <span style={{ color: "#4b5563", fontSize: 16, lineHeight: 1 }}>›</span>
+          </div>
         </div>
         <div
           style={{
