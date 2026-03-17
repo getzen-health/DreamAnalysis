@@ -76,6 +76,15 @@ const SOURCE_META: Record<
   },
 };
 
+const _SOURCE_DATA_TYPES: Record<string, string[]> = {
+  apple_health: ["HR", "HRV", "sleep", "steps"],
+  google_health: ["steps", "HR", "calories"],
+  oura: ["sleep", "readiness", "activity"],
+  garmin: ["Body Battery", "stress", "HRV"],
+  whoop: ["recovery", "strain", "sleep"],
+  muse_eeg: ["connection", "battery", "signal"],
+};
+
 const SOURCE_ORDER = [
   "apple_health",
   "google_health",
@@ -259,21 +268,34 @@ export default function HealthSyncDashboard() {
     [disconnectMutation]
   );
 
-  // Build ordered list — use API data when available, fall back to defaults
+  // Build ordered list — merge ML backend data with local device state
   const sourceMap = new Map<string, HealthSourceStatus>(
     (data?.sources ?? []).map((s) => [s.source, s])
   );
 
-  const orderedSources: HealthSourceStatus[] = SOURCE_ORDER.map(
-    (key) =>
-      sourceMap.get(key) ?? {
-        source: key,
-        connected: false,
-        last_sync: null,
-        data_types: [],
-        freshness: "disconnected" as const,
-      }
-  );
+  // Check local flags for on-device health connections (Capacitor)
+  const localGoogleConnected = (() => {
+    try { return localStorage.getItem("ndw_health_connect_granted") === "true"; } catch { return false; }
+  })();
+  const localAppleConnected = (() => {
+    try { return localStorage.getItem("ndw_apple_health_granted") === "true"; } catch { return false; }
+  })();
+
+  const orderedSources: HealthSourceStatus[] = SOURCE_ORDER.map((key) => {
+    const fromServer = sourceMap.get(key);
+    if (fromServer) return fromServer;
+    // Override with local device state if server doesn't know
+    const localConnected =
+      (key === "google_health" && localGoogleConnected) ||
+      (key === "apple_health" && localAppleConnected);
+    return {
+      source: key,
+      connected: localConnected,
+      last_sync: null,
+      data_types: localConnected ? (_SOURCE_DATA_TYPES[key] ?? []) : [],
+      freshness: localConnected ? ("stale" as const) : ("disconnected" as const),
+    };
+  });
 
   // Summary counts
   const connectedCount = orderedSources.filter((s) => s.connected).length;
@@ -309,9 +331,9 @@ export default function HealthSyncDashboard() {
           </div>
         )}
 
-        {isError && (
-          <div className="text-sm text-destructive text-center py-4">
-            Could not reach ML backend. Health sync status unavailable.
+        {isError && !orderedSources.some(s => s.connected) && (
+          <div className="text-sm text-muted-foreground text-center py-4">
+            Server sync status unavailable. Showing on-device connection status.
           </div>
         )}
 

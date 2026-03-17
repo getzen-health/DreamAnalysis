@@ -114,16 +114,45 @@ export default function SettingsPage() {
     loadSettings();
   }, [userId]);
 
-  // Fetch health connection status on mount
+  // Check health connection status locally (Capacitor plugin) — not from server
   const refetchHealthStatus = useCallback(async () => {
     try {
-      const res = await fetch(resolveUrl("/api/health/status"));
-      if (res.ok) {
-        const data = await res.json();
-        setHealthStatus((prev) => ({ ...prev, ...data }));
+      const { Capacitor } = await import("@capacitor/core");
+      const platform = Capacitor.getPlatform();
+      if (platform === "android") {
+        const { Health } = await import("capacitor-health");
+        const available = await Health.isHealthAvailable();
+        if (available.available) {
+          // If Health Connect is available, check if we have permissions
+          // by trying a lightweight query. If it succeeds, we're connected.
+          try {
+            await Health.queryAggregated({
+              startDate: new Date(Date.now() - 86400000).toISOString(),
+              endDate: new Date().toISOString(),
+              dataType: "steps",
+            });
+            setHealthStatus((prev) => ({ ...prev, google_fit: true }));
+          } catch {
+            // Permission not granted or no data — check stored flag
+            const stored = localStorage.getItem("ndw_health_connect_granted");
+            if (stored === "true") {
+              setHealthStatus((prev) => ({ ...prev, google_fit: true }));
+            }
+          }
+        }
+      } else if (platform === "ios") {
+        // iOS: check stored flag from onboarding
+        const stored = localStorage.getItem("ndw_apple_health_granted");
+        if (stored === "true") {
+          setHealthStatus((prev) => ({ ...prev, apple_health: true }));
+        }
       }
     } catch {
-      // ignore — not critical
+      // Not on native — check localStorage flags from previous connections
+      const gfit = localStorage.getItem("ndw_health_connect_granted") === "true";
+      const apple = localStorage.getItem("ndw_apple_health_granted") === "true";
+      if (gfit) setHealthStatus((prev) => ({ ...prev, google_fit: true }));
+      if (apple) setHealthStatus((prev) => ({ ...prev, apple_health: true }));
     }
   }, []);
 
@@ -173,6 +202,7 @@ export default function SettingsPage() {
           ],
         });
         setHealthStatus((prev) => ({ ...prev, google_fit: true }));
+        localStorage.setItem("ndw_health_connect_granted", "true");
         toast({
           title: "Google Health Connect",
           description: "Connected successfully. Health data will sync automatically.",
