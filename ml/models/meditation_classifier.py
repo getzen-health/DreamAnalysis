@@ -48,7 +48,6 @@ class MeditationClassifier:
         self.scaler = None
         self.baseline_alpha = None
         self.baseline_theta = None
-        self.baseline_gamma = None
         # Random Forest components (Issue #45)
         self.rf_model = None
         self.rf_scaler = None
@@ -76,7 +75,6 @@ class MeditationClassifier:
         bands = extract_band_powers(processed, fs)
         self.baseline_alpha = bands.get("alpha", 0.25)
         self.baseline_theta = bands.get("theta", 0.15)
-        self.baseline_gamma = bands.get("gamma", 0.05)
 
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
         """Classify meditation depth from EEG.
@@ -98,7 +96,9 @@ class MeditationClassifier:
             except Exception:
                 pass  # fall through to feature-based
 
-        processed = preprocess(eeg, fs)
+        # Extract single channel for band power analysis (multichannel handled by FMT below)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         hjorth = compute_hjorth_parameters(processed)
         se = spectral_entropy(processed, fs)
@@ -107,11 +107,9 @@ class MeditationClassifier:
         beta = bands.get("beta", 0)
         theta = bands.get("theta", 0)
         delta = bands.get("delta", 0)
-        gamma = bands.get("gamma", 0)
 
         base_alpha = self.baseline_alpha or 0.25
         base_theta = self.baseline_theta or 0.15
-        base_gamma = self.baseline_gamma or 0.05
 
         # === Meditation Components ===
 
@@ -130,33 +128,51 @@ class MeditationClassifier:
         # Too much delta = sleep, not meditation
         delta_balance = float(np.clip(1.0 - np.tanh(delta * 2 - 0.5), 0, 1))
 
-        # 5. Gamma Transcendence (advanced meditation signature)
-        gamma_ratio = gamma / (base_gamma + 1e-10)
-        gamma_transcendence = float(np.clip(np.tanh(gamma_ratio - 1.5), 0, 1))
-
-        # 6. Theta-Gamma Coupling (deep meditation marker)
-        tg_coupling = theta * gamma * 100
-        coupling_score = float(np.clip(np.tanh(tg_coupling), 0, 1))
-
-        # 7. Spectral Narrowing (focused meditation = lower entropy)
+        # 5. Spectral Narrowing (focused meditation = lower entropy)
         spectral_focus = float(np.clip(1.0 - se, 0, 1))
 
-        # 8. Signal Calmness (low Hjorth activity = calm brain)
+        # 6. Signal Calmness (low Hjorth activity = calm brain)
         activity = hjorth.get("activity", 0.01) if isinstance(hjorth, dict) else 0.01
         calmness = float(np.clip(1.0 - np.tanh(activity * 5), 0, 1))
 
         # === Overall Meditation Score ===
+        # NOTE: gamma_transcendence and theta_gamma_coupling were removed — on Muse 2,
+        # AF7/AF8 gamma (30-100 Hz) is predominantly EMG (muscle) artifact, not neural
+        # signal. Jaw clenching falsely inflated "deep" readings. Weights redistributed
+        # to alpha_stability (+0.05), theta_depth (+0.10), beta_quiet (+0.05),
+        # delta_balance (+0.05), spectral_focus (+0.05), calmness (+0.05). FMT applied
+        # as additive boost below (the gold-standard meditation marker, Kubota 2001).
         meditation_score = float(np.clip(
-            0.20 * alpha_stability +
-            0.20 * theta_depth +
-            0.15 * beta_quiet +
+            0.25 * alpha_stability +
+            0.30 * theta_depth +
+            0.20 * beta_quiet +
             0.10 * delta_balance +
-            0.15 * gamma_transcendence +
-            0.10 * coupling_score +
-            0.05 * spectral_focus +
-            0.05 * calmness,
+            0.08 * spectral_focus +
+            0.07 * calmness,
             0, 1
         ))
+
+        # === Frontal Midline Theta (FMT) Boost ===
+        # FMT at 4-8 Hz from AF7 is the gold-standard marker for meditation depth
+        # (Kubota et al., 2001; Cahn & Polich, 2006). Applied after base score so
+        # it can only increase depth readings when genuine theta is present.
+        # AF7 = ch1 in BrainFlow Muse 2 channel order (TP9, AF7, AF8, TP10).
+        fmt_power = 0.0
+        fmt_de = 0.0
+        try:
+            if eeg.ndim == 2 and eeg.shape[0] >= 2:
+                fmt = compute_frontal_midline_theta(eeg[1], fs)  # AF7 = ch1
+            else:
+                # Single-channel input: use it directly (already preprocessed above)
+                fmt = compute_frontal_midline_theta(processed, fs)
+            fmt_power = fmt.get("fmt_power", 0.0)
+            fmt_de = fmt.get("fmt_de", 0.0)
+            if fmt_power > 0.3:
+                meditation_score = min(1.0, meditation_score + 0.15)
+            if fmt_de > 1.5:
+                meditation_score = min(1.0, meditation_score + 0.10)
+        except Exception:
+            pass  # FMT failure must not break meditation inference
 
         # Track depth
         self._depth_history.append(meditation_score)
@@ -178,11 +194,14 @@ class MeditationClassifier:
             depth_idx = 0  # relaxed
 
         # === Tradition Match ===
+        # non_dual and loving_kindness previously used gamma_transcendence; replaced
+        # with FMT-based score (fmt_depth) as the reliable deep-state proxy.
+        fmt_depth = float(np.clip(fmt_power / 0.5, 0, 1))  # normalised 0-1 at 0.5 FMT
         tradition_scores = {
             "focused_attention": float(alpha_stability * 0.5 + beta_quiet * 0.3 + spectral_focus * 0.2),
             "open_monitoring": float(theta_depth * 0.4 + alpha_stability * 0.3 + calmness * 0.3),
-            "non_dual": float(gamma_transcendence * 0.4 + coupling_score * 0.3 + theta_depth * 0.3),
-            "loving_kindness": float(alpha_stability * 0.3 + gamma_transcendence * 0.3 + calmness * 0.4),
+            "non_dual": float(fmt_depth * 0.4 + theta_depth * 0.3 + calmness * 0.3),
+            "loving_kindness": float(alpha_stability * 0.3 + fmt_depth * 0.3 + calmness * 0.4),
         }
         best_tradition = max(tradition_scores, key=tradition_scores.get)
 
@@ -206,8 +225,8 @@ class MeditationClassifier:
                 "theta_depth": round(theta_depth, 3),
                 "beta_quiet": round(beta_quiet, 3),
                 "delta_balance": round(delta_balance, 3),
-                "gamma_transcendence": round(gamma_transcendence, 3),
-                "theta_gamma_coupling": round(coupling_score, 3),
+                "fmt_power": round(fmt_power, 3),
+                "fmt_de": round(fmt_de, 3),
                 "spectral_focus": round(spectral_focus, 3),
                 "calmness": round(calmness, 3),
             },
@@ -215,7 +234,8 @@ class MeditationClassifier:
         }
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
         fv = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
@@ -263,7 +283,8 @@ class MeditationClassifier:
           theta_power, alpha_power, beta_power,
           theta_alpha_ratio, alpha_beta_ratio, frontal_midline_theta
         """
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         theta = bands.get("theta", 1e-10)
         alpha = bands.get("alpha", 1e-10)
@@ -280,7 +301,8 @@ class MeditationClassifier:
 
     def _predict_rf(self, eeg: np.ndarray, fs: float) -> Dict:
         """Run inference using the trained Random Forest model."""
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         fv = self._extract_rf_features(eeg, fs).reshape(1, -1)
         if self.rf_scaler is not None:

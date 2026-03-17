@@ -75,6 +75,16 @@ class SleepStagingModel:
 
     def _predict_sklearn(self, eeg_epoch: np.ndarray, fs: float) -> Dict:
         """Sklearn model inference using extracted features."""
+        # Reject epoch if amplitude exceeds 100 µV (blink/movement artifact)
+        if np.any(np.abs(eeg_epoch) > 100):
+            return {
+                "stage": "artifact",
+                "stage_index": -1,
+                "confidence": 0.0,
+                "probabilities": {s: 0.0 for s in STAGE_MAP.values()},
+                "artifact_rejected": True,
+            }
+
         # Use multichannel features when available — delta asymmetry between
         # hemispheres improves N3 vs REM discrimination.
         if eeg_epoch.ndim == 2 and eeg_epoch.shape[0] >= 2:
@@ -112,6 +122,16 @@ class SleepStagingModel:
 
     def _predict_features(self, eeg_epoch: np.ndarray, fs: float) -> Dict:
         """Feature-based classification using physiological rules."""
+        # Reject epoch if amplitude exceeds 100 µV (blink/movement artifact)
+        if np.any(np.abs(eeg_epoch) > 100):
+            return {
+                "stage": "artifact",
+                "stage_index": -1,
+                "confidence": 0.0,
+                "probabilities": {s: 0.0 for s in STAGE_MAP.values()},
+                "artifact_rejected": True,
+            }
+
         processed = preprocess(eeg_epoch, fs)
         bands = extract_band_powers(processed, fs)
         features = extract_features(processed, fs)
