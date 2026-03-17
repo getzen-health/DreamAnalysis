@@ -13,29 +13,29 @@ import { MLWarmupScreen } from "@/components/ml-warmup-screen";
 import { NeuralBackground } from "@/components/neural-background";
 import AppLayout from "./layouts/app-layout";
 
-// ── Core journey pages — static imports (always needed on first load) ──────
+// ── Core pages — only the 4 main tabs are static (always needed) ──────────
 import Landing from "@/pages/landing";
 import AuthPage from "@/pages/auth";
-import ForgotPasswordPage from "@/pages/forgot-password";
-import ResetPasswordPage from "@/pages/reset-password";
-import Dashboard from "@/pages/dashboard";
 import Today from "@/pages/today";
 import Discover from "@/pages/discover";
 import Nutrition from "@/pages/nutrition";
 import You from "@/pages/you";
-import EmotionLab from "@/pages/emotion-lab";
-// BrainMonitor lazy-loaded: it pulls in use-inference which triggers the
-// onnxruntime-web chunk. Deferring it keeps the initial bundle smaller.
-const BrainMonitor = lazy(() => import("@/pages/brain-monitor"));
-import DreamJournal from "@/pages/dream-journal";
-import AICompanionPage from "@/pages/ai-companion";
-import Biofeedback from "@/pages/biofeedback";
-import SessionHistory from "@/pages/session-history";
-import SettingsPage from "@/pages/settings";
-import CalibrationPage from "@/pages/calibration";
-import DailyBrainReport from "@/pages/daily-brain-report";
-import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
+
+// ── Everything else lazy-loaded — faster startup ──────────────────────────
+const ForgotPasswordPage = lazy(() => import("@/pages/forgot-password"));
+const ResetPasswordPage  = lazy(() => import("@/pages/reset-password"));
+const Dashboard          = lazy(() => import("@/pages/dashboard"));
+const EmotionLab         = lazy(() => import("@/pages/emotion-lab"));
+const BrainMonitor       = lazy(() => import("@/pages/brain-monitor"));
+const DreamJournal       = lazy(() => import("@/pages/dream-journal"));
+const AICompanionPage    = lazy(() => import("@/pages/ai-companion"));
+const Biofeedback        = lazy(() => import("@/pages/biofeedback"));
+const SessionHistory     = lazy(() => import("@/pages/session-history"));
+const SettingsPage       = lazy(() => import("@/pages/settings"));
+const CalibrationPage    = lazy(() => import("@/pages/calibration"));
+const DailyBrainReport   = lazy(() => import("@/pages/daily-brain-report"));
+const Onboarding         = lazy(() => import("@/pages/onboarding"));
 
 // ── Intent selection page — lazy loaded ────────────────────────────────────
 const IntentSelect = lazy(() => import("@/pages/intent-select"));

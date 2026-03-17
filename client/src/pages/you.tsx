@@ -156,7 +156,7 @@ function GroupedList({ children }: { children: React.ReactNode }) {
 
 export default function You() {
   const { user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { theme, themeSetting, setTheme } = useTheme();
   const [, setLocation] = useLocation();
   const userId = getParticipantId();
 
@@ -362,8 +362,12 @@ export default function You() {
         <ListItem
           emoji="🎨"
           title="Appearance"
-          rightText={theme === "dark" ? "Dark" : "Light"}
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          rightText={themeSetting === "auto" ? "Auto" : themeSetting === "dark" ? "Dark" : "Light"}
+          onClick={() => {
+            // Cycle: dark → light → auto → dark
+            const next = themeSetting === "dark" ? "light" : themeSetting === "light" ? "auto" : "dark";
+            setTheme(next);
+          }}
         />
         <ListItem
           emoji="🔔"

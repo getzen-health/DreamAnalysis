@@ -1,23 +1,58 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "dark" | "light";
+type ThemeSetting = "dark" | "light" | "auto";
 
 type ThemeContextType = {
   theme: Theme;
-  setTheme: (theme: Theme) => void;
+  themeSetting: ThemeSetting;
+  setTheme: (theme: ThemeSetting) => void;
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+function resolveAutoTheme(): Theme {
+  // Use system preference first
+  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches) {
+    return "light";
+  }
+  // Fallback: time-based (light 7am-7pm)
+  const hour = new Date().getHours();
+  return hour >= 7 && hour < 19 ? "light" : "dark";
+}
 
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [themeSetting, setThemeSetting] = useState<ThemeSetting>("dark");
+  const [theme, setResolvedTheme] = useState<Theme>("dark");
+
+  // Load saved setting
   useEffect(() => {
-    const savedTheme = localStorage.getItem("neural-theme") as Theme;
-    if (savedTheme) {
-      setTheme(savedTheme);
+    const saved = localStorage.getItem("neural-theme") as ThemeSetting | null;
+    if (saved) {
+      setThemeSetting(saved);
     }
   }, []);
+
+  // Resolve actual theme from setting
+  useEffect(() => {
+    const resolved = themeSetting === "auto" ? resolveAutoTheme() : themeSetting;
+    setResolvedTheme(resolved);
+  }, [themeSetting]);
+
+  // Listen for system theme changes when in auto mode
+  useEffect(() => {
+    if (themeSetting !== "auto") return;
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return;
+    const handler = () => setResolvedTheme(resolveAutoTheme());
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [themeSetting]);
+
+  function setTheme(setting: ThemeSetting) {
+    setThemeSetting(setting);
+    localStorage.setItem("neural-theme", setting);
+  }
 
   useEffect(() => {
     localStorage.setItem("neural-theme", theme);
@@ -28,7 +63,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, themeSetting, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );
