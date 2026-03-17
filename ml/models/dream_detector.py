@@ -64,7 +64,8 @@ class DreamDetector:
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
         """Sklearn model inference using extracted features."""
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         features = extract_features(processed, fs)
         feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
@@ -75,15 +76,17 @@ class DreamDetector:
 
         theta = bands.get("theta", 0)
         beta = bands.get("beta", 0)
-        gamma = bands.get("gamma", 0)
+        # NOTE: gamma on Muse 2 is unreliable for dream-related neural signals —
+        # it is predominantly EMG (muscle artifact) at AF7/AF8. Excluded from
+        # dream_intensity and lucidity scoring.
 
         dream_intensity = float(np.clip(
-            theta * 0.4 + gamma * 0.3 + beta * 0.2 + features.get("spectral_entropy", 0.5) * 0.1,
+            theta * 0.5 + beta * 0.3 + features.get("spectral_entropy", 0.5) * 0.2,
             0, 1
         ))
 
         lucidity = float(np.clip(
-            gamma * 0.5 + beta * 0.3 + features.get("spectral_entropy", 0.5) * 0.2,
+            beta * 0.6 + features.get("spectral_entropy", 0.5) * 0.4,
             0, 1
         ))
 
@@ -98,13 +101,14 @@ class DreamDetector:
                 "theta_activity": float(theta),
                 "alpha_presence": float(bands.get("alpha", 0)),
                 "beta_activation": float(beta),
-                "gamma_burst": float(gamma),
+                "gamma_burst": float(bands.get("gamma", 0)),
             },
         }
 
     def _predict_features(self, eeg: np.ndarray, fs: float) -> Dict:
         """Feature-based dream detection."""
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         features = extract_features(processed, fs)
 
@@ -114,13 +118,16 @@ class DreamDetector:
         beta = bands.get("beta", 0)
         gamma = bands.get("gamma", 0)
 
-        # REM likelihood: high theta + beta, low delta, desynchronized EEG
+        # REM likelihood: high theta + beta, low delta, desynchronized EEG.
+        # NOTE: gamma on Muse 2 is unreliable for dream-related neural signals —
+        # it is predominantly EMG (muscle artifact) at AF7/AF8. The gamma_burst
+        # field in band_analysis is reported for completeness only; gamma is
+        # excluded from rem_score, dream_intensity, and lucidity scoring.
         rem_score = (
             theta * 0.35
             + beta * 0.25
             + (1 - delta) * 0.20
-            + gamma * 0.10
-            + (1 - alpha) * 0.10
+            + (1 - alpha) * 0.20
         )
 
         # Dream probability: based on REM + EEG complexity
@@ -137,15 +144,15 @@ class DreamDetector:
         # Add slight randomness for realism
         dream_prob = float(np.clip(dream_prob + np.random.uniform(-0.05, 0.05), 0, 1))
 
-        # Dream intensity (vividness estimate)
+        # Dream intensity (vividness estimate) — gamma excluded (EMG artifact on Muse 2)
         dream_intensity = float(np.clip(
-            theta * 0.4 + gamma * 0.3 + beta * 0.2 + spectral_ent * 0.1,
+            theta * 0.5 + beta * 0.3 + spectral_ent * 0.2,
             0, 1
         ))
 
-        # Lucidity estimate: higher gamma during dreaming suggests awareness
+        # Lucidity estimate — gamma excluded (unreliable on Muse 2; see note above)
         lucidity = float(np.clip(
-            gamma * 0.5 + beta * 0.3 + spectral_ent * 0.2,
+            beta * 0.6 + spectral_ent * 0.4,
             0, 1
         ))
 
@@ -168,7 +175,8 @@ class DreamDetector:
 
     def _predict_onnx(self, eeg: np.ndarray, fs: float) -> Dict:
         """ONNX model inference."""
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         input_data = np.array(list(features.values()), dtype=np.float32).reshape(1, -1)
 

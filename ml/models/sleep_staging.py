@@ -132,7 +132,9 @@ class SleepStagingModel:
                 "artifact_rejected": True,
             }
 
-        processed = preprocess(eeg_epoch, fs)
+        # Extract single channel for feature-based analysis
+        signal = eeg_epoch[0] if eeg_epoch.ndim == 2 else eeg_epoch
+        processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         features = extract_features(processed, fs)
 

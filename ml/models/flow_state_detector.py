@@ -220,7 +220,8 @@ class FlowStateDetector:
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
         """Sklearn model inference using extracted features."""
-        processed = preprocess(eeg, fs)
+        signal = eeg[0] if eeg.ndim == 2 else eeg
+        processed = preprocess(signal, fs)
         features = extract_features(processed, fs)
         bands = extract_band_powers(processed, fs)
         feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
