@@ -27,16 +27,18 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      // Skip the Capacitor splash image — our web PageLoader shows a branded splash.
-      // The native windowBackground (splash_screen.xml) covers the brief native load.
-      launchShowDuration: 0,
+      // Show Heart-Brain logo splash for 2s, then fade to app
+      launchShowDuration: 2000,
       launchAutoHide: true,
-      backgroundColor: "#0d0f14",
+      launchFadeOutDuration: 300,
+      backgroundColor: "#0a0e17",
       showSpinner: false,
+      splashImmersive: true,
+      splashFullScreen: true,
     },
     StatusBar: {
       style: "LIGHT",
-      backgroundColor: "#0d0f14",
+      backgroundColor: "#0a0e17",
     },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
