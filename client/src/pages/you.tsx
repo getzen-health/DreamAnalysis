@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { getParticipantId } from "@/lib/participant";
 import { useQuery } from "@tanstack/react-query";
 import { resolveUrl } from "@/lib/queryClient";
+import { AchievementBadges } from "@/components/achievements";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -298,6 +299,9 @@ export default function You() {
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>Sessions Total</div>
         </div>
       </div>
+
+      {/* Achievements */}
+      <AchievementBadges />
 
       {/* Activity Section */}
       <SectionLabel>Activity</SectionLabel>

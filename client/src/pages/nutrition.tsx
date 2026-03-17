@@ -356,6 +356,7 @@ export default function Nutrition() {
             });
             await res.json();
             hapticSuccess();
+            try { localStorage.setItem("ndw_meal_logged", "true"); } catch {}
             await new Promise(r => setTimeout(r, 500));
             qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
             setCaptureMode("none");
