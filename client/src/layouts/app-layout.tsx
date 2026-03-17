@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useKeyboardScroll } from "@/hooks/use-keyboard-scroll";
 import { pingBackend } from "@/lib/ml-api";
-import { Loader2, Sun, Moon } from "lucide-react";
+import { Loader2, Sun, Moon, ChevronLeft } from "lucide-react";
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -114,6 +114,40 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
       {/* md:ml-56 = sidebar width; on mobile sidebar overlays so no margin needed */}
       <main ref={pullRef} className="md:ml-56 min-h-screen overflow-x-hidden" role="main">
+        {/* Mobile top bar with back button — shown on subpages only */}
+        {location !== "/" && (
+          <header
+            className="md:hidden sticky top-0 z-30 border-b flex items-center gap-2 px-3 py-2.5"
+            style={{
+              background: theme === "dark" ? "hsl(222, 25%, 5%, 0.92)" : "hsl(0, 0%, 100%, 0.92)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              borderColor: theme === "dark" ? "hsl(220, 18%, 13%, 0.5)" : "hsl(220, 14%, 85%, 0.5)",
+              paddingTop: "env(safe-area-inset-top, 0px)",
+            }}
+          >
+            <button
+              onClick={() => window.history.back()}
+              className="w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground active:bg-muted/40 transition-colors -ml-1"
+              aria-label="Go back"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <p className="text-[14px] font-semibold text-foreground leading-tight truncate">
+              {pageTitle}
+            </p>
+            <div className="ml-auto">
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground active:bg-muted/40 transition-colors"
+                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              >
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+            </div>
+          </header>
+        )}
+
         {/* Header: desktop only — mobile pages carry their own inline title */}
         <header
           className="hidden md:block sticky top-0 z-30 border-b md:px-6"

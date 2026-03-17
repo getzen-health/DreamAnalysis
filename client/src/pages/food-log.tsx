@@ -174,11 +174,11 @@ export default function FoodLog() {
   // Text mode state
   const [description, setDescription] = useState("");
 
-  // History
+  // History — omit credentials on native (Capacitor) to avoid CORS failures
   const { data: history } = useQuery<FoodLog[]>({
     queryKey: ["/api/food/logs", USER_ID],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/food/logs/${USER_ID}`), { credentials: "include" });
+      const res = await fetch(resolveUrl(`/api/food/logs/${USER_ID}`));
       if (!res.ok) return [];
       return res.json();
     },
@@ -188,7 +188,7 @@ export default function FoodLog() {
   const { data: mealHistoryData } = useQuery<MealHistoryEntry[]>({
     queryKey: ["/api/meal-history", USER_ID],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/meal-history/${USER_ID}`), { credentials: "include" });
+      const res = await fetch(resolveUrl(`/api/meal-history/${USER_ID}`));
       if (!res.ok) return [];
       return res.json();
     },

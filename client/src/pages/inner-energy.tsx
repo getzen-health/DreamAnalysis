@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { getParticipantId } from "@/lib/participant";
 import { resolveUrl } from "@/lib/queryClient";
+import { getMLApiUrl } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
@@ -110,7 +111,7 @@ export default function InnerEnergy() {
   const { data: latestVoice } = useQuery<Record<string, unknown> | null>({
     queryKey: ["voice-inner-energy", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/ml/voice-watch/latest/${CURRENT_USER}`));
+      const res = await fetch(`${getMLApiUrl()}/api/voice-watch/latest/${CURRENT_USER}`);
       if (!res.ok) return null;
       const data = await res.json();
       if (!data || Array.isArray(data) || typeof data !== "object") return null;

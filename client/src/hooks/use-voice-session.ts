@@ -110,11 +110,32 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
   return wavBuffer;
 }
 
-async function blobToBase64Wav(blob: Blob, mimeType: string): Promise<{ b64: string; sampleRate: number }> {
+async function blobToBase64Wav(blob: Blob, _mimeType: string): Promise<{ b64: string; sampleRate: number }> {
   const arrayBuffer = await blob.arrayBuffer();
+
+  // On some Android WebViews, decodeAudioData fails on WebM chunks
+  // (especially timeslice fragments missing the container header).
+  // Try decoding; if it fails, create a minimal silent WAV so the
+  // backend can at least detect the failure cleanly rather than crash.
+  let audioBuffer: AudioBuffer;
   const audioCtx = new AudioContext();
-  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+  try {
+    // decodeAudioData needs a COPY — some engines detach the original buffer
+    const copy = arrayBuffer.slice(0);
+    audioBuffer = await audioCtx.decodeAudioData(copy);
+  } catch {
+    // Retry with OfflineAudioContext for broader codec support
+    try {
+      const copy2 = arrayBuffer.slice(0);
+      const offCtx = new OfflineAudioContext(1, 1, 22050);
+      audioBuffer = await offCtx.decodeAudioData(copy2);
+    } catch {
+      audioCtx.close();
+      throw new Error("Your browser cannot decode this audio format. Try Chrome or a different device.");
+    }
+  }
   audioCtx.close();
+
   const wavBuffer = audioBufferToWav(audioBuffer);
   const bytes = new Uint8Array(wavBuffer);
   let binary = "";
@@ -143,6 +164,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}): UseVoiceS
   const streamRef = useRef<MediaStream | null>(null);
   const startTimeRef = useRef<number>(0);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chunkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mimeTypeRef = useRef<string>("");
 
   // EMA state stored in refs to avoid stale closures inside ondataavailable
@@ -153,6 +175,7 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}): UseVoiceS
   useEffect(() => {
     return () => {
       if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+      if (chunkTimerRef.current) clearInterval(chunkTimerRef.current);
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
@@ -261,30 +284,42 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}): UseVoiceS
       : "";
     mimeTypeRef.current = mimeType;
 
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-    recorderRef.current = recorder;
+    // Helper: create a fresh recorder on the same stream, record for chunkMs,
+    // then stop to produce a COMPLETE audio blob (not a timeslice fragment).
+    const chunksCollected: Blob[] = [];
 
-    recorder.ondataavailable = (e: BlobEvent) => {
-      if (e.data.size > 0) {
-        sendChunk(e.data);
-      }
-    };
+    function startOneRecording() {
+      if (!streamRef.current || streamRef.current.getTracks().every(t => t.readyState === "ended")) return;
+      const rec = new MediaRecorder(streamRef.current!, mimeType ? { mimeType } : {});
+      recorderRef.current = rec;
+      chunksCollected.length = 0;
 
-    recorder.onstop = () => {
-      stream.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      if (durationTimerRef.current) {
-        clearInterval(durationTimerRef.current);
-        durationTimerRef.current = null;
-      }
-      setIsActive(false);
-    };
+      rec.ondataavailable = (e: BlobEvent) => {
+        if (e.data.size > 0) chunksCollected.push(e.data);
+      };
+
+      rec.onstop = () => {
+        if (chunksCollected.length > 0) {
+          const completeBlob = new Blob(chunksCollected, { type: mimeType || "audio/webm" });
+          sendChunk(completeBlob);
+        }
+      };
+
+      rec.start();
+    }
 
     startTimeRef.current = Date.now();
-
-    // timeslice mode: fires ondataavailable every chunkMs milliseconds
-    recorder.start(chunkMs);
+    startOneRecording();
     setIsActive(true);
+
+    // Every chunkMs: stop current recording (triggers onstop → sendChunk),
+    // then immediately start a new one. Each blob is a complete audio file.
+    chunkTimerRef.current = setInterval(() => {
+      if (recorderRef.current?.state === "recording") {
+        recorderRef.current.stop();
+      }
+      startOneRecording();
+    }, chunkMs);
 
     durationTimerRef.current = setInterval(() => {
       setDuration(Math.round((Date.now() - startTimeRef.current) / 1000));
@@ -292,9 +327,20 @@ export function useVoiceSession(options: UseVoiceSessionOptions = {}): UseVoiceS
   }, [isActive, chunkMs, sendChunk]);
 
   const stopSession = useCallback(() => {
+    if (chunkTimerRef.current) {
+      clearInterval(chunkTimerRef.current);
+      chunkTimerRef.current = null;
+    }
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current);
+      durationTimerRef.current = null;
+    }
     if (recorderRef.current?.state === "recording") {
       recorderRef.current.stop();
     }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setIsActive(false);
   }, []);
 
   return {
