@@ -4,26 +4,29 @@
 @tailwind utilities;
 
 :root {
-  /* Light theme */
-  --background: hsl(0 0% 98%);
-  --foreground: hsl(222 25% 10%);
+  /*
+   * Warm light theme — soft off-white (Pantone Cloud Dancer inspired),
+   * not pure harsh white. Feels organic and warm.
+   */
+  --background: hsl(40 30% 97%);       /* #faf8f4 — warm off-white */
+  --foreground: hsl(260 15% 15%);      /* #262131 — warm dark, not cold black */
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(222 25% 10%);
+  --card-foreground: hsl(260 15% 15%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(222 25% 10%);
-  --primary: hsl(152 60% 40%);
+  --popover-foreground: hsl(260 15% 15%);
+  --primary: hsl(165 55% 38%);         /* warm teal — matches dark theme */
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(262 45% 58%);
+  --secondary: hsl(270 35% 55%);
   --secondary-foreground: hsl(0 0% 100%);
-  --muted: hsl(220 14% 92%);
-  --muted-foreground: hsl(220 12% 42%);
-  --accent: hsl(38 85% 52%);
+  --muted: hsl(40 15% 92%);            /* warm muted, not cold gray */
+  --muted-foreground: hsl(30 10% 45%); /* warm taupe */
+  --accent: hsl(32 85% 52%);
   --accent-foreground: hsl(0 0% 100%);
-  --destructive: hsl(4 72% 50%);
+  --destructive: hsl(0 65% 50%);
   --destructive-foreground: hsl(0 0% 100%);
-  --border: hsl(220 14% 85%);
-  --input: hsl(220 14% 88%);
-  --ring: hsl(152 60% 40%);
+  --border: hsl(40 15% 87%);           /* warm border */
+  --input: hsl(40 15% 90%);
+  --ring: hsl(165 55% 38%);
   --success: hsl(152 60% 40%);
   --success-foreground: hsl(0 0% 100%);
   --warning: hsl(38 85% 52%);
@@ -52,25 +55,32 @@
 }
 
 .dark {
-  --background: hsl(225 40% 4%);      /* #0a0e17 */
-  --foreground: hsl(35 20% 90%);      /* #e8e0d4 */
-  --card: hsl(220 30% 9%);            /* #111827 */
-  --card-foreground: hsl(35 15% 88%);
-  --popover: hsl(220 30% 8%);
-  --popover-foreground: hsl(35 20% 90%);
-  --primary: hsl(160 55% 50%);        /* #2dd4a0 */
+  /*
+   * Warm, organic dark palette — inspired by Calm (deep serene blues),
+   * Whoop (data-focused black), Apple Health (clarity), and Bewel (warmth).
+   *
+   * Key shift: cold blue-black → warm charcoal with purple undertone.
+   * This feels more human, less mechanical.
+   */
+  --background: hsl(260 20% 7%);       /* #13111a — warm charcoal with purple warmth */
+  --foreground: hsl(40 25% 93%);       /* #f2ece0 — warm cream, not cold white */
+  --card: hsl(255 15% 12%);            /* #1c1a26 — warm dark card with subtle warmth */
+  --card-foreground: hsl(40 18% 90%);
+  --popover: hsl(255 15% 11%);
+  --popover-foreground: hsl(40 25% 93%);
+  --primary: hsl(165 60% 45%);         /* #1db88a — slightly warmer teal, Calm-inspired */
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(262 45% 65%);
-  --secondary-foreground: hsl(262 15% 95%);
-  --muted: hsl(220 25% 14%);          /* #1f2937 */
-  --muted-foreground: hsl(35 8% 50%); /* #8b8578 */
-  --accent: hsl(38 85% 58%);
-  --accent-foreground: hsl(38 30% 10%);
-  --destructive: hsl(4 72% 55%);
+  --secondary: hsl(270 40% 60%);       /* softer purple — emotional, not cold */
+  --secondary-foreground: hsl(270 15% 95%);
+  --muted: hsl(255 12% 16%);           /* #27243a — warm muted */
+  --muted-foreground: hsl(30 12% 55%); /* #9c8e7d — warm taupe, not gray */
+  --accent: hsl(32 85% 55%);           /* warm amber-gold — emotion warmth */
+  --accent-foreground: hsl(32 30% 10%);
+  --destructive: hsl(0 65% 55%);       /* softer red — less alarming */
   --destructive-foreground: hsl(0 0% 96%);
-  --border: hsl(220 25% 14%);         /* #1f2937 */
-  --input: hsl(220 25% 12%);
-  --ring: hsl(160 55% 50%);
+  --border: hsl(255 10% 18%);          /* #2d2a3a — warm subtle border */
+  --input: hsl(255 10% 15%);
+  --ring: hsl(165 60% 45%);
 }
 
 @layer base {
@@ -104,13 +114,13 @@
   .dark .glass-card {
     background: linear-gradient(
       135deg,
-      hsl(220 22% 9% / 0.85) 0%,
-      hsl(222 25% 7% / 0.90) 100%
+      hsl(260 18% 11% / 0.90) 0%,
+      hsl(255 15% 9% / 0.95) 100%
     );
-    border-color: hsl(220 18% 20% / 0.6);
+    border-color: hsl(260 10% 22% / 0.5);
     box-shadow:
-      0 4px 24px hsl(0 0% 0% / 0.25),
-      inset 0 1px 0 hsl(38 20% 92% / 0.04);
+      0 4px 24px hsl(260 30% 5% / 0.3),
+      inset 0 1px 0 hsl(40 25% 93% / 0.03);
   }
 
   .score-card {
@@ -123,8 +133,8 @@
   .dark .score-card {
     background: linear-gradient(
       145deg,
-      hsl(220 22% 10% / 0.95) 0%,
-      hsl(220 25% 8% / 0.98) 100%
+      hsl(260 15% 12% / 0.95) 0%,
+      hsl(255 12% 10% / 0.98) 100%
     );
     border-color: hsl(220 18% 22% / 0.7);
     box-shadow:

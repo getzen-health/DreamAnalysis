@@ -101,8 +101,8 @@ function formatDate(): string {
 // ── Weekly Mood Strip ──────────────────────────────────────────────────────
 
 const MOOD_COLORS: Record<string, string> = {
-  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
-  surprise: "#fbbf24", neutral: "#94a3b8",
+  happy: "#4ade80", sad: "#7ba7d9", angry: "#e87676", fear: "#b49ae0",
+  surprise: "#e8b94a", neutral: "#a09890",
 };
 
 function WeeklyMoodStrip({ userId }: { userId: string }) {
@@ -165,8 +165,8 @@ const EMOTION_EMOJI: Record<string, string> = {
 };
 
 const EMOTION_COLOR: Record<string, string> = {
-  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
-  surprise: "#fbbf24", neutral: "#94a3b8",
+  happy: "#4ade80", sad: "#7ba7d9", angry: "#e87676", fear: "#b49ae0",
+  surprise: "#e8b94a", neutral: "#a09890",
 };
 
 // ── Hero Section: Emotion + Readiness ─────────────────────────────────────
@@ -478,7 +478,7 @@ export default function Today() {
             width: 36,
             height: 36,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #2dd4a0, #059669)",
+            background: "linear-gradient(135deg, #1db88a, #0d9668)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -575,7 +575,7 @@ export default function Today() {
             onClick={() => window.location.href = "/biofeedback"}
             style={{
               width: "100%",
-              background: "linear-gradient(135deg, #2dd4a0, #059669)",
+              background: "linear-gradient(135deg, #1db88a, #0d9668)",
               color: "#0a0e17",
               border: "none",
               borderRadius: 10,
