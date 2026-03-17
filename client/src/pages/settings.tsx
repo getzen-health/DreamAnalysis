@@ -440,52 +440,60 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {/* Apple Health */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Apple Health</p>
-                <p className="text-xs text-muted-foreground">
-                  {healthStatus.apple_health ? "Connected" : "Not connected"}
-                </p>
+            {/* Apple Health — iOS only (or web with informational message) */}
+            {(platform === "ios" || platform === "web") && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Apple Health</p>
+                  <p className="text-xs text-muted-foreground">
+                    {platform === "web"
+                      ? "Available on iOS — use the mobile app to connect"
+                      : healthStatus.apple_health
+                      ? "Connected"
+                      : "Not connected"}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAppleHealthConnect}
+                  disabled={isConnectingApple || platform === "web"}
+                >
+                  {isConnectingApple
+                    ? "Connecting..."
+                    : healthStatus.apple_health
+                    ? "Disconnect"
+                    : "Connect"}
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAppleHealthConnect}
-                disabled={isConnectingApple}
-              >
-                {isConnectingApple
-                  ? "Connecting..."
-                  : healthStatus.apple_health
-                  ? "Disconnect"
-                  : "Connect"}
-              </Button>
-            </div>
-            {/* Google Health Connect */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Google Health Connect</p>
-                <p className="text-xs text-muted-foreground">
-                  {healthStatus.google_fit
-                    ? "Connected"
-                    : platform === "android"
-                    ? "Install Google Health Connect from Play Store to sync health data"
-                    : "Not connected"}
-                </p>
+            )}
+            {/* Google Health Connect — Android only (or web with informational message) */}
+            {(platform === "android" || platform === "web") && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Google Health Connect</p>
+                  <p className="text-xs text-muted-foreground">
+                    {platform === "web"
+                      ? "Available on Android — use the mobile app to connect"
+                      : healthStatus.google_fit
+                      ? "Connected"
+                      : "Install Google Health Connect from Play Store to sync health data"}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGoogleFitConnect}
+                  disabled={isConnectingGoogle || platform === "web"}
+                >
+                  {isConnectingGoogle
+                    ? "Connecting..."
+                    : healthStatus.google_fit
+                    ? "Disconnect"
+                    : "Connect"}
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleGoogleFitConnect}
-                disabled={isConnectingGoogle}
-              >
-                {isConnectingGoogle
-                  ? "Connecting..."
-                  : healthStatus.google_fit
-                  ? "Disconnect"
-                  : "Connect"}
-              </Button>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -503,101 +511,117 @@ export default function SettingsPage() {
             Health Connections
           </h3>
           <div className="space-y-5">
-            {/* Apple Health */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-destructive/10">
-                  <Apple className="h-5 w-5 text-destructive" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Apple Health</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {healthStatus.apple_health ? (
-                      <>
-                        <CheckCircle2 className="h-3 w-3 text-success" />
-                        <span className="text-xs text-success">Connected</span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Not Connected</span>
-                      </>
-                    )}
+            {/* Apple Health — iOS only (or web as informational) */}
+            {(platform === "ios" || platform === "web") && (
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-destructive/10">
+                    <Apple className="h-5 w-5 text-destructive" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Apple Health</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {platform === "web" ? (
+                        <>
+                          <Info className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Available on iOS mobile app</span>
+                        </>
+                      ) : healthStatus.apple_health ? (
+                        <>
+                          <CheckCircle2 className="h-3 w-3 text-success" />
+                          <span className="text-xs text-success">Connected</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Not Connected</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
+                {platform === "ios" && (
+                  <div>
+                    <Input
+                      ref={appleFileRef}
+                      type="file"
+                      accept=".xml,.zip,.json"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleHealthUpload("apple_health", file);
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={uploading === "apple_health"}
+                      onClick={() => appleFileRef.current?.click()}
+                    >
+                      <Upload className="h-3.5 w-3.5 mr-1.5" />
+                      {uploading === "apple_health" ? "Uploading..." : "Upload Export"}
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div>
-                <Input
-                  ref={appleFileRef}
-                  type="file"
-                  accept=".xml,.zip,.json"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleHealthUpload("apple_health", file);
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={uploading === "apple_health"}
-                  onClick={() => appleFileRef.current?.click()}
-                >
-                  <Upload className="h-3.5 w-3.5 mr-1.5" />
-                  {uploading === "apple_health" ? "Uploading..." : "Upload Export"}
-                </Button>
-              </div>
-            </div>
+            )}
 
-            {/* Google Health Connect */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10">
-                  <Smartphone className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Google Health Connect</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {healthStatus.google_fit ? (
-                      <>
-                        <CheckCircle2 className="h-3 w-3 text-success" />
-                        <span className="text-xs text-success">Connected</span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">
-                          {platform === "android"
-                            ? "Install Google Health Connect from Play Store to sync health data"
-                            : "Not Connected"}
-                        </span>
-                      </>
-                    )}
+            {/* Google Health Connect — Android only (or web as informational) */}
+            {(platform === "android" || platform === "web") && (
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10">
+                    <Smartphone className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Google Health Connect</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {platform === "web" ? (
+                        <>
+                          <Info className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Available on Android mobile app</span>
+                        </>
+                      ) : healthStatus.google_fit ? (
+                        <>
+                          <CheckCircle2 className="h-3 w-3 text-success" />
+                          <span className="text-xs text-success">Connected</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            Install Google Health Connect from Play Store to sync health data
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
+                {platform === "android" && (
+                  <div>
+                    <Input
+                      ref={googleFileRef}
+                      type="file"
+                      accept=".xml,.zip,.json"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleHealthUpload("google_fit", file);
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={uploading === "google_fit"}
+                      onClick={() => googleFileRef.current?.click()}
+                    >
+                      <Upload className="h-3.5 w-3.5 mr-1.5" />
+                      {uploading === "google_fit" ? "Uploading..." : "Upload Export"}
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div>
-                <Input
-                  ref={googleFileRef}
-                  type="file"
-                  accept=".xml,.zip,.json"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleHealthUpload("google_fit", file);
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={uploading === "google_fit"}
-                  onClick={() => googleFileRef.current?.click()}
-                >
-                  <Upload className="h-3.5 w-3.5 mr-1.5" />
-                  {uploading === "google_fit" ? "Uploading..." : "Upload Export"}
-                </Button>
-              </div>
-            </div>
+            )}
 
             {/* Apple HealthKit export */}
             <div className="flex items-center justify-between gap-4">

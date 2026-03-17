@@ -47,8 +47,6 @@ import {
   type HealthInsight,
   type SessionSummary,
 } from "@/lib/ml-api";
-import { VoiceCheckinCard } from "@/components/voice-checkin-card";
-import { VoiceSessionCard } from "@/components/voice-session-card";
 import { HealthEmotionCard } from "@/components/health-emotion-card";
 import { StreakCard } from "@/components/streak-card";
 import { ReadinessScore } from "@/components/readiness-score";
@@ -673,12 +671,6 @@ export default function Dashboard() {
       {!isStreaming && latestPayload && hasRealHealthData(latestPayload) && (
         <HealthEmotionCard payload={latestPayload} lastSyncAt={lastSyncAt} />
       )}
-
-      {/* ── Voice micro check-in ────────────────────────────── */}
-      <VoiceCheckinCard userId={USER_ID} />
-
-      {/* ── Voice session (continuous tracking) ─────────────── */}
-      <VoiceSessionCard userId={USER_ID} />
 
       {/* ── Empty state for brand-new users ────────────────── */}
       {!isStreaming && !healthState && sessionsWithData.length === 0 && !sessionsLoading && (

@@ -123,11 +123,10 @@ describe("Settings page", () => {
     });
   });
 
-  it("shows Apple Health Upload Export button", async () => {
+  it("shows health integrations section", async () => {
     renderWithProviders(<SettingsPage />);
     await waitFor(() => {
-      const uploadButtons = screen.getAllByText("Upload Export");
-      expect(uploadButtons.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Health Integrations")).toBeInTheDocument();
     });
   });
 

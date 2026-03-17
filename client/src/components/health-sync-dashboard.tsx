@@ -5,7 +5,7 @@
  * color-coded freshness (green <1h, yellow 1-24h, red >24h or disconnected),
  * and per-source Sync Now / Disconnect buttons.
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -85,7 +85,7 @@ const _SOURCE_DATA_TYPES: Record<string, string[]> = {
   muse_eeg: ["connection", "battery", "signal"],
 };
 
-const SOURCE_ORDER = [
+const ALL_SOURCE_ORDER = [
   "apple_health",
   "google_health",
   "oura",
@@ -234,6 +234,23 @@ function SourceRow({ status, onSync, onDisconnect, isSyncing }: SourceRowProps) 
 export default function HealthSyncDashboard() {
   const queryClient = useQueryClient();
   const [syncingSource, setSyncingSource] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<"web" | "ios" | "android">("web");
+
+  useEffect(() => {
+    import("@capacitor/core").then(({ Capacitor }) => {
+      const p = Capacitor.getPlatform();
+      setPlatform(p === "ios" ? "ios" : p === "android" ? "android" : "web");
+    }).catch(() => {
+      // Capacitor not available — running in browser
+    });
+  }, []);
+
+  // Filter sources based on platform: Android hides Apple Health, iOS hides Google Health
+  const SOURCE_ORDER = ALL_SOURCE_ORDER.filter((key) => {
+    if (platform === "android" && key === "apple_health") return false;
+    if (platform === "ios" && key === "google_health") return false;
+    return true;
+  });
 
   const { data, isLoading, isError } = useQuery<HealthSyncStatusResponse>({
     queryKey: ["health-sync-status"],
