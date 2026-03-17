@@ -6,6 +6,7 @@ import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { Sparkles } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
+import { hapticWarning } from "@/lib/haptics";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -330,6 +331,11 @@ export default function Today() {
   const topProb = checkin?.probabilities
     ? Math.max(...Object.values(checkin.probabilities))
     : 0;
+
+  // Gentle haptic warning when stress is elevated
+  useEffect(() => {
+    if (stressVal > 0.5) hapticWarning();
+  }, [stressVal]);
 
   const heartRate = latestPayload?.current_heart_rate ?? latestPayload?.resting_heart_rate;
   const steps = latestPayload?.steps_today ?? 0;

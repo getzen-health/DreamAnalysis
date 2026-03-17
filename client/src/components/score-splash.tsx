@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { hapticMedium } from "@/lib/haptics";
 
 interface ScoreSplashProps {
   emotion: string;
@@ -57,6 +58,11 @@ export function ScoreSplash({ emotion, readiness, stress, focus, onDismiss }: Sc
       onDismiss();
     }, 400);
   }, [onDismiss]);
+
+  // Gentle haptic on splash appearance
+  useEffect(() => {
+    hapticMedium();
+  }, []);
 
   // Auto-dismiss after 3 seconds
   useEffect(() => {

@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
+import { hapticSuccess } from "@/lib/haptics";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -364,6 +365,7 @@ export default function Nutrition() {
               imageBase64: base64,
             });
             await res.json();
+            hapticSuccess();
             await new Promise(r => setTimeout(r, 500));
             qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
             setCaptureMode("none");
@@ -402,6 +404,7 @@ export default function Nutrition() {
               imageBase64: base64,
             });
             await res.json();
+            hapticSuccess();
             await new Promise(r => setTimeout(r, 500));
             qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
             setCaptureMode("none");
@@ -507,6 +510,7 @@ export default function Nutrition() {
                     textDescription: mealText.trim(),
                   });
                   await res.json();
+                  hapticSuccess();
                   setMealText("");
                   await new Promise(r => setTimeout(r, 500));
                   qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
