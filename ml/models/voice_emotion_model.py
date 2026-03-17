@@ -917,6 +917,7 @@ class VoiceEmotionModel:
                 "arousal": round(arousal, 4),
                 "confidence": round(confidence, 4),
                 "model_type": "voice_distilhubert",
+                "fear_surprise_unavailable": True,
             }
         except Exception as exc:
             log.warning("DistilHuBERT predict failed: %s", exc)

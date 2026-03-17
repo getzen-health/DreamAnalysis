@@ -16,7 +16,7 @@ Architecture:
     Layer 3 — Temporal smoothing:
         * Sliding window of last 5 predictions
         * Exponential moving average (decay=0.7)
-        * Rapid-flip guard: ignores transitions within 10 seconds when the
+        * Rapid-flip guard: ignores transitions within 7.5 seconds when the
           emotion flips more than once (e.g. angry→happy→angry)
 
 Extensions (issue #366):
@@ -50,7 +50,7 @@ _ACOUSTIC_WEIGHT = 0.30  # weight for acoustic-based adjustment
 # ── Layer 3 constants ──────────────────────────────────────────────────────────
 _WINDOW_SIZE = 5          # number of recent predictions to keep
 _EMA_DECAY = 0.7          # EMA decay for temporal smoothing (higher = more weight on recent)
-_FLIP_GUARD_SECS = 10.0   # guard window in seconds for rapid-flip detection
+_FLIP_GUARD_SECS = 7.5    # guard window in seconds for rapid-flip detection
 _MIN_SAMPLES_FOR_SMOOTH = 2  # need at least this many predictions before smoothing
 
 # ── Acoustic feature thresholds (heuristics calibrated to typical voice) ───────

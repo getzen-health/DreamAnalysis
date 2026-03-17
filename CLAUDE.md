@@ -254,20 +254,23 @@ Raw Muse 2 EEG (256 Hz, 4 channels, µV)
 ```
 predict(eeg, fs=256)  ← receives (4, n_samples) array from Muse 2
     │
-    ├── If mega_lgbm_model loaded AND benchmark ≥ 60%:   ← THIS IS THE LIVE PATH
-    │       → _predict_mega_lgbm()   (74.21% CV, 9 datasets, 163 534 samples)
+    ├── If EEGNet 4ch loaded AND benchmark ≥ 60%:   ← THIS IS THE LIVE PATH
+    │       → _predict_eegnet()   (85.00% CV, highest priority for 4-ch input)
     │
-    ├── If DEAP ONNX model loaded AND accuracy ≥ 60%:
-    │       → _predict_onnx()
+    ├── If mega_lgbm_model loaded AND benchmark ≥ 60%:
+    │       → _predict_mega_lgbm()   (71.52% CV, 11 datasets, 187K samples)
     │
-    ├── If DEAP sklearn model loaded AND accuracy ≥ 60%:
-    │       → _predict_sklearn()
+    ├── If Muse-native LGBM loaded AND accuracy ≥ 60%:
+    │       → _predict_muse_lgbm()   (69.25% CV)
+    │
+    ├── If TSception loaded AND accuracy ≥ 60%:
+    │       → _predict_tsception()   (69% CV, requires ≥ 4 sec epoch)
     │
     └── Else fallback:
             → _predict_features()   (feature-based heuristics)
 ```
 
-**Active live path**: `_predict_mega_lgbm()` — loads `models/saved/emotion_mega_lgbm.pkl` which contains scaler+PCA+LGBM trained on 9 datasets with a single global PCA. 74.21% CV, passes the 60% threshold gate.
+**Active live path**: `_predict_eegnet()` — loads `models/saved/eegnet_emotion_4ch.pt`, a 4-channel EEGNet model at 85.00% CV. The previously documented "74.21% mega LGBM is the active path" was outdated; EEGNet at 85% has been the actual live path since its integration.
 
 ### Emotion Output Structure
 
@@ -408,10 +411,11 @@ else:
 
 | Model | File | CV Accuracy | Notes |
 |-------|------|------------|-------|
-| Emotion mega LGBM | `models/saved/emotion_mega_lgbm.pkl` | **74.21% CV** | **Active live path** — single global scaler+PCA+LGBM, 9 datasets (163 534 samples) |
-| Emotion (DEAP pkl) | `models/saved/emotion_classifier_model.pkl` | 51.3% | Below 60% threshold → disabled |
-| Emotion (ONNX) | `models/saved/emotion_classifier_model.onnx` | ~51% | Below 60% threshold → disabled |
-| Sleep Staging | `models/saved/sleep_staging_model.pkl` | 92.98% | Active, reliable |
+| EEGNet 4ch | `models/saved/eegnet_emotion_4ch.pt` | **85.00% CV** | **Active live path** — highest priority for 4-channel input |
+| Emotion mega LGBM | `models/saved/emotion_mega_lgbm.pkl` | **71.52% CV** | Fallback — global scaler+PCA+LGBM, 11 datasets (187K samples) |
+| Muse-native LGBM | `models/saved/emotion_lgbm_muse_live.pkl` | **69.25% CV** | Second fallback — no PCA, Muse-native features |
+| TSception | `models/saved/tsception_emotion.pt` | ~69% CV | Requires ≥ 4 sec epoch, last model before heuristics |
+| Sleep Staging | `models/saved/sleep_staging_model.pkl` | 92.98% | Active, now with spindle detection + Markov transitions |
 | Dream Detector | `models/saved/dream_detector_model.pkl` | 97.20% | Active, reliable |
 | Flow State | `models/saved/flow_state_model.pkl` | 62.86% | Active, marginal |
 | Creativity | `models/saved/creativity_model.pkl` | 99.18% | Likely overfit (850 samples) |

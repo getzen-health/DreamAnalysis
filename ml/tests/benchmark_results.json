@@ -1,6 +1,16 @@
 {
+  "model_accuracies": {
+    "eegnet_4ch": {"accuracy": 0.85, "dataset": "cross-subject CV", "active": true, "priority": 3},
+    "mega_lgbm_pca": {"accuracy": 0.7152, "dataset": "11 datasets, 187K samples", "active": true, "priority": 4},
+    "muse_native_lgbm": {"accuracy": 0.6925, "dataset": "Muse-native, 59K samples", "active": true, "priority": 5},
+    "tsception_3ch": {"accuracy": 0.69, "dataset": "cross-subject CV", "active": true, "priority": 8},
+    "sleep_staging": {"accuracy": 0.9298, "dataset": "ISRUC", "active": true},
+    "dream_detector": {"accuracy": 0.9720, "dataset": "cross-subject", "active": true},
+    "cnn_kan": {"accuracy": 0.50, "note": "untrained weights", "active": false},
+    "reve_detransformer": {"accuracy": 0.5226, "note": "below 60% gate", "active": false},
+    "audio_lgbm_3class": {"accuracy": 0.826, "dataset": "EAV-Audio", "active": true, "note": "3-class only"}
+  },
   "emotion_inference_ms": [
-    1.477956771850586,
     2.5081634521484375,
     1.7580986022949219,
     2.4280548095703125,
@@ -19,10 +29,10 @@
     0.6880760192871094,
     0.7121562957763672,
     0.8521080017089844,
-    0.9908676147460938
+    0.9908676147460938,
+    0.6127357482910156
   ],
   "feature_extraction_ms": [
-    2.8476953506469727,
     2.4945735931396484,
     2.3355722427368164,
     2.3258209228515625,
@@ -41,6 +51,7 @@
     1.7609119415283203,
     1.6352653503417969,
     1.6412019729614258,
-    1.6885042190551758
+    1.6885042190551758,
+    1.5881776809692383
   ]
 }
