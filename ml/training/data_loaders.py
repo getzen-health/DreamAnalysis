@@ -1539,3 +1539,104 @@ def list_available_datasets() -> dict:
     }
 
     return datasets
+
+
+def load_deap_raw_4ch(
+    data_dir: str = "data/deap",
+    epoch_sec: float = 4.0,
+    target_fs: float = 256.0,
+    n_classes: int = 3,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Load DEAP as raw 4-channel waveform epochs for CNN-KAN training.
+
+    Extracts Muse 2-equivalent channels (T7≈TP9, AF3≈AF7, AF4≈AF8, T8≈TP10)
+    from DEAP's 32-channel data. Resamples 128→256Hz. Epochs into windows.
+
+    Args:
+        data_dir: Path to DEAP .dat files
+        epoch_sec: Epoch length in seconds (default 4.0)
+        target_fs: Target sampling rate (default 256.0 to match Muse 2)
+        n_classes: 3 (pos/neu/neg) or 6 (happy/sad/angry/fear/surprise/neutral)
+
+    Returns:
+        X: (n_epochs, 4, n_samples) raw EEG waveforms
+        y: (n_epochs,) integer labels
+    """
+    import pickle
+    from scipy.signal import resample
+
+    # DEAP channel indices for Muse 2-equivalent positions
+    # Order: TP9(T7=7), AF7(AF3=1), AF8(AF4=17), TP10(T8=23)
+    MUSE_INDICES = [7, 1, 17, 23]
+    DEAP_FS = 128.0
+    BASELINE_SAMPLES = int(3 * DEAP_FS)  # 3s pre-trial baseline
+
+    deap_path = Path(data_dir)
+    dat_files = sorted(deap_path.glob("s*.dat"))
+    if not dat_files:
+        raise FileNotFoundError(f"No DEAP .dat files in {data_dir}")
+
+    samples_per_epoch = int(epoch_sec * target_fs)
+    deap_samples_per_epoch = int(epoch_sec * DEAP_FS)
+
+    X_all, y_all = [], []
+
+    for dat_file in dat_files:
+        try:
+            with open(dat_file, "rb") as f:
+                subject = pickle.load(f, encoding="latin1")
+        except Exception:
+            continue
+
+        data = subject["data"]      # (40, 40, 8064)
+        labels = subject["labels"]  # (40, 4) — valence, arousal, dominance, liking
+
+        for trial_idx in range(data.shape[0]):
+            valence = labels[trial_idx, 0]  # 1-9
+            arousal = labels[trial_idx, 1]  # 1-9
+
+            # Label mapping
+            if n_classes == 3:
+                if valence > 5.5:
+                    label = 0  # positive
+                elif valence < 4.5:
+                    label = 2  # negative
+                else:
+                    label = 1  # neutral
+            else:
+                # 6-class using circumplex quadrants
+                if valence > 5.5 and arousal > 5.0:
+                    label = 0  # happy
+                elif valence < 4.5 and arousal < 4.5:
+                    label = 1  # sad
+                elif valence < 4.5 and arousal > 5.5:
+                    label = 2  # angry
+                elif valence < 4.0 and arousal > 5.0:
+                    label = 3  # fear
+                elif arousal > 7.0:
+                    label = 4  # surprise
+                else:
+                    label = 5  # neutral
+
+            # Extract Muse-equivalent channels, skip 3s baseline
+            trial_eeg = data[trial_idx, MUSE_INDICES, BASELINE_SAMPLES:]  # (4, ~7680)
+
+            # Epoch into windows
+            n_deap_samples = trial_eeg.shape[1]
+            hop = deap_samples_per_epoch  # no overlap for training
+            for start in range(0, n_deap_samples - deap_samples_per_epoch + 1, hop):
+                chunk = trial_eeg[:, start:start + deap_samples_per_epoch]  # (4, deap_epoch)
+
+                # Resample 128→256Hz
+                resampled = resample(chunk, samples_per_epoch, axis=1)
+                X_all.append(resampled.astype(np.float32))
+                y_all.append(label)
+
+    if not X_all:
+        raise RuntimeError("No epochs extracted from DEAP")
+
+    X = np.array(X_all)  # (n_epochs, 4, samples_per_epoch)
+    y = np.array(y_all, dtype=np.int64)
+    print(f"DEAP raw 4ch: {X.shape[0]} epochs, {len(dat_files)} subjects, "
+          f"classes={dict(zip(*np.unique(y, return_counts=True)))}")
+    return X, y
