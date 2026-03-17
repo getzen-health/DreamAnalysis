@@ -128,12 +128,20 @@ class SleepStagingModel:
         # Wake: high alpha + beta, low delta (no gamma — EMG contamination at AF7/AF8)
         probs[0] = alpha * 0.4 + beta * 0.4 + (1 - delta) * 0.2
 
-        # N1: theta dominant, reduced alpha
-        probs[1] = theta * 0.5 + (1 - alpha) * 0.2 + (1 - beta) * 0.2 + delta * 0.1
+        # N1: theta rising while alpha dropping — the transition zone.
+        # Key differentiator from Wake (alpha high) and N2 (spindles/K-complexes).
+        # Alpha dropout: alpha is falling but not gone; theta/alpha ratio increases.
+        theta_alpha_ratio = theta / max(alpha + theta, 0.01)
+        alpha_dropout = float(np.clip(alpha * (1.0 - theta_alpha_ratio), 0, 1))
+        probs[1] = (theta * 0.35
+                     + alpha_dropout * 0.25       # alpha still present but fading
+                     + (1 - beta) * 0.20          # low beta (not awake-alert)
+                     + (1 - delta) * 0.10         # not yet deep sleep
+                     + theta_alpha_ratio * 0.10)  # theta starting to dominate
 
         # N2: theta + sleep spindles (sigma 12-14Hz within beta)
         sigma_component = min(beta * 0.3, 0.15)
-        probs[2] = theta * 0.35 + sigma_component + delta * 0.2 + (1 - alpha) * 0.15
+        probs[2] = theta * 0.35 + sigma_component + delta * 0.25 + (1 - alpha) * 0.15
 
         # N3: high delta (slow-wave sleep)
         probs[3] = delta * 0.7 + theta * 0.15 + (1 - beta) * 0.1 + (1 - alpha) * 0.05
