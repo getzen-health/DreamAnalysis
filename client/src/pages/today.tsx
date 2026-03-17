@@ -402,13 +402,16 @@ export default function Today() {
         <div>
           <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 2px 0" }}>{formatDate()}</p>
           <p style={{ fontSize: 18, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
-            Good{" "}
-            {new Date().getHours() < 12
-              ? "morning"
-              : new Date().getHours() < 17
-              ? "afternoon"
-              : "evening"}
-            , Sravya
+            {(() => {
+              const h = new Date().getHours();
+              const timeGreet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+              const em = checkin?.emotion;
+              if (em === "happy") return `${timeGreet} 😊`;
+              if (em === "sad") return `Hey, take it easy today 💙`;
+              if (em === "angry") return `${timeGreet} — breathe 🌊`;
+              if (em === "fear") return `You're safe. ${timeGreet} 🤗`;
+              return timeGreet;
+            })()}
           </p>
         </div>
         <div

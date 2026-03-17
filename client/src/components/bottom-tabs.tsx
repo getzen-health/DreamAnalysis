@@ -32,6 +32,28 @@ export function BottomTabs() {
 
   function handleCheckinComplete() {
     setShowCheckin(false);
+
+    // Update streak counter in localStorage for badges
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const lastDate = localStorage.getItem("ndw_streak_last_date");
+      const currentStreak = parseInt(localStorage.getItem("ndw_streak_count") || "0", 10);
+
+      if (lastDate === today) {
+        // Already checked in today — streak unchanged
+      } else {
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        if (lastDate === yesterday) {
+          // Consecutive day — increment streak
+          localStorage.setItem("ndw_streak_count", String(currentStreak + 1));
+        } else {
+          // Streak broken — reset to 1
+          localStorage.setItem("ndw_streak_count", "1");
+        }
+        localStorage.setItem("ndw_streak_last_date", today);
+      }
+    } catch { /* ignore */ }
+
     // Invalidate everything so all pages reflect the new voice data
     const uid = USER_ID;
     queryClient.invalidateQueries({ queryKey: ["voice-checkins"] });
