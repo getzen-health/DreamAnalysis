@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="heartG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f87171"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="brainG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2dd4a0"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0a0e17"/>
+
+  <!-- Left half: heart (feeling) -->
+  <path d="M256,340 C256,340 150,280 150,210 C150,170 180,145 210,145 C235,145 252,162 256,175"
+        fill="url(#heartG)" opacity="0.85"/>
+  <!-- Right half: brain (thinking) -->
+  <path d="M256,175 C260,162 277,145 302,145 C332,145 362,170 362,210 C362,280 256,340 256,340"
+        fill="url(#brainG)" opacity="0.85"/>
+
+  <!-- Brain folds on right side -->
+  <path d="M290,180 Q310,190 300,210" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
+  <path d="M285,220 Q310,225 300,245" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
+  <path d="M280,255 Q300,260 295,275" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Heart pulse (voice/EEG signal) on left side -->
+  <path d="M180,220 L200,220 L210,195 L225,240 L235,205 L245,220" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Center merge line -->
+  <line x1="256" y1="175" x2="256" y2="340" stroke="#f59e0b" stroke-width="3" opacity="0.6" stroke-dasharray="6,4"/>
+
+  <!-- Golden awareness dot at center -->
+  <circle cx="256" cy="250" r="10" fill="#f59e0b" opacity="0.9"/>
+  <circle cx="256" cy="250" r="16" fill="#f59e0b" opacity="0.2"/>
+
+  <!-- 6 Emotion dots orbiting — each represents one of the 6 emotions -->
+  <!-- Happy (green) — top -->
+  <circle cx="256" cy="105" r="10" fill="#2dd4a0" opacity="0.85"/>
+  <!-- Sad (blue) — bottom -->
+  <circle cx="256" cy="390" r="10" fill="#60a5fa" opacity="0.85"/>
+  <!-- Angry (red) — left -->
+  <circle cx="115" cy="245" r="9" fill="#f87171" opacity="0.8"/>
+  <!-- Fear (purple) — right -->
+  <circle cx="397" cy="245" r="9" fill="#a78bfa" opacity="0.8"/>
+  <!-- Surprise (gold) — top right -->
+  <circle cx="370" cy="135" r="8" fill="#fbbf24" opacity="0.75"/>
+  <!-- Neutral (gray-white) — top left -->
+  <circle cx="142" cy="135" r="8" fill="#94a3b8" opacity="0.6"/>
+
+  <!-- Faint connecting arcs from emotions to center (the feeling pathways) -->
+  <line x1="256" y1="115" x2="256" y2="175" stroke="#2dd4a0" stroke-width="1" opacity="0.2"/>
+  <line x1="256" y1="340" x2="256" y2="380" stroke="#60a5fa" stroke-width="1" opacity="0.2"/>
+  <line x1="125" y1="245" x2="150" y2="230" stroke="#f87171" stroke-width="1" opacity="0.15"/>
+  <line x1="388" y1="245" x2="362" y2="230" stroke="#a78bfa" stroke-width="1" opacity="0.15"/>
+  <line x1="363" y1="140" x2="340" y2="170" stroke="#fbbf24" stroke-width="1" opacity="0.15"/>
+  <line x1="150" y1="140" x2="173" y2="170" stroke="#94a3b8" stroke-width="1" opacity="0.1"/>
+</svg>

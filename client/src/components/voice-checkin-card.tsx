@@ -23,6 +23,39 @@ import { getMLApiUrl, submitVoiceWatch } from "@/lib/ml-api";
 import type { VoiceWatchCheckinResult } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 
+// ─── positive affirmations shown during recording ───────────────────────────
+
+const RECORDING_AFFIRMATIONS = [
+  "Your feelings matter. Speak freely.",
+  "Every emotion is valid. Let it out.",
+  "You're doing something brave right now.",
+  "Taking time for yourself is strength.",
+  "Your voice tells a beautiful story.",
+  "Breathe easy. You're safe here.",
+  "This moment of self-awareness changes everything.",
+  "You're more resilient than you know.",
+  "Feelings are messengers, not enemies.",
+  "Right now, you're choosing to grow.",
+  "Your inner world deserves attention.",
+  "Small check-ins lead to big clarity.",
+  "Be gentle with yourself today.",
+  "You're building emotional intelligence, one check-in at a time.",
+  "The fact that you're here shows you care about yourself.",
+];
+
+const ANALYZING_AFFIRMATIONS = [
+  "Understanding yourself is a superpower.",
+  "Your emotions are being heard.",
+  "Every check-in makes you stronger.",
+  "Self-knowledge is the beginning of wisdom.",
+  "You're investing in your wellbeing.",
+  "Awareness is the first step to change.",
+];
+
+function getRandomAffirmation(list: string[]): string {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 // ─── period helpers ──────────────────────────────────────────────────────────
 
 type Period = "morning" | "noon" | "evening";
@@ -158,12 +191,14 @@ export function VoiceCheckinCard({
   const [amplitude, setAmplitude] = useState<number[]>(Array(12).fill(0.15));
   const [result, setResult] = useState<VoiceWatchCheckinResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [affirmation, setAffirmation] = useState("");
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const amplitudeRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const affirmationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
   // Cleanup on unmount
@@ -172,6 +207,7 @@ export function VoiceCheckinCard({
       if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
       if (amplitudeRef.current) clearInterval(amplitudeRef.current);
+      if (affirmationTimerRef.current) clearInterval(affirmationTimerRef.current);
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     };
   }, []);
@@ -340,6 +376,12 @@ export function VoiceCheckinCard({
     recorder.start();
     setCardState("recording");
 
+    // Show a positive affirmation and rotate every 3 seconds
+    setAffirmation(getRandomAffirmation(RECORDING_AFFIRMATIONS));
+    affirmationTimerRef.current = setInterval(() => {
+      setAffirmation(getRandomAffirmation(RECORDING_AFFIRMATIONS));
+    }, 3000);
+
     // Countdown tick
     countdownRef.current = setInterval(() => {
       setCountdown((c) => {
@@ -426,6 +468,11 @@ export function VoiceCheckinCard({
             <p className="text-sm font-mono text-primary tabular-nums">
               {countdown}s
             </p>
+            {affirmation && (
+              <p className="text-xs text-center text-muted-foreground/80 italic max-w-[220px] leading-relaxed mt-1">
+                "{affirmation}"
+              </p>
+            )}
           </div>
         )}
 
@@ -434,6 +481,9 @@ export function VoiceCheckinCard({
           <div className="flex flex-col items-center gap-2 py-4">
             <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
             <p className="text-xs text-muted-foreground">Analyzing voice…</p>
+            <p className="text-xs text-center text-muted-foreground/80 italic max-w-[220px] leading-relaxed">
+              "{getRandomAffirmation(ANALYZING_AFFIRMATIONS)}"
+            </p>
           </div>
         )}
 
