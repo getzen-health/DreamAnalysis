@@ -1,4 +1,43 @@
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+
+// ── Emotion data from localStorage ──────────────────────────────────────
+
+interface CheckinData {
+  emotion?: string;
+  valence?: number;
+  stress_index?: number;
+  focus_index?: number;
+  relaxation_index?: number;
+  confidence?: number;
+}
+
+const EMOTION_COLOR: Record<string, string> = {
+  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
+  surprise: "#fbbf24", neutral: "#94a3b8",
+};
+
+function useCheckinData(): CheckinData | null {
+  const [data, setData] = useState<CheckinData | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("ndw_last_emotion");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setData(parsed?.result ?? parsed);
+      }
+    } catch { /* ignore */ }
+    const handler = () => {
+      try {
+        const raw = localStorage.getItem("ndw_last_emotion");
+        if (raw) setData(JSON.parse(raw)?.result ?? JSON.parse(raw));
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("ndw-voice-updated", handler);
+    return () => window.removeEventListener("ndw-voice-updated", handler);
+  }, []);
+  return data;
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -170,6 +209,15 @@ function RowCard({
 
 export default function Discover() {
   const [, navigate] = useLocation();
+  const checkin = useCheckinData();
+
+  const emotion = checkin?.emotion ?? "—";
+  const emoColor = EMOTION_COLOR[emotion] ?? "#8b8578";
+  const stress = checkin?.stress_index ?? 0;
+  const focus = checkin?.focus_index ?? 0;
+  const relaxation = checkin?.relaxation_index ?? (1 - stress);
+  const valence = checkin?.valence ?? 0;
+  const hasData = !!checkin?.emotion;
 
   return (
     <main
@@ -182,20 +230,85 @@ export default function Discover() {
       }}
     >
       {/* ── Header ── */}
-      <div style={{ marginBottom: 20 }}>
-        <p
-          style={{
-            fontSize: 18,
-            fontWeight: 600,
-            color: "#e8e0d4",
-            margin: "0 0 3px 0",
-          }}
-        >
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ fontSize: 18, fontWeight: 600, color: "#e8e0d4", margin: "0 0 3px 0" }}>
           Discover
         </p>
         <p style={{ fontSize: 12, color: "#8b8578", margin: 0 }}>
-          Explore your mind and body
+          Your scores at a glance
         </p>
+      </div>
+
+      {/* ── Score Cards — Bevel style: scores first, then explore ── */}
+      {hasData ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+          {/* Mood Score */}
+          <button onClick={() => navigate("/emotions")} style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+          }}>
+            <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Mood</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: emoColor, textTransform: "capitalize" as const }}>{emotion}</div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+              Valence {valence >= 0 ? "+" : ""}{valence.toFixed(1)}
+            </div>
+          </button>
+
+          {/* Stress Score */}
+          <button onClick={() => navigate("/emotions")} style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+          }}>
+            <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Stress</div>
+            <div style={{
+              fontSize: 22, fontWeight: 700,
+              color: stress < 0.3 ? "#34d399" : stress < 0.6 ? "#fbbf24" : "#f87171",
+            }}>{Math.round(stress * 100)}%</div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+              {stress < 0.3 ? "Low" : stress < 0.6 ? "Moderate" : "High"}
+            </div>
+          </button>
+
+          {/* Focus Score */}
+          <button onClick={() => navigate("/emotions")} style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+          }}>
+            <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Focus</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#60a5fa" }}>{Math.round(focus * 100)}%</div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+              {focus >= 0.7 ? "Sharp" : focus >= 0.4 ? "Moderate" : "Diffuse"}
+            </div>
+          </button>
+
+          {/* Relaxation Score */}
+          <button onClick={() => navigate("/inner-energy")} style={{
+            background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+          }}>
+            <div style={{ fontSize: 11, color: "#8b8578", marginBottom: 4 }}>Relaxation</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#a78bfa" }}>{Math.round(relaxation * 100)}%</div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
+              {relaxation >= 0.6 ? "Calm" : relaxation >= 0.3 ? "Mixed" : "Tense"}
+            </div>
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          background: "#111827", border: "1px solid #1f2937", borderRadius: 14,
+          padding: 20, marginBottom: 16, textAlign: "center",
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 6 }}>🎙️</div>
+          <div style={{ fontSize: 13, color: "#8b8578" }}>Do a voice check-in to see your scores</div>
+        </div>
+      )}
+
+      {/* ── Section label ── */}
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "#8b8578", textTransform: "uppercase" as const,
+        letterSpacing: "0.5px", marginBottom: 10,
+      }}>
+        Explore
       </div>
 
       {/* ── Featured Card — Emotion Trends ── */}
