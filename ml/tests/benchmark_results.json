@@ -1,20 +1,57 @@
 {
   "model_accuracies": {
-    "eegnet_4ch": {"accuracy": 0.85, "dataset": "cross-subject CV", "active": true, "priority": 3},
-    "mega_lgbm_pca": {"accuracy": 0.7152, "dataset": "11 datasets, 187K samples", "active": true, "priority": 4},
-    "muse_native_lgbm": {"accuracy": 0.6925, "dataset": "Muse-native, 59K samples", "active": true, "priority": 5},
-    "tsception_3ch": {"accuracy": 0.69, "dataset": "cross-subject CV", "active": true, "priority": 8},
-    "sleep_staging": {"accuracy": 0.9298, "dataset": "ISRUC", "active": true},
-    "dream_detector": {"accuracy": 0.9720, "dataset": "cross-subject", "active": true},
-    "cnn_kan": {"accuracy": 0.50, "note": "untrained weights", "active": false},
-    "reve_detransformer": {"accuracy": 0.5226, "note": "below 60% gate", "active": false},
-    "audio_lgbm_3class": {"accuracy": 0.826, "dataset": "EAV-Audio", "active": true, "note": "3-class only"}
+    "eegnet_4ch": {
+      "accuracy": 0.85,
+      "dataset": "cross-subject CV",
+      "active": true,
+      "priority": 3
+    },
+    "mega_lgbm_pca": {
+      "accuracy": 0.7152,
+      "dataset": "11 datasets, 187K samples",
+      "active": true,
+      "priority": 4
+    },
+    "muse_native_lgbm": {
+      "accuracy": 0.6925,
+      "dataset": "Muse-native, 59K samples",
+      "active": true,
+      "priority": 5
+    },
+    "tsception_3ch": {
+      "accuracy": 0.69,
+      "dataset": "cross-subject CV",
+      "active": true,
+      "priority": 8
+    },
+    "sleep_staging": {
+      "accuracy": 0.9298,
+      "dataset": "ISRUC",
+      "active": true
+    },
+    "dream_detector": {
+      "accuracy": 0.972,
+      "dataset": "cross-subject",
+      "active": true
+    },
+    "cnn_kan": {
+      "accuracy": 0.5,
+      "note": "untrained weights",
+      "active": false
+    },
+    "reve_detransformer": {
+      "accuracy": 0.5226,
+      "note": "below 60% gate",
+      "active": false
+    },
+    "audio_lgbm_3class": {
+      "accuracy": 0.826,
+      "dataset": "EAV-Audio",
+      "active": true,
+      "note": "3-class only"
+    }
   },
   "emotion_inference_ms": [
-    2.5081634521484375,
-    1.7580986022949219,
-    2.4280548095703125,
-    1.7809867858886719,
     3.6809444427490234,
     1.7991065979003906,
     6.661891937255859,
@@ -30,13 +67,13 @@
     0.7121562957763672,
     0.8521080017089844,
     0.9908676147460938,
-    0.6127357482910156
+    0.6127357482910156,
+    0.6380081176757812,
+    0.8361339569091797,
+    0.6198883056640625,
+    0.6337165832519531
   ],
   "feature_extraction_ms": [
-    2.4945735931396484,
-    2.3355722427368164,
-    2.3258209228515625,
-    2.407503128051758,
     4.683494567871094,
     2.528524398803711,
     11.777806282043457,
@@ -52,6 +89,91 @@
     1.6352653503417969,
     1.6412019729614258,
     1.6885042190551758,
-    1.5881776809692383
-  ]
+    1.5881776809692383,
+    1.5757083892822266,
+    1.5598058700561523,
+    1.5892982482910156,
+    1.5540122985839844
+  ],
+  "model_latencies_4ch": {
+    "emotion_classifier": {
+      "avg_ms": 0.86,
+      "p50_ms": 0.77,
+      "p99_ms": 1.52,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "sleep_staging": {
+      "avg_ms": 2.15,
+      "p50_ms": 2.15,
+      "p99_ms": 2.2,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "dream_detector": {
+      "avg_ms": 2.04,
+      "p50_ms": 2.02,
+      "p99_ms": 2.17,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "flow_state": {
+      "avg_ms": 1.37,
+      "p50_ms": 1.37,
+      "p99_ms": 1.43,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "drowsiness": {
+      "avg_ms": 0.49,
+      "p50_ms": 0.48,
+      "p99_ms": 0.51,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "stress": {
+      "avg_ms": 0.5,
+      "p50_ms": 0.49,
+      "p99_ms": 0.55,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "attention": {
+      "avg_ms": 0.7,
+      "p50_ms": 0.7,
+      "p99_ms": 0.73,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "creativity": {
+      "avg_ms": 0.46,
+      "p50_ms": 0.46,
+      "p99_ms": 0.46,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "cognitive_load": {
+      "avg_ms": 0.48,
+      "p50_ms": 0.48,
+      "p99_ms": 0.5,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "meditation": {
+      "avg_ms": 1.08,
+      "p50_ms": 1.07,
+      "p99_ms": 1.15,
+      "multichannel_safe": true,
+      "gamma_clean": true
+    },
+    "lucid_dream": {
+      "avg_ms": 0.48,
+      "p50_ms": 0.48,
+      "p99_ms": 0.5,
+      "multichannel_safe": true,
+      "gamma_clean": false
+    }
+  },
+  "benchmark_date": "2026-03-16",
+  "benchmark_note": "All 11 models verified multichannel-safe, gamma-clean (except lucid dream at 50%)"
 }
