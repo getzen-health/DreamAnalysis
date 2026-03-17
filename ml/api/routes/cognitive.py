@@ -349,6 +349,93 @@ async def voice_cognitive_load(request: dict):
     return _numpy_safe(result)
 
 
+# ── Fused Cognitive Load (EEG + Voice) ───────────────────────────────────────
+
+
+class FusedCogLoadRequest(BaseModel):
+    eeg_signals: List[List[float]] = Field(default=[], description="EEG signals (channels x samples)")
+    audio_base64: str = Field(default="", description="Base64-encoded audio")
+    eeg_fs: float = Field(default=256.0)
+    voice_sr: int = Field(default=16000)
+    user_id: str = Field(default="anonymous")
+
+
+@router.post("/cognitive-load/fused")
+async def fused_cognitive_load(req: FusedCogLoadRequest):
+    """Fuse EEG and voice cognitive load into a single score.
+
+    Uses confidence-weighted average: whichever modality has higher
+    confidence contributes more to the final score. Returns both
+    individual scores + the fused result.
+    """
+    eeg_result = None
+    voice_result = None
+
+    # EEG cognitive load
+    if req.eeg_signals:
+        try:
+            signals = np.array(req.eeg_signals)
+            if signals.ndim == 1:
+                signals = signals.reshape(1, -1)
+            eeg = np.mean(signals, axis=0) if signals.shape[0] > 1 else signals[0]
+            eeg_result = _calibrated_predict(cognitive_load_model, eeg, req.eeg_fs, req.user_id)
+        except Exception:
+            pass
+
+    # Voice cognitive load
+    if req.audio_base64:
+        try:
+            import base64, io, librosa
+            audio_bytes = base64.b64decode(req.audio_base64)
+            audio, sr = librosa.load(io.BytesIO(audio_bytes), sr=req.voice_sr)
+            voice_result = _voice_cog_load.predict(audio, sr)
+        except Exception:
+            pass
+
+    # Fusion: confidence-weighted average
+    eeg_score = eeg_result.get("cognitive_load_score", 0.5) if eeg_result else None
+    eeg_conf = eeg_result.get("confidence", 0.5) if eeg_result else 0.0
+    voice_score = voice_result.get("voice_load_index", 0.5) if voice_result else None
+    voice_conf = voice_result.get("confidence", 0.5) if voice_result else 0.0
+
+    if eeg_score is not None and voice_score is not None:
+        total_conf = eeg_conf + voice_conf + 1e-10
+        fused = (eeg_score * eeg_conf + voice_score * voice_conf) / total_conf
+        fused_conf = max(eeg_conf, voice_conf)
+        source = "eeg+voice"
+    elif eeg_score is not None:
+        fused = eeg_score
+        fused_conf = eeg_conf
+        source = "eeg"
+    elif voice_score is not None:
+        fused = voice_score
+        fused_conf = voice_conf
+        source = "voice"
+    else:
+        fused = 0.5
+        fused_conf = 0.0
+        source = "none"
+
+    # Map score to label
+    if fused < 0.35:
+        level = "low"
+    elif fused < 0.65:
+        level = "moderate"
+    else:
+        level = "high"
+
+    return _numpy_safe({
+        "fused_cognitive_load": float(fused),
+        "fused_confidence": float(fused_conf),
+        "level": level,
+        "source": source,
+        "eeg_cognitive_load": float(eeg_score) if eeg_score is not None else None,
+        "eeg_confidence": float(eeg_conf),
+        "voice_cognitive_load": float(voice_score) if voice_score is not None else None,
+        "voice_confidence": float(voice_conf),
+    })
+
+
 # ── Attention Screening ──────────────────────────────────────────────────────
 
 from models.attention_screener import AttentionScreener, DISCLAIMER as ADHD_DISCLAIMER
