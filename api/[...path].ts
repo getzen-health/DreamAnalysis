@@ -855,6 +855,60 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
       notes: notes ?? null,
     }).returning();
 
+    // Push nutrition metrics to health pipeline (best-effort)
+    const totalCalories = typeof analysis.totalCalories === 'number' ? analysis.totalCalories : 0;
+    const foodItems = Array.isArray(analysis.foodItems) ? analysis.foodItems : [];
+    const totalProtein = foodItems.reduce((s: number, f: any) => s + (f?.protein_g ?? 0), 0);
+    const totalCarbs = foodItems.reduce((s: number, f: any) => s + (f?.carbs_g ?? 0), 0);
+    const totalFat = foodItems.reduce((s: number, f: any) => s + (f?.fat_g ?? 0), 0);
+    const supabaseUrl = process.env.SUPABASE_URL;
+    if (supabaseUrl && totalCalories > 0) {
+      try {
+        const now = new Date().toISOString();
+        const samples: { source: string; metric: string; value: number; unit: string; recorded_at: string }[] = [
+          { source: 'manual', metric: 'total_calories', value: totalCalories, unit: 'kcal', recorded_at: now },
+        ];
+        if (totalProtein > 0) samples.push({ source: 'manual', metric: 'total_protein_g', value: totalProtein, unit: 'g', recorded_at: now });
+        if (totalCarbs > 0) samples.push({ source: 'manual', metric: 'total_carbs_g', value: totalCarbs, unit: 'g', recorded_at: now });
+        if (totalFat > 0) samples.push({ source: 'manual', metric: 'total_fat_g', value: totalFat, unit: 'g', recorded_at: now });
+        await fetch(`${supabaseUrl}/functions/v1/ingest-health-data`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, samples }),
+        });
+      } catch (e) { console.error('Pipeline push failed:', e); }
+    }
+
+    // Also insert into health_samples table directly (dual-write for reliability)
+    if (totalCalories > 0) {
+      try {
+        const now = new Date();
+        await db.insert(schema.healthSamples).values({
+          userId,
+          source: 'manual',
+          metric: 'total_calories',
+          value: totalCalories,
+          unit: 'kcal',
+          recordedAt: now,
+        }).onConflictDoNothing();
+        if (totalProtein > 0) {
+          await db.insert(schema.healthSamples).values({
+            userId, source: 'manual', metric: 'total_protein_g', value: totalProtein, unit: 'g', recordedAt: now,
+          }).onConflictDoNothing();
+        }
+        if (totalCarbs > 0) {
+          await db.insert(schema.healthSamples).values({
+            userId, source: 'manual', metric: 'total_carbs_g', value: totalCarbs, unit: 'g', recordedAt: now,
+          }).onConflictDoNothing();
+        }
+        if (totalFat > 0) {
+          await db.insert(schema.healthSamples).values({
+            userId, source: 'manual', metric: 'total_fat_g', value: totalFat, unit: 'g', recordedAt: now,
+          }).onConflictDoNothing();
+        }
+      } catch (e) { console.error('health_samples insert failed (non-fatal):', e); }
+    }
+
     return success(res, { ...analysis, id: log.id, loggedAt: log.loggedAt }, 201);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -870,10 +924,14 @@ async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string)
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   if (!requireOwner(req, res, userId)) return;
   const db = getDb();
+  const url = new URL(req.url ?? '', `http://${req.headers.host}`);
+  const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') ?? '50', 10), 1), 200);
+  const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0', 10), 0);
   const logs = await db.select().from(schema.foodLogs)
     .where(eq(schema.foodLogs.userId, userId))
     .orderBy(desc(schema.foodLogs.loggedAt))
-    .limit(20);
+    .limit(limit)
+    .offset(offset);
   return success(res, logs);
 }
 

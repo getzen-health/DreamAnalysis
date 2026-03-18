@@ -24,6 +24,7 @@
 import { Capacitor } from "@capacitor/core";
 import { getParticipantId } from "./participant";
 import { getMLApiUrl } from "./ml-api";
+import { apiRequest } from "./queryClient";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -743,6 +744,39 @@ class HealthSyncManager {
       const source = os === "ios" ? "apple_health" as const : "google_fit" as const;
       const samples = buildSupabaseSamples(payload, workouts, source);
       await postToSupabase(userId, samples);
+
+      // Persist body metrics to body_metrics table (best-effort)
+      if (payload.weight_kg || payload.body_fat_pct) {
+        try {
+          await apiRequest("POST", "/api/body-metrics", {
+            weightKg: payload.weight_kg ?? null,
+            bodyFatPct: payload.body_fat_pct ?? null,
+            heightCm: payload.height_cm ?? null,
+            source,
+            recordedAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn("[health-sync] body-metrics persist failed:", e);
+        }
+      }
+
+      // Persist workouts to workouts table (best-effort)
+      for (const w of workouts) {
+        try {
+          await apiRequest("POST", "/api/workouts", {
+            name: w.workoutType || "Workout",
+            workoutType: w.workoutType || "mixed",
+            startedAt: w.startDate,
+            endedAt: w.endDate,
+            durationMin: w.durationMinutes,
+            caloriesBurned: w.caloriesBurned,
+            avgHr: w.averageHeartRate ?? null,
+            source,
+          });
+        } catch (e) {
+          console.warn("[health-sync] workout persist failed:", e);
+        }
+      }
 
       this.set({
         status: "ok",

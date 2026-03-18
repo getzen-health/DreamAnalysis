@@ -1769,6 +1769,55 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
         notes: notes ?? null,
       }).returning();
 
+      // Push nutrition metrics to health pipeline (best-effort)
+      const totalCalories = typeof analysis.totalCalories === "number" ? analysis.totalCalories : 0;
+      const items = Array.isArray(analysis.foodItems) ? analysis.foodItems : [];
+      const totalProtein = items.reduce((s: number, f: any) => s + (f?.protein_g ?? 0), 0);
+      const totalCarbs = items.reduce((s: number, f: any) => s + (f?.carbs_g ?? 0), 0);
+      const totalFat = items.reduce((s: number, f: any) => s + (f?.fat_g ?? 0), 0);
+      const supabaseUrl = process.env.SUPABASE_URL;
+      if (supabaseUrl && totalCalories > 0) {
+        try {
+          const now = new Date().toISOString();
+          const samples: { source: string; metric: string; value: number; unit: string; recorded_at: string }[] = [
+            { source: "manual", metric: "total_calories", value: totalCalories, unit: "kcal", recorded_at: now },
+          ];
+          if (totalProtein > 0) samples.push({ source: "manual", metric: "total_protein_g", value: totalProtein, unit: "g", recorded_at: now });
+          if (totalCarbs > 0) samples.push({ source: "manual", metric: "total_carbs_g", value: totalCarbs, unit: "g", recorded_at: now });
+          if (totalFat > 0) samples.push({ source: "manual", metric: "total_fat_g", value: totalFat, unit: "g", recorded_at: now });
+          await fetch(`${supabaseUrl}/functions/v1/ingest-health-data`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId, samples }),
+          });
+        } catch (e) { logger.error({ error: e instanceof Error ? e.message : String(e) }, "Pipeline push failed (non-fatal)"); }
+      }
+
+      // Also insert into health_samples table directly (dual-write for reliability)
+      if (totalCalories > 0) {
+        try {
+          const now = new Date();
+          await db.insert(healthSamples).values({
+            userId, source: "manual", metric: "total_calories", value: totalCalories, unit: "kcal", recordedAt: now,
+          }).onConflictDoNothing();
+          if (totalProtein > 0) {
+            await db.insert(healthSamples).values({
+              userId, source: "manual", metric: "total_protein_g", value: totalProtein, unit: "g", recordedAt: now,
+            }).onConflictDoNothing();
+          }
+          if (totalCarbs > 0) {
+            await db.insert(healthSamples).values({
+              userId, source: "manual", metric: "total_carbs_g", value: totalCarbs, unit: "g", recordedAt: now,
+            }).onConflictDoNothing();
+          }
+          if (totalFat > 0) {
+            await db.insert(healthSamples).values({
+              userId, source: "manual", metric: "total_fat_g", value: totalFat, unit: "g", recordedAt: now,
+            }).onConflictDoNothing();
+          }
+        } catch (e) { logger.error({ error: e instanceof Error ? e.message : String(e) }, "health_samples insert failed (non-fatal)"); }
+      }
+
       res.json({ ...analysis, id: log.id, loggedAt: log.loggedAt });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Unknown error";
@@ -1783,15 +1832,18 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
-  // GET /api/food/logs/:userId — recent food logs (last 20)
+  // GET /api/food/logs/:userId — food logs with pagination (default 50, max 200)
   // No auth gate — data is scoped by userId (same pattern as /api/brain/history).
   // Native APK uses localStorage participant IDs without JWT sessions.
   app.get("/api/food/logs/:userId", async (req, res) => {
     try {
+      const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "50", 10), 1), 200);
+      const offset = Math.max(parseInt((req.query.offset as string) || "0", 10), 0);
       const logs = await db.select().from(foodLogs)
         .where(eq(foodLogs.userId, req.params.userId))
         .orderBy(desc(foodLogs.loggedAt))
-        .limit(20);
+        .limit(limit)
+        .offset(offset);
       res.json(logs);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch food logs" });
@@ -3294,7 +3346,7 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
-      const { name, workoutType, startedAt, source, notes, eegSessionId } = req.body;
+      const { name, workoutType, startedAt, endedAt, durationMin, caloriesBurned, avgHr, maxHr, source, notes, eegSessionId } = req.body;
       if (!workoutType) return res.status(400).json({ error: "workoutType is required" });
 
       const [created] = await db.insert(workouts).values({
@@ -3302,6 +3354,11 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
         name: name ?? null,
         workoutType,
         startedAt: startedAt ? new Date(startedAt) : new Date(),
+        endedAt: endedAt ? new Date(endedAt) : null,
+        durationMin: durationMin != null ? String(durationMin) : null,
+        caloriesBurned: caloriesBurned != null ? String(caloriesBurned) : null,
+        avgHr: avgHr != null ? String(avgHr) : null,
+        maxHr: maxHr != null ? String(maxHr) : null,
         source: source ?? "manual",
         notes: notes ?? null,
         eegSessionId: eegSessionId ?? null,
