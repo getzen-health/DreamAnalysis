@@ -32,9 +32,11 @@ import {
   healthMetrics, healthSamples,
   dreamAnalysis, dreamSymbols, eegSessions, userSettings,
   aiChats, brainReadings, emotionReadings,
+  exercises, workouts, workoutSets, workoutTemplates,
+  bodyMetrics, exerciseHistory,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, gte, lt, and, asc, desc, sql } from "drizzle-orm";
+import { eq, gte, lt, lte, and, or, asc, desc, sql, ilike, arrayContains } from "drizzle-orm";
 
 // ── VAPID setup (web push) ─────────────────────────────────────────────────
 const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  ?? "";
@@ -3207,6 +3209,563 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "Export history fetch failed");
       return res.status(500).json({ error: "Failed to fetch export history" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // EXERCISE LIBRARY
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // GET /api/exercises — list all exercises with optional filters
+  app.get("/api/exercises", async (req, res) => {
+    try {
+      const { category, equipment, muscle } = req.query as Record<string, string | undefined>;
+      const conditions = [];
+
+      if (category) conditions.push(ilike(exercises.category, category));
+      if (equipment) conditions.push(ilike(exercises.equipment, equipment));
+      if (muscle) conditions.push(arrayContains(exercises.muscleGroups, [muscle]));
+
+      const rows = conditions.length > 0
+        ? await db.select().from(exercises).where(and(...conditions))
+        : await db.select().from(exercises);
+
+      return res.json(rows);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to list exercises");
+      return res.status(500).json({ error: "Failed to list exercises" });
+    }
+  });
+
+  // GET /api/exercises/:id — get single exercise
+  app.get("/api/exercises/:id", async (req, res) => {
+    try {
+      const [exercise] = await db.select().from(exercises)
+        .where(eq(exercises.id, req.params.id)).limit(1);
+
+      if (!exercise) return res.status(404).json({ error: "Exercise not found" });
+      return res.json(exercise);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch exercise");
+      return res.status(500).json({ error: "Failed to fetch exercise" });
+    }
+  });
+
+  // POST /api/exercises — create custom exercise (requires auth)
+  app.post("/api/exercises", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { name, category, muscleGroups, equipment, instructions, videoUrl } = req.body;
+      if (!name || !category || !Array.isArray(muscleGroups) || muscleGroups.length === 0) {
+        return res.status(400).json({ error: "name, category, and muscleGroups[] are required" });
+      }
+
+      const [created] = await db.insert(exercises).values({
+        name,
+        category,
+        muscleGroups,
+        equipment: equipment ?? null,
+        instructions: instructions ?? null,
+        videoUrl: videoUrl ?? null,
+        isCustom: true,
+        createdBy: userId,
+      }).returning();
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to create exercise");
+      return res.status(500).json({ error: "Failed to create exercise" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // WORKOUTS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/workouts — create new workout
+  app.post("/api/workouts", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { name, workoutType, startedAt, source, notes, eegSessionId } = req.body;
+      if (!workoutType) return res.status(400).json({ error: "workoutType is required" });
+
+      const [created] = await db.insert(workouts).values({
+        userId,
+        name: name ?? null,
+        workoutType,
+        startedAt: startedAt ? new Date(startedAt) : new Date(),
+        source: source ?? "manual",
+        notes: notes ?? null,
+        eegSessionId: eegSessionId ?? null,
+      }).returning();
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to create workout");
+      return res.status(500).json({ error: "Failed to create workout" });
+    }
+  });
+
+  // GET /api/workouts/:userId — list user's workouts (requires owner auth, paginated)
+  app.get("/api/workouts/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "20", 10), 1), 100);
+      const offset = Math.max(parseInt((req.query.offset as string) || "0", 10), 0);
+
+      const rows = await db.select().from(workouts)
+        .where(eq(workouts.userId, userId))
+        .orderBy(desc(workouts.startedAt))
+        .limit(limit)
+        .offset(offset);
+
+      return res.json(rows);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to list workouts");
+      return res.status(500).json({ error: "Failed to list workouts" });
+    }
+  });
+
+  // GET /api/workouts/:userId/:workoutId — get workout with sets
+  app.get("/api/workouts/:userId/:workoutId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const [workout] = await db.select().from(workouts)
+        .where(and(eq(workouts.id, req.params.workoutId), eq(workouts.userId, userId)))
+        .limit(1);
+
+      if (!workout) return res.status(404).json({ error: "Workout not found" });
+
+      const sets = await db.select().from(workoutSets)
+        .where(eq(workoutSets.workoutId, workout.id))
+        .orderBy(asc(workoutSets.setNumber));
+
+      return res.json({ ...workout, sets });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch workout");
+      return res.status(500).json({ error: "Failed to fetch workout" });
+    }
+  });
+
+  // PUT /api/workouts/:workoutId — update workout (endedAt, notes, etc.)
+  app.put("/api/workouts/:workoutId", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      // Verify ownership
+      const [existing] = await db.select().from(workouts)
+        .where(and(eq(workouts.id, req.params.workoutId), eq(workouts.userId, userId)))
+        .limit(1);
+
+      if (!existing) return res.status(404).json({ error: "Workout not found" });
+
+      const { endedAt, notes, avgHr, maxHr, caloriesBurned, hrZones, hrRecovery } = req.body;
+
+      const updates: Record<string, unknown> = {};
+      if (endedAt !== undefined) updates.endedAt = new Date(endedAt);
+      if (notes !== undefined) updates.notes = notes;
+      if (avgHr !== undefined) updates.avgHr = avgHr;
+      if (maxHr !== undefined) updates.maxHr = maxHr;
+      if (caloriesBurned !== undefined) updates.caloriesBurned = caloriesBurned;
+      if (hrZones !== undefined) updates.hrZones = hrZones;
+      if (hrRecovery !== undefined) updates.hrRecovery = hrRecovery;
+
+      // Compute duration and strain when completing a workout
+      if (endedAt) {
+        const endDate = new Date(endedAt);
+        const durationMin = (endDate.getTime() - existing.startedAt.getTime()) / 60000;
+        updates.durationMin = durationMin.toFixed(1);
+
+        // TRIMP-based strain if HR data available
+        if (avgHr && maxHr) {
+          const restingHr = 60; // population default
+          const avgHrNum = parseFloat(String(avgHr));
+          const maxHrNum = parseFloat(String(maxHr));
+          const avgHrRatio = (avgHrNum - restingHr) / (maxHrNum - restingHr);
+          if (avgHrRatio > 0 && avgHrRatio < 1) {
+            const trimp = durationMin * avgHrRatio * Math.exp(1.92 * avgHrRatio);
+            const strain = 14.3 * Math.log(1 + trimp);
+            updates.totalStrain = strain.toFixed(2);
+          }
+        }
+      }
+
+      const [updated] = await db.update(workouts)
+        .set(updates)
+        .where(eq(workouts.id, req.params.workoutId))
+        .returning();
+
+      // Update exercise history with best lifts when workout completes
+      if (endedAt) {
+        try {
+          const sets = await db.select().from(workoutSets)
+            .where(eq(workoutSets.workoutId, existing.id));
+
+          const today = new Date().toISOString().slice(0, 10);
+
+          // Group sets by exerciseId and compute bests
+          const byExercise = new Map<string, { bestWeightKg: number; bestReps: number; estimated1rm: number; totalVolume: number }>();
+          for (const s of sets) {
+            if (!s.exerciseId) continue;
+            const w = parseFloat(String(s.weightKg ?? 0));
+            const r = s.reps ?? 0;
+            const e1rm = w * (1 + r / 30); // Epley formula
+            const volume = w * r;
+
+            const prev = byExercise.get(s.exerciseId);
+            if (!prev) {
+              byExercise.set(s.exerciseId, { bestWeightKg: w, bestReps: r, estimated1rm: e1rm, totalVolume: volume });
+            } else {
+              if (w > prev.bestWeightKg) prev.bestWeightKg = w;
+              if (r > prev.bestReps) prev.bestReps = r;
+              if (e1rm > prev.estimated1rm) prev.estimated1rm = e1rm;
+              prev.totalVolume += volume;
+            }
+          }
+
+          for (const [exerciseId, stats] of Array.from(byExercise.entries())) {
+            await db.insert(exerciseHistory).values({
+              userId,
+              exerciseId,
+              date: today,
+              bestWeightKg: stats.bestWeightKg.toFixed(2),
+              bestReps: stats.bestReps,
+              estimated1rm: stats.estimated1rm.toFixed(2),
+              totalVolume: stats.totalVolume.toFixed(2),
+            }).onConflictDoUpdate({
+              target: [exerciseHistory.userId, exerciseHistory.exerciseId, exerciseHistory.date],
+              set: {
+                bestWeightKg: sql`GREATEST(exercise_history.best_weight_kg::numeric, EXCLUDED.best_weight_kg::numeric)::text`,
+                bestReps: sql`GREATEST(exercise_history.best_reps, EXCLUDED.best_reps)`,
+                estimated1rm: sql`GREATEST(exercise_history.estimated_1rm::numeric, EXCLUDED.estimated_1rm::numeric)::text`,
+                totalVolume: sql`(exercise_history.total_volume::numeric + EXCLUDED.total_volume::numeric)::text`,
+              },
+            });
+          }
+        } catch (historyErr) {
+          logger.error({ error: historyErr instanceof Error ? historyErr.message : String(historyErr) }, "Failed to update exercise history (non-fatal)");
+        }
+
+        // Pipeline integration: insert workout_strain into health_samples
+        if (updates.totalStrain) {
+          try {
+            await db.insert(healthSamples).values({
+              userId,
+              source: "workout",
+              metric: "workout_strain",
+              value: parseFloat(String(updates.totalStrain)),
+              unit: "strain",
+              recordedAt: new Date(endedAt),
+            }).onConflictDoNothing();
+          } catch (pipelineErr) {
+            logger.error({ error: pipelineErr instanceof Error ? pipelineErr.message : String(pipelineErr) }, "Failed to insert workout strain into health_samples (non-fatal)");
+          }
+        }
+      }
+
+      return res.json(updated);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to update workout");
+      return res.status(500).json({ error: "Failed to update workout" });
+    }
+  });
+
+  // DELETE /api/workouts/:workoutId — delete workout + cascade sets
+  app.delete("/api/workouts/:workoutId", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const [existing] = await db.select().from(workouts)
+        .where(and(eq(workouts.id, req.params.workoutId), eq(workouts.userId, userId)))
+        .limit(1);
+
+      if (!existing) return res.status(404).json({ error: "Workout not found" });
+
+      // Sets cascade via FK onDelete
+      await db.delete(workouts).where(eq(workouts.id, req.params.workoutId));
+      return res.json({ deleted: true });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to delete workout");
+      return res.status(500).json({ error: "Failed to delete workout" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // WORKOUT SETS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/workouts/:workoutId/sets — add set to workout
+  app.post("/api/workouts/:workoutId/sets", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      // Verify workout ownership
+      const [workout] = await db.select().from(workouts)
+        .where(and(eq(workouts.id, req.params.workoutId), eq(workouts.userId, userId)))
+        .limit(1);
+
+      if (!workout) return res.status(404).json({ error: "Workout not found" });
+
+      const { exerciseId, setNumber, reps, weightKg, setType, durationSec, restSec, rpe } = req.body;
+      if (!exerciseId || !setNumber) {
+        return res.status(400).json({ error: "exerciseId and setNumber are required" });
+      }
+
+      const [created] = await db.insert(workoutSets).values({
+        workoutId: req.params.workoutId,
+        exerciseId,
+        setNumber,
+        setType: setType ?? "normal",
+        reps: reps ?? null,
+        weightKg: weightKg != null ? String(weightKg) : null,
+        durationSec: durationSec ?? null,
+        restSec: restSec ?? null,
+        rpe: rpe != null ? String(rpe) : null,
+      }).returning();
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to add workout set");
+      return res.status(500).json({ error: "Failed to add workout set" });
+    }
+  });
+
+  // PUT /api/workout-sets/:setId — update set
+  app.put("/api/workout-sets/:setId", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      // Verify set ownership via workout
+      const [set] = await db.select().from(workoutSets).where(eq(workoutSets.id, req.params.setId)).limit(1);
+      if (!set) return res.status(404).json({ error: "Set not found" });
+
+      const [workout] = await db.select().from(workouts)
+        .where(and(eq(workouts.id, set.workoutId!), eq(workouts.userId, userId)))
+        .limit(1);
+
+      if (!workout) return res.status(403).json({ error: "Forbidden" });
+
+      const { reps, weightKg, setType, durationSec, restSec, rpe, completed } = req.body;
+      const updates: Record<string, unknown> = {};
+      if (reps !== undefined) updates.reps = reps;
+      if (weightKg !== undefined) updates.weightKg = weightKg != null ? String(weightKg) : null;
+      if (setType !== undefined) updates.setType = setType;
+      if (durationSec !== undefined) updates.durationSec = durationSec;
+      if (restSec !== undefined) updates.restSec = restSec;
+      if (rpe !== undefined) updates.rpe = rpe != null ? String(rpe) : null;
+      if (completed !== undefined) updates.completed = completed;
+
+      const [updated] = await db.update(workoutSets)
+        .set(updates)
+        .where(eq(workoutSets.id, req.params.setId))
+        .returning();
+
+      return res.json(updated);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to update workout set");
+      return res.status(500).json({ error: "Failed to update workout set" });
+    }
+  });
+
+  // DELETE /api/workout-sets/:setId — delete set
+  app.delete("/api/workout-sets/:setId", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const [set] = await db.select().from(workoutSets).where(eq(workoutSets.id, req.params.setId)).limit(1);
+      if (!set) return res.status(404).json({ error: "Set not found" });
+
+      const [workout] = await db.select().from(workouts)
+        .where(and(eq(workouts.id, set.workoutId!), eq(workouts.userId, userId)))
+        .limit(1);
+
+      if (!workout) return res.status(403).json({ error: "Forbidden" });
+
+      await db.delete(workoutSets).where(eq(workoutSets.id, req.params.setId));
+      return res.json({ deleted: true });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to delete workout set");
+      return res.status(500).json({ error: "Failed to delete workout set" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // BODY METRICS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/body-metrics — log weight/body fat
+  app.post("/api/body-metrics", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { weightKg, bodyFatPct, heightCm, source, recordedAt } = req.body;
+      if (!source) return res.status(400).json({ error: "source is required" });
+
+      // Compute BMI if both weight and height provided
+      let bmi: string | null = null;
+      const wKg = weightKg != null ? parseFloat(String(weightKg)) : null;
+      const hCm = heightCm != null ? parseFloat(String(heightCm)) : null;
+      if (wKg && hCm && hCm > 0) {
+        bmi = (wKg / ((hCm / 100) ** 2)).toFixed(2);
+      }
+
+      // Compute lean mass if weight and body fat provided
+      let leanMassKg: string | null = null;
+      const bfPct = bodyFatPct != null ? parseFloat(String(bodyFatPct)) : null;
+      if (wKg && bfPct != null && bfPct >= 0 && bfPct <= 100) {
+        leanMassKg = (wKg * (1 - bfPct / 100)).toFixed(2);
+      }
+
+      const [created] = await db.insert(bodyMetrics).values({
+        userId,
+        weightKg: weightKg != null ? String(weightKg) : null,
+        bodyFatPct: bodyFatPct != null ? String(bodyFatPct) : null,
+        heightCm: heightCm != null ? String(heightCm) : null,
+        bmi,
+        leanMassKg,
+        source,
+        recordedAt: recordedAt ? new Date(recordedAt) : new Date(),
+      }).returning();
+
+      // Pipeline integration: feed weight into health_samples
+      if (wKg) {
+        try {
+          await db.insert(healthSamples).values({
+            userId,
+            source: "manual",
+            metric: "weight_kg",
+            value: wKg,
+            unit: "kg",
+            recordedAt: created.recordedAt,
+          }).onConflictDoNothing();
+        } catch (pipelineErr) {
+          logger.error({ error: pipelineErr instanceof Error ? pipelineErr.message : String(pipelineErr) }, "Failed to insert weight into health_samples (non-fatal)");
+        }
+      }
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to log body metrics");
+      return res.status(500).json({ error: "Failed to log body metrics" });
+    }
+  });
+
+  // GET /api/body-metrics/:userId — get body metrics history (last 90 days)
+  app.get("/api/body-metrics/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const days = Math.min(Math.max(parseInt((req.query.days as string) || "90", 10), 1), 365);
+      const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const rows = await db.select().from(bodyMetrics)
+        .where(and(eq(bodyMetrics.userId, userId), gte(bodyMetrics.recordedAt, fromDate)))
+        .orderBy(desc(bodyMetrics.recordedAt));
+
+      return res.json(rows);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch body metrics");
+      return res.status(500).json({ error: "Failed to fetch body metrics" });
+    }
+  });
+
+  // GET /api/body-metrics/:userId/latest — get most recent body metrics
+  app.get("/api/body-metrics/:userId/latest", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const [latest] = await db.select().from(bodyMetrics)
+        .where(eq(bodyMetrics.userId, userId))
+        .orderBy(desc(bodyMetrics.recordedAt))
+        .limit(1);
+
+      if (!latest) return res.status(404).json({ error: "No body metrics found" });
+      return res.json(latest);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch latest body metrics");
+      return res.status(500).json({ error: "Failed to fetch latest body metrics" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // WORKOUT TEMPLATES
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/workout-templates — create template
+  app.post("/api/workout-templates", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { name, description, exercises: templateExercises } = req.body;
+      if (!name || !templateExercises) {
+        return res.status(400).json({ error: "name and exercises are required" });
+      }
+
+      const [created] = await db.insert(workoutTemplates).values({
+        userId,
+        name,
+        description: description ?? null,
+        exercises: templateExercises,
+      }).returning();
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to create workout template");
+      return res.status(500).json({ error: "Failed to create workout template" });
+    }
+  });
+
+  // GET /api/workout-templates/:userId — list user's templates
+  app.get("/api/workout-templates/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const rows = await db.select().from(workoutTemplates)
+        .where(eq(workoutTemplates.userId, userId))
+        .orderBy(desc(workoutTemplates.createdAt));
+
+      return res.json(rows);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to list workout templates");
+      return res.status(500).json({ error: "Failed to list workout templates" });
+    }
+  });
+
+  // DELETE /api/workout-templates/:id — delete template
+  app.delete("/api/workout-templates/:id", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const [existing] = await db.select().from(workoutTemplates)
+        .where(and(eq(workoutTemplates.id, req.params.id), eq(workoutTemplates.userId, userId)))
+        .limit(1);
+
+      if (!existing) return res.status(404).json({ error: "Template not found" });
+
+      await db.delete(workoutTemplates).where(eq(workoutTemplates.id, req.params.id));
+      return res.json({ deleted: true });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to delete workout template");
+      return res.status(500).json({ error: "Failed to delete workout template" });
     }
   });
 
