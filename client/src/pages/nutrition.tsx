@@ -578,7 +578,11 @@ export default function Nutrition() {
           background: "var(--card)", borderRadius: 14, border: "1px solid #2d1f18",
           padding: 14, marginBottom: 14,
         }}>
-          <p style={{ fontSize: 12, color: "#e879a8", margin: 0 }}>{analysisError}</p>
+          <p style={{ fontSize: 12, color: "#e879a8", margin: 0 }}>
+            {analysisError.includes("authentication") || analysisError.includes("API key") || analysisError.includes("not configured") || analysisError.includes("503")
+              ? "AI-powered meal suggestions require an active API key. Please check your configuration."
+              : analysisError}
+          </p>
           <button onClick={() => { setAnalysisError(null); setCaptureMode("none"); }}
             style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", background: "none", border: "none", cursor: "pointer" }}>
             Try again

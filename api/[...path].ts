@@ -860,7 +860,7 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     console.error('Food analyze error:', msg);
     if (msg.includes('API key') || msg.includes('auth') || msg.includes('401')) {
-      return error(res, 'AI service authentication failed. Check CEREBRAS_API_KEY.', 503);
+      return error(res, 'AI-powered meal suggestions require an active API key. Please check your configuration.', 503);
     }
     return error(res, `Food analysis failed: ${msg}`, 500);
   }

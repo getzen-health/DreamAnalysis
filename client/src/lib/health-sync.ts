@@ -530,13 +530,13 @@ async function requestPermissionsAndroid(): Promise<void> {
   const { Health } = await import("capacitor-health");
   await Health.requestHealthPermissions({
     permissions: [
-      "READ_STEPS",
       "READ_HEART_RATE",
-      "READ_ACTIVE_CALORIES",
-      "READ_WORKOUTS",
-      "READ_MINDFULNESS",
+      "READ_STEPS",
+      "READ_ACTIVE_CALORIES_BURNED",
       "READ_WEIGHT",
       "READ_BODY_FAT",
+      "READ_WORKOUTS",
+      "READ_MINDFULNESS",
     ],
   });
 }
@@ -684,18 +684,34 @@ class HealthSyncManager {
         await requestPermissionsIos();
       } else {
         const { Health } = await import("capacitor-health");
-        const available = await Health.isHealthAvailable();
+        let available: { available: boolean };
+        try {
+          available = await Health.isHealthAvailable();
+        } catch {
+          this.set({
+            status: "unavailable",
+            error: "Google Health Connect is not installed. Install it from the Play Store to sync health data.",
+          });
+          return;
+        }
         if (!available.available) {
-          this.set({ status: "unavailable", error: "Google Health Connect not installed" });
+          this.set({
+            status: "unavailable",
+            error: "Google Health Connect is not installed. Install it from the Play Store to sync health data.",
+          });
           return;
         }
         await requestPermissionsAndroid();
       }
       this.set({ status: "idle", error: null });
     } catch (e) {
+      const msg = String(e);
+      const isInstallIssue = msg.includes("not installed") || msg.includes("not found") || msg.includes("ActivityNotFoundException");
       this.set({
-        status: "unauthorized",
-        error: `Health permissions denied: ${String(e)}`,
+        status: isInstallIssue ? "unavailable" : "unauthorized",
+        error: isInstallIssue
+          ? "Google Health Connect is not installed. Install it from the Play Store to sync health data."
+          : `Health permissions denied: ${msg}`,
       });
     }
   }

@@ -309,38 +309,54 @@ function useDeviceInternal(): UseDeviceReturn {
     };
   }, []);
 
-  // Muse devices connect via Web Bluetooth — they MUST always appear in the list
-  // regardless of whether the ML backend or BrainFlow is available.
-  const MUSE_DEVICES: DeviceInfo[] = [
+  // All BrainFlow-supported EEG devices — always shown so the user can pick any
+  // headband they own. Muse devices connect via Web Bluetooth even without BrainFlow.
+  const ALL_EEG_DEVICES: DeviceInfo[] = [
+    // Muse
     { type: "muse_2", name: "Muse 2", channels: 4, sample_rate: 256, available: true },
     { type: "muse_s", name: "Muse S", channels: 4, sample_rate: 256, available: true },
+    // OpenBCI
+    { type: "openbci_cyton", name: "OpenBCI Cyton", channels: 8, sample_rate: 250, available: true },
+    { type: "openbci_ganglion", name: "OpenBCI Ganglion", channels: 4, sample_rate: 200, available: true },
+    { type: "openbci_cyton_daisy", name: "OpenBCI Cyton+Daisy", channels: 16, sample_rate: 125, available: true },
+    // Emotiv
+    { type: "emotiv_epoc_x", name: "Emotiv EPOC X", channels: 14, sample_rate: 256, available: true },
+    { type: "emotiv_insight", name: "Emotiv Insight", channels: 5, sample_rate: 128, available: true },
+    { type: "emotiv_epoc_flex", name: "Emotiv EPOC Flex", channels: 32, sample_rate: 256, available: true },
+    // NeuroSky
+    { type: "neurosky_mindwave", name: "NeuroSky MindWave", channels: 1, sample_rate: 512, available: true },
+    // BrainBit
+    { type: "brainbit", name: "BrainBit", channels: 4, sample_rate: 250, available: true },
+    // Crown by Neurosity
+    { type: "neurosity_crown", name: "Crown (Neurosity)", channels: 8, sample_rate: 256, available: true },
+    // ANT Neuro
+    { type: "ant_neuro", name: "ANT Neuro eego", channels: 32, sample_rate: 2048, available: true },
+    // G.tec
+    { type: "gtec_unicorn", name: "g.tec Unicorn", channels: 8, sample_rate: 250, available: true },
+    // Enobio
+    { type: "enobio", name: "Enobio", channels: 8, sample_rate: 500, available: true },
+    // Synthetic (demo)
+    { type: "synthetic", name: "Synthetic (Demo)", channels: 16, sample_rate: 256, available: true },
   ];
 
   const refreshDevices = useCallback(async () => {
     try {
       const result = await listDevices();
-      // Only include backend devices if BrainFlow is actually installed.
-      // On Railway (cloud), BrainFlow/Emotiv can't work (no Bluetooth hardware),
-      // so showing those devices just confuses the user.
-      const backendDevices = result.brainflow_available
-        ? (result.devices ?? []).filter(
-            (d) => d.type !== "muse_2" && d.type !== "muse_s" && d.type !== "synthetic"
-          )
+      // Merge backend-reported devices with our full static list.
+      // Backend devices that overlap with ALL_EEG_DEVICES are already in the list.
+      const knownTypes = new Set(ALL_EEG_DEVICES.map((d) => d.type));
+      const extraBackendDevices = result.brainflow_available
+        ? (result.devices ?? []).filter((d) => !knownTypes.has(d.type))
         : [];
-      // Always: Muse first (BLE), then backend devices (BrainFlow), then synthetic
-      const merged = [
-        ...MUSE_DEVICES,
-        ...backendDevices,
-        { type: "synthetic", name: "Synthetic (demo)", channels: 16, sample_rate: 256, available: true },
-      ];
+      const merged = [...ALL_EEG_DEVICES, ...extraBackendDevices];
       setDevices(merged);
       setBrainflowAvailable(result.brainflow_available);
       setError(null);
     } catch {
-      // Backend unreachable — show Muse + synthetic so user can still connect
+      // Backend unreachable — show all devices so user can still pick one
       setError(IS_REMOTE_BACKEND ? null : "unreachable");
       setBrainflowAvailable(false);
-      setDevices([...MUSE_DEVICES, { type: "synthetic", name: "Synthetic (demo)", channels: 16, sample_rate: 256, available: true }]);
+      setDevices([...ALL_EEG_DEVICES]);
     } finally {
       setDevicesLoaded(true);
     }

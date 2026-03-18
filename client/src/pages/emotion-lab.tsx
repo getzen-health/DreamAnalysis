@@ -899,7 +899,7 @@ export default function EmotionLab() {
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
               <p className="text-xs text-muted-foreground">
-                No mood data yet. Mood detected above will start tracking trends.
+                No mood data yet. Auto-detected emotions will start tracking trends.
               </p>
             </div>
           ) : (
@@ -989,7 +989,7 @@ export default function EmotionLab() {
               <p className="text-xs text-muted-foreground">
                 {isStreaming
                   ? "Emotion readings will appear here as they come in."
-                  : "Log a mood or start a session to see your emotion history."}
+                  : "Record a voice note or connect your EEG headband to see your emotion history."}
               </p>
             </div>
           ) : (

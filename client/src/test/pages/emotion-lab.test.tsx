@@ -112,7 +112,7 @@ describe("EmotionLab page", () => {
   it("shows empty session message when not streaming", () => {
     renderWithProviders(<EmotionLab />);
     expect(
-      screen.getByText("Log a mood or start a session to see your emotion history.")
+      screen.getByText("Record a voice note or connect your EEG headband to see your emotion history.")
     ).toBeInTheDocument();
   });
 });

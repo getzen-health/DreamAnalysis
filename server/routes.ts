@@ -1774,7 +1774,7 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
       const msg = error instanceof Error ? error.message : "Unknown error";
       logger.error({ error: msg }, "Food analyze error");
       if (msg.includes("API key") || msg.includes("OPENAI_API_KEY")) {
-        res.status(503).json({ message: "AI service not configured. Set OPENAI_API_KEY." });
+        res.status(503).json({ message: "AI-powered meal suggestions require an active API key. Please check your configuration." });
       } else if (msg.includes("parse") || msg.includes("JSON")) {
         res.status(502).json({ message: "AI returned invalid response. Please try again." });
       } else {
