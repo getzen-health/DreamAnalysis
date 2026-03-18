@@ -85,7 +85,7 @@ export function DeviceConnection({ open, onOpenChange, device }: DeviceConnectio
               <p className="text-xs text-muted-foreground">
                 Run this one command in your terminal — it starts everything and auto-fills Settings:
               </p>
-              <code className="block text-[11px] bg-black/30 text-green-400 px-3 py-2 rounded font-mono">
+              <code className="block text-[11px] bg-black/30 text-cyan-400 px-3 py-2 rounded font-mono">
                 cd ~/NeuralDreamWorkshop/ml &amp;&amp; ./start.sh
               </code>
               <p className="text-xs text-muted-foreground">

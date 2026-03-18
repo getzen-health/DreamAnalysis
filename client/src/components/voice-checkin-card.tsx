@@ -157,7 +157,7 @@ const EMOTION_EMOJI: Record<string, string> = {
 };
 
 function valenceLabel(v: number): { text: string; className: string } {
-  if (v >= 0.4) return { text: "Positive", className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
+  if (v >= 0.4) return { text: "Positive", className: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" };
   if (v <= -0.4) return { text: "Negative", className: "bg-rose-500/20 text-rose-400 border-rose-500/30" };
   return { text: "Neutral", className: "bg-muted/50 text-muted-foreground border-border/40" };
 }

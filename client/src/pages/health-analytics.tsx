@@ -262,7 +262,7 @@ export default function HealthAnalytics() {
           <span className="text-[12px] text-muted-foreground">
             {voiceResult
               ? "Voice-derived estimates. Connect EEG for live brain data."
-              : "Run a voice check-in or connect EEG for live analytics."}
+              : "Run a voice analysis or connect EEG for live analytics."}
           </span>
         </div>
       )}
@@ -427,7 +427,7 @@ export default function HealthAnalytics() {
                   className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
                 >
                   <Mic className="h-3.5 w-3.5 mr-1.5" />
-                  Voice Check-in
+                  Voice Analysis
                 </Button>
               </Link>
             )}

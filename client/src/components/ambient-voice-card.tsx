@@ -129,8 +129,8 @@ export function AmbientVoiceCard() {
           {/* Active indicator */}
           {isListening && (
             <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs text-emerald-400 font-medium">Live</span>
+              <span className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse" />
+              <span className="text-xs text-cyan-400 font-medium">Live</span>
             </div>
           )}
         </div>
@@ -237,7 +237,7 @@ export function AmbientVoiceCard() {
                 {speechCount} segment{speechCount !== 1 ? "s" : ""} analysed
               </span>
               {isSpeechDetected && !isAnalyzing && (
-                <span className="flex items-center gap-1 text-emerald-400">
+                <span className="flex items-center gap-1 text-cyan-400">
                   <Mic className="h-3 w-3" />
                   Recording
                 </span>

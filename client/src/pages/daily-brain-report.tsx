@@ -419,10 +419,10 @@ export default function DailyBrainReport() {
   /* — Stress badge color — */
   const stressBadgeClass =
     latestStress !== null && latestStress > 6
-      ? "bg-red-500/15 text-red-400 border-red-500/30"
+      ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
       : latestStress !== null && latestStress > 3
       ? "bg-orange-500/15 text-orange-400 border-orange-500/30"
-      : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+      : "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
 
   const stressBadgeLabel =
     latestStress !== null
@@ -514,7 +514,7 @@ export default function DailyBrainReport() {
               </span>
             )}
             {voiceSnapshot && (
-              <span className="text-xs px-2.5 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 capitalize">
+              <span className="text-xs px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 capitalize">
                 Voice: {voiceSnapshot.emotion}
               </span>
             )}
@@ -573,9 +573,9 @@ export default function DailyBrainReport() {
             <Badge
               className={
                 sleepMoodData.mood_label === "positive"
-                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 border"
+                  ? "bg-cyan-500/15 text-cyan-400 border-cyan-500/30 border"
                   : sleepMoodData.mood_label === "challenging"
-                  ? "bg-red-500/15 text-red-400 border-red-500/30 border"
+                  ? "bg-rose-500/15 text-rose-400 border-rose-500/30 border"
                   : "bg-muted/40 text-muted-foreground border-border/40 border"
               }
               variant="outline"
@@ -637,12 +637,12 @@ export default function DailyBrainReport() {
       {!isLoading && brainPatterns.length > 0 && (
         <Card className="glass-card p-5">
           <div className="flex items-center gap-2 mb-2">
-            <BarChart2 className="h-3.5 w-3.5 text-emerald-400" />
+            <BarChart2 className="h-3.5 w-3.5 text-cyan-400" />
             <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Your pattern</p>
           </div>
           <p className="text-sm font-medium">{brainPatterns[0].title}</p>
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{brainPatterns[0].description}</p>
-          <p className="text-xs text-emerald-400/90 mt-1.5">→ {brainPatterns[0].recommendation}</p>
+          <p className="text-xs text-cyan-400/90 mt-1.5">→ {brainPatterns[0].recommendation}</p>
         </Card>
       )}
     </div>

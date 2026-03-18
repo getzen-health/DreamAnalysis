@@ -9,7 +9,7 @@ const features = [
   {
     icon: Mic,
     title: "Voice Check-Ins",
-    description: "Start with a short voice check-in to estimate emotion, energy, stress, and daily readiness in seconds.",
+    description: "Start with a short voice analysis to estimate emotion, energy, stress, and daily readiness in seconds.",
     color: "primary",
   },
   {
@@ -87,7 +87,7 @@ export default function Landing() {
           </h1>
 
           <p className="text-lg md:text-xl text-foreground/60 max-w-2xl mx-auto mb-8 leading-relaxed">
-            A daily readiness app built around voice check-ins, health signals, sleep, and dream tracking.
+            A daily readiness app built around voice analyses, health signals, sleep, and dream tracking.
             Add Muse 2 later if you want live EEG and deeper neural features.
           </p>
 
@@ -165,7 +165,7 @@ export default function Landing() {
               Start Your <span className="text-gradient">Daily Readiness Flow</span>
             </h2>
             <p className="text-foreground/60 mb-8 max-w-lg mx-auto">
-              Begin with a voice check-in, connect health data when available, and add EEG later if you want live neural sensing.
+              Begin with a voice analysis, connect health data when available, and add EEG later if you want live neural sensing.
             </p>
             <Link href="/onboarding-new">
               <Button size="lg" className="bg-gradient-to-r from-primary to-secondary text-primary-foreground hover-glow px-12 text-lg">

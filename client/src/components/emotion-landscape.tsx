@@ -119,7 +119,7 @@ export default function EmotionLandscape({
       <div className="flex items-center gap-3 mt-3">
         <span className="text-gray-500 text-xs">Stress:</span>
         <div className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded-sm bg-green-500" />
+          <span className="inline-block w-3 h-3 rounded-sm bg-cyan-600" />
           <span className="text-gray-400 text-xs">Low</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -127,7 +127,7 @@ export default function EmotionLandscape({
           <span className="text-gray-400 text-xs">Medium</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded-sm bg-red-500" />
+          <span className="inline-block w-3 h-3 rounded-sm bg-rose-500" />
           <span className="text-gray-400 text-xs">High</span>
         </div>
         <div className="flex items-center gap-1.5">

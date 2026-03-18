@@ -81,8 +81,8 @@ export default function ResearchEnroll() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="text-center space-y-4 py-4">
-              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-8 h-8 text-green-400" />
+              <div className="w-16 h-16 rounded-full bg-cyan-600/20 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-8 h-8 text-cyan-400" />
               </div>
               <div>
                 <h2 className="text-xl font-bold">You're in the beta — thank you</h2>
@@ -132,8 +132,8 @@ export default function ResearchEnroll() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="text-center space-y-4 py-4">
-              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-8 h-8 text-green-400" />
+              <div className="w-16 h-16 rounded-full bg-cyan-600/20 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-8 h-8 text-cyan-400" />
               </div>
               <div>
                 <h2 className="text-xl font-bold">You're in!</h2>
@@ -219,23 +219,23 @@ export default function ResearchEnroll() {
           </Card>
 
           {/* What you get */}
-          <Card className="border-green-500/30 bg-green-500/5">
+          <Card className="border-cyan-500/30 bg-cyan-600/5">
             <CardContent className="pt-4 pb-4 space-y-3">
               <p className="text-sm font-medium flex items-center gap-2">
-                <Star className="w-4 h-4 text-green-400" />
+                <Star className="w-4 h-4 text-cyan-400" />
                 What you get
               </p>
               <ul className="text-sm text-muted-foreground space-y-1.5">
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 mt-0.5 shrink-0" />
                   Earlier access to new features before public release
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 mt-0.5 shrink-0" />
                   A "Beta" badge on your profile
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 mt-0.5 shrink-0" />
                   Model accuracy improvements personalized to you over time
                 </li>
               </ul>

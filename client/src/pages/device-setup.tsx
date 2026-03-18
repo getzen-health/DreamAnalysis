@@ -31,16 +31,16 @@ const CHANNEL_SHORT  = ["TP9", "AF7", "AF8", "TP10"];
 
 // ── Quality helpers ──────────────────────────────────────────────────
 function sqiLabel(sqi: number): { text: string; color: string } {
-  if (sqi >= 0.70) return { text: "Excellent",  color: "text-emerald-400" };
-  if (sqi >= 0.50) return { text: "Good",        color: "text-emerald-400" };
+  if (sqi >= 0.70) return { text: "Excellent",  color: "text-cyan-400" };
+  if (sqi >= 0.50) return { text: "Good",        color: "text-cyan-400" };
   if (sqi >= 0.35) return { text: "Fair",        color: "text-amber-400"   };
-  return                   { text: "Poor",        color: "text-red-400"     };
+  return                   { text: "Poor",        color: "text-rose-400"     };
 }
 
 function channelColor(q: number): string {
-  if (q >= 0.70) return "bg-emerald-500";
+  if (q >= 0.70) return "bg-cyan-500";
   if (q >= 0.40) return "bg-amber-500";
-  return "bg-red-500";
+  return "bg-rose-500";
 }
 
 // ── Progress indicator ───────────────────────────────────────────────
@@ -97,7 +97,7 @@ function StepSelectDevice({
           <p className="text-xs text-muted-foreground">
             Start the backend first:
           </p>
-          <code className="block text-[11px] bg-background/40 text-emerald-400 px-3 py-2 rounded font-mono">
+          <code className="block text-[11px] bg-background/40 text-cyan-400 px-3 py-2 rounded font-mono">
             cd ~/NeuralDreamWorkshop/ml &amp;&amp; ./start.sh
           </code>
         </Card>
@@ -200,7 +200,7 @@ function StepPlacement({ deviceName, onContinue }: { deviceName: string; onConti
             "Remove glasses if wearing them across the forehead",
           ].map((tip, i) => (
             <li key={i} className="flex items-start gap-1.5">
-              <span className="text-emerald-400 font-bold shrink-0">·</span>
+              <span className="text-cyan-400 font-bold shrink-0">·</span>
               {tip}
             </li>
           ))}
@@ -240,7 +240,7 @@ function StepConnecting({
           {isError
             ? <AlertTriangle className="h-10 w-10 text-destructive" />
             : deviceState === "streaming"
-              ? <CheckCircle className="h-10 w-10 text-emerald-400" />
+              ? <CheckCircle className="h-10 w-10 text-cyan-400" />
               : <Loader2 className="h-10 w-10 text-primary animate-spin" />
           }
         </div>
@@ -256,7 +256,7 @@ function StepConnecting({
             <p className="text-xs text-muted-foreground">{error}</p>
           </>
         ) : deviceState === "streaming" ? (
-          <p className="text-sm font-medium text-emerald-400">Connected — checking signal…</p>
+          <p className="text-sm font-medium text-cyan-400">Connected — checking signal…</p>
         ) : (
           <>
             <p className="text-sm font-medium">
@@ -360,7 +360,7 @@ function StepSignalQuality({
 
       {/* Pass banner */}
       {isPassing && (
-        <div className="flex items-center gap-2 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/8 text-sm text-emerald-400">
+        <div className="flex items-center gap-2 p-3 rounded-xl border border-cyan-500/30 bg-cyan-500/8 text-sm text-cyan-400">
           <CheckCircle className="h-4 w-4 shrink-0" />
           Signal looks good — you're ready to record.
         </div>
@@ -402,10 +402,10 @@ function StepDone({
   return (
     <div className="space-y-6 flex flex-col items-center text-center">
       <div className="relative">
-        <div className="w-24 h-24 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-          <CheckCircle className="h-12 w-12 text-emerald-400" />
+        <div className="w-24 h-24 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center">
+          <CheckCircle className="h-12 w-12 text-cyan-400" />
         </div>
-        <div className="absolute inset-0 rounded-full bg-emerald-500/5 animate-ping" />
+        <div className="absolute inset-0 rounded-full bg-cyan-500/5 animate-ping" />
       </div>
 
       <div>

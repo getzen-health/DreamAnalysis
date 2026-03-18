@@ -18,13 +18,13 @@ export interface Badge {
 function checkBadges(): Badge[] {
   const badges: Badge[] = [];
 
-  // First Check-in
+  // First Analysis
   const hasCheckin = !!localStorage.getItem("ndw_last_emotion");
   badges.push({
     id: "first-checkin",
     emoji: "🎙️",
     name: "First Voice",
-    description: "Completed your first voice check-in",
+    description: "Completed your first voice analysis",
     earned: hasCheckin,
   });
 
@@ -42,14 +42,14 @@ function checkBadges(): Badge[] {
     id: "streak-7",
     emoji: "⭐",
     name: "Weekly Warrior",
-    description: "7-day check-in streak",
+    description: "7-day analysis streak",
     earned: streak >= 7,
   });
   badges.push({
     id: "streak-30",
     emoji: "🏆",
     name: "Monthly Champion",
-    description: "30-day check-in streak",
+    description: "30-day analysis streak",
     earned: streak >= 30,
   });
 

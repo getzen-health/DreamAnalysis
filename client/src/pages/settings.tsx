@@ -882,7 +882,7 @@ function PersonalizationCard({ userId }: { userId: string }) {
             Your emotion model becomes personal after {threshold} corrected sessions.
           </p>
         </div>
-        <Badge className={active ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"}>
+        <Badge className={active ? "bg-cyan-600/20 text-cyan-400 border-cyan-500/30" : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"}>
           {active ? `${progress}% Personalized` : `${progress}% Ready`}
         </Badge>
       </div>
@@ -1049,11 +1049,11 @@ function BaselineCalibrationCard({ userId }: { userId: string }) {
 
   let statusBadge: JSX.Element;
   if (isReady) {
-    statusBadge = <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Ready</Badge>;
+    statusBadge = <Badge className="bg-cyan-600/20 text-cyan-400 border-cyan-500/30">Ready</Badge>;
   } else if (isCalibrating) {
     statusBadge = <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Calibrating…</Badge>;
   } else {
-    statusBadge = <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Not calibrated</Badge>;
+    statusBadge = <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/30">Not calibrated</Badge>;
   }
 
   return (
@@ -1656,7 +1656,7 @@ function PersonalModelCard({ userId }: { userId: string }) {
         <Brain className="h-4 w-4 text-violet-400" />
         <h3 className="text-sm font-semibold">Personal Model</h3>
         {isActive ? (
-          <Badge className="text-xs bg-green-500/10 text-green-400 border-green-500/30">Active</Badge>
+          <Badge className="text-xs bg-cyan-600/10 text-cyan-400 border-cyan-500/30">Active</Badge>
         ) : (
           <Badge className="text-xs bg-zinc-500/10 text-zinc-400 border-zinc-500/30">Inactive</Badge>
         )}
@@ -1701,7 +1701,7 @@ function PersonalModelCard({ userId }: { userId: string }) {
             </div>
             <div className="rounded-lg bg-muted/30 p-2 text-center">
               <p className="text-muted-foreground">Baseline</p>
-              <p className={`font-semibold ${status.baseline_ready ? "text-green-400" : "text-muted-foreground"}`}>
+              <p className={`font-semibold ${status.baseline_ready ? "text-cyan-400" : "text-muted-foreground"}`}>
                 {status.baseline_ready ? "Ready" : `${status.baseline_frames}/30`}
               </p>
             </div>
@@ -1752,9 +1752,9 @@ const WEARABLE_PROVIDERS = [
     id: 'oura',
     name: 'Oura Ring',
     description: 'Readiness, sleep, activity, heart rate',
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-400/10',
-    borderColor: 'border-blue-400/30',
+    color: 'text-indigo-400',
+    bgColor: 'bg-indigo-400/10',
+    borderColor: 'border-indigo-400/30',
   },
   {
     id: 'garmin',
@@ -1935,7 +1935,7 @@ function ConnectedDevicesCard({ userId }: { userId: string }) {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{wp.name}</span>
                       {isConnected && (
-                        <Badge variant="outline" className="text-xs border-green-500/40 text-green-500">
+                        <Badge variant="outline" className="text-xs border-cyan-500/40 text-cyan-500">
                           Connected
                         </Badge>
                       )}

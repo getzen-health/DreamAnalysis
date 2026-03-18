@@ -206,10 +206,10 @@ export default function ResearchEvening() {
   if (alreadyDone || done) {
     return (
       <div className="max-w-lg mx-auto py-16 px-4 text-center space-y-4">
-        <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto" />
+        <CheckCircle2 className="w-12 h-12 text-cyan-400 mx-auto" />
         <h2 className="text-xl font-bold">Day complete {validDay ? "✓ Valid day!" : ""}</h2>
         {validDay && (
-          <p className="text-sm text-green-400 font-medium">Valid day counted · morning, daytime & evening all done</p>
+          <p className="text-sm text-cyan-400 font-medium">Valid day counted · morning, daytime & evening all done</p>
         )}
         <p className="text-sm text-muted-foreground">Good night. Fill in your dream journal tomorrow morning.</p>
         <Button variant="outline" onClick={() => navigate("/research")}>Back to Study Hub</Button>
@@ -232,9 +232,9 @@ export default function ResearchEvening() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Moon className="w-6 h-6 text-blue-400" />
+        <Moon className="w-6 h-6 text-indigo-400" />
         <div>
-          <h1 className="text-xl font-bold">Evening Check-in</h1>
+          <h1 className="text-xl font-bold">Evening Analysis</h1>
           <p className="text-xs text-muted-foreground">Before bed · takes ~3 min</p>
         </div>
       </div>
@@ -265,7 +265,7 @@ export default function ResearchEvening() {
                 className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                   peakDirection === dir
                     ? dir === "positive"
-                      ? "border-green-500 bg-green-500/15 text-green-400"
+                      ? "border-cyan-500 bg-cyan-600/15 text-cyan-400"
                       : "border-rose-500 bg-rose-500/15 text-rose-400"
                     : "border-border hover:border-muted-foreground/40"
                 }`}
@@ -281,7 +281,7 @@ export default function ResearchEvening() {
       <Card>
         <CardContent className="pt-5 space-y-3">
           <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-green-400" />
+            <Activity className="w-4 h-4 text-cyan-400" />
             <p className="text-sm font-medium">Exercise today</p>
           </div>
           <div className="grid grid-cols-4 gap-2">
@@ -291,7 +291,7 @@ export default function ResearchEvening() {
                 onClick={() => setExercise(val)}
                 className={`py-2 rounded-lg border text-xs font-medium transition-all ${
                   exercise === val
-                    ? "border-green-500 bg-green-500/15 text-green-400"
+                    ? "border-cyan-500 bg-cyan-600/15 text-cyan-400"
                     : "border-border hover:border-muted-foreground/40"
                 }`}
               >
@@ -368,7 +368,7 @@ export default function ResearchEvening() {
               <button key={label} onClick={() => setReadyForSleep(val)}
                 className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                   readyForSleep === val
-                    ? "border-blue-500 bg-blue-500/15 text-blue-400"
+                    ? "border-indigo-500 bg-indigo-500/15 text-indigo-400"
                     : "border-border hover:border-muted-foreground/40"
                 }`}>{label}</button>
             ))}
@@ -376,7 +376,7 @@ export default function ResearchEvening() {
         </CardContent>
       </Card>
 
-      <Button className="w-full bg-blue-700 hover:bg-blue-800" onClick={handleSubmit} disabled={submitting}>
+      <Button className="w-full bg-indigo-700 hover:bg-indigo-800" onClick={handleSubmit} disabled={submitting}>
         {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
         Close the day
       </Button>

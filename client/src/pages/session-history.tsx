@@ -401,12 +401,12 @@ export default function DataHub() {
               <Clock className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <h3 className="text-base font-semibold mb-1">No sessions yet</h3>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">
-                Record your first voice check-in or connect an EEG device to start tracking your brain health over time.
+                Record your first voice analysis or connect an EEG device to start tracking your brain health over time.
               </p>
               <Link href="/emotions">
                 <Button size="sm">
                   <Activity className="h-3.5 w-3.5 mr-1.5" />
-                  Start Voice Check-in
+                  Start Voice Analysis
                 </Button>
               </Link>
             </Card>
@@ -632,7 +632,7 @@ export default function DataHub() {
             <Card className="glass-card p-10 text-center">
               <Activity className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No emotion readings in this period.</p>
-              <p className="text-xs text-muted-foreground mt-1">Complete a voice check-in or connect Muse 2 to start building your history.</p>
+              <p className="text-xs text-muted-foreground mt-1">Complete a voice analysis or connect Muse 2 to start building your history.</p>
             </Card>
           )}
 

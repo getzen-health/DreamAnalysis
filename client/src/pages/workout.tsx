@@ -120,14 +120,14 @@ const REST_OPTIONS = [60, 90, 120] as const;
 const CATEGORIES = ["strength", "cardio", "flexibility", "hiit"] as const;
 
 const SET_TYPE_COLORS: Record<string, string> = {
-  normal: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  normal: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
   warmup: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   dropset: "bg-purple-500/20 text-purple-400 border-purple-500/30",
 };
 
 const MUSCLE_GROUP_COLORS: Record<string, string> = {
-  chest: "bg-red-500/15 text-red-400",
-  back: "bg-emerald-500/15 text-emerald-400",
+  chest: "bg-rose-500/15 text-rose-400",
+  back: "bg-cyan-500/15 text-cyan-400",
   shoulders: "bg-cyan-500/15 text-cyan-400",
   biceps: "bg-orange-500/15 text-orange-400",
   triceps: "bg-yellow-500/15 text-yellow-400",
@@ -136,8 +136,8 @@ const MUSCLE_GROUP_COLORS: Record<string, string> = {
   hamstrings: "bg-fuchsia-500/15 text-fuchsia-400",
   glutes: "bg-pink-500/15 text-pink-400",
   calves: "bg-indigo-500/15 text-indigo-400",
-  core: "bg-teal-500/15 text-teal-400",
-  abs: "bg-teal-500/15 text-teal-400",
+  core: "bg-cyan-500/15 text-cyan-400",
+  abs: "bg-cyan-500/15 text-cyan-400",
   forearms: "bg-lime-500/15 text-lime-400",
   traps: "bg-sky-500/15 text-sky-400",
   default: "bg-muted text-muted-foreground",

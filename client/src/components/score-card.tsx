@@ -72,10 +72,10 @@ export function ScoreCard({
           {trend && (
             <div className="flex items-center gap-1.5 mt-2 ml-9">
               {trend === "up" && (
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
               )}
               {trend === "down" && (
-                <TrendingDown className="h-3.5 w-3.5 text-red-400" />
+                <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
               )}
               {trend === "stable" && (
                 <Minus className="h-3.5 w-3.5 text-zinc-500" />
@@ -84,9 +84,9 @@ export function ScoreCard({
                 <span
                   className={`text-[11px] font-mono ${
                     trend === "up"
-                      ? "text-emerald-400"
+                      ? "text-cyan-400"
                       : trend === "down"
-                      ? "text-red-400"
+                      ? "text-rose-400"
                       : "text-muted-foreground"
                   }`}
                 >

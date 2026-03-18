@@ -56,9 +56,9 @@ function scoreColor(color: "red" | "yellow" | "green"): string {
 }
 
 function scoreColorClass(color: "red" | "yellow" | "green"): string {
-  if (color === "green") return "text-emerald-400";
+  if (color === "green") return "text-cyan-400";
   if (color === "yellow") return "text-amber-400";
-  return "text-red-400";
+  return "text-rose-400";
 }
 
 /** Arc path for the circular score indicator (270-degree arc). */
@@ -166,7 +166,7 @@ function FactorRow({
   }
   const pct = Math.round(value);
   const barColor =
-    pct >= 70 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
+    pct >= 70 ? "bg-cyan-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
   return (
     <div className="space-y-0.5">
       <div className="flex items-center justify-between text-xs">

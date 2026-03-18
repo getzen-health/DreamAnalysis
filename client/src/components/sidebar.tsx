@@ -129,8 +129,8 @@ export function Sidebar() {
   const { status: mlStatus, latencyMs, reconnect: mlReconnect } = useMLConnection();
 
   const mlDotColor =
-    mlStatus === "ready"   ? "bg-green-500" :
-    mlStatus === "error"   ? "bg-red-500" :
+    mlStatus === "ready"   ? "bg-cyan-600" :
+    mlStatus === "error"   ? "bg-rose-500" :
                              "bg-amber-500 animate-pulse";
 
   const mlLabel =

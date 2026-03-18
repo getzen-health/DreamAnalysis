@@ -70,9 +70,9 @@ interface CorrelationDay {
 
 const MACRO_COLOR: Record<string, string> = {
   carbs: "text-amber-400",
-  protein: "text-blue-400",
+  protein: "text-indigo-400",
   fat: "text-rose-400",
-  balanced: "text-green-400",
+  balanced: "text-cyan-400",
 };
 
 function valenceEmoji(v: number | null) {
@@ -112,13 +112,13 @@ function TaskCard({
       disabled={done}
       className={`flex-1 rounded-xl border p-3 text-left transition-all ${
         done
-          ? "border-green-500/30 bg-green-500/5 opacity-80 cursor-default"
+          ? "border-cyan-500/30 bg-cyan-600/5 opacity-80 cursor-default"
           : "border-border hover:border-primary/40 hover:bg-muted/30 cursor-pointer"
       }`}
     >
       <div className="flex items-center justify-between mb-2">
-        <Icon className={`w-4 h-4 ${done ? "text-green-400" : iconColor}`} />
-        {done && <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />}
+        <Icon className={`w-4 h-4 ${done ? "text-cyan-400" : iconColor}`} />
+        {done && <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />}
       </div>
       <p className="text-xs font-semibold">{label}</p>
       <p className="text-xs text-muted-foreground mt-0.5">
@@ -145,7 +145,7 @@ function CorrelationRow({ day }: { day: CorrelationDay }) {
           Day {day.dayNumber}
         </span>
         {day.validDay && (
-          <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-400 bg-green-500/10 py-0 px-1.5">
+          <Badge variant="outline" className="text-[10px] border-cyan-500/30 text-cyan-400 bg-cyan-600/10 py-0 px-1.5">
             valid
           </Badge>
         )}
@@ -204,8 +204,8 @@ function CorrelationRow({ day }: { day: CorrelationDay }) {
         <div className="flex items-center text-muted-foreground/40 text-base">→</div>
 
         {/* Dream block */}
-        <div className="flex-1 min-w-0 rounded-lg bg-blue-500/10 border border-blue-500/20 p-2 space-y-0.5">
-          <p className="font-medium text-blue-400">🌙 Dream</p>
+        <div className="flex-1 min-w-0 rounded-lg bg-indigo-500/10 border border-indigo-500/20 p-2 space-y-0.5">
+          <p className="font-medium text-indigo-400">🌙 Dream</p>
           {hasMorning ? (
             day.morning!.noRecall ? (
               <p className="text-muted-foreground/60 italic">No recall</p>
@@ -354,7 +354,7 @@ export default function ResearchHub() {
               hint="On waking"
               done={morningDone}
               path="/research/morning"
-              iconColor="text-blue-400"
+              iconColor="text-indigo-400"
             />
             <TaskCard
               icon={Brain}

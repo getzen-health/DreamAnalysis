@@ -511,7 +511,7 @@ export default function Nutrition() {
             <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>Before you eat...</span>
           </div>
           <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.5 }}>
-            Your voice check-in shows elevated stress. Take a breath and ask yourself:
+            Your voice analysis shows elevated stress. Take a breath and ask yourself:
             <strong style={{ color: "var(--foreground)" }}> Am I eating because I'm hungry, or because I'm feeling {voiceData.emotion ?? "stressed"}?</strong>
           </p>
           <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "6px 0 0 0", fontStyle: "italic" }}>

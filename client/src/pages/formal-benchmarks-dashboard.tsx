@@ -763,45 +763,45 @@ const colorMap: Record<string, string> = {
   violet: "from-violet-400/70 to-violet-900/80 border-violet-400/30",
   sky: "from-sky-400/70 to-sky-900/80 border-sky-400/30",
   indigo: "from-indigo-400/70 to-indigo-900/80 border-indigo-400/30",
-  emerald: "from-emerald-400/70 to-emerald-900/80 border-emerald-400/30",
+  emerald: "from-cyan-400/70 to-cyan-900/80 border-cyan-400/30",
   amber: "from-amber-400/70 to-amber-900/80 border-amber-400/30",
   orange: "from-orange-400/70 to-orange-900/80 border-orange-400/30",
   yellow: "from-yellow-400/70 to-yellow-900/80 border-yellow-400/30",
-  teal: "from-teal-400/70 to-teal-900/80 border-teal-400/30",
+  teal: "from-cyan-400/70 to-cyan-900/80 border-cyan-400/30",
   cyan: "from-cyan-400/70 to-cyan-900/80 border-cyan-400/30",
-  red: "from-red-400/70 to-red-900/80 border-red-400/30",
+  red: "from-rose-400/70 to-rose-900/80 border-rose-400/30",
   purple: "from-purple-400/70 to-purple-900/80 border-purple-400/30",
   fuchsia: "from-fuchsia-400/70 to-fuchsia-900/80 border-fuchsia-400/30",
   rose: "from-rose-400/70 to-rose-900/80 border-rose-400/30",
   slate: "from-slate-400/70 to-slate-900/80 border-slate-400/30",
   zinc: "from-zinc-400/70 to-zinc-900/80 border-zinc-400/30",
   lime: "from-lime-400/70 to-lime-900/80 border-lime-400/30",
-  green: "from-green-400/70 to-green-900/80 border-green-400/30",
+  green: "from-cyan-400/70 to-cyan-900/80 border-cyan-400/30",
 };
 
 const categoryColor: Record<string, string> = {
   Emotion: "bg-violet-500/20 text-violet-200",
   Sleep: "bg-sky-500/20 text-sky-200",
-  Cognition: "bg-emerald-500/20 text-emerald-200",
+  Cognition: "bg-cyan-500/20 text-cyan-200",
   Quality: "bg-slate-500/20 text-slate-200",
   Adaptation: "bg-lime-500/20 text-lime-200",
-  "Food-Emotion": "bg-green-500/20 text-green-200",
+  "Food-Emotion": "bg-cyan-600/20 text-cyan-200",
   Neurofeedback: "bg-cyan-500/20 text-cyan-200",
 };
 
 const statusBadge = (s: string) => {
   if (s === "missing") return "bg-amber-500/20 text-amber-200 border-amber-400/30";
   if (s === "restricted") return "bg-orange-500/20 text-orange-200 border-orange-400/30";
-  if (s === "partial") return "bg-blue-500/20 text-blue-200 border-blue-400/30";
-  if (s === "todo") return "bg-red-500/20 text-red-200 border-red-400/30";
-  return "bg-emerald-500/20 text-emerald-200 border-emerald-400/30";
+  if (s === "partial") return "bg-indigo-500/20 text-indigo-200 border-indigo-400/30";
+  if (s === "todo") return "bg-rose-500/20 text-rose-200 border-rose-400/30";
+  return "bg-cyan-500/20 text-cyan-200 border-cyan-400/30";
 };
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 function Bar({ value, color = "emerald" }: { value: number; color?: string }) {
   const w = Math.max(2, Math.min(100, value * 100));
-  const g = color === "emerald" ? "from-emerald-400/80 to-emerald-900" : color === "sky" ? "from-sky-400/80 to-sky-900" : "from-amber-400/80 to-amber-900";
+  const g = color === "emerald" ? "from-cyan-400/80 to-cyan-900" : color === "sky" ? "from-sky-400/80 to-sky-900" : "from-amber-400/80 to-amber-900";
   return (
     <div className="h-1.5 w-full rounded-full bg-white/5">
       <div className={`h-1.5 rounded-full bg-gradient-to-r ${g}`} style={{ width: `${w}%` }} />
@@ -1018,11 +1018,11 @@ export default function FormalBenchmarksDashboard() {
             <div className="space-y-4">
               <p className="text-sm uppercase tracking-widest text-white/40">The 4 Biomarkers</p>
               {foodBiomarkers.map((b) => (
-                <div key={b.biomarker} className="rounded-2xl border border-green-400/20 bg-green-400/[0.03] p-4">
-                  <p className="text-sm font-semibold text-green-300">{b.biomarker}</p>
+                <div key={b.biomarker} className="rounded-2xl border border-cyan-400/20 bg-cyan-500/[0.03] p-4">
+                  <p className="text-sm font-semibold text-cyan-300">{b.biomarker}</p>
                   <code className="mt-1 block text-xs text-white/50">{b.formula}</code>
                   <p className="mt-2 text-xs leading-relaxed text-white/65">{b.neuroscience}</p>
-                  <p className="mt-2 text-xs text-green-200/80 font-medium">{b.foodLink}</p>
+                  <p className="mt-2 text-xs text-cyan-200/80 font-medium">{b.foodLink}</p>
                   <p className="mt-1 text-[10px] text-white/35">Refs: {b.published}</p>
                 </div>
               ))}
@@ -1041,15 +1041,15 @@ export default function FormalBenchmarksDashboard() {
               ].map((fs) => (
                 <div key={fs.state} className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
                   <div className="flex items-center gap-2">
-                    <span className="rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-300 font-mono">{fs.state}</span>
+                    <span className="rounded bg-cyan-600/20 px-2 py-0.5 text-xs text-cyan-300 font-mono">{fs.state}</span>
                     <span className="text-xs text-white/50">{fs.signal}</span>
                   </div>
                   <p className="mt-1.5 text-xs leading-relaxed text-white/60">{fs.why}</p>
                 </div>
               ))}
 
-              <div className="rounded-2xl border border-green-400/30 bg-green-400/[0.06] p-4">
-                <p className="text-sm font-semibold text-green-300">Publishing Argument</p>
+              <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/[0.06] p-4">
+                <p className="text-sm font-semibold text-cyan-300">Publishing Argument</p>
                 <p className="mt-2 text-sm text-white/70">
                   The four individual biomarkers are each supported by peer-reviewed neuroscience literature
                   (Davidson 1992, Imperatori 2016, Hare 2009, Buresova 2021). No paper has combined them
@@ -1075,10 +1075,10 @@ export default function FormalBenchmarksDashboard() {
             {differentiation.map((d) => (
               <div
                 key={d.dimension}
-                className={`rounded-2xl border p-5 ${d.advantage ? "border-emerald-400/20 bg-emerald-400/[0.03]" : "border-amber-400/20 bg-amber-400/[0.03]"}`}
+                className={`rounded-2xl border p-5 ${d.advantage ? "border-cyan-400/20 bg-cyan-400/[0.03]" : "border-amber-400/20 bg-amber-400/[0.03]"}`}
               >
                 <div className="flex items-start gap-3">
-                  <span className={`mt-0.5 shrink-0 text-lg ${d.advantage ? "text-emerald-400" : "text-amber-400"}`}>
+                  <span className={`mt-0.5 shrink-0 text-lg ${d.advantage ? "text-cyan-400" : "text-amber-400"}`}>
                     {d.advantage ? "✓" : "≈"}
                   </span>
                   <div className="min-w-0">
@@ -1170,8 +1170,8 @@ export default function FormalBenchmarksDashboard() {
             </table>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.04] p-4">
-            <p className="text-sm font-semibold text-emerald-300">Active Live Path: emotion_mega_lgbm.pkl</p>
+          <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4">
+            <p className="text-sm font-semibold text-cyan-300">Active Live Path: emotion_mega_lgbm.pkl</p>
             <p className="mt-2 text-sm text-white/65">
               <code className="text-xs bg-white/10 px-1 rounded">models/saved/emotion_mega_lgbm.pkl</code> is loaded automatically on startup.
               Contains a single pipeline: <strong>StandardScaler → PCA (85→80) → LightGBM</strong>, trained on 9 datasets with a unified global feature space.
@@ -1194,9 +1194,9 @@ export default function FormalBenchmarksDashboard() {
               <div key={p.step} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
                 <div className="flex items-start gap-4">
                   <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    p.status === "partial" ? "bg-blue-500/20 text-blue-300" :
+                    p.status === "partial" ? "bg-indigo-500/20 text-indigo-300" :
                     p.status === "todo" ? "bg-white/10 text-white/50" :
-                    "bg-emerald-500/20 text-emerald-300"
+                    "bg-cyan-500/20 text-cyan-300"
                   }`}>
                     {p.step}
                   </div>
@@ -1225,7 +1225,7 @@ export default function FormalBenchmarksDashboard() {
                 <p className="text-sm font-bold">{v.venue}</p>
                 <p className="text-xs text-white/40 mt-0.5">{v.full}</p>
                 <p className="text-xs text-white/65 mt-2">{v.fit}</p>
-                <p className="text-xs text-emerald-300 mt-1 font-medium">{v.impact}</p>
+                <p className="text-xs text-cyan-300 mt-1 font-medium">{v.impact}</p>
               </div>
             ))}
           </div>

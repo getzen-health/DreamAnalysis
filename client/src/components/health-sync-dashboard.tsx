@@ -47,12 +47,12 @@ const SOURCE_META: Record<
   apple_health: {
     label: "Apple HealthKit",
     icon: <Heart className="h-5 w-5" />,
-    color: "text-red-400",
+    color: "text-rose-400",
   },
   google_health: {
     label: "Google Health Connect",
     icon: <Smartphone className="h-5 w-5" />,
-    color: "text-green-400",
+    color: "text-cyan-400",
   },
   oura: {
     label: "Oura Ring",
@@ -62,7 +62,7 @@ const SOURCE_META: Record<
   garmin: {
     label: "Garmin",
     icon: <Zap className="h-5 w-5" />,
-    color: "text-blue-400",
+    color: "text-indigo-400",
   },
   whoop: {
     label: "Whoop",
@@ -99,13 +99,13 @@ const ALL_SOURCE_ORDER = [
 function freshnessColor(freshness: HealthSourceStatus["freshness"]): string {
   switch (freshness) {
     case "fresh":
-      return "bg-green-500/20 text-green-400 border-green-500/30";
+      return "bg-cyan-600/20 text-cyan-400 border-cyan-500/30";
     case "stale":
       return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
     case "old":
     case "disconnected":
     default:
-      return "bg-red-500/20 text-red-400 border-red-500/30";
+      return "bg-rose-500/20 text-rose-400 border-rose-500/30";
   }
 }
 
@@ -328,7 +328,7 @@ export default function HealthSyncDashboard() {
           <Badge
             className={
               connectedCount > 0
-                ? "bg-green-500/20 text-green-400 border-green-500/30"
+                ? "bg-cyan-600/20 text-cyan-400 border-cyan-500/30"
                 : "bg-muted text-muted-foreground"
             }
           >

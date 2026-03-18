@@ -38,8 +38,8 @@ export function AlertBanner({
       pulse: true,
     },
     critical: {
-      bg: "bg-red-500/15 border-red-500/40",
-      text: "text-red-400",
+      bg: "bg-rose-500/15 border-rose-500/40",
+      text: "text-rose-400",
       icon: ShieldAlert,
       label: "Critical",
       pulse: true,

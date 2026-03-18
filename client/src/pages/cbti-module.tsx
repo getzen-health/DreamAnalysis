@@ -77,7 +77,7 @@ function fmtTime(hhmm: string): string {
 }
 
 function efficiencyColor(pct: number): string {
-  if (pct >= 85) return "text-emerald-400";
+  if (pct >= 85) return "text-cyan-400";
   if (pct >= 80) return "text-amber-400";
   return "text-rose-400";
 }
@@ -94,7 +94,7 @@ function adjustmentBadgeStyle(data: WeeklyProgressEntry[], week: number): string
   const entry = data.find((d) => d.week === week);
   if (!entry) return "";
   if (entry.efficiency >= 85)
-    return "border-emerald-500/40 text-emerald-400 bg-emerald-500/10";
+    return "border-cyan-500/40 text-cyan-400 bg-cyan-500/10";
   if (entry.efficiency < 80)
     return "border-rose-500/40 text-rose-400 bg-rose-500/10";
   return "border-amber-500/40 text-amber-400 bg-amber-500/10";
@@ -131,7 +131,7 @@ function CheckinRow({ label, value, onChange }: CheckinRowProps) {
           onClick={() => onChange(true)}
           className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
             value === true
-              ? "bg-emerald-500/20 text-emerald-400"
+              ? "bg-cyan-500/20 text-cyan-400"
               : "text-zinc-600 hover:text-zinc-400"
           }`}
           aria-label="Yes"
@@ -326,7 +326,7 @@ export default function CbtiModule() {
           <CardTitle className="flex items-center justify-between text-sm font-medium">
             <span className="flex items-center gap-2 text-zinc-400">
               <CheckCircle className="h-4 w-4" />
-              Daily Check-in
+              Daily Analysis
             </span>
             {checkin.bedtimeAdherence !== null && (
               <span className="text-xs text-zinc-500">
@@ -356,8 +356,8 @@ export default function CbtiModule() {
           />
 
           {checkinSaved ? (
-            <p className="pt-1 text-center text-xs text-emerald-400">
-              Check-in saved. Keep it up!
+            <p className="pt-1 text-center text-xs text-cyan-400">
+              Analysis saved. Keep it up!
             </p>
           ) : (
             <Button
@@ -371,7 +371,7 @@ export default function CbtiModule() {
                 checkin.bedForSleepOnly === null
               }
             >
-              Save Check-in
+              Save Analysis
             </Button>
           )}
         </CardContent>

@@ -18,9 +18,9 @@ const EMOTION_EMOJI: Record<string, string> = {
 };
 
 const EMOTION_COLORS: Record<string, string> = {
-  happy: "bg-emerald-500/15 text-emerald-500 border-emerald-500/30",
-  sad: "bg-blue-500/15 text-blue-500 border-blue-500/30",
-  angry: "bg-red-500/15 text-red-500 border-red-500/30",
+  happy: "bg-cyan-500/15 text-cyan-500 border-cyan-500/30",
+  sad: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
+  angry: "bg-rose-500/15 text-rose-400 border-rose-500/30",
   fear: "bg-purple-500/15 text-purple-500 border-purple-500/30",
   surprise: "bg-amber-500/15 text-amber-500 border-amber-500/30",
   neutral: "bg-muted text-muted-foreground border-border",
@@ -31,7 +31,7 @@ interface EmotionBadgeProps {
   size?: "sm" | "md";
   /** Show text label alongside emoji */
   showLabel?: boolean;
-  /** Callback when tapped (e.g. open voice check-in) */
+  /** Callback when tapped (e.g. open voice analysis) */
   onClick?: () => void;
 }
 

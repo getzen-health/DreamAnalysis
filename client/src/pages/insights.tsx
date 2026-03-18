@@ -139,7 +139,7 @@ function getRecommendedActions(
     actions.push({
       icon: Brain,
       label: "Log This Session",
-      description: "Recording how you feel right now helps calibrate your personal brain baseline.",
+      description: "Recording your current state helps calibrate your personal brain baseline.",
     });
     actions.push({
       icon: Moon,
@@ -172,7 +172,7 @@ function voiceNarrative(voice: Record<string, unknown>): { headline: string; sto
     : "";
 
   return {
-    headline: `Voice check-in: ${emotion} — ${moodLabel}`,
+    headline: `Voice analysis: ${emotion} — ${moodLabel}`,
     story: `Your most recent voice snapshot shows a ${moodLabel} emotional state with ${energyLabel}. Detected emotion: ${emotion}.${stressPart} This page already works from voice and health signals; EEG can add deeper live neural detail later.`,
   };
 }
@@ -345,7 +345,7 @@ export default function Insights() {
           else if (vValence < -0.2)
             items.push({ icon: Brain, title: "Negative Emotional Tone", description: `Voice detected ${vEmotion} state. Negative valence can narrow attention — be mindful of decisions made in this state.`, type: "warning" });
           if (items.length < 2)
-            items.push({ icon: Brain, title: "Voice Baseline Captured", description: "Daily voice check-ins build an emotional baseline over time. Health data can deepen readiness and recovery insights, and EEG remains an optional live layer.", type: "primary" });
+            items.push({ icon: Brain, title: "Voice Baseline Captured", description: "Daily voice analyses build an emotional baseline over time. Health data can deepen readiness and recovery insights, and EEG remains an optional live layer.", type: "primary" });
           return items.slice(0, 4);
         })()
       : [];
@@ -392,7 +392,7 @@ export default function Insights() {
           <Card className="glass-card p-6 rounded-xl bg-gradient-to-br from-secondary/20 to-primary/10 border-secondary/30">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Voice Check-in</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Voice Analysis</p>
                 <h2 className="text-xl font-bold text-foreground">{vn.headline}</h2>
               </div>
               <Badge variant="outline" className="border-secondary/30 text-secondary shrink-0 ml-4">VOICE</Badge>
@@ -423,16 +423,16 @@ export default function Insights() {
         <Card className="glass-card p-8 rounded-xl text-center">
           <Mic className="h-10 w-10 text-muted-foreground/30 mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">
-            Complete a voice check-in to unlock your first insights
+            Complete a voice analysis to unlock your first insights
           </h3>
           <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-            A 30-second voice check-in analyzes your emotional tone, stress level, and energy.
+            A 30-second voice analysis analyzes your emotional tone, stress level, and energy.
             Once recorded, this page will show personalized insights, recommended actions, and trends over time.
           </p>
           <Link href="/emotions">
             <Button size="default" className="mb-6">
               <Mic className="h-4 w-4 mr-2" />
-              Start Voice Check-in
+              Start Voice Analysis
             </Button>
           </Link>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-muted-foreground text-left max-w-lg mx-auto">

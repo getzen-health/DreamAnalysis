@@ -60,13 +60,13 @@ function isCapacitorNative(): boolean {
 }
 
 function glycemicColor(impact: string): string {
-  if (impact === "low")  return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+  if (impact === "low")  return "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
   if (impact === "high") return "bg-rose-500/15 text-rose-400 border-rose-500/30";
   return "bg-amber-500/15 text-amber-400 border-amber-500/30";
 }
 
 function macroColor(macro: string): string {
-  if (macro === "protein") return "bg-blue-500/15 text-blue-400 border-blue-500/30";
+  if (macro === "protein") return "bg-indigo-500/15 text-indigo-400 border-indigo-500/30";
   if (macro === "fat")     return "bg-yellow-500/15 text-yellow-400 border-yellow-500/30";
   if (macro === "carbs")   return "bg-orange-500/15 text-orange-400 border-orange-500/30";
   return "bg-muted/50 text-muted-foreground border-border/40";
@@ -671,7 +671,7 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
               </div>
               <div className="rounded-md bg-muted/30 p-2">
                 <div className="flex justify-center mb-0.5">
-                  <Beef className="h-3 w-3 text-blue-400" />
+                  <Beef className="h-3 w-3 text-indigo-400" />
                 </div>
                 <p className="text-xs font-semibold tabular-nums">{result.total_protein_g}g</p>
                 <p className="text-[10px] text-muted-foreground">protein</p>
@@ -695,7 +695,7 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
             {/* Fiber row */}
             {result.total_fiber_g > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Leaf className="h-3 w-3 text-emerald-400" />
+                <Leaf className="h-3 w-3 text-cyan-400" />
                 <span>{result.total_fiber_g}g fiber</span>
               </div>
             )}

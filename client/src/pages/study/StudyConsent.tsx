@@ -210,7 +210,7 @@ export default function StudyConsent() {
                   </span>
                   <Badge
                     variant="outline"
-                    className="border-green-500/50 text-green-400 text-xs"
+                    className="border-cyan-500/50 text-cyan-400 text-xs"
                   >
                     Saved to device
                   </Badge>

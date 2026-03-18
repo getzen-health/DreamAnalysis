@@ -734,7 +734,7 @@ export default function Biofeedback() {
           <Radio className="h-4 w-4 shrink-0" />
           {voiceResult
             ? `Using a voice-derived stress baseline (${Math.round((voiceResult.stress_from_watch ?? 0.5) * 100)}%). Optional EEG can add live stress tracking later.`
-            : "Run a voice check-in on the dashboard to set your stress baseline. EEG is optional later for live stress tracking."}
+            : "Run a voice analysis on the dashboard to set your stress baseline. EEG is optional later for live stress tracking."}
         </div>
       )}
 

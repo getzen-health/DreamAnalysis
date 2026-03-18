@@ -75,9 +75,9 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 // Priority → colour scheme
 const PRIORITY_STYLE: Record<number, { border: string; badge: string; icon: string }> = {
-  1: { border: "border-red-500/40",    badge: "bg-red-500/15 text-red-300",    icon: "text-red-400"    },
+  1: { border: "border-rose-500/40",    badge: "bg-rose-500/15 text-rose-300",    icon: "text-rose-400"    },
   2: { border: "border-amber-500/40",  badge: "bg-amber-500/15 text-amber-300", icon: "text-amber-400"  },
-  3: { border: "border-blue-500/40",   badge: "bg-blue-500/15 text-blue-300",  icon: "text-blue-400"   },
+  3: { border: "border-indigo-500/40",   badge: "bg-indigo-500/15 text-indigo-300",  icon: "text-indigo-400"   },
 };
 
 

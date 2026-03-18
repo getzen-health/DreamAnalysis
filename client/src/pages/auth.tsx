@@ -29,11 +29,11 @@ function getPasswordChecks(password: string): PasswordCheck[] {
 
 function getPasswordStrength(checks: PasswordCheck[]): { score: number; label: string; color: string } {
   const met = checks.filter((c) => c.met).length;
-  if (met <= 1) return { score: met, label: "Very weak", color: "bg-red-500" };
+  if (met <= 1) return { score: met, label: "Very weak", color: "bg-rose-500" };
   if (met === 2) return { score: met, label: "Weak", color: "bg-orange-500" };
   if (met === 3) return { score: met, label: "Fair", color: "bg-amber-500" };
-  if (met === 4) return { score: met, label: "Good", color: "bg-blue-500" };
-  return { score: met, label: "Strong", color: "bg-green-500" };
+  if (met === 4) return { score: met, label: "Good", color: "bg-indigo-500" };
+  return { score: met, label: "Strong", color: "bg-cyan-600" };
 }
 
 function getUsernameError(username: string): string | null {
@@ -332,7 +332,7 @@ export default function AuthPage() {
                       autoComplete="username"
                     />
                     {usernameError && (
-                      <p className="text-xs text-red-400">{usernameError}</p>
+                      <p className="text-xs text-rose-400">{usernameError}</p>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -383,11 +383,11 @@ export default function AuthPage() {
                           {passwordChecks.map((check) => (
                             <li key={check.label} className="flex items-center gap-1.5 text-xs">
                               {check.met ? (
-                                <Check className="h-3 w-3 text-green-400 shrink-0" />
+                                <Check className="h-3 w-3 text-cyan-400 shrink-0" />
                               ) : (
                                 <XIcon className="h-3 w-3 text-muted-foreground/50 shrink-0" />
                               )}
-                              <span className={check.met ? "text-green-400" : "text-muted-foreground/60"}>
+                              <span className={check.met ? "text-cyan-400" : "text-muted-foreground/60"}>
                                 {check.label}
                               </span>
                             </li>
@@ -411,7 +411,7 @@ export default function AuthPage() {
                       autoComplete="new-password"
                     />
                     {confirmTouched && (
-                      <p className={`text-xs flex items-center gap-1 ${passwordsMatch ? "text-green-400" : "text-red-400"}`}>
+                      <p className={`text-xs flex items-center gap-1 ${passwordsMatch ? "text-cyan-400" : "text-rose-400"}`}>
                         {passwordsMatch ? (
                           <><Check className="h-3 w-3" /> Passwords match</>
                         ) : (

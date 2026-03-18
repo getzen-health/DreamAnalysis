@@ -399,9 +399,9 @@ export default function ScoresDashboard() {
                 key={alert.id}
                 className={`flex items-start gap-3 rounded-[14px] p-3 bg-card border ${
                   alert.type === "negative"
-                    ? "border-red-500/30"
+                    ? "border-rose-500/30"
                     : alert.type === "positive"
-                    ? "border-emerald-500/30"
+                    ? "border-cyan-500/30"
                     : "border-border"
                 }`}
                 initial={{ opacity: 0, x: -10 }}
@@ -410,11 +410,11 @@ export default function ScoresDashboard() {
                 transition={{ duration: 0.2 }}
               >
                 {alert.type === "positive" ? (
-                  <TrendingUp className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+                  <TrendingUp className="h-4 w-4 shrink-0 mt-0.5 text-cyan-400" />
                 ) : alert.type === "negative" ? (
-                  <TrendingDown className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                  <TrendingDown className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
                 ) : (
-                  <Activity className="h-4 w-4 shrink-0 mt-0.5 text-blue-400" />
+                  <Activity className="h-4 w-4 shrink-0 mt-0.5 text-indigo-400" />
                 )}
                 <p className="text-xs flex-1 text-foreground">
                   {alert.message}

@@ -66,16 +66,16 @@ type FilterType = "all" | "breakfast" | "lunch" | "dinner" | "snack";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const GI_STYLE: Record<string, string> = {
-  low:    "border-green-500/40 text-green-400 bg-green-500/10",
+  low:    "border-cyan-500/40 text-cyan-400 bg-cyan-600/10",
   medium: "border-amber-500/40 text-amber-400 bg-amber-500/10",
   high:   "border-rose-500/40 text-rose-400 bg-rose-500/10",
 };
 
 const MACRO_COLOR: Record<string, string> = {
   carbs:    "text-amber-400",
-  protein:  "text-blue-400",
+  protein:  "text-indigo-400",
   fat:      "text-rose-400",
-  balanced: "text-green-400",
+  balanced: "text-cyan-400",
 };
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
@@ -508,7 +508,7 @@ export default function FoodLog() {
                 onChange={e => setDescription(e.target.value)}
                 className={`min-h-[100px] resize-none text-sm ${
                   description.length > 0 && !description.trim()
-                    ? "border-red-500/50 focus-visible:ring-red-500/30"
+                    ? "border-rose-500/50 focus-visible:ring-rose-500/30"
                     : ""
                 }`}
                 disabled={isAnalyzing}
@@ -565,8 +565,8 @@ export default function FoodLog() {
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                  <span className="text-sm font-semibold text-green-400">Logged</span>
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span className="text-sm font-semibold text-cyan-400">Logged</span>
                   <Badge variant="outline" className="text-xs">{MEAL_ICONS[mealType]} {mealType}</Badge>
                 </div>
                 <p className="text-sm font-medium">{analysis.summary}</p>
@@ -605,7 +605,7 @@ export default function FoodLog() {
                       </span>
                     </div>
                     <div className="flex gap-3 text-[10px] text-muted-foreground/70 pl-0">
-                      <span><span className="text-blue-400">P</span> {item.protein_g}g</span>
+                      <span><span className="text-indigo-400">P</span> {item.protein_g}g</span>
                       <span><span className="text-amber-400">C</span> {item.carbs_g}g</span>
                       <span><span className="text-rose-400">F</span> {item.fat_g}g</span>
                     </div>
@@ -623,12 +623,12 @@ export default function FoodLog() {
                   return (
                     <div className="mt-2 space-y-1">
                       <div className="flex justify-between text-[10px] text-muted-foreground">
-                        <span><span className="text-blue-400">{totalP.toFixed(1)}g protein</span></span>
+                        <span><span className="text-indigo-400">{totalP.toFixed(1)}g protein</span></span>
                         <span><span className="text-amber-400">{totalC.toFixed(1)}g carbs</span></span>
                         <span><span className="text-rose-400">{totalF.toFixed(1)}g fat</span></span>
                       </div>
                       <div className="flex h-2 rounded-full overflow-hidden gap-px">
-                        <div style={{ width: `${pPct}%` }} className="bg-blue-500/70 rounded-l-full" />
+                        <div style={{ width: `${pPct}%` }} className="bg-indigo-500/70 rounded-l-full" />
                         <div style={{ width: `${cPct}%` }} className="bg-amber-500/70" />
                         <div style={{ width: `${Math.max(fPct, 0)}%` }} className="bg-rose-500/70 rounded-r-full" />
                       </div>
@@ -648,9 +648,9 @@ export default function FoodLog() {
                 </div>
               </div>
               <div className="flex items-start gap-2">
-                <Moon className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                <Moon className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-medium text-blue-400 mb-0.5">Tonight's sleep & dreams</p>
+                  <p className="text-xs font-medium text-indigo-400 mb-0.5">Tonight's sleep & dreams</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">{analysis.dreamRelevance}</p>
                 </div>
               </div>
@@ -712,8 +712,8 @@ export default function FoodLog() {
               <p className="text-xs font-semibold text-amber-400 mb-3">Today's nutrition</p>
               <div className="flex justify-around">
                 {ring(Math.round(totalCal), CAL_GOAL, "text-amber-400", "Calories", " kcal")}
-                {ring(Math.round(totalP), P_GOAL, "text-blue-400", "Protein", "g")}
-                {ring(Math.round(totalC), C_GOAL, "text-green-400", "Carbs", "g")}
+                {ring(Math.round(totalP), P_GOAL, "text-indigo-400", "Protein", "g")}
+                {ring(Math.round(totalC), C_GOAL, "text-cyan-400", "Carbs", "g")}
                 {ring(Math.round(totalFat), FAT_GOAL, "text-rose-400", "Fat", "g")}
                 {ring(Math.round(totalFib), FIB_GOAL, "text-violet-400", "Fiber", "g")}
               </div>

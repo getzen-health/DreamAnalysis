@@ -20,7 +20,7 @@ import { getParticipantId } from "@/lib/participant";
 
 const EMOTION_COLORS: Record<string, string> = {
   calm:      "text-sky-400",
-  relaxed:   "text-teal-400",
+  relaxed:   "text-cyan-400",
   happy:     "text-amber-400",
   excited:   "text-orange-400",
   energised: "text-lime-400",
@@ -246,7 +246,7 @@ export function HealthEmotionCard({ payload, lastSyncAt }: HealthEmotionCardProp
             </div>
             {hrv != null && hrv > 0 && (
               <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/25 border border-border/30">
-                <Activity className="h-3 w-3 text-teal-400 shrink-0" aria-hidden="true" />
+                <Activity className="h-3 w-3 text-cyan-400 shrink-0" aria-hidden="true" />
                 <span className="text-[11px] font-mono text-foreground/80">
                   {Math.round(hrv)} ms HRV
                 </span>

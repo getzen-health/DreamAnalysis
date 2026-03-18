@@ -86,8 +86,8 @@ export default function OfflineSyncBanner() {
         bannerState === "offline"
           ? "bg-yellow-500/90 text-yellow-950"
           : bannerState === "syncing"
-            ? "bg-blue-500/90 text-white"
-            : "bg-green-500/90 text-white"
+            ? "bg-indigo-500/90 text-white"
+            : "bg-cyan-600/90 text-white"
       }`}
     >
       {bannerState === "offline" && (

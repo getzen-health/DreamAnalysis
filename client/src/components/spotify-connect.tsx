@@ -102,7 +102,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
   if (compact) {
     // Minimal version: just a pill-shaped status indicator
     return status.connected ? (
-      <div className="flex items-center gap-1.5 text-xs text-green-400">
+      <div className="flex items-center gap-1.5 text-xs text-cyan-400">
         <Music className="h-3 w-3" />
         <span>Spotify</span>
       </div>
@@ -167,7 +167,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
         <Button
           size="sm"
           variant="outline"
-          className="flex-1 border-blue-500/30 hover:bg-blue-500/10"
+          className="flex-1 border-indigo-500/30 hover:bg-indigo-500/10"
           onClick={() => playMood("focus")}
           disabled={isLoading}
         >

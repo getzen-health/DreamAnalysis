@@ -428,7 +428,7 @@ export default function Discover() {
           padding: 20, marginBottom: 16, textAlign: "center",
         }}>
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎙️</div>
-          <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Do a voice check-in to see your scores</div>
+          <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Do a voice analysis to see your scores</div>
         </div>
       )}
 
@@ -534,7 +534,7 @@ export default function Discover() {
             fontSize: 10, color: "var(--muted-foreground)", marginTop: 2,
             textTransform: "capitalize" as const,
           }}>
-            {emotionLabel ?? "No check-in"}
+            {emotionLabel ?? "No analysis"}
           </div>
         </button>
       </div>

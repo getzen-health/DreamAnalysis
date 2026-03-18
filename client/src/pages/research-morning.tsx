@@ -79,8 +79,8 @@ function RatingScale({
 }) {
   const colorMap = {
     violet: "text-violet-400",
-    blue: "text-blue-400",
-    green: "text-green-400",
+    blue: "text-indigo-400",
+    green: "text-cyan-400",
     amber: "text-amber-400",
   };
 
@@ -278,8 +278,8 @@ export default function ResearchMorning() {
     return (
       <div className="max-w-md mx-auto py-12 px-4 space-y-6 text-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center">
-            <CheckCircle2 className="w-7 h-7 text-green-400" />
+          <div className="w-14 h-14 rounded-full bg-cyan-600/20 flex items-center justify-center">
+            <CheckCircle2 className="w-7 h-7 text-cyan-400" />
           </div>
           <h2 className="text-xl font-semibold">Morning entry done ✓</h2>
           <p className="text-sm text-muted-foreground">
@@ -305,8 +305,8 @@ export default function ResearchMorning() {
         ) : (
           <div className="text-center space-y-5">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-green-500/20 flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7 text-green-400" />
+              <div className="w-14 h-14 rounded-full bg-cyan-600/20 flex items-center justify-center">
+                <CheckCircle2 className="w-7 h-7 text-cyan-400" />
               </div>
               <h2 className="text-xl font-semibold">Morning entry saved ✓</h2>
               <p className="text-sm text-muted-foreground">
@@ -317,7 +317,7 @@ export default function ResearchMorning() {
             <div className="bg-muted/40 rounded-lg p-4 text-sm text-left space-y-1.5">
               <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">What's next today</p>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span>Morning entry — done</span>
               </div>
               <div className="flex items-center gap-2 text-foreground">
@@ -326,7 +326,7 @@ export default function ResearchMorning() {
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
                 <div className="w-3.5 h-3.5 rounded-full border-2 border-border shrink-0" />
-                <span>Evening check-in — tonight before bed</span>
+                <span>Evening analysis — tonight before bed</span>
               </div>
             </div>
 
@@ -347,7 +347,7 @@ export default function ResearchMorning() {
     <div className="max-w-lg mx-auto py-6 px-4 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Moon className="w-6 h-6 text-blue-400 shrink-0" />
+        <Moon className="w-6 h-6 text-indigo-400 shrink-0" />
         <div>
           <h1 className="text-xl font-bold">Day {dayNumber} — Morning Entry</h1>
           <p className="text-xs text-muted-foreground">Record this before doing anything else</p>
@@ -401,7 +401,7 @@ export default function ResearchMorning() {
                 placeholder="I was in a house I didn't recognise, and there was a strange light coming through the window…"
                 className={`min-h-[100px] resize-none text-sm leading-relaxed ${
                   dreamText.length > 0 && !dreamText.trim()
-                    ? "border-red-500/50 focus-visible:ring-red-500/30"
+                    ? "border-rose-500/50 focus-visible:ring-rose-500/30"
                     : ""
                 }`}
                 value={dreamText}
@@ -554,7 +554,7 @@ export default function ResearchMorning() {
       {/* ── Submit ───────────────────────────────────────────────────────────── */}
       {hasRecall !== "" && (
         <Button
-          className="w-full h-11 text-sm font-semibold gap-2 bg-blue-600 hover:bg-blue-700"
+          className="w-full h-11 text-sm font-semibold gap-2 bg-indigo-600 hover:bg-indigo-700"
           disabled={!canSubmit || isSubmitting}
           onClick={handleSubmit}
         >

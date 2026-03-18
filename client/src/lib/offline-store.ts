@@ -4,7 +4,7 @@
  * Stores:
  *   dream_drafts      — dream journal entries written offline
  *   eeg_queue         — EEG session results + health metrics queued when server unreachable
- *   voice_emotion_queue — voice check-in emotion results pending sync
+ *   voice_emotion_queue — voice analysis emotion results pending sync
  *   food_log_queue    — food log entries pending sync
  *
  * Call `syncAll(userId)` when the device comes back online.

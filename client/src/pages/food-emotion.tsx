@@ -158,13 +158,13 @@ export default function FoodEmotion() {
               </Badge>
             )}
             {isStreaming && (
-              <Badge variant="outline" className="text-xs border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+              <Badge variant="outline" className="text-xs border-cyan-500/40 text-cyan-400 bg-cyan-500/10">
                 Live EEG
               </Badge>
             )}
           </div>
           <p className="text-muted-foreground text-sm">
-            Appetite and eating-state analysis from voice check-ins today, with EEG depth when available
+            Appetite and eating-state analysis from voice analyses today, with EEG depth when available
           </p>
         </div>
       </div>
@@ -182,7 +182,7 @@ export default function FoodEmotion() {
             {!isStreaming ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Start with a voice check-in and meal log. EEG is optional for live food-state biomarkers.
+                  Start with a voice analysis and meal log. EEG is optional for live food-state biomarkers.
                 </p>
                 <div className="flex flex-col gap-2">
                   <Button
@@ -272,8 +272,8 @@ export default function FoodEmotion() {
             <div className="flex items-center gap-2">
               {data?.is_calibrated ? (
                 <>
-                  <CheckCircle className="h-4 w-4 text-emerald-500" />
-                  <span className="text-sm text-emerald-500 font-medium">
+                  <CheckCircle className="h-4 w-4 text-cyan-500" />
+                  <span className="text-sm text-cyan-500 font-medium">
                     Calibrated
                   </span>
                 </>
@@ -363,7 +363,7 @@ export default function FoodEmotion() {
             <p className="text-xs text-muted-foreground py-6 text-center">
               {isStreaming
                 ? "Waiting for EEG data — keep your Muse on for a few seconds."
-                : "Log a meal and run a voice check-in now, or connect Muse for real-time EEG-based food state analysis."}
+                : "Log a meal and run a voice analysis now, or connect Muse for real-time EEG-based food state analysis."}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
@@ -419,13 +419,13 @@ export default function FoodEmotion() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-xs font-semibold text-emerald-500 uppercase mb-2">
+                <p className="text-xs font-semibold text-cyan-500 uppercase mb-2">
                   Prefer
                 </p>
                 <ul className="space-y-1">
                   {data.recommendations.prefer.map((item, i) => (
                     <li key={i} className="text-sm flex items-start gap-1">
-                      <span className="text-emerald-500 mt-0.5">•</span> {item}
+                      <span className="text-cyan-500 mt-0.5">•</span> {item}
                     </li>
                   ))}
                 </ul>

@@ -238,7 +238,7 @@ export default function InnerEnergy() {
     c.activation > max.activation ? c : max, chakras[0]);
 
   // Throttle guidance text to 10s so user can read it
-  const defaultGuidance = "Start with a voice check-in to estimate your energy state. Optional EEG can add live signal detail later.";
+  const defaultGuidance = "Start with a voice analysis to estimate your energy state. Optional EEG can add live signal detail later.";
   const [guidance, setGuidance] = useState(defaultGuidance);
   const guidanceTimerRef = useRef(0);
   const GUIDANCE_THROTTLE = 10_000;
@@ -249,7 +249,7 @@ export default function InnerEnergy() {
         const emotion = (latestVoice.emotion as string) ?? "neutral";
         const valence = (latestVoice.valence as number) ?? 0;
         const voiceGuide = valence > 0.2
-          ? `Voice check-in shows a ${emotion} state with positive energy. ${getGuidance(dominantChakra.name, "—")} Connect EEG for deeper readings.`
+          ? `Voice analysis shows a ${emotion} state with positive energy. ${getGuidance(dominantChakra.name, "—")} Connect EEG for deeper readings.`
           : valence < -0.1
           ? `Voice shows a ${emotion} state. Your heart center may benefit from a breathing pause. ${getGuidance("Heart", "—")}`
           : `Voice baseline captured (${emotion}). ${getGuidance(dominantChakra.name, "—")} Optional EEG can add live energy readings later.`;
@@ -260,7 +260,7 @@ export default function InnerEnergy() {
         setGuidance(
           `Based on your health data: stress is ${stressDesc}, sleep quality is ${sleepDesc}. ` +
           `${getGuidance(dominantChakra.name, "—")} ` +
-          `A voice check-in or EEG session can provide deeper spiritual insights.`
+          `A voice analysis or EEG session can provide deeper spiritual insights.`
         );
       } else {
         setGuidance(defaultGuidance);
@@ -301,12 +301,12 @@ export default function InnerEnergy() {
           ) : hasHealth ? (
             <>
               <Heart className="h-4 w-4 shrink-0" />
-              Showing energy estimate from your health data. A voice check-in or EEG session can add more detail.
+              Showing energy estimate from your health data. A voice analysis or EEG session can add more detail.
             </>
           ) : (
             <>
               <Radio className="h-4 w-4 shrink-0" />
-              Start with a voice check-in to see your energy state. EEG is optional for live readings.
+              Start with a voice analysis to see your energy state. EEG is optional for live readings.
             </>
           )}
         </div>

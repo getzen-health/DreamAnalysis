@@ -4,7 +4,7 @@
  * Steps (persisted to localStorage key `ndw_onboarding_step`):
  *   1. Welcome        — brief app intro, what NDW does
  *   2. Choose path    — "Quick Start (Voice)" or "Full Setup (EEG)"
- *   3a. Voice check-in (Quick Start path) — 10-second voice emotion scan
+ *   3a. Voice analysis (Quick Start path) — 10-second voice emotion scan
  *   3b. EEG calibration (Full Setup path) — 2-min resting baseline
  *   4. Health sync    — connect Apple Health / Google Fit (skippable)
  *   5. Done           — marks onboarding complete, redirects to dashboard
@@ -171,7 +171,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
 
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { icon: Mic, label: "Voice emotions", desc: "10-second check-in" },
+          { icon: Mic, label: "Voice emotions", desc: "10-second analysis" },
           { icon: Brain, label: "EEG analysis", desc: "Live neural signals" },
           { icon: Heart, label: "Health sync", desc: "Apple Health · Google Fit" },
         ].map(({ icon: Icon, label, desc }) => (
@@ -217,15 +217,15 @@ function StepChoosePath({ onChoose }: { onChoose: (path: "voice" | "eeg") => voi
           </p>
           <ul className="text-xs space-y-1.5 text-foreground/80">
             <li className="flex items-center gap-2">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              10-second voice check-in
+              <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+              10-second voice analysis
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
               Works on any device
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
               EEG optional upgrade later
             </li>
           </ul>
@@ -266,7 +266,7 @@ function StepChoosePath({ onChoose }: { onChoose: (path: "voice" | "eeg") => voi
   );
 }
 
-// ── Step 3a: Voice check-in ──────────────────────────────────────────────────
+// ── Step 3a: Voice analysis ──────────────────────────────────────────────────
 
 function StepVoice({ onNext }: { onNext: () => void }) {
   const voiceEmotion = useVoiceEmotion({
@@ -289,7 +289,7 @@ function StepVoice({ onNext }: { onNext: () => void }) {
       <div className="space-y-6">
         <div className="text-center space-y-3">
           <Badge variant="outline" className="border-primary/40 text-primary">
-            Check-in complete
+            Analysis complete
           </Badge>
           <h1 className="text-2xl font-semibold">Your first state read is ready</h1>
         </div>
@@ -326,10 +326,10 @@ function StepVoice({ onNext }: { onNext: () => void }) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-3">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-400/10 mx-auto">
-          <Mic className="h-8 w-8 text-emerald-400" />
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-cyan-400/10 mx-auto">
+          <Mic className="h-8 w-8 text-cyan-400" />
         </div>
-        <h1 className="text-2xl font-semibold">Voice Check-in</h1>
+        <h1 className="text-2xl font-semibold">Voice Analysis</h1>
         <p className="text-sm text-muted-foreground">
           A 10-second recording to read your current emotional state.
         </p>
@@ -368,7 +368,7 @@ function StepVoice({ onNext }: { onNext: () => void }) {
             ? "Recording…"
             : voiceEmotion.isAnalyzing
             ? "Analyzing…"
-            : "Start 10-second voice check-in"}
+            : "Start 10-second voice analysis"}
         </Button>
         <Button variant="outline" className="w-full" onClick={() => { hapticLight(); onNext(); }}>
           Skip for now
@@ -465,7 +465,7 @@ function StepEeg({ onNext }: { onNext: () => void }) {
             What you'll do: sit still, close your eyes, breathe naturally for 2 minutes.
           </p>
           {isStreaming && (
-            <p className="text-xs text-emerald-400 font-medium">
+            <p className="text-xs text-cyan-400 font-medium">
               Muse 2 connected — will use live EEG
             </p>
           )}
@@ -521,7 +521,7 @@ function StepEeg({ onNext }: { onNext: () => void }) {
           )}
         </Card>
 
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && <p className="text-xs text-rose-400">{error}</p>}
 
         {canEarlyExit && (
           <button
@@ -548,8 +548,8 @@ function StepEeg({ onNext }: { onNext: () => void }) {
   // done phase
   return (
     <div className="space-y-6 text-center">
-      <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-400/10 mx-auto">
-        <CheckCircle className="h-8 w-8 text-emerald-400" />
+      <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-cyan-400/10 mx-auto">
+        <CheckCircle className="h-8 w-8 text-cyan-400" />
       </div>
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">Baseline saved</h1>
@@ -686,7 +686,7 @@ function StepHealthSync({ onNext }: { onNext: () => void }) {
           {["Steps", "Heart rate", "Sleep stages", "Active energy"].map(
             (item) => (
               <li key={item} className="flex items-center gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
                 {item}
               </li>
             )
@@ -695,7 +695,7 @@ function StepHealthSync({ onNext }: { onNext: () => void }) {
       </Card>
 
       {status === "connected" && (
-        <div className="flex items-center justify-center gap-2 text-emerald-400 text-sm font-medium">
+        <div className="flex items-center justify-center gap-2 text-cyan-400 text-sm font-medium">
           <CheckCircle2 className="h-4 w-4" />
           Connected successfully
         </div>
@@ -801,8 +801,8 @@ function StepDone({ pathChoice, onFinish }: { pathChoice: PathChoice; onFinish: 
         `}</style>
       </div>
 
-      <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-emerald-400/10 mx-auto">
-        <CheckCircle className="h-10 w-10 text-emerald-400" />
+      <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-cyan-400/10 mx-auto">
+        <CheckCircle className="h-10 w-10 text-cyan-400" />
       </div>
 
       <div className="space-y-2">
@@ -810,13 +810,13 @@ function StepDone({ pathChoice, onFinish }: { pathChoice: PathChoice; onFinish: 
         <p className="text-sm text-muted-foreground">
           {pathChoice === "eeg"
             ? "Your EEG baseline is saved. Neural features are live."
-            : "Voice check-in is ready. You can add EEG anytime from Settings."}
+            : "Voice analysis is ready. You can add EEG anytime from Settings."}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { icon: Mic, label: "Voice check-in", desc: "Daily mood tracking" },
+          { icon: Mic, label: "Voice analysis", desc: "Daily mood tracking" },
           { icon: Brain, label: "Brain monitor", desc: "Live EEG waveforms" },
           { icon: Heart, label: "Health analytics", desc: "Trends and insights" },
         ].map(({ icon: Icon, label, desc }) => (

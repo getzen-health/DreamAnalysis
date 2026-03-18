@@ -562,7 +562,7 @@ export default function Today() {
       } catch { /* ignore */ }
     }
     loadCheckin();
-    // Listen for voice check-in updates from both event sources
+    // Listen for voice analysis updates from both event sources
     window.addEventListener("ndw-voice-updated", loadCheckin);
     window.addEventListener("ndw-emotion-update", loadCheckin);
     return () => {

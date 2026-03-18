@@ -26,23 +26,23 @@ const METRICS: Metric[] = [
   {
     label: "Valence",
     value: 0,
-    barColor: "from-red-500 to-emerald-500",
+    barColor: "from-rose-500 to-cyan-500",
     normalize: (v: number) => (v + 1) / 2, // -1..1 -> 0..1
   },
   {
     label: "Arousal",
     value: 0,
-    barColor: "from-blue-500 to-orange-500",
+    barColor: "from-indigo-500 to-orange-500",
   },
   {
     label: "Stress",
     value: 0,
-    barColor: "from-emerald-500 to-red-500",
+    barColor: "from-cyan-500 to-rose-500",
   },
   {
     label: "Focus",
     value: 0,
-    barColor: "from-gray-400 to-blue-500",
+    barColor: "from-gray-400 to-indigo-500",
   },
 ];
 

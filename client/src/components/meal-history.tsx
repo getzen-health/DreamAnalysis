@@ -68,9 +68,9 @@ const MEAL_ICONS: Record<string, string> = {
 
 const MACRO_COLOR: Record<string, string> = {
   carbs:    "border-amber-500/40 text-amber-400 bg-amber-500/10",
-  protein:  "border-blue-500/40 text-blue-400 bg-blue-500/10",
+  protein:  "border-indigo-500/40 text-indigo-400 bg-indigo-500/10",
   fat:      "border-rose-500/40 text-rose-400 bg-rose-500/10",
-  balanced: "border-green-500/40 text-green-400 bg-green-500/10",
+  balanced: "border-cyan-500/40 text-cyan-400 bg-cyan-600/10",
 };
 
 function groupByDate(meals: MealHistoryEntry[]): [string, MealHistoryEntry[]][] {
@@ -228,7 +228,7 @@ function MealCard({ meal, onToggleFavorite, onRelog }: MealCardProps) {
               <p className="text-[10px] text-muted-foreground">kcal</p>
             </div>
             <div className="rounded bg-muted/30 py-1">
-              <p className="font-semibold text-blue-400">{meal.totalProtein ?? 0}g</p>
+              <p className="font-semibold text-indigo-400">{meal.totalProtein ?? 0}g</p>
               <p className="text-[10px] text-muted-foreground">protein</p>
             </div>
             <div className="rounded bg-muted/30 py-1">

@@ -381,7 +381,7 @@ export default function Dashboard() {
   const { latestPayload, lastSyncAt } = useHealthSync();
   const healthState = !isStreaming && latestPayload && hasRealHealthData(latestPayload) ? deriveHealthState(latestPayload) : null;
 
-  // Last emotion check-in from localStorage (persisted by emotion-lab page)
+  // Last emotion analysis from localStorage (persisted by emotion-lab page)
   const [lastEmotionCheckin, setLastEmotionCheckin] = useState<{
     emotion: string;
     confidence: number;
@@ -635,15 +635,15 @@ export default function Dashboard() {
         </div>
       )}
       {!isStreaming && healthState && (
-        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-500/6 border border-emerald-500/20">
-          <Heart className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-          <span className="text-xs text-emerald-400">
+        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-cyan-500/6 border border-cyan-500/20">
+          <Heart className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
+          <span className="text-xs text-cyan-400">
             Estimates from {healthState.source} · EEG adds live neural data
           </span>
         </div>
       )}
 
-      {/* ── Last emotion check-in (from localStorage) ─────── */}
+      {/* ── Last emotion analysis (from localStorage) ─────── */}
       {lastEmotionCheckin && (
         <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-violet-500/6 border border-violet-500/20">
           <Heart className="h-3.5 w-3.5 shrink-0 text-violet-400" />
@@ -858,7 +858,7 @@ export default function Dashboard() {
             {[
               { value: Math.round((lastSession.summary?.avg_stress ?? 0) * 100), label: "Stress", color: "text-rose-400" },
               { value: Math.round((lastSession.summary?.avg_focus ?? 0) * 100), label: "Focus", color: "text-primary" },
-              { value: Math.round((lastSession.summary?.avg_flow ?? 0) * 100), label: "Flow", color: "text-emerald-400" },
+              { value: Math.round((lastSession.summary?.avg_flow ?? 0) * 100), label: "Flow", color: "text-cyan-400" },
               { value: lastSession.summary?.dominant_emotion ?? "—", label: "Mood", color: "text-violet-400", isText: true },
             ].map((item) => (
               <div key={item.label} className="rounded-xl bg-muted/30 px-2 py-2.5 text-center">
@@ -980,7 +980,7 @@ export default function Dashboard() {
 
           {/* Personal Records — gamified */}
           {sessionsWithData.length >= 1 && (
-            <Card className={`glass-card p-4 hover-glow transition-all ${newFocusRecord ? "ring-2 ring-emerald-400/50" : ""}`}>
+            <Card className={`glass-card p-4 hover-glow transition-all ${newFocusRecord ? "ring-2 ring-cyan-400/50" : ""}`}>
               {/* Header */}
               <div className="flex items-center gap-2 mb-3">
                 <Trophy className="h-4 w-4 text-amber-400" />
@@ -988,17 +988,17 @@ export default function Dashboard() {
                 {trend !== "stable" && (
                   <span className="ml-auto">
                     {trend === "up"
-                      ? <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                      : <TrendingDown className="h-3.5 w-3.5 text-red-400" />}
+                      ? <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
+                      : <TrendingDown className="h-3.5 w-3.5 text-rose-400" />}
                   </span>
                 )}
               </div>
 
               {/* New record celebration banner */}
               {newFocusRecord && (
-                <div className="mb-3 px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center gap-2 animate-pulse">
-                  <Star className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <p className="text-xs font-bold text-emerald-400">New focus record this session — keep going!</p>
+                <div className="mb-3 px-3 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/30 flex items-center gap-2 animate-pulse">
+                  <Star className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                  <p className="text-xs font-bold text-cyan-400">New focus record this session — keep going!</p>
                 </div>
               )}
 
@@ -1007,7 +1007,7 @@ export default function Dashboard() {
                 {/* Focus */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className={`text-lg font-bold font-mono leading-none ${newFocusRecord ? "text-emerald-400" : "text-primary"}`}>
+                    <p className={`text-lg font-bold font-mono leading-none ${newFocusRecord ? "text-cyan-400" : "text-primary"}`}>
                       {peakFocus > 0 ? `${peakFocus}%` : "—"}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">Peak focus</p>
@@ -1016,7 +1016,7 @@ export default function Dashboard() {
                     isStreaming && focusIndex > 0 ? (
                       <span className={`text-[11px] font-medium ${
                         focusIndex >= peakFocus
-                          ? "text-emerald-400 font-bold"
+                          ? "text-cyan-400 font-bold"
                           : focusIndex >= peakFocus * 0.9
                           ? "text-amber-400"
                           : "text-muted-foreground/60"

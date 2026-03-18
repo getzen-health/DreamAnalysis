@@ -38,7 +38,7 @@ function QRCodeSection() {
             className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
             title="Copy URL"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-cyan-400" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
         </div>
       </CardContent>
@@ -66,7 +66,7 @@ export default function StudyLanding() {
             everyday stress and food. Your EEG data will help train better models and
             contribute to a published academic research paper.
           </p>
-          <Badge variant="outline" className="border-green-500/50 text-green-400 px-4 py-1.5 text-sm">
+          <Badge variant="outline" className="border-cyan-500/50 text-cyan-400 px-4 py-1.5 text-sm">
             <Shield className="h-3.5 w-3.5 mr-1.5" />
             Anonymous &amp; Voluntary
           </Badge>
@@ -134,11 +134,11 @@ export default function StudyLanding() {
         </Card>
 
         {/* Privacy note */}
-        <Card className="border-green-500/20 bg-green-500/5">
+        <Card className="border-cyan-500/20 bg-cyan-600/5">
           <CardContent className="pt-6 space-y-2">
             <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-green-400" />
-              <p className="font-medium text-sm text-green-400">Anonymous &amp; Voluntary</p>
+              <Shield className="h-4 w-4 text-cyan-400" />
+              <p className="font-medium text-sm text-cyan-400">Anonymous &amp; Voluntary</p>
             </div>
             <ul className="space-y-1.5 text-sm text-muted-foreground">
               <li>You are identified only by a participant code — no name, no email.</li>

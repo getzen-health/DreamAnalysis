@@ -29,7 +29,7 @@ const SUPPLEMENT_TYPES = ["vitamin", "supplement", "medication", "food_supplemen
 const COMMON_UNITS = ["mg", "IU", "mcg", "g", "ml", "capsules", "tablets"] as const;
 
 const VERDICT_STYLE: Record<string, string> = {
-  positive: "border-green-500/40 text-green-400 bg-green-500/10",
+  positive: "border-cyan-500/40 text-cyan-400 bg-cyan-600/10",
   negative: "border-rose-500/40 text-rose-400 bg-rose-500/10",
   neutral: "border-zinc-500/40 text-zinc-400 bg-zinc-500/10",
   insufficient_data: "border-amber-500/40 text-amber-400 bg-amber-500/10",
@@ -50,11 +50,11 @@ function ShiftBar({ value, label }: { value: number; label: string }) {
       <span className="w-20 text-zinc-400 shrink-0">{label}</span>
       <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full ${positive ? "bg-green-500" : "bg-rose-500"}`}
+          className={`h-full rounded-full ${positive ? "bg-cyan-600" : "bg-rose-500"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={`w-12 text-right tabular-nums ${positive ? "text-green-400" : "text-rose-400"}`}>
+      <span className={`w-12 text-right tabular-nums ${positive ? "text-cyan-400" : "text-rose-400"}`}>
         {positive ? "+" : ""}{(value * 100).toFixed(1)}%
       </span>
     </div>

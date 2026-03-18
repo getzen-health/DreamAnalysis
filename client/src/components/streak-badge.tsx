@@ -154,7 +154,7 @@ export function StreakBadge({ userId, compact = false }: StreakBadgeProps) {
         {/* Today check-in nudge */}
         {!today_checked_in && current_streak > 0 && (
           <p className="text-[11px] text-muted-foreground/60 mt-1 italic">
-            Do a voice check-in today to keep your streak alive.
+            Do a voice analysis today to keep your streak alive.
           </p>
         )}
       </CardContent>

@@ -42,7 +42,7 @@ export default function OnboardingNew() {
             <div className="flex items-start gap-3">
               <Mic className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium">Voice check-in</p>
+                <p className="font-medium">Voice analysis</p>
                 <p className="text-sm text-muted-foreground">
                   Uses the live `voice-watch` pipeline and caches the result for downstream pages.
                 </p>
@@ -69,7 +69,7 @@ export default function OnboardingNew() {
                 ? "Recording..."
                 : voiceEmotion.isAnalyzing
                 ? "Analyzing..."
-                : "Start 10-second voice check-in"}
+                : "Start 10-second voice analysis"}
             </Button>
             <Button variant="outline" className="w-full" onClick={() => navigate(finishPath)}>
               Skip for now
@@ -89,7 +89,7 @@ export default function OnboardingNew() {
         <div className="max-w-md w-full space-y-6">
           <div className="text-center space-y-3">
             <Badge variant="outline" className="border-primary/40 text-primary">
-              Check-in complete
+              Analysis complete
             </Badge>
             <h1 className="text-3xl font-semibold">Your first state read is ready</h1>
           </div>
@@ -175,7 +175,7 @@ export default function OnboardingNew() {
               <Badge>Recommended</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              Start with a 10-second voice check-in. Health signals improve over time, and EEG remains optional.
+              Start with a 10-second voice analysis. Health signals improve over time, and EEG remains optional.
             </p>
             <ul className="text-sm space-y-2 text-foreground/90">
               <li>Main app path for daily readiness</li>

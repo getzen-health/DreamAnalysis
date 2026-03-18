@@ -232,7 +232,7 @@ export function NotificationSettings({ userId }: NotificationSettingsProps) {
             )}
             Smart Notifications
             {prefs.enabled && (
-              <Badge className="ml-auto text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              <Badge className="ml-auto text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
                 Active
               </Badge>
             )}

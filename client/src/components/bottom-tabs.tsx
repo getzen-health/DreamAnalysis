@@ -30,7 +30,7 @@ export function BottomTabs() {
   const [showCheckin, setShowCheckin] = useState(false);
   const queryClient = useQueryClient();
 
-  // Allow other components (e.g. EmotionBadge) to open the voice check-in modal
+  // Allow other components (e.g. EmotionBadge) to open the voice analysis modal
   useEffect(() => {
     const openHandler = () => setShowCheckin(true);
     window.addEventListener("ndw-open-voice-checkin", openHandler);
@@ -142,7 +142,7 @@ export function BottomTabs() {
           {/* Center mic button */}
           <div className="relative flex flex-col items-center justify-center flex-1">
             <button
-              aria-label="Voice check-in"
+              aria-label="Voice analysis"
               onClick={() => {
                 hapticMedium();
                 setShowCheckin(true);
@@ -159,7 +159,7 @@ export function BottomTabs() {
         </div>
       </nav>
 
-      {/* Voice check-in modal */}
+      {/* Voice analysis modal */}
       {showCheckin && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"

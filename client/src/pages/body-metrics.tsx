@@ -498,7 +498,7 @@ export default function BodyMetrics() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {rateOfChange.weeklyChange < -0.05 ? (
-                <TrendingDown className="h-4 w-4 text-blue-400" />
+                <TrendingDown className="h-4 w-4 text-indigo-400" />
               ) : rateOfChange.weeklyChange > 0.05 ? (
                 <TrendingUp className="h-4 w-4 text-orange-400" />
               ) : (
@@ -513,7 +513,7 @@ export default function BodyMetrics() {
                   Math.abs(rateOfChange.weeklyPct) > 2
                     ? "text-ndw-strain"
                     : rateOfChange.weeklyChange < -0.05
-                      ? "text-blue-400"
+                      ? "text-indigo-400"
                       : rateOfChange.weeklyChange > 0.05
                         ? "text-orange-400"
                         : "text-ndw-recovery"

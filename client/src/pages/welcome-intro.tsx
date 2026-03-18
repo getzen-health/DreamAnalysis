@@ -2,7 +2,7 @@
  * Welcome Intro — 3-step setup wizard shown once after first registration.
  *
  * Step 1: Connect Health Data (Apple Health / Google Health Connect)
- * Step 2: Enable Voice Check-ins (mic permission + test recording)
+ * Step 2: Enable Voice Analyses (mic permission + test recording)
  * Step 3: Do you have any health devices? (Muse 2 / fitness tracker)
  *
  * Sets localStorage flag and redirects to "/" (dashboard) when done.
@@ -119,7 +119,7 @@ function HealthStep({
           {["Steps", "Heart rate", "Sleep stages", "Active energy"].map(
             (item) => (
               <li key={item} className="flex items-center gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
                 {item}
               </li>
             )
@@ -128,7 +128,7 @@ function HealthStep({
       </Card>
 
       {status === "connected" && (
-        <div className="flex items-center justify-center gap-2 text-emerald-400 text-sm font-medium">
+        <div className="flex items-center justify-center gap-2 text-cyan-400 text-sm font-medium">
           <CheckCircle2 className="h-4 w-4" />
           Connected successfully
         </div>
@@ -158,7 +158,7 @@ function HealthStep({
   );
 }
 
-// ── Step 2: Voice Check-in ──────────────────────────────────────────────────
+// ── Step 2: Voice Analysis ──────────────────────────────────────────────────
 
 function VoiceStep({
   onComplete,
@@ -217,14 +217,14 @@ function VoiceStep({
   return (
     <div className="space-y-6">
       <div className="text-center space-y-6">
-        <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-emerald-400/10 mx-auto">
-          <Mic className="h-10 w-10 text-emerald-400" />
+        <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-cyan-400/10 mx-auto">
+          <Mic className="h-10 w-10 text-cyan-400" />
         </div>
         <div className="space-y-3">
-          <h1 className="text-3xl font-semibold">Enable Voice Check-ins</h1>
+          <h1 className="text-3xl font-semibold">Enable Voice Analyses</h1>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
             A quick 3-second test to make sure your microphone works. Voice
-            check-ins analyze your mood and stress from how you speak.
+            analyses detect your mood and stress from how you speak.
           </p>
         </div>
       </div>
@@ -233,10 +233,10 @@ function VoiceStep({
         <Card className="p-5 text-center space-y-3">
           <div className="relative inline-flex items-center justify-center h-16 w-16 mx-auto">
             <div
-              className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping"
+              className="absolute inset-0 rounded-full bg-cyan-400/20 animate-ping"
               style={{ animationDuration: "1.5s" }}
             />
-            <Mic className="h-7 w-7 text-emerald-400 relative z-10" />
+            <Mic className="h-7 w-7 text-cyan-400 relative z-10" />
           </div>
           <p className="text-sm font-medium">Listening... {seconds}s</p>
           <p className="text-xs text-muted-foreground">
@@ -246,7 +246,7 @@ function VoiceStep({
       )}
 
       {status === "done" && (
-        <div className="flex items-center justify-center gap-2 text-emerald-400 text-sm font-medium">
+        <div className="flex items-center justify-center gap-2 text-cyan-400 text-sm font-medium">
           <CheckCircle2 className="h-4 w-4" />
           Microphone works perfectly
         </div>
@@ -360,9 +360,9 @@ function DeviceStep() {
       </div>
 
       {selected.size === 0 && (
-        <Card className="p-4 border-emerald-400/20 bg-emerald-400/5">
-          <p className="text-sm text-center text-emerald-400/90">
-            No problem! Voice check-ins and manual logging work great on their
+        <Card className="p-4 border-cyan-400/20 bg-cyan-400/5">
+          <p className="text-sm text-center text-cyan-400/90">
+            No problem! Voice analyses and manual logging work great on their
             own.
           </p>
         </Card>

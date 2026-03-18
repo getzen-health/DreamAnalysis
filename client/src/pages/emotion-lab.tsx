@@ -131,10 +131,10 @@ function Bar({ label, value, color }: BarProps) {
   const intensity = pct >= 70 ? "HIGH" : pct >= 40 ? "MED" : "LOW";
   const badgeColor =
     pct >= 70
-      ? "text-red-400 bg-red-500/10 border-red-500/30"
+      ? "text-rose-400 bg-rose-500/10 border-rose-500/30"
       : pct >= 40
       ? "text-amber-400 bg-amber-500/10 border-amber-500/30"
-      : "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+      : "text-cyan-400 bg-cyan-500/10 border-cyan-500/30";
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
@@ -488,7 +488,7 @@ export default function EmotionLab() {
     onSuccess: (moodValue) => {
       toast({
         title: `Mood logged: ${EMOTION_LABELS[moodValue] ?? moodValue}`,
-        description: "Your check-in has been saved.",
+        description: "Your analysis has been saved.",
       });
       queryClient.invalidateQueries({
         queryKey: [`/api/brain/history/${participantId}?days=1`],
@@ -529,12 +529,12 @@ export default function EmotionLab() {
           Mood &amp; Emotions
         </h1>
         <p className="text-[13px] text-muted-foreground">
-          Track how you feel, discover patterns
+          Track your state, discover patterns
         </p>
         <p className="text-[11px] text-muted-foreground/50 mt-1">
           {lastAnalysisTime
-            ? `Last check-in ${lastAnalysisAgo}`
-            : "No check-in yet today"}
+            ? `Last analysis ${lastAnalysisAgo}`
+            : "No analysis yet today"}
         </p>
       </div>
 
@@ -544,7 +544,7 @@ export default function EmotionLab() {
       >
         <div className="flex items-center gap-2">
           <Heart className="h-4 w-4 text-violet-400" />
-          <p className="text-[13px] font-semibold">How are you feeling?</p>
+          <p className="text-[13px] font-semibold">Detected mood</p>
         </div>
         <div className="grid grid-cols-3 gap-2" role="group" aria-label="Quick mood selection">
           {QUICK_MOODS.map((mood) => (
@@ -574,7 +574,7 @@ export default function EmotionLab() {
           ))}
         </div>
         {quickMoodMutation.isSuccess && (
-          <p className="text-xs text-emerald-400 text-center animate-in fade-in duration-300" aria-live="polite">
+          <p className="text-xs text-cyan-400 text-center animate-in fade-in duration-300" aria-live="polite">
             Logged successfully
           </p>
         )}
@@ -582,14 +582,14 @@ export default function EmotionLab() {
 
       {/* Voice input is on Dashboard only — this page shows stats */}
 
-      {/* ── Last check-in (from localStorage, shown when no new analysis this session) */}
+      {/* ── Last analysis (from localStorage, shown when no new analysis this session) */}
       {savedCheckin && !hasNewAnalysis && !voiceEmotion.lastResult && (
         <div
           className="rounded-2xl p-4 flex items-center gap-3 bg-card/50 border border-border/40"
         >
           <Heart className="h-4 w-4 text-violet-400 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] text-muted-foreground">Last check-in</p>
+            <p className="text-[12px] text-muted-foreground">Last analysis</p>
             <p className="text-sm font-semibold capitalize text-foreground">
               {EMOTION_LABELS[savedCheckin.emotion] ?? savedCheckin.emotion}
               <span className="text-muted-foreground font-normal ml-1.5">
@@ -652,7 +652,7 @@ export default function EmotionLab() {
                 relative w-20 h-20 rounded-full flex items-center justify-center
                 transition-all duration-200 active:scale-95 disabled:opacity-50
                 ${voiceEmotion.isRecording
-                  ? "bg-red-500 shadow-lg shadow-red-500/40"
+                  ? "bg-rose-500 shadow-lg shadow-rose-500/40"
                   : voiceEmotion.isAnalyzing
                   ? "bg-amber-500/80 shadow-lg shadow-amber-500/30"
                   : "bg-amber-500 shadow-lg shadow-amber-500/30 hover:bg-amber-400"
@@ -660,7 +660,7 @@ export default function EmotionLab() {
               `}
             >
               {voiceEmotion.isRecording && (
-                <span className="absolute inset-0 rounded-full bg-red-400/30 animate-ping" aria-hidden="true" />
+                <span className="absolute inset-0 rounded-full bg-rose-400/30 animate-ping" aria-hidden="true" />
               )}
               {voiceEmotion.isRecording ? (
                 <MicOff className="w-9 h-9 text-white" aria-hidden="true" />
@@ -718,7 +718,7 @@ export default function EmotionLab() {
                 <div className="text-[10px] text-muted-foreground mt-0.5">Valence</div>
               </div>
               <div className="rounded-xl bg-muted/20 p-2.5">
-                <div className="text-[14px] font-bold text-emerald-400">
+                <div className="text-[14px] font-bold text-cyan-400">
                   {Math.round(voiceEmotion.lastResult.confidence * 100)}%
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">Confidence</div>
@@ -771,7 +771,7 @@ export default function EmotionLab() {
       >
         <div className="p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Brain className="h-4 w-4 text-emerald-400" />
+            <Brain className="h-4 w-4 text-cyan-400" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
               Right now
             </p>
@@ -784,7 +784,7 @@ export default function EmotionLab() {
               </div>
               <p className="text-sm font-semibold capitalize">{EMOTION_LABELS[savedCheckin.emotion] ?? savedCheckin.emotion}</p>
               <p className="text-xs text-muted-foreground">
-                From your latest voice check-in ({Math.round(savedCheckin.confidence * 100)}% confidence)
+                From your latest voice analysis ({Math.round(savedCheckin.confidence * 100)}% confidence)
               </p>
             </div>
           ) : !isStreaming ? (
@@ -794,7 +794,7 @@ export default function EmotionLab() {
               </div>
               <p className="text-sm font-medium">No emotion data yet</p>
               <p className="text-xs text-muted-foreground max-w-[200px] sm:max-w-[260px]">
-                Do a voice check-in on the Dashboard to see your emotional state here.
+                Do a voice analysis on the Dashboard to see your emotional state here.
               </p>
             </div>
           ) : !emotionReady ? (
@@ -856,7 +856,7 @@ export default function EmotionLab() {
 
               {/* Label correction */}
               {corrected ? (
-                <p className="text-xs text-emerald-400">
+                <p className="text-xs text-cyan-400">
                   Corrected to{" "}
                   <span className="font-medium capitalize">{corrected}</span> --
                   model will learn from this
@@ -1003,7 +1003,7 @@ export default function EmotionLab() {
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <TrendingUp className="h-8 w-8 text-muted-foreground/30" />
               <p className="text-xs text-muted-foreground">
-                No mood data yet. Log your mood above to start tracking trends.
+                No mood data yet. Mood detected above will start tracking trends.
               </p>
             </div>
           ) : (
@@ -1072,7 +1072,7 @@ export default function EmotionLab() {
         <div className="p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-400" />
+              <Clock className="h-4 w-4 text-indigo-400" />
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
                 Recent Emotions
               </p>
@@ -1137,7 +1137,7 @@ export default function EmotionLab() {
                               variant="outline"
                               className={`text-[10px] border px-1.5 py-0 ${
                                 reading.valence > 0.2
-                                  ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
+                                  ? "border-cyan-500/30 text-cyan-400 bg-cyan-500/10"
                                   : reading.valence < -0.2
                                   ? "border-rose-500/30 text-rose-400 bg-rose-500/10"
                                   : "border-border/40 text-muted-foreground"
@@ -1191,7 +1191,7 @@ export default function EmotionLab() {
         >
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
-              <Brain className="h-4 w-4 text-emerald-400" />
+              <Brain className="h-4 w-4 text-cyan-400" />
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
                 This Session
               </p>

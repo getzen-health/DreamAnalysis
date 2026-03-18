@@ -94,8 +94,8 @@ function MetricRow({
   const trendColor = unchanged
     ? "text-muted-foreground"
     : improved
-      ? "text-emerald-400"
-      : "text-red-400";
+      ? "text-cyan-400"
+      : "text-rose-400";
 
   const TrendIcon = unchanged ? Minus : improved ? TrendingDown : TrendingUp;
 
@@ -203,7 +203,7 @@ export function InterventionSummary({
           </div>
           <Badge
             variant="outline"
-            className="text-[10px] border-emerald-500/30 text-emerald-400 bg-emerald-500/5"
+            className="text-[10px] border-cyan-500/30 text-cyan-400 bg-cyan-500/5"
           >
             Complete
           </Badge>
@@ -256,8 +256,8 @@ export function InterventionSummary({
           >
             {copied ? (
               <>
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span className="text-emerald-400">Copied to clipboard</span>
+                <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400" />
+                <span className="text-cyan-400">Copied to clipboard</span>
               </>
             ) : (
               <>

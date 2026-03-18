@@ -57,9 +57,9 @@ function formatDuration(seconds: number): string {
 }
 
 function qualityBadgeClass(score: number): string {
-  if (score >= 70) return "border-green-500/50 text-green-400 text-xs";
+  if (score >= 70) return "border-cyan-500/50 text-cyan-400 text-xs";
   if (score >= 40) return "border-yellow-500/50 text-yellow-400 text-xs";
-  return "border-red-500/50 text-red-400 text-xs";
+  return "border-rose-500/50 text-rose-400 text-xs";
 }
 
 function StressBar({ pre, post }: { pre: number | undefined; post: number | undefined }) {
@@ -76,12 +76,12 @@ function StressBar({ pre, post }: { pre: number | undefined; post: number | unde
       <span className="text-muted-foreground">→</span>
       <div className="relative h-2 w-20 rounded bg-muted overflow-hidden">
         <div
-          className={`h-full rounded ${dropped ? "bg-green-400/70" : "bg-orange-400/70"}`}
+          className={`h-full rounded ${dropped ? "bg-cyan-500/70" : "bg-orange-400/70"}`}
           style={{ width: `${postW}%` }}
         />
       </div>
       <span className="text-muted-foreground w-5">post</span>
-      {dropped && <span className="text-green-400 text-[10px]">↓</span>}
+      {dropped && <span className="text-cyan-400 text-[10px]">↓</span>}
     </div>
   );
 }
@@ -207,7 +207,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
         </TableCell>
         <TableCell>
           {participant.hasAppleWatch ? (
-            <Badge variant="outline" className="border-blue-500/50 text-blue-400 text-xs">Yes</Badge>
+            <Badge variant="outline" className="border-indigo-500/50 text-indigo-400 text-xs">Yes</Badge>
           ) : (
             <span className="text-xs text-muted-foreground">No</span>
           )}
@@ -248,7 +248,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
                   >
                     {confirmDeleteId === session.id ? (
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-red-400">Delete this session?</span>
+                        <span className="text-xs text-rose-400">Delete this session?</span>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -261,7 +261,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                          className="h-6 px-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
                           onClick={(e) => { e.stopPropagation(); void handleDeleteSession(session.id); }}
                           disabled={deleting}
                         >
@@ -275,7 +275,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
                         className={
                           session.blockType === "stress"
                             ? "border-orange-500/50 text-orange-400 text-xs capitalize"
-                            : "border-blue-500/50 text-blue-400 text-xs capitalize"
+                            : "border-indigo-500/50 text-indigo-400 text-xs capitalize"
                         }
                       >
                         {session.blockType}
@@ -287,7 +287,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
                         </Badge>
                       )}
                       {sessionStatus(session) === "complete" && (
-                        <Badge variant="outline" className="border-green-500/50 text-green-400 text-xs">complete</Badge>
+                        <Badge variant="outline" className="border-cyan-500/50 text-cyan-400 text-xs">complete</Badge>
                       )}
                       {sessionStatus(session) === "partial" && (
                         <Badge variant="outline" className="border-amber-500/50 text-amber-400 text-xs">partial</Badge>
@@ -296,7 +296,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
                         variant="outline"
                         className={
                           session.interventionTriggered
-                            ? "border-red-500/50 text-red-400 text-xs"
+                            ? "border-rose-500/50 text-rose-400 text-xs"
                             : "border-muted text-muted-foreground text-xs"
                         }
                       >
@@ -317,7 +317,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
                       </span>
                       <button
                         type="button"
-                        className="p-1 rounded text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="p-1 rounded text-rose-400/60 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                         onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(session.id); }}
                         title="Delete session"
                       >
@@ -356,7 +356,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-medium text-muted-foreground">Researcher Notes</span>
                   {showSaved && (
-                    <span className="text-xs text-green-400 animate-in fade-in duration-200">Saved</span>
+                    <span className="text-xs text-cyan-400 animate-in fade-in duration-200">Saved</span>
                   )}
                 </div>
                 <Textarea
@@ -383,7 +383,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-medium text-muted-foreground">Researcher Notes</span>
                 {showSaved && (
-                  <span className="text-xs text-green-400 animate-in fade-in duration-200">Saved</span>
+                  <span className="text-xs text-cyan-400 animate-in fade-in duration-200">Saved</span>
                 )}
               </div>
               <Textarea
@@ -567,8 +567,8 @@ export default function StudyAdmin() {
           </Card>
           <Card>
             <CardContent className="pt-4 pb-4 text-center">
-              <CheckCircle2 className="h-4 w-4 text-green-400 mx-auto mb-1" />
-              <p className="text-2xl font-bold tabular-nums text-green-400">{bothDone}</p>
+              <CheckCircle2 className="h-4 w-4 text-cyan-400 mx-auto mb-1" />
+              <p className="text-2xl font-bold tabular-nums text-cyan-400">{bothDone}</p>
               <p className="text-xs text-muted-foreground mt-0.5">both sessions done</p>
             </CardContent>
           </Card>
@@ -595,15 +595,15 @@ export default function StudyAdmin() {
               <p className="text-xs text-muted-foreground">stress sessions</p>
             </CardContent>
           </Card>
-          <Card className="border-blue-500/20">
+          <Card className="border-indigo-500/20">
             <CardContent className="pt-3 pb-3 text-center">
-              <p className="text-lg font-bold tabular-nums text-blue-400">{foodCount}</p>
+              <p className="text-lg font-bold tabular-nums text-indigo-400">{foodCount}</p>
               <p className="text-xs text-muted-foreground">food sessions</p>
             </CardContent>
           </Card>
-          <Card className="border-green-500/20">
+          <Card className="border-cyan-500/20">
             <CardContent className="pt-3 pb-3 text-center">
-              <p className="text-lg font-bold tabular-nums text-green-400">{completeSessions}</p>
+              <p className="text-lg font-bold tabular-nums text-cyan-400">{completeSessions}</p>
               <p className="text-xs text-muted-foreground">completed</p>
             </CardContent>
           </Card>
@@ -625,10 +625,10 @@ export default function StudyAdmin() {
               <CardContent className="pt-3 pb-3 text-center">
                 <p className={`text-lg font-bold tabular-nums ${
                   Math.round(stats.avg_quality_score) >= 70
-                    ? "text-green-400"
+                    ? "text-cyan-400"
                     : Math.round(stats.avg_quality_score) >= 40
                       ? "text-yellow-400"
-                      : "text-red-400"
+                      : "text-rose-400"
                 }`}>
                   {Math.round(stats.avg_quality_score)}
                 </p>
@@ -646,7 +646,7 @@ export default function StudyAdmin() {
             <Card>
               <CardContent className="pt-3 pb-3 text-center">
                 <p className={`text-lg font-bold tabular-nums ${
-                  stats.avg_stress_reduction > 0 ? "text-green-400" : "text-muted-foreground"
+                  stats.avg_stress_reduction > 0 ? "text-cyan-400" : "text-muted-foreground"
                 }`}>
                   {stats.avg_stress_reduction > 0 ? "" : ""}
                   {Math.round(stats.avg_stress_reduction * 100)}%
@@ -657,7 +657,7 @@ export default function StudyAdmin() {
             <Card>
               <CardContent className="pt-3 pb-3 text-center">
                 <p className="text-lg font-bold tabular-nums">
-                  <span className="text-green-400">{stats.complete_sessions}</span>
+                  <span className="text-cyan-400">{stats.complete_sessions}</span>
                   <span className="text-muted-foreground"> / </span>
                   <span className="text-amber-400">{stats.partial_sessions}</span>
                 </p>

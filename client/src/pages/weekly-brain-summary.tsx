@@ -1,6 +1,6 @@
 /**
  * Weekly Brain Summary — shareable card showing this week vs last week
- * for stress, focus, and sleep.  Pulls from health metrics, voice check-ins,
+ * for stress, focus, and sleep.  Pulls from health metrics, voice analyses,
  * food logs, and dream entries.  PNG export via Canvas 2D API (no extra deps).
  */
 
@@ -151,7 +151,7 @@ function Trend({
   const isGood = positiveIsGood ? isPositive : !isPositive;
   const Icon = isPositive ? TrendingUp : TrendingDown;
   return (
-    <span className={`flex items-center gap-0.5 text-xs font-medium ${isGood ? "text-emerald-400" : "text-rose-400"}`}>
+    <span className={`flex items-center gap-0.5 text-xs font-medium ${isGood ? "text-cyan-400" : "text-rose-400"}`}>
       <Icon className="h-4 w-4" />
       {Math.abs(d * 100).toFixed(0)}%
     </span>
@@ -302,7 +302,7 @@ export default function WeeklyBrainSummary() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ── Data source 2: Voice check-in history ───────────────────────────────────
+  // ── Data source 2: Voice analysis history ───────────────────────────────────
   const { data: voiceHistory = [], isLoading: loadingVoice } = useQuery<VoiceRecord[]>({
     queryKey: ["voice-history-weekly", CURRENT_USER],
     queryFn: async () => {
@@ -351,7 +351,7 @@ export default function WeeklyBrainSummary() {
   const focusDelta  = delta(thisWeek.focus,  lastWeek.focus);
   const sleepDelta  = delta(thisWeek.sleep,  lastWeek.sleep);
 
-  // ── Voice check-in weekly stats ─────────────────────────────────────────────
+  // ── Voice analysis weekly stats ─────────────────────────────────────────────
   const voiceThisWeek = useMemo(() => {
     const cutoff7 = Date.now() - 7 * 86_400_000;
     const recent = voiceHistory.filter(v => (v.timestamp ?? 0) * 1000 >= cutoff7);
@@ -523,8 +523,8 @@ export default function WeeklyBrainSummary() {
           <div>
             <p className="text-sm font-medium">No data yet for this week</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Your weekly summary builds from voice check-ins, food logs, dream entries, and health signals.
-              Do a voice check-in or log a meal to get started.
+              Your weekly summary builds from voice analyses, food logs, dream entries, and health signals.
+              Do a voice analysis or log a meal to get started.
             </p>
           </div>
         </Card>
@@ -587,7 +587,7 @@ export default function WeeklyBrainSummary() {
                 }
                 return parts.length > 0
                   ? parts.join(", ") + "."
-                  : "Your first check-ins are recorded. Keep going to build trends.";
+                  : "Your first analyses are recorded. Keep going to build trends.";
               })()}
             </p>
           </Card>
@@ -633,12 +633,12 @@ export default function WeeklyBrainSummary() {
             </div>
           )}
 
-          {/* Voice check-in mood summary */}
+          {/* Voice analysis mood summary */}
           {voiceThisWeek && (
             <Card className="glass-card p-5 mb-4">
               <div className="flex items-center gap-2 mb-3">
-                <Mic className="h-4 w-4 text-emerald-400" />
-                <span className="text-sm font-medium">Voice Check-ins</span>
+                <Mic className="h-4 w-4 text-cyan-400" />
+                <span className="text-sm font-medium">Voice Analyses</span>
                 <span className="ml-auto text-xs text-muted-foreground">{voiceThisWeek.count} this week</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -650,7 +650,7 @@ export default function WeeklyBrainSummary() {
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Valence</p>
-                  <p className="text-lg font-mono font-bold text-blue-400">
+                  <p className="text-lg font-mono font-bold text-indigo-400">
                     {voiceThisWeek.avgValence != null ? (voiceThisWeek.avgValence > 0 ? "+" : "") + voiceThisWeek.avgValence.toFixed(2) : "--"}
                   </p>
                 </div>
@@ -772,7 +772,7 @@ export default function WeeklyBrainSummary() {
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Focus</p>
-              <p className="text-lg font-mono font-bold text-blue-400">{fmtPct100(lastWeek.focus)}</p>
+              <p className="text-lg font-mono font-bold text-indigo-400">{fmtPct100(lastWeek.focus)}</p>
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sleep</p>

@@ -172,7 +172,7 @@ export default function PersonalRecords() {
           <Trophy className="h-8 w-8 text-muted-foreground/30 mx-auto" />
           <p className="text-sm font-medium">No records yet</p>
           <p className="text-xs text-muted-foreground">
-            Complete voice check-ins or health syncs to build your records. Optional EEG sessions can add hardware-based records later.
+            Complete voice analyses or health syncs to build your records. Optional EEG sessions can add hardware-based records later.
           </p>
         </Card>
       )}
@@ -186,7 +186,7 @@ export default function PersonalRecords() {
               label="Peak Focus"
               value={`${peakFocus}%`}
               sub={peakFocusSession ? fmtDate(peakFocusSession.start_time) : undefined}
-              color="text-blue-400"
+              color="text-indigo-400"
             />
             <RecordCard
               icon={Zap}
@@ -200,7 +200,7 @@ export default function PersonalRecords() {
               label="Peak Relaxation"
               value={`${peakRelax}%`}
               sub={peakRelaxSession ? fmtDate(peakRelaxSession.start_time) : undefined}
-              color="text-emerald-400"
+              color="text-cyan-400"
             />
             <RecordCard
               icon={Activity}

@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
         <CardContent>
           {sent ? (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <CheckCircle className="h-10 w-10 text-green-500" />
+              <CheckCircle className="h-10 w-10 text-cyan-500" />
               <p className="text-sm text-muted-foreground">
                 If that email is in our system, a reset link is on its way.
               </p>

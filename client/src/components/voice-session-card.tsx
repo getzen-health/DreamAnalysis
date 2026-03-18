@@ -48,7 +48,7 @@ function valenceToPercent(v: number): number {
 }
 
 function valenceBadgeClass(v: number): string {
-  if (v >= 0.3) return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+  if (v >= 0.3) return "bg-cyan-500/20 text-cyan-400 border-cyan-500/30";
   if (v <= -0.3) return "bg-rose-500/20 text-rose-400 border-rose-500/30";
   return "bg-muted/50 text-muted-foreground border-border/40";
 }
@@ -321,8 +321,8 @@ export function VoiceSessionCard({ userId, chunkMs = 15000 }: VoiceSessionCardPr
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {summary.trend === "up" && (
                 <>
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">Valence improved over the session</span>
+                  <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
+                  <span className="text-cyan-400">Valence improved over the session</span>
                 </>
               )}
               {summary.trend === "down" && (

@@ -77,7 +77,7 @@ const FLOW_LEVELS = [
   { value: "none", label: "None", color: "bg-muted" },
   { value: "light", label: "Light", color: "bg-pink-300" },
   { value: "medium", label: "Medium", color: "bg-pink-500" },
-  { value: "heavy", label: "Heavy", color: "bg-red-600" },
+  { value: "heavy", label: "Heavy", color: "bg-rose-600" },
 ];
 
 const SYMPTOMS = [
@@ -330,7 +330,7 @@ function CycleTab() {
             const isToday = date === today;
 
             let bgColor = "";
-            if (flow === "heavy") bgColor = "bg-red-600/80";
+            if (flow === "heavy") bgColor = "bg-rose-600/80";
             else if (flow === "medium") bgColor = "bg-pink-500/70";
             else if (flow === "light") bgColor = "bg-pink-300/60";
 
@@ -431,7 +431,7 @@ function CycleTab() {
               <Textarea
                 value={cycleNotes}
                 onChange={e => setCycleNotes(e.target.value)}
-                placeholder="How are you feeling?"
+                placeholder="Any notes about your state?"
                 className="mt-1 text-sm"
                 rows={2}
               />
@@ -552,7 +552,7 @@ function MoodTab() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
       >
-        <p className="text-sm font-semibold text-foreground">How are you feeling?</p>
+        <p className="text-sm font-semibold text-foreground">Current state</p>
 
         {/* Mood slider with face */}
         <div className="space-y-3">

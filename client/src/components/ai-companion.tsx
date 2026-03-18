@@ -55,7 +55,7 @@ function generateLocalResponse(message: string, eegContext: string): string {
 
 Repeat this cycle 4 times. This technique activates your parasympathetic nervous system and lowers cortisol within minutes.
 
-How do you feel after the first cycle? 🍃`;
+Notice any changes after the first cycle. 🍃`;
   }
 
   if (msg.includes("medit") || msg.includes("mindful")) {
@@ -114,12 +114,12 @@ What's driving your stress right now? Talking it through often helps too. 🤝`;
   if (
     msg.includes("mood") ||
     msg.includes("how am i") ||
-    msg.includes("check-in") ||
+    msg.includes("check-in") || msg.includes("analysis") ||
     msg.includes("feeling") ||
     msg.includes("emotion")
   ) {
     if (eegContext) {
-      return `Based on your live brain data, here's your check-in 🧠
+      return `Based on your live brain data, here's your analysis 🧠
 
 **Current EEG snapshot:** ${eegContext}
 
@@ -144,7 +144,7 @@ Would you like to explore any of these states further, or try a quick exercise t
           const stress = Math.round((r?.stress_index ?? r?.stress_from_watch ?? 0) * 100);
           const focus = Math.round((r?.focus_index ?? 0) * 100);
           const vLabel = valence > 0.2 ? "positive" : valence < -0.2 ? "negative" : "neutral";
-          return `Here's your current state from your voice check-in 🎙️
+          return `Here's your current state from your voice analysis 🎙️
 
 - **Emotion**: ${emotion.charAt(0).toUpperCase() + emotion.slice(1)}
 - **Mood**: ${vLabel} (valence: ${valence.toFixed(2)})
@@ -157,9 +157,9 @@ Ask me anything about your emotional state, or try a guided exercise. 💙`;
         }
       }
     } catch { /* ignore */ }
-    return `I don't have voice data from today yet. Do a voice check-in on the dashboard first, then come back here for a personalized mood summary.
+    return `I don't have voice data from today yet. Do a voice analysis on the dashboard first, then come back here for a personalized mood summary.
 
-Or tell me in your own words — how are you feeling right now? 💙`;
+Or tell me in your own words — what's on your mind right now? 💙`;
   }
 
   if (msg.includes("sleep") || msg.includes("tired") || msg.includes("insomnia") || msg.includes("rest")) {
@@ -219,7 +219,7 @@ ${
 - 💤 **Sleep optimization** — better recovery
 - 🎯 **Focus techniques** — sharper thinking
 - 💆 **Stress relief** — proven methods
-- 😊 **Mood check-ins** — understand how you're feeling
+- 😊 **Mood analysis** — understand your emotional state
 
 Just ask me anything or use the quick action buttons. What would you like to explore today?`;
 }
@@ -355,7 +355,7 @@ export function AICompanion({ userId }: AICompanionProps) {
       icon: Heart,
       label: "Mood Check-In",
       action: () => {
-        // Pull existing voice check-in data instead of asking again
+        // Pull existing voice analysis data instead of asking again
         let moodContext = "";
         try {
           const raw = localStorage.getItem("ndw_last_emotion");
@@ -368,7 +368,7 @@ export function AICompanion({ userId }: AICompanionProps) {
               const confidence = r?.confidence ?? 0;
               const stress = r?.stress_index ?? r?.stress_from_watch ?? 0;
               const focus = r?.focus_index ?? 0;
-              moodContext = `My latest voice check-in shows: emotion=${emotion} (${Math.round(confidence * 100)}% confidence), valence=${valence.toFixed(2)}, stress=${Math.round(stress * 100)}%, focus=${Math.round(focus * 100)}%. Based on this data, give me a personalized mood summary and suggestions.`;
+              moodContext = `My latest voice analysis shows: emotion=${emotion} (${Math.round(confidence * 100)}% confidence), valence=${valence.toFixed(2)}, stress=${Math.round(stress * 100)}%, focus=${Math.round(focus * 100)}%. Based on this data, give me a personalized mood summary and suggestions.`;
             }
           }
         } catch { /* ignore */ }
@@ -628,8 +628,8 @@ export function AICompanion({ userId }: AICompanionProps) {
             <MetricBar
               label="Relax"
               value={relaxVal}
-              colorClass="bg-emerald-500"
-              textClass="text-emerald-400"
+              colorClass="bg-cyan-500"
+              textClass="text-cyan-400"
               icon={Leaf}
             />
             <MetricBar

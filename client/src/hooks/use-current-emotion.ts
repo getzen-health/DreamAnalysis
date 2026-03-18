@@ -2,7 +2,7 @@
  * useCurrentEmotion -- single source of truth for the current emotional state.
  *
  * Reads from localStorage (ndw_last_emotion) and listens for:
- *   - "ndw-emotion-update" custom event (fired by voice check-in or EEG updates)
+ *   - "ndw-emotion-update" custom event (fired by voice analysis or EEG updates)
  *   - "ndw-voice-updated" legacy event (fired by bottom tab mic)
  *   - "storage" event (cross-tab sync)
  *

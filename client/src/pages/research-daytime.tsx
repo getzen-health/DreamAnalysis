@@ -293,7 +293,7 @@ export default function ResearchDaytime() {
   if (alreadyDone || step === "done") {
     return (
       <div className="max-w-lg mx-auto py-16 px-4 text-center space-y-4">
-        <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto" />
+        <CheckCircle2 className="w-12 h-12 text-cyan-400 mx-auto" />
         <h2 className="text-xl font-bold">Daytime sessions complete</h2>
         <p className="text-sm text-muted-foreground">
           Both your stress and food EEG sessions are logged for today.
@@ -358,7 +358,7 @@ export default function ResearchDaytime() {
         <div>
           <h1 className="text-xl font-bold">Daytime Research Session</h1>
           <p className="text-xs text-muted-foreground">
-            20-min stress session + 20-min food session · starts after this check-in
+            20-min stress session + 20-min food session · starts after this analysis
           </p>
         </div>
       </div>

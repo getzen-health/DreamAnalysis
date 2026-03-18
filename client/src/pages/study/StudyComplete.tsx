@@ -119,8 +119,8 @@ export default function StudyComplete() {
         {/* Checkmark + headline */}
         <div className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center">
-              <CheckCircle2 className="h-10 w-10 text-green-400" />
+            <div className="w-20 h-20 rounded-full bg-cyan-600/10 flex items-center justify-center">
+              <CheckCircle2 className="h-10 w-10 text-cyan-400" />
             </div>
           </div>
           <div className="space-y-1">
@@ -145,10 +145,10 @@ export default function StudyComplete() {
 
         {/* Status badges */}
         <div className="flex justify-center gap-3">
-          <Badge variant="outline" className={stressDone ? "border-green-500/50 text-green-400" : "border-muted text-muted-foreground"}>
+          <Badge variant="outline" className={stressDone ? "border-cyan-500/50 text-cyan-400" : "border-muted text-muted-foreground"}>
             <Zap className="h-3 w-3 mr-1" />Stress {stressDone ? "done" : "pending"}
           </Badge>
-          <Badge variant="outline" className={foodDone ? "border-green-500/50 text-green-400" : "border-muted text-muted-foreground"}>
+          <Badge variant="outline" className={foodDone ? "border-cyan-500/50 text-cyan-400" : "border-muted text-muted-foreground"}>
             <Brain className="h-3 w-3 mr-1" />Food {foodDone ? "done" : "pending"}
           </Badge>
         </div>
@@ -170,9 +170,9 @@ export default function StudyComplete() {
 
         {/* Next action card */}
         {bothDone ? (
-          <Card className="border-green-500/20 bg-green-500/5">
+          <Card className="border-cyan-500/20 bg-cyan-600/5">
             <CardContent className="pt-6 space-y-4 text-center">
-              <FlaskConical className="h-8 w-8 text-green-400 mx-auto" />
+              <FlaskConical className="h-8 w-8 text-cyan-400 mx-auto" />
               <p className="font-semibold">Both sessions complete!</p>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Your data is contributing to brain science. Thank you for participating

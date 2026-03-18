@@ -333,9 +333,9 @@ const milestoneTimeline = [
 export default function ArchitectureGuide() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <div className="rounded-3xl border border-emerald-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_40%),linear-gradient(135deg,rgba(10,14,22,0.98),rgba(14,18,30,0.94))] p-6 shadow-2xl">
+      <div className="rounded-3xl border border-cyan-500/20 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_40%),linear-gradient(135deg,rgba(10,14,22,0.98),rgba(14,18,30,0.94))] p-6 shadow-2xl">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+          <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
             Project Dossier
           </Badge>
           <Badge variant="outline" className="border-sky-500/30 bg-sky-500/10 text-sky-300">
@@ -662,8 +662,8 @@ export default function ArchitectureGuide() {
               strategic job now is to keep that story central while organizing the expanding research
               backlog into clear, credible milestones.
             </p>
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-              <div className="flex items-center gap-2 text-emerald-300">
+            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+              <div className="flex items-center gap-2 text-cyan-300">
                 <Sparkles className="h-4 w-4" />
                 <span className="text-sm font-semibold">Best one-line positioning</span>
               </div>

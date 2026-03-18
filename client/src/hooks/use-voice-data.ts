@@ -1,5 +1,5 @@
 /**
- * useVoiceData — shared hook for reading voice check-in data across all pages.
+ * useVoiceData — shared hook for reading voice analysis data across all pages.
  *
  * Reads from localStorage (ndw_last_emotion) and listens for the
  * "ndw-voice-updated" event dispatched by the bottom tab mic button.
@@ -41,7 +41,7 @@ function readCheckin(): VoiceCheckinData | null {
 }
 
 /**
- * Returns the latest voice check-in data, auto-updating when a new
+ * Returns the latest voice analysis data, auto-updating when a new
  * check-in happens via the bottom tab mic button.
  */
 export function useVoiceData(): VoiceCheckinData | null {

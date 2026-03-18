@@ -1282,7 +1282,7 @@ export interface VoiceWatchCheckinResult {
 /** @deprecated Use VoiceWatchCheckinResult instead. */
 export type CheckInResult = VoiceWatchCheckinResult;
 
-/** Submit a voice check-in via the canonical voice-watch pipeline. */
+/** Submit a voice analysis via the canonical voice-watch pipeline. */
 export async function submitVoiceWatch(
   audioBase64: string,
   userId?: string

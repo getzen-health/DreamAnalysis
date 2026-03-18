@@ -167,15 +167,15 @@ function formatTime(seconds: number): string {
 }
 
 function stressColor(level: number): string {
-  if (level < 0.4) return "bg-green-500";
+  if (level < 0.4) return "bg-cyan-600";
   if (level <= 0.65) return "bg-yellow-400";
-  return "bg-red-500";
+  return "bg-rose-500";
 }
 
 function stressTextColor(level: number): string {
-  if (level < 0.4) return "text-green-400";
+  if (level < 0.4) return "text-cyan-400";
   if (level <= 0.65) return "text-yellow-400";
-  return "text-red-400";
+  return "text-rose-400";
 }
 
 function stressLabel(level: number): string {
@@ -741,8 +741,8 @@ export default function StudySessionStress() {
   const recordingDot = (
     <div className="flex items-center justify-center gap-2">
       <span className="relative flex h-2.5 w-2.5">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
       </span>
       <span className="text-sm text-muted-foreground">
         Recording...{" "}
@@ -771,10 +771,10 @@ export default function StudySessionStress() {
     <div className="min-h-screen bg-background text-foreground relative">
       <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
         <div
-          className={`w-2 h-2 rounded-full ${connectionOk ? "bg-green-400" : "bg-red-400"}`}
+          className={`w-2 h-2 rounded-full ${connectionOk ? "bg-cyan-500" : "bg-rose-400"}`}
         />
         <span
-          className={`text-[10px] ${connectionOk ? "text-green-400" : "text-red-400"}`}
+          className={`text-[10px] ${connectionOk ? "text-cyan-400" : "text-rose-400"}`}
         >
           {connectionOk ? "Connected" : "EEG connection lost"}
         </span>

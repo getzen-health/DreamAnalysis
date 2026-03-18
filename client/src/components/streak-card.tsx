@@ -72,7 +72,7 @@ export function StreakCard({ userId }: StreakCardProps) {
     retry: 1,
   });
 
-  /** Navigate to the emotions page to start a voice check-in. */
+  /** Navigate to the emotions page to start a voice analysis. */
   const handleCheckin = () => {
     navigate("/emotions");
   };
@@ -112,7 +112,7 @@ export function StreakCard({ userId }: StreakCardProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Flame
-              className={`h-6 w-6 ${isGreen ? "text-emerald-500" : "text-orange-400"}`}
+              className={`h-6 w-6 ${isGreen ? "text-cyan-500" : "text-orange-400"}`}
             />
             <div>
               <div className="flex items-baseline gap-1.5">
@@ -151,7 +151,7 @@ export function StreakCard({ userId }: StreakCardProps) {
                 key={m}
                 className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
                   reached
-                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                    ? "bg-cyan-500/15 text-cyan-400 border-cyan-500/30"
                     : "bg-muted/20 text-muted-foreground/40 border-border/30"
                 }`}
                 title={reached ? `${m}-day milestone reached` : `Reach a ${m}-day streak to unlock`}
@@ -187,7 +187,7 @@ export function StreakCard({ userId }: StreakCardProps) {
             {unlocked_features.map((key) => (
               <Badge
                 key={key}
-                className="text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+                className="text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20"
               >
                 {FEATURE_LABELS[key] ?? key}
               </Badge>

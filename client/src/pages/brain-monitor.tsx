@@ -368,10 +368,10 @@ export default function BrainMonitor() {
 
                 const config: Record<string, { label: string; className: string }> = {
                   "eeg":       { label: "EEG",          className: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
-                  "voice":     { label: "Voice",         className: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
+                  "voice":     { label: "Voice",         className: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30" },
                   "health":    { label: "Health Est.",   className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
-                  "eeg+voice": { label: "EEG + Voice",   className: "bg-green-500/20 text-green-400 border-green-500/30" },
-                  "eeg+bio":   { label: "EEG + Bio",     className: "bg-green-500/20 text-green-400 border-green-500/30" },
+                  "eeg+voice": { label: "EEG + Voice",   className: "bg-cyan-600/20 text-cyan-400 border-cyan-500/30" },
+                  "eeg+bio":   { label: "EEG + Bio",     className: "bg-cyan-600/20 text-cyan-400 border-cyan-500/30" },
                 };
                 const cfg = config[source] ?? config["health"];
                 return (
@@ -703,10 +703,10 @@ function getBrainStateNarrative(analysis: Record<string, unknown>): { headline: 
   const drowsiness = (analysis.drowsiness  as { drowsiness_index?: number })?.drowsiness_index ?? 0;
 
   if (sleep && sleep !== "wake" && sleep !== "Wake" && sleep !== "—") {
-    return { headline: `${sleep} Sleep`, story: `Your brain is in ${sleep} sleep. Delta waves dominate, signaling deep restorative rest. Models continue running passively.`, color: "text-blue-400" };
+    return { headline: `${sleep} Sleep`, story: `Your brain is in ${sleep} sleep. Delta waves dominate, signaling deep restorative rest. Models continue running passively.`, color: "text-indigo-400" };
   }
   if (flow > 0.7) {
-    return { headline: "Flow State", story: "Alpha and theta are balanced with engaged beta — you're in the zone. Focus is sharp without anxiety. Don't break the session.", color: "text-green-400" };
+    return { headline: "Flow State", story: "Alpha and theta are balanced with engaged beta — you're in the zone. Focus is sharp without anxiety. Don't break the session.", color: "text-cyan-400" };
   }
   if (stress > 0.7) {
     return { headline: "Elevated Stress", story: "High-beta activity is dominant, signaling mental tension. Try 4-7-8 breathing or step away briefly. Your nervous system needs a reset.", color: "text-rose-400" };
@@ -721,7 +721,7 @@ function getBrainStateNarrative(analysis: Record<string, unknown>): { headline: 
     return { headline: "Getting Drowsy", story: "Theta is climbing and alpha is slowing down — your brain is shifting toward sleep onset. Take a break or try a short walk.", color: "text-orange-400" };
   }
   if (attention > 0.7) {
-    return { headline: "Sharp & Focused", story: "Beta activity is high with suppressed alpha — classic active cognitive engagement. Your brain is fully online and problem-solving.", color: "text-emerald-400" };
+    return { headline: "Sharp & Focused", story: "Beta activity is high with suppressed alpha — classic active cognitive engagement. Your brain is fully online and problem-solving.", color: "text-cyan-400" };
   }
   return { headline: "Balanced Resting", story: "A balanced mix of alpha and beta signals a calm yet alert baseline state — the optimal foundation for learning or light work.", color: "text-primary" };
 }

@@ -22,8 +22,8 @@ const SAMPLE_RATE    = 22050;
 const EMOTIONS = ["happy", "sad", "angry", "fear", "surprise", "neutral"] as const;
 
 const EMOTION_COLOR: Record<string, string> = {
-  happy:    "text-green-400",
-  sad:      "text-blue-400",
+  happy:    "text-cyan-400",
+  sad:      "text-indigo-400",
   angry:    "text-rose-400",
   fear:     "text-amber-400",
   surprise: "text-purple-400",
@@ -31,8 +31,8 @@ const EMOTION_COLOR: Record<string, string> = {
 };
 
 const EMOTION_BG: Record<string, string> = {
-  happy:    "bg-green-500",
-  sad:      "bg-blue-500",
+  happy:    "bg-cyan-600",
+  sad:      "bg-indigo-500",
   angry:    "bg-rose-500",
   fear:     "bg-amber-500",
   surprise: "bg-purple-500",

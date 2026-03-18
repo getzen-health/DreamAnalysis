@@ -42,8 +42,8 @@ const userId = getParticipantId();
 // ── Grade colour ──────────────────────────────────────────────────────────────
 
 const GRADE_COLOR: Record<string, string> = {
-  A: "text-green-400",
-  B: "text-emerald-400",
+  A: "text-cyan-400",
+  B: "text-cyan-400",
   C: "text-amber-400",
   D: "text-orange-400",
   F: "text-rose-400",
@@ -69,10 +69,10 @@ const DIM_LABELS: Record<string, string> = {
 
 const DIM_COLOR: Record<string, string> = {
   self_perception: "bg-violet-500",
-  self_expression: "bg-blue-500",
-  interpersonal: "bg-teal-500",
+  self_expression: "bg-indigo-500",
+  interpersonal: "bg-cyan-500",
   decision_making: "bg-amber-500",
-  stress_management: "bg-emerald-500",
+  stress_management: "bg-cyan-500",
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -130,9 +130,9 @@ function DimensionBar({ name, value }: { name: string; value: number }) {
 
 const SENSOR_COLOR_MAP: Record<string, { border: string; bg: string; text: string; dot: string }> = {
   violet: { border: "border-violet-500/40", bg: "bg-violet-500/10", text: "text-violet-300", dot: "bg-violet-400" },
-  blue:   { border: "border-blue-500/40",   bg: "bg-blue-500/10",   text: "text-blue-300",   dot: "bg-blue-400" },
+  blue:   { border: "border-indigo-500/40",   bg: "bg-indigo-500/10",   text: "text-indigo-300",   dot: "bg-indigo-400" },
   purple: { border: "border-purple-500/40", bg: "bg-purple-500/10", text: "text-purple-300", dot: "bg-purple-400" },
-  emerald:{ border: "border-emerald-500/40",bg: "bg-emerald-500/10",text: "text-emerald-300",dot: "bg-emerald-400" },
+  emerald:{ border: "border-cyan-500/40",bg: "bg-cyan-500/10",text: "text-cyan-300",dot: "bg-cyan-400" },
   cyan:   { border: "border-cyan-500/40",   bg: "bg-cyan-500/10",   text: "text-cyan-300",   dot: "bg-cyan-400" },
   rose:   { border: "border-rose-500/40",   bg: "bg-rose-500/10",   text: "text-rose-300",   dot: "bg-rose-400" },
 };
@@ -173,7 +173,7 @@ function SensorChip({
 
 function TrendIcon({ trend }: { trend: string | null }) {
   if (trend === "improving")
-    return <TrendingUp className="h-4 w-4 text-green-400" />;
+    return <TrendingUp className="h-4 w-4 text-cyan-400" />;
   if (trend === "declining")
     return <TrendingDown className="h-4 w-4 text-rose-400" />;
   return <Minus className="h-4 w-4 text-zinc-400" />;
@@ -284,11 +284,11 @@ export default function EmotionalIntelligencePage() {
               {latest.growth_areas.length > 0 && (
                 <div>
                   <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
-                    <Target className="h-3 w-3 text-blue-400" /> Growth areas
+                    <Target className="h-3 w-3 text-indigo-400" /> Growth areas
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {latest.growth_areas.map((g) => (
-                      <Badge key={g} className="text-xs bg-blue-500/10 text-blue-300 border-blue-500/30">
+                      <Badge key={g} className="text-xs bg-indigo-500/10 text-indigo-300 border-indigo-500/30">
                         {DIM_LABELS[g] ?? g}
                       </Badge>
                     ))}
