@@ -1,10 +1,8 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useHealthSync } from "@/hooks/use-health-sync";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   LineChart,
   Line,
@@ -23,9 +21,10 @@ import {
   Minus,
   Activity,
   Target,
+  RefreshCw,
+  Smartphone,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useToast } from "@/hooks/use-toast";
 import { ScoreGauge } from "@/components/score-gauge";
 import { EmotionStrip } from "@/components/emotion-strip";
 
@@ -54,19 +53,6 @@ interface ChartPoint {
 }
 
 /* ---------- helpers ---------- */
-
-function kgToLbs(kg: number): number {
-  return kg * 2.20462;
-}
-
-function lbsToKg(lbs: number): number {
-  return lbs / 2.20462;
-}
-
-function computeBmi(weightKg: number, heightCm: number): number {
-  const heightM = heightCm / 100;
-  return weightKg / (heightM * heightM);
-}
 
 function bmiCategory(bmi: number): { label: string; color: string } {
   if (bmi < 18.5) return { label: "Underweight", color: "text-yellow-400" };
@@ -108,6 +94,16 @@ function compute7DayMovingAvg(
   return result;
 }
 
+function formatSyncTime(date: Date | null): string {
+  if (!date) return "Never";
+  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 /* ---------- animation variants ---------- */
 
 const fadeInUp = {
@@ -120,16 +116,9 @@ const fadeInUp = {
 
 export default function BodyMetrics() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { latestPayload, lastSyncAt, syncNow, status, isAvailable } = useHealthSync();
 
-  // Form state
-  const [weightInput, setWeightInput] = useState("");
-  const [bodyFatInput, setBodyFatInput] = useState("");
-  const [heightInput, setHeightInput] = useState("");
-  const [useLbs, setUseLbs] = useState(false);
-
-  // Fetch latest body metric (for prefilling height)
+  // Fetch latest body metric from DB (populated by health sync)
   const { data: latest } = useQuery<BodyMetric>({
     queryKey: [`/api/body-metrics/${user?.id}/latest`],
     enabled: !!user?.id,
@@ -143,71 +132,6 @@ export default function BodyMetrics() {
     enabled: !!user?.id,
     retry: false,
     staleTime: 30_000,
-  });
-
-  // Prefill height from latest record
-  const savedHeight = latest?.heightCm ? parseFloat(latest.heightCm) : null;
-  const effectiveHeight = heightInput
-    ? parseFloat(heightInput)
-    : savedHeight;
-
-  // Log mutation
-  const logMutation = useMutation({
-    mutationFn: async () => {
-      const rawWeight = parseFloat(weightInput);
-      if (isNaN(rawWeight) || rawWeight <= 0) {
-        throw new Error("Enter a valid weight");
-      }
-
-      const weightKg = useLbs ? lbsToKg(rawWeight) : rawWeight;
-      const bodyFatPct = bodyFatInput ? parseFloat(bodyFatInput) : undefined;
-      const heightCm = heightInput
-        ? parseFloat(heightInput)
-        : savedHeight ?? undefined;
-
-      if (bodyFatPct !== undefined && (bodyFatPct < 0 || bodyFatPct > 100)) {
-        throw new Error("Body fat must be 0-100%");
-      }
-
-      const res = await apiRequest("POST", "/api/body-metrics", {
-        weightKg: parseFloat(weightKg.toFixed(2)),
-        bodyFatPct: bodyFatPct ?? null,
-        heightCm: heightCm ?? null,
-        source: "manual",
-      });
-
-      return res.json();
-    },
-    onSuccess: (data: BodyMetric) => {
-      queryClient.invalidateQueries({
-        queryKey: [`/api/body-metrics/${user?.id}/latest`],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [`/api/body-metrics/${user?.id}`],
-      });
-      setWeightInput("");
-      setBodyFatInput("");
-
-      const bmi = data.bmi ? parseFloat(data.bmi) : null;
-      const leanMass = data.leanMassKg ? parseFloat(data.leanMassKg) : null;
-
-      toast({
-        title: "Weight logged",
-        description: [
-          bmi ? `BMI: ${bmi.toFixed(1)}` : null,
-          leanMass ? `Lean mass: ${leanMass.toFixed(1)} kg` : null,
-        ]
-          .filter(Boolean)
-          .join(" | ") || "Saved successfully",
-      });
-    },
-    onError: (err: Error) => {
-      toast({
-        title: "Error",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
   });
 
   // Build chart data
@@ -248,7 +172,6 @@ export default function BodyMetrics() {
     const recent = validWeights[validWeights.length - 1];
     const weekAgoTs = recent.ts - 7 * 24 * 60 * 60 * 1000;
 
-    // Find the point closest to 7 days ago
     let closest = validWeights[0];
     let closestDiff = Math.abs(closest.ts - weekAgoTs);
     for (const p of validWeights) {
@@ -273,15 +196,11 @@ export default function BodyMetrics() {
     return { weeklyChange, weeklyPct };
   }, [chartData]);
 
-  // Latest stats
-  const latestWeight = latest?.weightKg ? parseFloat(latest.weightKg) : null;
+  // Latest stats — prefer health sync payload for live weight, fall back to DB
+  const latestWeight = latestPayload?.weight_kg ?? (latest?.weightKg ? parseFloat(latest.weightKg) : null);
   const latestBmi = latest?.bmi ? parseFloat(latest.bmi) : null;
-  const latestBodyFat = latest?.bodyFatPct
-    ? parseFloat(latest.bodyFatPct)
-    : null;
-  const latestLeanMass = latest?.leanMassKg
-    ? parseFloat(latest.leanMassKg)
-    : null;
+  const latestBodyFat = latestPayload?.body_fat_pct ?? (latest?.bodyFatPct ? parseFloat(latest.bodyFatPct) : null);
+  const latestLeanMass = latestPayload?.lean_mass_kg ?? (latest?.leanMassKg ? parseFloat(latest.leanMassKg) : null);
 
   // Weight domain for chart (auto-scale with padding)
   const weightDomain = useMemo(() => {
@@ -298,6 +217,8 @@ export default function BodyMetrics() {
     ] as [number, number];
   }, [chartData]);
 
+  const isSyncing = status === "syncing";
+
   return (
     <main className="px-4 pt-2 pb-24 space-y-4 max-w-xl mx-auto">
       {/* Page Header */}
@@ -309,100 +230,83 @@ export default function BodyMetrics() {
         <EmotionStrip />
       </motion.div>
 
-      {/* Quick Log Card */}
+      {/* Synced from Health Card */}
       <motion.div
         className="rounded-2xl p-5 bg-card border border-border shadow-sm"
         {...fadeInUp}
         transition={{ ...fadeInUp.transition, delay: 0.05 }}
       >
-        <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em] mb-3">
-          Log Weight
-        </p>
-
-        <div className="space-y-3">
-          {/* Weight input with unit toggle */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <Label className="text-[12px] text-muted-foreground">
-                Weight
-              </Label>
-              <button
-                type="button"
-                onClick={() => setUseLbs(!useLbs)}
-                className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-              >
-                {useLbs ? "lbs" : "kg"} (tap to switch)
-              </button>
-            </div>
-            <Input
-              type="number"
-              step="0.1"
-              placeholder={useLbs ? "e.g. 165" : "e.g. 75"}
-              value={weightInput}
-              onChange={(e) => setWeightInput(e.target.value)}
-              className="bg-background/50 border-border/50 text-base h-12"
-            />
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-primary" />
+            <p className="text-[13px] font-semibold text-foreground">Synced from Health</p>
           </div>
-
-          {/* Body Fat (optional) */}
-          <div>
-            <Label className="text-[12px] text-muted-foreground mb-1.5 block">
-              Body Fat % (optional)
-            </Label>
-            <Input
-              type="number"
-              step="0.1"
-              placeholder="e.g. 18"
-              value={bodyFatInput}
-              onChange={(e) => setBodyFatInput(e.target.value)}
-              className="bg-background/50 border-border/50 text-base h-12"
-            />
-          </div>
-
-          {/* Height (set once) */}
-          {!savedHeight && (
-            <div>
-              <Label className="text-[12px] text-muted-foreground mb-1.5 block">
-                Height (cm) -- set once for BMI
-              </Label>
-              <Input
-                type="number"
-                step="0.1"
-                placeholder="e.g. 175"
-                value={heightInput}
-                onChange={(e) => setHeightInput(e.target.value)}
-                className="bg-background/50 border-border/50 text-base h-12"
-              />
-            </div>
-          )}
-
-          {/* Preview BMI before logging */}
-          {weightInput && effectiveHeight && (
-            <div className="text-[11px] text-muted-foreground/70">
-              {(() => {
-                const wKg = useLbs
-                  ? lbsToKg(parseFloat(weightInput))
-                  : parseFloat(weightInput);
-                if (isNaN(wKg) || wKg <= 0) return null;
-                const bmi = computeBmi(wKg, effectiveHeight);
-                const cat = bmiCategory(bmi);
-                return (
-                  <span>
-                    Preview BMI: <span className={cat.color}>{bmi.toFixed(1)} ({cat.label})</span>
-                  </span>
-                );
-              })()}
-            </div>
-          )}
-
-          <Button
-            onClick={() => logMutation.mutate()}
-            disabled={logMutation.isPending || !weightInput}
-            className="w-full h-12 text-base font-semibold"
-          >
-            {logMutation.isPending ? "Logging..." : "Log Weight"}
-          </Button>
+          <span className="text-[10px] text-muted-foreground">
+            Last synced: {formatSyncTime(lastSyncAt)}
+          </span>
         </div>
+
+        {isAvailable ? (
+          <div className="space-y-3">
+            {latestWeight !== null ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Weight</span>
+                  <span className="text-lg font-bold text-foreground">
+                    {latestWeight.toFixed(1)} kg
+                  </span>
+                </div>
+                {latestBodyFat !== null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Body Fat</span>
+                    <span className="text-lg font-bold text-foreground">
+                      {latestBodyFat.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+                {latestLeanMass !== null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Lean Mass</span>
+                    <span className="text-lg font-bold text-foreground">
+                      {latestLeanMass.toFixed(1)} kg
+                    </span>
+                  </div>
+                )}
+                {latestBmi !== null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">BMI</span>
+                    <span className={`text-lg font-bold ${bmiCategory(latestBmi).color}`}>
+                      {latestBmi.toFixed(1)} ({bmiCategory(latestBmi).label})
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No body metrics synced yet. Tap Sync Now to pull data from your health app.
+              </p>
+            )}
+
+            <Button
+              onClick={() => syncNow()}
+              disabled={isSyncing}
+              className="w-full h-12 text-base font-semibold gap-2"
+              variant="outline"
+            >
+              <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+              {isSyncing ? "Syncing..." : "Sync Now"}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Connect Google Health or Apple Health in Settings to see your body metrics.
+            </p>
+            <p className="text-xs text-muted-foreground/60">
+              Body metrics are automatically imported from your health app. No manual entry needed.
+            </p>
+          </div>
+        )}
       </motion.div>
 
       {/* Current Stats Card */}
@@ -749,7 +653,7 @@ export default function BodyMetrics() {
       )}
 
       {/* Empty state */}
-      {history.length === 0 && (
+      {history.length === 0 && latestWeight === null && (
         <motion.div
           className="rounded-2xl p-6 text-center bg-card border border-border"
           {...fadeInUp}
@@ -757,10 +661,10 @@ export default function BodyMetrics() {
         >
           <Scale className="h-8 w-8 mx-auto mb-3 text-muted-foreground/40" />
           <p className="text-[13px] font-medium text-foreground/70">
-            No entries yet
+            No body metrics yet
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Log your weight above to start tracking trends
+            Your weight, BMI, and body fat are automatically synced from Google Health or Apple Health
           </p>
         </motion.div>
       )}

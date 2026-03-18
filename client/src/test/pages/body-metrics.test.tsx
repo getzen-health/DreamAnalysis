@@ -34,6 +34,17 @@ vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+vi.mock("@/hooks/use-health-sync", () => ({
+  useHealthSync: () => ({
+    status: "idle",
+    lastSyncAt: null,
+    latestPayload: null,
+    error: null,
+    syncNow: vi.fn(),
+    isAvailable: true,
+  }),
+}));
+
 describe("BodyMetrics page", () => {
   beforeEach(() => {
     global.fetch = vi.fn().mockResolvedValue({
@@ -47,41 +58,40 @@ describe("BodyMetrics page", () => {
     expect(screen.getByText("Body Metrics")).toBeInTheDocument();
   });
 
-  it("shows the Log Weight section heading", () => {
+  it("shows the Synced from Health card", () => {
     renderWithProviders(<BodyMetrics />);
-    // The section label and the button both say "Log Weight"
-    const matches = screen.getAllByText("Log Weight");
-    expect(matches.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Synced from Health")).toBeInTheDocument();
   });
 
-  it("shows weight input field", () => {
-    renderWithProviders(<BodyMetrics />);
-    expect(screen.getByText("Weight")).toBeInTheDocument();
-  });
-
-  it("shows body fat input field", () => {
-    renderWithProviders(<BodyMetrics />);
-    expect(screen.getByText("Body Fat % (optional)")).toBeInTheDocument();
-  });
-
-  it("shows the Log Weight button", () => {
+  it("shows Sync Now button", () => {
     renderWithProviders(<BodyMetrics />);
     expect(
-      screen.getByRole("button", { name: /Log Weight/i })
+      screen.getByRole("button", { name: /Sync Now/i })
     ).toBeInTheDocument();
   });
 
-  it("shows empty state when no history data", async () => {
+  it("shows last synced indicator", () => {
+    renderWithProviders(<BodyMetrics />);
+    expect(screen.getByText(/Last synced:/)).toBeInTheDocument();
+  });
+
+  it("shows empty state when no data synced", async () => {
     renderWithProviders(<BodyMetrics />);
     await waitFor(() => {
-      expect(screen.getByText("No entries yet")).toBeInTheDocument();
+      expect(screen.getByText("No body metrics yet")).toBeInTheDocument();
     });
   });
 
-  it("shows kg/lbs toggle button", () => {
+  it("shows prompt to sync when no metrics available", () => {
     renderWithProviders(<BodyMetrics />);
     expect(
-      screen.getByText(/kg.*tap to switch/i)
+      screen.getByText(/No body metrics synced yet/)
     ).toBeInTheDocument();
+  });
+
+  it("does not show any manual weight input", () => {
+    renderWithProviders(<BodyMetrics />);
+    expect(screen.queryByText("Log Weight")).not.toBeInTheDocument();
+    expect(screen.queryByText("Body Fat % (optional)")).not.toBeInTheDocument();
   });
 });

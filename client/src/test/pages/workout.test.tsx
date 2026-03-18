@@ -26,6 +26,17 @@ vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+vi.mock("@/hooks/use-health-sync", () => ({
+  useHealthSync: () => ({
+    status: "idle",
+    lastSyncAt: null,
+    latestPayload: null,
+    error: null,
+    syncNow: vi.fn(),
+    isAvailable: true,
+  }),
+}));
+
 describe("Workout page", () => {
   beforeEach(() => {
     global.fetch = vi.fn().mockResolvedValue({
@@ -36,40 +47,38 @@ describe("Workout page", () => {
 
   it("renders the page heading", () => {
     renderWithProviders(<WorkoutPage />);
-    expect(screen.getByText("Strength Builder")).toBeInTheDocument();
+    expect(screen.getByText("Workouts")).toBeInTheDocument();
   });
 
-  it("shows Start Workout card title and button", () => {
+  it("shows Health Sync card", () => {
     renderWithProviders(<WorkoutPage />);
-    // Both the card title and the action button contain "Start Workout"
-    const matches = screen.getAllByText(/Start Workout/);
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Health Sync")).toBeInTheDocument();
   });
 
-  it("shows the Start Workout action button", () => {
+  it("shows Sync Workouts button", () => {
     renderWithProviders(<WorkoutPage />);
-    const buttons = screen.getAllByRole("button", { name: /Start Workout/i });
-    // At least the action button exists (there may also be the card title)
-    expect(buttons.length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByRole("button", { name: /Sync Workouts/i })
+    ).toBeInTheDocument();
   });
 
-  it("shows workout type selector buttons", () => {
+  it("shows empty state when no workouts imported", async () => {
     renderWithProviders(<WorkoutPage />);
-    expect(screen.getByRole("button", { name: "Strength" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cardio" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "HIIT" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Flexibility" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mixed" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("No workouts yet")).toBeInTheDocument();
+    });
   });
 
-  it("shows Workout and History tabs", () => {
+  it("shows auto-import message in empty state", () => {
     renderWithProviders(<WorkoutPage />);
-    expect(screen.getByText("Workout")).toBeInTheDocument();
-    expect(screen.getByText("History")).toBeInTheDocument();
+    expect(
+      screen.getByText(/automatically imported from Google Health or Apple Health/)
+    ).toBeInTheDocument();
   });
 
-  it("shows workout name input", () => {
+  it("does not show manual workout creation", () => {
     renderWithProviders(<WorkoutPage />);
-    expect(screen.getByText("Workout Name (optional)")).toBeInTheDocument();
+    expect(screen.queryByText("Start Workout")).not.toBeInTheDocument();
+    expect(screen.queryByText("Workout Name (optional)")).not.toBeInTheDocument();
   });
 });
