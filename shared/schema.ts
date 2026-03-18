@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, serial, jsonb, timestamp, real, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, serial, jsonb, timestamp, real, boolean, index, uniqueIndex, uuid, date, numeric, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -560,3 +560,336 @@ export type StudyParticipant = typeof pilotParticipants.$inferSelect;
 export type InsertStudyParticipant = z.infer<typeof insertPilotParticipantSchema>;
 export type StudySession = typeof pilotSessions.$inferSelect;
 export type InsertStudySession = z.infer<typeof insertPilotSessionSchema>;
+
+// ============ PIPELINE TABLES ============
+
+export const dailyAggregates = pgTable("daily_aggregates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  metric: text("metric").notNull(),
+  avgValue: numeric("avg_value"),
+  minValue: numeric("min_value"),
+  maxValue: numeric("max_value"),
+  sumValue: numeric("sum_value"),
+  sampleCount: integer("sample_count").default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("daily_aggregates_user_date_metric_uidx").on(table.userId, table.date, table.metric),
+]);
+
+export const userBaselines = pgTable("user_baselines", {
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  metric: text("metric").notNull(),
+  baselineAvg: numeric("baseline_avg"),
+  baselineStddev: numeric("baseline_stddev"),
+  sampleCount: integer("sample_count").default(0),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.metric] }),
+]);
+
+export const userScores = pgTable("user_scores", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  recoveryScore: numeric("recovery_score"),
+  sleepScore: numeric("sleep_score"),
+  strainScore: numeric("strain_score"),
+  stressScore: numeric("stress_score"),
+  nutritionScore: numeric("nutrition_score"),
+  energyBank: numeric("energy_bank"),
+  recoveryInputs: jsonb("recovery_inputs"),
+  sleepInputs: jsonb("sleep_inputs"),
+  strainInputs: jsonb("strain_inputs"),
+  stressInputs: jsonb("stress_inputs"),
+  nutritionInputs: jsonb("nutrition_inputs"),
+  computedAt: timestamp("computed_at").defaultNow(),
+});
+
+export const scoreHistory = pgTable("score_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  recoveryScore: numeric("recovery_score"),
+  sleepScore: numeric("sleep_score"),
+  strainScore: numeric("strain_score"),
+  stressScore: numeric("stress_score"),
+  nutritionScore: numeric("nutrition_score"),
+  energyBank: numeric("energy_bank"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("score_history_user_date_uidx").on(table.userId, table.date),
+]);
+
+export const trendAlerts = pgTable("trend_alerts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  alertType: text("alert_type").notNull(),
+  metric: text("metric").notNull(),
+  severity: text("severity").notNull(),
+  message: text("message").notNull(),
+  value: numeric("value"),
+  baseline: numeric("baseline"),
+  acknowledged: boolean("acknowledged").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const deviceConnections = pgTable("device_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  scopes: text("scopes").array(),
+  lastSyncAt: timestamp("last_sync_at"),
+  syncStatus: text("sync_status").default("active"),
+  errorMessage: text("error_message"),
+  connectedAt: timestamp("connected_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("device_connections_user_provider_uidx").on(table.userId, table.provider),
+]);
+
+// ============ EXERCISE & BODY TABLES ============
+
+export const exercises = pgTable("exercises", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  muscleGroups: text("muscle_groups").array().notNull(),
+  equipment: text("equipment"),
+  instructions: text("instructions"),
+  videoUrl: text("video_url"),
+  isCustom: boolean("is_custom").default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+});
+
+export const workouts = pgTable("workouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name"),
+  workoutType: text("workout_type").notNull(),
+  startedAt: timestamp("started_at").notNull(),
+  endedAt: timestamp("ended_at"),
+  durationMin: numeric("duration_min"),
+  totalStrain: numeric("total_strain"),
+  avgHr: numeric("avg_hr"),
+  maxHr: numeric("max_hr"),
+  caloriesBurned: numeric("calories_burned"),
+  hrZones: jsonb("hr_zones"),
+  hrRecovery: numeric("hr_recovery"),
+  source: text("source").notNull(),
+  eegSessionId: varchar("eeg_session_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const workoutSets = pgTable("workout_sets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workoutId: uuid("workout_id").references(() => workouts.id, { onDelete: "cascade" }),
+  exerciseId: uuid("exercise_id").references(() => exercises.id),
+  setNumber: integer("set_number").notNull(),
+  setType: text("set_type").default("normal"),
+  reps: integer("reps"),
+  weightKg: numeric("weight_kg"),
+  durationSec: integer("duration_sec"),
+  restSec: integer("rest_sec"),
+  rpe: numeric("rpe"),
+  completed: boolean("completed").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const workoutTemplates = pgTable("workout_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  exercises: jsonb("exercises").notNull(),
+  isAiGenerated: boolean("is_ai_generated").default(false),
+  timesUsed: integer("times_used").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const bodyMetrics = pgTable("body_metrics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  weightKg: numeric("weight_kg"),
+  bodyFatPct: numeric("body_fat_pct"),
+  leanMassKg: numeric("lean_mass_kg"),
+  bmi: numeric("bmi"),
+  heightCm: numeric("height_cm"),
+  source: text("source").notNull(),
+  recordedAt: timestamp("recorded_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const exerciseHistory = pgTable("exercise_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  exerciseId: uuid("exercise_id").references(() => exercises.id),
+  date: date("date").notNull(),
+  bestWeightKg: numeric("best_weight_kg"),
+  bestReps: integer("best_reps"),
+  estimated1rm: numeric("estimated_1rm"),
+  totalVolume: numeric("total_volume"),
+}, (table) => [
+  uniqueIndex("exercise_history_user_exercise_date_uidx").on(table.userId, table.exerciseId, table.date),
+]);
+
+// ============ LIFESTYLE TABLES ============
+
+export const habits = pgTable("habits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  category: text("category"),
+  icon: text("icon"),
+  targetValue: numeric("target_value"),
+  unit: text("unit"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const habitLogs = pgTable("habit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  habitId: uuid("habit_id").references(() => habits.id, { onDelete: "cascade" }),
+  value: numeric("value").notNull(),
+  note: text("note"),
+  loggedAt: timestamp("logged_at").defaultNow(),
+});
+
+export const cycleTracking = pgTable("cycle_tracking", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  flowLevel: text("flow_level"),
+  symptoms: text("symptoms").array(),
+  phase: text("phase"),
+  contraception: text("contraception"),
+  basalTemp: numeric("basal_temp"),
+  notes: text("notes"),
+}, (table) => [
+  uniqueIndex("cycle_tracking_user_date_uidx").on(table.userId, table.date),
+]);
+
+export const moodLogs = pgTable("mood_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  moodScore: numeric("mood_score").notNull(),
+  energyLevel: numeric("energy_level"),
+  notes: text("notes"),
+  loggedAt: timestamp("logged_at").defaultNow(),
+});
+
+// ── Insert schemas (pipeline + exercise + lifestyle) ─────────────────────────
+
+export const insertDailyAggregateSchema = createInsertSchema(dailyAggregates).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertUserBaselineSchema = createInsertSchema(userBaselines).omit({
+  lastUpdated: true,
+});
+
+export const insertUserScoreSchema = createInsertSchema(userScores).omit({
+  computedAt: true,
+});
+
+export const insertScoreHistorySchema = createInsertSchema(scoreHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTrendAlertSchema = createInsertSchema(trendAlerts).omit({
+  id: true,
+  acknowledged: true,
+  createdAt: true,
+});
+
+export const insertDeviceConnectionSchema = createInsertSchema(deviceConnections).omit({
+  id: true,
+  connectedAt: true,
+});
+
+export const insertExerciseSchema = createInsertSchema(exercises).omit({
+  id: true,
+});
+
+export const insertWorkoutSchema = createInsertSchema(workouts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertWorkoutSetSchema = createInsertSchema(workoutSets).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertWorkoutTemplateSchema = createInsertSchema(workoutTemplates).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertBodyMetricSchema = createInsertSchema(bodyMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertExerciseHistorySchema = createInsertSchema(exerciseHistory).omit({
+  id: true,
+});
+
+export const insertHabitSchema = createInsertSchema(habits).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertHabitLogSchema = createInsertSchema(habitLogs).omit({
+  id: true,
+  loggedAt: true,
+});
+
+export const insertCycleTrackingSchema = createInsertSchema(cycleTracking).omit({
+  id: true,
+});
+
+export const insertMoodLogSchema = createInsertSchema(moodLogs).omit({
+  id: true,
+  loggedAt: true,
+});
+
+// ── Types (pipeline + exercise + lifestyle) ──────────────────────────────────
+
+export type DailyAggregate = typeof dailyAggregates.$inferSelect;
+export type InsertDailyAggregate = z.infer<typeof insertDailyAggregateSchema>;
+export type UserBaseline = typeof userBaselines.$inferSelect;
+export type InsertUserBaseline = z.infer<typeof insertUserBaselineSchema>;
+export type UserScore = typeof userScores.$inferSelect;
+export type InsertUserScore = z.infer<typeof insertUserScoreSchema>;
+export type ScoreHistory = typeof scoreHistory.$inferSelect;
+export type InsertScoreHistory = z.infer<typeof insertScoreHistorySchema>;
+export type TrendAlert = typeof trendAlerts.$inferSelect;
+export type InsertTrendAlert = z.infer<typeof insertTrendAlertSchema>;
+export type DeviceConnection = typeof deviceConnections.$inferSelect;
+export type InsertDeviceConnection = z.infer<typeof insertDeviceConnectionSchema>;
+export type Exercise = typeof exercises.$inferSelect;
+export type InsertExercise = z.infer<typeof insertExerciseSchema>;
+export type Workout = typeof workouts.$inferSelect;
+export type InsertWorkout = z.infer<typeof insertWorkoutSchema>;
+export type WorkoutSet = typeof workoutSets.$inferSelect;
+export type InsertWorkoutSet = z.infer<typeof insertWorkoutSetSchema>;
+export type WorkoutTemplate = typeof workoutTemplates.$inferSelect;
+export type InsertWorkoutTemplate = z.infer<typeof insertWorkoutTemplateSchema>;
+export type BodyMetric = typeof bodyMetrics.$inferSelect;
+export type InsertBodyMetric = z.infer<typeof insertBodyMetricSchema>;
+export type ExerciseHistoryRecord = typeof exerciseHistory.$inferSelect;
+export type InsertExerciseHistory = z.infer<typeof insertExerciseHistorySchema>;
+export type Habit = typeof habits.$inferSelect;
+export type InsertHabit = z.infer<typeof insertHabitSchema>;
+export type HabitLog = typeof habitLogs.$inferSelect;
+export type InsertHabitLog = z.infer<typeof insertHabitLogSchema>;
+export type CycleTrackingEntry = typeof cycleTracking.$inferSelect;
+export type InsertCycleTracking = z.infer<typeof insertCycleTrackingSchema>;
+export type MoodLog = typeof moodLogs.$inferSelect;
+export type InsertMoodLog = z.infer<typeof insertMoodLogSchema>;
