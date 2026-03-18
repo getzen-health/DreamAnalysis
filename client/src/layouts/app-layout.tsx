@@ -12,6 +12,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useKeyboardScroll } from "@/hooks/use-keyboard-scroll";
 import { pingBackend } from "@/lib/ml-api";
 import { Loader2, Sun, Moon, ChevronLeft } from "lucide-react";
+import { StreakCelebration } from "@/components/streak-celebration";
 import { EmotionBadge } from "@/components/emotion-badge";
 
 const routeTitles: Record<string, string> = {
@@ -196,6 +197,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <InterventionBanner />
       {/* Offline indicator + auto-sync when connection restores */}
       <OfflineSyncBanner />
+      {/* Streak milestone celebrations */}
+      <StreakCelebration />
     </div>
   );
 }
