@@ -516,12 +516,15 @@ function MiniCard({
   sub,
   valueColor,
   onClick,
+  trend,
 }: {
   label: string;
   value: string;
   sub: string;
   valueColor: string;
   onClick?: () => void;
+  /** "up" = improved, "down" = declined, "same" = unchanged, undefined = no data */
+  trend?: "up" | "down" | "same";
 }) {
   return (
     <div
@@ -537,10 +540,21 @@ function MiniCard({
       }}
     >
       <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>{label}</p>
-      <p style={{ fontSize: 22, fontWeight: 700, color: valueColor, margin: "0 0 4px 0", lineHeight: 1 }}>
-        {value}
-      </p>
-      <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>{sub}</p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+        <p style={{ fontSize: 22, fontWeight: 700, color: valueColor, margin: "0", lineHeight: 1 }}>
+          {value}
+        </p>
+        {trend && (
+          <span style={{
+            fontSize: 12,
+            color: trend === "up" ? "#4ade80" : trend === "down" ? "#e87676" : "var(--muted-foreground)",
+            lineHeight: 1,
+          }}>
+            {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
+          </span>
+        )}
+      </div>
+      <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "4px 0 0 0" }}>{sub}</p>
       {onClick && (
         <span style={{ color: "var(--muted-foreground)", fontSize: 16, position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>›</span>
       )}
@@ -657,6 +671,45 @@ export default function Today() {
   const topProb = checkin?.probabilities
     ? Math.max(...Object.values(checkin.probabilities))
     : 0;
+
+  // Yesterday comparison — read from localStorage history
+  const yesterday = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("ndw_yesterday_emotion");
+      if (raw) return JSON.parse(raw) as { stress_index?: number; focus_index?: number; valence?: number };
+    } catch { /* ignore */ }
+    return null;
+  }, []);
+
+  // Save today's data as "yesterday" at end of day (or when new data arrives)
+  useEffect(() => {
+    if (!checkin?.stress_index) return;
+    try {
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const savedKey = localStorage.getItem("ndw_yesterday_date");
+      if (savedKey !== todayKey) {
+        // Move current "today" to "yesterday"
+        const prev = localStorage.getItem("ndw_today_emotion");
+        if (prev) localStorage.setItem("ndw_yesterday_emotion", prev);
+        localStorage.setItem("ndw_yesterday_date", todayKey);
+      }
+      localStorage.setItem("ndw_today_emotion", JSON.stringify({
+        stress_index: stressVal, focus_index: focusVal, valence: checkin?.valence ?? 0,
+      }));
+    } catch { /* ignore */ }
+  }, [checkin, stressVal, focusVal]);
+
+  // Compute trends
+  function getTrend(current: number, prev: number | undefined, lowerIsBetter = false): "up" | "down" | "same" | undefined {
+    if (prev === undefined) return undefined;
+    const diff = current - prev;
+    if (Math.abs(diff) < 0.05) return "same";
+    if (lowerIsBetter) return diff < 0 ? "up" : "down"; // less stress = improvement
+    return diff > 0 ? "up" : "down";
+  }
+  const stressTrend = getTrend(stressVal, yesterday?.stress_index, true);
+  const focusTrend = getTrend(focusVal, yesterday?.focus_index);
+  const moodTrend = getTrend(checkin?.valence ?? 0, yesterday?.valence);
 
   // Gentle haptic warning when stress is elevated
   useEffect(() => {
@@ -779,6 +832,7 @@ export default function Today() {
           sub={topProb > 0 ? `${Math.round(topProb * 100)}% confidence` : "No data"}
           valueColor="#0891b2"
           onClick={() => navigate("/emotions")}
+          trend={moodTrend}
         />
         <MiniCard
           label="Stress"
@@ -786,6 +840,7 @@ export default function Today() {
           sub={stressVal > 0 ? getStressLabel(stressVal) : "No data"}
           valueColor={stressVal > 0 ? getStressColor(stressVal) : "var(--muted-foreground)"}
           onClick={() => navigate("/emotions")}
+          trend={stressTrend}
         />
         <MiniCard
           label="Focus"
@@ -793,6 +848,7 @@ export default function Today() {
           sub={focusVal > 0 ? getFocusLabel(focusVal) : "No data"}
           valueColor="#3b82f6"
           onClick={() => navigate("/emotions")}
+          trend={focusTrend}
         />
       </div>
 
