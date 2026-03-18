@@ -98,6 +98,93 @@ function formatDate(): string {
   return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
 }
 
+// ── Weekly Summary Card ────────────────────────────────────────────────────
+
+function WeeklySummaryCard({ userId }: { userId: string }) {
+  const { data } = useQuery<Array<{ dominantEmotion: string; stress: number; focus: number; valence: number; timestamp: string }>>({
+    queryKey: [`/api/brain/history/${userId}?days=7`],
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  if (!data || data.length < 3) return null;
+
+  // Compute weekly stats
+  const emotions: Record<string, number> = {};
+  let totalStress = 0, totalFocus = 0, totalValence = 0;
+  for (const r of data) {
+    emotions[r.dominantEmotion] = (emotions[r.dominantEmotion] || 0) + 1;
+    totalStress += r.stress ?? 0;
+    totalFocus += r.focus ?? 0;
+    totalValence += r.valence ?? 0;
+  }
+  const n = data.length;
+  const avgStress = Math.round((totalStress / n) * 100);
+  const avgFocus = Math.round((totalFocus / n) * 100);
+  const avgValence = totalValence / n;
+  const topEmotion = Object.entries(emotions).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "neutral";
+
+  // Trend: compare first half vs second half
+  const mid = Math.floor(n / 2);
+  const firstHalfV = data.slice(0, mid).reduce((s, r) => s + (r.valence ?? 0), 0) / (mid || 1);
+  const secondHalfV = data.slice(mid).reduce((s, r) => s + (r.valence ?? 0), 0) / (n - mid || 1);
+  const trend = secondHalfV > firstHalfV + 0.05 ? "improving" : secondHalfV < firstHalfV - 0.05 ? "declining" : "stable";
+  const trendEmoji = trend === "improving" ? "📈" : trend === "declining" ? "📉" : "➡️";
+  const trendColor = trend === "improving" ? "#4ade80" : trend === "declining" ? "#e87676" : "var(--muted-foreground)";
+
+  // Generate insight
+  const insight = avgStress > 50
+    ? "Your stress has been elevated this week. Consider adding a daily breathing exercise."
+    : avgFocus > 60
+    ? "Great focus this week! You've been in productive states consistently."
+    : avgValence > 0.2
+    ? "Positive mood trend — keep doing what you're doing."
+    : "Mixed week emotionally. Small daily check-ins help build awareness.";
+
+  return (
+    <div
+      onClick={() => window.location.href = "/weekly-summary"}
+      style={{
+        background: "var(--card)", border: "1px solid var(--border)",
+        borderRadius: 14, padding: 14, marginTop: 14, cursor: "pointer",
+      }}
+    >
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8,
+      }}>
+        <span style={{
+          fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+          textTransform: "uppercase" as const, letterSpacing: "0.5px",
+        }}>
+          Weekly Summary
+        </span>
+        <span style={{ fontSize: 16, color: "var(--muted-foreground)" }}>›</span>
+      </div>
+
+      {/* Stats row */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>Mood</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", textTransform: "capitalize" as const }}>{topEmotion}</div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>Avg Stress</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: avgStress > 50 ? "#e87676" : "#4ade80" }}>{avgStress}%</div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>Trend</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: trendColor }}>{trendEmoji} {trend}</div>
+        </div>
+      </div>
+
+      {/* AI insight */}
+      <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.4, fontStyle: "italic" }}>
+        {insight}
+      </p>
+    </div>
+  );
+}
+
 // ── Daily Wellness Tip ────────────────────────────────────────────────────
 
 const TIPS_BY_STATE: Record<string, string[]> = {
@@ -812,6 +899,9 @@ export default function Today() {
           />
         </div>
       </div>
+
+      {/* ── Weekly Summary Card (shows on Sun/Mon or when 3+ days data) ── */}
+      <WeeklySummaryCard userId={userId} />
 
       {/* ── Daily Wellness Tip ── */}
       <DailyTip emotion={emotion} stress={stressVal} focus={focusVal} />
