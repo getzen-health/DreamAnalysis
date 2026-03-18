@@ -64,7 +64,7 @@ describe("StreakBadge", () => {
     mockFetch(BASE_STREAK);
     renderWithProviders(<StreakBadge userId="test-user" />);
     await waitFor(() => {
-      expect(screen.getByText(/Do a voice check-in today/)).toBeInTheDocument();
+      expect(screen.getByText(/Do a voice analysis today/)).toBeInTheDocument();
     });
   });
 
@@ -74,7 +74,7 @@ describe("StreakBadge", () => {
     await waitFor(() => {
       expect(screen.getByText("5 day streak")).toBeInTheDocument();
     });
-    expect(screen.queryByText(/Do a voice check-in today/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Do a voice analysis today/)).not.toBeInTheDocument();
   });
 
   it("renders 3 milestone dots", async () => {

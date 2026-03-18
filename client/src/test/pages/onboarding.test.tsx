@@ -130,7 +130,7 @@ describe("Onboarding — Step 2 (Choose path)", () => {
     renderStep2();
     fireEvent.click(screen.getByRole("button", { name: /Quick Start \(Voice\)/i }));
     // Use heading role to avoid matching the button with similar text
-    expect(screen.getByRole("heading", { name: "Voice Check-in" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Voice Analysis" })).toBeInTheDocument();
     expect(screen.getByText(/Step 3 of 5/i)).toBeInTheDocument();
   });
 
@@ -151,15 +151,15 @@ describe("Onboarding — Step 3a (Voice check-in)", () => {
     renderWithProviders(<Onboarding />);
   }
 
-  it("shows the Voice Check-in heading", () => {
+  it("shows the Voice Analysis heading", () => {
     renderVoiceStep();
-    expect(screen.getByRole("heading", { name: "Voice Check-in" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Voice Analysis" })).toBeInTheDocument();
   });
 
   it("shows the start recording button", () => {
     renderVoiceStep();
     expect(
-      screen.getByRole("button", { name: /Start 10-second voice check-in/i })
+      screen.getByRole("button", { name: /Start 10-second voice analysis/i })
     ).toBeInTheDocument();
   });
 

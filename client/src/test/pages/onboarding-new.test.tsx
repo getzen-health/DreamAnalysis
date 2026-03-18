@@ -58,7 +58,7 @@ describe("OnboardingNew page", () => {
     renderWithProviders(<OnboardingNew />);
     fireEvent.click(screen.getByRole("button", { name: /Start with voice/i }));
     expect(screen.getByText("Voice + Health setup")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Start 10-second voice check-in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Start 10-second voice analysis/i }));
     expect(startRecording).toHaveBeenCalledTimes(1);
   });
 

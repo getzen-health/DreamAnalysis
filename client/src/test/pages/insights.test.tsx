@@ -52,7 +52,7 @@ describe("Insights page", () => {
     renderWithProviders(<Insights />);
     await waitFor(() => {
       expect(
-        screen.getByText("Complete a voice check-in to unlock your first insights")
+        screen.getByText("Complete a voice analysis to unlock your first insights")
       ).toBeInTheDocument();
     });
   });

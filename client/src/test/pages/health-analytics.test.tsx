@@ -65,7 +65,7 @@ describe("HealthAnalytics page", () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Run a voice check-in or connect EEG/)
+        screen.getByText(/Run a voice analysis or connect EEG/)
       ).toBeInTheDocument();
     });
   });

@@ -86,7 +86,7 @@ describe("WelcomeIntro — navigation buttons", () => {
     renderWithProviders(<WelcomeIntro />);
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
     expect(
-      screen.getByText("Enable Voice Check-ins")
+      screen.getByText("Enable Voice Analyses")
     ).toBeInTheDocument();
   });
 
@@ -100,7 +100,7 @@ describe("WelcomeIntro — navigation buttons", () => {
   it("Back button returns to step 1 from step 2", () => {
     renderWithProviders(<WelcomeIntro />);
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
-    expect(screen.getByText("Enable Voice Check-ins")).toBeInTheDocument();
+    expect(screen.getByText("Enable Voice Analyses")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Back/ }));
     expect(screen.getByText("Connect Your Health Data")).toBeInTheDocument();
   });
@@ -122,7 +122,7 @@ describe("WelcomeIntro — Step 2: Voice Check-in", () => {
   it("shows Voice step heading and description", () => {
     renderWithProviders(<WelcomeIntro />);
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
-    expect(screen.getByText("Enable Voice Check-ins")).toBeInTheDocument();
+    expect(screen.getByText("Enable Voice Analyses")).toBeInTheDocument();
     expect(
       screen.getByText(/A quick 3-second test to make sure your microphone works/)
     ).toBeInTheDocument();
@@ -168,7 +168,7 @@ describe("WelcomeIntro — Step 3: Device selection", () => {
     goToStep3();
     expect(
       screen.getByText(
-        /Voice check-ins and manual logging work great on their own/
+        /Voice analyses and manual logging work great on their own/
       )
     ).toBeInTheDocument();
   });
@@ -186,7 +186,7 @@ describe("WelcomeIntro — Step 3: Device selection", () => {
     fireEvent.click(screen.getByText("Muse 2 / Muse S"));
     expect(
       screen.queryByText(
-        /Voice check-ins and manual logging work great on their own/
+        /Voice analyses and manual logging work great on their own/
       )
     ).not.toBeInTheDocument();
   });
@@ -203,7 +203,7 @@ describe("WelcomeIntro — Step 3: Device selection", () => {
     // Back to no-device reassurance
     expect(
       screen.getByText(
-        /Voice check-ins and manual logging work great on their own/
+        /Voice analyses and manual logging work great on their own/
       )
     ).toBeInTheDocument();
   });

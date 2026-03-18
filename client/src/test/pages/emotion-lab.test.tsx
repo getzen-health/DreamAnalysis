@@ -106,7 +106,7 @@ describe("EmotionLab page", () => {
 
   it("shows dashboard redirect message when not streaming", () => {
     renderWithProviders(<EmotionLab />);
-    expect(screen.getByText(/Do a voice check-in on the Dashboard/)).toBeInTheDocument();
+    expect(screen.getByText(/Do a voice analysis on the Dashboard/)).toBeInTheDocument();
   });
 
   it("shows empty session message when not streaming", () => {

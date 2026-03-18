@@ -149,7 +149,7 @@ describe("HealthSyncDashboard", () => {
     });
 
     const appleBadge = screen.getByTestId("badge-apple_health");
-    expect(appleBadge.className).toContain("green");
+    expect(appleBadge.className).toContain("cyan");
   });
 
   it("applies yellow freshness class for stale sources", async () => {
@@ -173,7 +173,7 @@ describe("HealthSyncDashboard", () => {
     });
 
     const garminBadge = screen.getByTestId("badge-garmin");
-    expect(garminBadge.className).toContain("red");
+    expect(garminBadge.className).toContain("rose");
   });
 
   it("applies red freshness class for disconnected sources", async () => {
@@ -185,7 +185,7 @@ describe("HealthSyncDashboard", () => {
     });
 
     const googleBadge = screen.getByTestId("badge-google_health");
-    expect(googleBadge.className).toContain("red");
+    expect(googleBadge.className).toContain("rose");
   });
 
   it("renders a Sync button for each source", async () => {

@@ -44,7 +44,7 @@ describe("InnerEnergy page", () => {
     renderWithProviders(<InnerEnergy />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Start with a voice check-in to see your energy state/)
+        screen.getByText(/Start with a voice analysis to see your energy state/)
       ).toBeInTheDocument();
     });
   });
@@ -60,7 +60,7 @@ describe("InnerEnergy page", () => {
     renderWithProviders(<InnerEnergy />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Start with a voice check-in to estimate your energy state/)
+        screen.getByText(/Start with a voice analysis to estimate your energy state/)
       ).toBeInTheDocument();
     });
   });
