@@ -25,6 +25,7 @@ import {
   Trophy,
   Pill,
   Scale,
+  Dumbbell,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ const moreSections: NavSection[] = [
       { path: "/insights",              label: "Insights",         icon: Lightbulb },
       { path: "/health-analytics",      label: "Health Analytics", icon: BarChart2 },
       { path: "/body-metrics",          label: "Body Metrics",     icon: Scale },
+      { path: "/workout",              label: "Strength",         icon: Dumbbell },
       { path: "/sessions",              label: "History",          icon: History },
       { path: "/supplements",           label: "Supplements",      icon: Pill },
       { path: "/sleep-session",         label: "Sleep",            icon: BedDouble },

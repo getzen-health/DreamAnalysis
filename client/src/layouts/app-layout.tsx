@@ -31,6 +31,7 @@ const routeTitles: Record<string, string> = {
   "/sessions": "Sessions",
   "/architecture-guide": "Project Guide",
   "/settings": "Settings",
+  "/workout": "Strength Builder",
 };
 
 function getGreeting(): string {
