@@ -380,9 +380,40 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
         </>
       ) : (
         <>
-          <div style={{ fontSize: 48, lineHeight: 1, opacity: 0.4 }}>🎙️</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--muted-foreground)" }}>How are you feeling?</div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Tap the mic button to check in</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>How are you feeling?</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 12 }}>Quick tap or use the mic for detailed analysis</div>
+          {/* Quick mood selector — Daylio-style */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, justifyContent: "center" }}>
+            {(["happy", "neutral", "sad", "angry", "fear", "surprise"] as const).map((emo) => (
+              <button
+                key={emo}
+                onClick={() => {
+                  const quickData = {
+                    emotion: emo,
+                    valence: emo === "happy" ? 0.6 : emo === "sad" ? -0.5 : emo === "angry" ? -0.4 : emo === "fear" ? -0.3 : emo === "surprise" ? 0.3 : 0,
+                    arousal: emo === "angry" ? 0.8 : emo === "fear" ? 0.7 : emo === "surprise" ? 0.7 : emo === "happy" ? 0.6 : 0.3,
+                    stress_index: emo === "angry" ? 0.7 : emo === "fear" ? 0.6 : emo === "sad" ? 0.4 : 0.2,
+                    focus_index: emo === "happy" ? 0.6 : emo === "neutral" ? 0.5 : 0.3,
+                    confidence: 0.9,
+                  };
+                  try {
+                    localStorage.setItem("ndw_last_emotion", JSON.stringify({ result: quickData, timestamp: Date.now() }));
+                    window.dispatchEvent(new Event("ndw-voice-updated"));
+                    window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
+                  } catch { /* ignore */ }
+                }}
+                style={{
+                  display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 4,
+                  background: "var(--card)", border: "1px solid var(--border)",
+                  borderRadius: 12, padding: "10px 14px", cursor: "pointer",
+                  minWidth: 60,
+                }}
+              >
+                <span style={{ fontSize: 24 }}>{EMOTION_EMOJI[emo]}</span>
+                <span style={{ fontSize: 9, color: "var(--muted-foreground)", textTransform: "capitalize" as const }}>{emo}</span>
+              </button>
+            ))}
+          </div>
         </>
       )}
 
