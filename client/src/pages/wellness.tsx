@@ -17,6 +17,8 @@ import {
 import {
   LineChart,
   Line,
+  Area,
+  AreaChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -34,6 +36,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
 /* ---------- types ---------- */
@@ -84,13 +87,13 @@ const SYMPTOMS = [
   "brain_fog", "hot_flashes", "dizziness", "constipation", "diarrhea",
 ];
 
-const PHASE_INFO: Record<string, { label: string; color: string; description: string }> = {
-  menstrual: { label: "Menstrual", color: "text-red-400", description: "Day 1-5 of your cycle" },
-  follicular: { label: "Follicular", color: "text-blue-400", description: "Estrogen rising, energy increasing" },
-  ovulatory: { label: "Ovulatory", color: "text-green-400", description: "Peak fertility window" },
-  luteal: { label: "Luteal", color: "text-amber-400", description: "Progesterone dominant, winding down" },
-  late: { label: "Late", color: "text-orange-400", description: "Period may be coming soon" },
-  unknown: { label: "Unknown", color: "text-muted-foreground", description: "Log more data to predict phases" },
+const PHASE_INFO: Record<string, { label: string; color: string; bg: string; description: string }> = {
+  menstrual: { label: "Menstrual", color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20", description: "Day 1-5 of your cycle" },
+  follicular: { label: "Follicular", color: "text-ndw-recovery", bg: "bg-ndw-recovery/10 border-ndw-recovery/20", description: "Estrogen rising, energy increasing" },
+  ovulatory: { label: "Ovulatory", color: "text-ndw-stress", bg: "bg-ndw-stress/10 border-ndw-stress/20", description: "Peak fertility window" },
+  luteal: { label: "Luteal", color: "text-ndw-sleep", bg: "bg-ndw-sleep/10 border-ndw-sleep/20", description: "Progesterone dominant, winding down" },
+  late: { label: "Late", color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", description: "Period may be coming soon" },
+  unknown: { label: "Unknown", color: "text-muted-foreground", bg: "bg-muted border-border", description: "Log more data to predict phases" },
 };
 
 const MOOD_FACES = [
@@ -253,7 +256,12 @@ function CycleTab() {
     <div className="space-y-5">
       {/* Phase indicator */}
       {phaseInfo && phaseInfo.currentPhase !== "unknown" && (
-        <div className="rounded-xl border border-border bg-card p-4">
+        <motion.div
+          className={`rounded-xl border p-4 ${phase.bg}`}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Current Phase</p>
@@ -272,7 +280,7 @@ function CycleTab() {
               )}
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Calendar */}
@@ -538,17 +546,30 @@ function MoodTab() {
   return (
     <div className="space-y-5">
       {/* Mood input card */}
-      <div className="rounded-xl border border-border bg-card p-4 space-y-4">
-        <p className="text-sm font-semibold">How are you feeling?</p>
+      <motion.div
+        className="rounded-xl border border-border bg-card p-4 space-y-4"
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+      >
+        <p className="text-sm font-semibold text-foreground">How are you feeling?</p>
 
-        {/* Mood slider */}
-        <div className="space-y-2">
+        {/* Mood slider with face */}
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-xs text-muted-foreground">Mood</Label>
             <div className="flex items-center gap-1.5">
-              <FaceIcon className="h-5 w-5 text-primary" />
-              <span className="text-sm font-bold">{moodScore}</span>
+              <motion.div
+                key={face.label}
+                initial={{ scale: 0.5, rotate: -10 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              >
+                <FaceIcon className="h-6 w-6 text-primary" />
+              </motion.div>
+              <span className="text-sm font-bold text-foreground">{moodScore}</span>
               <span className="text-xs text-muted-foreground">/ 10</span>
+              <span className="text-[10px] text-muted-foreground ml-1">({face.label})</span>
             </div>
           </div>
           <Slider
@@ -604,18 +625,29 @@ function MoodTab() {
         >
           Log Mood
         </Button>
-      </div>
+      </motion.div>
 
       {/* Mood over time chart */}
       {chartData.length > 2 && (
-        <div className="rounded-xl border border-border bg-card p-4">
+        <motion.div
+          className="rounded-xl border border-border bg-card p-4"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.1 }}
+        >
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Mood over time
           </p>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="moodGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2dd4a0" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#2dd4a0" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
@@ -636,29 +668,32 @@ function MoodTab() {
                     border: "1px solid var(--border)",
                     borderRadius: 8,
                     fontSize: 11,
+                    color: "var(--foreground)",
                   }}
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="mood"
-                  stroke="hsl(var(--primary))"
+                  stroke="#2dd4a0"
+                  fill="url(#moodGradient)"
                   strokeWidth={2}
-                  dot={{ r: 2 }}
+                  dot={{ r: 2, fill: "#2dd4a0" }}
                   name="Mood"
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="energy"
                   stroke="#f59e0b"
+                  fill="transparent"
                   strokeWidth={1.5}
                   dot={{ r: 1.5 }}
                   strokeDasharray="4 2"
                   name="Energy"
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Mood by time of day */}
@@ -735,15 +770,19 @@ export default function Wellness() {
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
       {/* Header */}
-      <div>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
         <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-          <Heart className="h-5 w-5 text-primary" />
+          <Heart className="h-5 w-5 text-ndw-energy" />
           Wellness
         </h1>
         <p className="text-xs text-muted-foreground mt-0.5">
           Cycle tracking and mood logging
         </p>
-      </div>
+      </motion.div>
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab} className="w-full">

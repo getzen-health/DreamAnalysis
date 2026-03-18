@@ -80,10 +80,7 @@ export function EnergyBattery({ value, max = 100 }: EnergyBatteryProps) {
   return (
     <div className="flex flex-col items-center gap-2">
       {/* Label */}
-      <span
-        className="text-xs font-semibold uppercase tracking-[0.1em]"
-        style={{ color: "#8b8578" }}
-      >
+      <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
         Energy Bank
       </span>
 
@@ -116,7 +113,7 @@ export function EnergyBattery({ value, max = 100 }: EnergyBatteryProps) {
           height={BATTERY.bodyHeight}
           rx={BATTERY.bodyRx}
           fill="none"
-          stroke="#1f2937"
+          stroke="var(--border)"
           strokeWidth={2}
         />
 
@@ -127,7 +124,7 @@ export function EnergyBattery({ value, max = 100 }: EnergyBatteryProps) {
           width={BATTERY.terminalWidth}
           height={BATTERY.terminalHeight}
           rx={BATTERY.terminalRx}
-          fill="#1f2937"
+          fill="var(--border)"
         />
 
         {/* Animated fill */}
@@ -152,7 +149,7 @@ export function EnergyBattery({ value, max = 100 }: EnergyBatteryProps) {
             height={fillHeight}
             rx={fillRx}
             fill="none"
-            stroke="#1f2937"
+            stroke="var(--border)"
             strokeWidth={1}
             strokeDasharray="6 4"
             opacity={0.5}
@@ -165,7 +162,7 @@ export function EnergyBattery({ value, max = 100 }: EnergyBatteryProps) {
           y={BATTERY.height / 2}
           textAnchor="middle"
           dominantBaseline="central"
-          fill={isNull ? "#8b8578" : "#e8e0d4"}
+          fill={isNull ? "var(--muted-foreground)" : "var(--foreground)"}
           fontSize={28}
           fontWeight="700"
           fontFamily="Inter, system-ui, sans-serif"
@@ -180,7 +177,7 @@ export function EnergyBattery({ value, max = 100 }: EnergyBatteryProps) {
             y={BATTERY.height / 2}
             textAnchor="start"
             dominantBaseline="central"
-            fill="#8b8578"
+            fill="var(--muted-foreground)"
             fontSize={14}
             fontWeight="500"
             fontFamily="Inter, system-ui, sans-serif"

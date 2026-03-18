@@ -32,6 +32,7 @@ import {
   Check,
   Trash2,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
 /* ---------- types ---------- */
@@ -60,12 +61,12 @@ interface HabitLog {
 /* ---------- prebuilt habits ---------- */
 
 const PREBUILT_HABITS = [
-  { name: "Water", category: "health", icon: "droplets", targetValue: 8, unit: "glasses" },
-  { name: "Sunlight", category: "health", icon: "sun", targetValue: 30, unit: "min" },
-  { name: "Screen Time", category: "wellness", icon: "monitor", targetValue: 2, unit: "hrs" },
-  { name: "Caffeine", category: "nutrition", icon: "coffee", targetValue: 3, unit: "cups" },
-  { name: "Meditation", category: "mindfulness", icon: "brain", targetValue: 15, unit: "min" },
-  { name: "Exercise", category: "fitness", icon: "dumbbell", targetValue: 30, unit: "min" },
+  { name: "Water", category: "health", icon: "droplets", targetValue: 8, unit: "glasses", iconBg: "bg-blue-500/15", iconColor: "text-blue-400" },
+  { name: "Sunlight", category: "health", icon: "sun", targetValue: 30, unit: "min", iconBg: "bg-ndw-stress/15", iconColor: "text-ndw-stress" },
+  { name: "Screen Time", category: "wellness", icon: "monitor", targetValue: 2, unit: "hrs", iconBg: "bg-ndw-sleep/15", iconColor: "text-ndw-sleep" },
+  { name: "Caffeine", category: "nutrition", icon: "coffee", targetValue: 3, unit: "cups", iconBg: "bg-ndw-nutrition/15", iconColor: "text-ndw-nutrition" },
+  { name: "Meditation", category: "mindfulness", icon: "brain", targetValue: 15, unit: "min", iconBg: "bg-ndw-recovery/15", iconColor: "text-ndw-recovery" },
+  { name: "Exercise", category: "fitness", icon: "dumbbell", targetValue: 30, unit: "min", iconBg: "bg-ndw-strain/15", iconColor: "text-ndw-strain" },
 ];
 
 const CATEGORIES = ["health", "wellness", "fitness", "nutrition", "mindfulness", "other"];
@@ -286,7 +287,12 @@ export default function Habits() {
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <motion.div
+        className="flex items-center justify-between"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
         <div>
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <ListChecks className="h-5 w-5 text-primary" />
@@ -319,11 +325,13 @@ export default function Habits() {
                       key={p.name}
                       disabled={already || createHabitMutation.isPending}
                       onClick={() => handleAddPrebuilt(p)}
-                      className="flex items-center gap-2 p-2.5 rounded-lg border border-border text-left hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border text-left hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
-                      <Icon className="h-4 w-4 text-primary shrink-0" />
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${p.iconBg}`}>
+                        <Icon className={`h-4 w-4 ${p.iconColor}`} />
+                      </div>
                       <div>
-                        <div className="text-sm font-medium">{p.name}</div>
+                        <div className="text-sm font-medium text-foreground">{p.name}</div>
                         <div className="text-[10px] text-muted-foreground">{p.targetValue} {p.unit}/day</div>
                       </div>
                     </button>
@@ -400,7 +408,7 @@ export default function Habits() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      </motion.div>
 
       {/* Habits list */}
       {userHabits.length === 0 ? (
@@ -411,16 +419,19 @@ export default function Habits() {
         </div>
       ) : (
         <div className="space-y-3">
-          {userHabits.map(habit => {
+          {userHabits.map((habit, idx) => {
             const Icon = getIconComponent(habit.icon);
             const isLoggedToday = todayLogs.has(habit.id);
             const streak = streaks[habit.id] ?? 0;
             const habitWeek = weekHistory.get(habit.id) ?? new Set();
 
             return (
-              <div
+              <motion.div
                 key={habit.id}
                 className="rounded-xl border border-border bg-card p-3.5 space-y-2.5"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: idx * 0.05 }}
               >
                 {/* Top row: icon, name, streak, actions */}
                 <div className="flex items-center gap-3">
@@ -433,8 +444,8 @@ export default function Habits() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold truncate">{habit.name}</span>
                       {streak > 0 && (
-                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-orange-400">
-                          <Flame className="h-3 w-3" />
+                        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-ndw-stress">
+                          <Flame className="h-3 w-3 text-ndw-stress" />
                           {streak}d
                         </span>
                       )}
@@ -471,23 +482,32 @@ export default function Habits() {
                     const logged = habitWeek.has(day);
                     return (
                       <div key={day} className="flex flex-col items-center gap-1">
-                        <div
-                          className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-medium transition-colors ${
+                        <motion.div
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-medium transition-colors ${
                             logged
-                              ? "bg-primary/20 text-primary"
+                              ? "bg-ndw-recovery/20 text-ndw-recovery"
                               : day === today
                               ? "border border-dashed border-muted-foreground/30 text-muted-foreground/50"
                               : "bg-muted/30 text-muted-foreground/30"
                           }`}
+                          whileTap={{ scale: 0.9 }}
                         >
-                          {logged ? <Check className="h-3 w-3" /> : ""}
-                        </div>
+                          {logged ? (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </motion.div>
+                          ) : ""}
+                        </motion.div>
                         <span className="text-[9px] text-muted-foreground/60">{dayLabels[i]}</span>
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

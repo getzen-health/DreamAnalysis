@@ -111,7 +111,7 @@ export function ScoreGauge({
           cy={cy}
           r={r}
           fill="none"
-          stroke="#1f2937"
+          stroke="var(--border)"
           strokeWidth={s.stroke}
           strokeDasharray={isNull ? `${4} ${6}` : `${arcLength} ${gapLength}`}
           strokeLinecap="round"
@@ -141,7 +141,7 @@ export function ScoreGauge({
           y={cy - (subtitle ? s.fontSize * 0.15 : 2)}
           textAnchor="middle"
           dominantBaseline="central"
-          fill={isNull ? "#8b8578" : "#e8e0d4"}
+          fill={isNull ? "var(--muted-foreground)" : "var(--foreground)"}
           fontSize={s.fontSize}
           fontWeight="700"
           fontFamily="Inter, system-ui, sans-serif"
@@ -155,7 +155,7 @@ export function ScoreGauge({
           y={cy + s.fontSize * 0.55}
           textAnchor="middle"
           dominantBaseline="central"
-          fill="#8b8578"
+          fill="var(--muted-foreground)"
           fontSize={s.labelSize}
           fontFamily="Inter, system-ui, sans-serif"
         >
@@ -169,7 +169,7 @@ export function ScoreGauge({
             y={cy + s.fontSize * 0.55 + s.labelSize + 4}
             textAnchor="middle"
             dominantBaseline="central"
-            fill="#8b8578"
+            fill="var(--muted-foreground)"
             fontSize={s.labelSize - 1}
             fontFamily="Inter, system-ui, sans-serif"
             opacity={0.7}

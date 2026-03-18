@@ -42,10 +42,8 @@ export function ScoreCard({
 
   return (
     <div
-      className="relative group rounded-[14px] p-4 transition-all duration-200 hover:brightness-110"
+      className="relative group rounded-[14px] p-4 transition-all duration-200 hover:brightness-110 bg-card border border-border"
       style={{
-        background: "#111827",
-        border: "1px solid #1f2937",
         borderLeft: `3px solid ${accentColor}`,
       }}
     >
@@ -59,19 +57,13 @@ export function ScoreCard({
             >
               {icon}
             </span>
-            <span
-              className="text-sm font-semibold truncate"
-              style={{ color: "#e8e0d4" }}
-            >
+            <span className="text-sm font-semibold truncate text-foreground">
               {title}
             </span>
           </div>
 
           {subtitle && (
-            <p
-              className="text-xs font-mono truncate mt-1 ml-9"
-              style={{ color: "#8b8578" }}
-            >
+            <p className="text-xs font-mono truncate mt-1 ml-9 text-muted-foreground">
               {subtitle}
             </p>
           )}
@@ -90,15 +82,13 @@ export function ScoreCard({
               )}
               {trendValue && (
                 <span
-                  className="text-[11px] font-mono"
-                  style={{
-                    color:
-                      trend === "up"
-                        ? "#34d399"
-                        : trend === "down"
-                        ? "#f87171"
-                        : "#8b8578",
-                  }}
+                  className={`text-[11px] font-mono ${
+                    trend === "up"
+                      ? "text-emerald-400"
+                      : trend === "down"
+                      ? "text-red-400"
+                      : "text-muted-foreground"
+                  }`}
                 >
                   {trendValue}
                 </span>

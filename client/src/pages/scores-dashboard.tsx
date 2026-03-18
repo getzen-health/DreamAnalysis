@@ -63,7 +63,7 @@ function ProgressBar({
 }) {
   const pct = Math.min((value / max) * 100, 100);
   return (
-    <div className="w-full h-2 rounded-full" style={{ background: "#1f293780" }}>
+    <div className="w-full h-2 rounded-full bg-muted">
       <motion.div
         className="h-2 rounded-full"
         style={{ background: color }}
@@ -92,14 +92,14 @@ function SummaryRow({
     <div className="flex items-center justify-between py-2">
       <div className="flex items-center gap-2.5">
         <Icon className="h-4 w-4" style={{ color }} />
-        <span className="text-sm" style={{ color: "#8b8578" }}>
+        <span className="text-sm text-muted-foreground">
           {label}
         </span>
       </div>
-      <span className="text-sm font-mono font-semibold" style={{ color: "#e8e0d4" }}>
+      <span className="text-sm font-mono font-semibold text-foreground">
         {value === null ? "\u2014" : value}
         {unit && value !== null && (
-          <span className="text-xs ml-1" style={{ color: "#8b8578" }}>
+          <span className="text-xs ml-1 text-muted-foreground">
             {unit}
           </span>
         )}
@@ -164,7 +164,7 @@ export default function ScoresDashboard() {
   if (scoresLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="h-6 w-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#ec4899", borderTopColor: "transparent" }} />
+        <div className="h-6 w-6 rounded-full border-2 border-ndw-energy border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -179,14 +179,15 @@ export default function ScoresDashboard() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       {/* Page header */}
-      <div>
-        <h1
-          className="text-xl font-bold tracking-tight"
-          style={{ color: "#e8e0d4" }}
-        >
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h1 className="text-xl font-bold tracking-tight text-foreground">
           Health Scores
         </h1>
-        <p className="text-sm mt-1" style={{ color: "#8b8578" }}>
+        <p className="text-sm mt-1 text-muted-foreground">
           {scores?.computedAt
             ? `Updated ${new Date(scores.computedAt).toLocaleTimeString([], {
                 hour: "2-digit",
@@ -194,12 +195,11 @@ export default function ScoresDashboard() {
               })}`
             : "Real-time health overview"}
         </p>
-      </div>
+      </motion.div>
 
       {/* ── Hero: Energy Bank ──────────────────────────────────────────── */}
       <motion.div
-        className="flex justify-center py-4 rounded-[14px]"
-        style={{ background: "#111827", border: "1px solid #1f2937" }}
+        className="flex justify-center py-4 rounded-[14px] backdrop-blur-sm bg-card/80 border border-border"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -218,25 +218,25 @@ export default function ScoresDashboard() {
           title="Recovery"
           value={scores?.recoveryScore ?? null}
           color="recovery"
-          icon={<Heart className="h-3.5 w-3.5" style={{ color: "#2dd4a0" }} />}
+          icon={<Heart className="h-3.5 w-3.5 text-ndw-recovery" />}
         />
         <ScoreCard
           title="Sleep"
           value={scores?.sleepScore ?? null}
           color="sleep"
-          icon={<Moon className="h-3.5 w-3.5" style={{ color: "#a78bfa" }} />}
+          icon={<Moon className="h-3.5 w-3.5 text-ndw-sleep" />}
         />
         <ScoreCard
           title="Strain"
           value={scores?.strainScore ?? null}
           color="strain"
-          icon={<Flame className="h-3.5 w-3.5" style={{ color: "#f87171" }} />}
+          icon={<Flame className="h-3.5 w-3.5 text-ndw-strain" />}
         />
         <ScoreCard
           title="Stress"
           value={scores?.stressScore ?? null}
           color="stress"
-          icon={<Brain className="h-3.5 w-3.5" style={{ color: "#f59e0b" }} />}
+          icon={<Brain className="h-3.5 w-3.5 text-ndw-stress" />}
         />
       </motion.div>
 
@@ -251,29 +251,25 @@ export default function ScoresDashboard() {
           title="Nutrition"
           value={scores?.nutritionScore ?? null}
           color="nutrition"
-          icon={<Apple className="h-3.5 w-3.5" style={{ color: "#fbbf24" }} />}
+          icon={<Apple className="h-3.5 w-3.5 text-ndw-nutrition" />}
         />
         {/* Cardio Load status card (uses strain color for visual grouping) */}
         <div
-          className="rounded-[14px] p-4 flex flex-col justify-center"
-          style={{
-            background: "#111827",
-            border: "1px solid #1f2937",
-            borderLeft: "3px solid #f87171",
-          }}
+          className="rounded-[14px] p-4 flex flex-col justify-center bg-card border border-border"
+          style={{ borderLeft: "3px solid #f87171" }}
         >
           <div className="flex items-center gap-2 mb-2">
             <span
               className="flex items-center justify-center w-7 h-7 rounded-lg"
               style={{ background: "#f8717120" }}
             >
-              <Activity className="h-3.5 w-3.5" style={{ color: "#f87171" }} />
+              <Activity className="h-3.5 w-3.5 text-ndw-strain" />
             </span>
-            <span className="text-sm font-semibold" style={{ color: "#e8e0d4" }}>
+            <span className="text-sm font-semibold text-foreground">
               Cardio Load
             </span>
           </div>
-          <p className="text-xs font-mono ml-9" style={{ color: "#8b8578" }}>
+          <p className="text-xs font-mono ml-9 text-muted-foreground">
             {scores?.strainScore !== null && scores?.strainScore !== undefined
               ? scores.strainScore > 70
                 ? "Overreaching"
@@ -287,16 +283,12 @@ export default function ScoresDashboard() {
 
       {/* ── Today's Summary Card ──────────────────────────────────────── */}
       <motion.div
-        className="rounded-[14px] p-5"
-        style={{ background: "#111827", border: "1px solid #1f2937" }}
+        className="rounded-[14px] p-5 bg-card border border-border"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.3 }}
       >
-        <h2
-          className="text-sm font-semibold mb-3"
-          style={{ color: "#e8e0d4" }}
-        >
+        <h2 className="text-sm font-semibold mb-3 text-foreground">
           Today
         </h2>
 
@@ -315,14 +307,14 @@ export default function ScoresDashboard() {
                 max={summary.stepsGoal}
                 color="#2dd4a0"
               />
-              <p className="text-[10px] mt-1 text-right" style={{ color: "#8b857880" }}>
+              <p className="text-[10px] mt-1 text-right text-muted-foreground/50">
                 {summary.stepsGoal.toLocaleString()} goal
               </p>
             </div>
           )}
         </div>
 
-        <div className="border-t" style={{ borderColor: "#1f2937" }}>
+        <div className="border-t border-border">
           <SummaryRow
             icon={Zap}
             label="Active calories"
@@ -332,7 +324,7 @@ export default function ScoresDashboard() {
           />
         </div>
 
-        <div className="border-t" style={{ borderColor: "#1f2937" }}>
+        <div className="border-t border-border">
           <SummaryRow
             icon={Scale}
             label="Weight"
@@ -344,17 +336,14 @@ export default function ScoresDashboard() {
 
         {/* HR Zones (if available) */}
         {summary.hrZones && summary.hrZones.length > 0 && (
-          <div className="border-t pt-3 mt-1" style={{ borderColor: "#1f2937" }}>
-            <p className="text-xs font-semibold mb-2" style={{ color: "#8b8578" }}>
+          <div className="border-t border-border pt-3 mt-1">
+            <p className="text-xs font-semibold mb-2 text-muted-foreground">
               HR Zones
             </p>
             <div className="flex gap-1.5">
               {summary.hrZones.map((z) => (
                 <div key={z.zone} className="flex-1 text-center">
-                  <div
-                    className="h-8 rounded-md mb-1 flex items-end justify-center"
-                    style={{ background: "#1f293780" }}
-                  >
+                  <div className="h-8 rounded-md mb-1 flex items-end justify-center bg-muted/50">
                     <motion.div
                       className="w-full rounded-md"
                       style={{
@@ -367,7 +356,7 @@ export default function ScoresDashboard() {
                             ? "#f59e0b"
                             : z.zone === "Zone 2"
                             ? "#2dd4a0"
-                            : "#8b8578",
+                            : "var(--muted-foreground)",
                       }}
                       initial={{ height: 0 }}
                       animate={{
@@ -379,7 +368,7 @@ export default function ScoresDashboard() {
                       transition={{ duration: 0.6, delay: 0.4 }}
                     />
                   </div>
-                  <p className="text-[9px]" style={{ color: "#8b8578" }}>
+                  <p className="text-[9px] text-muted-foreground">
                     {z.minutes}m
                   </p>
                 </div>
@@ -398,17 +387,19 @@ export default function ScoresDashboard() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <h2
-              className="text-sm font-semibold"
-              style={{ color: "#e8e0d4" }}
-            >
+            <h2 className="text-sm font-semibold text-foreground">
               Trend Alerts
             </h2>
             {visibleAlerts.map((alert) => (
               <motion.div
                 key={alert.id}
-                className="flex items-start gap-3 rounded-[14px] p-3"
-                style={{ background: "#111827", border: "1px solid #1f2937" }}
+                className={`flex items-start gap-3 rounded-[14px] p-3 bg-card border ${
+                  alert.type === "negative"
+                    ? "border-red-500/30"
+                    : alert.type === "positive"
+                    ? "border-emerald-500/30"
+                    : "border-border"
+                }`}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10, height: 0 }}
@@ -419,17 +410,17 @@ export default function ScoresDashboard() {
                 ) : alert.type === "negative" ? (
                   <TrendingDown className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
                 ) : (
-                  <Activity className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#8b8578" }} />
+                  <Activity className="h-4 w-4 shrink-0 mt-0.5 text-blue-400" />
                 )}
-                <p className="text-xs flex-1" style={{ color: "#e8e0d4" }}>
+                <p className="text-xs flex-1 text-foreground">
                   {alert.message}
                 </p>
                 <button
                   onClick={() => dismissAlert(alert.id)}
-                  className="shrink-0 p-0.5 rounded hover:bg-white/5 transition-colors"
+                  className="shrink-0 p-0.5 rounded hover:bg-muted transition-colors"
                   aria-label="Dismiss alert"
                 >
-                  <X className="h-3.5 w-3.5" style={{ color: "#8b8578" }} />
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
               </motion.div>
             ))}

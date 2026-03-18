@@ -24,7 +24,9 @@ import {
   Activity,
   Target,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { ScoreGauge } from "@/components/score-gauge";
 
 /* ---------- types ---------- */
 
@@ -67,9 +69,9 @@ function computeBmi(weightKg: number, heightCm: number): number {
 
 function bmiCategory(bmi: number): { label: string; color: string } {
   if (bmi < 18.5) return { label: "Underweight", color: "text-yellow-400" };
-  if (bmi < 25) return { label: "Normal", color: "text-green-400" };
+  if (bmi < 25) return { label: "Normal", color: "text-ndw-recovery" };
   if (bmi < 30) return { label: "Overweight", color: "text-orange-400" };
-  return { label: "Obese", color: "text-red-400" };
+  return { label: "Obese", color: "text-ndw-strain" };
 }
 
 function compute7DayMovingAvg(
@@ -104,6 +106,14 @@ function compute7DayMovingAvg(
 
   return result;
 }
+
+/* ---------- animation variants ---------- */
+
+const fadeInUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.35, ease: "easeOut" },
+};
 
 /* ========== Component ========== */
 
@@ -290,19 +300,16 @@ export default function BodyMetrics() {
   return (
     <main className="px-4 pt-2 pb-24 space-y-4 max-w-xl mx-auto">
       {/* Page Header */}
-      <div className="flex items-center gap-2 mb-1">
+      <motion.div className="flex items-center gap-2 mb-1" {...fadeInUp}>
         <Scale className="h-5 w-5 text-primary" />
-        <h1 className="text-lg font-semibold">Body Metrics</h1>
-      </div>
+        <h1 className="text-lg font-semibold text-foreground">Body Metrics</h1>
+      </motion.div>
 
       {/* Quick Log Card */}
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: "hsl(222,28%,9%,0.7)",
-          border: "1px solid hsl(220,18%,17%,0.6)",
-          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-        }}
+      <motion.div
+        className="rounded-2xl p-5 bg-card border border-border shadow-sm"
+        {...fadeInUp}
+        transition={{ ...fadeInUp.transition, delay: 0.05 }}
       >
         <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em] mb-3">
           Log Weight
@@ -329,7 +336,7 @@ export default function BodyMetrics() {
               placeholder={useLbs ? "e.g. 165" : "e.g. 75"}
               value={weightInput}
               onChange={(e) => setWeightInput(e.target.value)}
-              className="bg-background/50 border-border/50 text-sm"
+              className="bg-background/50 border-border/50 text-base h-12"
             />
           </div>
 
@@ -344,7 +351,7 @@ export default function BodyMetrics() {
               placeholder="e.g. 18"
               value={bodyFatInput}
               onChange={(e) => setBodyFatInput(e.target.value)}
-              className="bg-background/50 border-border/50 text-sm"
+              className="bg-background/50 border-border/50 text-base h-12"
             />
           </div>
 
@@ -352,7 +359,7 @@ export default function BodyMetrics() {
           {!savedHeight && (
             <div>
               <Label className="text-[12px] text-muted-foreground mb-1.5 block">
-                Height (cm) — set once for BMI
+                Height (cm) -- set once for BMI
               </Label>
               <Input
                 type="number"
@@ -360,7 +367,7 @@ export default function BodyMetrics() {
                 placeholder="e.g. 175"
                 value={heightInput}
                 onChange={(e) => setHeightInput(e.target.value)}
-                className="bg-background/50 border-border/50 text-sm"
+                className="bg-background/50 border-border/50 text-base h-12"
               />
             </div>
           )}
@@ -387,32 +394,28 @@ export default function BodyMetrics() {
           <Button
             onClick={() => logMutation.mutate()}
             disabled={logMutation.isPending || !weightInput}
-            className="w-full"
-            size="sm"
+            className="w-full h-12 text-base font-semibold"
           >
             {logMutation.isPending ? "Logging..." : "Log Weight"}
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Current Stats Card */}
       {latestWeight !== null && (
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            background: "hsl(222,28%,9%,0.7)",
-            border: "1px solid hsl(220,18%,17%,0.6)",
-            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-          }}
+        <motion.div
+          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          {...fadeInUp}
+          transition={{ ...fadeInUp.transition, delay: 0.1 }}
         >
           <div className="flex items-center gap-2 mb-3">
             <Activity className="h-4 w-4 text-primary" />
-            <p className="text-[13px] font-semibold">Current Stats</p>
+            <p className="text-[13px] font-semibold text-foreground">Current Stats</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             {/* Weight */}
-            <div className="p-3 rounded-xl" style={{ background: "hsl(220,22%,8%)", border: "1px solid hsl(220,18%,13%)" }}>
+            <div className="p-3 rounded-xl bg-muted/50 border border-border/50">
               <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">
                 Weight
               </p>
@@ -424,26 +427,33 @@ export default function BodyMetrics() {
               </p>
             </div>
 
-            {/* BMI */}
+            {/* BMI with ScoreGauge */}
             {latestBmi !== null && (
-              <div className="p-3 rounded-xl" style={{ background: "hsl(220,22%,8%)", border: "1px solid hsl(220,18%,13%)" }}>
-                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">
-                  BMI
-                </p>
-                <p className="text-lg font-bold">
-                  <span className={bmiCategory(latestBmi).color}>
+              <div className="p-3 rounded-xl bg-muted/50 border border-border/50 flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">
+                    BMI
+                  </p>
+                  <p className={`text-lg font-bold ${bmiCategory(latestBmi).color}`}>
                     {latestBmi.toFixed(1)}
-                  </span>
-                </p>
-                <p className={`text-[10px] ${bmiCategory(latestBmi).color}`}>
-                  {bmiCategory(latestBmi).label}
-                </p>
+                  </p>
+                  <p className={`text-[10px] ${bmiCategory(latestBmi).color}`}>
+                    {bmiCategory(latestBmi).label}
+                  </p>
+                </div>
+                <ScoreGauge
+                  value={Math.min(latestBmi, 40)}
+                  max={40}
+                  label=""
+                  color="nutrition"
+                  size="sm"
+                />
               </div>
             )}
 
             {/* Body Fat */}
             {latestBodyFat !== null && (
-              <div className="p-3 rounded-xl" style={{ background: "hsl(220,22%,8%)", border: "1px solid hsl(220,18%,13%)" }}>
+              <div className="p-3 rounded-xl bg-muted/50 border border-border/50">
                 <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">
                   Body Fat
                 </p>
@@ -458,7 +468,7 @@ export default function BodyMetrics() {
 
             {/* Lean Mass */}
             {latestLeanMass !== null && (
-              <div className="p-3 rounded-xl" style={{ background: "hsl(220,22%,8%)", border: "1px solid hsl(220,18%,13%)" }}>
+              <div className="p-3 rounded-xl bg-muted/50 border border-border/50">
                 <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">
                   Lean Mass
                 </p>
@@ -471,18 +481,15 @@ export default function BodyMetrics() {
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Rate of Change Indicator */}
       {rateOfChange && (
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            background: "hsl(222,28%,9%,0.7)",
-            border: "1px solid hsl(220,18%,17%,0.6)",
-            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-          }}
+        <motion.div
+          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          {...fadeInUp}
+          transition={{ ...fadeInUp.transition, delay: 0.15 }}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -491,21 +498,21 @@ export default function BodyMetrics() {
               ) : rateOfChange.weeklyChange > 0.05 ? (
                 <TrendingUp className="h-4 w-4 text-orange-400" />
               ) : (
-                <Minus className="h-4 w-4 text-green-400" />
+                <Minus className="h-4 w-4 text-ndw-recovery" />
               )}
-              <p className="text-[13px] font-semibold">Weekly Trend</p>
+              <p className="text-[13px] font-semibold text-foreground">Weekly Trend</p>
             </div>
 
             <div className="text-right">
               <p
                 className={`text-sm font-bold ${
                   Math.abs(rateOfChange.weeklyPct) > 2
-                    ? "text-red-400"
+                    ? "text-ndw-strain"
                     : rateOfChange.weeklyChange < -0.05
                       ? "text-blue-400"
                       : rateOfChange.weeklyChange > 0.05
                         ? "text-orange-400"
-                        : "text-green-400"
+                        : "text-ndw-recovery"
                 }`}
               >
                 {rateOfChange.weeklyChange > 0 ? "+" : ""}
@@ -516,28 +523,25 @@ export default function BodyMetrics() {
                 {rateOfChange.weeklyPct.toFixed(1)}% per week
               </p>
               {Math.abs(rateOfChange.weeklyPct) > 2 && (
-                <p className="text-[10px] text-red-400 mt-0.5">
-                  Rapid change — monitor closely
+                <p className="text-[10px] text-ndw-strain mt-0.5">
+                  Rapid change -- monitor closely
                 </p>
               )}
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Weight Trend Chart */}
       {chartData.length >= 2 && (
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            background: "hsl(222,28%,9%,0.7)",
-            border: "1px solid hsl(220,18%,17%,0.6)",
-            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-          }}
+        <motion.div
+          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          {...fadeInUp}
+          transition={{ ...fadeInUp.transition, delay: 0.2 }}
         >
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="h-4 w-4 text-primary" />
-            <p className="text-[13px] font-semibold">Weight Trend</p>
+            <p className="text-[13px] font-semibold text-foreground">Weight Trend</p>
             <span className="text-[10px] text-muted-foreground ml-auto">
               Last 90 days
             </span>
@@ -550,19 +554,19 @@ export default function BodyMetrics() {
             >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="hsl(220,18%,14%)"
+                stroke="var(--border)"
                 opacity={0.5}
               />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
                 axisLine={false}
                 tickLine={false}
                 interval="preserveStartEnd"
               />
               <YAxis
                 domain={weightDomain}
-                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
                 axisLine={false}
                 tickLine={false}
                 width={32}
@@ -570,7 +574,7 @@ export default function BodyMetrics() {
               />
               <Tooltip
                 cursor={{
-                  stroke: "hsl(220,14%,55%)",
+                  stroke: "var(--muted-foreground)",
                   strokeWidth: 1,
                   strokeDasharray: "4 3",
                 }}
@@ -579,6 +583,7 @@ export default function BodyMetrics() {
                   border: "1px solid var(--border)",
                   borderRadius: 10,
                   fontSize: 11,
+                  color: "var(--foreground)",
                 }}
                 formatter={(v: number, name: string) => [
                   `${v} kg`,
@@ -589,9 +594,9 @@ export default function BodyMetrics() {
                 type="monotone"
                 dataKey="weight"
                 name="Weight"
-                stroke="hsl(200,70%,55%)"
+                stroke="#2dd4a0"
                 strokeWidth={2}
-                dot={{ r: 3, fill: "hsl(200,70%,55%)" }}
+                dot={{ r: 3, fill: "#2dd4a0" }}
                 activeDot={{ r: 5 }}
                 connectNulls
               />
@@ -610,7 +615,7 @@ export default function BodyMetrics() {
 
           <div className="flex gap-4 mt-2 justify-center">
             {[
-              { label: "Weight", color: "hsl(200,70%,55%)" },
+              { label: "Weight", color: "#2dd4a0" },
               {
                 label: "7-day avg",
                 color: "hsl(38,85%,58%)",
@@ -635,22 +640,19 @@ export default function BodyMetrics() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Body Composition Chart */}
       {hasBodyFatData && chartData.length >= 2 && (
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            background: "hsl(222,28%,9%,0.7)",
-            border: "1px solid hsl(220,18%,17%,0.6)",
-            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-          }}
+        <motion.div
+          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          {...fadeInUp}
+          transition={{ ...fadeInUp.transition, delay: 0.25 }}
         >
           <div className="flex items-center gap-2 mb-4">
             <Target className="h-4 w-4 text-primary" />
-            <p className="text-[13px] font-semibold">Body Composition</p>
+            <p className="text-[13px] font-semibold text-foreground">Body Composition</p>
           </div>
 
           <ResponsiveContainer width="100%" height={180}>
@@ -671,33 +673,21 @@ export default function BodyMetrics() {
                     stopOpacity={0}
                   />
                 </linearGradient>
-                <linearGradient id="leanMassGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor="hsl(152,60%,48%)"
-                    stopOpacity={0.3}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="hsl(152,60%,48%)"
-                    stopOpacity={0}
-                  />
-                </linearGradient>
               </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="hsl(220,18%,14%)"
+                stroke="var(--border)"
                 opacity={0.5}
               />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
                 axisLine={false}
                 tickLine={false}
                 interval="preserveStartEnd"
               />
               <YAxis
-                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
                 axisLine={false}
                 tickLine={false}
                 width={28}
@@ -705,7 +695,7 @@ export default function BodyMetrics() {
               />
               <Tooltip
                 cursor={{
-                  stroke: "hsl(220,14%,55%)",
+                  stroke: "var(--muted-foreground)",
                   strokeWidth: 1,
                   strokeDasharray: "4 3",
                 }}
@@ -714,6 +704,7 @@ export default function BodyMetrics() {
                   border: "1px solid var(--border)",
                   borderRadius: 10,
                   fontSize: 11,
+                  color: "var(--foreground)",
                 }}
                 formatter={(v: number, name: string) => [
                   `${v}%`,
@@ -750,17 +741,15 @@ export default function BodyMetrics() {
               </span>
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Empty state */}
       {history.length === 0 && (
-        <div
-          className="rounded-2xl p-6 text-center"
-          style={{
-            background: "hsl(222,28%,9%,0.7)",
-            border: "1px solid hsl(220,18%,17%,0.6)",
-          }}
+        <motion.div
+          className="rounded-2xl p-6 text-center bg-card border border-border"
+          {...fadeInUp}
+          transition={{ ...fadeInUp.transition, delay: 0.1 }}
         >
           <Scale className="h-8 w-8 mx-auto mb-3 text-muted-foreground/40" />
           <p className="text-[13px] font-medium text-foreground/70">
@@ -769,7 +758,7 @@ export default function BodyMetrics() {
           <p className="text-[11px] text-muted-foreground mt-1">
             Log your weight above to start tracking trends
           </p>
-        </div>
+        </motion.div>
       )}
     </main>
   );

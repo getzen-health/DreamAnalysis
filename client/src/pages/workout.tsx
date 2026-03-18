@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { motion } from "framer-motion";
 import {
   Dumbbell,
   Play,
@@ -739,21 +740,49 @@ export default function WorkoutPage() {
               </Button>
             </div>
 
-            {/* Rest Timer */}
+            {/* Rest Timer -- circular countdown */}
             {restTimer.isResting && (
-              <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Timer className="h-5 w-5 text-primary animate-pulse" />
-                  <span className="text-sm font-medium">Rest</span>
-                  <span className="text-2xl font-mono font-bold text-primary">
-                    {formatDuration(restTimer.remaining)}
-                  </span>
+              <motion.div
+                className="rounded-xl bg-ndw-strain/10 border border-ndw-strain/20 p-4 flex items-center justify-between"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.25 }}
+              >
+                <div className="flex items-center gap-4">
+                  {/* Circular countdown */}
+                  <div className="relative w-14 h-14 shrink-0">
+                    <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                      <circle
+                        cx="28" cy="28" r="24"
+                        fill="none"
+                        stroke="var(--border)"
+                        strokeWidth="4"
+                      />
+                      <circle
+                        cx="28" cy="28" r="24"
+                        fill="none"
+                        stroke="#f87171"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 24}
+                        strokeDashoffset={2 * Math.PI * 24 * (1 - restTimer.remaining / restTimer.restSeconds)}
+                        className="transition-all duration-1000 ease-linear"
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-sm font-mono font-bold text-ndw-strain">
+                      {restTimer.remaining}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-foreground">Rest</span>
+                    <p className="text-xs text-muted-foreground">{formatDuration(restTimer.remaining)} remaining</p>
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={restTimer.stopRest} className="h-8">
-                  <X className="h-4 w-4" />
+                <Button variant="ghost" size="sm" onClick={restTimer.stopRest} className="h-8 text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4 mr-1" />
                   Skip
                 </Button>
-              </div>
+              </motion.div>
             )}
 
             {/* Rest duration selector */}
@@ -780,8 +809,14 @@ export default function WorkoutPage() {
         </Card>
 
         {/* Exercise List */}
-        {exercises.map((we) => (
-          <Card key={we.exercise.id} className="border-border/50 bg-card/80 overflow-hidden">
+        {exercises.map((we, idx) => (
+          <motion.div
+            key={we.exercise.id}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: idx * 0.05 }}
+          >
+          <Card className="border-border/50 bg-card/80 overflow-hidden">
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -920,6 +955,7 @@ export default function WorkoutPage() {
               </Button>
             </CardContent>
           </Card>
+          </motion.div>
         ))}
 
         {/* Add Exercise */}
@@ -1121,20 +1157,20 @@ export default function WorkoutPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
-      <div className="flex items-center gap-3 mb-2">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{
-            background: "linear-gradient(135deg, hsl(152,60%,48%), hsl(38,85%,58%))",
-          }}
-        >
+      <motion.div
+        className="flex items-center gap-3 mb-2"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-ndw-recovery to-ndw-stress">
           <Dumbbell className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Strength Builder</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Strength Builder</h1>
           <p className="text-xs text-muted-foreground">Log workouts and track progress</p>
         </div>
-      </div>
+      </motion.div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full">
