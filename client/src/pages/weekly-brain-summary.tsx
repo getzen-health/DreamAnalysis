@@ -205,21 +205,21 @@ function exportAsPng(
       thisVal: fmtSlash10(thisWeek.stress),
       d: delta(thisWeek.stress, lastWeek.stress),
       positiveIsGood: false,
-      color: "#f87171",
+      color: "#e879a8",
     },
     {
       label: "Focus",
       thisVal: fmtPct100(thisWeek.focus),
       d: delta(thisWeek.focus, lastWeek.focus),
       positiveIsGood: true,
-      color: "#60a5fa",
+      color: "#3b82f6",
     },
     {
       label: "Sleep",
       thisVal: thisWeek.sleepHours != null ? thisWeek.sleepHours.toFixed(1) + "h" : fmtSlash10(thisWeek.sleep),
       d: delta(thisWeek.sleep, lastWeek.sleep),
       positiveIsGood: true,
-      color: "#a78bfa",
+      color: "#7c3aed",
     },
   ];
 
@@ -255,7 +255,7 @@ function exportAsPng(
       const dPct = (Math.abs(card.d) * 100).toFixed(0) + "%";
       const isGood = card.positiveIsGood ? card.d > 0 : card.d < 0;
       const arrow = card.d > 0 ? "↑" : "↓";
-      ctx.fillStyle = isGood ? "#34d399" : "#f87171";
+      ctx.fillStyle = isGood ? "#0891b2" : "#e879a8";
       ctx.font = "13px system-ui, sans-serif";
       ctx.fillText(`${arrow} ${dPct} vs last week`, x + 20, cardY + 108);
     } else {

@@ -108,8 +108,8 @@ function CalorieRing({ calories }: { calories: number }) {
           />
           <defs>
             <linearGradient id="calGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#f97316" />
+              <stop offset="0%" stopColor="#d4a017" />
+              <stop offset="100%" stopColor="#ea580c" />
             </linearGradient>
           </defs>
         </svg>
@@ -346,11 +346,11 @@ export default function Nutrition() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#60a5fa" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#3b82f6" }}>
             {Math.round(totalProtein)}g
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Protein</div>
-          <MacroBar value={totalProtein} goal={PROTEIN_GOAL} color="#60a5fa" />
+          <MacroBar value={totalProtein} goal={PROTEIN_GOAL} color="#3b82f6" />
         </div>
 
         {/* Carbs */}
@@ -363,11 +363,11 @@ export default function Nutrition() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#f59e0b" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#d4a017" }}>
             {Math.round(totalCarbs)}g
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Carbs</div>
-          <MacroBar value={totalCarbs} goal={CARBS_GOAL} color="#f59e0b" />
+          <MacroBar value={totalCarbs} goal={CARBS_GOAL} color="#d4a017" />
         </div>
 
         {/* Fat */}
@@ -380,11 +380,11 @@ export default function Nutrition() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#f87171" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#e879a8" }}>
             {Math.round(totalFat)}g
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Fat</div>
-          <MacroBar value={totalFat} goal={FAT_GOAL} color="#f87171" />
+          <MacroBar value={totalFat} goal={FAT_GOAL} color="#e879a8" />
         </div>
       </div>
 
@@ -402,7 +402,7 @@ export default function Nutrition() {
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: "#f59e0b",
+            color: "#d4a017",
             marginBottom: 8,
             display: "flex",
             alignItems: "center",
@@ -565,7 +565,7 @@ export default function Nutrition() {
           background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
           padding: 20, marginBottom: 14, textAlign: "center",
         }}>
-          <div style={{ width: 28, height: 28, border: "3px solid #f59e0b", borderTopColor: "transparent",
+          <div style={{ width: 28, height: 28, border: "3px solid #d4a017", borderTopColor: "transparent",
             borderRadius: "50%", margin: "0 auto 8px", animation: "spin 0.8s linear infinite" }} />
           <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0 }}>Analyzing your meal...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -578,7 +578,7 @@ export default function Nutrition() {
           background: "var(--card)", borderRadius: 14, border: "1px solid #2d1f18",
           padding: 14, marginBottom: 14,
         }}>
-          <p style={{ fontSize: 12, color: "#f87171", margin: 0 }}>{analysisError}</p>
+          <p style={{ fontSize: 12, color: "#e879a8", margin: 0 }}>{analysisError}</p>
           <button onClick={() => { setAnalysisError(null); setCaptureMode("none"); }}
             style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", background: "none", border: "none", cursor: "pointer" }}>
             Try again
@@ -640,7 +640,7 @@ export default function Nutrition() {
                 }
               }}
               style={{
-                flex: 1, background: mealText.trim() ? "#f59e0b" : "var(--muted)",
+                flex: 1, background: mealText.trim() ? "#d4a017" : "var(--muted)",
                 color: mealText.trim() ? "#0a0e17" : "var(--muted-foreground)", borderRadius: 10,
                 padding: 10, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
               }}

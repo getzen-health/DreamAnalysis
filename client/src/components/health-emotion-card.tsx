@@ -52,9 +52,9 @@ function StressGauge({ value }: { value: number }) {
   // value 0–1. Colour shifts green → amber → rose.
   const pct = Math.round(value * 100);
   const color =
-    value < 0.35 ? "#34d399"   // emerald
-    : value < 0.60 ? "#fbbf24" // amber
-    : "#f87171";               // rose
+    value < 0.35 ? "#0891b2"   // ocean blue
+    : value < 0.60 ? "#d4a017" // golden honey
+    : "#e879a8";               // warm coral
 
   return (
     <div className="flex items-center gap-2">
@@ -76,9 +76,9 @@ function CalmGauge({ value }: { value: number }) {
   const calm = 1 - value;           // invert stress → calm
   const pct  = Math.round(calm * 100);
   const color =
-    calm > 0.65 ? "#34d399"
-    : calm > 0.40 ? "#fbbf24"
-    : "#f87171";
+    calm > 0.65 ? "#0891b2"
+    : calm > 0.40 ? "#d4a017"
+    : "#e879a8";
 
   return (
     <div className="flex items-center gap-2">

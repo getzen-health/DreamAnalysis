@@ -747,7 +747,7 @@ function StepDone({ pathChoice, onFinish }: { pathChoice: PathChoice; onFinish: 
   const [confettiPieces] = useState(() =>
     Array.from({ length: 25 }, (_, i) => ({
       id: i,
-      color: ["#10b981", "#34d399", "#6ee7b7", "#d4a017", "#a7f3d0"][i % 5],
+      color: ["#0891b2", "#0e7490", "#7c3aed", "#d4a017", "#d946ef"][i % 5],
       size: 6 + Math.random() * 6,
       angle: (i / 25) * 360 + Math.random() * 15,
       distance: 80 + Math.random() * 120,

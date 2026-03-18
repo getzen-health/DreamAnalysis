@@ -29,12 +29,12 @@ export interface ScoreGaugeProps {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 export const SCORE_COLORS: Record<ScoreColor, { from: string; to: string }> = {
-  recovery:  { from: "#2dd4a0", to: "#059669" },
-  sleep:     { from: "#a78bfa", to: "#7c3aed" },
-  strain:    { from: "#f87171", to: "#ef4444" },
-  stress:    { from: "#f59e0b", to: "#f97316" },
-  nutrition: { from: "#fbbf24", to: "#eab308" },
-  energy:    { from: "#ec4899", to: "#db2777" },
+  recovery:  { from: "#0891b2", to: "#0e7490" },
+  sleep:     { from: "#7c3aed", to: "#6d28d9" },
+  strain:    { from: "#e879a8", to: "#be185d" },
+  stress:    { from: "#ea580c", to: "#c2410c" },
+  nutrition: { from: "#d4a017", to: "#a16207" },
+  energy:    { from: "#d946ef", to: "#a21caf" },
 };
 
 const SIZES = {

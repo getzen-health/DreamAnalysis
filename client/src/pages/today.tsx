@@ -55,9 +55,9 @@ function getStressLabel(stress: number): string {
 }
 
 function getStressColor(stress: number): string {
-  if (stress < 0.3) return "#34d399";
-  if (stress < 0.6) return "#fbbf24";
-  return "#f87171";
+  if (stress < 0.3) return "#0891b2";
+  if (stress < 0.6) return "#d4a017";
+  return "#e879a8";
 }
 
 function getFocusLabel(focus: number): string {
@@ -422,8 +422,8 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
         <svg width={130} height={130} viewBox="0 0 130 130">
           <defs>
             <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#2dd4a0" />
-              <stop offset="100%" stopColor="#059669" />
+              <stop offset="0%" stopColor="#0891b2" />
+              <stop offset="100%" stopColor="#0e7490" />
             </linearGradient>
           </defs>
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--muted)" strokeWidth={7}
@@ -440,7 +440,7 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
         </svg>
       </div>
 
-      <p style={{ fontSize: 12, color: score === 0 ? "var(--muted-foreground)" : "#2dd4a0", margin: 0, textAlign: "center" }}>
+      <p style={{ fontSize: 12, color: score === 0 ? "var(--muted-foreground)" : "#0891b2", margin: 0, textAlign: "center" }}>
         {label}
       </p>
     </div>
@@ -715,7 +715,7 @@ export default function Today() {
           label="Mood"
           value={emotion === "—" ? "—" : emotion.charAt(0).toUpperCase() + emotion.slice(1)}
           sub={topProb > 0 ? `${Math.round(topProb * 100)}% confidence` : "No data"}
-          valueColor="#34d399"
+          valueColor="#0891b2"
           onClick={() => navigate("/emotions")}
         />
         <MiniCard
@@ -729,7 +729,7 @@ export default function Today() {
           label="Focus"
           value={focusVal > 0 ? `${Math.round(focusVal * 100)}%` : "—"}
           sub={focusVal > 0 ? getFocusLabel(focusVal) : "No data"}
-          valueColor="#60a5fa"
+          valueColor="#3b82f6"
           onClick={() => navigate("/emotions")}
         />
       </div>
@@ -748,8 +748,8 @@ export default function Today() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-          <Sparkles size={13} color="#2dd4a0" />
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#2dd4a0" }}>AI Insight</span>
+          <Sparkles size={13} color="#0891b2" />
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#0891b2" }}>AI Insight</span>
         </div>
         <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0, lineHeight: 1.5 }}>
           {aiInsight}
@@ -770,7 +770,7 @@ export default function Today() {
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
             <span style={{ fontSize: 24 }}>😮‍💨</span>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#f87171" }}>Your stress is elevated</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#e879a8" }}>Your stress is elevated</div>
               <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
                 A quick breathing exercise can lower stress by up to 40%
               </div>
@@ -822,14 +822,14 @@ export default function Today() {
         >
           <div>
             <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 4px 0" }}>Sleep</p>
-            <p style={{ fontSize: 20, fontWeight: 700, color: "#a78bfa", margin: 0 }}>
+            <p style={{ fontSize: 20, fontWeight: 700, color: "#7c3aed", margin: 0 }}>
               {sleepTotal > 0 ? `${sleepTotal.toFixed(1)}h` : "—"}
             </p>
           </div>
           <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 6 }}>
             <div>
               <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 4px 0" }}>Quality</p>
-              <p style={{ fontSize: 20, fontWeight: 700, color: "#a78bfa", margin: 0 }}>
+              <p style={{ fontSize: 20, fontWeight: 700, color: "#7c3aed", margin: 0 }}>
                 {sleepEfficiency > 0 ? `${Math.round(sleepEfficiency)}%` : "—"}
               </p>
             </div>
@@ -870,7 +870,7 @@ export default function Today() {
           <p style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
             {heartRate ? `${Math.round(heartRate)} bpm` : "—"}
           </p>
-          <p style={{ fontSize: 10, color: "#34d399", margin: 0 }}>
+          <p style={{ fontSize: 10, color: "#0891b2", margin: 0 }}>
             {heartRate
               ? heartRate < 60
                 ? "Low — rest well"
@@ -926,7 +926,7 @@ export default function Today() {
         >
           <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Today's Nutrition</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, color: "#f59e0b" }}>
+            <span style={{ fontSize: 11, color: "#d4a017" }}>
               {todayCalories > 0
                 ? `${todayCalories.toLocaleString()} / ${calGoal.toLocaleString()} kcal`
                 : `— / ${calGoal.toLocaleString()} kcal`}
@@ -946,7 +946,7 @@ export default function Today() {
             style={{
               height: "100%",
               width: `${calPct * 100}%`,
-              background: "linear-gradient(90deg, #f59e0b, #f97316)",
+              background: "linear-gradient(90deg, #d4a017, #ea580c)",
               borderRadius: 3,
               transition: "width 0.6s ease",
             }}

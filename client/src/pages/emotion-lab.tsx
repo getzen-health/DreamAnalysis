@@ -43,15 +43,15 @@ import { playStartBeep, playSuccessChime } from "@/lib/sound-effects";
 /* ---------- constants & helpers ---------- */
 
 const EMOTION_COLORS: Record<string, string> = {
-  happy: "#34d399",
-  sad: "#60a5fa",
-  angry: "#f87171",
-  fearful: "#fbbf24",
-  fear: "#fbbf24",
-  relaxed: "#a78bfa",
-  focused: "#2dd4bf",
+  happy: "#0891b2",
+  sad: "#6366f1",
+  angry: "#ea580c",
+  fearful: "#d4a017",
+  fear: "#d4a017",
+  relaxed: "#7c3aed",
+  focused: "#3b82f6",
   neutral: "#94a3b8",
-  surprise: "#f472b6",
+  surprise: "#d946ef",
 };
 
 const EMOTION_LABELS: Record<string, string> = {
@@ -67,11 +67,11 @@ const EMOTION_LABELS: Record<string, string> = {
 };
 
 const QUICK_MOODS = [
-  { value: "happy", label: "Happy", color: "#34d399", bgClass: "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20" },
-  { value: "sad", label: "Sad", color: "#60a5fa", bgClass: "bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20" },
-  { value: "angry", label: "Angry", color: "#f87171", bgClass: "bg-red-500/10 border-red-500/30 hover:bg-red-500/20" },
-  { value: "fearful", label: "Fearful", color: "#fbbf24", bgClass: "bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20" },
-  { value: "surprise", label: "Surprised", color: "#f472b6", bgClass: "bg-pink-500/10 border-pink-500/30 hover:bg-pink-500/20" },
+  { value: "happy", label: "Happy", color: "#0891b2", bgClass: "bg-cyan-600/10 border-cyan-600/30 hover:bg-cyan-600/20" },
+  { value: "sad", label: "Sad", color: "#6366f1", bgClass: "bg-indigo-500/10 border-indigo-500/30 hover:bg-indigo-500/20" },
+  { value: "angry", label: "Angry", color: "#ea580c", bgClass: "bg-orange-600/10 border-orange-600/30 hover:bg-orange-600/20" },
+  { value: "fearful", label: "Fearful", color: "#d4a017", bgClass: "bg-yellow-600/10 border-yellow-600/30 hover:bg-yellow-600/20" },
+  { value: "surprise", label: "Surprised", color: "#d946ef", bgClass: "bg-fuchsia-500/10 border-fuchsia-500/30 hover:bg-fuchsia-500/20" },
   { value: "neutral", label: "Neutral", color: "#94a3b8", bgClass: "bg-slate-500/10 border-slate-500/30 hover:bg-slate-500/20" },
 ];
 
@@ -1023,12 +1023,12 @@ export default function EmotionLab() {
                     >
                       <stop
                         offset="5%"
-                        stopColor="#f59e0b"
+                        stopColor="#ea580c"
                         stopOpacity={0.6}
                       />
                       <stop
                         offset="95%"
-                        stopColor="#f59e0b"
+                        stopColor="#ea580c"
                         stopOpacity={0.05}
                       />
                     </linearGradient>
@@ -1052,11 +1052,11 @@ export default function EmotionLab() {
                   <Area
                     type="monotone"
                     dataKey="valence"
-                    stroke="#f59e0b"
+                    stroke="#ea580c"
                     strokeWidth={2}
                     fill="url(#moodGradient)"
-                    dot={{ fill: "#f59e0b", r: 3, strokeWidth: 0 }}
-                    activeDot={{ r: 5, fill: "#f59e0b" }}
+                    dot={{ fill: "#ea580c", r: 3, strokeWidth: 0 }}
+                    activeDot={{ r: 5, fill: "#ea580c" }}
                   />
                 </AreaChart>
               </ResponsiveContainer>

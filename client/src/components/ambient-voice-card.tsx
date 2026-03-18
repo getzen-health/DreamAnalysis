@@ -21,11 +21,11 @@ import { Ear, EarOff, Mic, Radio } from "lucide-react";
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 const EMOTION_COLOR: Record<string, string> = {
-  happy:    "#34d399",
-  sad:      "#60a5fa",
-  angry:    "#f87171",
-  fear:     "#fbbf24",
-  surprise: "#f472b6",
+  happy:    "#0891b2",
+  sad:      "#6366f1",
+  angry:    "#ea580c",
+  fear:     "#7c3aed",
+  surprise: "#d4a017",
   neutral:  "#94a3b8",
 };
 
@@ -59,9 +59,9 @@ function EnergyMeter({
         const isActive = i < activeBars;
         const baseHeight = 4 + Math.round((i / (BAR_COUNT - 1)) * 24); // 4–28 px
         const color = isAnalyzing
-          ? "#a78bfa"
+          ? "#7c3aed"
           : isSpeech
-          ? "#34d399"
+          ? "#0891b2"
           : "#475569";
 
         return (

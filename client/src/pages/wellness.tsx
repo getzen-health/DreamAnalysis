@@ -643,8 +643,8 @@ function MoodTab() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="moodGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2dd4a0" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#2dd4a0" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#0891b2" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
@@ -674,16 +674,16 @@ function MoodTab() {
                 <Area
                   type="monotone"
                   dataKey="mood"
-                  stroke="#2dd4a0"
+                  stroke="#0891b2"
                   fill="url(#moodGradient)"
                   strokeWidth={2}
-                  dot={{ r: 2, fill: "#2dd4a0" }}
+                  dot={{ r: 2, fill: "#0891b2" }}
                   name="Mood"
                 />
                 <Area
                   type="monotone"
                   dataKey="energy"
-                  stroke="#f59e0b"
+                  stroke="#d4a017"
                   fill="transparent"
                   strokeWidth={1.5}
                   dot={{ r: 1.5 }}

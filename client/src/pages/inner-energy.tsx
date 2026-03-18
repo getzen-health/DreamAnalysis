@@ -67,9 +67,9 @@ interface ChakraState {
 }
 
 const CHAKRA_COLORS: Record<string, string> = {
-  root: "#ef4444",
-  sacral: "#f97316",
-  solar_plexus: "#eab308",
+  root: "#be185d",
+  sacral: "#ea580c",
+  solar_plexus: "#d4a017",
   heart: "#22c55e",
   throat: "#3b82f6",
   third_eye: "#6366f1",

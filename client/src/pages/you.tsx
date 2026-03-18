@@ -63,9 +63,9 @@ function StatusBadge({ connected }: { connected: boolean }) {
       style={{
         fontSize: 10,
         fontWeight: 600,
-        color: connected ? "#2dd4a0" : "var(--muted-foreground)",
-        background: connected ? "rgba(45,212,160,0.12)" : "rgba(139,133,120,0.12)",
-        border: `1px solid ${connected ? "rgba(45,212,160,0.3)" : "rgba(139,133,120,0.3)"}`,
+        color: connected ? "#0891b2" : "var(--muted-foreground)",
+        background: connected ? "rgba(8,145,178,0.12)" : "rgba(139,133,120,0.12)",
+        border: `1px solid ${connected ? "rgba(8,145,178,0.3)" : "rgba(139,133,120,0.3)"}`,
         borderRadius: 20,
         padding: "2px 8px",
         marginRight: 6,
@@ -242,7 +242,7 @@ export default function You() {
             width: 72,
             height: 72,
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #2dd4a0, #059669)",
+            background: "linear-gradient(135deg, #0891b2, #0e7490)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -281,7 +281,7 @@ export default function You() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#f59e0b" }}>{streak}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: "#d4a017" }}>{streak}</div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>Day Streak 🔥</div>
         </div>
 
@@ -295,7 +295,7 @@ export default function You() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#2dd4a0" }}>{sessions}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: "#0891b2" }}>{sessions}</div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>Sessions Total</div>
         </div>
       </div>
@@ -405,7 +405,7 @@ export default function You() {
           border: "1px solid var(--border)",
           borderRadius: 12,
           padding: 12,
-          color: "#f87171",
+          color: "#e879a8",
           fontSize: 14,
           fontWeight: 500,
           cursor: "pointer",

@@ -598,9 +598,9 @@ export default function BodyMetrics() {
                 type="monotone"
                 dataKey="weight"
                 name="Weight"
-                stroke="#2dd4a0"
+                stroke="#0891b2"
                 strokeWidth={2}
-                dot={{ r: 3, fill: "#2dd4a0" }}
+                dot={{ r: 3, fill: "#0891b2" }}
                 activeDot={{ r: 5 }}
                 connectNulls
               />
@@ -619,7 +619,7 @@ export default function BodyMetrics() {
 
           <div className="flex gap-4 mt-2 justify-center">
             {[
-              { label: "Weight", color: "#2dd4a0" },
+              { label: "Weight", color: "#0891b2" },
               {
                 label: "7-day avg",
                 color: "hsl(38,85%,58%)",

@@ -23,8 +23,8 @@ const EMOTION_EMOJI: Record<string, string> = {
 };
 
 const EMOTION_COLOR: Record<string, string> = {
-  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
-  surprise: "#fbbf24", neutral: "#94a3b8",
+  happy: "#0891b2", sad: "#6366f1", angry: "#ea580c", fear: "#7c3aed",
+  surprise: "#d4a017", neutral: "#94a3b8",
 };
 
 function AnimatedNumber({ target, duration = 1200 }: { target: number; duration?: number }) {
@@ -120,7 +120,7 @@ export function ScoreSplash({ emotion, readiness, stress, focus, onDismiss }: Sc
       }}>
         {/* Readiness */}
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 36, fontWeight: 700, color: "#2dd4a0" }}>
+          <div style={{ fontSize: 36, fontWeight: 700, color: "#0891b2" }}>
             <AnimatedNumber target={readiness} />
           </div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>Readiness</div>
@@ -130,7 +130,7 @@ export function ScoreSplash({ emotion, readiness, stress, focus, onDismiss }: Sc
           <div style={{
             fontSize: 36,
             fontWeight: 700,
-            color: stressPercent < 30 ? "#34d399" : stressPercent < 60 ? "#fbbf24" : "#f87171",
+            color: stressPercent < 30 ? "#0891b2" : stressPercent < 60 ? "#d4a017" : "#e879a8",
           }}>
             <AnimatedNumber target={stressPercent} />
             <span style={{ fontSize: 16, fontWeight: 400 }}>%</span>
@@ -139,7 +139,7 @@ export function ScoreSplash({ emotion, readiness, stress, focus, onDismiss }: Sc
         </div>
         {/* Focus */}
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 36, fontWeight: 700, color: "#60a5fa" }}>
+          <div style={{ fontSize: 36, fontWeight: 700, color: "#3b82f6" }}>
             <AnimatedNumber target={focusPercent} />
             <span style={{ fontSize: 16, fontWeight: 400 }}>%</span>
           </div>

@@ -17,8 +17,8 @@ interface CheckinData {
 }
 
 const EMOTION_COLOR: Record<string, string> = {
-  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
-  surprise: "#fbbf24", neutral: "#94a3b8",
+  happy: "#0891b2", sad: "#6366f1", angry: "#ea580c", fear: "#7c3aed",
+  surprise: "#d4a017", neutral: "#94a3b8",
 };
 
 function useCheckinData(): CheckinData | null {
@@ -50,8 +50,8 @@ function useCheckinData(): CheckinData | null {
 // ── Emotion Timeline Component ─────────────────────────────────────────────
 
 const TIMELINE_COLORS: Record<string, string> = {
-  happy: "#34d399", sad: "#60a5fa", angry: "#f87171", fear: "#a78bfa",
-  surprise: "#fbbf24", neutral: "#94a3b8",
+  happy: "#0891b2", sad: "#6366f1", angry: "#ea580c", fear: "#7c3aed",
+  surprise: "#d4a017", neutral: "#94a3b8",
 };
 
 function EmotionTimeline({ userId }: { userId: string }) {
@@ -391,7 +391,7 @@ export default function Discover() {
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Stress</div>
             <div style={{
               fontSize: 22, fontWeight: 700,
-              color: stress < 0.3 ? "#34d399" : stress < 0.6 ? "#fbbf24" : "#f87171",
+              color: stress < 0.3 ? "#0891b2" : stress < 0.6 ? "#d4a017" : "#e879a8",
             }}>{Math.round(stress * 100)}%</div>
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
               {stress < 0.3 ? "Low" : stress < 0.6 ? "Moderate" : "High"}
@@ -404,7 +404,7 @@ export default function Discover() {
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
           }}>
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Focus</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#60a5fa" }}>{Math.round(focus * 100)}%</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#3b82f6" }}>{Math.round(focus * 100)}%</div>
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
               {focus >= 0.7 ? "Sharp" : focus >= 0.4 ? "Moderate" : "Diffuse"}
             </div>
@@ -416,7 +416,7 @@ export default function Discover() {
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
           }}>
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Relaxation</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#a78bfa" }}>{Math.round(relaxation * 100)}%</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#7c3aed" }}>{Math.round(relaxation * 100)}%</div>
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
               {relaxation >= 0.6 ? "Calm" : relaxation >= 0.3 ? "Mixed" : "Tense"}
             </div>
@@ -444,10 +444,10 @@ export default function Discover() {
           }}
         >
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Heart Rate</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#f87171" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#e879a8" }}>
             {heartRate != null ? `${Math.round(heartRate)}` : "—"}
             {heartRate != null && (
-              <span style={{ fontSize: 11, fontWeight: 400, color: "#f87171", marginLeft: 2 }}>bpm</span>
+              <span style={{ fontSize: 11, fontWeight: 400, color: "#e879a8", marginLeft: 2 }}>bpm</span>
             )}
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Resting</div>
@@ -463,7 +463,7 @@ export default function Discover() {
           }}
         >
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Steps</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#34d399" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#0891b2" }}>
             {steps != null ? steps.toLocaleString() : "—"}
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
@@ -481,7 +481,7 @@ export default function Discover() {
           }}
         >
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Sleep</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#a78bfa" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#7c3aed" }}>
             {sleepLabel ?? "—"}
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
@@ -502,12 +502,12 @@ export default function Discover() {
           }}
         >
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Nutrition</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#f59e0b" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#d4a017" }}>
             {caloriesToday != null && caloriesToday > 0
               ? caloriesToday.toLocaleString()
               : "—"}
             {caloriesToday != null && caloriesToday > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 400, color: "#f59e0b", marginLeft: 2 }}>kcal</span>
+              <span style={{ fontSize: 11, fontWeight: 400, color: "#d4a017", marginLeft: 2 }}>kcal</span>
             )}
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
@@ -580,7 +580,7 @@ export default function Discover() {
               style={{
                 fontSize: 14,
                 fontWeight: 600,
-                color: "#34d399",
+                color: "#0891b2",
                 margin: "0 0 3px 0",
               }}
             >
@@ -601,8 +601,8 @@ export default function Discover() {
         >
           <defs>
             <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#34d399" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+              <stop offset="0%" stopColor="#0891b2" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
             </linearGradient>
           </defs>
           {/* Area fill */}
@@ -614,7 +614,7 @@ export default function Discover() {
           <polyline
             points={pointsToPolyline(SPARKLINE_POINTS)}
             fill="none"
-            stroke="#34d399"
+            stroke="#0891b2"
             strokeWidth={1.5}
             strokeLinejoin="round"
             strokeLinecap="round"

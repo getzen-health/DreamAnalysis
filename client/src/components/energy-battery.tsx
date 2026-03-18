@@ -34,11 +34,11 @@ const BATTERY = {
   padding: 6,
 };
 
-// Color interpolation: pink (#ec4899) when high, red (#ef4444) when low
+// Color interpolation: magenta (#d946ef) when high, coral (#e879a8) when low
 function getFillColors(pct: number): { from: string; to: string } {
-  if (pct > 0.6) return { from: "#ec4899", to: "#db2777" }; // pink
-  if (pct > 0.3) return { from: "#f97316", to: "#ea580c" }; // orange
-  return { from: "#ef4444", to: "#dc2626" }; // red
+  if (pct > 0.6) return { from: "#d946ef", to: "#a21caf" }; // electric magenta
+  if (pct > 0.3) return { from: "#ea580c", to: "#c2410c" }; // burnt orange
+  return { from: "#e879a8", to: "#be185d" }; // warm coral
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────

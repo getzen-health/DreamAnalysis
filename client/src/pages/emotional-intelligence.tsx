@@ -357,16 +357,16 @@ export default function EmotionalIntelligencePage() {
                     <Tooltip
                       contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8 }}
                       labelStyle={{ color: "#a1a1aa" }}
-                      itemStyle={{ color: "#a78bfa" }}
+                      itemStyle={{ color: "#7c3aed" }}
                       formatter={(v: number) => [v.toFixed(1), "EIQ"]}
                     />
                     <Line
                       type="monotone"
                       dataKey="eiq"
-                      stroke="#a78bfa"
+                      stroke="#7c3aed"
                       strokeWidth={2}
                       dot={false}
-                      activeDot={{ r: 4, fill: "#a78bfa" }}
+                      activeDot={{ r: 4, fill: "#7c3aed" }}
                     />
                   </LineChart>
                 </ResponsiveContainer>

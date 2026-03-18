@@ -44,11 +44,11 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const STATE_COLORS: Record<string, string> = {
-  craving_carbs: "#f59e0b",
+  craving_carbs: "#d4a017",
   appetite_suppressed: "#6366f1",
-  comfort_seeking: "#ec4899",
-  balanced: "#10b981",
-  stress_eating: "#ef4444",
+  comfort_seeking: "#d946ef",
+  balanced: "#0891b2",
+  stress_eating: "#e879a8",
   mindful_eating: "#3b82f6",
 };
 
@@ -124,7 +124,7 @@ export default function FoodEmotion() {
 
   const state      = liveProbs ? topState(liveProbs) : "balanced";
   const stateLabel = STATE_LABELS[state] ?? state;
-  const stateColor = STATE_COLORS[state] ?? "#10b981";
+  const stateColor = STATE_COLORS[state] ?? "#0891b2";
 
   const confidence = liveProbs ? (stateProbabilities[state] ?? 0) : 0;
 

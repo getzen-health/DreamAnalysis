@@ -19,11 +19,11 @@ import { useVoiceSession, type VoiceSessionEntry } from "@/hooks/use-voice-sessi
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 const EMOTION_COLOR: Record<string, string> = {
-  happy:    "#34d399",
-  sad:      "#60a5fa",
-  angry:    "#f87171",
-  fear:     "#fbbf24",
-  surprise: "#f472b6",
+  happy:    "#0891b2",
+  sad:      "#6366f1",
+  angry:    "#ea580c",
+  fear:     "#7c3aed",
+  surprise: "#d4a017",
   neutral:  "#94a3b8",
 };
 

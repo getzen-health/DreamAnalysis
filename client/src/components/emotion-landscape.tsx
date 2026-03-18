@@ -27,8 +27,8 @@ const HOUR_RANGE = Array.from({ length: 18 }, (_, i) => i + 6);
 function stressToColor(stress: number): string {
   if (Number.isNaN(stress)) return "#374151"; // no data — gray-700
   if (stress < 0.33) return "#22c55e";         // low — green-500
-  if (stress < 0.66) return "#eab308";         // medium — yellow-500
-  return "#ef4444";                            // high — red-500
+  if (stress < 0.66) return "#d4a017";         // medium — golden honey
+  return "#e879a8";                            // high — warm coral
 }
 
 function formatHour(hour: number): string {

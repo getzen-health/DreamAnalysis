@@ -260,12 +260,12 @@ export default function ScoresDashboard() {
         {/* Cardio Load status card (uses strain color for visual grouping) */}
         <div
           className="rounded-[14px] p-4 flex flex-col justify-center bg-card border border-border"
-          style={{ borderLeft: "3px solid #f87171" }}
+          style={{ borderLeft: "3px solid #e879a8" }}
         >
           <div className="flex items-center gap-2 mb-2">
             <span
               className="flex items-center justify-center w-7 h-7 rounded-lg"
-              style={{ background: "#f8717120" }}
+              style={{ background: "#e879a820" }}
             >
               <Activity className="h-3.5 w-3.5 text-ndw-strain" />
             </span>
@@ -302,14 +302,14 @@ export default function ScoresDashboard() {
             icon={Footprints}
             label="Steps"
             value={summary.steps !== null ? summary.steps.toLocaleString() : null}
-            color="#2dd4a0"
+            color="#0891b2"
           />
           {summary.steps !== null && (
             <div className="ml-6 mt-1">
               <ProgressBar
                 value={summary.steps}
                 max={summary.stepsGoal}
-                color="#2dd4a0"
+                color="#0891b2"
               />
               <p className="text-[10px] mt-1 text-right text-muted-foreground/50">
                 {summary.stepsGoal.toLocaleString()} goal
@@ -324,7 +324,7 @@ export default function ScoresDashboard() {
             label="Active calories"
             value={summary.activeCalories}
             unit="kcal"
-            color="#f59e0b"
+            color="#d4a017"
           />
         </div>
 
@@ -334,7 +334,7 @@ export default function ScoresDashboard() {
             label="Weight"
             value={summary.weight !== null ? summary.weight.toFixed(1) : null}
             unit="kg"
-            color="#a78bfa"
+            color="#7c3aed"
           />
         </div>
 
@@ -353,13 +353,13 @@ export default function ScoresDashboard() {
                       style={{
                         background:
                           z.zone === "Zone 5"
-                            ? "#ef4444"
+                            ? "#be185d"
                             : z.zone === "Zone 4"
-                            ? "#f97316"
+                            ? "#ea580c"
                             : z.zone === "Zone 3"
-                            ? "#f59e0b"
+                            ? "#d4a017"
                             : z.zone === "Zone 2"
-                            ? "#2dd4a0"
+                            ? "#0891b2"
                             : "var(--muted-foreground)",
                       }}
                       initial={{ height: 0 }}

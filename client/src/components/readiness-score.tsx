@@ -50,9 +50,9 @@ interface ReadinessScoreProps {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function scoreColor(color: "red" | "yellow" | "green"): string {
-  if (color === "green") return "#10b981"; // emerald-500
-  if (color === "yellow") return "#f59e0b"; // amber-500
-  return "#ef4444"; // red-500
+  if (color === "green") return "#0891b2"; // ocean blue
+  if (color === "yellow") return "#d4a017"; // golden honey
+  return "#e879a8"; // warm coral
 }
 
 function scoreColorClass(color: "red" | "yellow" | "green"): string {

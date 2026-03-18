@@ -71,8 +71,8 @@ export default function EmotionFlow({ data, height = 200 }: EmotionFlowProps) {
         >
           <defs>
             <linearGradient id="positiveGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
-              <stop offset="95%" stopColor="#f97316" stopOpacity={0.2} />
+              <stop offset="5%" stopColor="#ea580c" stopOpacity={0.8} />
+              <stop offset="95%" stopColor="#c2410c" stopOpacity={0.2} />
             </linearGradient>
             <linearGradient id="negativeGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#64748b" stopOpacity={0.2} />
@@ -97,7 +97,7 @@ export default function EmotionFlow({ data, height = 200 }: EmotionFlowProps) {
             type="monotone"
             dataKey="valence"
             name="valence"
-            stroke="#f59e0b"
+            stroke="#ea580c"
             strokeWidth={2}
             fill="url(#positiveGradient)"
             baseValue={0}

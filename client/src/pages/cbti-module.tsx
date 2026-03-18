@@ -414,8 +414,8 @@ export default function CbtiModule() {
                   formatter={(v: number) => [`${v}%`, "Efficiency"]}
                   labelFormatter={(l) => `Week ${l}`}
                 />
-                <ReferenceLine y={85} stroke="#10b981" strokeDasharray="4 3" strokeOpacity={0.5} />
-                <ReferenceLine y={80} stroke="#f59e0b" strokeDasharray="4 3" strokeOpacity={0.4} />
+                <ReferenceLine y={85} stroke="#0891b2" strokeDasharray="4 3" strokeOpacity={0.5} />
+                <ReferenceLine y={80} stroke="#d4a017" strokeDasharray="4 3" strokeOpacity={0.4} />
                 <Line
                   type="monotone"
                   dataKey="efficiency"
@@ -484,7 +484,7 @@ export default function CbtiModule() {
                   formatter={(v: number) => [`${v}%`, "Compliance"]}
                   labelFormatter={(l) => `Week ${l}`}
                 />
-                <Bar dataKey="compliance" fill="#10b981" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="compliance" fill="#0891b2" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

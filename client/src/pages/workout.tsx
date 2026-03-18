@@ -762,7 +762,7 @@ export default function WorkoutPage() {
                       <circle
                         cx="28" cy="28" r="24"
                         fill="none"
-                        stroke="#f87171"
+                        stroke="#e879a8"
                         strokeWidth="4"
                         strokeLinecap="round"
                         strokeDasharray={2 * Math.PI * 24}
