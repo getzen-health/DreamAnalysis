@@ -1,20 +1,22 @@
 /**
  * health-sync.ts — Apple HealthKit (iOS) and Google Health Connect (Android) integration.
  *
- * Pulls biometric data from the OS health APIs and posts it to the ML backend's
- * POST /biometrics/update endpoint so MultimodalEmotionFusion gets enriched with
- * real wearable signals.
+ * Pulls biometric data from the OS health APIs and posts it to:
+ *   1. ML backend's POST /biometrics/update (MultimodalEmotionFusion enrichment)
+ *   2. Supabase Edge Function ingest-health-data (normalized health_samples pipeline)
  *
  * Platform routing:
  *   iOS    → @perfood/capacitor-healthkit (heart rate, HRV proxy, respiratory rate,
- *             SpO2, body temp, sleep stages, steps, active energy)
- *   Android → capacitor-health (heart rate workouts, steps, active calories, mindfulness)
+ *             SpO2, body temp, sleep stages, steps, active energy, weight, body fat,
+ *             lean mass, height, VO2 max, workouts)
+ *   Android → capacitor-health (heart rate workouts, steps, active calories, mindfulness,
+ *             weight, body fat)
  *   Web     → no-op (silently skipped)
  *
  * Usage:
  *   import { healthSync } from "@/lib/health-sync";
  *   await healthSync.initialize();   // request permissions
- *   await healthSync.syncNow();      // pull + post to backend
+ *   await healthSync.syncNow();      // pull + post to backend + Supabase
  *
  *   // Or use the useHealthSync() hook which auto-syncs every 15 min
  */
@@ -45,6 +47,32 @@ export interface BiometricPayload {
   active_energy_kcal?: number;
   exercise_minutes_today?: number;
   minutes_since_last_meal?: number;
+  // Body composition
+  weight_kg?: number;
+  body_fat_pct?: number;
+  lean_mass_kg?: number;
+  height_cm?: number;
+  vo2_max?: number;
+}
+
+/** Shape for Supabase ingest-health-data Edge Function */
+export interface SupabaseHealthSample {
+  source: string;
+  metric: string;
+  value: number;
+  unit: string;
+  recorded_at: string;
+  metadata?: Record<string, unknown>;
+}
+
+/** Workout data from Apple HealthKit */
+export interface WorkoutData {
+  workoutType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  averageHeartRate?: number;
+  startDate: string;
+  endDate: string;
 }
 
 export type HealthSyncStatus =
@@ -73,7 +101,12 @@ function getOS(): "ios" | "android" | "web" {
 
 // ── iOS HealthKit data pull ──────────────────────────────────────────────────
 
-async function pullAppleHealth(userId: string): Promise<BiometricPayload> {
+interface PullResult {
+  payload: BiometricPayload;
+  workouts: WorkoutData[];
+}
+
+async function pullAppleHealth(userId: string): Promise<PullResult> {
   const { CapacitorHealthkit } = await import("@perfood/capacitor-healthkit");
 
   const now = new Date();
@@ -238,18 +271,139 @@ async function pullAppleHealth(userId: string): Promise<BiometricPayload> {
     }
   } catch { /* ok */ }
 
+  // ── Weight (last 24 hours) ──
+  try {
+    const weightResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number; startDate: string }>({
+      sampleName: "bodyMass",
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 5,
+    });
+    if (weightResult.resultData.length > 0) {
+      payload.weight_kg = weightResult.resultData[weightResult.resultData.length - 1].value;
+    }
+  } catch { /* ok */ }
+
+  // ── Body fat percentage (last 24 hours) ──
+  try {
+    const bfResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number; startDate: string }>({
+      sampleName: "bodyFatPercentage",
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 5,
+    });
+    if (bfResult.resultData.length > 0) {
+      // HealthKit stores as 0-1 fraction, convert to percentage
+      payload.body_fat_pct = bfResult.resultData[bfResult.resultData.length - 1].value * 100;
+    }
+  } catch { /* ok */ }
+
+  // ── Lean body mass (last 24 hours) ──
+  try {
+    const lbmResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number; startDate: string }>({
+      sampleName: "leanBodyMass",
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 5,
+    });
+    if (lbmResult.resultData.length > 0) {
+      payload.lean_mass_kg = lbmResult.resultData[lbmResult.resultData.length - 1].value;
+    }
+  } catch { /* ok */ }
+
+  // ── Height (last recorded value, wider window) ──
+  try {
+    const heightResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "height",
+      startDate: fmt(new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 3,
+    });
+    if (heightResult.resultData.length > 0) {
+      // HealthKit stores height in meters, convert to cm
+      payload.height_cm = heightResult.resultData[heightResult.resultData.length - 1].value * 100;
+    }
+  } catch { /* ok */ }
+
+  // ── VO2 Max (last 24 hours) ──
+  try {
+    const vo2Result = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "vo2Max",
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 5,
+    });
+    if (vo2Result.resultData.length > 0) {
+      payload.vo2_max = vo2Result.resultData[vo2Result.resultData.length - 1].value;
+    }
+  } catch { /* ok */ }
+
+  // ── Workouts (last 24 hours) ──
+  const workouts: WorkoutData[] = [];
+  try {
+    const workoutResult = await CapacitorHealthkit.queryHKitSampleType<{
+      workoutActivityType: string;
+      duration: number;
+      totalEnergyBurned: number;
+      startDate: string;
+      endDate: string;
+    }>({
+      sampleName: "workout",
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 20,
+    });
+
+    let totalExerciseMinutes = 0;
+
+    for (const w of workoutResult.resultData) {
+      const durationMin = (w.duration || 0) / 60;
+      totalExerciseMinutes += durationMin;
+
+      const workout: WorkoutData = {
+        workoutType: w.workoutActivityType || "unknown",
+        durationMinutes: durationMin,
+        caloriesBurned: w.totalEnergyBurned || 0,
+        startDate: w.startDate,
+        endDate: w.endDate,
+      };
+
+      // Try to get average HR during the workout window
+      try {
+        const workoutHR = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+          sampleName: "heartRate",
+          startDate: w.startDate,
+          endDate: w.endDate,
+          limit: 100,
+        });
+        if (workoutHR.resultData.length > 0) {
+          const hrValues = workoutHR.resultData.map((h) => h.value).filter((v) => v > 0);
+          if (hrValues.length > 0) {
+            workout.averageHeartRate = hrValues.reduce((a, b) => a + b, 0) / hrValues.length;
+          }
+        }
+      } catch { /* ok */ }
+
+      workouts.push(workout);
+    }
+
+    if (totalExerciseMinutes > 0) {
+      payload.exercise_minutes_today = totalExerciseMinutes;
+    }
+  } catch { /* ok */ }
+
   // ── Hours since wake (derived from sleep end time) ──
   if (payload.sleep_total_hours !== undefined) {
     // Assume woke up 6-8 hours before current time if we have sleep data
     payload.hours_since_wake = Math.max(0, (now.getHours() - 7)); // rough proxy
   }
 
-  return payload;
+  return { payload, workouts };
 }
 
 // ── Android Google Health Connect data pull ───────────────────────────────────
 
-async function pullAndroidHealth(userId: string): Promise<BiometricPayload> {
+async function pullAndroidHealth(userId: string): Promise<PullResult> {
   const { Health } = await import("capacitor-health");
 
   const payload: BiometricPayload = { user_id: userId };
@@ -317,7 +471,33 @@ async function pullAndroidHealth(userId: string): Promise<BiometricPayload> {
     }
   } catch { /* ok */ }
 
-  return payload;
+  // ── Weight (last 24 hours) ──
+  try {
+    const weight = await Health.queryAggregated({
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      dataType: "weight",
+      bucket: "DAY",
+    });
+    if (weight.aggregatedData.length > 0) {
+      payload.weight_kg = weight.aggregatedData[weight.aggregatedData.length - 1].value;
+    }
+  } catch { /* ok */ }
+
+  // ── Body fat percentage (last 24 hours) ──
+  try {
+    const bf = await Health.queryAggregated({
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      dataType: "body-fat",
+      bucket: "DAY",
+    });
+    if (bf.aggregatedData.length > 0) {
+      payload.body_fat_pct = bf.aggregatedData[bf.aggregatedData.length - 1].value;
+    }
+  } catch { /* ok */ }
+
+  return { payload, workouts: [] };
 }
 
 // ── Permission request ────────────────────────────────────────────────────────
@@ -335,6 +515,12 @@ async function requestPermissionsIos(): Promise<void> {
       "sleepAnalysis",
       "stepCount",
       "activeEnergyBurned",
+      "bodyMass",
+      "bodyFatPercentage",
+      "leanBodyMass",
+      "height",
+      "vo2Max",
+      "workout",
     ],
     write: [],
   });
@@ -349,6 +535,8 @@ async function requestPermissionsAndroid(): Promise<void> {
       "READ_ACTIVE_CALORIES",
       "READ_WORKOUTS",
       "READ_MINDFULNESS",
+      "READ_WEIGHT",
+      "READ_BODY_FAT",
     ],
   });
 }
@@ -366,6 +554,86 @@ async function postToBackend(payload: BiometricPayload): Promise<void> {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`/biometrics/update → ${res.status}`);
+}
+
+// ── Post to Supabase Edge Function ───────────────────────────────────────────
+
+function buildSupabaseSamples(
+  payload: BiometricPayload,
+  workouts: WorkoutData[],
+  source: "apple_health" | "google_fit",
+): SupabaseHealthSample[] {
+  const now = new Date().toISOString();
+  const samples: SupabaseHealthSample[] = [];
+
+  const add = (metric: string, value: number | undefined, unit: string, recordedAt?: string) => {
+    if (value !== undefined && !isNaN(value)) {
+      samples.push({ source, metric, value, unit, recorded_at: recordedAt || now });
+    }
+  };
+
+  // Existing biometric fields
+  add("heart_rate", payload.current_heart_rate, "bpm");
+  add("resting_hr", payload.resting_heart_rate, "bpm");
+  add("hrv_rmssd", payload.hrv_sdnn, "ms"); // SDNN proxy stored as hrv_rmssd
+  add("respiratory_rate", payload.respiratory_rate, "breaths/min");
+  add("spo2", payload.spo2, "%");
+  add("skin_temp", payload.skin_temperature_deviation !== undefined
+    ? 37.0 + payload.skin_temperature_deviation : undefined, "degC");
+  add("sleep_deep_min", payload.sleep_deep_hours !== undefined
+    ? payload.sleep_deep_hours * 60 : undefined, "min");
+  add("sleep_rem_min", payload.sleep_rem_hours !== undefined
+    ? payload.sleep_rem_hours * 60 : undefined, "min");
+  add("sleep_efficiency", payload.sleep_efficiency, "%");
+  add("steps", payload.steps_today, "count");
+  add("active_calories", payload.active_energy_kcal, "kcal");
+  add("exercise_minutes", payload.exercise_minutes_today, "min");
+
+  // Body composition (new)
+  add("weight_kg", payload.weight_kg, "kg");
+  add("body_fat_pct", payload.body_fat_pct, "%");
+  add("lean_mass_kg", payload.lean_mass_kg, "kg");
+  add("height_cm", payload.height_cm, "cm");
+  add("vo2_max", payload.vo2_max, "ml/kg/min");
+
+  // Workouts → workout_strain per workout (with metadata)
+  for (const w of workouts) {
+    if (w.durationMinutes > 0) {
+      samples.push({
+        source,
+        metric: "workout_strain",
+        value: w.caloriesBurned,
+        unit: "kcal",
+        recorded_at: w.startDate || now,
+        metadata: {
+          workout_type: w.workoutType,
+          duration_minutes: w.durationMinutes,
+          average_heart_rate: w.averageHeartRate,
+        },
+      });
+    }
+  }
+
+  return samples;
+}
+
+async function postToSupabase(userId: string, samples: SupabaseHealthSample[]): Promise<void> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl || samples.length === 0) return;
+
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/ingest-health-data`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, samples }),
+    });
+    if (!res.ok) {
+      console.warn(`[health-sync] Supabase ingest failed: ${res.status}`);
+    }
+  } catch (e) {
+    // Supabase ingest is best-effort; don't fail the sync
+    console.warn("[health-sync] Supabase ingest error:", e);
+  }
 }
 
 // ── HealthSyncManager ─────────────────────────────────────────────────────────
@@ -432,7 +700,7 @@ class HealthSyncManager {
     }
   }
 
-  /** Pull latest health data and push to ML backend. */
+  /** Pull latest health data and push to ML backend + Supabase. */
   async syncNow(): Promise<void> {
     const os = getOS();
     if (os === "web" || this.state.status === "unavailable" || this.state.status === "unauthorized") {
@@ -443,14 +711,22 @@ class HealthSyncManager {
     const userId = getParticipantId();
 
     try {
-      let payload: BiometricPayload;
+      let result: PullResult;
       if (os === "ios") {
-        payload = await pullAppleHealth(userId);
+        result = await pullAppleHealth(userId);
       } else {
-        payload = await pullAndroidHealth(userId);
+        result = await pullAndroidHealth(userId);
       }
 
+      const { payload, workouts } = result;
+
+      // Post to ML backend (existing pipeline)
       await postToBackend(payload);
+
+      // Post to Supabase health pipeline (additive — best-effort)
+      const source = os === "ios" ? "apple_health" as const : "google_fit" as const;
+      const samples = buildSupabaseSamples(payload, workouts, source);
+      await postToSupabase(userId, samples);
 
       this.set({
         status: "ok",

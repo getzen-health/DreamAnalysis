@@ -5,7 +5,7 @@ const VALID_METRICS = [
   'heart_rate', 'hrv_rmssd', 'resting_hr', 'respiratory_rate', 'spo2',
   'skin_temp', 'sleep_deep_min', 'sleep_rem_min', 'sleep_light_min',
   'sleep_awake_min', 'sleep_efficiency', 'steps', 'active_calories',
-  'weight_kg', 'body_fat_pct', 'lean_mass_kg', 'vo2_max',
+  'weight_kg', 'body_fat_pct', 'lean_mass_kg', 'height_cm', 'vo2_max',
   'workout_strain', 'glucose_mgdl', 'basal_calories', 'exercise_minutes',
 ]
 
