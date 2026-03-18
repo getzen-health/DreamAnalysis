@@ -31,14 +31,14 @@ const config: CapacitorConfig = {
       launchShowDuration: 2000,
       launchAutoHide: true,
       launchFadeOutDuration: 300,
-      backgroundColor: "#0a0e17",
+      backgroundColor: "#13111a",
       showSpinner: false,
       splashImmersive: true,
       splashFullScreen: true,
     },
     StatusBar: {
       style: "LIGHT",
-      backgroundColor: "#0a0e17",
+      backgroundColor: "#13111a",
     },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
