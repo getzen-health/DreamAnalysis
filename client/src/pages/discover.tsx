@@ -197,7 +197,7 @@ const ROW_CARDS: FeatureCard[] = [
 const CHIP_ITEMS: ChipItem[] = [
   { emoji: "💡", label: "Insights", route: "/insights" },
   { emoji: "📊", label: "Weekly Summary", route: "/weekly-summary" },
-  { emoji: "🎵", label: "Sleep Stories", route: "/sleep-stories" },
+  { emoji: "🎵", label: "Sleep Music", route: "/sleep-music" },
   { emoji: "📖", label: "CBT-i", route: "/cbti" },
   { emoji: "✅", label: "Habits", route: "/habits" },
   { emoji: "❤️", label: "Wellness", route: "/wellness" },
@@ -370,19 +370,7 @@ export default function Discover() {
 
       {/* ── Score Cards — scores first, then explore ── */}
       {hasData ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-          {/* Mood Score */}
-          <button onClick={() => navigate("/emotions")} style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
-            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
-          }}>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Mood</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: emoColor, textTransform: "capitalize" as const }}>{emotion}</div>
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-              Valence {valence >= 0 ? "+" : ""}{valence.toFixed(1)}
-            </div>
-          </button>
-
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
           {/* Stress Score */}
           <button onClick={() => navigate("/emotions")} style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,

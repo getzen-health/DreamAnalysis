@@ -1,335 +1,153 @@
 /**
- * sleep-stories.tsx
+ * sleep-stories.tsx → sleep-music.tsx (component kept at same path for lazy import)
  *
- * Sleep story library / listing page.
- * Renders a grid of sleep story cards. Selecting one expands an inline
- * SleepStoryPlayer. Includes a "How it works" explainer for EEG auto-fade.
+ * Curated sleep music playlists from Spotify and YouTube.
+ * Opens external links in new tabs — no built-in audio player.
  *
- * Used as the content of the /sleep-stories route.
+ * Used as the content of the /sleep-music route.
  */
 
-import { useState } from "react";
-import {
-  Moon,
-  BrainCircuit,
-  Play,
-  Clock,
-  ChevronDown,
-  ChevronUp,
-  Waves,
-  CloudRain,
-  Trees,
-  Star,
-  Droplets,
-  Flame,
-} from "lucide-react";
+import { Moon, Music, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useDevice } from "@/hooks/use-device";
-import { SleepStoryPlayer } from "@/components/sleep-story-player";
 
-// ─── Story catalogue ──────────────────────────────────────────────────────────
+// ─── Playlist data ──────────────────────────────────────────────────────────
 
-import type { AmbientType } from "@/lib/ambient-audio";
-
-interface StoryMeta {
+interface Playlist {
   id: string;
   title: string;
-  duration: string; // display string e.g. "32 min"
   description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-  /** Which procedural ambient generator to use (Web Audio API) */
-  audioType: AmbientType;
+  url: string;
+  source: "spotify" | "youtube";
+  gradient: string;
 }
 
-const STORIES: StoryMeta[] = [
+const PLAYLISTS: Playlist[] = [
   {
-    id: "ocean-waves",
-    title: "Ocean Waves",
-    duration: "45 min",
-    description: "Slow, rhythmic waves lapping a quiet shore at night.",
-    icon: Waves,
-    color: "hsl(210, 80%, 55%)",
-    audioType: "ocean",
+    id: "deep-sleep",
+    title: "Deep Sleep",
+    description: "Ambient drones and slow pads for deep rest",
+    url: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp",
+    source: "spotify",
+    gradient: "from-indigo-600/30 to-blue-900/30",
   },
   {
-    id: "mountain-rain",
-    title: "Mountain Rain",
-    duration: "38 min",
-    description: "Steady rain on pine trees in an alpine clearing.",
-    icon: CloudRain,
-    color: "hsl(230, 60%, 58%)",
-    audioType: "rain",
+    id: "sleep-sounds",
+    title: "Sleep Sounds",
+    description: "White noise, fans, and soft textures",
+    url: "https://open.spotify.com/playlist/37i9dQZF1DWYcDQ1hSjOpY",
+    source: "spotify",
+    gradient: "from-violet-600/30 to-indigo-900/30",
   },
   {
-    id: "forest-walk",
-    title: "Forest Walk",
-    duration: "30 min",
-    description: "Birdsong, distant wind, and the creak of tall oaks.",
-    icon: Trees,
-    color: "hsl(152, 60%, 46%)",
-    audioType: "forest",
+    id: "peaceful-piano",
+    title: "Peaceful Piano",
+    description: "Gentle piano pieces for winding down",
+    url: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO",
+    source: "spotify",
+    gradient: "from-cyan-600/30 to-blue-900/30",
   },
   {
-    id: "night-sky",
-    title: "Night Sky",
-    duration: "50 min",
-    description: "Deep silence with occasional distant owl calls and soft wind.",
-    icon: Star,
-    color: "hsl(260, 65%, 60%)",
-    audioType: "night",
+    id: "nature-sounds",
+    title: "Nature Sounds",
+    description: "Rain, ocean, forest, and birdsong",
+    url: "https://open.spotify.com/playlist/37i9dQZF1DX4PP3DA4J0N8",
+    source: "spotify",
+    gradient: "from-emerald-600/30 to-teal-900/30",
   },
   {
-    id: "gentle-stream",
-    title: "Gentle Stream",
-    duration: "35 min",
-    description: "A babbling brook flowing over smooth stones.",
-    icon: Droplets,
-    color: "hsl(190, 70%, 50%)",
-    audioType: "stream",
+    id: "yt-sleep-music",
+    title: "8 Hour Sleep Music",
+    description: "Long-play ambient tracks on YouTube",
+    url: "https://www.youtube.com/results?search_query=8+hour+sleep+music",
+    source: "youtube",
+    gradient: "from-red-600/30 to-rose-900/30",
   },
   {
-    id: "campfire",
-    title: "Campfire",
-    duration: "40 min",
-    description: "The soft crackle and warmth of a campfire under open stars.",
-    icon: Flame,
-    color: "hsl(30, 85%, 55%)",
-    audioType: "campfire",
+    id: "yt-rain",
+    title: "Rain Sounds",
+    description: "Hours of rain for sleeping",
+    url: "https://www.youtube.com/results?search_query=rain+sounds+for+sleeping",
+    source: "youtube",
+    gradient: "from-slate-600/30 to-gray-900/30",
   },
 ];
 
-// ─── Story card ───────────────────────────────────────────────────────────────
+// ─── Playlist card ──────────────────────────────────────────────────────────
 
-interface StoryCardProps {
-  story: StoryMeta;
-  isSelected: boolean;
-  eegConnected: boolean;
-  onSelect: (id: string) => void;
-  onSleepDetected: (latencyMs: number) => void;
-}
-
-function StoryCard({
-  story,
-  isSelected,
-  eegConnected,
-  onSelect,
-  onSleepDetected,
-}: StoryCardProps) {
-  const Icon = story.icon;
-
+function PlaylistCard({ playlist }: { playlist: Playlist }) {
   return (
-    <div className="space-y-2">
-      {/* Card header — always visible */}
+    <a
+      href={playlist.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block group"
+    >
       <Card
-        className={`glass-card p-4 cursor-pointer transition-all hover:border-primary/30 ${
-          isSelected ? "border-primary/40 bg-primary/5" : ""
-        }`}
-        onClick={() => onSelect(story.id)}
+        className={`glass-card overflow-hidden transition-all hover:border-primary/30 hover:scale-[1.02]`}
       >
-        <div className="flex items-center gap-4">
-          {/* Icon */}
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: story.color + "18", border: `1px solid ${story.color}30` }}
+        {/* Gradient header */}
+        <div
+          className={`h-24 bg-gradient-to-br ${playlist.gradient} flex items-center justify-center`}
+        >
+          <Music className="h-8 w-8 text-white/70 group-hover:text-white/90 transition-colors" />
+        </div>
+
+        {/* Info */}
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-medium truncate">{playlist.title}</p>
+            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-2" />
+          </div>
+          <p className="text-[11px] text-muted-foreground line-clamp-2">
+            {playlist.description}
+          </p>
+          <span
+            className={`inline-block mt-2 text-[10px] font-medium px-2 py-0.5 rounded-full ${
+              playlist.source === "spotify"
+                ? "bg-green-500/15 text-green-400"
+                : "bg-red-500/15 text-red-400"
+            }`}
           >
-            <Icon
-              className="h-5 w-5"
-              style={{ color: story.color } as React.CSSProperties}
-            />
-          </div>
-
-          {/* Text */}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{story.title}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-              {story.description}
-            </p>
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] text-muted-foreground font-mono">
-              {story.duration}
-            </span>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              style={{
-                background: story.color + "18",
-                color: story.color,
-              }}
-              aria-label={isSelected ? "Collapse player" : "Open player"}
-            >
-              {isSelected ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <Play className="h-3.5 w-3.5 ml-0.5" />
-              )}
-            </Button>
-          </div>
+            {playlist.source === "spotify" ? "Spotify" : "YouTube"}
+          </span>
         </div>
       </Card>
-
-      {/* Inline player — shown when this story is selected */}
-      {isSelected && (
-        <SleepStoryPlayer
-          audioType={story.audioType}
-          title={story.title}
-          eegConnected={eegConnected}
-          onSleepDetected={onSleepDetected}
-        />
-      )}
-    </div>
+    </a>
   );
 }
 
-// ─── How it works explainer ───────────────────────────────────────────────────
+// ─── Main component ─────────────────────────────────────────────────────────
 
-function HowItWorks() {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Card className="glass-card p-4">
-      <button
-        className="w-full flex items-center justify-between text-left"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <div className="flex items-center gap-2">
-          <BrainCircuit className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">How EEG auto-fade works</span>
-        </div>
-        {open ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        )}
-      </button>
-
-      {open && (
-        <div className="mt-4 space-y-3 text-[13px] text-muted-foreground leading-relaxed">
-          <p>
-            When your Muse 2 is connected, the ML backend classifies your EEG
-            in real time and tracks which sleep stage you're in.
-          </p>
-          <p>
-            The transition from{" "}
-            <span className="text-foreground font-medium">N1 (light sleep)</span> to{" "}
-            <span className="text-foreground font-medium">N2 (core sleep)</span> is
-            the clearest signal that you have fully fallen asleep. N2 sleep is
-            characterized by sleep spindles (12–15 Hz bursts) and K-complexes
-            detected across the Muse frontal channels.
-          </p>
-          <p>
-            Once the N1→N2 transition is detected, the story fades out over
-            90 seconds using an exponential volume curve — so the volume drop
-            feels natural rather than mechanical.
-          </p>
-          <p>
-            Without an EEG device, you can set a timer (15 / 30 / 45 min)
-            instead. Your sleep latency is saved and shown each morning as a
-            personal record.
-          </p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Badge variant="secondary" className="text-[10px]">
-              Sleep spindles (12–15 Hz) detected
-            </Badge>
-            <Badge variant="secondary" className="text-[10px]">
-              92.98% staging accuracy
-            </Badge>
-            <Badge variant="secondary" className="text-[10px]">
-              90s exponential fade
-            </Badge>
-          </div>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export default function SleepStories() {
-  const { state: deviceState } = useDevice();
-  const eegConnected = deviceState === "streaming";
-
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
-
-  const handleSelect = (id: string) => {
-    setSelectedId((prev) => (prev === id ? null : id));
-  };
-
-  const handleSleepDetected = (latencyMs: number) => {
-    setLastLatencyMs(latencyMs);
-  };
-
+export default function SleepMusic() {
   return (
     <main className="p-4 md:p-6 space-y-6 max-w-3xl mx-auto">
       {/* Page header */}
       <div className="flex items-center gap-3">
         <Moon className="h-6 w-6 text-primary" />
         <div>
-          <h2 className="text-xl font-semibold">Sleep Stories</h2>
+          <h2 className="text-xl font-semibold">Sleep Music</h2>
           <p className="text-xs text-muted-foreground">
-            Ambient soundscapes that fade when you drift off
+            Curated playlists to help you wind down and drift off
           </p>
         </div>
       </div>
 
-      {/* EEG status notice */}
-      {eegConnected ? (
-        <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5 text-sm text-primary">
-          <BrainCircuit className="h-4 w-4 shrink-0" />
-          EEG connected — stories will auto-fade when N1→N2 sleep transition is detected.
-        </div>
-      ) : (
-        <div className="flex items-center gap-3 p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5 text-sm text-yellow-500">
-          <Clock className="h-4 w-4 shrink-0 opacity-70" />
-          No EEG connected — using timer mode. Connect your Muse 2 for automatic fade-out.
-        </div>
-      )}
-
-      {/* Post-sleep latency summary */}
-      {lastLatencyMs !== null && (
-        <Card className="glass-card p-4 border-primary/20 bg-primary/5">
-          <div className="flex items-center gap-3">
-            <Moon className="h-5 w-5 text-primary shrink-0" />
-            <div>
-              <p className="text-sm font-medium">Sleep detected</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                You fell asleep{" "}
-                <span className="text-primary font-semibold">
-                  {Math.floor(lastLatencyMs / 60_000)}m{" "}
-                  {Math.round((lastLatencyMs % 60_000) / 1000)}s
-                </span>{" "}
-                into the story. Audio has faded to silence.
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Story grid */}
-      <div className="space-y-3">
-        {STORIES.map((story) => (
-          <StoryCard
-            key={story.id}
-            story={story}
-            isSelected={selectedId === story.id}
-            eegConnected={eegConnected}
-            onSelect={handleSelect}
-            onSleepDetected={handleSleepDetected}
-          />
+      {/* Playlist grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {PLAYLISTS.map((playlist) => (
+          <PlaylistCard key={playlist.id} playlist={playlist} />
         ))}
       </div>
 
-      {/* Explainer */}
-      <HowItWorks />
+      {/* Tip */}
+      <Card className="glass-card p-4">
+        <p className="text-[13px] text-muted-foreground leading-relaxed">
+          <span className="font-medium text-foreground">Tip:</span> Listening to
+          slow-tempo music (60-80 BPM) before bed can reduce heart rate and
+          promote the transition to sleep. Set a sleep timer in Spotify or
+          YouTube to auto-stop playback.
+        </p>
+      </Card>
     </main>
   );
 }
