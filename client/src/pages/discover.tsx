@@ -96,7 +96,7 @@ function EmotionTimeline({ userId }: { userId: string }) {
             <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%", background: color,
-                opacity: 0.85, transition: "transform 0.2s",
+                opacity: 0.85, transition: "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
               }} />
               <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{label}</span>
             </div>

@@ -14,7 +14,12 @@ vi.mock("framer-motion", () => ({
     set: vi.fn(),
   }),
   useTransform: (_mv: any, fn: (v: number) => number) => fn(0),
-  animate: () => ({ stop: vi.fn() }),
+  animate: (_from: any, to?: any, opts?: any) => {
+    if (opts?.onUpdate && typeof to === "number") {
+      opts.onUpdate(to);
+    }
+    return { stop: vi.fn() };
+  },
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }));
 

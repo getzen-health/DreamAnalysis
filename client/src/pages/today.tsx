@@ -304,7 +304,7 @@ function MentalFitnessCard({ voice }: { voice: VoiceCheckinData | null }) {
       <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
         <div style={{
           width: `${score}%`, height: "100%", background: color,
-          borderRadius: 3, transition: "width 0.8s ease",
+          borderRadius: 3, transition: "width 1.2s cubic-bezier(0.22, 1, 0.36, 1)",
         }} />
       </div>
 
@@ -443,9 +443,9 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
         <>
           <div style={{
             fontSize: 52, lineHeight: 1,
-            animation: "gentleFloat 3s ease-in-out infinite",
+            animation: "gentleFloat 4s ease-in-out infinite",
           }}>{emoji}</div>
-          <style>{`@keyframes gentleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
+          <style>{`@keyframes gentleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }`}</style>
           <div style={{ fontSize: 22, fontWeight: 700, color, textTransform: "capitalize" as const }}>{emotion}</div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
             {confidence > 0 ? `${confidence}% confidence` : "via voice"} · valence {(checkin?.valence ?? 0) >= 0 ? "+" : ""}{(checkin?.valence ?? 0).toFixed(1)}
@@ -493,7 +493,7 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#arcGrad)" strokeWidth={7}
             strokeDasharray={`${filled} ${circumference - filled}`}
             strokeLinecap="round" transform={`rotate(135 ${cx} ${cy})`}
-            style={{ transition: "stroke-dasharray 0.8s ease" }} />
+            style={{ transition: "stroke-dasharray 1.2s cubic-bezier(0.22, 1, 0.36, 1)" }} />
           <text x={cx} y={cy - 4} textAnchor="middle" fill="var(--foreground)" fontSize={32} fontWeight={700}
             fontFamily="system-ui, -apple-system, sans-serif">{score}</text>
           <text x={cx} y={cy + 14} textAnchor="middle" fill="var(--muted-foreground)" fontSize={10}
@@ -1069,7 +1069,7 @@ export default function Today() {
               width: `${calPct * 100}%`,
               background: "linear-gradient(90deg, #d4a017, #ea580c)",
               borderRadius: 3,
-              transition: "width 0.6s ease",
+              transition: "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
             }}
           />
         </div>

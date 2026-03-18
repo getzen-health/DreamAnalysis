@@ -71,14 +71,14 @@ export function EnergyBattery({ value, max = 100 }: EnergyBatteryProps) {
       return;
     }
     const controls = animate(progress, pct, {
-      duration: 1.0,
-      ease: [0.34, 1.56, 0.64, 1],
+      duration: 1.2,
+      ease: [0.22, 1, 0.36, 1],
     });
     return () => controls.stop();
   }, [pct, isNull, progress]);
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className={`flex flex-col items-center gap-2${pct > 0.7 ? " animate-battery-pulse" : ""}`}>
       {/* Label */}
       <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
         Energy Bank

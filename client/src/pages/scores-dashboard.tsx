@@ -26,6 +26,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { pageTransition, cardVariants } from "@/lib/animations";
 import { useAuth } from "@/hooks/use-auth";
 import { useScores } from "@/hooks/use-scores";
 import { ScoreCard } from "@/components/score-card";
@@ -70,7 +71,7 @@ function ProgressBar({
         style={{ background: color }}
         initial={{ width: 0 }}
         animate={{ width: `${pct}%` }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
+        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
       />
     </div>
   );
@@ -181,9 +182,9 @@ export default function ScoresDashboard() {
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       {/* Page header */}
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+        initial={pageTransition.initial}
+        animate={pageTransition.animate}
+        transition={pageTransition.transition}
       >
         <h1 className="text-xl font-bold tracking-tight text-foreground">
           Health Scores
@@ -203,53 +204,45 @@ export default function ScoresDashboard() {
 
       {/* ── Hero: Energy Bank ──────────────────────────────────────────── */}
       <motion.div
-        className="flex justify-center py-4 rounded-[14px] backdrop-blur-sm bg-card/80 border border-border"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        className="flex justify-center py-4 rounded-[14px] backdrop-blur-sm bg-card/80 border border-border animate-heartbeat"
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
         <EnergyBattery value={scores?.energyBank ?? null} />
       </motion.div>
 
       {/* ── Primary Scores Grid (2x2) ─────────────────────────────────── */}
-      <motion.div
-        className="grid grid-cols-2 gap-3"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-      >
-        <ScoreCard
-          title="Recovery"
-          value={scores?.recoveryScore ?? null}
-          color="recovery"
-          icon={<Heart className="h-3.5 w-3.5 text-ndw-recovery" />}
-        />
-        <ScoreCard
-          title="Sleep"
-          value={scores?.sleepScore ?? null}
-          color="sleep"
-          icon={<Moon className="h-3.5 w-3.5 text-ndw-sleep" />}
-        />
-        <ScoreCard
-          title="Strain"
-          value={scores?.strainScore ?? null}
-          color="strain"
-          icon={<Flame className="h-3.5 w-3.5 text-ndw-strain" />}
-        />
-        <ScoreCard
-          title="Stress"
-          value={scores?.stressScore ?? null}
-          color="stress"
-          icon={<Brain className="h-3.5 w-3.5 text-ndw-stress" />}
-        />
-      </motion.div>
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { title: "Recovery", value: scores?.recoveryScore ?? null, color: "recovery" as const, icon: <Heart className="h-3.5 w-3.5 text-ndw-recovery" /> },
+          { title: "Sleep", value: scores?.sleepScore ?? null, color: "sleep" as const, icon: <Moon className="h-3.5 w-3.5 text-ndw-sleep" /> },
+          { title: "Strain", value: scores?.strainScore ?? null, color: "strain" as const, icon: <Flame className="h-3.5 w-3.5 text-ndw-strain" /> },
+          { title: "Stress", value: scores?.stressScore ?? null, color: "stress" as const, icon: <Brain className="h-3.5 w-3.5 text-ndw-stress" /> },
+        ].map((card, i) => (
+          <motion.div
+            key={card.title}
+            custom={i}
+            initial="hidden"
+            animate="visible"
+            variants={cardVariants}
+          >
+            <ScoreCard
+              title={card.title}
+              value={card.value}
+              color={card.color}
+              icon={card.icon}
+            />
+          </motion.div>
+        ))}
+      </div>
 
       {/* ── Secondary Row ─────────────────────────────────────────────── */}
       <motion.div
         className="grid grid-cols-2 gap-3"
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.2 }}
+        transition={{ duration: 0.4, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
       >
         <ScoreCard
           title="Nutrition"
@@ -287,10 +280,10 @@ export default function ScoresDashboard() {
 
       {/* ── Today's Summary Card ──────────────────────────────────────── */}
       <motion.div
-        className="rounded-[14px] p-5 bg-card border border-border"
-        initial={{ opacity: 0, y: 20 }}
+        className="rounded-[14px] p-5 bg-card border border-border animate-fade-in-up"
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.3 }}
+        transition={{ duration: 0.4, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
         <h2 className="text-sm font-semibold mb-3 text-foreground">
           Today
@@ -369,7 +362,7 @@ export default function ScoresDashboard() {
                           100
                         )}%`,
                       }}
-                      transition={{ duration: 0.6, delay: 0.4 }}
+                      transition={{ duration: 0.6, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
                     />
                   </div>
                   <p className="text-[9px] text-muted-foreground">
@@ -404,10 +397,10 @@ export default function ScoresDashboard() {
                     ? "border-cyan-500/30"
                     : "border-border"
                 }`}
-                initial={{ opacity: 0, x: -10 }}
+                initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10, height: 0 }}
-                transition={{ duration: 0.2 }}
+                exit={{ opacity: 0, x: 8, height: 0 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               >
                 {alert.type === "positive" ? (
                   <TrendingUp className="h-4 w-4 shrink-0 mt-0.5 text-cyan-400" />

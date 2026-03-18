@@ -33,6 +33,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { listItemVariants, pageTransition } from "@/lib/animations";
 import { useToast } from "@/hooks/use-toast";
 import { EmotionStrip } from "@/components/emotion-strip";
 
@@ -290,9 +291,9 @@ export default function Habits() {
       {/* Header */}
       <motion.div
         className="space-y-2"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+        initial={pageTransition.initial}
+        animate={pageTransition.animate}
+        transition={pageTransition.transition}
       >
         <div className="flex items-center justify-between">
         <div>
@@ -433,9 +434,10 @@ export default function Habits() {
               <motion.div
                 key={habit.id}
                 className="rounded-xl border border-border bg-card p-3.5 space-y-2.5"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: idx * 0.05 }}
+                custom={idx}
+                initial="hidden"
+                animate="visible"
+                variants={listItemVariants}
               >
                 {/* Top row: icon, name, streak, actions */}
                 <div className="flex items-center gap-3">
@@ -500,7 +502,7 @@ export default function Habits() {
                             <motion.div
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
-                              transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                              transition={{ type: "spring", stiffness: 260, damping: 20 }}
                             >
                               <Check className="h-3.5 w-3.5" />
                             </motion.div>

@@ -248,58 +248,173 @@
 
 @layer utilities {
   .animate-pulse-glow {
-    animation: pulse-glow 2s ease-in-out infinite;
+    animation: pulse-glow 3s ease-in-out infinite;
   }
-
   .animate-brain-wave {
-    animation: brain-wave 1.5s ease-in-out infinite;
+    animation: brain-wave 2.5s ease-in-out infinite;
   }
-
   .animate-shift-glow {
-    animation: shift-glow 2s ease-in-out infinite;
+    animation: shift-glow 2.5s ease-in-out infinite;
   }
-
   .animate-score-fill {
-    animation: score-fill 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    animation: score-fill 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
-
   .animate-float {
-    animation: float 3s ease-in-out infinite;
+    animation: float 4s ease-in-out infinite;
   }
-
+  .animate-fade-in-up {
+    animation: fadeInUp 0.4s ease-out forwards;
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out forwards;
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent 0%, hsl(var(--muted) / 0.3) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+  .animate-heartbeat {
+    animation: heartbeat 2s ease-in-out infinite;
+  }
+  .animate-battery-pulse {
+    animation: battery-pulse 2s ease-in-out infinite;
+  }
+  .animate-stagger-in {
+    animation: staggerIn 0.3s ease-out forwards;
+    opacity: 0;
+  }
   .font-futuristic {
     font-family: var(--font-futuristic);
   }
 }
 
+/* ── Premium Animations ── */
+
+/* Smooth breathing glow — used on score cards and status indicators */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 15px hsl(152 60% 48% / 0.2);
+    box-shadow: 0 0 8px hsl(var(--primary) / 0.1);
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 25px hsl(152 60% 48% / 0.4);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.25), 0 0 40px hsl(var(--primary) / 0.08);
+    transform: scale(1.01);
   }
 }
 
+/* Organic wave — subtle vertical movement for EEG-related elements */
 @keyframes brain-wave {
-  0%, 100% { transform: scaleY(1); }
-  25% { transform: scaleY(1.5); }
-  50% { transform: scaleY(0.8); }
-  75% { transform: scaleY(1.2); }
+  0%, 100% { transform: scaleY(1) translateY(0); }
+  20% { transform: scaleY(1.15) translateY(-1px); }
+  40% { transform: scaleY(0.92) translateY(1px); }
+  60% { transform: scaleY(1.08) translateY(-0.5px); }
+  80% { transform: scaleY(0.96) translateY(0.5px); }
 }
 
+/* Warm amber pulse for alerts and notifications */
 @keyframes shift-glow {
-  0%, 100% { box-shadow: 0 0 12px hsl(38 85% 58% / 0.1); }
-  50% { box-shadow: 0 0 24px hsl(38 85% 58% / 0.25); }
+  0%, 100% {
+    box-shadow: 0 0 8px hsl(32 85% 55% / 0.08);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 16px hsl(32 85% 55% / 0.2), 0 0 32px hsl(32 85% 55% / 0.06);
+    opacity: 0.95;
+  }
 }
 
+/* Score gauge fill — smooth elastic ease */
 @keyframes score-fill {
-  from { stroke-dashoffset: 377; }
+  0% { stroke-dashoffset: 377; opacity: 0.3; }
+  60% { opacity: 1; }
+  100% { stroke-dashoffset: var(--target-offset, 0); opacity: 1; }
 }
 
+/* Gentle float — for cards and hero elements */
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-6px); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Fade in from below — page entry */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade in — simple opacity */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Scale in — for modals and dialogs */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Slide in from right — page transitions */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Shimmer — loading state */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Heartbeat — for the logo and health indicators */
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.08); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.04); }
+  60% { transform: scale(1); }
+}
+
+/* Battery charge pulse — for Energy Bank */
+@keyframes battery-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
+}
+
+/* Stagger children — for list animations */
+@keyframes staggerIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .status-indicator {
@@ -324,9 +439,11 @@
   animation: neural-flow 3s linear infinite;
 }
 
+/* Neural flow — connection lines */
 @keyframes neural-flow {
-  0% { stroke-dashoffset: 10; }
-  100% { stroke-dashoffset: 0; }
+  0% { stroke-dashoffset: 20; opacity: 0.3; }
+  50% { opacity: 0.7; }
+  100% { stroke-dashoffset: 0; opacity: 0.3; }
 }
 
 /* ── Mobile / Capacitor safe-area + touch target fixes ──────────────────────

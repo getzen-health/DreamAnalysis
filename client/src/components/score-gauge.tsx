@@ -9,7 +9,7 @@
  * - Signature color per score type
  */
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import { useEffect } from "react";
 
@@ -70,17 +70,30 @@ export function ScoreGauge({
   const progress = useMotionValue(0);
   const dashOffset = useTransform(progress, (v) => arcLength * (1 - v));
 
+  // Animated number count-up
+  const [displayValue, setDisplayValue] = useState(0);
+
   useEffect(() => {
     if (isNull) {
       progress.set(0);
+      setDisplayValue(0);
       return;
     }
     const controls = animate(progress, pct, {
       duration: 1.2,
-      ease: [0.34, 1.56, 0.64, 1],
+      ease: [0.22, 1, 0.36, 1],
     });
-    return () => controls.stop();
-  }, [pct, isNull, progress, arcLength]);
+    // Count up the number in sync
+    const numControls = animate(0, value!, {
+      duration: 1.2,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate: (v) => setDisplayValue(Math.round(v)),
+    });
+    return () => {
+      controls.stop();
+      numControls.stop();
+    };
+  }, [pct, isNull, progress, arcLength, value]);
 
   return (
     <div className="flex flex-col items-center">
@@ -146,7 +159,7 @@ export function ScoreGauge({
           fontWeight="700"
           fontFamily="Inter, system-ui, sans-serif"
         >
-          {isNull ? "\u2014" : Math.round(value!)}
+          {isNull ? "\u2014" : displayValue}
         </text>
 
         {/* Label */}
