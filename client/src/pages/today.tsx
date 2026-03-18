@@ -7,6 +7,7 @@ import { useHealthSync } from "@/hooks/use-health-sync";
 import { Sparkles } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
+import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -249,6 +250,93 @@ function DailyTip({ emotion, stress, focus }: { emotion: string; stress: number;
   );
 }
 
+// ── Mental Fitness Score ───────────────────────────────────────────────────
+
+function MentalFitnessCard({ voice }: { voice: VoiceCheckinData | null }) {
+  if (!voice?.stress_index) return null;
+
+  const stress = voice.stress_index ?? 0.5;
+  const focus = voice.focus_index ?? 0.5;
+  const valence = voice.valence ?? 0;
+  const arousal = voice.arousal ?? 0.5;
+
+  // Mental Fitness = composite of low stress + high focus + positive valence + balanced arousal
+  const stressScore = (1 - stress) * 30;      // 0-30: lower stress = better
+  const focusScore = focus * 25;               // 0-25: higher focus = better
+  const valenceScore = ((valence + 1) / 2) * 25; // 0-25: positive = better
+  const arousalBalance = (1 - Math.abs(arousal - 0.5) * 2) * 20; // 0-20: moderate = best
+  const raw = stressScore + focusScore + valenceScore + arousalBalance;
+  const score = Math.min(100, Math.max(0, Math.round(raw)));
+
+  const color = score >= 70 ? "#4ade80" : score >= 45 ? "#e8b94a" : "#e87676";
+  const label = score >= 80 ? "Excellent" : score >= 65 ? "Good" : score >= 45 ? "Fair" : "Low";
+  const desc = score >= 70
+    ? "Your mental fitness is strong — keep it up"
+    : score >= 45
+    ? "Room for improvement — try a breathing exercise"
+    : "Your mind needs rest — prioritize self-care today";
+
+  // Simple bar visualization
+  return (
+    <div style={{
+      background: "var(--card)", border: "1px solid var(--border)",
+      borderRadius: 14, padding: 14, marginBottom: 14,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div>
+          <div style={{
+            fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+            textTransform: "uppercase" as const, letterSpacing: "0.5px",
+          }}>
+            Mental Fitness
+          </div>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+            From voice biomarkers
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color, lineHeight: 1 }}>{score}</div>
+          <div style={{ fontSize: 10, color }}>{label}</div>
+        </div>
+      </div>
+
+      {/* Score bar */}
+      <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+        <div style={{
+          width: `${score}%`, height: "100%", background: color,
+          borderRadius: 3, transition: "width 0.8s ease",
+        }} />
+      </div>
+
+      {/* Breakdown mini bars */}
+      <div style={{ display: "flex", gap: 8, fontSize: 9, color: "var(--muted-foreground)" }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ marginBottom: 2 }}>Calm {Math.round((1 - stress) * 100)}%</div>
+          <div style={{ height: 3, background: "var(--border)", borderRadius: 2 }}>
+            <div style={{ width: `${(1 - stress) * 100}%`, height: "100%", background: "#4ade80", borderRadius: 2 }} />
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ marginBottom: 2 }}>Focus {Math.round(focus * 100)}%</div>
+          <div style={{ height: 3, background: "var(--border)", borderRadius: 2 }}>
+            <div style={{ width: `${focus * 100}%`, height: "100%", background: "#3b82f6", borderRadius: 2 }} />
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ marginBottom: 2 }}>Mood {Math.round(((valence + 1) / 2) * 100)}%</div>
+          <div style={{ height: 3, background: "var(--border)", borderRadius: 2 }}>
+            <div style={{ width: `${((valence + 1) / 2) * 100}%`, height: "100%", background: "#e8b94a", borderRadius: 2 }} />
+          </div>
+        </div>
+      </div>
+
+      <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "8px 0 0 0", fontStyle: "italic" }}>
+        {desc}
+      </p>
+    </div>
+  );
+}
+
 // ── Weekly Mood Strip ──────────────────────────────────────────────────────
 
 const MOOD_COLORS: Record<string, string> = {
@@ -381,38 +469,11 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
       ) : (
         <>
           <div style={{ fontSize: 16, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>Detecting your emotional state</div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 12 }}>Quick tap or use the mic for voice analysis</div>
-          {/* Quick mood selector — Daylio-style */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, justifyContent: "center" }}>
-            {(["happy", "neutral", "sad", "angry", "fear", "surprise"] as const).map((emo) => (
-              <button
-                key={emo}
-                onClick={() => {
-                  const quickData = {
-                    emotion: emo,
-                    valence: emo === "happy" ? 0.6 : emo === "sad" ? -0.5 : emo === "angry" ? -0.4 : emo === "fear" ? -0.3 : emo === "surprise" ? 0.3 : 0,
-                    arousal: emo === "angry" ? 0.8 : emo === "fear" ? 0.7 : emo === "surprise" ? 0.7 : emo === "happy" ? 0.6 : 0.3,
-                    stress_index: emo === "angry" ? 0.7 : emo === "fear" ? 0.6 : emo === "sad" ? 0.4 : 0.2,
-                    focus_index: emo === "happy" ? 0.6 : emo === "neutral" ? 0.5 : 0.3,
-                    confidence: 0.9,
-                  };
-                  try {
-                    localStorage.setItem("ndw_last_emotion", JSON.stringify({ result: quickData, timestamp: Date.now() }));
-                    window.dispatchEvent(new Event("ndw-voice-updated"));
-                    window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
-                  } catch { /* ignore */ }
-                }}
-                style={{
-                  display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 4,
-                  background: "var(--card)", border: "1px solid var(--border)",
-                  borderRadius: 12, padding: "10px 14px", cursor: "pointer",
-                  minWidth: 60,
-                }}
-              >
-                <span style={{ fontSize: 24 }}>{EMOTION_EMOJI[emo]}</span>
-                <span style={{ fontSize: 9, color: "var(--muted-foreground)", textTransform: "capitalize" as const }}>{emo}</span>
-              </button>
-            ))}
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 4, lineHeight: 1.5 }}>
+            Record a voice note to detect your emotional state automatically.
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", opacity: 0.7 }}>
+            Emotions are detected from voice analysis, health data, and EEG signals.
           </div>
         </>
       )}
@@ -548,6 +609,7 @@ export default function Today() {
   const { latestPayload, lastSyncAt } = useHealthSync();
   const userId = useMemo(() => getParticipantId(), []);
   const [, navigate] = useLocation();
+  const voiceData = useVoiceData();
 
   // Load last emotion check-in from localStorage — re-read on voice update
   const [checkin, setCheckin] = useState<EmotionCheckin | null>(null);
@@ -733,6 +795,9 @@ export default function Today() {
           onClick={() => navigate("/emotions")}
         />
       </div>
+
+      {/* ── Mental Fitness Score ── */}
+      <MentalFitnessCard voice={voiceData} />
 
       {/* ── Weekly Mood Strip ── */}
       <WeeklyMoodStrip userId={userId} />
