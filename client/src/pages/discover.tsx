@@ -117,6 +117,76 @@ function EmotionTimeline({ userId }: { userId: string }) {
   );
 }
 
+// ── Recommended Section — personalized suggestions based on emotion ────────
+
+interface Recommendation {
+  emoji: string;
+  title: string;
+  reason: string;
+  route: string;
+}
+
+function getRecommendations(stress: number, valence: number, focus: number): Recommendation[] {
+  const recs: Recommendation[] = [];
+
+  if (stress > 0.5) {
+    recs.push({ emoji: "🧘", title: "Breathing Exercise", reason: "Your stress is elevated", route: "/biofeedback" });
+    recs.push({ emoji: "🎵", title: "Sleep Stories", reason: "Wind down with calming audio", route: "/sleep-stories" });
+  }
+  if (valence < -0.1) {
+    recs.push({ emoji: "🤖", title: "Talk to AI Companion", reason: "Process what you're feeling", route: "/ai-companion" });
+    recs.push({ emoji: "✨", title: "Inner Energy", reason: "Rebalance your energy centers", route: "/inner-energy" });
+  }
+  if (focus < 0.4) {
+    recs.push({ emoji: "🎯", title: "Neurofeedback", reason: "Train your focus", route: "/neurofeedback" });
+  }
+  if (valence > 0.3 && stress < 0.3) {
+    recs.push({ emoji: "📝", title: "Dream Journal", reason: "Great mood — record your dreams", route: "/dreams" });
+    recs.push({ emoji: "🏋️", title: "Workout", reason: "Ride this positive energy", route: "/workout" });
+  }
+  if (recs.length === 0) {
+    recs.push({ emoji: "💡", title: "Weekly Insights", reason: "See your patterns", route: "/insights" });
+    recs.push({ emoji: "🧠", title: "Brain Monitor", reason: "Explore your brainwaves", route: "/brain-monitor" });
+  }
+
+  return recs.slice(0, 3); // Max 3 recommendations
+}
+
+function RecommendedSection({ stress, valence, focus, navigate }: {
+  stress: number; valence: number; focus: number; navigate: (path: string) => void;
+}) {
+  const recs = getRecommendations(stress, valence, focus);
+  if (recs.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 8,
+      }}>
+        Recommended for you
+      </div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto" as const, paddingBottom: 4 }}>
+        {recs.map((rec) => (
+          <button
+            key={rec.route}
+            onClick={() => navigate(rec.route)}
+            style={{
+              background: "var(--card)", border: "1px solid var(--border)",
+              borderRadius: 14, padding: "12px 14px", minWidth: 150, flexShrink: 0,
+              textAlign: "left" as const, cursor: "pointer",
+            }}
+          >
+            <span style={{ fontSize: 22 }}>{rec.emoji}</span>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginTop: 6 }}>{rec.title}</div>
+            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{rec.reason}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface FeatureCard {
@@ -529,6 +599,11 @@ export default function Discover() {
 
       {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
       <EmotionTimeline userId={userId} />
+
+      {/* ── Recommended for You — emotion-based suggestions ── */}
+      {hasData && (
+        <RecommendedSection stress={stress} valence={valence} focus={focus} navigate={navigate} />
+      )}
 
       {/* ── Section label ── */}
       <div style={{
