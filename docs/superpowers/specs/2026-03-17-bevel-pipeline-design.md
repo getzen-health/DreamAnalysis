@@ -22,7 +22,16 @@ Transform NeuralDreamWorkshop from an EEG-focused emotion lab into a complete he
 - **Cache:** PgTableCache adapter (swap to Redis later)
 - **Job Queue:** DirectCallQueue adapter (swap to BullMQ later)
 - **ML Backend:** Local FastAPI (16 models, EEG stream, BrainFlow — stays on Mac)
-- **Monthly cost:** $0
+- **Cron:** Vercel Cron (`@daily` on Hobby plan) — triggers trend detection Edge Functions
+- **Monthly cost:** $0 (requires data retention policy — see Section 2.3)
+
+### Storage Budget (Critical Constraint)
+
+Supabase free tier = 500MB. Estimated usage per active user:
+- health_samples: ~50-100MB/day if continuous HR (1 row/sec from Whoop)
+- **Mitigation:** Raw health_samples retained for 90 days, then archived to Supabase Storage as compressed JSON. Daily aggregates retained indefinitely (tiny). pg_cron replacement (Vercel Cron) runs `DELETE FROM health_samples WHERE ingested_at < now() - interval '90 days'` nightly.
+- **Budget for 1 user:** ~15MB/day after dedup (15-min polling, not per-second). 90 days = ~1.3GB → exceeds free tier. Must either: (a) downsample to hourly aggregates after 30 days, or (b) upgrade to Supabase Pro ($25/mo) when data exceeds 400MB.
+- **Monitoring:** Edge Function checks storage usage weekly, alerts at 80% (400MB).
 
 ### Redis Migration Path
 
@@ -58,20 +67,20 @@ INGESTION LAYER
     - Normalizes units (kg/lbs, C/F configurable)
     - Deduplicates (source + metric + timestamp unique)
     - Tags source provider
-  → INSERT into health_samples
+  → INSERT into health_samples ON CONFLICT (user_id, source, metric, recorded_at) DO NOTHING
+    (idempotent — webhook retries and duplicate syncs are safe)
   → EventBus.publish("health.ingested", { userId, metrics[] })
 
 AGGREGATION LAYER
-  PG Trigger on health_samples INSERT
-    - Updates daily_aggregates (running avg, min, max, count per metric)
-    - Updates user_baselines (14-day rolling average per metric)
-    - Checks simple thresholds (HR > 120, SpO2 < 94)
-  → If threshold breach → EventBus.publish("alert.threshold", {...})
-  → EventBus.publish("aggregates.updated", { userId })
+  PG Trigger on health_samples INSERT (PL/pgSQL, runs in-database):
+    - UPSERT daily_aggregates (running avg, min, max, count per metric)
+    - UPSERT user_baselines (14-day rolling average per metric)
+    - Simple threshold checks (HR > 120, SpO2 < 94) → INSERT trend_alerts
+    Note: aggregation runs as PL/pgSQL inside the trigger — no Edge Function needed.
 
 SCORE ENGINE LAYER
-  EventBus.subscribe("aggregates.updated")
-  → Edge Function: compute-scores
+  Supabase Database Webhook on daily_aggregates UPDATE
+    → POSTs to Edge Function: compute-scores (HTTP callback, not pg_notify)
     - Reads daily_aggregates + user_baselines (14-day window)
     - Runs 6 score engines:
       1. Recovery (HRV + RHR + temp + resp + SpO2 + sleep)
@@ -84,7 +93,7 @@ SCORE ENGINE LAYER
   → Cache.set("user:{id}:scores", scores)
 
 TREND DETECTION LAYER
-  pg_cron: daily at midnight
+  Vercel Cron (@daily) → calls Edge Function: daily-trends
     - 7-day moving averages for all metrics
     - Rate-of-change analysis (weight ±2%/week, HRV declining)
     - Anomaly detection (z-score > 2 from baseline)
@@ -252,8 +261,8 @@ CREATE TABLE device_connections (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   provider text NOT NULL, -- whoop | oura | garmin | dexcom | libre | strava
-  access_token text NOT NULL, -- encrypted at rest
-  refresh_token text,
+  access_token text NOT NULL, -- encrypted via Supabase Vault (pgsodium)
+  refresh_token text,         -- encrypted via Supabase Vault (pgsodium)
   token_expires_at timestamptz,
   scopes text[],
   last_sync_at timestamptz,
@@ -525,12 +534,15 @@ When multiple devices report the same metric:
 ```
 TRIMP = duration(min) × avg_HR_ratio × e^(1.92 × avg_HR_ratio)
 HR_ratio = (exerciseHR - restHR) / (maxHR - restHR)
-strain = k × ln(1 + TRIMP)  // logarithmic scaling
+strain = 14.3 × ln(1 + TRIMP)  // k=14.3 maps to ~0-21 scale (Whoop-equivalent)
+                                // Gender factor: 1.92 (male) or 1.67 (female) in TRIMP exponent
 ```
 
 **Target Strain:** Personalized daily recommendation based on recovery score + historical pattern.
 
 **EEG Bonus:** Cognitive strain from focus/concentration sessions adds to total strain.
+
+**Edge Function timeout handling:** Score computation split into 6 independent Edge Function invocations (one per score) called in parallel via `Promise.all()`. Each completes well within the 2-second wall-clock limit. Only changed scores are recomputed (incremental — if only sleep data changed, only Sleep Score and Energy Bank recompute).
 
 ### 5.4 Stress Score (0-100)
 
@@ -669,24 +681,54 @@ Benchmarks: >50 bpm Excellent, 40-50 Good, 30-40 Average, <30 Below Average.
 
 ---
 
-## 9. Migration Plan (Neon → Supabase)
+## 9. Security: Row-Level Security Policies
 
-### 9.1 Database Migration
+Every table with `user_id` gets this default RLS policy:
+```sql
+ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only access their own data"
+  ON <table> FOR ALL USING (auth.uid() = user_id);
+```
+
+**Exceptions:**
+- `exercises` (shared library): `SELECT` allowed for all authenticated users. `INSERT/UPDATE/DELETE` only where `is_custom = true AND created_by = auth.uid()`.
+- `device_connections`: Strictest RLS — `SELECT/UPDATE/DELETE` only by owner. Token columns additionally encrypted via Supabase Vault (pgsodium). Edge Functions use service_role key to decrypt tokens during sync.
+- `trend_alerts`: Users can SELECT and UPDATE (acknowledge) their own alerts only.
+
+**OAuth Token Encryption:**
+Tokens in `device_connections` are encrypted using Supabase Vault (`pgsodium` extension, available on free tier). Edge Functions decrypt using `vault.decrypted_secrets` view with service_role key. Application code never sees raw tokens — only the Edge Function sync workers.
+
+---
+
+## 10. Migration Plan (Neon → Supabase)
+
+### 10.1 Database Migration
 1. Create Supabase project
 2. Export Neon schema via pg_dump
 3. Import to Supabase PostgreSQL
-4. Update Drizzle ORM connection string (DATABASE_URL)
-5. Verify all existing queries work (same PostgreSQL, same Drizzle)
-6. Export/import existing data if any
+4. **User ID type migration:** Existing schema uses `varchar("id")` with UUID values. Supabase Auth uses native `uuid`. Steps:
+   a. Verify all existing IDs are valid UUIDs (they are — generated by `gen_random_uuid()`)
+   b. ALTER all `user_id` columns from `varchar` to `uuid` using `ALTER COLUMN user_id TYPE uuid USING user_id::uuid`
+   c. Create user entries in `auth.users` matching existing user IDs
+   d. Update all FK references to point to `auth.users(id)`
+   e. Drop old `users` table after verification
+5. **health_samples migration:** Existing table uses `real("value")` and no UNIQUE constraint. Steps:
+   a. `ALTER COLUMN value TYPE numeric`
+   b. Deduplicate any existing rows that would violate the new constraint
+   c. `ADD CONSTRAINT ... UNIQUE(user_id, source, metric, recorded_at)`
+   d. Add `unit` column as `text NOT NULL DEFAULT 'unknown'` (backfill existing rows)
+6. Update Drizzle ORM connection string (DATABASE_URL) and schema types
+7. Verify all existing queries work
+8. Export/import existing data if any
 
-### 9.2 Auth Migration
+### 10.2 Auth Migration
 1. Set up Supabase Auth (email/password + OAuth providers)
 2. Update frontend auth hooks to use @supabase/supabase-js
 3. Migrate existing bcrypt password hashes (Supabase supports bcrypt import)
 4. Remove express-session + connect-pg-simple
-5. Update RLS policies on all tables
+5. Enable RLS on all tables, apply policies from Section 9
 
-### 9.3 API Migration
+### 10.3 API Migration
 1. Move simple CRUD routes to Supabase client direct access (with RLS)
 2. Move complex business logic to Edge Functions
 3. Keep Express locally for ML proxy + GPT integration
@@ -694,7 +736,7 @@ Benchmarks: >50 bpm Excellent, 40-50 Good, 30-40 Average, <30 Below Average.
 
 ---
 
-## 10. Implementation Phases
+## 11. Implementation Phases
 
 ### Phase 0: Supabase Migration (Foundation)
 - Create Supabase project
@@ -752,7 +794,7 @@ Benchmarks: >50 bpm Excellent, 40-50 Good, 30-40 Average, <30 Below Average.
 
 ---
 
-## 11. What Makes This Different From Bevel
+## 12. What Makes This Different From Bevel
 
 Every score has an **EEG bonus** that Bevel, Whoop, and Oura can never match:
 
