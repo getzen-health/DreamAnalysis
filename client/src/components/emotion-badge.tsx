@@ -59,7 +59,7 @@ export function EmotionBadge({
         <span className={isSm ? "text-xs" : "text-sm"}>
           {emotion ? EMOTION_EMOJI[emotion.emotion] ?? "\u{1F9E0}" : "\u{1F3A4}"}
         </span>
-        {showLabel && <span className="font-medium">Check in</span>}
+        {showLabel && <span className="font-medium">No data yet</span>}
       </button>
     );
   }

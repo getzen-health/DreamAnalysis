@@ -41,7 +41,7 @@ function computeReadiness(checkin: EmotionCheckin | null): number {
 }
 
 function getEmotionScoreLabel(score: number): string {
-  if (score === 0) return "Do a voice check-in to see your score";
+  if (score === 0) return "Record a voice note to see your score";
   if (score >= 80) return "You're thriving emotionally";
   if (score >= 60) return "Positive emotional state";
   if (score >= 40) return "Mixed emotional state";
@@ -67,7 +67,7 @@ function getFocusLabel(focus: number): string {
 }
 
 function getAIInsight(checkin: EmotionCheckin | null): string {
-  if (!checkin) return "Complete a voice check-in to get your personalized AI insight.";
+  if (!checkin) return "Record a voice note to get your personalized AI insight.";
   const stress = checkin.stress_index ?? 0.5;
   const focus = checkin.focus_index ?? 0.5;
   const valence = checkin.valence ?? 0;
@@ -139,7 +139,7 @@ function WeeklySummaryCard({ userId }: { userId: string }) {
     ? "Great focus this week! You've been in productive states consistently."
     : avgValence > 0.2
     ? "Positive mood trend — keep doing what you're doing."
-    : "Mixed week emotionally. Small daily check-ins help build awareness.";
+    : "Mixed week emotionally. Regular voice analysis helps build awareness.";
 
   return (
     <div
@@ -219,7 +219,7 @@ const TIPS_BY_STATE: Record<string, string[]> = {
     "🧘 Try a 5-minute meditation to deepen this peaceful state.",
   ],
   default: [
-    "🎙️ Do a voice check-in to get personalized wellness tips based on your emotional state.",
+    "🎙️ Record a voice note to get personalized wellness tips based on your emotional state.",
     "💫 Your emotional data shapes your wellness journey. The more you track, the better the insights.",
   ],
 };
@@ -371,7 +371,7 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
                 if (ts) {
                   const mins = Math.floor((Date.now() - ts) / 60000);
                   const label = mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
-                  return <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2, opacity: 0.7 }}>Checked in {label}</div>;
+                  return <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2, opacity: 0.7 }}>Detected {label}</div>;
                 }
               }
             } catch { /* ignore */ }
@@ -380,8 +380,8 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
         </>
       ) : (
         <>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>How are you feeling?</div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 12 }}>Quick tap or use the mic for detailed analysis</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>Detecting your emotional state</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 12 }}>Quick tap or use the mic for voice analysis</div>
           {/* Quick mood selector — Daylio-style */}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, justifyContent: "center" }}>
             {(["happy", "neutral", "sad", "angry", "fear", "surprise"] as const).map((emo) => (

@@ -128,9 +128,9 @@ function recommendedAction(health: HealthEntry[], voice: VoiceSnapshot | null): 
 } {
   if (!health.length && !voice) {
     return {
-      label: "Run a voice check-in",
+      label: "Record voice for analysis",
       route: "/emotions",
-      description: "Capture a quick emotion snapshot to personalize today’s report",
+      description: "Speak naturally for 10 seconds to detect your emotional state",
     };
   }
   const latest = health[0];
@@ -478,7 +478,7 @@ export default function DailyBrainReport() {
             <div>
               <p className="text-sm font-medium text-foreground/80">No data yet</p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Run a voice check-in, sync Apple Health, or connect EEG to generate today’s report.
+                Record a voice note, sync Apple Health, or connect EEG to generate today’s report.
               </p>
               <Button
                 variant="ghost"
@@ -486,7 +486,7 @@ export default function DailyBrainReport() {
                 className="mt-2 h-7 px-2 text-xs text-primary"
                 onClick={() => navigate("/emotions")}
               >
-                Start check-in <ArrowRight className="h-3 w-3 ml-1" />
+                Record voice <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </div>
           </div>

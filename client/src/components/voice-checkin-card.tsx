@@ -37,16 +37,16 @@ const RECORDING_AFFIRMATIONS = [
   "Feelings are messengers, not enemies.",
   "Right now, you're choosing to grow.",
   "Your inner world deserves attention.",
-  "Small check-ins lead to big clarity.",
+  "Small moments of awareness lead to big clarity.",
   "Be gentle with yourself today.",
-  "You're building emotional intelligence, one check-in at a time.",
+  "You're building emotional intelligence, one moment at a time.",
   "The fact that you're here shows you care about yourself.",
 ];
 
 const ANALYZING_AFFIRMATIONS = [
   "Understanding yourself is a superpower.",
   "Your emotions are being heard.",
-  "Every check-in makes you stronger.",
+  "Every reading makes you stronger.",
   "Self-knowledge is the beginning of wisdom.",
   "You're investing in your wellbeing.",
   "Awareness is the first step to change.",
@@ -383,7 +383,7 @@ export function VoiceCheckinCard({
         // Food-emotion correlation
         queryClient.invalidateQueries({ queryKey: ["/api/food/logs", resolvedUserId] });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Check-in failed");
+        setError(err instanceof Error ? err.message : "Voice analysis failed");
         setCardState("idle");
       }
     };
@@ -426,14 +426,14 @@ export function VoiceCheckinCard({
         {/* Header row */}
         <div className="flex items-start justify-between mb-3">
           <div>
-            <p className="text-sm font-semibold">{periodLabel} Check-In</p>
-            <p className="text-xs text-muted-foreground">How are you feeling?</p>
+            <p className="text-sm font-semibold">{periodLabel} Voice Analysis</p>
+            <p className="text-xs text-muted-foreground">Speak naturally for 10 seconds</p>
           </div>
           {cardState !== "recording" && cardState !== "analyzing" && (
             <button
               onClick={dismiss}
               className="text-muted-foreground hover:text-foreground transition-colors p-1 -mt-1 -mr-1"
-              aria-label="Skip check-in"
+              aria-label="Skip voice analysis"
             >
               <X className="h-4 w-4" />
             </button>
@@ -525,7 +525,7 @@ export function VoiceCheckinCard({
                 <span>Focus: <span className="font-mono text-foreground/80">{Math.round(result.focus_index * 100)}%</span></span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Next check-in at {nextWindowLabel(period)}
+                Next analysis at {nextWindowLabel(period)}
               </p>
             </div>
           );

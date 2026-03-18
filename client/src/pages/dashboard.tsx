@@ -207,7 +207,7 @@ function getInsightText(
   if (focus > 65) {
     return "High focus detected — your prefrontal cortex is highly active. Great time for analytical tasks.";
   }
-  return "Your neural patterns are balanced. Regular check-ins help build emotional awareness over time.";
+  return "Your neural patterns are balanced. Regular voice analysis helps build emotional awareness over time.";
 }
 
 /* Emotion shift type descriptions — mirrors backend EMOTION_PRECURSORS */
@@ -238,7 +238,7 @@ const EMOTION_PRECURSORS: Record<string, { description: string; guidance: string
   },
   general_shift: {
     description: "Your emotional state is shifting",
-    guidance: "Pause and check in with yourself. What are you feeling right now?",
+    guidance: "Your emotional state is adjusting. Give yourself a moment.",
   },
 };
 
@@ -337,7 +337,7 @@ function relativeDay(startTime: number): string {
 
 // Primary 2x2 quick-action grid — most-used features
 const QUICK_ACTION_CARDS = [
-  { href: "/journal",      icon: MessageSquare, label: "Voice Check-in",  subtitle: "Log how you feel",    color: "hsl(270, 60%, 60%)" },
+  { href: "/journal",      icon: MessageSquare, label: "Voice Analysis",   subtitle: "Emotion detected from voice", color: "hsl(270, 60%, 60%)" },
   { href: "/dreams",       icon: Moon,          label: "Dream Journal",   subtitle: "Record and analyze",  color: "hsl(230, 60%, 60%)" },
   { href: "/biofeedback",  icon: Wind,          label: "Breathe",         subtitle: "Guided breathing",    color: "hsl(170, 55%, 48%)" },
   { href: "/ai-companion", icon: MessageCircle, label: "AI Companion",    subtitle: "Talk to your guide",  color: "hsl(152, 60%, 48%)" },
@@ -451,7 +451,7 @@ export default function Dashboard() {
       detected: true,
       type: isCalm ? "approaching_calm" : shiftType,
       description: emotionShift.description ?? EMOTION_PRECURSORS[shiftType]?.description ?? "Emotional state is shifting",
-      guidance: emotionShift.guidance ?? EMOTION_PRECURSORS[shiftType]?.guidance ?? "Pause and check in with yourself.",
+      guidance: emotionShift.guidance ?? EMOTION_PRECURSORS[shiftType]?.guidance ?? "Your emotional state is adjusting. Give yourself a moment.",
       bodyFeeling: emotionShift.body_feeling ?? "",
     });
   }, [emotionShift?.shift_detected, emotionShift?.shift_type]);
@@ -611,7 +611,7 @@ export default function Dashboard() {
                 ? "EEG streaming live"
                 : healthState
                 ? `Connected to ${healthState.source}`
-                : "How are you feeling today?"}
+                : "Based on your voice and health data"}
             </p>
           </div>
         </div>
@@ -630,7 +630,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-muted/25 border border-border/30">
           <Radio className="h-4 w-4 shrink-0 text-primary" />
           <span className="text-[13px] text-muted-foreground">
-            Voice check-in or sync health data to start. EEG optional.
+            Analyzing your voice and health data... EEG optional.
           </span>
         </div>
       )}
@@ -648,7 +648,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-violet-500/6 border border-violet-500/20">
           <Heart className="h-3.5 w-3.5 shrink-0 text-violet-400" />
           <span className="text-xs text-foreground">
-            Last check-in:{" "}
+            Last detected:{" "}
             <span className="font-semibold capitalize">{lastEmotionCheckin.emotion}</span>
             {lastEmotionCheckin.confidence > 0 && (
               <span className="text-muted-foreground">
@@ -683,7 +683,7 @@ export default function Dashboard() {
           <div className="space-y-1.5">
             <h2 className="text-lg font-bold text-foreground">Welcome to Neural Dream Workshop</h2>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              Start your first voice check-in or connect your EEG headset to begin tracking your brain health.
+              Record a brief voice note to analyze your emotional state, or connect your EEG headset to begin tracking your brain health.
             </p>
           </div>
           <div className="flex items-center justify-center gap-3">
@@ -691,7 +691,7 @@ export default function Dashboard() {
               <button
                 className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all"
               >
-                Voice Check-in
+                Voice Analysis
               </button>
             </Link>
             <Link href="/device-setup">
@@ -1239,7 +1239,7 @@ export default function Dashboard() {
               <Brain className="h-8 w-8 text-muted-foreground/40" />
               <p>Insights appear after a few days of data</p>
               <p className="text-xs text-muted-foreground/60 text-center px-4">
-                Complete a few voice check-ins or EEG sessions and sync health data to unlock correlations.
+                Complete a few voice analyses or EEG sessions and sync health data to unlock correlations.
               </p>
             </div>
           ) : (
