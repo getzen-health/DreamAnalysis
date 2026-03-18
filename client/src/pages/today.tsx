@@ -8,6 +8,7 @@ import { Sparkles } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
+import { InlineBreathe } from "@/components/inline-breathe";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -624,6 +625,7 @@ export default function Today() {
   const userId = useMemo(() => getParticipantId(), []);
   const [, navigate] = useLocation();
   const voiceData = useVoiceData();
+  const [showBreathe, setShowBreathe] = useState(false);
 
   // Load last emotion check-in from localStorage — re-read on voice update
   const [checkin, setCheckin] = useState<EmotionCheckin | null>(null);
@@ -897,27 +899,46 @@ export default function Today() {
               </div>
             </div>
           </div>
-          <button
-            onClick={() => window.location.href = "/biofeedback"}
-            style={{
-              width: "100%",
-              background: "linear-gradient(135deg, #1db88a, #0d9668)",
-              color: "#0a0e17",
-              border: "none",
-              borderRadius: 10,
-              padding: "10px 16px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
-          >
-            🧘 Try a breathing exercise
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setShowBreathe(true)}
+              style={{
+                flex: 1,
+                background: "linear-gradient(135deg, #0891b2, #0e7490)",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px 16px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              🧘 1-min calm
+            </button>
+            <button
+              onClick={() => navigate("/biofeedback")}
+              style={{
+                flex: 1,
+                background: "var(--card)",
+                color: "var(--foreground)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "10px 16px",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Full session →
+            </button>
+          </div>
         </div>
+      )}
+
+      {/* Inline breathing exercise */}
+      {showBreathe && (
+        <InlineBreathe onClose={() => setShowBreathe(false)} />
       )}
 
       {/* ── Sleep Card ── */}
