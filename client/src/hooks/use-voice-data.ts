@@ -53,10 +53,11 @@ export function useVoiceData(): VoiceCheckinData | null {
       setData(readCheckin());
     }
     window.addEventListener("ndw-voice-updated", handler);
-    // Also re-read on storage change (cross-tab)
+    window.addEventListener("ndw-emotion-update", handler);
     window.addEventListener("storage", handler);
     return () => {
       window.removeEventListener("ndw-voice-updated", handler);
+      window.removeEventListener("ndw-emotion-update", handler);
       window.removeEventListener("storage", handler);
     };
   }, []);

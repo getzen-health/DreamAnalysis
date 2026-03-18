@@ -38,7 +38,11 @@ function useCheckinData(): CheckinData | null {
       } catch { /* ignore */ }
     };
     window.addEventListener("ndw-voice-updated", handler);
-    return () => window.removeEventListener("ndw-voice-updated", handler);
+    window.addEventListener("ndw-emotion-update", handler);
+    return () => {
+      window.removeEventListener("ndw-voice-updated", handler);
+      window.removeEventListener("ndw-emotion-update", handler);
+    };
   }, []);
   return data;
 }

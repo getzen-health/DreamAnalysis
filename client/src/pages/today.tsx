@@ -512,9 +512,13 @@ export default function Today() {
       } catch { /* ignore */ }
     }
     loadCheckin();
-    // Listen for voice check-in updates from bottom tab mic
+    // Listen for voice check-in updates from both event sources
     window.addEventListener("ndw-voice-updated", loadCheckin);
-    return () => window.removeEventListener("ndw-voice-updated", loadCheckin);
+    window.addEventListener("ndw-emotion-update", loadCheckin);
+    return () => {
+      window.removeEventListener("ndw-voice-updated", loadCheckin);
+      window.removeEventListener("ndw-emotion-update", loadCheckin);
+    };
   }, []);
 
   // Fetch food logs for today
