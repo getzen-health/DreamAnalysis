@@ -500,6 +500,26 @@ export default function Nutrition() {
         }}
       />
 
+      {/* Mindful Eating Prompt — appears when emotional eating detected */}
+      {captureMode === "none" && voiceData && (voiceData.stress_index ?? 0) > 0.4 && (
+        <div style={{
+          background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: 14, padding: 14, marginBottom: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 16 }}>🧘</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>Before you eat...</span>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.5 }}>
+            Your voice check-in shows elevated stress. Take a breath and ask yourself:
+            <strong style={{ color: "var(--foreground)" }}> Am I eating because I'm hungry, or because I'm feeling {voiceData.emotion ?? "stressed"}?</strong>
+          </p>
+          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "6px 0 0 0", fontStyle: "italic" }}>
+            No judgment — just awareness. Log your meal either way.
+          </p>
+        </div>
+      )}
+
       {/* Action Buttons — Appediet-style: Scan (primary) + Describe + Barcode */}
       {captureMode === "none" && (
         <div style={{ marginBottom: 14 }}>
