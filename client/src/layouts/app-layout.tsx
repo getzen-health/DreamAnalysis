@@ -35,6 +35,8 @@ const routeTitles: Record<string, string> = {
   "/body-metrics": "Body Metrics",
   "/food-emotion": "Food & Mood",
   "/supplements": "Supplements",
+  "/habits": "Habits",
+  "/wellness": "Wellness",
 };
 
 function getGreeting(): string {

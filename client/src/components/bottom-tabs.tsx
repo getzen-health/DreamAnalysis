@@ -14,7 +14,7 @@ import { getParticipantId } from "@/lib/participant";
 
 const tabs = [
   { path: "/",          icon: Sun,              label: "Today",     aliases: [] as string[] },
-  { path: "/discover",  icon: Compass,          label: "Discover",  aliases: ["/inner-energy", "/ai-companion", "/brain-monitor", "/dreams", "/neurofeedback", "/biofeedback", "/sleep-session", "/insights", "/weekly-summary", "/emotions", "/body-metrics", "/workout"] },
+  { path: "/discover",  icon: Compass,          label: "Discover",  aliases: ["/inner-energy", "/ai-companion", "/brain-monitor", "/dreams", "/neurofeedback", "/biofeedback", "/sleep-session", "/insights", "/weekly-summary", "/emotions", "/body-metrics", "/workout", "/habits", "/wellness"] },
   // mic button stays in center (already implemented)
   { path: "/nutrition",  icon: UtensilsCrossed, label: "Nutrition", aliases: ["/food", "/food-log", "/food-emotion"] },
   { path: "/you",        icon: CircleUser,      label: "You",       aliases: ["/settings", "/profile", "/sessions", "/records"] },

@@ -189,6 +189,8 @@ const CHIP_ITEMS: ChipItem[] = [
   { emoji: "📊", label: "Weekly Summary", route: "/weekly-summary" },
   { emoji: "🎵", label: "Sleep Stories", route: "/sleep-stories" },
   { emoji: "📖", label: "CBT-i", route: "/cbti" },
+  { emoji: "✅", label: "Habits", route: "/habits" },
+  { emoji: "❤️", label: "Wellness", route: "/wellness" },
 ];
 
 // Sample sparkline points (normalized 0–40 in Y space, 0–280 in X)

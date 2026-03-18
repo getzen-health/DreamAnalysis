@@ -76,6 +76,8 @@ const SleepStories           = lazy(() => import("@/components/sleep-stories"));
 const CbtiModule             = lazy(() => import("@/pages/cbti-module"));
 const BodyMetrics            = lazy(() => import("@/pages/body-metrics"));
 const WorkoutPage            = lazy(() => import("@/pages/workout"));
+const HabitsPage             = lazy(() => import("@/pages/habits"));
+const WellnessPage           = lazy(() => import("@/pages/wellness"));
 
 // ── Error Boundary — prevents a single page crash from taking down the whole app ──
 class ErrorBoundary extends Component<
@@ -399,6 +401,20 @@ function AppRoutes() {
         <ProtectedRoute>
           <Suspense fallback={<PageLoader />}>
             <AppLayout><WorkoutPage /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/habits">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><HabitsPage /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/wellness">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><WellnessPage /></AppLayout>
           </Suspense>
         </ProtectedRoute>
       </Route>
