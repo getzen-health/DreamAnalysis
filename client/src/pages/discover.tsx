@@ -171,6 +171,12 @@ const ROW_CARDS: FeatureCard[] = [
     route: "/sleep-session",
   },
   {
+    emoji: "🍽️",
+    title: "Food & Mood",
+    subtitle: "How eating affects feelings",
+    route: "/food-emotion",
+  },
+  {
     emoji: "📏",
     title: "Body Metrics",
     subtitle: "Weight, BMI & vitals",
