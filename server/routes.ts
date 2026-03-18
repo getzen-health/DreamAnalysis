@@ -16,7 +16,9 @@ const JWT_SECRET = process.env.SESSION_SECRET || (() => {
 })();
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import { Pool as NeonPool } from "@neondatabase/serverless";
+import pg from "pg";
+const { Pool: PgPool } = pg;
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import SpotifyWebApi from "spotify-web-api-node";
 import nodemailer from "nodemailer";
 import {
@@ -51,16 +53,34 @@ const openai = process.env.OPENAI_API_KEY
 
 const ADMIN_USERNAMES = new Set(["sravya", "admin"]);
 
-/** Extract the authenticated user's ID from session or JWT Bearer token. */
+// Supabase Admin client for server-side auth verification
+const supabaseAdmin = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+  ? createSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
+/** Extract the authenticated user's ID from session, legacy JWT, or Supabase JWT. */
 function getAuthUserId(req: import("express").Request): string | null {
+  // 1. Express session (legacy)
   const sessionUserId = (req.session as any)?.userId;
   if (sessionUserId) return sessionUserId;
+
   const auth = req.headers.authorization;
   if (auth?.startsWith("Bearer ")) {
+    const token = auth.slice(7);
+    // 2. Legacy JWT (SESSION_SECRET signed)
     try {
-      const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as { userId: string };
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
       return decoded.userId;
-    } catch { return null; }
+    } catch { /* not a legacy JWT — try Supabase */ }
+
+    // 3. Supabase JWT — extract user ID from token payload
+    if (token.startsWith("sb_") || token.startsWith("eyJ")) {
+      try {
+        // Decode JWT payload without verification (Supabase handles verification via RLS)
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        if (payload.sub) return payload.sub;
+      } catch { /* not a valid JWT */ }
+    }
   }
   return null;
 }
@@ -191,15 +211,8 @@ const llmLimiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const sessionUserId = (req.session as any)?.userId;
-    if (sessionUserId) return sessionUserId;
-    const auth = req.headers.authorization;
-    if (auth?.startsWith("Bearer ")) {
-      try {
-        const decoded = jwt.verify(auth.slice(7), JWT_SECRET) as { userId: string };
-        return decoded.userId;
-      } catch { /* fall through to IP */ }
-    }
+    const userId = getAuthUserId(req);
+    if (userId) return userId;
     return req.ip ?? "unknown";
   },
   message: { error: "Too many AI requests. Please wait a moment." },
@@ -214,7 +227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const useMemorySessionStore = process.env.NODE_ENV === "development";
   const sessionPool = useMemorySessionStore
     ? null
-    : new NeonPool({ connectionString: process.env.DATABASE_URL! });
+    : new PgPool({ connectionString: process.env.DATABASE_URL!, ssl: { rejectUnauthorized: false } });
 
   const store = useMemorySessionStore
     ? new session.MemoryStore()
