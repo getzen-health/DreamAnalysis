@@ -450,7 +450,7 @@ export default function Nutrition() {
             hapticSuccess();
             try { localStorage.setItem("ndw_meal_logged", "true"); } catch {}
             await new Promise(r => setTimeout(r, 500));
-            qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
+            qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
             setCaptureMode("none");
           } catch (err) {
             setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
@@ -489,7 +489,7 @@ export default function Nutrition() {
             await res.json();
             hapticSuccess();
             await new Promise(r => setTimeout(r, 500));
-            qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
+            qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
             setCaptureMode("none");
           } catch (err) {
             setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
@@ -611,7 +611,7 @@ export default function Nutrition() {
                   hapticSuccess();
                   setMealText("");
                   await new Promise(r => setTimeout(r, 500));
-                  qc.invalidateQueries({ queryKey: [resolveUrl(`/api/food/logs/${userId}`)] });
+                  qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                   setCaptureMode("none");
                 } catch (err) {
                   setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
