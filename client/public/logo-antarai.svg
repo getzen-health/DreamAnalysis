@@ -9,7 +9,8 @@
       <stop offset="100%" stop-color="#059669"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="#0a0e17"/>
+  <!-- Transparent background -->
+  <rect width="512" height="512" rx="112" fill="none"/>
 
   <!-- Left half: heart (feeling) -->
   <path d="M256,340 C256,340 150,280 150,210 C150,170 180,145 210,145 C235,145 252,162 256,175"
@@ -19,12 +20,12 @@
         fill="url(#brainG)" opacity="0.85"/>
 
   <!-- Brain folds on right side -->
-  <path d="M290,180 Q310,190 300,210" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
-  <path d="M285,220 Q310,225 300,245" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
-  <path d="M280,255 Q300,260 295,275" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
+  <path d="M290,180 Q310,190 300,210" fill="none" stroke="white" stroke-width="3" opacity="0.7" stroke-linecap="round"/>
+  <path d="M285,220 Q310,225 300,245" fill="none" stroke="white" stroke-width="3" opacity="0.7" stroke-linecap="round"/>
+  <path d="M280,255 Q300,260 295,275" fill="none" stroke="white" stroke-width="3" opacity="0.7" stroke-linecap="round"/>
 
   <!-- Heart pulse (voice/EEG signal) on left side -->
-  <path d="M180,220 L200,220 L210,195 L225,240 L235,205 L245,220" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M180,220 L200,220 L210,195 L225,240 L235,205 L245,220" fill="none" stroke="white" stroke-width="3" opacity="0.7" stroke-linecap="round" stroke-linejoin="round"/>
 
   <!-- Center merge line -->
   <line x1="256" y1="175" x2="256" y2="340" stroke="#f59e0b" stroke-width="3" opacity="0.6" stroke-dasharray="6,4"/>
