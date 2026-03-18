@@ -35,6 +35,7 @@ import {
   exercises, workouts, workoutSets, workoutTemplates,
   bodyMetrics, exerciseHistory,
 } from "@shared/schema";
+import { computeCardioLoad } from "@shared/cardio";
 import { db } from "./db";
 import { eq, gte, lt, lte, and, or, asc, desc, sql, ilike, arrayContains } from "drizzle-orm";
 
@@ -3766,6 +3767,116 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to delete workout template");
       return res.status(500).json({ error: "Failed to delete workout template" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // EXERCISE PROGRESSION & PERSONAL RECORDS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // GET /api/exercise-history/:userId/prs — personal records across all exercises
+  // NOTE: this route MUST be registered before /:exerciseId to avoid "prs" matching as an exerciseId
+  app.get("/api/exercise-history/:userId/prs", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      // For each exercise, find the row with the highest estimated 1RM
+      const rows = await db
+        .select({
+          exerciseId: exerciseHistory.exerciseId,
+          exerciseName: exercises.name,
+          estimated1rm: sql<string>`MAX(exercise_history.estimated_1rm::numeric)`,
+          bestWeightKg: sql<string>`MAX(exercise_history.best_weight_kg::numeric)`,
+          bestReps: sql<number>`MAX(exercise_history.best_reps)`,
+          date: sql<string>`(ARRAY_AGG(exercise_history.date ORDER BY exercise_history.estimated_1rm::numeric DESC))[1]`,
+        })
+        .from(exerciseHistory)
+        .innerJoin(exercises, eq(exerciseHistory.exerciseId, exercises.id))
+        .where(eq(exerciseHistory.userId, userId))
+        .groupBy(exerciseHistory.exerciseId, exercises.name);
+
+      return res.json(rows.map(r => ({
+        exerciseId: r.exerciseId,
+        exerciseName: r.exerciseName,
+        estimated1rm: r.estimated1rm ? parseFloat(String(r.estimated1rm)) : null,
+        bestWeightKg: r.bestWeightKg ? parseFloat(String(r.bestWeightKg)) : null,
+        bestReps: r.bestReps,
+        date: r.date,
+      })));
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch personal records");
+      return res.status(500).json({ error: "Failed to fetch personal records" });
+    }
+  });
+
+  // GET /api/exercise-history/:userId/:exerciseId — progression data for a specific exercise
+  app.get("/api/exercise-history/:userId/:exerciseId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const rows = await db.select().from(exerciseHistory)
+        .where(and(
+          eq(exerciseHistory.userId, userId),
+          eq(exerciseHistory.exerciseId, req.params.exerciseId),
+        ))
+        .orderBy(asc(exerciseHistory.date));
+
+      return res.json(rows.map(r => ({
+        date: r.date,
+        bestWeightKg: r.bestWeightKg ? parseFloat(String(r.bestWeightKg)) : null,
+        bestReps: r.bestReps,
+        estimated1rm: r.estimated1rm ? parseFloat(String(r.estimated1rm)) : null,
+        totalVolume: r.totalVolume ? parseFloat(String(r.totalVolume)) : null,
+      })));
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch exercise progression");
+      return res.status(500).json({ error: "Failed to fetch exercise progression" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CARDIO LOAD (ATL / CTL / TSB)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // GET /api/cardio-load/:userId — current Acute/Chronic Training Load and status
+  app.get("/api/cardio-load/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      // Pull all workouts with strain from the last 42 days
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 42);
+
+      const recentWorkouts = await db.select({
+        startedAt: workouts.startedAt,
+        totalStrain: workouts.totalStrain,
+      })
+        .from(workouts)
+        .where(and(
+          eq(workouts.userId, userId),
+          gte(workouts.startedAt, cutoff),
+        ))
+        .orderBy(asc(workouts.startedAt));
+
+      // Aggregate strain by date (YYYY-MM-DD) to get daily TRIMP-equivalent values
+      const dailyMap = new Map<string, number>();
+      for (const w of recentWorkouts) {
+        const strain = w.totalStrain ? parseFloat(String(w.totalStrain)) : 0;
+        if (strain <= 0) continue;
+        const dateKey = w.startedAt.toISOString().slice(0, 10);
+        dailyMap.set(dateKey, (dailyMap.get(dateKey) ?? 0) + strain);
+      }
+
+      const dailyTrimpValues = Array.from(dailyMap.entries()).map(([date, trimp]) => ({ date, trimp }));
+
+      const result = computeCardioLoad(dailyTrimpValues);
+      return res.json(result);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to compute cardio load");
+      return res.status(500).json({ error: "Failed to compute cardio load" });
     }
   });
 
