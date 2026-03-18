@@ -1,5 +1,5 @@
-import postgres from 'postgres';
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
 
 let cachedDb: ReturnType<typeof drizzle> | null = null;
 
@@ -13,8 +13,10 @@ export function getDb() {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
-  const client = postgres(databaseUrl, { prepare: false });
-  cachedDb = drizzle(client);
+  // @neondatabase/serverless's HTTP driver works with any PostgreSQL
+  // (including Supabase) — ideal for Vercel serverless functions
+  const sql = neon(databaseUrl);
+  cachedDb = drizzle(sql);
 
   return cachedDb;
 }
