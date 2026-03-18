@@ -170,6 +170,18 @@ const ROW_CARDS: FeatureCard[] = [
     subtitle: "Guided sleep protocol",
     route: "/sleep-session",
   },
+  {
+    emoji: "📏",
+    title: "Body Metrics",
+    subtitle: "Weight, BMI & vitals",
+    route: "/body-metrics",
+  },
+  {
+    emoji: "🏋️",
+    title: "Workout",
+    subtitle: "Exercise & activity",
+    route: "/workout",
+  },
 ];
 
 const CHIP_ITEMS: ChipItem[] = [

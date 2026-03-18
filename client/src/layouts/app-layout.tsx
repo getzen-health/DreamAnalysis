@@ -31,7 +31,10 @@ const routeTitles: Record<string, string> = {
   "/sessions": "Sessions",
   "/architecture-guide": "Project Guide",
   "/settings": "Settings",
-  "/workout": "Strength Builder",
+  "/workout": "Workout",
+  "/body-metrics": "Body Metrics",
+  "/food-emotion": "Food & Mood",
+  "/supplements": "Supplements",
 };
 
 function getGreeting(): string {
@@ -117,10 +120,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <header
             className="sticky top-0 z-30 border-b flex items-center gap-2 px-3 py-2.5"
             style={{
-              background: theme === "dark" ? "hsl(225, 40%, 4%, 0.92)" : "hsl(0, 0%, 100%, 0.92)",
+              background: theme === "dark" ? "hsl(260, 20%, 7%, 0.92)" : "hsl(40, 30%, 97%, 0.92)",
               backdropFilter: "blur(20px)",
               WebkitBackdropFilter: "blur(20px)",
-              borderColor: theme === "dark" ? "hsl(220, 25%, 14%, 0.5)" : "hsl(220, 14%, 85%, 0.5)",
+              borderColor: theme === "dark" ? "hsl(255, 10%, 18%, 0.5)" : "hsl(40, 15%, 87%, 0.5)",
               paddingTop: "env(safe-area-inset-top, 0px)",
             }}
           >
