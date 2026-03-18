@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
+import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
 
 // ── Emotion data from localStorage ──────────────────────────────────────
 
@@ -181,6 +182,56 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginTop: 6 }}>{rec.title}</div>
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{rec.reason}</div>
           </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Mood Insights Card ────────────────────────────────────────────────────
+
+function MoodInsightsCard({ userId }: { userId: string }) {
+  const { data } = useQuery<EmotionReading[]>({
+    queryKey: [`/api/brain/history/${userId}?days=7`],
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  if (!data || data.length < 3) return null;
+
+  const insights = detectMoodPatterns(data);
+  if (insights.length === 0) return null;
+
+  const borderColors: Record<string, string> = {
+    positive: "rgba(74, 222, 128, 0.2)",
+    warning: "rgba(232, 185, 74, 0.2)",
+    neutral: "var(--border)",
+  };
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 8,
+      }}>
+        Mood insights
+      </div>
+      <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+        {insights.map((insight, i) => (
+          <div key={i} style={{
+            background: "var(--card)",
+            border: `1px solid ${borderColors[insight.type] ?? "var(--border)"}`,
+            borderRadius: 12, padding: "10px 12px",
+            display: "flex", alignItems: "flex-start", gap: 8,
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.2 }}>{insight.emoji}</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{insight.title}</div>
+              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2, lineHeight: 1.4 }}>
+                {insight.description}
+              </div>
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -599,6 +650,9 @@ export default function Discover() {
 
       {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
       <EmotionTimeline userId={userId} />
+
+      {/* ── Mood Insights — pattern detection from emotion history ── */}
+      <MoodInsightsCard userId={userId} />
 
       {/* ── Recommended for You — emotion-based suggestions ── */}
       {hasData && (
