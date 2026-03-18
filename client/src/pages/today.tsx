@@ -98,6 +98,70 @@ function formatDate(): string {
   return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
 }
 
+// ── Daily Wellness Tip ────────────────────────────────────────────────────
+
+const TIPS_BY_STATE: Record<string, string[]> = {
+  happy: [
+    "🌟 You're in a great mood! This is the perfect time for creative projects or learning something new.",
+    "😊 Positive energy detected. Share it with someone — positivity is contagious.",
+    "🎨 Your brain is in a receptive state. Try journaling or expressing yourself creatively.",
+    "💡 Happy state = better problem solving. Tackle that thing you've been putting off.",
+  ],
+  sad: [
+    "💙 It's okay to feel low. A 10-minute walk outside can boost serotonin naturally.",
+    "🫂 Be gentle with yourself today. Reaching out to a friend can help more than you think.",
+    "🎵 Music therapy works — listening to uplifting music for 15 minutes can shift your mood.",
+    "☕ Warm drinks activate comfort pathways. Take a moment with your favorite tea.",
+  ],
+  angry: [
+    "🌊 Anger carries energy. Channel it into a workout or power walk — physical movement helps.",
+    "🧊 Try the cold water trick: splash cold water on your wrists to activate the dive reflex and calm down.",
+    "📝 Write it out. Putting anger into words reduces its emotional intensity by up to 50%.",
+    "⏸️ The 4-7-8 breath: inhale 4s, hold 7s, exhale 8s. Repeat 3 times.",
+  ],
+  fear: [
+    "🤗 Anxiety often feels bigger than the situation warrants. Name what you're afraid of — naming reduces fear.",
+    "🌳 Grounding technique: name 5 things you see, 4 you feel, 3 you hear, 2 you smell, 1 you taste.",
+    "💪 Remind yourself: you've handled hard things before. You can handle this too.",
+    "🕯️ Progressive muscle relaxation: tense each muscle group for 5s, then release. Start from your toes.",
+  ],
+  neutral: [
+    "⚖️ Balanced state — a good baseline for mindfulness practice or setting intentions.",
+    "🎯 Neutral is underrated. Use this calm moment to plan your day with clarity.",
+    "📚 Your brain is receptive right now. Great time for reading or learning.",
+    "🧘 Try a 5-minute meditation to deepen this peaceful state.",
+  ],
+  default: [
+    "🎙️ Do a voice check-in to get personalized wellness tips based on your emotional state.",
+    "💫 Your emotional data shapes your wellness journey. The more you track, the better the insights.",
+  ],
+};
+
+function DailyTip({ emotion, stress, focus }: { emotion: string; stress: number; focus: number }) {
+  // Pick a consistent daily tip (changes once per day, not on every render)
+  const dayIndex = new Date().getDate();
+  const state = emotion === "—" ? "default" : emotion;
+  const tips = TIPS_BY_STATE[state] ?? TIPS_BY_STATE.default;
+  const tip = tips[dayIndex % tips.length];
+
+  return (
+    <div style={{
+      background: "var(--card)", border: "1px solid var(--border)",
+      borderRadius: 14, padding: 14, marginTop: 14,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 6,
+      }}>
+        Daily tip
+      </div>
+      <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0, lineHeight: 1.5 }}>
+        {tip}
+      </p>
+    </div>
+  );
+}
+
 // ── Weekly Mood Strip ──────────────────────────────────────────────────────
 
 const MOOD_COLORS: Record<string, string> = {
@@ -748,6 +812,9 @@ export default function Today() {
           />
         </div>
       </div>
+
+      {/* ── Daily Wellness Tip ── */}
+      <DailyTip emotion={emotion} stress={stressVal} focus={focusVal} />
     </main>
     </>
   );
