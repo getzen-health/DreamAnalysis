@@ -1,0 +1,12 @@
+{"type":"server-started","port":62788,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:62788","screen_dir":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/deployment-choice.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/recommendation.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/migration-strategy.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/pipeline-approaches.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/why-redis.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/design-section-1-pipeline.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/design-section-2-exercise-weight.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/design-section-2b-wearables.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/design-section-3-scores.html"}
+{"type":"screen-added","file":"/Users/sravyalu/NeuralDreamWorkshop/.superpowers/brainstorm/33474-1773792110/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

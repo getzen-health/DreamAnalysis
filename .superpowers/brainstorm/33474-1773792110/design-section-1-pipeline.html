@@ -1,0 +1,236 @@
+<h2>Design Section 1: Pipeline Infrastructure</h2>
+<p class="subtitle">The backbone everything else builds on. Let's get this right.</p>
+
+<div class="section">
+  <h3>Complete Data Flow</h3>
+  <div style="padding: 1.5rem; background: rgba(0,0,0,0.3); border-radius: 12px; overflow-x: auto;">
+    <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.82rem; font-family: monospace;">
+
+      <div style="color: #fbbf24; font-weight: bold; margin-bottom: 0.5rem;">SOURCES</div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem;">
+        <span style="background: #7c3aed; color: white; padding: 4px 10px; border-radius: 6px;">Muse 2 EEG</span>
+        <span style="background: #059669; color: white; padding: 4px 10px; border-radius: 6px;">Apple HealthKit</span>
+        <span style="background: #059669; color: white; padding: 4px 10px; border-radius: 6px;">Google Health</span>
+        <span style="background: #2563eb; color: white; padding: 4px 10px; border-radius: 6px;">Oura OAuth</span>
+        <span style="background: #2563eb; color: white; padding: 4px 10px; border-radius: 6px;">Garmin OAuth</span>
+        <span style="background: #dc2626; color: white; padding: 4px 10px; border-radius: 6px;">CGM (Dexcom/Libre)</span>
+        <span style="background: #78716c; color: white; padding: 4px 10px; border-radius: 6px;">Manual Input</span>
+      </div>
+
+      <div style="color: #fbbf24; font-weight: bold;">INGESTION LAYER</div>
+      <div style="border-left: 3px solid #818cf8; padding-left: 1rem; margin: 0.5rem 0 1rem;">
+        <div>Each source → <span style="color: #818cf8;">Edge Function: ingest-health-data</span></div>
+        <div style="color: #9ca3af;">  - Validates schema (Zod)</div>
+        <div style="color: #9ca3af;">  - Normalizes units (kg→lbs, C→F configurable)</div>
+        <div style="color: #9ca3af;">  - Deduplicates (source + metric + timestamp unique)</div>
+        <div style="color: #9ca3af;">  - Tags source provider</div>
+        <div>→ INSERT into <span style="color: #10b981;">health_samples</span></div>
+        <div>→ EventBus.publish("health.ingested", { userId, metrics[] })</div>
+      </div>
+
+      <div style="color: #fbbf24; font-weight: bold;">AGGREGATION LAYER</div>
+      <div style="border-left: 3px solid #10b981; padding-left: 1rem; margin: 0.5rem 0 1rem;">
+        <div><span style="color: #10b981;">PG Trigger on health_samples INSERT</span></div>
+        <div style="color: #9ca3af;">  - Updates daily_aggregates (running avg, min, max, count per metric)</div>
+        <div style="color: #9ca3af;">  - Updates user_baselines (14-day rolling average per metric)</div>
+        <div style="color: #9ca3af;">  - Checks simple thresholds (HR &gt; 120, SpO2 &lt; 94)</div>
+        <div>→ If threshold breach → EventBus.publish("alert.threshold", {...})</div>
+        <div>→ EventBus.publish("aggregates.updated", { userId })</div>
+      </div>
+
+      <div style="color: #fbbf24; font-weight: bold;">SCORE ENGINE LAYER</div>
+      <div style="border-left: 3px solid #f59e0b; padding-left: 1rem; margin: 0.5rem 0 1rem;">
+        <div>EventBus.subscribe("aggregates.updated") → <span style="color: #f59e0b;">Edge Function: compute-scores</span></div>
+        <div style="color: #9ca3af;">  - Reads daily_aggregates + user_baselines (14-day window)</div>
+        <div style="color: #9ca3af;">  - Runs 6 score engines in parallel:</div>
+        <div style="margin-left: 1rem;">
+          <div>1. <span style="color: #10b981;">Recovery</span> (HRV + RHR + temp + resp + SpO2 + sleep)</div>
+          <div>2. <span style="color: #3b82f6;">Sleep</span> (stages + HR dip + efficiency + debt)</div>
+          <div>3. <span style="color: #ef4444;">Strain</span> (TRIMP + HR zones + active + passive)</div>
+          <div>4. <span style="color: #a855f7;">Stress</span> (HRV + EEG stress index + wearable data)</div>
+          <div>5. <span style="color: #f59e0b;">Nutrition</span> (AHEI + macros + glucose response)</div>
+          <div>6. <span style="color: #ec4899;">Energy Bank</span> (composite of above 5)</div>
+        </div>
+        <div>→ UPSERT <span style="color: #10b981;">user_scores</span></div>
+        <div>→ Cache.set("user:{id}:scores", scores)</div>
+      </div>
+
+      <div style="color: #fbbf24; font-weight: bold;">TREND DETECTION LAYER</div>
+      <div style="border-left: 3px solid #ec4899; padding-left: 1rem; margin: 0.5rem 0 1rem;">
+        <div><span style="color: #ec4899;">pg_cron: daily at midnight</span></div>
+        <div style="color: #9ca3af;">  - Compute 7-day moving averages for all metrics</div>
+        <div style="color: #9ca3af;">  - Rate-of-change analysis (weight ±2%/week, HRV declining)</div>
+        <div style="color: #9ca3af;">  - Anomaly detection (z-score &gt; 2 from baseline)</div>
+        <div style="color: #9ca3af;">  - Sleep debt accumulation</div>
+        <div style="color: #9ca3af;">  - Cardio load status (ATL vs CTL ratio)</div>
+        <div>→ INSERT <span style="color: #10b981;">trend_alerts</span> if anomaly found</div>
+        <div>→ Push notification if critical</div>
+      </div>
+
+      <div style="color: #fbbf24; font-weight: bold;">DELIVERY LAYER</div>
+      <div style="border-left: 3px solid #06b6d4; padding-left: 1rem; margin: 0.5rem 0;">
+        <div><span style="color: #06b6d4;">Supabase Realtime</span> watches user_scores table</div>
+        <div style="color: #9ca3af;">  - Any UPDATE → pushed to all connected clients</div>
+        <div style="color: #9ca3af;">  - Dashboard auto-updates scores, charts, Energy Bank</div>
+        <div style="color: #9ca3af;">  - No polling, no refresh needed</div>
+        <div><span style="color: #06b6d4;">Push Notifications</span> for alerts + smart alarm</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Database Schema (New Tables on Supabase)</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+  <div style="padding: 1rem; background: rgba(99,102,241,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #818cf8; margin: 0 0 0.5rem;">health_samples (time-series)</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      user_id uuid FK → users<br>
+      source text (apple_health | google_fit | oura | garmin | cgm | manual)<br>
+      metric text (heart_rate | hrv_rmssd | weight | steps | ...)<br>
+      value numeric<br>
+      unit text (bpm | ms | kg | steps | ...)<br>
+      metadata jsonb<br>
+      recorded_at timestamptz<br>
+      ingested_at timestamptz DEFAULT now()<br>
+      <span style="color: #10b981;">UNIQUE(user_id, source, metric, recorded_at)</span>
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(99,102,241,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #818cf8; margin: 0 0 0.5rem;">daily_aggregates</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      user_id uuid FK → users<br>
+      date date<br>
+      metric text<br>
+      avg_value numeric<br>
+      min_value numeric<br>
+      max_value numeric<br>
+      sample_count integer<br>
+      sum_value numeric<br>
+      updated_at timestamptz<br>
+      <span style="color: #10b981;">UNIQUE(user_id, date, metric)</span>
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(16,185,129,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #10b981; margin: 0 0 0.5rem;">user_scores</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      user_id uuid PK FK → users<br>
+      recovery_score numeric (0-100)<br>
+      sleep_score numeric (0-100)<br>
+      strain_score numeric (0-100, log)<br>
+      stress_score numeric (0-100)<br>
+      nutrition_score numeric (1-100)<br>
+      energy_bank numeric (0-100)<br>
+      recovery_inputs jsonb<br>
+      sleep_inputs jsonb<br>
+      strain_inputs jsonb<br>
+      computed_at timestamptz<br>
+      <span style="color: #10b981;">Supabase Realtime enabled</span>
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(16,185,129,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #10b981; margin: 0 0 0.5rem;">user_baselines (14-day rolling)</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      user_id uuid FK → users<br>
+      metric text<br>
+      baseline_avg numeric<br>
+      baseline_stddev numeric<br>
+      sample_count integer<br>
+      last_updated timestamptz<br>
+      <span style="color: #10b981;">UNIQUE(user_id, metric)</span>
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(251,191,36,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #fbbf24; margin: 0 0 0.5rem;">score_history</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      user_id uuid FK → users<br>
+      date date<br>
+      recovery_score numeric<br>
+      sleep_score numeric<br>
+      strain_score numeric<br>
+      stress_score numeric<br>
+      nutrition_score numeric<br>
+      energy_bank numeric<br>
+      created_at timestamptz<br>
+      <span style="color: #fbbf24;">UNIQUE(user_id, date)</span>
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(251,191,36,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #fbbf24; margin: 0 0 0.5rem;">trend_alerts</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      user_id uuid FK → users<br>
+      alert_type text (anomaly | threshold | trend)<br>
+      metric text<br>
+      severity text (info | warning | critical)<br>
+      message text<br>
+      value numeric<br>
+      baseline numeric<br>
+      acknowledged boolean DEFAULT false<br>
+      created_at timestamptz
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Adapter Interfaces (Redis-Ready)</h3>
+  <div style="padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 8px; font-family: monospace; font-size: 0.82rem; line-height: 1.8;">
+    <div style="color: #9ca3af;">// adapters/event-bus.ts</div>
+    <div style="color: #818cf8;">interface EventBus {</div>
+    <div>&nbsp;&nbsp;publish(channel: string, data: unknown): Promise&lt;void&gt;</div>
+    <div>&nbsp;&nbsp;subscribe(channel: string, handler: Function): void</div>
+    <div style="color: #818cf8;">}</div>
+    <div style="color: #9ca3af;">// Now: PgNotifyEventBus (pg_notify + LISTEN)</div>
+    <div style="color: #9ca3af;">// Later: RedisStreamEventBus (XADD + XREAD)</div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// adapters/cache.ts</div>
+    <div style="color: #818cf8;">interface ScoreCache {</div>
+    <div>&nbsp;&nbsp;get(userId: string): Promise&lt;UserScores | null&gt;</div>
+    <div>&nbsp;&nbsp;set(userId: string, scores: UserScores, ttl?: number): Promise&lt;void&gt;</div>
+    <div>&nbsp;&nbsp;invalidate(userId: string): Promise&lt;void&gt;</div>
+    <div style="color: #818cf8;">}</div>
+    <div style="color: #9ca3af;">// Now: PgTableCache (user_scores table)</div>
+    <div style="color: #9ca3af;">// Later: RedisCache (HSET/HGETALL)</div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// adapters/job-queue.ts</div>
+    <div style="color: #818cf8;">interface JobQueue {</div>
+    <div>&nbsp;&nbsp;enqueue(job: string, payload: unknown, opts?: JobOpts): Promise&lt;void&gt;</div>
+    <div>&nbsp;&nbsp;process(job: string, handler: Function): void</div>
+    <div style="color: #818cf8;">}</div>
+    <div style="color: #9ca3af;">// Now: DirectCallQueue (sync Edge Function invocation)</div>
+    <div style="color: #9ca3af;">// Later: BullMQQueue (Redis-backed with retries)</div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.2rem; background: rgba(16,185,129,0.08); border-radius: 12px; border: 1px solid rgba(16,185,129,0.2);">
+  <h3 style="color: #10b981; margin-top: 0;">Migration Tables (Existing → Supabase)</h3>
+  <p style="font-size: 0.85rem;">All 16 existing Neon tables move to Supabase PostgreSQL. Same Drizzle ORM schema — only the connection string changes. Auth moves to Supabase Auth (replaces bcrypt + express-session).</p>
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 1rem;">
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">users → Supabase Auth</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">health_metrics ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">emotion_readings ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">brain_readings ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">health_samples ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">dream_analysis ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">dream_symbols ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">eeg_sessions ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">ai_chats ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">user_settings ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">push_subscriptions ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">food_logs ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">meal_history ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">study_* (4 tables) ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">password_reset ✓</div>
+    <div style="padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.78rem; text-align: center;">datadog_errors ✓</div>
+  </div>
+</div>

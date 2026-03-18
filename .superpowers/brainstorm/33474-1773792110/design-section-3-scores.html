@@ -1,0 +1,310 @@
+<h2>Design Section 3: Score Engines</h2>
+<p class="subtitle">6 scores that update in real-time as data flows through the pipeline. Plus our EEG advantage.</p>
+
+<div class="section" style="margin-bottom: 2rem;">
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+
+    <div style="padding: 1.5rem; background: rgba(16,185,129,0.08); border-radius: 12px; border-top: 4px solid #10b981;">
+      <h3 style="color: #10b981; margin: 0 0 0.3rem;">Recovery Score</h3>
+      <div style="font-size: 2rem; font-weight: bold; color: #10b981; margin-bottom: 0.5rem;">0-100%</div>
+      <p style="font-size: 0.85rem; color: #d1d5db; margin: 0 0 1rem;">"How ready is your body to perform today?"</p>
+
+      <div style="font-size: 0.82rem;">
+        <div style="color: #fbbf24; font-weight: bold; margin-bottom: 0.3rem;">Inputs (weighted):</div>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;">HRV vs 14-day baseline</td><td style="padding: 3px 0; text-align: right; color: #10b981;">25%</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;">Resting HR vs baseline</td><td style="padding: 3px 0; text-align: right; color: #10b981;">20%</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;">Sleep Score (previous night)</td><td style="padding: 3px 0; text-align: right; color: #10b981;">25%</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;">Skin Temperature deviation</td><td style="padding: 3px 0; text-align: right; color: #10b981;">10%</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;">Respiratory Rate vs baseline</td><td style="padding: 3px 0; text-align: right; color: #10b981;">10%</td>
+          </tr>
+          <tr>
+            <td style="padding: 3px 0;">SpO2 vs baseline</td><td style="padding: 3px 0; text-align: right; color: #10b981;">10%</td>
+          </tr>
+        </table>
+
+        <div style="margin-top: 0.8rem; padding: 8px; background: rgba(7,89,133,0.15); border-radius: 6px;">
+          <strong style="color: #0ea5e9;">+ EEG Bonus:</strong> EEG stress index from previous evening session adjusts recovery ±5%
+        </div>
+
+        <div style="margin-top: 0.5rem; color: #9ca3af; font-size: 0.78rem;">
+          Requires 14-day calibration period. Each metric scored as % of personal baseline (above baseline = boost, below = penalty).
+        </div>
+      </div>
+    </div>
+
+    <div style="padding: 1.5rem; background: rgba(99,102,241,0.08); border-radius: 12px; border-top: 4px solid #818cf8;">
+      <h3 style="color: #818cf8; margin: 0 0 0.3rem;">Sleep Score</h3>
+      <div style="font-size: 2rem; font-weight: bold; color: #818cf8; margin-bottom: 0.5rem;">0-100%</div>
+      <p style="font-size: 0.85rem; color: #d1d5db; margin: 0 0 1rem;">"How well did you sleep last night?"</p>
+
+      <div style="font-size: 0.82rem;">
+        <div style="color: #fbbf24; font-weight: bold; margin-bottom: 0.3rem;">Inputs (weighted):</div>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;">Time Asleep vs Goal</td><td style="padding: 3px 0; text-align: right; color: #818cf8;">30%</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;">Sleep Stage Balance</td><td style="padding: 3px 0; text-align: right; color: #818cf8;">25%</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;">HR Dip During Sleep</td><td style="padding: 3px 0; text-align: right; color: #818cf8;">20%</td>
+          </tr>
+          <tr>
+            <td style="padding: 3px 0;">Sleep Efficiency</td><td style="padding: 3px 0; text-align: right; color: #818cf8;">25%</td>
+          </tr>
+        </table>
+
+        <div style="margin-top: 0.8rem; padding: 8px; background: rgba(7,89,133,0.15); border-radius: 6px;">
+          <strong style="color: #0ea5e9;">+ EEG Bonus:</strong> If EEG worn overnight: real sleep staging (92.98% accuracy) replaces wearable estimates. Dream detection + lucidity score added.
+        </div>
+
+        <div style="margin-top: 0.5rem; font-size: 0.78rem;">
+          <strong style="color: #fbbf24;">Sleep Needed</strong> = Goal + Strain Adjustment + Sleep Debt (7-day weighted, spread over 4 days) + Efficiency Buffer
+        </div>
+
+        <div style="margin-top: 0.3rem; font-size: 0.78rem;">
+          <strong style="color: #fbbf24;">Sleep Debt</strong> = sum of (goal - actual) over past 7 days, weighted (recent nights count more)
+        </div>
+      </div>
+    </div>
+
+    <div style="padding: 1.5rem; background: rgba(239,68,68,0.08); border-radius: 12px; border-top: 4px solid #ef4444;">
+      <h3 style="color: #ef4444; margin: 0 0 0.3rem;">Strain Score</h3>
+      <div style="font-size: 2rem; font-weight: bold; color: #ef4444; margin-bottom: 0.5rem;">0-100+</div>
+      <p style="font-size: 0.85rem; color: #d1d5db; margin: 0 0 1rem;">"How much stress has your body absorbed today?"</p>
+
+      <div style="font-size: 0.82rem;">
+        <div style="color: #fbbf24; font-weight: bold; margin-bottom: 0.3rem;">Components:</div>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 3px 0;"><strong>Active Strain</strong></td><td style="padding: 3px 0; color: #9ca3af;">From logged workouts</td>
+          </tr>
+          <tr>
+            <td style="padding: 3px 0;"><strong>Passive Strain</strong></td><td style="padding: 3px 0; color: #9ca3af;">Steps, movement, non-workout HR</td>
+          </tr>
+        </table>
+
+        <div style="margin-top: 0.8rem; font-size: 0.78rem;">
+          <strong style="color: #fbbf24;">Algorithm: TRIMP</strong> (Training Impulse)<br>
+          TRIMP = duration(min) × avg_HR_ratio × e^(1.92 × avg_HR_ratio)<br>
+          HR_ratio = (exerciseHR - restHR) / (maxHR - restHR)<br><br>
+          <strong>Logarithmic scaling:</strong> strain = k × ln(1 + TRIMP)<br>
+          Harder to reach high scores. Zone 5 contributes exponentially more than Zone 1.
+        </div>
+
+        <div style="margin-top: 0.8rem; padding: 8px; background: rgba(7,89,133,0.15); border-radius: 6px;">
+          <strong style="color: #0ea5e9;">+ EEG Bonus:</strong> Cognitive strain from focus/concentration sessions adds to total strain (mental workload is real physiological stress)
+        </div>
+
+        <div style="margin-top: 0.5rem; font-size: 0.78rem;">
+          <strong style="color: #fbbf24;">Target Strain</strong> = personalized based on recovery score + historical strain pattern. Green = in target, orange = above.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+  <div style="padding: 1.5rem; background: rgba(168,85,247,0.08); border-radius: 12px; border-top: 4px solid #a855f7;">
+    <h3 style="color: #a855f7; margin: 0 0 0.3rem;">Stress Score</h3>
+    <div style="font-size: 2rem; font-weight: bold; color: #a855f7; margin-bottom: 0.5rem;">0-100</div>
+    <p style="font-size: 0.85rem; color: #d1d5db; margin: 0 0 1rem;">"How stressed is your body right now?"</p>
+
+    <div style="font-size: 0.82rem;">
+      <div style="color: #fbbf24; font-weight: bold; margin-bottom: 0.3rem;">Inputs:</div>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <td style="padding: 3px 0;">HRV trend (declining = stress)</td><td style="text-align: right; color: #a855f7;">30%</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <td style="padding: 3px 0;">HR elevation above resting</td><td style="text-align: right; color: #a855f7;">25%</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <td style="padding: 3px 0;">Respiratory rate elevation</td><td style="text-align: right; color: #a855f7;">15%</td>
+        </tr>
+        <tr>
+          <td style="padding: 3px 0;">Skin temp deviation</td><td style="text-align: right; color: #a855f7;">10%</td>
+        </tr>
+      </table>
+
+      <div style="margin-top: 0.8rem; padding: 8px; background: rgba(7,89,133,0.15); border-radius: 6px;">
+        <strong style="color: #0ea5e9;">+ EEG (game changer):</strong> High-beta/beta ratio, frontal asymmetry, theta suppression → direct neural stress measurement. Weight: <strong>20%</strong> when EEG active. Bevel/Whoop can NEVER do this.
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 1.5rem; background: rgba(251,191,36,0.08); border-radius: 12px; border-top: 4px solid #fbbf24;">
+    <h3 style="color: #fbbf24; margin: 0 0 0.3rem;">Nutrition Score</h3>
+    <div style="font-size: 2rem; font-weight: bold; color: #fbbf24; margin-bottom: 0.5rem;">1-100</div>
+    <p style="font-size: 0.85rem; color: #d1d5db; margin: 0 0 1rem;">"How well are you eating?"</p>
+
+    <div style="font-size: 0.82rem;">
+      <div style="color: #fbbf24; font-weight: bold; margin-bottom: 0.3rem;">Part 1: Food Quality (AHEI):</div>
+      <div style="font-size: 0.78rem; margin-bottom: 0.5rem;">
+        <span style="color: #10b981;">Positive:</span> vegetables, fruits, whole grains, nuts, omega-3, healthy oils<br>
+        <span style="color: #ef4444;">Negative:</span> red meat, processed meat, alcohol, excess sugar, excess sodium<br>
+        Based on Harvard's Alternate Healthy Eating Index
+      </div>
+
+      <div style="color: #fbbf24; font-weight: bold; margin-bottom: 0.3rem;">Part 2: Glucose Impact (if CGM):</div>
+      <div style="font-size: 0.78rem; margin-bottom: 0.5rem;">
+        Per-meal glucose response curve. Time to peak, peak height, return to baseline. Lower spike = higher score.
+      </div>
+
+      <div style="margin-top: 0.5rem; padding: 8px; background: rgba(7,89,133,0.15); border-radius: 6px;">
+        <strong style="color: #0ea5e9;">+ EEG Bonus:</strong> Food-mood correlation. "Meals high in processed sugar correlate with 23% lower focus scores 2 hours later."
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 1.5rem; background: rgba(236,72,153,0.08); border-radius: 12px; border-top: 4px solid #ec4899;">
+    <h3 style="color: #ec4899; margin: 0 0 0.3rem;">Energy Bank</h3>
+    <div style="font-size: 2rem; font-weight: bold; color: #ec4899; margin-bottom: 0.5rem;">0-100</div>
+    <p style="font-size: 0.85rem; color: #d1d5db; margin: 0 0 1rem;">"Your body's battery level right now."</p>
+
+    <div style="font-size: 0.82rem;">
+      <div style="color: #fbbf24; font-weight: bold; margin-bottom: 0.3rem;">Formula:</div>
+      <div style="padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px; font-family: monospace; margin-bottom: 0.8rem;">
+        energy = recovery × (1 - strain/max_strain) × sleep_factor × stress_penalty
+      </div>
+
+      <div style="margin-bottom: 0.5rem;">
+        <strong>Behavior:</strong>
+        <ul style="margin: 0.3rem 0 0; padding-left: 1.2rem;">
+          <li>Starts at Recovery Score each morning</li>
+          <li>Depletes with strain throughout day</li>
+          <li>Stress accelerates depletion</li>
+          <li>Good nutrition slows depletion</li>
+          <li>Recharges during sleep</li>
+        </ul>
+      </div>
+
+      <div style="padding: 8px; background: rgba(7,89,133,0.15); border-radius: 6px;">
+        <strong style="color: #0ea5e9;">+ EEG Bonus:</strong> Flow states BOOST energy bank (productive effort feels energizing). High cognitive load WITHOUT flow drains it faster.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Cardio Load & Fitness Metrics</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+  <div style="padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
+    <h4 style="color: #f59e0b; margin: 0 0 0.5rem;">Cardio Load (TRIMP)</h4>
+    <div style="font-size: 0.82rem;">
+      <strong>ATL</strong> = 7-day exponentially weighted TRIMP<br>
+      <strong>CTL</strong> = 42-day (6 week) exponentially weighted TRIMP<br>
+      <strong>TSB</strong> = CTL - ATL (training stress balance)<br><br>
+      <strong>7 Statuses:</strong><br>
+      TSB > 15: Detraining<br>
+      TSB 5-15: Maintaining<br>
+      TSB -5 to 5: Productive<br>
+      TSB -15 to -5: Peaking<br>
+      TSB < -15: Fatigued/Overtraining
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
+    <h4 style="color: #f59e0b; margin: 0 0 0.5rem;">Heart Rate Recovery</h4>
+    <div style="font-size: 0.82rem;">
+      HRR = peak HR - HR at +2 minutes<br><br>
+      <strong>Benchmarks:</strong><br>
+      > 50 bpm: Excellent<br>
+      40-50: Good<br>
+      30-40: Average<br>
+      < 30: Below average<br><br>
+      Tracked per workout. Trend = fitness improving or declining.
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
+    <h4 style="color: #f59e0b; margin: 0 0 0.5rem;">VO2 Max (read-only)</h4>
+    <div style="font-size: 0.82rem;">
+      Read from Apple Watch or Garmin.<br>
+      Not computed — wearable's estimate is used.<br><br>
+      <strong>Display:</strong><br>
+      Current value + trend over time<br>
+      Age/sex percentile ranking<br>
+      Correlation with recovery + cardio load
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Remaining Bevel Features</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+  <div style="padding: 1rem; background: rgba(236,72,153,0.08); border-radius: 8px;">
+    <h4 style="color: #ec4899; margin: 0 0 0.5rem;">Cycle Tracking</h4>
+    <ul style="font-size: 0.82rem; margin: 0;">
+      <li>Flow + symptom logging (20+ symptoms)</li>
+      <li>Phase prediction (period, follicular, ovulatory, luteal)</li>
+      <li>Temperature shift for ovulatory detection</li>
+      <li>Recovery/HRV trends per phase</li>
+      <li>Contraception logging</li>
+      <li>Data stored in Apple Health (privacy)</li>
+    </ul>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(6,182,212,0.08); border-radius: 8px;">
+    <h4 style="color: #06b6d4; margin: 0 0 0.5rem;">Habit Journal</h4>
+    <ul style="font-size: 0.82rem; margin: 0;">
+      <li>Pre-built: hydration, sunlight, screen time, caffeine</li>
+      <li>Custom habits (user-defined)</li>
+      <li>Mood slider (morphing animation)</li>
+      <li>Morning prompts</li>
+      <li>Habit-score correlations ("hydration improves your recovery by 12%")</li>
+      <li>Streak tracking</li>
+    </ul>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(34,197,94,0.08); border-radius: 8px;">
+    <h4 style="color: #22c55e; margin: 0 0 0.5rem;">Smart Alarm</h4>
+    <ul style="font-size: 0.82rem; margin: 0;">
+      <li><strong>Sleep Needed</strong> — wakes when goal reached</li>
+      <li><strong>Smart</strong> — lightest sleep phase in window</li>
+      <li><strong>Regular</strong> — fixed time</li>
+      <li><strong>No Alarm</strong> — tracks time to fall asleep</li>
+      <li>Uses EEG sleep staging if worn (most accurate)</li>
+      <li>Falls back to wearable motion data</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(7,89,133,0.1); border-radius: 12px; border: 1px solid rgba(14,165,233,0.3);">
+  <h3 style="color: #0ea5e9; margin: 0 0 0.5rem;">What Makes Us Different From Bevel</h3>
+  <p style="font-size: 0.85rem; margin: 0 0 1rem;">Every score above has an <strong>"+ EEG Bonus"</strong>. That's our moat. Bevel, Whoop, Oura — they're all guessing from heart rate and motion. We have direct brain measurement.</p>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+    <div style="padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 0.85rem;">
+      <strong style="color: #ef4444;">Them (HR-only):</strong>
+      <ul style="margin: 0.3rem 0 0;">
+        <li>Stress = "your HR is elevated" (could be caffeine)</li>
+        <li>Sleep = "you didn't move" (could be lying awake)</li>
+        <li>Recovery = proxy from autonomic nervous system</li>
+        <li>No mental state measurement at all</li>
+      </ul>
+    </div>
+    <div style="padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 0.85rem;">
+      <strong style="color: #10b981;">Us (HR + EEG):</strong>
+      <ul style="margin: 0.3rem 0 0;">
+        <li>Stress = neural high-beta + HR + HRV (actual stress)</li>
+        <li>Sleep = real EEG staging (92.98% accuracy)</li>
+        <li>Recovery = brain recovery + body recovery</li>
+        <li>Flow, focus, creativity, dream detection, emotions</li>
+      </ul>
+    </div>
+  </div>
+</div>

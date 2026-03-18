@@ -1,0 +1,168 @@
+<h2>AntarAI Logo — Emotion-Centered</h2>
+<p class="subtitle">"Antar" = inner. These put feelings front and center.</p>
+
+<div class="cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+
+  <!-- Concept A: Emotion Spectrum Face -->
+  <div class="card" data-choice="spectrum-face" onclick="toggleSelect(this)" style="text-align: center; padding: 24px;">
+    <div class="card-image" style="margin-bottom: 12px;">
+      <svg width="140" height="140" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#0a0e17"/>
+        <!-- Abstract face circle with emotion color spectrum -->
+        <defs>
+          <linearGradient id="emotionArc" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#f87171"/><!-- anger/stress -->
+            <stop offset="25%" stop-color="#fbbf24"/><!-- surprise/energy -->
+            <stop offset="50%" stop-color="#2dd4a0"/><!-- happy/calm -->
+            <stop offset="75%" stop-color="#60a5fa"/><!-- sad/reflective -->
+            <stop offset="100%" stop-color="#a78bfa"/><!-- deep/spiritual -->
+          </linearGradient>
+        </defs>
+        <!-- Emotion spectrum ring (the face outline) -->
+        <circle cx="256" cy="230" r="110" fill="none" stroke="url(#emotionArc)" stroke-width="8" opacity="0.9"/>
+        <!-- Closed eyes — feeling, not seeing -->
+        <path d="M210,215 Q225,230 240,215" fill="none" stroke="#e8e0d4" stroke-width="4" stroke-linecap="round"/>
+        <path d="M272,215 Q287,230 302,215" fill="none" stroke="#e8e0d4" stroke-width="4" stroke-linecap="round"/>
+        <!-- Gentle smile -->
+        <path d="M228,260 Q256,280 284,260" fill="none" stroke="#2dd4a0" stroke-width="4" stroke-linecap="round"/>
+        <!-- Emotion particles floating around -->
+        <circle cx="140" cy="150" r="6" fill="#f87171" opacity="0.5"/>
+        <circle cx="380" cy="140" r="5" fill="#fbbf24" opacity="0.5"/>
+        <circle cx="400" cy="300" r="7" fill="#60a5fa" opacity="0.4"/>
+        <circle cx="120" cy="320" r="5" fill="#a78bfa" opacity="0.4"/>
+        <circle cx="256" cy="100" r="4" fill="#2dd4a0" opacity="0.5"/>
+        <!-- Subtle pulse rings from face -->
+        <circle cx="256" cy="230" r="130" fill="none" stroke="#2dd4a0" stroke-width="1.5" opacity="0.15"/>
+        <circle cx="256" cy="230" r="155" fill="none" stroke="#2dd4a0" stroke-width="1" opacity="0.08"/>
+        <!-- "feel" text -->
+        <text x="256" y="415" text-anchor="middle" fill="#8b8578" font-size="28" font-weight="300" font-family="Inter, system-ui" letter-spacing="6">antar</text>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>A: Emotion Spectrum</h3>
+      <p>Face outlined by a rainbow of emotions (red→gold→green→blue→purple). Eyes closed = feeling inward. Emotion particles float around.</p>
+    </div>
+  </div>
+
+  <!-- Concept B: Emotion Wheel Heart -->
+  <div class="card" data-choice="emotion-wheel" onclick="toggleSelect(this)" style="text-align: center; padding: 24px;">
+    <div class="card-image" style="margin-bottom: 12px;">
+      <svg width="140" height="140" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#0a0e17"/>
+        <defs>
+          <linearGradient id="seg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2dd4a0"/><stop offset="100%" stop-color="#10b981"/></linearGradient>
+          <linearGradient id="seg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+          <linearGradient id="seg3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f87171"/><stop offset="100%" stop-color="#ef4444"/></linearGradient>
+          <linearGradient id="seg4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#3b82f6"/></linearGradient>
+          <linearGradient id="seg5" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient>
+          <linearGradient id="seg6" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f472b6"/><stop offset="100%" stop-color="#ec4899"/></linearGradient>
+        </defs>
+        <!-- 6 emotion petals in a wheel -->
+        <g transform="translate(256,240)">
+          <!-- Happy (green) -->
+          <ellipse cx="0" cy="-65" rx="28" ry="55" fill="url(#seg1)" opacity="0.85" transform="rotate(0)"/>
+          <!-- Surprise (gold) -->
+          <ellipse cx="0" cy="-65" rx="28" ry="55" fill="url(#seg2)" opacity="0.8" transform="rotate(60)"/>
+          <!-- Angry (red) -->
+          <ellipse cx="0" cy="-65" rx="28" ry="55" fill="url(#seg3)" opacity="0.75" transform="rotate(120)"/>
+          <!-- Sad (blue) -->
+          <ellipse cx="0" cy="-65" rx="28" ry="55" fill="url(#seg4)" opacity="0.8" transform="rotate(180)"/>
+          <!-- Fear (purple) -->
+          <ellipse cx="0" cy="-65" rx="28" ry="55" fill="url(#seg5)" opacity="0.75" transform="rotate(240)"/>
+          <!-- Neutral (pink) -->
+          <ellipse cx="0" cy="-65" rx="28" ry="55" fill="url(#seg6)" opacity="0.7" transform="rotate(300)"/>
+          <!-- Center: heart/awareness -->
+          <circle cx="0" cy="0" r="24" fill="#0a0e17"/>
+          <circle cx="0" cy="0" r="18" fill="#2dd4a0" opacity="0.9"/>
+          <circle cx="0" cy="0" r="8" fill="#f59e0b"/>
+        </g>
+        <!-- Label -->
+        <text x="256" y="415" text-anchor="middle" fill="#8b8578" font-size="28" font-weight="300" font-family="Inter, system-ui" letter-spacing="6">antar</text>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>B: Emotion Flower</h3>
+      <p>6 petals = 6 emotions (happy, surprise, angry, sad, fear, neutral). Teal+gold center = awareness reading your feelings.</p>
+    </div>
+  </div>
+
+  <!-- Concept C: Mood Wave Gradient -->
+  <div class="card" data-choice="mood-wave" onclick="toggleSelect(this)" style="text-align: center; padding: 24px;">
+    <div class="card-image" style="margin-bottom: 12px;">
+      <svg width="140" height="140" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#0a0e17"/>
+        <defs>
+          <linearGradient id="moodWaveG" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#60a5fa"/>
+            <stop offset="30%" stop-color="#a78bfa"/>
+            <stop offset="50%" stop-color="#2dd4a0"/>
+            <stop offset="70%" stop-color="#fbbf24"/>
+            <stop offset="100%" stop-color="#f87171"/>
+          </linearGradient>
+        </defs>
+        <!-- Multiple emotion waves stacked -->
+        <path d="M80,200 Q140,150 200,200 Q260,250 320,200 Q380,150 430,200" fill="none" stroke="#60a5fa" stroke-width="5" stroke-linecap="round" opacity="0.4"/>
+        <path d="M80,240 Q150,180 220,240 Q290,300 360,240 Q410,190 430,240" fill="none" stroke="#a78bfa" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+        <path d="M80,280 Q160,220 240,280 Q320,340 400,280 Q425,260 430,280" fill="none" stroke="url(#moodWaveG)" stroke-width="7" stroke-linecap="round" opacity="0.9"/>
+        <path d="M80,320 Q150,280 220,320 Q290,360 360,320 Q410,290 430,320" fill="none" stroke="#fbbf24" stroke-width="4" stroke-linecap="round" opacity="0.4"/>
+        <path d="M80,355 Q140,330 200,355 Q260,380 320,355 Q380,330 430,355" fill="none" stroke="#f87171" stroke-width="3" stroke-linecap="round" opacity="0.3"/>
+        <!-- Central glow point where waves converge -->
+        <circle cx="256" cy="280" r="18" fill="#2dd4a0" opacity="0.6"/>
+        <circle cx="256" cy="280" r="10" fill="#fff" opacity="0.8"/>
+        <!-- Label -->
+        <text x="256" y="445" text-anchor="middle" fill="#8b8578" font-size="28" font-weight="300" font-family="Inter, system-ui" letter-spacing="6">antar</text>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>C: Mood Waves</h3>
+      <p>5 emotion waves flowing across (blue=sad, purple=fear, green=happy, gold=surprise, red=angry). Your inner emotional landscape.</p>
+    </div>
+  </div>
+
+  <!-- Concept D: Heart-Brain fusion -->
+  <div class="card" data-choice="heart-brain" onclick="toggleSelect(this)" style="text-align: center; padding: 24px;">
+    <div class="card-image" style="margin-bottom: 12px;">
+      <svg width="140" height="140" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#0a0e17"/>
+        <defs>
+          <linearGradient id="heartG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#f87171"/>
+            <stop offset="100%" stop-color="#ef4444"/>
+          </linearGradient>
+          <linearGradient id="brainG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2dd4a0"/>
+            <stop offset="100%" stop-color="#059669"/>
+          </linearGradient>
+        </defs>
+        <!-- Left half: heart (feeling) -->
+        <path d="M256,340 C256,340 150,280 150,210 C150,170 180,145 210,145 C235,145 252,162 256,175"
+              fill="url(#heartG)" opacity="0.85"/>
+        <!-- Right half: brain (thinking) -->
+        <path d="M256,175 C260,162 277,145 302,145 C332,145 362,170 362,210 C362,280 256,340 256,340"
+              fill="url(#brainG)" opacity="0.85"/>
+        <!-- Brain folds on right side -->
+        <path d="M290,180 Q310,190 300,210" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
+        <path d="M285,220 Q310,225 300,245" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
+        <path d="M280,255 Q300,260 295,275" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round"/>
+        <!-- Heart pulse on left side -->
+        <path d="M180,220 L200,220 L210,195 L225,240 L235,205 L245,220" fill="none" stroke="#0a0e17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- Center merge line (where heart meets brain) -->
+        <line x1="256" y1="175" x2="256" y2="340" stroke="#f59e0b" stroke-width="3" opacity="0.6" stroke-dasharray="6,4"/>
+        <!-- Golden awareness dot at center -->
+        <circle cx="256" cy="250" r="10" fill="#f59e0b" opacity="0.9"/>
+        <circle cx="256" cy="250" r="16" fill="#f59e0b" opacity="0.2"/>
+        <!-- Emotion color dots around -->
+        <circle cx="140" cy="160" r="5" fill="#60a5fa" opacity="0.4"/>
+        <circle cx="372" cy="155" r="5" fill="#a78bfa" opacity="0.4"/>
+        <circle cx="160" cy="350" r="4" fill="#fbbf24" opacity="0.35"/>
+        <circle cx="350" cy="345" r="4" fill="#2dd4a0" opacity="0.35"/>
+        <!-- Label -->
+        <text x="256" y="430" text-anchor="middle" fill="#8b8578" font-size="28" font-weight="300" font-family="Inter, system-ui" letter-spacing="6">antar</text>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>D: Heart-Brain</h3>
+      <p>Left half = heart (red, with pulse line). Right half = brain (green, with folds). Where feelings meet understanding. Golden center = AntarAI.</p>
+    </div>
+  </div>
+</div>

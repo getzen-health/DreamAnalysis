@@ -1,12 +1,12 @@
-# AntarAI Mobile UI Redesign — Bevel-Style
+# AntarAI Mobile UI Redesign — Premium
 
 **Date:** 2026-03-17
 **Status:** Approved
-**Scope:** Full mobile UI redesign — 5-tab structure, Bevel-inspired card layout, mobile-only
+**Scope:** Full mobile UI redesign — 5-tab structure, Premium card layout, mobile-only
 
 ## Overview
 
-Redesign AntarAI from a cluttered 42-page web app into a clean, score-first mobile app with 5 bottom tabs. Inspired by Bevel Health's card-based layout. Mobile-only (Capacitor Android/iOS). Vercel serves API backend only.
+Redesign AntarAI from a cluttered 42-page web app into a clean, score-first mobile app with 5 bottom tabs. Inspired by competitor Health's card-based layout. Mobile-only (Capacitor Android/iOS). Vercel serves API backend only.
 
 ## Tab Structure
 

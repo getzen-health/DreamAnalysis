@@ -1,0 +1,74 @@
+<h2>How do we get to Supabase?</h2>
+<p class="subtitle">One critical decision before I design the full system.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Big Bang Migration</h3>
+      <p>Move everything to Supabase at once. Replace Neon, Express auth, file storage in one go. Then build new features on top.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Clean cut — no dual-database complexity</li><li>All new features built on final architecture</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>High risk — everything breaks at once</li><li>Weeks before new features start</li><li>Existing features may regress</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>New Features on Supabase, Old Stays on Neon</h3>
+      <p>Keep existing Neon DB for current features (EEG, dreams, food, auth). Build ALL new Bevel features (pipeline, scores, exercise, weight, habits) directly on Supabase. Migrate old features later when stable.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Zero risk to existing features</li><li>Start building new stuff immediately</li><li>Migrate old features at your pace</li><li>Can validate Supabase before committing fully</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Two databases temporarily</li><li>Cross-DB queries need API bridge</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Fresh Start on Supabase</h3>
+      <p>Rebuild the entire app from scratch on Supabase. New schema, new API, new frontend. Keep ML backend as-is.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Cleanest architecture</li><li>No legacy baggage</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Massive effort — weeks to rebuild existing features</li><li>Loses all existing work on 46 pages, 3200-line routes.ts</li><li>High risk of scope creep</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.2rem; background: rgba(16,185,129,0.08); border-radius: 12px; border: 1px solid rgba(16,185,129,0.2);">
+  <h3 style="color: #10b981; margin-top: 0;">My Recommendation: Option B</h3>
+  <p style="font-size: 0.9rem;">Build all new Bevel features on Supabase from day one. Existing EEG/dream/food features keep working on Neon untouched. You get to start coding the pipeline immediately without breaking anything. Here's what goes where:</p>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+    <div style="padding: 1rem; background: rgba(99,102,241,0.1); border-radius: 8px;">
+      <strong style="color: #818cf8;">Stays on Neon (existing)</strong>
+      <ul style="font-size: 0.85rem; margin: 0.5rem 0 0;">
+        <li>Users + Auth (bcrypt sessions)</li>
+        <li>EEG sessions + emotion readings</li>
+        <li>Dream analysis + symbols</li>
+        <li>Food logs + meal history</li>
+        <li>AI chat history</li>
+        <li>Study protocol tables</li>
+      </ul>
+    </div>
+    <div style="padding: 1rem; background: rgba(16,185,129,0.1); border-radius: 8px;">
+      <strong style="color: #10b981;">New on Supabase (Bevel features)</strong>
+      <ul style="font-size: 0.85rem; margin: 0.5rem 0 0;">
+        <li>Health data pipeline + ingestion</li>
+        <li>Score engines (Recovery, Sleep, Strain, Stress, Energy Bank)</li>
+        <li>Weight + body composition tracking</li>
+        <li>Exercise + workout logging</li>
+        <li>Habit journal</li>
+        <li>Cycle tracking</li>
+        <li>Trend detection + daily aggregates</li>
+        <li>Smart alarm logic</li>
+        <li>Nutrition score (AHEI)</li>
+        <li>Cardio load / HR zones</li>
+      </ul>
+    </div>
+  </div>
+  <p style="font-size: 0.85rem; margin-top: 1rem; color: #9ca3af;">Later (when ready): migrate auth → Supabase Auth, move EEG/dream tables, retire Neon. No rush.</p>
+</div>

@@ -1,5 +1,5 @@
 /**
- * ScoresDashboard -- main health scores overview page (Bevel-style).
+ * ScoresDashboard -- main health scores overview page.
  *
  * Layout:
  * 1. Hero: Energy Bank battery

@@ -1,0 +1,168 @@
+<h2>Discover Page — Card Grid Layout</h2>
+<p class="subtitle">All the deeper features accessible from clean cards. Click the style you prefer.</p>
+
+<div class="split">
+  <!-- Option A: Icon cards -->
+  <div class="mockup" data-choice="icon-cards" onclick="toggleSelect(this)">
+    <div class="mockup-header">A: Icon Cards (Bevel-style)</div>
+    <div class="mockup-body" style="background: #0a0e17; color: #e8e0d4; padding: 16px; font-family: system-ui; min-height: 600px;">
+
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">Discover</div>
+        <div style="font-size: 12px; color: #8b8578;">Explore your mind and body</div>
+      </div>
+
+      <!-- Emotion Trends — featured card -->
+      <div style="background: linear-gradient(135deg, #0f1f1a, #0f1729); border-radius: 18px; padding: 18px; margin-bottom: 14px; border: 1px solid #1f3a2e;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 14px; font-weight: 600; color: #34d399;">Emotion Trends</div>
+            <div style="font-size: 11px; color: #8b8578; margin-top: 2px;">7-day mood journey</div>
+          </div>
+          <div style="font-size: 24px;">&#x1F4C8;</div>
+        </div>
+        <!-- Mini trend line -->
+        <svg width="100%" height="40" style="margin-top: 10px;" viewBox="0 0 280 40">
+          <polyline points="0,30 40,22 80,28 120,15 160,18 200,10 240,12 280,8" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"/>
+          <polyline points="0,30 40,22 80,28 120,15 160,18 200,10 240,12 280,8" fill="url(#trendFill)" stroke="none"/>
+          <defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#34d399" stop-opacity="0.2"/><stop offset="100%" stop-color="#34d399" stop-opacity="0"/></linearGradient></defs>
+        </svg>
+      </div>
+
+      <!-- 2x2 card grid -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+        <div style="background: #111827; border-radius: 14px; padding: 16px; border: 1px solid #1f2937;">
+          <div style="font-size: 28px; margin-bottom: 8px;">&#x1F9D8;</div>
+          <div style="font-size: 13px; font-weight: 600;">Inner Energy</div>
+          <div style="font-size: 10px; color: #8b8578; margin-top: 2px;">Chakra &amp; energy map</div>
+        </div>
+        <div style="background: #111827; border-radius: 14px; padding: 16px; border: 1px solid #1f2937;">
+          <div style="font-size: 28px; margin-bottom: 8px;">&#x1F916;</div>
+          <div style="font-size: 13px; font-weight: 600;">AI Companion</div>
+          <div style="font-size: 10px; color: #8b8578; margin-top: 2px;">Wellness chat</div>
+        </div>
+        <div style="background: #111827; border-radius: 14px; padding: 16px; border: 1px solid #1f2937;">
+          <div style="font-size: 28px; margin-bottom: 8px;">&#x1F9E0;</div>
+          <div style="font-size: 13px; font-weight: 600;">Brain Monitor</div>
+          <div style="font-size: 10px; color: #8b8578; margin-top: 2px;">Live EEG waveforms</div>
+        </div>
+        <div style="background: #111827; border-radius: 14px; padding: 16px; border: 1px solid #1f2937;">
+          <div style="font-size: 28px; margin-bottom: 8px;">&#x1F303;</div>
+          <div style="font-size: 13px; font-weight: 600;">Dreams</div>
+          <div style="font-size: 10px; color: #8b8578; margin-top: 2px;">Journal &amp; patterns</div>
+        </div>
+      </div>
+
+      <!-- More cards -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+        <div style="background: #111827; border-radius: 14px; padding: 16px; border: 1px solid #1f2937;">
+          <div style="font-size: 28px; margin-bottom: 8px;">&#x1F3AF;</div>
+          <div style="font-size: 13px; font-weight: 600;">Neurofeedback</div>
+          <div style="font-size: 10px; color: #8b8578; margin-top: 2px;">Train your focus</div>
+        </div>
+        <div style="background: #111827; border-radius: 14px; padding: 16px; border: 1px solid #1f2937;">
+          <div style="font-size: 28px; margin-bottom: 8px;">&#x1F634;</div>
+          <div style="font-size: 13px; font-weight: 600;">Sleep Session</div>
+          <div style="font-size: 10px; color: #8b8578; margin-top: 2px;">Track overnight rest</div>
+        </div>
+      </div>
+
+      <!-- Horizontal scroll: smaller items -->
+      <div style="font-size: 12px; font-weight: 600; color: #8b8578; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">More</div>
+      <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px;">
+        <div style="background: #111827; border-radius: 12px; padding: 12px 16px; border: 1px solid #1f2937; white-space: nowrap; flex-shrink: 0;">
+          <span style="font-size: 16px; margin-right: 6px;">&#x1F4A1;</span>
+          <span style="font-size: 12px; font-weight: 500;">Insights</span>
+        </div>
+        <div style="background: #111827; border-radius: 12px; padding: 12px 16px; border: 1px solid #1f2937; white-space: nowrap; flex-shrink: 0;">
+          <span style="font-size: 16px; margin-right: 6px;">&#x1F4CA;</span>
+          <span style="font-size: 12px; font-weight: 500;">Weekly Summary</span>
+        </div>
+        <div style="background: #111827; border-radius: 12px; padding: 12px 16px; border: 1px solid #1f2937; white-space: nowrap; flex-shrink: 0;">
+          <span style="font-size: 16px; margin-right: 6px;">&#x1F3B5;</span>
+          <span style="font-size: 12px; font-weight: 500;">Sleep Stories</span>
+        </div>
+        <div style="background: #111827; border-radius: 12px; padding: 12px 16px; border: 1px solid #1f2937; white-space: nowrap; flex-shrink: 0;">
+          <span style="font-size: 16px; margin-right: 6px;">&#x1F6CC;</span>
+          <span style="font-size: 12px; font-weight: 500;">CBT-i</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Option B: List style -->
+  <div class="mockup" data-choice="list-style" onclick="toggleSelect(this)">
+    <div class="mockup-header">B: List Cards (Apple Health-style)</div>
+    <div class="mockup-body" style="background: #0a0e17; color: #e8e0d4; padding: 16px; font-family: system-ui; min-height: 600px;">
+
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">Discover</div>
+        <div style="font-size: 12px; color: #8b8578;">Explore your mind and body</div>
+      </div>
+
+      <!-- Category: Mind -->
+      <div style="font-size: 11px; font-weight: 600; color: #2dd4a0; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Mind</div>
+      <div style="background: #111827; border-radius: 14px; margin-bottom: 16px; border: 1px solid #1f2937; overflow: hidden;">
+        <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #1f2937;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F4C8;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">Emotion Trends</div><div style="font-size: 11px; color: #8b8578;">7-day mood journey</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+        <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #1f2937;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F9D8;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">Inner Energy</div><div style="font-size: 11px; color: #8b8578;">Chakra &amp; energy map</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+        <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #1f2937;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F916;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">AI Companion</div><div style="font-size: 11px; color: #8b8578;">Wellness chat</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+        <div style="display: flex; align-items: center; padding: 14px 16px;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F303;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">Dreams</div><div style="font-size: 11px; color: #8b8578;">Journal &amp; patterns</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+      </div>
+
+      <!-- Category: Body -->
+      <div style="font-size: 11px; font-weight: 600; color: #a78bfa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Body</div>
+      <div style="background: #111827; border-radius: 14px; margin-bottom: 16px; border: 1px solid #1f2937; overflow: hidden;">
+        <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #1f2937;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F9E0;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">Brain Monitor</div><div style="font-size: 11px; color: #8b8578;">Live EEG waveforms</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+        <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #1f2937;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F3AF;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">Neurofeedback</div><div style="font-size: 11px; color: #8b8578;">Train your focus</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+        <div style="display: flex; align-items: center; padding: 14px 16px;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F634;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">Sleep Session</div><div style="font-size: 11px; color: #8b8578;">Track overnight rest</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+      </div>
+
+      <!-- Category: Learn -->
+      <div style="font-size: 11px; font-weight: 600; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Programs</div>
+      <div style="background: #111827; border-radius: 14px; border: 1px solid #1f2937; overflow: hidden;">
+        <div style="display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #1f2937;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F3B5;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">Sleep Stories</div><div style="font-size: 11px; color: #8b8578;">EEG-triggered fade-out</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+        <div style="display: flex; align-items: center; padding: 14px 16px;">
+          <span style="font-size: 22px; margin-right: 12px;">&#x1F4D6;</span>
+          <div style="flex: 1;"><div style="font-size: 14px; font-weight: 500;">CBT-i Program</div><div style="font-size: 11px; color: #8b8578;">6-week sleep improvement</div></div>
+          <span style="color: #4b5563; font-size: 16px;">&#x203A;</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top: 1rem;">A = visual grid (more engaging) &nbsp;|&nbsp; B = categorized list (more organized). Click your pick.</p>

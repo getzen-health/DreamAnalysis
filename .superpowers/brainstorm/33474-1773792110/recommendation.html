@@ -1,0 +1,165 @@
+<h2>My Recommendation: Option D — Hybrid</h2>
+<p class="subtitle">Local ML + Cloud Data. Here's why this is the only option that makes sense.</p>
+
+<div class="section">
+  <h3>The Reality Check</h3>
+  <p>Your app has <strong>two fundamentally different data flows</strong> that need different infrastructure:</p>
+</div>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">EEG Pipeline (Must Be Local)</div>
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.6;">
+      <div style="text-align: center; padding: 0.5rem;">
+        <div style="background: #7c3aed; color: white; padding: 8px 16px; border-radius: 8px; display: inline-block; margin-bottom: 8px;">Muse 2 Headband</div>
+        <div style="color: #a78bfa;">&#8595; BrainFlow USB/BLE</div>
+        <div style="background: #5b21b6; color: white; padding: 8px 16px; border-radius: 8px; display: inline-block; margin: 8px 0;">FastAPI ML Backend</div>
+        <div style="color: #a78bfa;">16 models, 256Hz, WebSocket</div>
+        <div style="color: #a78bfa;">&#8595; localhost only</div>
+        <div style="background: #4c1d95; color: white; padding: 8px 16px; border-radius: 8px; display: inline-block; margin-top: 8px;">React Dashboard</div>
+      </div>
+      <div style="margin-top: 1rem; padding: 8px; background: rgba(124,58,237,0.15); border-radius: 8px; font-size: 0.8rem;">
+        <strong>Why local:</strong> Muse 2 connects via BLE/USB. 16 ML models need 60-90s to load. 256Hz streaming can't tolerate cloud latency. This CANNOT move to cloud.
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Health Pipeline (Should Be Cloud)</div>
+    <div class="mockup-body" style="font-size: 0.85rem; line-height: 1.6;">
+      <div style="text-align: center; padding: 0.5rem;">
+        <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
+          <div style="background: #059669; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem;">HealthKit</div>
+          <div style="background: #059669; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem;">Oura</div>
+          <div style="background: #059669; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem;">Garmin</div>
+          <div style="background: #059669; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem;">CGM</div>
+          <div style="background: #059669; color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem;">Manual</div>
+        </div>
+        <div style="color: #6ee7b7;">&#8595; REST APIs + webhooks</div>
+        <div style="background: #047857; color: white; padding: 8px 16px; border-radius: 8px; display: inline-block; margin: 8px 0;">Cloud API + Score Engines</div>
+        <div style="color: #6ee7b7;">&#8595; real-time subscriptions</div>
+        <div style="background: #065f46; color: white; padding: 8px 16px; border-radius: 8px; display: inline-block; margin: 8px 0;">Cloud Database</div>
+        <div style="color: #6ee7b7;">&#8595; push notifications</div>
+        <div style="background: #064e3b; color: white; padding: 8px 16px; border-radius: 8px; display: inline-block; margin-top: 4px;">Mobile + Web Dashboard</div>
+      </div>
+      <div style="margin-top: 1rem; padding: 8px; background: rgba(5,150,105,0.15); border-radius: 8px; font-size: 0.8rem;">
+        <strong>Why cloud:</strong> Health data syncs from phone anytime. Scores must compute even when Mac is off. Mobile needs server access. Trends accumulate 24/7.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Recommended Stack</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+  <div style="background: rgba(255,255,255,0.05); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 0.5rem;">Frontend</div>
+    <h3 style="margin: 0 0 0.3rem;">Vercel (Free)</h3>
+    <p style="margin: 0; font-size: 0.85rem; color: #d1d5db;">React dashboard. Already deployed. $0.</p>
+  </div>
+
+  <div style="background: rgba(255,255,255,0.05); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 0.5rem;">Database</div>
+    <h3 style="margin: 0 0 0.3rem;">Supabase (Free Tier)</h3>
+    <p style="margin: 0; font-size: 0.85rem; color: #d1d5db;">PostgreSQL + real-time + auth + storage. 500MB DB, 1GB files. Replaces Neon.</p>
+  </div>
+
+  <div style="background: rgba(255,255,255,0.05); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 0.5rem;">Health API</div>
+    <h3 style="margin: 0 0 0.3rem;">Supabase Edge Functions (Free)</h3>
+    <p style="margin: 0; font-size: 0.85rem; color: #d1d5db;">Serverless API for health data ingestion, score computation, trend detection. 500K invocations/mo free.</p>
+  </div>
+
+  <div style="background: rgba(255,255,255,0.05); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 0.5rem;">ML Backend</div>
+    <h3 style="margin: 0 0 0.3rem;">Local FastAPI (Free)</h3>
+    <p style="margin: 0; font-size: 0.85rem; color: #d1d5db;">16 ML models + EEG stream + BrainFlow. Stays on Mac. Writes to Supabase DB.</p>
+  </div>
+
+  <div style="background: rgba(255,255,255,0.05); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 0.5rem;">Event Bus</div>
+    <h3 style="margin: 0 0 0.3rem;">Supabase Realtime (Free)</h3>
+    <p style="margin: 0; font-size: 0.85rem; color: #d1d5db;">Postgres LISTEN/NOTIFY replaces Redis Streams. Dashboard auto-updates when scores change. No Redis needed.</p>
+  </div>
+
+  <div style="background: rgba(255,255,255,0.05); padding: 1.2rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 0.5rem;">Score Engine</div>
+    <h3 style="margin: 0 0 0.3rem;">PostgreSQL Triggers + Cron</h3>
+    <p style="margin: 0; font-size: 0.85rem; color: #d1d5db;">DB triggers fire score recomputation on every INSERT. pg_cron for daily aggregates. Scores live IN the database.</p>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Why This Is "Very Very Strong"</h3>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+    <div style="padding: 0.75rem; background: rgba(16,185,129,0.1); border-radius: 8px; border-left: 3px solid #10b981;">
+      <strong style="color: #10b981;">Event-Driven</strong>
+      <p style="margin: 0.3rem 0 0; font-size: 0.85rem;">Every health data INSERT triggers score recomputation via Postgres triggers. No polling.</p>
+    </div>
+    <div style="padding: 0.75rem; background: rgba(16,185,129,0.1); border-radius: 8px; border-left: 3px solid #10b981;">
+      <strong style="color: #10b981;">Real-Time Delivery</strong>
+      <p style="margin: 0.3rem 0 0; font-size: 0.85rem;">Supabase Realtime pushes score changes to all connected clients instantly. No refresh needed.</p>
+    </div>
+    <div style="padding: 0.75rem; background: rgba(16,185,129,0.1); border-radius: 8px; border-left: 3px solid #10b981;">
+      <strong style="color: #10b981;">Always-On Health Tracking</strong>
+      <p style="margin: 0.3rem 0 0; font-size: 0.85rem;">Cloud API receives health data 24/7, even when Mac is off. EEG adds depth when you're at your desk.</p>
+    </div>
+    <div style="padding: 0.75rem; background: rgba(16,185,129,0.1); border-radius: 8px; border-left: 3px solid #10b981;">
+      <strong style="color: #10b981;">$0 Monthly Cost</strong>
+      <p style="margin: 0.3rem 0 0; font-size: 0.85rem;">Supabase free tier + Vercel free tier + local ML. No forgotten bills. No Render surprises.</p>
+    </div>
+    <div style="padding: 0.75rem; background: rgba(16,185,129,0.1); border-radius: 8px; border-left: 3px solid #10b981;">
+      <strong style="color: #10b981;">Trend Detection in DB</strong>
+      <p style="margin: 0.3rem 0 0; font-size: 0.85rem;">PostgreSQL window functions for moving averages, rate-of-change, anomaly detection. Pre-computed daily rollups via pg_cron.</p>
+    </div>
+    <div style="padding: 0.75rem; background: rgba(16,185,129,0.1); border-radius: 8px; border-left: 3px solid #10b981;">
+      <strong style="color: #10b981;">Scales When Ready</strong>
+      <p style="margin: 0.3rem 0 0; font-size: 0.85rem;">If you outgrow free tier, Supabase Pro is $25/mo for 8GB. Add Redis later only if needed.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.2rem; background: rgba(251,191,36,0.08); border-radius: 12px; border: 1px solid rgba(251,191,36,0.2);">
+  <h3 style="color: #fbbf24; margin-top: 0;">What Changes From Current Setup</h3>
+  <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse;">
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <td style="padding: 8px; color: #9ca3af;">Database</td>
+      <td style="padding: 8px;">Neon PostgreSQL &#8594; <strong>Supabase PostgreSQL</strong></td>
+      <td style="padding: 8px; color: #6ee7b7;">Same Drizzle ORM, just change connection string</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <td style="padding: 8px; color: #9ca3af;">Auth</td>
+      <td style="padding: 8px;">bcrypt + express-session &#8594; <strong>Supabase Auth</strong></td>
+      <td style="padding: 8px; color: #fbbf24;">Moderate migration, but gains OAuth/magic link free</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <td style="padding: 8px; color: #9ca3af;">Real-time</td>
+      <td style="padding: 8px;">Custom WebSocket &#8594; <strong>Supabase Realtime</strong> (health only)</td>
+      <td style="padding: 8px; color: #6ee7b7;">EEG WebSocket stays as-is</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <td style="padding: 8px; color: #9ca3af;">File Storage</td>
+      <td style="padding: 8px;">None / local &#8594; <strong>Supabase Storage</strong></td>
+      <td style="padding: 8px; color: #6ee7b7;">Dream images, food photos, voice recordings</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; color: #9ca3af;">Express Server</td>
+      <td style="padding: 8px;">Cloud (Railway) &#8594; <strong>Local + Edge Functions</strong></td>
+      <td style="padding: 8px; color: #6ee7b7;">Complex routes stay local, simple CRUD moves to Edge</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.2rem; background: rgba(239,68,68,0.08); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">
+  <h3 style="color: #ef4444; margin-top: 0;">Alternative: Stay on Neon (Lower Risk)</h3>
+  <p style="font-size: 0.85rem;">If Supabase migration feels too risky, we can keep Neon PostgreSQL and build the pipeline with:</p>
+  <ul style="font-size: 0.85rem;">
+    <li>PostgreSQL triggers for score computation (works on Neon too)</li>
+    <li>Server-Sent Events (SSE) instead of Supabase Realtime</li>
+    <li>Keep Express on Railway or run locally</li>
+    <li>Skip auth migration entirely</li>
+  </ul>
+  <p style="font-size: 0.85rem; color: #f87171;">Trade-off: No free real-time subscriptions, no built-in storage, no auth upgrade. Same pipeline logic, just more custom code.</p>
+</div>

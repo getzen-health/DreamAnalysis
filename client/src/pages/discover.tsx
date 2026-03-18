@@ -368,7 +368,7 @@ export default function Discover() {
         </p>
       </div>
 
-      {/* ── Score Cards — Bevel style: scores first, then explore ── */}
+      {/* ── Score Cards — scores first, then explore ── */}
       {hasData ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
           {/* Mood Score */}

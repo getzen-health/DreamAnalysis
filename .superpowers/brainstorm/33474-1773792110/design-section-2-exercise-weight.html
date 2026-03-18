@@ -1,0 +1,312 @@
+<h2>Design Section 2: Exercise, Weight & Body Tracking</h2>
+<p class="subtitle">Everything Bevel does for fitness — plus our EEG advantage.</p>
+
+<div class="section">
+  <h3>A. Weight & Body Composition</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+  <div style="padding: 1.2rem; background: rgba(99,102,241,0.08); border-radius: 8px;">
+    <h4 style="color: #818cf8; margin: 0 0 0.5rem;">Data Sources</h4>
+    <ul style="font-size: 0.85rem; margin: 0;">
+      <li><strong>Apple HealthKit</strong> — body mass, body fat %, lean mass, BMI, height</li>
+      <li><strong>Google Health Connect</strong> — weight, body fat, height</li>
+      <li><strong>Smart scales</strong> (via HealthKit) — Withings, Eufy, Renpho, etc.</li>
+      <li><strong>Manual input</strong> — weight entry in app</li>
+      <li><strong>Oura</strong> — weight if synced to Apple Health</li>
+    </ul>
+  </div>
+  <div style="padding: 1.2rem; background: rgba(99,102,241,0.08); border-radius: 8px;">
+    <h4 style="color: #818cf8; margin: 0 0 0.5rem;">What We Track</h4>
+    <table style="width: 100%; font-size: 0.82rem; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <td style="padding: 4px 0;">Weight</td><td style="padding: 4px 0; color: #9ca3af;">kg / lbs (user pref)</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <td style="padding: 4px 0;">Body Fat %</td><td style="padding: 4px 0; color: #9ca3af;">from scale or manual</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <td style="padding: 4px 0;">Lean Body Mass</td><td style="padding: 4px 0; color: #9ca3af;">derived or from scale</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <td style="padding: 4px 0;">BMI</td><td style="padding: 4px 0; color: #9ca3af;">auto-calculated</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <td style="padding: 4px 0;">Height</td><td style="padding: 4px 0; color: #9ca3af;">set once</td>
+      </tr>
+      <tr>
+        <td style="padding: 4px 0;">Weight Goal</td><td style="padding: 4px 0; color: #9ca3af;">target + pace</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top: 1rem; padding: 1rem; background: rgba(251,191,36,0.08); border-radius: 8px;">
+  <h4 style="color: #fbbf24; margin: 0 0 0.5rem;">Trend Detection (Pipeline-Powered)</h4>
+  <div style="font-size: 0.85rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+    <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+      <strong>7-day moving average</strong> — smooths daily fluctuations (water, meals)
+    </div>
+    <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+      <strong>Rate of change</strong> — alerts if &gt;2% change/week or &gt;5%/month
+    </div>
+    <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+      <strong>Goal progress</strong> — "on track" / "falling behind" / "ahead"
+    </div>
+    <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+      <strong>Correlation</strong> — weight change vs sleep, strain, nutrition scores
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>B. Exercise & Workout Tracking</h3>
+</div>
+
+<div style="padding: 1.2rem; background: rgba(16,185,129,0.08); border-radius: 8px; margin-bottom: 1rem;">
+  <h4 style="color: #10b981; margin: 0 0 0.5rem;">Workout Types</h4>
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; font-size: 0.82rem;">
+    <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; text-align: center;">
+      <div style="font-size: 1.2rem; margin-bottom: 4px;">&#128170;</div>
+      <strong>Strength</strong>
+      <div style="color: #9ca3af; font-size: 0.78rem;">Sets, reps, weight</div>
+    </div>
+    <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; text-align: center;">
+      <div style="font-size: 1.2rem; margin-bottom: 4px;">&#127939;</div>
+      <strong>Cardio</strong>
+      <div style="color: #9ca3af; font-size: 0.78rem;">HR zones, distance</div>
+    </div>
+    <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; text-align: center;">
+      <div style="font-size: 1.2rem; margin-bottom: 4px;">&#129496;</div>
+      <strong>Flexibility</strong>
+      <div style="color: #9ca3af; font-size: 0.78rem;">Yoga, stretching</div>
+    </div>
+    <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; text-align: center;">
+      <div style="font-size: 1.2rem; margin-bottom: 4px;">&#9201;</div>
+      <strong>HIIT</strong>
+      <div style="color: #9ca3af; font-size: 0.78rem;">Intervals, circuits</div>
+    </div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+  <div style="padding: 1.2rem; background: rgba(16,185,129,0.08); border-radius: 8px;">
+    <h4 style="color: #10b981; margin: 0 0 0.5rem;">Strength Builder (Bevel-style)</h4>
+    <ul style="font-size: 0.85rem; margin: 0;">
+      <li><strong>Exercise library</strong> — 700+ exercises with muscle groups, instructions</li>
+      <li><strong>Set types</strong> — normal, superset, dropset, warmup, cooldown, timed</li>
+      <li><strong>Weight tracking</strong> — defaults to last-used weight per exercise</li>
+      <li><strong>Rest timers</strong> — configurable per exercise or per set</li>
+      <li><strong>1RM estimation</strong> — auto-computed from sets (Epley formula)</li>
+      <li><strong>Workout templates</strong> — save, reuse, share routines</li>
+      <li><strong>Progression history</strong> — per-exercise weight/rep history</li>
+      <li><strong>Muscular strain viz</strong> — radar chart of muscle group activation</li>
+    </ul>
+  </div>
+
+  <div style="padding: 1.2rem; background: rgba(16,185,129,0.08); border-radius: 8px;">
+    <h4 style="color: #10b981; margin: 0 0 0.5rem;">Passive Tracking (from wearables)</h4>
+    <ul style="font-size: 0.85rem; margin: 0;">
+      <li><strong>Apple Watch workouts</strong> — auto-imported with HR data</li>
+      <li><strong>Steps</strong> — daily count from HealthKit/Google Health</li>
+      <li><strong>Active energy</strong> — calories burned (active only)</li>
+      <li><strong>Exercise minutes</strong> — from wearable activity detection</li>
+      <li><strong>Heart rate zones</strong> — time in each of 5 zones per workout</li>
+      <li><strong>Heart Rate Recovery</strong> — post-workout HR drop (2 min)</li>
+      <li><strong>Garmin/Oura</strong> — activity data via OAuth sync</li>
+    </ul>
+  </div>
+</div>
+
+<div style="margin-top: 1rem; padding: 1.2rem; background: rgba(7,89,133,0.15); border-radius: 8px; border: 1px solid rgba(14,165,233,0.3);">
+  <h4 style="color: #0ea5e9; margin: 0 0 0.5rem;">Our Unique Advantage: EEG + Exercise</h4>
+  <p style="font-size: 0.85rem; margin: 0;">Bevel can't do this. With any EEG device connected during workout:</p>
+  <ul style="font-size: 0.85rem; margin: 0.5rem 0 0;">
+    <li><strong>Flow state detection during exercise</strong> — "you hit flow at minute 23 of your run"</li>
+    <li><strong>Focus quality during strength training</strong> — mind-muscle connection scoring</li>
+    <li><strong>Post-workout brain recovery</strong> — how fast does your brain return to baseline?</li>
+    <li><strong>Exercise-emotion correlation</strong> — "running improves your mood 73% more than weights"</li>
+    <li><strong>Optimal workout timing</strong> — "your brain performs best when you exercise at 7am"</li>
+  </ul>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>C. Heart Rate Zones & Cardio Metrics</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+  <div style="padding: 1.2rem; background: rgba(239,68,68,0.08); border-radius: 8px;">
+    <h4 style="color: #ef4444; margin: 0 0 0.5rem;">5 Heart Rate Zones</h4>
+    <div style="font-size: 0.82rem;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <div style="width: 12px; height: 12px; border-radius: 3px; background: #60a5fa;"></div>
+        <span><strong>Zone 1</strong> Active Recovery (50-59% max HR)</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <div style="width: 12px; height: 12px; border-radius: 3px; background: #34d399;"></div>
+        <span><strong>Zone 2</strong> Fat Burning (60-69%)</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <div style="width: 12px; height: 12px; border-radius: 3px; background: #fbbf24;"></div>
+        <span><strong>Zone 3</strong> Cardiovascular (70-79%)</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <div style="width: 12px; height: 12px; border-radius: 3px; background: #f97316;"></div>
+        <span><strong>Zone 4</strong> High Intensity (80-89%)</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 12px; height: 12px; border-radius: 3px; background: #ef4444;"></div>
+        <span><strong>Zone 5</strong> Maximum Effort (90-100%)</span>
+      </div>
+      <div style="margin-top: 0.5rem; color: #9ca3af; font-size: 0.78rem;">Max HR = 220 - age (configurable)</div>
+    </div>
+  </div>
+
+  <div style="padding: 1.2rem; background: rgba(239,68,68,0.08); border-radius: 8px;">
+    <h4 style="color: #ef4444; margin: 0 0 0.5rem;">Cardio Load (TRIMP)</h4>
+    <ul style="font-size: 0.85rem; margin: 0;">
+      <li><strong>Acute Training Load (ATL)</strong> — past 7 days weighted sum</li>
+      <li><strong>Chronic Training Load (CTL)</strong> — past 6 weeks rolling</li>
+      <li><strong>Load Balance</strong> — ATL/CTL ratio</li>
+      <li><strong>7 Cardio Statuses:</strong>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+          <span style="padding: 2px 8px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 0.75rem;">Calibrating</span>
+          <span style="padding: 2px 8px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 0.75rem;">Detraining</span>
+          <span style="padding: 2px 8px; background: rgba(255,255,255,0.05); border-radius: 4px; font-size: 0.75rem;">Maintaining</span>
+          <span style="padding: 2px 8px; background: rgba(16,185,129,0.2); border-radius: 4px; font-size: 0.75rem;">Productive</span>
+          <span style="padding: 2px 8px; background: rgba(251,191,36,0.2); border-radius: 4px; font-size: 0.75rem;">Peaking</span>
+          <span style="padding: 2px 8px; background: rgba(239,68,68,0.2); border-radius: 4px; font-size: 0.75rem;">Fatigued</span>
+          <span style="padding: 2px 8px; background: rgba(239,68,68,0.3); border-radius: 4px; font-size: 0.75rem;">Overtraining</span>
+        </div>
+      </li>
+      <li><strong>Heart Rate Recovery</strong> — HR drop from peak to +2 min</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>D. Database Schema (Exercise & Weight Tables)</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+  <div style="padding: 1rem; background: rgba(99,102,241,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #818cf8; margin: 0 0 0.5rem;">exercises (library)</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      name text<br>
+      category text (strength | cardio | flex | hiit)<br>
+      muscle_groups text[] (chest, back, legs...)<br>
+      equipment text (barbell | dumbbell | body...)<br>
+      instructions text<br>
+      video_url text (optional)<br>
+      is_custom boolean DEFAULT false<br>
+      created_by uuid FK (null = system)
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(99,102,241,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #818cf8; margin: 0 0 0.5rem;">workouts</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      user_id uuid FK<br>
+      name text<br>
+      workout_type text<br>
+      started_at timestamptz<br>
+      ended_at timestamptz<br>
+      duration_min numeric<br>
+      total_strain numeric<br>
+      avg_hr numeric<br>
+      max_hr numeric<br>
+      calories_burned numeric<br>
+      hr_zones jsonb {z1_min, z2_min...}<br>
+      hr_recovery numeric<br>
+      source text (manual | apple | garmin)<br>
+      eeg_session_id uuid FK (nullable)<br>
+      notes text
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(16,185,129,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #10b981; margin: 0 0 0.5rem;">workout_sets</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      workout_id uuid FK<br>
+      exercise_id uuid FK<br>
+      set_number integer<br>
+      set_type text (normal | warmup | dropset | superset | failure)<br>
+      reps integer<br>
+      weight_kg numeric<br>
+      duration_sec integer (for timed)<br>
+      rest_sec integer<br>
+      rpe numeric (1-10, optional)<br>
+      completed boolean<br>
+      created_at timestamptz
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(16,185,129,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #10b981; margin: 0 0 0.5rem;">workout_templates</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      user_id uuid FK<br>
+      name text<br>
+      description text<br>
+      exercises jsonb [{exercise_id, sets, reps, weight, rest}]<br>
+      is_ai_generated boolean<br>
+      times_used integer DEFAULT 0<br>
+      created_at timestamptz
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(251,191,36,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #fbbf24; margin: 0 0 0.5rem;">body_metrics</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      user_id uuid FK<br>
+      weight_kg numeric<br>
+      body_fat_pct numeric<br>
+      lean_mass_kg numeric<br>
+      bmi numeric<br>
+      source text (apple | google | manual | scale)<br>
+      recorded_at timestamptz<br>
+      <span style="color: #fbbf24;">INDEX(user_id, recorded_at)</span>
+    </div>
+  </div>
+
+  <div style="padding: 1rem; background: rgba(251,191,36,0.08); border-radius: 8px; font-size: 0.82rem;">
+    <h4 style="color: #fbbf24; margin: 0 0 0.5rem;">exercise_history (1RM tracking)</h4>
+    <div style="font-family: monospace; line-height: 1.8;">
+      id uuid PK<br>
+      user_id uuid FK<br>
+      exercise_id uuid FK<br>
+      date date<br>
+      best_weight_kg numeric<br>
+      best_reps integer<br>
+      estimated_1rm numeric<br>
+      total_volume numeric (sets*reps*weight)<br>
+      <span style="color: #fbbf24;">UNIQUE(user_id, exercise_id, date)</span>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>E. How It Feeds the Pipeline</h3>
+  <div style="padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 8px; font-family: monospace; font-size: 0.82rem; line-height: 2;">
+    <div style="color: #9ca3af;">// Workout completed (manual or wearable sync)</div>
+    <div>1. INSERT workout → <span style="color: #818cf8;">PG trigger: compute workout strain (TRIMP)</span></div>
+    <div>2. INSERT workout strain into <span style="color: #10b981;">health_samples</span> (metric: "strain")</div>
+    <div>3. Pipeline kicks in → <span style="color: #f59e0b;">aggregation → score recomputation</span></div>
+    <div>4. Strain Score updates → Energy Bank updates → dashboard updates</div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// Weight logged (scale sync or manual)</div>
+    <div>1. INSERT body_metrics → <span style="color: #818cf8;">PG trigger: compute 7-day moving avg</span></div>
+    <div>2. Compare to goal → rate of change check</div>
+    <div>3. If rapid change (&gt;2%/week) → <span style="color: #ef4444;">INSERT trend_alert → push notification</span></div>
+    <div>4. Weight trend feeds into <span style="color: #f59e0b;">Recovery + Nutrition score adjustments</span></div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// EEG worn during workout</div>
+    <div>1. Workout links to eeg_session via <span style="color: #a855f7;">eeg_session_id FK</span></div>
+    <div>2. Post-workout: correlate flow state peaks with HR zone peaks</div>
+    <div>3. Generate insight: <span style="color: #06b6d4;">"You hit flow state in Zone 3 — optimal cardio intensity"</span></div>
+  </div>
+</div>

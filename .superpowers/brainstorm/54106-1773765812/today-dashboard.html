@@ -1,0 +1,203 @@
+<h2>Today Dashboard — Bevel-Style Mockup</h2>
+<p class="subtitle">Score-first, card-based, clean. How does this feel?</p>
+
+<div class="split">
+  <!-- Option A: Big circle score -->
+  <div class="mockup" data-choice="circle-score" onclick="toggleSelect(this)">
+    <div class="mockup-header">A: Circle Score Hero</div>
+    <div class="mockup-body" style="background: #0a0e17; color: #e8e0d4; padding: 16px; font-family: system-ui; min-height: 600px;">
+
+      <!-- Status bar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <div>
+          <div style="font-size: 11px; color: #8b8578;">Monday, March 17</div>
+          <div style="font-size: 18px; font-weight: 600;">Good morning</div>
+        </div>
+        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #2dd4a0, #059669); display:flex; align-items:center; justify-content:center; font-size: 14px; font-weight: 700; color: #0a0e17;">S</div>
+      </div>
+
+      <!-- Big readiness circle -->
+      <div style="text-align: center; margin: 24px 0;">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <circle cx="80" cy="80" r="68" fill="none" stroke="#1a1f2e" stroke-width="8"/>
+          <circle cx="80" cy="80" r="68" fill="none" stroke="url(#grad1)" stroke-width="8" stroke-dasharray="321 427" stroke-linecap="round" transform="rotate(-90 80 80)"/>
+          <defs><linearGradient id="grad1"><stop offset="0%" stop-color="#2dd4a0"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs>
+          <text x="80" y="72" text-anchor="middle" fill="#e8e0d4" font-size="42" font-weight="700">75</text>
+          <text x="80" y="95" text-anchor="middle" fill="#8b8578" font-size="12">Readiness</text>
+        </svg>
+        <div style="font-size: 13px; color: #2dd4a0; margin-top: 4px;">You're feeling good today</div>
+      </div>
+
+      <!-- 3 mini scores row -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+        <div style="background: #111827; border-radius: 14px; padding: 14px 10px; text-align: center; border: 1px solid #1f2937;">
+          <div style="font-size: 11px; color: #8b8578; margin-bottom: 4px;">Mood</div>
+          <div style="font-size: 22px; font-weight: 700; color: #34d399;">Happy</div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">82% confidence</div>
+        </div>
+        <div style="background: #111827; border-radius: 14px; padding: 14px 10px; text-align: center; border: 1px solid #1f2937;">
+          <div style="font-size: 11px; color: #8b8578; margin-bottom: 4px;">Stress</div>
+          <div style="font-size: 22px; font-weight: 700; color: #fbbf24;">32%</div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Low</div>
+        </div>
+        <div style="background: #111827; border-radius: 14px; padding: 14px 10px; text-align: center; border: 1px solid #1f2937;">
+          <div style="font-size: 11px; color: #8b8578; margin-bottom: 4px;">Focus</div>
+          <div style="font-size: 22px; font-weight: 700; color: #60a5fa;">68%</div>
+          <div style="font-size: 10px; color: #6b7280; margin-top: 2px;">Good</div>
+        </div>
+      </div>
+
+      <!-- AI Insight card -->
+      <div style="background: linear-gradient(135deg, #0f1f1a, #111827); border-radius: 14px; padding: 14px; margin-bottom: 14px; border: 1px solid #1f3a2e;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span style="font-size: 14px;">&#x2728;</span>
+          <span style="font-size: 11px; font-weight: 600; color: #2dd4a0;">AI Insight</span>
+        </div>
+        <div style="font-size: 13px; color: #d1cdc4; line-height: 1.5;">Your voice shows positive valence this morning. Stress is lower than yesterday — a good day for creative work.</div>
+      </div>
+
+      <!-- Sleep card -->
+      <div style="background: #111827; border-radius: 14px; padding: 14px; margin-bottom: 14px; border: 1px solid #1f2937;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 11px; color: #8b8578;">Last night's sleep</div>
+            <div style="font-size: 20px; font-weight: 700; color: #a78bfa;">7h 42m</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: #8b8578;">Quality</div>
+            <div style="font-size: 20px; font-weight: 700; color: #a78bfa;">82%</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 2px; margin-top: 10px; height: 6px; border-radius: 3px; overflow: hidden;">
+          <div style="flex: 2; background: #6366f1;" title="Deep"></div>
+          <div style="flex: 3; background: #818cf8;" title="Light"></div>
+          <div style="flex: 1.5; background: #c084fc;" title="REM"></div>
+          <div style="flex: 0.5; background: #374151;" title="Awake"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 9px; color: #6b7280;">
+          <span>Deep</span><span>Light</span><span>REM</span><span>Awake</span>
+        </div>
+      </div>
+
+      <!-- Health metrics row -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+        <div style="background: #111827; border-radius: 14px; padding: 14px; border: 1px solid #1f2937;">
+          <div style="font-size: 11px; color: #8b8578;">Heart Rate</div>
+          <div style="font-size: 22px; font-weight: 700;">72 <span style="font-size: 12px; color: #6b7280;">bpm</span></div>
+          <div style="font-size: 10px; color: #34d399;">Normal</div>
+        </div>
+        <div style="background: #111827; border-radius: 14px; padding: 14px; border: 1px solid #1f2937;">
+          <div style="font-size: 11px; color: #8b8578;">Steps</div>
+          <div style="font-size: 22px; font-weight: 700;">3,241</div>
+          <div style="font-size: 10px; color: #fbbf24;">40% of goal</div>
+        </div>
+      </div>
+
+      <!-- Nutrition summary -->
+      <div style="background: #111827; border-radius: 14px; padding: 14px; border: 1px solid #1f2937;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="font-size: 11px; color: #8b8578;">Today's Nutrition</div>
+          <div style="font-size: 11px; color: #f59e0b;">1,240 / 2,000 kcal</div>
+        </div>
+        <div style="height: 6px; background: #1f2937; border-radius: 3px; overflow: hidden;">
+          <div style="width: 62%; height: 100%; background: linear-gradient(90deg, #f59e0b, #f97316); border-radius: 3px;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Option B: Horizontal score bars -->
+  <div class="mockup" data-choice="bar-scores" onclick="toggleSelect(this)">
+    <div class="mockup-header">B: Score Bars + Cards</div>
+    <div class="mockup-body" style="background: #0a0e17; color: #e8e0d4; padding: 16px; font-family: system-ui; min-height: 600px;">
+
+      <!-- Header -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px;">
+        <div>
+          <div style="font-size: 11px; color: #8b8578;">Monday, March 17</div>
+          <div style="font-size: 18px; font-weight: 600;">Good morning</div>
+        </div>
+        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #2dd4a0, #059669); display:flex; align-items:center; justify-content:center; font-size: 14px; font-weight: 700; color: #0a0e17;">S</div>
+      </div>
+
+      <!-- Emotion hero -->
+      <div style="background: linear-gradient(135deg, #0f1f1a, #111827); border-radius: 18px; padding: 20px; margin-bottom: 16px; border: 1px solid #1f3a2e; text-align: center;">
+        <div style="font-size: 40px; margin-bottom: 4px;">&#x1F60A;</div>
+        <div style="font-size: 20px; font-weight: 700; color: #34d399;">Happy</div>
+        <div style="font-size: 12px; color: #8b8578; margin-top: 2px;">82% confidence &middot; via voice</div>
+      </div>
+
+      <!-- Score bars -->
+      <div style="background: #111827; border-radius: 14px; padding: 16px; margin-bottom: 14px; border: 1px solid #1f2937;">
+        <!-- Stress -->
+        <div style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+            <span style="color: #8b8578;">Stress</span>
+            <span style="color: #fbbf24; font-weight: 600;">32%</span>
+          </div>
+          <div style="height: 6px; background: #1f2937; border-radius: 3px; overflow: hidden;">
+            <div style="width: 32%; height: 100%; background: #fbbf24; border-radius: 3px;"></div>
+          </div>
+        </div>
+        <!-- Focus -->
+        <div style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+            <span style="color: #8b8578;">Focus</span>
+            <span style="color: #60a5fa; font-weight: 600;">68%</span>
+          </div>
+          <div style="height: 6px; background: #1f2937; border-radius: 3px; overflow: hidden;">
+            <div style="width: 68%; height: 100%; background: #60a5fa; border-radius: 3px;"></div>
+          </div>
+        </div>
+        <!-- Energy -->
+        <div style="margin-bottom: 0;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+            <span style="color: #8b8578;">Energy</span>
+            <span style="color: #34d399; font-weight: 600;">75%</span>
+          </div>
+          <div style="height: 6px; background: #1f2937; border-radius: 3px; overflow: hidden;">
+            <div style="width: 75%; height: 100%; background: #34d399; border-radius: 3px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI insight -->
+      <div style="background: #111827; border-radius: 14px; padding: 14px; margin-bottom: 14px; border: 1px solid #1f2937;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span style="font-size: 14px;">&#x2728;</span>
+          <span style="font-size: 11px; font-weight: 600; color: #2dd4a0;">AI Insight</span>
+        </div>
+        <div style="font-size: 13px; color: #d1cdc4; line-height: 1.5;">Your stress is 18% lower than your weekly average. Great time for deep work.</div>
+      </div>
+
+      <!-- Sleep + HR row -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+        <div style="background: #111827; border-radius: 14px; padding: 14px; border: 1px solid #1f2937;">
+          <div style="font-size: 11px; color: #8b8578;">Sleep</div>
+          <div style="font-size: 22px; font-weight: 700; color: #a78bfa;">7h 42m</div>
+          <div style="font-size: 10px; color: #a78bfa;">82% quality</div>
+        </div>
+        <div style="background: #111827; border-radius: 14px; padding: 14px; border: 1px solid #1f2937;">
+          <div style="font-size: 11px; color: #8b8578;">Heart Rate</div>
+          <div style="font-size: 22px; font-weight: 700;">72 <span style="font-size:12px;color:#6b7280;">bpm</span></div>
+          <div style="font-size: 10px; color: #34d399;">Resting</div>
+        </div>
+      </div>
+
+      <!-- Nutrition bar -->
+      <div style="background: #111827; border-radius: 14px; padding: 14px; border: 1px solid #1f2937;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+          <span style="color: #8b8578;">Calories</span>
+          <span style="color: #f59e0b; font-weight: 600;">1,240 / 2,000</span>
+        </div>
+        <div style="height: 6px; background: #1f2937; border-radius: 3px; overflow: hidden;">
+          <div style="width: 62%; height: 100%; background: linear-gradient(90deg, #f59e0b, #f97316); border-radius: 3px;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top: 1rem;">Click the layout you prefer. Both have the same data — just different visual hierarchy.</p>

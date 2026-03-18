@@ -1,0 +1,124 @@
+<h2>3 Pipeline Architecture Approaches</h2>
+<p class="subtitle">Where does the score computation actually run? This is the heart of "very strong pipeline."</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>PostgreSQL-Native Pipeline</h3>
+      <p>Score engines live INSIDE the database as SQL functions + triggers. Every INSERT fires score recomputation. Supabase Realtime pushes changes to dashboard.</p>
+      <div style="margin: 1rem 0; padding: 1rem; background: rgba(99,102,241,0.1); border-radius: 8px; font-size: 0.85rem; font-family: monospace; line-height: 1.8;">
+        INSERT health_sample → trigger → compute_recovery_score() → UPDATE user_scores → Realtime push → dashboard updates
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Zero external services — everything in Supabase</li>
+          <li>Atomic: score always consistent with data</li>
+          <li>$0 cost, no compute limits</li>
+          <li>Fastest possible latency (same machine)</li>
+          <li>Works 24/7 without any server running</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Complex SQL for score algorithms</li>
+          <li>Harder to debug than TypeScript/Python</li>
+          <li>14-day baseline windows = heavy queries on trigger</li>
+          <li>Limited to what PostgreSQL can compute</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Edge Functions Pipeline</h3>
+      <p>Supabase Edge Functions (Deno/TypeScript) handle ingestion + score computation. Triggered by database webhooks or direct HTTP calls from the app.</p>
+      <div style="margin: 1rem 0; padding: 1rem; background: rgba(16,185,129,0.1); border-radius: 8px; font-size: 0.85rem; font-family: monospace; line-height: 1.8;">
+        App → POST /functions/ingest-health → validate + store → call compute-scores → UPDATE user_scores → Realtime push
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>TypeScript — same language as frontend</li>
+          <li>Easy to test and debug locally</li>
+          <li>Complex algorithms are readable</li>
+          <li>500K free invocations/mo</li>
+          <li>Serverless — no server to manage</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>50ms cold start on first call</li>
+          <li>2-min max execution time per invocation</li>
+          <li>Extra network hop (function → DB → Realtime)</li>
+          <li>Free tier limit could matter at scale</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid: Triggers + Edge Functions</h3>
+      <p>Simple, fast operations in PostgreSQL triggers. Complex score algorithms in Edge Functions triggered by DB webhooks. Best of both worlds.</p>
+      <div style="margin: 1rem 0; padding: 1rem; background: rgba(251,191,36,0.1); border-radius: 8px; font-size: 0.85rem; font-family: monospace; line-height: 1.8;">
+        INSERT health_sample → <span style="color: #818cf8;">trigger: validate + tag + notify</span> → <span style="color: #10b981;">Edge Function: compute complex scores</span> → UPDATE user_scores → Realtime push
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Fast path: simple ops in DB (validation, tagging, aggregation)</li>
+          <li>Smart path: complex algorithms in TypeScript (TRIMP, AHEI, baselines)</li>
+          <li>Each layer does what it's best at</li>
+          <li>Testable TypeScript for business logic</li>
+          <li>Atomic DB operations for data integrity</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Two systems to maintain</li>
+          <li>Slightly more complex debugging</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(16,185,129,0.08); border-radius: 12px; border: 1px solid rgba(16,185,129,0.2);">
+  <h3 style="color: #10b981; margin-top: 0;">My Recommendation: Option C (Hybrid)</h3>
+  <p style="font-size: 0.9rem;">Here's exactly what goes where:</p>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+    <div style="padding: 1rem; background: rgba(99,102,241,0.1); border-radius: 8px;">
+      <strong style="color: #818cf8;">PostgreSQL Triggers (instant, in-DB)</strong>
+      <ul style="font-size: 0.82rem; margin: 0.5rem 0 0;">
+        <li>Data validation + deduplication</li>
+        <li>Daily aggregate rollups (avg HR, total steps, etc.)</li>
+        <li>Weight rate-of-change calculation</li>
+        <li>Simple threshold alerts (HR > 120, SpO2 < 94)</li>
+        <li>Updated_at timestamps on score tables</li>
+        <li>Notify channels for Realtime</li>
+      </ul>
+    </div>
+    <div style="padding: 1rem; background: rgba(16,185,129,0.1); border-radius: 8px;">
+      <strong style="color: #10b981;">Edge Functions (complex, TypeScript)</strong>
+      <ul style="font-size: 0.82rem; margin: 0.5rem 0 0;">
+        <li>Recovery Score (14-day baseline, multi-input weighted)</li>
+        <li>Strain Score (TRIMP, logarithmic scaling, HR zones)</li>
+        <li>Sleep Score (stages + HR dip + efficiency + debt)</li>
+        <li>Nutrition Score (AHEI calculation, food quality)</li>
+        <li>Energy Bank (composite of 4 scores)</li>
+        <li>Trend detection (anomaly detection, slope analysis)</li>
+        <li>Cardio Load (ATL vs CTL, 7 status categories)</li>
+        <li>Smart alarm computation</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
+    <h4 style="margin: 0 0 0.5rem; color: #fbbf24;">The Pipeline Flow</h4>
+    <div style="font-size: 0.85rem; line-height: 2; font-family: monospace;">
+      <div>1. App sends health data → <span style="color: #818cf8;">Edge Function: ingest-health</span> (validate, normalize, store)</div>
+      <div>2. INSERT into health_samples → <span style="color: #818cf8;">PG trigger: update daily_aggregates</span></div>
+      <div>3. PG trigger → <span style="color: #10b981;">pg_net: call Edge Function compute-scores</span></div>
+      <div>4. Edge Function reads 14-day window → computes all scores → UPSERTs user_scores</div>
+      <div>5. user_scores UPDATE → <span style="color: #f59e0b;">Supabase Realtime</span> → dashboard auto-updates</div>
+      <div>6. If anomaly detected → <span style="color: #ef4444;">push notification via Edge Function</span></div>
+    </div>
+  </div>
+</div>

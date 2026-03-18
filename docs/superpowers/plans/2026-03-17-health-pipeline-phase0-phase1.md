@@ -1,4 +1,4 @@
-# Bevel-Grade Health Pipeline: Phase 0 + Phase 1 Implementation Plan
+# Premium Health Pipeline: Phase 0 + Phase 1 Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Supabase (PostgreSQL, Auth, Edge Functions/Deno, Realtime, Storage), Drizzle ORM, React 18, TypeScript, Vercel Cron, Zod validation.
 
-**Spec:** `docs/superpowers/specs/2026-03-17-bevel-pipeline-design.md`
+**Spec:** `docs/superpowers/specs/2026-03-17-competitor-pipeline-design.md`
 
 ---
 

@@ -1,0 +1,325 @@
+<h2>Design Section 2B: Wearable Integrations</h2>
+<p class="subtitle">Every device is a first-class data source. Same pipeline, same scores, regardless of hardware.</p>
+
+<div class="section">
+  <h3>Supported Devices & What They Feed</h3>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+  <div style="padding: 1.2rem; background: rgba(239,68,68,0.08); border-radius: 8px; border-top: 3px solid #ef4444;">
+    <h4 style="color: #ef4444; margin: 0 0 0.3rem;">WHOOP Band</h4>
+    <div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.8rem;">OAuth2 API — developer.whoop.com</div>
+    <table style="width: 100%; font-size: 0.78rem; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Heart Rate</td>
+        <td style="padding: 3px 0; color: #10b981;">continuous</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">HRV (RMSSD)</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Resting HR</td>
+        <td style="padding: 3px 0; color: #10b981;">daily</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Respiratory Rate</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Skin Temp</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">SpO2</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Sleep Stages</td>
+        <td style="padding: 3px 0; color: #10b981;">light/deep/REM/awake</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Sleep Efficiency</td>
+        <td style="padding: 3px 0; color: #10b981;">% time asleep</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Strain (HR-based)</td>
+        <td style="padding: 3px 0; color: #10b981;">per workout + day</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Workouts</td>
+        <td style="padding: 3px 0; color: #10b981;">type, duration, HR</td>
+      </tr>
+      <tr>
+        <td style="padding: 3px 0;">Calories</td>
+        <td style="padding: 3px 0; color: #10b981;">active + basal</td>
+      </tr>
+    </table>
+    <div style="margin-top: 0.8rem; padding: 6px 10px; background: rgba(239,68,68,0.15); border-radius: 6px; font-size: 0.75rem;">
+      <strong>Sync method:</strong> OAuth2 + REST polling every 15 min + webhooks for real-time workout events
+    </div>
+  </div>
+
+  <div style="padding: 1.2rem; background: rgba(168,85,247,0.08); border-radius: 8px; border-top: 3px solid #a855f7;">
+    <h4 style="color: #a855f7; margin: 0 0 0.3rem;">Oura Ring</h4>
+    <div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.8rem;">OAuth2 API — cloud.ouraring.com</div>
+    <table style="width: 100%; font-size: 0.78rem; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Heart Rate</td>
+        <td style="padding: 3px 0; color: #10b981;">5-min intervals</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">HRV (RMSSD)</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly average</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Resting HR</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly lowest</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Respiratory Rate</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly avg</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Body Temp Deviation</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly delta from baseline</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">SpO2</td>
+        <td style="padding: 3px 0; color: #10b981;">nightly (Gen 3+)</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Sleep Stages</td>
+        <td style="padding: 3px 0; color: #10b981;">deep/light/REM/awake</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Sleep Efficiency</td>
+        <td style="padding: 3px 0; color: #10b981;">%</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Readiness Score</td>
+        <td style="padding: 3px 0; color: #10b981;">0-100</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Steps + Calories</td>
+        <td style="padding: 3px 0; color: #10b981;">daily</td>
+      </tr>
+      <tr>
+        <td style="padding: 3px 0;">Activity Score</td>
+        <td style="padding: 3px 0; color: #10b981;">0-100</td>
+      </tr>
+    </table>
+    <div style="margin-top: 0.8rem; padding: 6px 10px; background: rgba(168,85,247,0.15); border-radius: 6px; font-size: 0.75rem;">
+      <strong>Sync method:</strong> OAuth2 + REST polling every 15 min. Historical sync up to 2 years. Webhooks available.
+    </div>
+  </div>
+
+  <div style="padding: 1.2rem; background: rgba(59,130,246,0.08); border-radius: 8px; border-top: 3px solid #3b82f6;">
+    <h4 style="color: #3b82f6; margin: 0 0 0.3rem;">Garmin</h4>
+    <div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.8rem;">OAuth1 API — developer.garmin.com</div>
+    <table style="width: 100%; font-size: 0.78rem; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Heart Rate</td>
+        <td style="padding: 3px 0; color: #10b981;">continuous</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">HRV</td>
+        <td style="padding: 3px 0; color: #fbbf24;">nightly only</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Resting HR</td>
+        <td style="padding: 3px 0; color: #10b981;">daily</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Respiratory Rate</td>
+        <td style="padding: 3px 0; color: #10b981;">daily avg</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">SpO2</td>
+        <td style="padding: 3px 0; color: #10b981;">spot checks</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Sleep Stages</td>
+        <td style="padding: 3px 0; color: #10b981;">deep/light/REM</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Steps + Floors</td>
+        <td style="padding: 3px 0; color: #10b981;">daily</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">VO2 Max</td>
+        <td style="padding: 3px 0; color: #10b981;">estimated</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Workouts</td>
+        <td style="padding: 3px 0; color: #10b981;">GPS, HR, zones</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Body Battery</td>
+        <td style="padding: 3px 0; color: #10b981;">energy score</td>
+      </tr>
+      <tr>
+        <td style="padding: 3px 0;">Stress Level</td>
+        <td style="padding: 3px 0; color: #10b981;">0-100 continuous</td>
+      </tr>
+    </table>
+    <div style="margin-top: 0.8rem; padding: 6px 10px; background: rgba(59,130,246,0.15); border-radius: 6px; font-size: 0.75rem;">
+      <strong>Sync method:</strong> OAuth1 + push API (Garmin pushes to our webhook). Up to 1 month historical.
+    </div>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+  <div style="padding: 1.2rem; background: rgba(16,185,129,0.08); border-radius: 8px; border-top: 3px solid #10b981;">
+    <h4 style="color: #10b981; margin: 0 0 0.3rem;">Apple Watch / HealthKit</h4>
+    <div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.8rem;">Capacitor plugin — on-device</div>
+    <table style="width: 100%; font-size: 0.78rem; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Heart Rate</td><td style="color: #10b981;">continuous</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">HRV</td><td style="color: #10b981;">nightly SDNN</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">RHR</td><td style="color: #10b981;">daily</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Resp Rate / SpO2 / Temp</td><td style="color: #10b981;">all</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Sleep Stages</td><td style="color: #10b981;">full</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Weight / Body Fat</td><td style="color: #10b981;">from scales</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Workouts</td><td style="color: #10b981;">all types + HR</td>
+      </tr>
+      <tr>
+        <td style="padding: 3px 0;">Steps / Calories</td><td style="color: #10b981;">daily</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="padding: 1.2rem; background: rgba(251,191,36,0.08); border-radius: 8px; border-top: 3px solid #fbbf24;">
+    <h4 style="color: #fbbf24; margin: 0 0 0.3rem;">CGM (Dexcom / Libre)</h4>
+    <div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.8rem;">OAuth2 API — developer.dexcom.com</div>
+    <table style="width: 100%; font-size: 0.78rem; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Glucose (mg/dL)</td><td style="color: #10b981;">every 5 min</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Glucose Trend</td><td style="color: #10b981;">arrow direction</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Time in Range</td><td style="color: #10b981;">% in 70-180</td>
+      </tr>
+      <tr>
+        <td style="padding: 3px 0;">Per-meal response</td><td style="color: #10b981;">derived</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="padding: 1.2rem; background: rgba(120,113,108,0.08); border-radius: 8px; border-top: 3px solid #78716c;">
+    <h4 style="color: #a8a29e; margin: 0 0 0.3rem;">Any EEG Device</h4>
+    <div style="font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.8rem;">BrainFlow — local BLE/USB</div>
+    <table style="width: 100%; font-size: 0.78rem; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Raw EEG</td><td style="color: #10b981;">4-16ch, 256Hz+</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Band Powers</td><td style="color: #10b981;">delta-gamma</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Emotions</td><td style="color: #10b981;">6 classes + val/aro</td>
+      </tr>
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <td style="padding: 3px 0;">Sleep/Dream</td><td style="color: #10b981;">5 stages + lucidity</td>
+      </tr>
+      <tr>
+        <td style="padding: 3px 0;">Flow/Focus/Stress</td><td style="color: #10b981;">real-time indices</td>
+      </tr>
+    </table>
+    <div style="margin-top: 0.5rem; font-size: 0.75rem; color: #9ca3af;">
+      Muse 2/S, OpenBCI, Emotiv, NeuroSky, BrainBit, Crown, etc.
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Device Adapter Architecture</h3>
+</div>
+
+<div style="padding: 1.5rem; background: rgba(0,0,0,0.3); border-radius: 12px;">
+  <div style="font-family: monospace; font-size: 0.82rem; line-height: 2;">
+    <div style="color: #9ca3af;">// Every device implements WearableAdapter</div>
+    <div style="color: #818cf8;">interface WearableAdapter {</div>
+    <div>&nbsp;&nbsp;name: string&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9ca3af;">// "whoop" | "oura" | "garmin" | ...</span></div>
+    <div>&nbsp;&nbsp;authenticate(): Promise&lt;OAuthTokens&gt;</div>
+    <div>&nbsp;&nbsp;sync(userId: string, since: Date): Promise&lt;HealthSample[]&gt;</div>
+    <div>&nbsp;&nbsp;getCapabilities(): MetricType[]&nbsp;<span style="color: #9ca3af;">// what this device can provide</span></div>
+    <div>&nbsp;&nbsp;webhookHandler?(req): void&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #9ca3af;">// for push-based devices</span></div>
+    <div style="color: #818cf8;">}</div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// All adapters normalize to the same HealthSample format</div>
+    <div style="color: #818cf8;">interface HealthSample {</div>
+    <div>&nbsp;&nbsp;source: "whoop" | "oura" | "garmin" | "apple" | "google" | "cgm" | "eeg" | "manual"</div>
+    <div>&nbsp;&nbsp;metric: "heart_rate" | "hrv_rmssd" | "resting_hr" | "respiratory_rate" | "spo2" |</div>
+    <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"skin_temp" | "sleep_deep_min" | "sleep_rem_min" | "sleep_light_min" |</div>
+    <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"sleep_efficiency" | "steps" | "active_calories" | "weight_kg" |</div>
+    <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"body_fat_pct" | "vo2_max" | "workout_strain" | "glucose_mgdl" | ...</div>
+    <div>&nbsp;&nbsp;value: number</div>
+    <div>&nbsp;&nbsp;unit: string</div>
+    <div>&nbsp;&nbsp;recorded_at: Date</div>
+    <div>&nbsp;&nbsp;metadata?: Record&lt;string, unknown&gt;</div>
+    <div style="color: #818cf8;">}</div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// Pipeline doesn't care where data comes from</div>
+    <div style="color: #9ca3af;">// Same health_samples table, same triggers, same scores</div>
+    <div style="color: #10b981;">ingestHealthData(samples: HealthSample[]) → pipeline handles the rest</div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>OAuth Flow (Whoop, Oura, Garmin, CGM)</h3>
+</div>
+
+<div style="padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 8px; font-family: monospace; font-size: 0.82rem; line-height: 2;">
+  <div>1. User clicks "Connect Whoop" in Settings</div>
+  <div>2. Redirect → <span style="color: #ef4444;">api.prod.whoop.com/oauth/oauth2/auth</span></div>
+  <div>3. User authorizes → callback with auth code</div>
+  <div>4. <span style="color: #818cf8;">Edge Function: exchange code → access + refresh tokens</span></div>
+  <div>5. Store tokens in <span style="color: #10b981;">device_connections</span> table (encrypted)</div>
+  <div>6. Trigger initial historical sync (last 30 days)</div>
+  <div>7. Set up recurring sync (15-min polling) + webhook registration</div>
+  <div>8. All data → normalized HealthSample[] → <span style="color: #f59e0b;">pipeline</span></div>
+</div>
+
+<div style="margin-top: 1rem; padding: 1rem; background: rgba(99,102,241,0.08); border-radius: 8px; font-size: 0.82rem;">
+  <h4 style="color: #818cf8; margin: 0 0 0.5rem;">device_connections (new table)</h4>
+  <div style="font-family: monospace; line-height: 1.8;">
+    id uuid PK<br>
+    user_id uuid FK → users<br>
+    provider text (whoop | oura | garmin | dexcom | libre | strava)<br>
+    access_token text (encrypted)<br>
+    refresh_token text (encrypted)<br>
+    token_expires_at timestamptz<br>
+    scopes text[]<br>
+    last_sync_at timestamptz<br>
+    sync_status text (active | error | disconnected)<br>
+    error_message text<br>
+    connected_at timestamptz<br>
+    <span style="color: #818cf8;">UNIQUE(user_id, provider)</span>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.2rem; background: rgba(16,185,129,0.08); border-radius: 12px; border: 1px solid rgba(16,185,129,0.2);">
+  <h3 style="color: #10b981; margin-top: 0;">Data Source Priority (When Multiple Devices Report Same Metric)</h3>
+  <p style="font-size: 0.85rem;">If user wears both Whoop AND Oura, who wins for HRV?</p>
+  <div style="font-family: monospace; font-size: 0.82rem; line-height: 2; padding: 0.5rem;">
+    <div>1. <span style="color: #10b981;">User preference</span> — user picks primary device per metric in Settings</div>
+    <div>2. <span style="color: #fbbf24;">Highest fidelity</span> — if no preference, use device with most data points</div>
+    <div>3. <span style="color: #818cf8;">Recency</span> — if tied, use most recent reading</div>
+    <div>4. <span style="color: #9ca3af;">All stored</span> — every source writes to health_samples regardless, priority only affects score computation</div>
+  </div>
+</div>

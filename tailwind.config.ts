@@ -75,7 +75,7 @@ export default {
           purple: "var(--neural-purple)",
           green: "var(--neural-green)",
         },
-        // Bevel-inspired premium score colors
+        // Premium score colors
         'ndw-bg': '#0a0e17',
         'ndw-card': '#111827',
         'ndw-border': '#1f2937',

@@ -1,8 +1,8 @@
-# Bevel-Style UI Redesign Implementation Plan
+# Premium UI Redesign Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Redesign AntarAI into a clean 5-tab mobile app (Today | Discover | Mic | Nutrition | You) with Bevel-inspired card layouts.
+**Goal:** Redesign AntarAI into a clean 5-tab mobile app (Today | Discover | Mic | Nutrition | You) with Premium card layouts.
 
 **Architecture:** Replace 42-page cluttered web app with 4 new focused pages + updated bottom tabs + simplified app layout. Keep all existing sub-pages accessible from Discover. Mobile-only — remove sidebar, desktop header, neural background.
 
@@ -12,18 +12,18 @@
 
 ## Chunk 1: Design System + Layout Foundation
 
-### Task 1: Update CSS variables to Bevel color palette
+### Task 1: Update CSS variables to competitor color palette
 
 **Files:**
 - Modify: `client/src/index.css`
 
-- [ ] Update dark theme CSS variables to match Bevel:
+- [ ] Update dark theme CSS variables to match competitor:
   - `--background`: `hsl(225 40% 4%)` (maps to #0a0e17)
   - `--card`: `hsl(220 30% 9%)` (maps to #111827)
   - `--border`: `hsl(220 25% 14%)` (maps to #1f2937)
   - `--foreground`: `hsl(35 20% 90%)` (maps to #e8e0d4)
   - `--muted-foreground`: `hsl(35 8% 50%)` (maps to #8b8578)
-- [ ] Commit: `style: update CSS variables to Bevel dark palette`
+- [ ] Commit: `style: update CSS variables to competitor dark palette`
 
 ### Task 2: Strip desktop layout from app-layout.tsx
 
@@ -45,7 +45,7 @@
 - [ ] Update tabs array: Today (Sun icon, "/"), Discover (Compass icon, "/discover"), Nutrition (Apple icon, "/nutrition"), You (CircleUser icon, "/you")
 - [ ] Keep center mic button as-is (already implemented)
 - [ ] Update aliases: Today aliases=[], Discover aliases=["/inner-energy","/ai-companion","/brain-monitor","/dreams","/neurofeedback"], Nutrition aliases=["/food","/food-log","/food-emotion"], You aliases=["/settings","/sessions","/records"]
-- [ ] Commit: `feat: update bottom tabs to 5-tab Bevel layout`
+- [ ] Commit: `feat: update bottom tabs to 5-tab competitor layout`
 
 ---
 
@@ -72,9 +72,9 @@
   - Nutrition: fetch `/api/food/logs/{userId}` filtered to today
   - Sleep: from health metrics or `/api/health-metrics/{userId}`
 
-- [ ] All inline styles use Bevel colors (#0a0e17 bg, #111827 cards, #1f2937 borders)
+- [ ] All inline styles use competitor colors (#0a0e17 bg, #111827 cards, #1f2937 borders)
 - [ ] No voice input — stats only
-- [ ] Commit: `feat: create Bevel-style Today page`
+- [ ] Commit: `feat: create premium Today page`
 
 ---
 
@@ -94,7 +94,7 @@
 
 - [ ] Each card: emoji 28px + title 13px/600 + subtitle 10px/#8b8578
 - [ ] Card background: #111827, border: 1px solid #1f2937, border-radius: 14px, padding: 16px
-- [ ] Commit: `feat: create Bevel-style Discover page`
+- [ ] Commit: `feat: create premium Discover page`
 
 ### Task 6: Create nutrition.tsx page
 
@@ -111,7 +111,7 @@
 - [ ] Import and use `FoodCapture` component for camera/barcode flow
 - [ ] Fetch food logs from `/api/food/logs/{userId}`, aggregate today's totals
 - [ ] Craving: read voice emotion from localStorage, derive craving type
-- [ ] Commit: `feat: create Bevel-style Nutrition page`
+- [ ] Commit: `feat: create premium Nutrition page`
 
 ---
 
@@ -132,7 +132,7 @@
 
 - [ ] Grouped list style: section label (11px uppercase #8b8578), items in #111827 rounded-[14px] container, 1px borders between, emoji + title + optional badge + chevron
 - [ ] Platform detection via Capacitor.getPlatform() for health section
-- [ ] Commit: `feat: create Bevel-style You page`
+- [ ] Commit: `feat: create premium You page`
 
 ### Task 8: Update App.tsx routes
 
@@ -147,7 +147,7 @@
   - `/you` → `<You />`
 - [ ] Keep all existing sub-page routes (inner-energy, ai-companion, brain-monitor, etc.)
 - [ ] Remove routes for replaced pages: `/emotions` redirect to `/`, `/trends` redirect to `/discover`, `/food` and `/food-log` redirect to `/nutrition`, `/settings` redirect to `/you`
-- [ ] Commit: `feat: update routes for 5-tab Bevel layout`
+- [ ] Commit: `feat: update routes for 5-tab competitor layout`
 
 ---
 
@@ -174,4 +174,4 @@
 - [ ] Commit APK: `git add -f android/app/build/outputs/apk/debug/app-debug.apk`
 - [ ] Push to GitHub
 - [ ] Upload APK to v1.1.0-beta release
-- [ ] Commit: `chore: rebuild APK with Bevel UI redesign`
+- [ ] Commit: `chore: rebuild APK with competitor UI redesign`

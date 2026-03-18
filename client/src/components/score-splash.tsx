@@ -1,6 +1,6 @@
 /**
  * ScoreSplash — shows key scores for 3 seconds when opening Today tab,
- * then fades out to reveal the full dashboard. Like Bevel's opening summary.
+ * then fades out to reveal the full dashboard.
  *
  * Shows: Emotion (hero), Readiness, Stress, Focus — animated count-up.
  * Auto-dismisses after 3s or on tap.

@@ -1,0 +1,57 @@
+<h2>Where does this run?</h2>
+<p class="subtitle">This determines the entire pipeline backbone — database, event bus, real-time layer, and cost.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Local Development Only</h3>
+      <p>Runs on your Mac. No cloud costs. Redis + TimescaleDB locally. Best for prototyping, but no mobile access.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>$0 cost</li><li>Full control</li><li>Any database/tool</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>No mobile sync</li><li>Not shareable</li><li>Must be running</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Vercel + Railway</h3>
+      <p>Your current pattern. Vercel frontend, Railway for Express + FastAPI backends, Neon PostgreSQL.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Familiar stack</li><li>Railway supports Redis</li><li>Real deployment</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Railway costs ~$5-20/mo</li><li>Neon free tier: 0.5GB storage</li><li>No TimescaleDB on Neon</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Vercel + Supabase</h3>
+      <p>Supabase gives you PostgreSQL + real-time subscriptions + auth + storage on free tier. No separate Redis needed.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Free tier: 500MB DB + 1GB storage</li><li>Built-in real-time (Postgres LISTEN/NOTIFY)</li><li>Row-level security</li><li>Edge Functions for serverless</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>New integration work</li><li>No TimescaleDB extension</li><li>WebSocket streaming needs separate host</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>Hybrid: Local ML + Cloud Data</h3>
+      <p>FastAPI ML backend runs locally (EEG needs hardware). Express + DB in cloud. Best of both worlds.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>ML models stay on device (fast)</li><li>Data accessible from anywhere</li><li>Mobile health sync works remotely</li><li>EEG hardware needs local anyway</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Two environments to manage</li><li>Cloud DB costs if heavy usage</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.05); border-radius: 12px; border-left: 3px solid #fbbf24;">
+  <h3 style="color: #fbbf24; margin-top: 0;">Cost Warning</h3>
+  <p style="margin-bottom: 0;">Remember: you had forgotten services running on Render for months costing money with zero traffic. Whatever we pick, I'll keep costs visible and prefer free tiers. Current state: Railway has 3 active projects (skill-building, tesla-dashboard, neural-dream-ml).</p>
+</div>

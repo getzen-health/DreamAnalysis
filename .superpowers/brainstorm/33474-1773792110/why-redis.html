@@ -1,0 +1,180 @@
+<h2>Why Redis Makes the Pipeline Stronger</h2>
+<p class="subtitle">You asked the right question. Here's the honest comparison.</p>
+
+<div class="section">
+  <h3>Without Redis (what I proposed)</h3>
+  <div style="padding: 1rem; background: rgba(239,68,68,0.08); border-radius: 8px; font-family: monospace; font-size: 0.85rem; line-height: 2;">
+    <div>App → Edge Function → <span style="color: #f87171;">PostgreSQL INSERT (10-50ms)</span></div>
+    <div>PG trigger → <span style="color: #f87171;">pg_notify (fire-and-forget, can lose events)</span></div>
+    <div>Edge Function → <span style="color: #f87171;">reads 14-day window from PostgreSQL (50-200ms)</span></div>
+    <div>Dashboard reads scores → <span style="color: #f87171;">PostgreSQL query every time (10-50ms)</span></div>
+    <div>Biometric cache → <span style="color: #f87171;">in-memory on ML server (lost on restart)</span></div>
+  </div>
+  <p style="font-size: 0.85rem; color: #f87171; margin-top: 0.5rem;">Problems: pg_notify drops events under load. No job queue. No caching. Every read hits the database. Biometric state is volatile.</p>
+</div>
+
+<div class="section">
+  <h3>With Redis (what it should be)</h3>
+  <div style="padding: 1rem; background: rgba(16,185,129,0.08); border-radius: 8px; font-family: monospace; font-size: 0.85rem; line-height: 2;">
+    <div>App → Edge Function → <span style="color: #10b981;">Redis Stream: health.ingest (&lt;1ms)</span> + PostgreSQL INSERT</div>
+    <div>Redis Stream → <span style="color: #10b981;">BullMQ worker: score computation (guaranteed delivery)</span></div>
+    <div>Score engine → <span style="color: #10b981;">Redis cache: user:123:scores (sub-ms reads)</span></div>
+    <div>Dashboard reads scores → <span style="color: #10b981;">Redis cache hit (&lt;1ms)</span>, DB only for history</div>
+    <div>Biometric cache → <span style="color: #10b981;">Redis: user:123:biometrics (persists across restarts)</span></div>
+  </div>
+  <p style="font-size: 0.85rem; color: #10b981; margin-top: 0.5rem;">Redis gives: guaranteed event delivery, sub-ms reads, persistent cache, background job queues, pub/sub for real-time.</p>
+</div>
+
+<div class="split" style="margin-top: 1.5rem;">
+  <div class="mockup">
+    <div class="mockup-header">What Redis Adds to Each Layer</div>
+    <div class="mockup-body" style="font-size: 0.85rem;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <td style="padding: 8px; color: #fbbf24; font-weight: bold;">Layer</td>
+          <td style="padding: 8px; color: #fbbf24; font-weight: bold;">Without Redis</td>
+          <td style="padding: 8px; color: #fbbf24; font-weight: bold;">With Redis</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <td style="padding: 8px; color: #9ca3af;">Event Bus</td>
+          <td style="padding: 8px;">pg_notify (lossy)</td>
+          <td style="padding: 8px; color: #10b981;">Redis Streams (durable, replayable)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <td style="padding: 8px; color: #9ca3af;">Job Queue</td>
+          <td style="padding: 8px;">None (synchronous)</td>
+          <td style="padding: 8px; color: #10b981;">BullMQ (retries, priorities, scheduling)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <td style="padding: 8px; color: #9ca3af;">Score Cache</td>
+          <td style="padding: 8px;">Hit PostgreSQL every read</td>
+          <td style="padding: 8px; color: #10b981;">Redis cache, &lt;1ms, DB only for cold start</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <td style="padding: 8px; color: #9ca3af;">Biometric State</td>
+          <td style="padding: 8px;">In-memory (lost on crash)</td>
+          <td style="padding: 8px; color: #10b981;">Redis hash (persists across restarts)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <td style="padding: 8px; color: #9ca3af;">Rate Limiting</td>
+          <td style="padding: 8px;">express-rate-limit (in-memory)</td>
+          <td style="padding: 8px; color: #10b981;">Redis sliding window (distributed)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <td style="padding: 8px; color: #9ca3af;">Real-time Push</td>
+          <td style="padding: 8px;">Supabase Realtime only</td>
+          <td style="padding: 8px; color: #10b981;">Redis Pub/Sub + Supabase Realtime</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; color: #9ca3af;">Session State</td>
+          <td style="padding: 8px;">PostgreSQL sessions</td>
+          <td style="padding: 8px; color: #10b981;">Redis sessions (100x faster)</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Cost: Upstash Redis (Serverless)</div>
+    <div class="mockup-body" style="font-size: 0.85rem;">
+      <div style="padding: 1rem; background: rgba(16,185,129,0.1); border-radius: 8px; margin-bottom: 1rem;">
+        <h4 style="color: #10b981; margin: 0 0 0.5rem;">Free Tier</h4>
+        <ul style="margin: 0;">
+          <li>10,000 commands/day</li>
+          <li>256 MB storage</li>
+          <li>Serverless (no server to manage)</li>
+          <li>REST + native Redis protocol</li>
+          <li>Works from Edge Functions</li>
+          <li>Global replication</li>
+        </ul>
+      </div>
+      <div style="padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 1rem;">
+        <h4 style="color: #9ca3af; margin: 0 0 0.5rem;">If You Outgrow Free</h4>
+        <p style="margin: 0;">Pay-as-you-go: $0.2 per 100K commands. Typical health app with 1 user: ~500 commands/day. Free tier handles it easily.</p>
+      </div>
+      <div style="padding: 1rem; background: rgba(251,191,36,0.1); border-radius: 8px;">
+        <h4 style="color: #fbbf24; margin: 0 0 0.5rem;">Why Upstash, Not Self-Hosted</h4>
+        <ul style="margin: 0;">
+          <li>No Docker container to run</li>
+          <li>No Railway/Render cost</li>
+          <li>HTTP API works from Supabase Edge Functions</li>
+          <li>Auto-scales, no memory management</li>
+          <li>$0 when idle</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(99,102,241,0.08); border-radius: 12px; border: 1px solid rgba(99,102,241,0.2);">
+  <h3 style="color: #818cf8; margin-top: 0;">Updated Pipeline Architecture (with Redis)</h3>
+  <div style="font-family: monospace; font-size: 0.82rem; line-height: 2.2; padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 8px;">
+    <div style="color: #9ca3af;">// INGESTION</div>
+    <div>1. App/HealthKit → <span style="color: #818cf8;">Edge Function: ingest-health</span></div>
+    <div>2. Validate + normalize → <span style="color: #10b981;">INSERT PostgreSQL</span> + <span style="color: #f87171;">PUBLISH Redis Stream</span></div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// PROCESSING</div>
+    <div>3. <span style="color: #f87171;">BullMQ worker</span> consumes stream → reads 14-day window from PG</div>
+    <div>4. Computes Recovery, Sleep, Strain, Stress, Energy Bank, Nutrition scores</div>
+    <div>5. Writes scores → <span style="color: #10b981;">PostgreSQL user_scores</span> + <span style="color: #f87171;">Redis cache</span></div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// DELIVERY</div>
+    <div>6. <span style="color: #fbbf24;">Supabase Realtime</span> detects user_scores UPDATE → pushes to dashboard</div>
+    <div>7. Dashboard reads current scores from <span style="color: #f87171;">Redis cache (&lt;1ms)</span></div>
+    <div>8. Dashboard reads history from <span style="color: #10b981;">PostgreSQL (trends, charts)</span></div>
+    <div>&nbsp;</div>
+    <div style="color: #9ca3af;">// ALERTING</div>
+    <div>9. BullMQ worker detects anomaly → <span style="color: #ef4444;">push notification Edge Function</span></div>
+    <div>10. Trend detection runs on <span style="color: #f87171;">scheduled BullMQ job</span> (daily at midnight)</div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(16,185,129,0.08); border-radius: 12px; border: 1px solid rgba(16,185,129,0.2);">
+  <h3 style="color: #10b981; margin-top: 0;">Updated Full Stack (Still $0)</h3>
+  <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse;">
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <td style="padding: 8px; font-weight: bold;">Layer</td>
+      <td style="padding: 8px; font-weight: bold;">Service</td>
+      <td style="padding: 8px; font-weight: bold;">Cost</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <td style="padding: 8px;">Frontend</td>
+      <td style="padding: 8px;">Vercel</td>
+      <td style="padding: 8px; color: #10b981;">$0</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <td style="padding: 8px;">Database</td>
+      <td style="padding: 8px;">Supabase PostgreSQL</td>
+      <td style="padding: 8px; color: #10b981;">$0 (500MB)</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <td style="padding: 8px;">Event Bus + Cache</td>
+      <td style="padding: 8px;">Upstash Redis</td>
+      <td style="padding: 8px; color: #10b981;">$0 (10K cmd/day)</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <td style="padding: 8px;">API + Score Engines</td>
+      <td style="padding: 8px;">Supabase Edge Functions</td>
+      <td style="padding: 8px; color: #10b981;">$0 (500K/mo)</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <td style="padding: 8px;">Auth</td>
+      <td style="padding: 8px;">Supabase Auth</td>
+      <td style="padding: 8px; color: #10b981;">$0 (50K MAU)</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <td style="padding: 8px;">File Storage</td>
+      <td style="padding: 8px;">Supabase Storage</td>
+      <td style="padding: 8px; color: #10b981;">$0 (1GB)</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px;">ML Backend</td>
+      <td style="padding: 8px;">Local FastAPI</td>
+      <td style="padding: 8px; color: #10b981;">$0</td>
+    </tr>
+    <tr style="border-top: 2px solid rgba(16,185,129,0.3);">
+      <td style="padding: 8px; font-weight: bold;" colspan="2">Total Monthly</td>
+      <td style="padding: 8px; color: #10b981; font-weight: bold; font-size: 1.1rem;">$0</td>
+    </tr>
+  </table>
+</div>

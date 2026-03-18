@@ -1,14 +1,14 @@
-# NeuralDreamWorkshop: Bevel-Grade Health Pipeline Design Spec
+# NeuralDreamWorkshop: Premium Health Pipeline Design Spec
 
 **Date:** 2026-03-17
 **Status:** Approved
-**Scope:** Full Supabase migration + event-driven health pipeline + all Bevel features + EEG integration
+**Scope:** Full Supabase migration + event-driven health pipeline + all competitor features + EEG integration
 
 ---
 
 ## 1. Overview
 
-Transform NeuralDreamWorkshop from an EEG-focused emotion lab into a complete health platform that matches every Bevel feature (Recovery/Sleep/Strain/Stress/Nutrition scores, Energy Bank, exercise tracking, weight/body composition, habit journal, cycle tracking, smart alarm, cardio load, wearable integrations) while retaining our EEG moat (16 ML models, dream analysis, flow detection, voice biomarkers).
+Transform NeuralDreamWorkshop from an EEG-focused emotion lab into a complete health platform that matches every competitor feature (Recovery/Sleep/Strain/Stress/Nutrition scores, Energy Bank, exercise tracking, weight/body composition, habit journal, cycle tracking, smart alarm, cardio load, wearable integrations) while retaining our EEG moat (16 ML models, dream analysis, flow detection, voice biomarkers).
 
 ### Architecture Decision
 
@@ -555,7 +555,7 @@ strain = 14.3 × ln(1 + TRIMP)  // k=14.3 maps to ~0-21 scale (Whoop-equivalent)
 - Skin temp deviation: 10%
 - **EEG (when active): 20%** — high-beta/beta ratio, frontal asymmetry, theta suppression
 
-This is our biggest differentiator. Whoop/Bevel guess stress from HR. We measure it from the brain directly.
+This is our biggest differentiator. Whoop/competitor guess stress from HR. We measure it from the brain directly.
 
 ### 5.5 Nutrition Score (1-100)
 
@@ -794,9 +794,9 @@ Tokens in `device_connections` are encrypted using Supabase Vault (`pgsodium` ex
 
 ---
 
-## 12. What Makes This Different From Bevel
+## 12. What Makes This Different From competitor
 
-Every score has an **EEG bonus** that Bevel, Whoop, and Oura can never match:
+Every score has an **EEG bonus** that competitor, Whoop, and Oura can never match:
 
 | Feature | Them (HR-only) | Us (HR + EEG) |
 |---------|---------------|---------------|
