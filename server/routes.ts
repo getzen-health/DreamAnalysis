@@ -34,7 +34,10 @@ import {
   aiChats, brainReadings, emotionReadings,
   exercises, workouts, workoutSets, workoutTemplates,
   bodyMetrics, exerciseHistory,
+  habits, habitLogs, cycleTracking, moodLogs,
+  deviceConnections,
 } from "@shared/schema";
+import { wearableAdapters } from "../lib/wearables";
 import { computeCardioLoad } from "@shared/cardio";
 import { db } from "./db";
 import { eq, gte, lt, lte, and, or, asc, desc, sql, ilike, arrayContains } from "drizzle-orm";
@@ -3877,6 +3880,710 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to compute cardio load");
       return res.status(500).json({ error: "Failed to compute cardio load" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // HABITS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/habits — create a new habit
+  app.post("/api/habits", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { name, category, icon, targetValue, unit } = req.body;
+      if (!name) return res.status(400).json({ error: "name is required" });
+
+      const [created] = await db.insert(habits).values({
+        userId,
+        name,
+        category: category ?? null,
+        icon: icon ?? null,
+        targetValue: targetValue != null ? String(targetValue) : null,
+        unit: unit ?? null,
+      }).returning();
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to create habit");
+      return res.status(500).json({ error: "Failed to create habit" });
+    }
+  });
+
+  // GET /api/habits/:userId — list user's active habits
+  app.get("/api/habits/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const rows = await db.select().from(habits)
+        .where(and(eq(habits.userId, userId), eq(habits.isActive, true)))
+        .orderBy(asc(habits.createdAt));
+
+      return res.json(rows);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to list habits");
+      return res.status(500).json({ error: "Failed to list habits" });
+    }
+  });
+
+  // PUT /api/habits/:id — update habit
+  app.put("/api/habits/:id", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { name, targetValue, unit, isActive, category, icon } = req.body;
+
+      // Verify ownership
+      const [existing] = await db.select().from(habits)
+        .where(and(eq(habits.id, req.params.id), eq(habits.userId, userId)))
+        .limit(1);
+      if (!existing) return res.status(404).json({ error: "Habit not found" });
+
+      const updates: Record<string, unknown> = {};
+      if (name !== undefined) updates.name = name;
+      if (targetValue !== undefined) updates.targetValue = targetValue != null ? String(targetValue) : null;
+      if (unit !== undefined) updates.unit = unit;
+      if (isActive !== undefined) updates.isActive = isActive;
+      if (category !== undefined) updates.category = category;
+      if (icon !== undefined) updates.icon = icon;
+
+      const [updated] = await db.update(habits)
+        .set(updates)
+        .where(eq(habits.id, req.params.id))
+        .returning();
+
+      return res.json(updated);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to update habit");
+      return res.status(500).json({ error: "Failed to update habit" });
+    }
+  });
+
+  // DELETE /api/habits/:id — soft delete (set isActive=false)
+  app.delete("/api/habits/:id", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const [existing] = await db.select().from(habits)
+        .where(and(eq(habits.id, req.params.id), eq(habits.userId, userId)))
+        .limit(1);
+      if (!existing) return res.status(404).json({ error: "Habit not found" });
+
+      await db.update(habits)
+        .set({ isActive: false })
+        .where(eq(habits.id, req.params.id));
+
+      return res.json({ deleted: true });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to delete habit");
+      return res.status(500).json({ error: "Failed to delete habit" });
+    }
+  });
+
+  // POST /api/habit-logs — log a habit entry
+  app.post("/api/habit-logs", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { habitId, value, note } = req.body;
+      if (!habitId || value == null) return res.status(400).json({ error: "habitId and value are required" });
+
+      // Verify habit ownership
+      const [habit] = await db.select().from(habits)
+        .where(and(eq(habits.id, habitId), eq(habits.userId, userId)))
+        .limit(1);
+      if (!habit) return res.status(404).json({ error: "Habit not found" });
+
+      const [created] = await db.insert(habitLogs).values({
+        userId,
+        habitId,
+        value: String(value),
+        note: note ?? null,
+      }).returning();
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to log habit");
+      return res.status(500).json({ error: "Failed to log habit" });
+    }
+  });
+
+  // GET /api/habit-logs/:userId — get logs for last 30 days
+  app.get("/api/habit-logs/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const days = Math.min(Math.max(parseInt((req.query.days as string) || "30", 10), 1), 365);
+      const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const rows = await db.select().from(habitLogs)
+        .where(and(eq(habitLogs.userId, userId), gte(habitLogs.loggedAt, fromDate)))
+        .orderBy(desc(habitLogs.loggedAt));
+
+      return res.json(rows);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch habit logs");
+      return res.status(500).json({ error: "Failed to fetch habit logs" });
+    }
+  });
+
+  // GET /api/habit-logs/:userId/streaks — compute current streaks per habit
+  app.get("/api/habit-logs/:userId/streaks", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      // Get all active habits
+      const userHabits = await db.select().from(habits)
+        .where(and(eq(habits.userId, userId), eq(habits.isActive, true)));
+
+      // Get all habit logs for the last 365 days
+      const fromDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      const logs = await db.select().from(habitLogs)
+        .where(and(eq(habitLogs.userId, userId), gte(habitLogs.loggedAt, fromDate)))
+        .orderBy(desc(habitLogs.loggedAt));
+
+      // Group logs by habitId -> set of date strings (YYYY-MM-DD)
+      const logsByHabit = new Map<string, Set<string>>();
+      for (const log of logs) {
+        if (!log.habitId) continue;
+        if (!logsByHabit.has(log.habitId)) logsByHabit.set(log.habitId, new Set());
+        const dateStr = log.loggedAt ? new Date(log.loggedAt).toISOString().slice(0, 10) : null;
+        if (dateStr) logsByHabit.get(log.habitId)!.add(dateStr);
+      }
+
+      // Compute streaks: count consecutive days going backwards from today
+      const streaks: Record<string, number> = {};
+      const today = new Date();
+
+      for (const habit of userHabits) {
+        const dates = logsByHabit.get(habit.id) ?? new Set();
+        let streak = 0;
+        const checkDate = new Date(today);
+
+        while (true) {
+          const dateStr = checkDate.toISOString().slice(0, 10);
+          if (dates.has(dateStr)) {
+            streak++;
+            checkDate.setDate(checkDate.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+
+        streaks[habit.id] = streak;
+      }
+
+      return res.json(streaks);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to compute habit streaks");
+      return res.status(500).json({ error: "Failed to compute habit streaks" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CYCLE TRACKING
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/cycle — log cycle data
+  app.post("/api/cycle", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { date, flowLevel, symptoms, contraception, basalTemp, notes } = req.body;
+      if (!date) return res.status(400).json({ error: "date is required" });
+
+      // Upsert: if entry for this date already exists, update it
+      const [existing] = await db.select().from(cycleTracking)
+        .where(and(eq(cycleTracking.userId, userId), eq(cycleTracking.date, date)))
+        .limit(1);
+
+      if (existing) {
+        const [updated] = await db.update(cycleTracking)
+          .set({
+            flowLevel: flowLevel ?? existing.flowLevel,
+            symptoms: symptoms ?? existing.symptoms,
+            contraception: contraception ?? existing.contraception,
+            basalTemp: basalTemp != null ? String(basalTemp) : existing.basalTemp,
+            notes: notes ?? existing.notes,
+          })
+          .where(eq(cycleTracking.id, existing.id))
+          .returning();
+
+        return res.json(updated);
+      }
+
+      const [created] = await db.insert(cycleTracking).values({
+        userId,
+        date,
+        flowLevel: flowLevel ?? null,
+        symptoms: symptoms ?? null,
+        contraception: contraception ?? null,
+        basalTemp: basalTemp != null ? String(basalTemp) : null,
+        notes: notes ?? null,
+      }).returning();
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to log cycle data");
+      return res.status(500).json({ error: "Failed to log cycle data" });
+    }
+  });
+
+  // GET /api/cycle/:userId — get cycle data (last 90 days)
+  app.get("/api/cycle/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const days = Math.min(Math.max(parseInt((req.query.days as string) || "90", 10), 1), 365);
+      const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      const rows = await db.select().from(cycleTracking)
+        .where(and(eq(cycleTracking.userId, userId), gte(cycleTracking.date, fromDate)))
+        .orderBy(desc(cycleTracking.date));
+
+      return res.json(rows);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch cycle data");
+      return res.status(500).json({ error: "Failed to fetch cycle data" });
+    }
+  });
+
+  // GET /api/cycle/:userId/phase — predict current phase
+  app.get("/api/cycle/:userId/phase", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      // Get all cycle data (last 365 days for averaging)
+      const fromDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      const rows = await db.select().from(cycleTracking)
+        .where(and(
+          eq(cycleTracking.userId, userId),
+          gte(cycleTracking.date, fromDate),
+        ))
+        .orderBy(asc(cycleTracking.date));
+
+      // Find period starts (days where flowLevel is not 'none' and not null,
+      // preceded by a day with 'none' or no entry)
+      const periodStarts: string[] = [];
+      for (let i = 0; i < rows.length; i++) {
+        const flow = rows[i].flowLevel;
+        if (flow && flow !== "none") {
+          // Check if previous day was none or no entry
+          if (i === 0) {
+            periodStarts.push(rows[i].date);
+          } else {
+            const prevDate = new Date(rows[i].date);
+            prevDate.setDate(prevDate.getDate() - 1);
+            const prevDateStr = prevDate.toISOString().slice(0, 10);
+            const prevRow = rows.find(r => r.date === prevDateStr);
+            if (!prevRow || prevRow.flowLevel === "none" || !prevRow.flowLevel) {
+              periodStarts.push(rows[i].date);
+            }
+          }
+        }
+      }
+
+      // Average cycle length from past 3 cycles
+      let avgCycleLength = 28;
+      if (periodStarts.length >= 2) {
+        const cycleLengths: number[] = [];
+        const count = Math.min(periodStarts.length - 1, 3);
+        for (let i = periodStarts.length - count; i < periodStarts.length; i++) {
+          const prev = new Date(periodStarts[i - 1]);
+          const curr = new Date(periodStarts[i]);
+          const diffDays = Math.round((curr.getTime() - prev.getTime()) / (24 * 60 * 60 * 1000));
+          if (diffDays > 15 && diffDays < 60) {
+            cycleLengths.push(diffDays);
+          }
+        }
+        if (cycleLengths.length > 0) {
+          avgCycleLength = Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length);
+        }
+      }
+
+      // Predict current phase
+      const lastPeriodStart = periodStarts.length > 0 ? periodStarts[periodStarts.length - 1] : null;
+      let currentPhase = "unknown";
+      let dayOfCycle = 0;
+      let nextPeriodDate: string | null = null;
+
+      if (lastPeriodStart) {
+        const lastStart = new Date(lastPeriodStart);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        dayOfCycle = Math.round((today.getTime() - lastStart.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+
+        if (dayOfCycle >= 1 && dayOfCycle <= 5) {
+          currentPhase = "menstrual";
+        } else if (dayOfCycle >= 6 && dayOfCycle <= 13) {
+          currentPhase = "follicular";
+        } else if (dayOfCycle >= 14 && dayOfCycle <= 16) {
+          currentPhase = "ovulatory";
+        } else if (dayOfCycle >= 17 && dayOfCycle <= avgCycleLength) {
+          currentPhase = "luteal";
+        } else {
+          // Past expected cycle length — period may be late
+          currentPhase = "late";
+        }
+
+        const nextStart = new Date(lastStart);
+        nextStart.setDate(nextStart.getDate() + avgCycleLength);
+        nextPeriodDate = nextStart.toISOString().slice(0, 10);
+      }
+
+      return res.json({
+        currentPhase,
+        dayOfCycle,
+        avgCycleLength,
+        lastPeriodStart,
+        nextPeriodDate,
+        periodStartCount: periodStarts.length,
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to predict cycle phase");
+      return res.status(500).json({ error: "Failed to predict cycle phase" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MOOD LOGS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/mood — log mood
+  app.post("/api/mood", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { moodScore, energyLevel, notes } = req.body;
+      if (moodScore == null) return res.status(400).json({ error: "moodScore is required" });
+
+      const score = parseFloat(String(moodScore));
+      if (score < 1 || score > 10) return res.status(400).json({ error: "moodScore must be 1-10" });
+
+      const [created] = await db.insert(moodLogs).values({
+        userId,
+        moodScore: String(moodScore),
+        energyLevel: energyLevel != null ? String(energyLevel) : null,
+        notes: notes ?? null,
+      }).returning();
+
+      // Pipeline integration: feed mood into health_samples
+      try {
+        await db.insert(healthSamples).values({
+          userId,
+          source: "manual",
+          metric: "mood_score",
+          value: score,
+          unit: "score_1_10",
+          recordedAt: created.loggedAt ?? new Date(),
+        }).onConflictDoNothing();
+      } catch (pipelineErr) {
+        logger.error({ error: pipelineErr instanceof Error ? pipelineErr.message : String(pipelineErr) }, "Failed to insert mood into health_samples (non-fatal)");
+      }
+
+      return res.status(201).json(created);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to log mood");
+      return res.status(500).json({ error: "Failed to log mood" });
+    }
+  });
+
+  // GET /api/mood/:userId — get mood logs (last 30 days)
+  app.get("/api/mood/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const days = Math.min(Math.max(parseInt((req.query.days as string) || "30", 10), 1), 365);
+      const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const rows = await db.select().from(moodLogs)
+        .where(and(eq(moodLogs.userId, userId), gte(moodLogs.loggedAt, fromDate)))
+        .orderBy(desc(moodLogs.loggedAt));
+
+      return res.json(rows);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch mood logs");
+      return res.status(500).json({ error: "Failed to fetch mood logs" });
+    }
+  });
+
+  // ── Wearable Device Connection Routes ──────────────────────────────────────
+
+  const INGEST_EDGE_FN = 'https://tpiyavugafhplsmwvrel.supabase.co/functions/v1/ingest-health-data';
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+
+  /** List connected devices for the authenticated user */
+  app.get("/api/devices/:userId", async (req, res) => {
+    const userId = requireOwnerExpress(req, res);
+    if (!userId) return;
+
+    try {
+      const connections = await db.select({
+        id: deviceConnections.id,
+        provider: deviceConnections.provider,
+        lastSyncAt: deviceConnections.lastSyncAt,
+        syncStatus: deviceConnections.syncStatus,
+        errorMessage: deviceConnections.errorMessage,
+        connectedAt: deviceConnections.connectedAt,
+        scopes: deviceConnections.scopes,
+      })
+        .from(deviceConnections)
+        .where(eq(deviceConnections.userId, userId));
+
+      return res.json({ devices: connections });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to list devices");
+      return res.status(500).json({ error: "Failed to list devices" });
+    }
+  });
+
+  /** Initiate OAuth flow for a wearable provider */
+  app.post("/api/devices/connect/:provider", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { provider } = req.params;
+    const adapter = wearableAdapters[provider];
+    if (!adapter) return res.status(400).json({ error: `Unknown provider: ${provider}` });
+
+    try {
+      const state = crypto.randomBytes(16).toString('hex');
+      // Store state in session for CSRF protection
+      (req.session as any)[`oauth_state_${provider}`] = state;
+      (req.session as any)[`oauth_user_${provider}`] = userId;
+
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const redirectUri = `${protocol}://${host}/api/devices/callback/${provider}`;
+
+      const authUrl = adapter.getAuthUrl(redirectUri, state);
+      return res.json({ authUrl, state });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error), provider }, "Failed to initiate OAuth");
+      return res.status(500).json({ error: "Failed to initiate OAuth flow" });
+    }
+  });
+
+  /** Handle OAuth callback — exchange code for tokens, save connection, trigger initial sync */
+  app.get("/api/devices/callback/:provider", async (req, res) => {
+    const { provider } = req.params;
+    const { code, state } = req.query;
+    const adapter = wearableAdapters[provider];
+
+    if (!adapter) return res.status(400).send("Unknown provider");
+    if (!code || typeof code !== 'string') return res.status(400).send("Missing authorization code");
+
+    // Verify state for CSRF protection
+    const expectedState = (req.session as any)?.[`oauth_state_${provider}`];
+    const userId = (req.session as any)?.[`oauth_user_${provider}`];
+
+    if (!userId) return res.status(400).send("Session expired — please try connecting again from settings.");
+    if (expectedState && state !== expectedState) return res.status(400).send("Invalid state parameter — possible CSRF attack.");
+
+    try {
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const redirectUri = `${protocol}://${host}/api/devices/callback/${provider}`;
+
+      const tokens = await adapter.exchangeCode(code, redirectUri);
+
+      // Upsert device connection (replace if already exists for this user+provider)
+      await db.insert(deviceConnections)
+        .values({
+          userId,
+          provider,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken ?? null,
+          tokenExpiresAt: tokens.expiresAt ?? null,
+          scopes: tokens.scopes ?? null,
+          syncStatus: 'active',
+          errorMessage: null,
+        })
+        .onConflictDoUpdate({
+          target: [deviceConnections.userId, deviceConnections.provider],
+          set: {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken ?? null,
+            tokenExpiresAt: tokens.expiresAt ?? null,
+            scopes: tokens.scopes ?? null,
+            syncStatus: 'active',
+            errorMessage: null,
+            connectedAt: sql`now()`,
+          },
+        });
+
+      // Clean up session state
+      delete (req.session as any)[`oauth_state_${provider}`];
+      delete (req.session as any)[`oauth_user_${provider}`];
+
+      // Trigger initial sync (last 7 days) in the background
+      const since = new Date();
+      since.setDate(since.getDate() - 7);
+
+      adapter.sync(tokens.accessToken, since).then(async (samples) => {
+        if (samples.length > 0) {
+          // Forward to Supabase Edge Function for ingestion
+          try {
+            await fetch(INGEST_EDGE_FN, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              },
+              body: JSON.stringify({ userId, samples }),
+            });
+          } catch (e) {
+            logger.error({ error: e instanceof Error ? e.message : String(e), provider }, "Failed to ingest initial sync data");
+          }
+        }
+
+        // Update last sync time
+        await db.update(deviceConnections)
+          .set({ lastSyncAt: new Date(), syncStatus: 'active', errorMessage: null })
+          .where(and(eq(deviceConnections.userId, userId), eq(deviceConnections.provider, provider)));
+
+        logger.info({ provider, userId, sampleCount: samples.length }, "Initial device sync completed");
+      }).catch(async (error) => {
+        logger.error({ error: error instanceof Error ? error.message : String(error), provider }, "Initial sync failed");
+        await db.update(deviceConnections)
+          .set({ syncStatus: 'error', errorMessage: error instanceof Error ? error.message : String(error) })
+          .where(and(eq(deviceConnections.userId, userId), eq(deviceConnections.provider, provider)));
+      });
+
+      // Return success HTML that closes the popup window
+      return res.send(`
+        <!DOCTYPE html>
+        <html><head><title>Connected</title></head>
+        <body>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'device-connected', provider: '${provider}' }, '*');
+              window.close();
+            } else {
+              document.body.innerHTML = '<h2>Device connected successfully. You can close this window.</h2>';
+            }
+          </script>
+          <h2>Device connected successfully. Closing...</h2>
+        </body></html>
+      `);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error), provider }, "OAuth callback failed");
+      return res.status(500).send(`
+        <!DOCTYPE html>
+        <html><head><title>Connection Failed</title></head>
+        <body>
+          <h2>Failed to connect ${provider}.</h2>
+          <p>${error instanceof Error ? error.message : 'Unknown error'}</p>
+          <p>Please close this window and try again.</p>
+        </body></html>
+      `);
+    }
+  });
+
+  /** Trigger manual sync for a connected provider */
+  app.post("/api/devices/sync/:provider", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { provider } = req.params;
+    const adapter = wearableAdapters[provider];
+    if (!adapter) return res.status(400).json({ error: `Unknown provider: ${provider}` });
+
+    try {
+      // Get stored connection
+      const [connection] = await db.select()
+        .from(deviceConnections)
+        .where(and(eq(deviceConnections.userId, userId), eq(deviceConnections.provider, provider)));
+
+      if (!connection) return res.status(404).json({ error: "Device not connected" });
+
+      let accessToken = connection.accessToken;
+
+      // Refresh token if expired
+      if (connection.tokenExpiresAt && new Date(connection.tokenExpiresAt) < new Date()) {
+        if (!connection.refreshToken) {
+          await db.update(deviceConnections)
+            .set({ syncStatus: 'error', errorMessage: 'Token expired and no refresh token available' })
+            .where(eq(deviceConnections.id, connection.id));
+          return res.status(401).json({ error: "Token expired — please reconnect the device" });
+        }
+
+        const newTokens = await adapter.refreshToken(connection.refreshToken);
+        accessToken = newTokens.accessToken;
+
+        await db.update(deviceConnections)
+          .set({
+            accessToken: newTokens.accessToken,
+            refreshToken: newTokens.refreshToken ?? connection.refreshToken,
+            tokenExpiresAt: newTokens.expiresAt ?? null,
+          })
+          .where(eq(deviceConnections.id, connection.id));
+      }
+
+      // Sync from last sync time or last 24 hours
+      const since = connection.lastSyncAt
+        ? new Date(connection.lastSyncAt)
+        : new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      const samples = await adapter.sync(accessToken, since);
+
+      if (samples.length > 0) {
+        await fetch(INGEST_EDGE_FN, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ userId, samples }),
+        });
+      }
+
+      await db.update(deviceConnections)
+        .set({ lastSyncAt: new Date(), syncStatus: 'active', errorMessage: null })
+        .where(eq(deviceConnections.id, connection.id));
+
+      return res.json({ synced: samples.length, lastSyncAt: new Date().toISOString() });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error), provider }, "Manual sync failed");
+
+      // Update sync status to error
+      await db.update(deviceConnections)
+        .set({ syncStatus: 'error', errorMessage: error instanceof Error ? error.message : String(error) })
+        .where(and(eq(deviceConnections.userId, userId), eq(deviceConnections.provider, provider)));
+
+      return res.status(500).json({ error: "Sync failed" });
+    }
+  });
+
+  /** Disconnect a device (delete from device_connections) */
+  app.delete("/api/devices/:provider", async (req, res) => {
+    const userId = getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { provider } = req.params;
+
+    try {
+      const result = await db.delete(deviceConnections)
+        .where(and(eq(deviceConnections.userId, userId), eq(deviceConnections.provider, provider)));
+
+      return res.json({ disconnected: true, provider });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error), provider }, "Failed to disconnect device");
+      return res.status(500).json({ error: "Failed to disconnect device" });
     }
   });
 
