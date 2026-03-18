@@ -73,7 +73,7 @@
   --secondary: hsl(270 40% 60%);       /* softer purple — emotional, not cold */
   --secondary-foreground: hsl(270 15% 95%);
   --muted: hsl(255 12% 16%);           /* #27243a — warm muted */
-  --muted-foreground: hsl(30 12% 55%); /* #9c8e7d — warm taupe, not gray */
+  --muted-foreground: hsl(30 12% 63%); /* warm taupe — WCAG AA 4.5:1 on dark bg */
   --accent: hsl(32 85% 55%);           /* warm amber-gold — emotion warmth */
   --accent-foreground: hsl(32 30% 10%);
   --destructive: hsl(0 65% 55%);       /* softer red — less alarming */
@@ -98,6 +98,26 @@
   textarea,
   select {
     color: inherit;
+  }
+
+  /* WCAG 2.1 AA — visible focus indicators on all interactive elements */
+  :focus-visible {
+    outline: 2px solid hsl(165 60% 45%);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* WCAG 2.1 AA — minimum 44x44px touch targets for mobile */
+  @media (pointer: coarse) {
+    button,
+    [role="button"],
+    a,
+    input[type="checkbox"],
+    input[type="radio"],
+    select {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
 }
 
@@ -226,7 +246,7 @@
   }
 
   .nav-section-label {
-    @apply text-[10px] font-semibold tracking-widest uppercase px-3 pt-4 pb-1;
+    @apply text-[11px] font-semibold tracking-widest uppercase px-3 pt-4 pb-1;
     color: var(--muted-foreground);
   }
 

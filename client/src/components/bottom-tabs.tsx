@@ -103,7 +103,7 @@ export function BottomTabs() {
           className={`transition-colors ${
             isActive
               ? "text-primary"
-              : "text-muted-foreground/55"
+              : "text-muted-foreground"
           }`}
           style={{ width: 24, height: 24 }}
           aria-hidden="true"
@@ -111,10 +111,10 @@ export function BottomTabs() {
           fill={isActive ? "currentColor" : "none"}
         />
         <span
-          className={`text-[10px] leading-none tracking-tight transition-colors ${
+          className={`text-[11px] leading-none tracking-tight transition-colors ${
             isActive
               ? "text-primary font-semibold"
-              : "text-muted-foreground/55 font-normal"
+              : "text-muted-foreground font-normal"
           }`}
         >
           {tab.label}
@@ -162,6 +162,8 @@ export function BottomTabs() {
       {/* Voice analysis modal */}
       {showCheckin && (
         <div
+          role="dialog"
+          aria-label="Voice check-in"
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
           onClick={() => setShowCheckin(false)}
         >
