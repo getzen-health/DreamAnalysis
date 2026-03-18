@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { EmotionStrip } from "@/components/emotion-strip";
 
 /* ---------- types ---------- */
 
@@ -288,11 +289,12 @@ export default function Habits() {
     <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <motion.div
-        className="flex items-center justify-between"
+        className="space-y-2"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
+        <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <ListChecks className="h-5 w-5 text-primary" />
@@ -408,6 +410,8 @@ export default function Habits() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
+        <EmotionStrip />
       </motion.div>
 
       {/* Habits list */}

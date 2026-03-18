@@ -27,6 +27,7 @@ import {
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { ScoreGauge } from "@/components/score-gauge";
+import { EmotionStrip } from "@/components/emotion-strip";
 
 /* ---------- types ---------- */
 
@@ -300,9 +301,12 @@ export default function BodyMetrics() {
   return (
     <main className="px-4 pt-2 pb-24 space-y-4 max-w-xl mx-auto">
       {/* Page Header */}
-      <motion.div className="flex items-center gap-2 mb-1" {...fadeInUp}>
-        <Scale className="h-5 w-5 text-primary" />
-        <h1 className="text-lg font-semibold text-foreground">Body Metrics</h1>
+      <motion.div className="space-y-2 mb-1" {...fadeInUp}>
+        <div className="flex items-center gap-2">
+          <Scale className="h-5 w-5 text-primary" />
+          <h1 className="text-lg font-semibold text-foreground">Body Metrics</h1>
+        </div>
+        <EmotionStrip />
       </motion.div>
 
       {/* Quick Log Card */}

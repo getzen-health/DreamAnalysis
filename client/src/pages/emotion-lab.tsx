@@ -255,6 +255,8 @@ export default function EmotionLab() {
           timestamp: Date.now(),
         }));
       } catch { /* storage full */ }
+      // Notify all useCurrentEmotion hooks
+      window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
     }
     prevResultRef.current = voiceEmotion.lastResult;
   }, [voiceEmotion.lastResult]);

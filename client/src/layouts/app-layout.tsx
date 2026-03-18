@@ -12,6 +12,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useKeyboardScroll } from "@/hooks/use-keyboard-scroll";
 import { pingBackend } from "@/lib/ml-api";
 import { Loader2, Sun, Moon, ChevronLeft } from "lucide-react";
+import { EmotionBadge } from "@/components/emotion-badge";
 
 const routeTitles: Record<string, string> = {
   "/": "Today",
@@ -139,7 +140,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <p className="text-[14px] font-semibold text-foreground leading-tight truncate">
               {pageTitle}
             </p>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1.5">
+              <EmotionBadge
+                size="sm"
+                showLabel
+                onClick={() => window.dispatchEvent(new Event("ndw-open-voice-checkin"))}
+              />
               <button
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 className="w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground active:bg-muted/40 transition-colors"

@@ -27,6 +27,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { motion } from "framer-motion";
+import { EmotionStrip } from "@/components/emotion-strip";
 import {
   Dumbbell,
   Play,
@@ -1158,18 +1159,21 @@ export default function WorkoutPage() {
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
       <motion.div
-        className="flex items-center gap-3 mb-2"
+        className="space-y-2 mb-2"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-ndw-recovery to-ndw-stress">
-          <Dumbbell className="h-5 w-5 text-white" />
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-ndw-recovery to-ndw-stress">
+            <Dumbbell className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Strength Builder</h1>
+            <p className="text-xs text-muted-foreground">Log workouts and track progress</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Strength Builder</h1>
-          <p className="text-xs text-muted-foreground">Log workouts and track progress</p>
-        </div>
+        <EmotionStrip />
       </motion.div>
 
       <Tabs value={tab} onValueChange={setTab}>

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Sun,
   Compass,
@@ -29,6 +29,13 @@ export function BottomTabs() {
   const [location] = useLocation();
   const [showCheckin, setShowCheckin] = useState(false);
   const queryClient = useQueryClient();
+
+  // Allow other components (e.g. EmotionBadge) to open the voice check-in modal
+  useEffect(() => {
+    const openHandler = () => setShowCheckin(true);
+    window.addEventListener("ndw-open-voice-checkin", openHandler);
+    return () => window.removeEventListener("ndw-open-voice-checkin", openHandler);
+  }, []);
 
   function handleCheckinComplete() {
     setShowCheckin(false);

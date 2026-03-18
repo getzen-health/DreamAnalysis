@@ -32,6 +32,7 @@ import { ScoreCard } from "@/components/score-card";
 import { ScoreGauge } from "@/components/score-gauge";
 import { EnergyBattery } from "@/components/energy-battery";
 import { getMLApiUrl } from "@/lib/ml-api";
+import { EmotionStrip } from "@/components/emotion-strip";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -195,6 +196,9 @@ export default function ScoresDashboard() {
               })}`
             : "Real-time health overview"}
         </p>
+        <div className="mt-2">
+          <EmotionStrip />
+        </div>
       </motion.div>
 
       {/* ── Hero: Energy Bank ──────────────────────────────────────────── */}

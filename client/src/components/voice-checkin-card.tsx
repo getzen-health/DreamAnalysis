@@ -327,6 +327,17 @@ export function VoiceCheckinCard({
         setResult(checkinResult);
         if (period) markCheckinDone(period, checkinResult);
         setCardState("done");
+
+        // Persist to ndw_last_emotion so useCurrentEmotion picks it up everywhere
+        try {
+          localStorage.setItem("ndw_last_emotion", JSON.stringify({
+            result: checkinResult,
+            timestamp: Date.now(),
+          }));
+        } catch { /* storage quota */ }
+        // Notify all mounted useCurrentEmotion hooks instantly
+        window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
+
         onComplete?.(checkinResult);
 
         // Fire-and-forget: record a streak check-in so the StreakCard updates
