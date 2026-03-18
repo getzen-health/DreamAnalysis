@@ -222,6 +222,7 @@ export function useAmbientVoice(): UseAmbientVoiceReturn {
             audio_b64: b64,
             sample_rate: sampleRate,
             user_id: resolvedUserId,
+            real_time: true,  // Use SenseVoice fast path for ambient mode
           }),
         });
 
