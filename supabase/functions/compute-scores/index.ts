@@ -1,12 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-// Score engine stubs — full implementations come in Phase 4
-function computeRecoveryScore(_agg: any[], _base: any[]): number | null { return null }
-function computeSleepScore(_agg: any[], _base: any[]): number | null { return null }
-function computeStrainScore(_agg: any[], _base: any[]): number | null { return null }
-function computeStressScore(_agg: any[], _base: any[]): number | null { return null }
-function computeNutritionScore(_agg: any[], _base: any[]): number | null { return null }
-function computeEnergyBank(_scores: Record<string, number | null>): number | null { return null }
+import {
+  computeRecoveryScore,
+  computeSleepScore,
+  computeStrainScore,
+  computeStressScore,
+  computeNutritionScore,
+  computeEnergyBank,
+} from '../../../shared/score-engines.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
@@ -33,13 +33,20 @@ Deno.serve(async (req: Request) => {
   const agg = aggregates || []
   const base = baselines || []
 
+  const recovery = computeRecoveryScore(agg, base)
+  const sleep = computeSleepScore(agg, base)
+  const strain = computeStrainScore(agg, base)
+  const stress = computeStressScore(agg, base)
+  const nutrition = computeNutritionScore(agg, base)
+  const energy = computeEnergyBank({ recovery, sleep, strain, stress, nutrition })
+
   const scores = {
-    recovery_score: computeRecoveryScore(agg, base),
-    sleep_score: computeSleepScore(agg, base),
-    strain_score: computeStrainScore(agg, base),
-    stress_score: computeStressScore(agg, base),
-    nutrition_score: computeNutritionScore(agg, base),
-    energy_bank: computeEnergyBank({}),
+    recovery_score: recovery,
+    sleep_score: sleep,
+    strain_score: strain,
+    stress_score: stress,
+    nutrition_score: nutrition,
+    energy_bank: energy,
     computed_at: new Date().toISOString(),
   }
 
@@ -53,7 +60,7 @@ Deno.serve(async (req: Request) => {
     { onConflict: 'user_id,date' }
   )
 
-  return new Response(JSON.stringify({ scores, status: 'skeleton' }), {
+  return new Response(JSON.stringify({ scores, status: 'live' }), {
     status: 200, headers: { 'Content-Type': 'application/json' },
   })
 })
