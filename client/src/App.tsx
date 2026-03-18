@@ -78,6 +78,7 @@ const BodyMetrics            = lazy(() => import("@/pages/body-metrics"));
 const WorkoutPage            = lazy(() => import("@/pages/workout"));
 const HabitsPage             = lazy(() => import("@/pages/habits"));
 const WellnessPage           = lazy(() => import("@/pages/wellness"));
+const ScoresDashboard        = lazy(() => import("@/pages/scores-dashboard"));
 
 // ── Error Boundary — prevents a single page crash from taking down the whole app ──
 class ErrorBoundary extends Component<
@@ -415,6 +416,13 @@ function AppRoutes() {
         <ProtectedRoute>
           <Suspense fallback={<PageLoader />}>
             <AppLayout><WellnessPage /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/scores">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><ScoresDashboard /></AppLayout>
           </Suspense>
         </ProtectedRoute>
       </Route>

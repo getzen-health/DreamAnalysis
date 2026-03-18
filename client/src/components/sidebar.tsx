@@ -58,6 +58,7 @@ const coreSections: NavSection[] = [
       { path: "/food",           label: "Food & Mood",    icon: Utensils },
       { path: "/dreams",         label: "Dreams",         icon: Moon },
       { path: "/biofeedback",    label: "Breathe",        icon: Wind },
+      { path: "/scores",         label: "Health Scores",  icon: Activity },
       { path: "/ai-companion",   label: "AI Companion",   icon: MessageCircle },
     ],
   },

@@ -74,7 +74,19 @@ export default {
           cyan: "var(--neural-cyan)",
           purple: "var(--neural-purple)",
           green: "var(--neural-green)",
-        }
+        },
+        // Bevel-inspired premium score colors
+        'ndw-bg': '#0a0e17',
+        'ndw-card': '#111827',
+        'ndw-border': '#1f2937',
+        'ndw-text': '#e8e0d4',
+        'ndw-muted': '#8b8578',
+        'ndw-recovery': '#2dd4a0',
+        'ndw-sleep': '#a78bfa',
+        'ndw-strain': '#f87171',
+        'ndw-stress': '#f59e0b',
+        'ndw-nutrition': '#fbbf24',
+        'ndw-energy': '#ec4899',
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
