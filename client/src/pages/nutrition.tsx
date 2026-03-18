@@ -163,6 +163,98 @@ function MacroBar({ value, goal, color }: { value: number; goal: number; color: 
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+// ── Expandable Meal Card (Appediet-style) ─────────────────────────────────
+
+function MealCard({ log, isLast }: { log: FoodLog; isLast: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const items = log.foodItems ?? [];
+  const totalP = items.reduce((s, f) => s + (f.protein_g ?? 0), 0);
+  const totalC = items.reduce((s, f) => s + (f.carbs_g ?? 0), 0);
+  const totalF = items.reduce((s, f) => s + (f.fat_g ?? 0), 0);
+
+  // AI insight for this meal
+  const insight = (() => {
+    const cal = log.totalCalories ?? 0;
+    if (cal > 800) return "🔥 High-calorie meal — balance with lighter options later";
+    if (cal < 200) return "🥗 Light meal — you may need a snack soon";
+    if (totalP > 25) return "💪 Great protein intake — supports muscle and mood";
+    if (totalC > 60) return "⚡ Carb-heavy — expect an energy boost, then a dip";
+    return "✅ Balanced meal — good nutrient distribution";
+  })();
+
+  return (
+    <div style={{ borderBottom: isLast ? "none" : "1px solid var(--border)" }}>
+      {/* Main row — tappable to expand */}
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: "flex", alignItems: "center", padding: "12px 14px", cursor: "pointer",
+        }}
+      >
+        <span style={{ fontSize: 18, marginRight: 10 }}>
+          {MEAL_ICONS[log.mealType ?? "snack"] ?? "🍽️"}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 500, color: "var(--foreground)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {log.summary ?? "Meal"}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+            {formatTime(log.loggedAt)} · {getMealLabel(log.mealType)}
+          </div>
+        </div>
+        {log.totalCalories != null && (
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#e8b94a", flexShrink: 0, marginRight: 6 }}>
+            {log.totalCalories} kcal
+          </div>
+        )}
+        <span style={{ color: "var(--muted-foreground)", fontSize: 14, transition: "transform 0.2s", transform: expanded ? "rotate(90deg)" : "none" }}>›</span>
+      </div>
+
+      {/* Expanded: per-item breakdown + AI insight */}
+      {expanded && (
+        <div style={{ padding: "0 14px 12px 42px" }}>
+          {/* Per-item list */}
+          {items.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              {items.map((item, i) => (
+                <div key={i} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "baseline",
+                  fontSize: 11, color: "var(--muted-foreground)", padding: "3px 0",
+                }}>
+                  <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{item.name}</span>
+                  <span style={{ fontSize: 10, flexShrink: 0, marginLeft: 8 }}>
+                    {Math.round(item.calories)} kcal · {item.portion}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Macro breakdown */}
+          <div style={{
+            display: "flex", gap: 12, fontSize: 10, color: "var(--muted-foreground)", marginBottom: 8,
+          }}>
+            <span><span style={{ color: "#7ba7d9" }}>P</span> {Math.round(totalP)}g</span>
+            <span><span style={{ color: "#e8b94a" }}>C</span> {Math.round(totalC)}g</span>
+            <span><span style={{ color: "#e87676" }}>F</span> {Math.round(totalF)}g</span>
+          </div>
+
+          {/* AI insight */}
+          <div style={{
+            fontSize: 11, color: "var(--muted-foreground)", fontStyle: "italic",
+            padding: "6px 10px", background: "var(--muted)", borderRadius: 8,
+          }}>
+            {insight}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Nutrition() {
   const userId = getParticipantId();
   const qc = useQueryClient();
@@ -408,27 +500,42 @@ export default function Nutrition() {
         }}
       />
 
-      {/* Action Buttons */}
+      {/* Action Buttons — Appediet-style: Scan (primary) + Describe + Barcode */}
       {captureMode === "none" && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <div style={{ marginBottom: 14 }}>
+          {/* Primary: Camera scan — large button */}
           <button
             onClick={() => cameraInputRef.current?.click()}
             style={{
-              flex: 1, background: "#f59e0b", color: "#0a0e17", borderRadius: 12,
-              padding: 12, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+              width: "100%", background: "linear-gradient(135deg, #e8b94a, #d4940a)",
+              color: "#13111a", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700,
+              border: "none", cursor: "pointer", marginBottom: 8,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}
           >
-            📷 Capture Meal
+            📷 Scan Your Meal
           </button>
-          <button
-            onClick={() => setCaptureMode("text")}
-            style={{
-              flex: 1, background: "var(--card)", color: "var(--foreground)", borderRadius: 12,
-              padding: 12, fontSize: 13, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer",
-            }}
-          >
-            ✍ Describe
-          </button>
+          {/* Secondary row: Describe + Barcode */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setCaptureMode("text")}
+              style={{
+                flex: 1, background: "var(--card)", color: "var(--foreground)", borderRadius: 12,
+                padding: 10, fontSize: 12, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer",
+              }}
+            >
+              ✍ Describe Meal
+            </button>
+            <button
+              onClick={() => setCaptureMode("text")}
+              style={{
+                flex: 1, background: "var(--card)", color: "var(--foreground)", borderRadius: 12,
+                padding: 10, fontSize: 12, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer",
+              }}
+            >
+              📊 Enter Barcode
+            </button>
+          </div>
         </div>
       )}
 
@@ -560,54 +667,7 @@ export default function Nutrition() {
             </div>
           ) : (
             todayLogs.map((log, idx) => (
-              <div
-                key={log.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "12px 14px",
-                  borderBottom:
-                    idx < todayLogs.length - 1 ? "1px solid var(--border)" : "none",
-                }}
-              >
-                {/* Meal icon */}
-                <span style={{ fontSize: 18, marginRight: 10 }}>
-                  {MEAL_ICONS[log.mealType ?? "snack"] ?? "🍽️"}
-                </span>
-
-                {/* Name + time */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: "var(--foreground)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {log.summary ?? "Meal"}
-                  </div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-                    {formatTime(log.loggedAt)} · {getMealLabel(log.mealType)}
-                  </div>
-                </div>
-
-                {/* Calories */}
-                {log.totalCalories != null && (
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#f59e0b",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {log.totalCalories} kcal
-                  </div>
-                )}
-              </div>
+              <MealCard key={log.id} log={log} isLast={idx === todayLogs.length - 1} />
             ))
           )}
         </div>
