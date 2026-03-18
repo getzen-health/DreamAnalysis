@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useKeyboardScroll } from "@/hooks/use-keyboard-scroll";
 import { pingBackend } from "@/lib/ml-api";
-import { Loader2, Sun, Moon, ChevronLeft } from "lucide-react";
+import { Loader2, Sun, Moon, Monitor, ChevronLeft } from "lucide-react";
 import { StreakCelebration } from "@/components/streak-celebration";
 import { EmotionBadge } from "@/components/emotion-badge";
 
@@ -107,7 +107,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, [user]);
 
   const { ref: pullRef, pullDistance, refreshing } = usePullRefresh<HTMLDivElement>();
-  const { theme, setTheme } = useTheme();
+  const { theme, themeSetting, setTheme } = useTheme();
 
   const pageTitle = routeTitles[location] || "Dashboard";
   const dateStr = currentTime.toLocaleDateString("en-US", {
@@ -148,11 +148,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 onClick={() => window.dispatchEvent(new Event("ndw-open-voice-checkin"))}
               />
               <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={() => {
+                  const next = themeSetting === "dark" ? "light" : themeSetting === "light" ? "auto" : "dark";
+                  setTheme(next);
+                }}
                 className="w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground active:bg-muted/40 transition-colors"
-                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                aria-label={`Theme: ${themeSetting} (tap to change)`}
               >
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {themeSetting === "dark" ? <Sun className="h-4 w-4" /> : themeSetting === "light" ? <Moon className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
               </button>
             </div>
           </header>

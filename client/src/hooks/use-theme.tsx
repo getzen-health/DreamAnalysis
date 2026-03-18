@@ -55,7 +55,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    localStorage.setItem("neural-theme", theme);
     document.documentElement.classList.toggle("dark", theme === "dark");
     // Update mobile status bar color to match theme
     const meta = document.querySelector('meta[name="theme-color"]');

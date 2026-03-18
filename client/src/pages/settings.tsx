@@ -66,7 +66,7 @@ interface HealthConnectionStatus {
 }
 
 export default function SettingsPage() {
-  const { theme, setTheme } = useTheme();
+  const { theme, themeSetting, setTheme } = useTheme();
   const userId = USER_ID;
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -656,16 +656,24 @@ export default function SettingsPage() {
               </Label>
               <div className="flex space-x-3">
                 <Button
-                  variant={theme === "dark" ? "default" : "outline"}
-                  className={`flex-1 ${theme === "dark" ? "bg-primary/20 border-primary/30 text-primary" : ""}`}
+                  variant={themeSetting === "dark" ? "default" : "outline"}
+                  className={`flex-1 ${themeSetting === "dark" ? "bg-primary/20 border-primary/30 text-primary" : ""}`}
                   onClick={() => setTheme("dark")}
                   data-testid="button-theme-dark"
                 >
                   Dark Mode
                 </Button>
                 <Button
-                  variant={theme === "light" ? "default" : "outline"}
-                  className={`flex-1 ${theme === "light" ? "bg-primary/20 border-primary/30 text-primary" : ""}`}
+                  variant={themeSetting === "auto" ? "default" : "outline"}
+                  className={`flex-1 ${themeSetting === "auto" ? "bg-primary/20 border-primary/30 text-primary" : ""}`}
+                  onClick={() => setTheme("auto")}
+                  data-testid="button-theme-auto"
+                >
+                  Auto
+                </Button>
+                <Button
+                  variant={themeSetting === "light" ? "default" : "outline"}
+                  className={`flex-1 ${themeSetting === "light" ? "bg-primary/20 border-primary/30 text-primary" : ""}`}
                   onClick={() => setTheme("light")}
                   data-testid="button-theme-light"
                 >
