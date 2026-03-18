@@ -552,7 +552,8 @@ function MoodTab() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
       >
-        <p className="text-sm font-semibold text-foreground">Current state</p>
+        <p className="text-sm font-semibold text-foreground">Energy & Mood Log</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">Optional personal tracking — not used for automatic emotion detection</p>
 
         {/* Mood slider with face */}
         <div className="space-y-3">
@@ -780,7 +781,7 @@ export default function Wellness() {
           Wellness
         </h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Cycle tracking and mood logging
+          Cycle tracking and optional mood logging
         </p>
       </motion.div>
 

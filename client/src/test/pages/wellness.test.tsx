@@ -34,7 +34,7 @@ describe("Wellness page", () => {
   it("shows subtitle text", () => {
     renderWithProviders(<Wellness />);
     expect(
-      screen.getByText("Cycle tracking and mood logging")
+      screen.getByText("Cycle tracking and optional mood logging")
     ).toBeInTheDocument();
   });
 

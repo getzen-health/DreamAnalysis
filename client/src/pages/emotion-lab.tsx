@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useVoiceEmotion } from "@/hooks/use-voice-emotion";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, resolveUrl } from "@/lib/queryClient";
+import { resolveUrl } from "@/lib/queryClient";
 import { submitFeedback } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import {
@@ -64,33 +64,6 @@ const EMOTION_LABELS: Record<string, string> = {
   focused: "Focused",
   neutral: "Neutral",
   surprise: "Surprised",
-};
-
-const QUICK_MOODS = [
-  { value: "happy", label: "Happy", color: "#0891b2", bgClass: "bg-cyan-600/10 border-cyan-600/30 hover:bg-cyan-600/20" },
-  { value: "sad", label: "Sad", color: "#6366f1", bgClass: "bg-indigo-500/10 border-indigo-500/30 hover:bg-indigo-500/20" },
-  { value: "angry", label: "Angry", color: "#ea580c", bgClass: "bg-orange-600/10 border-orange-600/30 hover:bg-orange-600/20" },
-  { value: "fearful", label: "Fearful", color: "#d4a017", bgClass: "bg-yellow-600/10 border-yellow-600/30 hover:bg-yellow-600/20" },
-  { value: "surprise", label: "Surprised", color: "#d946ef", bgClass: "bg-fuchsia-500/10 border-fuchsia-500/30 hover:bg-fuchsia-500/20" },
-  { value: "neutral", label: "Neutral", color: "#94a3b8", bgClass: "bg-slate-500/10 border-slate-500/30 hover:bg-slate-500/20" },
-];
-
-const VALENCE_MAP: Record<string, number> = {
-  happy: 0.7,
-  sad: -0.6,
-  angry: -0.5,
-  fearful: -0.4,
-  surprise: 0.2,
-  neutral: 0.0,
-};
-
-const AROUSAL_MAP: Record<string, number> = {
-  happy: 0.6,
-  sad: 0.2,
-  angry: 0.8,
-  fearful: 0.7,
-  surprise: 0.7,
-  neutral: 0.3,
 };
 
 function getSmartLabel(emotion: string, bands: Record<string, number>): string {
@@ -216,7 +189,6 @@ export default function EmotionLab() {
   const { latestFrame, state: deviceState, reconnectCount } = useDevice();
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const voiceEmotion = useVoiceEmotion();
 
   // Voice recording countdown timer (30s default duration)
@@ -466,54 +438,6 @@ export default function EmotionLab() {
     return [...recentReadingsRaw].reverse().slice(0, 7);
   }, [recentReadingsRaw]);
 
-  /* ---------- Quick mood log mutation ---------- */
-  const quickMoodMutation = useMutation({
-    mutationFn: async (moodValue: string) => {
-      const reading = {
-        userId: participantId,
-        sessionId: `quick-${Date.now()}`,
-        stress: moodValue === "angry" || moodValue === "fearful" ? 0.6 : 0.1,
-        happiness: moodValue === "happy" ? 0.8 : 0.0,
-        focus: 0.5,
-        energy: AROUSAL_MAP[moodValue] ?? 0.5,
-        dominantEmotion: moodValue,
-        valence: VALENCE_MAP[moodValue] ?? 0.0,
-        arousal: AROUSAL_MAP[moodValue] ?? 0.5,
-      };
-      await apiRequest("POST", "/api/emotion-readings/batch", {
-        readings: [reading],
-      });
-      return moodValue;
-    },
-    onSuccess: (moodValue) => {
-      toast({
-        title: `Mood logged: ${EMOTION_LABELS[moodValue] ?? moodValue}`,
-        description: "Your analysis has been saved.",
-      });
-      queryClient.invalidateQueries({
-        queryKey: [`/api/brain/history/${participantId}?days=1`],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [`/api/brain/history/${participantId}?days=7`],
-      });
-      queryClient.invalidateQueries({ queryKey: ["emotions"] });
-    },
-    onError: () => {
-      toast({ title: "Failed to log mood", variant: "destructive" });
-    },
-  });
-
-  const [selectedQuickMood, setSelectedQuickMood] = useState<string | null>(
-    null
-  );
-
-  function handleQuickMood(value: string) {
-    setSelectedQuickMood(value);
-    quickMoodMutation.mutate(value);
-    // Reset selection after a short delay
-    setTimeout(() => setSelectedQuickMood(null), 2000);
-  }
-
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4">
       {isStreaming && reconnectCount > 0 && (
@@ -538,46 +462,18 @@ export default function EmotionLab() {
         </p>
       </div>
 
-      {/* ── Quick Mood Log ─────────────────────────────────────────────── */}
+      {/* ── Auto-detected emotion notice ─────────────────────────────── */}
       <div
-        className="rounded-2xl p-4 space-y-4 bg-card/70 border border-border/50 shadow-sm"
+        className="rounded-2xl p-4 space-y-2 bg-card/70 border border-border/50 shadow-sm"
       >
         <div className="flex items-center gap-2">
-          <Heart className="h-4 w-4 text-violet-400" />
-          <p className="text-[13px] font-semibold">Detected mood</p>
+          <Brain className="h-4 w-4 text-violet-400" />
+          <p className="text-[13px] font-semibold">Automatic detection</p>
         </div>
-        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Quick mood selection">
-          {QUICK_MOODS.map((mood) => (
-            <button
-              key={mood.value}
-              onClick={() => handleQuickMood(mood.value)}
-              disabled={quickMoodMutation.isPending}
-              aria-label={`Log mood: ${mood.label}`}
-              aria-pressed={selectedQuickMood === mood.value}
-              className={`
-                flex flex-col items-center justify-center gap-1.5 rounded-2xl border
-                px-2 py-3.5 min-h-[64px] transition-all duration-200 cursor-pointer
-                ${mood.bgClass}
-                ${selectedQuickMood === mood.value ? "ring-2 ring-violet-400 scale-[0.97]" : "active:scale-[0.97]"}
-                disabled:opacity-50
-              `}
-            >
-              <span
-                className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: mood.color }}
-                aria-hidden="true"
-              />
-              <span className="text-[12px] font-semibold text-foreground/80">
-                {mood.label}
-              </span>
-            </button>
-          ))}
-        </div>
-        {quickMoodMutation.isSuccess && (
-          <p className="text-xs text-cyan-400 text-center animate-in fade-in duration-300" aria-live="polite">
-            Logged successfully
-          </p>
-        )}
+        <p className="text-[12px] text-muted-foreground leading-relaxed">
+          Emotions are automatically detected from your voice, health data, and EEG signals.
+          Use the voice recorder below or connect your EEG headband to begin.
+        </p>
       </div>
 
       {/* Voice input is on Dashboard only — this page shows stats */}
