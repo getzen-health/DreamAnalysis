@@ -83,8 +83,18 @@ class SignalQualityChecker:
         scores.append(blink_score)
         reasons.extend(blink_reasons)
 
-        # Overall quality = weighted geometric mean (penalizes any bad score heavily)
-        weights = [0.25, 0.20, 0.20, 0.20, 0.15]
+        # 6. Spectral flatness check
+        flatness_score, flatness_reasons = self._check_spectral_flatness(signal)
+        scores.append(flatness_score)
+        reasons.extend(flatness_reasons)
+
+        # 7. Alpha peak presence
+        alpha_score, alpha_reasons = self._check_alpha_peak(signal)
+        scores.append(alpha_score)
+        reasons.extend(alpha_reasons)
+
+        # Overall quality = weighted average (7 checks)
+        weights = [0.20, 0.15, 0.15, 0.15, 0.10, 0.15, 0.10]
         quality_score = float(np.average(scores, weights=weights))
 
         return {
@@ -98,6 +108,8 @@ class SignalQualityChecker:
                 "emg_score": round(scores[2], 3),
                 "stationarity_score": round(scores[3], 3),
                 "blink_score": round(scores[4], 3),
+                "spectral_flatness_score": round(scores[5], 3),
+                "alpha_peak_score": round(scores[6], 3),
             },
             "metrics": {
                 "rms_amplitude": round(float(np.sqrt(np.mean(signal ** 2))), 2),
@@ -309,6 +321,56 @@ class SignalQualityChecker:
             score = max(0.5, 1.0 - (blinks_per_min - 20) / 40)
 
         return score, reasons
+
+
+    def _check_spectral_flatness(self, signal: np.ndarray) -> Tuple[float, List[str]]:
+        """Check spectral flatness — flat spectrum indicates noise, not brain signal."""
+        reasons = []
+        from scipy.signal import welch
+        freqs, psd = welch(signal, fs=self.fs, nperseg=min(len(signal), self.fs * 2))
+        psd_positive = psd[psd > 0]
+        if len(psd_positive) < 2:
+            return 0.5, ["Insufficient spectral data"]
+
+        geo_mean = np.exp(np.mean(np.log(psd_positive)))
+        arith_mean = np.mean(psd_positive)
+        flatness = geo_mean / (arith_mean + 1e-10)
+
+        if flatness > 0.85:
+            reasons.append(f"Spectrum too flat ({flatness:.2f}) — likely noise")
+            return 0.2, reasons
+        elif flatness > 0.7:
+            reasons.append(f"Spectrum moderately flat ({flatness:.2f})")
+            return 0.5, reasons
+        elif flatness < 0.05:
+            reasons.append(f"Spectrum too peaked ({flatness:.3f}) — possible line noise")
+            return 0.4, reasons
+        return 1.0, reasons
+
+    def _check_alpha_peak(self, signal: np.ndarray) -> Tuple[float, List[str]]:
+        """Check for alpha peak presence — indicates real EEG with good contact."""
+        reasons = []
+        from scipy.signal import welch
+        freqs, psd = welch(signal, fs=self.fs, nperseg=min(len(signal), self.fs * 2))
+
+        alpha_mask = (freqs >= 8.0) & (freqs <= 12.0)
+        pre_mask = (freqs >= 4.0) & (freqs < 8.0)
+        post_mask = (freqs > 12.0) & (freqs <= 20.0)
+
+        if not alpha_mask.any() or not pre_mask.any() or not post_mask.any():
+            return 0.5, ["Cannot assess alpha peak"]
+
+        alpha_peak = np.max(psd[alpha_mask])
+        neighbor_mean = (np.mean(psd[pre_mask]) + np.mean(psd[post_mask])) / 2
+
+        if neighbor_mean > 0 and alpha_peak > 2.0 * neighbor_mean:
+            return 1.0, []  # Clear alpha peak
+        elif neighbor_mean > 0 and alpha_peak > 1.3 * neighbor_mean:
+            reasons.append("Weak alpha peak detected")
+            return 0.7, reasons
+        else:
+            reasons.append("No alpha peak — verify electrode contact")
+            return 0.4, reasons
 
 
 def gate_analysis(signal: np.ndarray, fs: int = 256, threshold: float = None) -> Dict:

@@ -166,6 +166,34 @@ def compute_signal_quality_index(
         if seg_var < 0.1:
             score -= 5
 
+    # 5. Spectral flatness (Wiener entropy): geometric mean / arithmetic mean of PSD
+    # 1.0 = white noise, 0.0 = pure tone. Good EEG is structured: 0.1–0.6
+    psd_positive = psd[psd > 0]
+    if len(psd_positive) > 0:
+        geo_mean = np.exp(np.mean(np.log(psd_positive)))
+        arith_mean = np.mean(psd_positive)
+        spectral_flatness = geo_mean / (arith_mean + 1e-10)
+        if spectral_flatness > 0.85:
+            score -= 15  # Too flat — likely noise, not brain signal
+        elif spectral_flatness > 0.7:
+            score -= 8
+
+    # 6. Alpha peak presence: a clear peak in 8-12Hz band indicates real EEG
+    alpha_mask = (freqs >= 8.0) & (freqs <= 12.0)
+    if alpha_mask.any():
+        alpha_psd = psd[alpha_mask]
+        pre_alpha = psd[(freqs >= 4.0) & (freqs < 8.0)]
+        post_alpha = psd[(freqs > 12.0) & (freqs <= 20.0)]
+        neighbor_mean = (
+            (np.mean(pre_alpha) + np.mean(post_alpha)) / 2
+            if len(pre_alpha) > 0 and len(post_alpha) > 0
+            else 0
+        )
+        alpha_peak_val = np.max(alpha_psd)
+        # A clear alpha peak should be at least 1.5x the neighboring bands
+        if neighbor_mean > 0 and alpha_peak_val > 1.5 * neighbor_mean:
+            score += 5  # Bonus for clear alpha peak (good contact)
+
     return max(0.0, min(100.0, score))
 
 
