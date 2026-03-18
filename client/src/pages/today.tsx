@@ -353,11 +353,30 @@ function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score
       {/* Emotion emoji + label */}
       {hasData ? (
         <>
-          <div style={{ fontSize: 52, lineHeight: 1 }}>{emoji}</div>
+          <div style={{
+            fontSize: 52, lineHeight: 1,
+            animation: "gentleFloat 3s ease-in-out infinite",
+          }}>{emoji}</div>
+          <style>{`@keyframes gentleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }`}</style>
           <div style={{ fontSize: 22, fontWeight: 700, color, textTransform: "capitalize" as const }}>{emotion}</div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
             {confidence > 0 ? `${confidence}% confidence` : "via voice"} · valence {(checkin?.valence ?? 0) >= 0 ? "+" : ""}{(checkin?.valence ?? 0).toFixed(1)}
           </div>
+          {/* Time since check-in */}
+          {(() => {
+            try {
+              const raw = localStorage.getItem("ndw_last_emotion");
+              if (raw) {
+                const ts = JSON.parse(raw)?.timestamp;
+                if (ts) {
+                  const mins = Math.floor((Date.now() - ts) / 60000);
+                  const label = mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
+                  return <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2, opacity: 0.7 }}>Checked in {label}</div>;
+                }
+              }
+            } catch { /* ignore */ }
+            return null;
+          })()}
         </>
       ) : (
         <>
