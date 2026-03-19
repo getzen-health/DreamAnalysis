@@ -335,6 +335,17 @@ export function VoiceCheckinCard({
             timestamp: Date.now(),
           }));
         } catch { /* storage quota */ }
+        // Track unique emotions for Emotion Explorer badge
+        try {
+          const emotion = checkinResult.emotion;
+          if (emotion) {
+            const seen = JSON.parse(localStorage.getItem("ndw_emotions_seen") || "[]") as string[];
+            if (!seen.includes(emotion)) {
+              seen.push(emotion);
+              localStorage.setItem("ndw_emotions_seen", JSON.stringify(seen));
+            }
+          }
+        } catch { /* storage quota */ }
         // Notify all mounted useCurrentEmotion hooks instantly
         window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
 

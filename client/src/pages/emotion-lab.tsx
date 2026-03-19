@@ -227,6 +227,14 @@ export default function EmotionLab() {
           timestamp: Date.now(),
         }));
       } catch { /* storage full */ }
+      // Track unique emotions for Emotion Explorer badge
+      try {
+        const seen = JSON.parse(localStorage.getItem("ndw_emotions_seen") || "[]") as string[];
+        if (voiceEmotion.lastResult?.emotion && !seen.includes(voiceEmotion.lastResult.emotion)) {
+          seen.push(voiceEmotion.lastResult.emotion);
+          localStorage.setItem("ndw_emotions_seen", JSON.stringify(seen));
+        }
+      } catch { /* ignore */ }
       // Notify all useCurrentEmotion hooks
       window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
     }

@@ -46,6 +46,13 @@ function checkBadges(): Badge[] {
     earned: streak >= 7,
   });
   badges.push({
+    id: "streak-14",
+    emoji: "💫",
+    name: "Two-Week Titan",
+    description: "14-day analysis streak",
+    earned: streak >= 14,
+  });
+  badges.push({
     id: "streak-30",
     emoji: "🏆",
     name: "Monthly Champion",
@@ -107,6 +114,38 @@ function checkBadges(): Badge[] {
     name: "All Set Up",
     description: "Completed app onboarding",
     earned: onboarded,
+  });
+
+  // Emotion Explorer — logged all 6 emotions
+  const ALL_EMOTIONS = ["happy", "sad", "angry", "fear", "surprise", "neutral"];
+  try {
+    const seen = JSON.parse(localStorage.getItem("ndw_emotions_seen") || "[]") as string[];
+    const allSeen = ALL_EMOTIONS.every(e => seen.includes(e));
+    badges.push({
+      id: "emotion-explorer",
+      emoji: "🌈",
+      name: "Emotion Explorer",
+      description: "Logged all 6 emotions",
+      earned: allSeen,
+    });
+  } catch {
+    badges.push({
+      id: "emotion-explorer",
+      emoji: "🌈",
+      name: "Emotion Explorer",
+      description: "Logged all 6 emotions",
+      earned: false,
+    });
+  }
+
+  // Muse Connected — connected an EEG device
+  const museConnected = localStorage.getItem("ndw_muse_connected") === "true";
+  badges.push({
+    id: "muse-connected",
+    emoji: "🧠",
+    name: "Brain Reader",
+    description: "Connected an EEG headband",
+    earned: museConnected,
   });
 
   return badges;
