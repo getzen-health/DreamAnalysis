@@ -414,7 +414,7 @@ export function FoodCapture({ onAnalyzed, className }: FoodCaptureProps) {
         <Card>
           <CardHeader className="pb-2 pt-3 px-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Barcode className="h-4 w-4 text-amber-400" />
+              <Barcode className="h-4 w-4 text-primary" />
               Barcode Lookup
             </CardTitle>
           </CardHeader>

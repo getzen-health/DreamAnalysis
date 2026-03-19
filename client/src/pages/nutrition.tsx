@@ -814,7 +814,7 @@ function BarcodePanel({
         padding: 14, marginBottom: 14,
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 600, color: "#d4a017", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 14 }}>📊</span>
         Barcode Lookup
       </div>
@@ -838,8 +838,8 @@ function BarcodePanel({
           onClick={handleLookup}
           disabled={loading || !barcodeInput.trim()}
           style={{
-            background: barcodeInput.trim() ? "#d4a017" : "var(--muted)",
-            color: barcodeInput.trim() ? "#0a0e17" : "var(--muted-foreground)",
+            background: barcodeInput.trim() ? "var(--primary)" : "var(--muted)",
+            color: barcodeInput.trim() ? "white" : "var(--muted-foreground)",
             borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600,
             border: "none", cursor: "pointer",
           }}
@@ -908,7 +908,7 @@ function BarcodePanel({
           <button
             onClick={handleLog}
             style={{
-              width: "100%", background: "#d4a017", color: "#0a0e17",
+              width: "100%", background: "var(--primary)", color: "white",
               borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 600,
               border: "none", cursor: "pointer",
             }}
@@ -1362,7 +1362,7 @@ export default function Nutrition() {
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: "#d4a017",
+            color: "var(--primary)",
             marginBottom: 8,
             display: "flex",
             alignItems: "center",
@@ -1492,8 +1492,8 @@ export default function Nutrition() {
           <button
             onClick={() => cameraInputRef.current?.click()}
             style={{
-              width: "100%", background: "linear-gradient(135deg, #e8b94a, #d4940a)",
-              color: "#13111a", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700,
+              width: "100%", background: "var(--primary)",
+              color: "white", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700,
               border: "none", cursor: "pointer", marginBottom: 8,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}
@@ -1530,7 +1530,7 @@ export default function Nutrition() {
           background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
           padding: 20, marginBottom: 14, textAlign: "center",
         }}>
-          <div style={{ width: 28, height: 28, border: "3px solid #d4a017", borderTopColor: "transparent",
+          <div style={{ width: 28, height: 28, border: "3px solid var(--primary)", borderTopColor: "transparent",
             borderRadius: "50%", margin: "0 auto 8px", animation: "spin 0.8s linear infinite" }} />
           <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0 }}>Analyzing your meal...</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -1622,8 +1622,8 @@ export default function Nutrition() {
                 }
               }}
               style={{
-                flex: 1, background: mealText.trim() ? "#d4a017" : "var(--muted)",
-                color: mealText.trim() ? "#0a0e17" : "var(--muted-foreground)", borderRadius: 10,
+                flex: 1, background: mealText.trim() ? "var(--primary)" : "var(--muted)",
+                color: mealText.trim() ? "white" : "var(--muted-foreground)", borderRadius: 10,
                 padding: 10, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
               }}
             >
