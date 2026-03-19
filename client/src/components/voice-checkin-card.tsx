@@ -1,5 +1,5 @@
 /**
- * VoiceCheckinCard — 10-second voice micro check-in.
+ * VoiceCheckinCard — 15-second voice micro check-in.
  *
  * Shows when the current time falls within a check-in window and no check-in
  * has been recorded for that period today.  Windows:
@@ -173,7 +173,7 @@ interface VoiceCheckinCardProps {
 
 type CardState = "idle" | "recording" | "analyzing" | "done" | "dismissed";
 
-const RECORD_SEC = 10;
+const RECORD_SEC = 15;
 
 export function VoiceCheckinCard({
   userId,
@@ -438,7 +438,7 @@ export function VoiceCheckinCard({
         <div className="flex items-start justify-between mb-3">
           <div>
             <p className="text-sm font-semibold">{periodLabel} Voice Analysis</p>
-            <p className="text-xs text-muted-foreground">Speak naturally for 10 seconds</p>
+            <p className="text-xs text-muted-foreground">Speak naturally for 15 seconds</p>
           </div>
           {cardState !== "recording" && cardState !== "analyzing" && (
             <button
@@ -463,7 +463,7 @@ export function VoiceCheckinCard({
               <Mic className="h-7 w-7 text-primary" />
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              Tap to record 10 seconds
+              Tap to record 15 seconds
             </p>
             {error && (
               <p className="text-xs text-destructive text-center">{error}</p>

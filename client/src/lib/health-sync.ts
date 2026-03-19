@@ -54,6 +54,15 @@ export interface BiometricPayload {
   lean_mass_kg?: number;
   height_cm?: number;
   vo2_max?: number;
+  // Extended metrics (Withings-style)
+  walking_distance_km?: number;
+  flights_climbed?: number;
+  standing_hours?: number;
+  blood_pressure_systolic?: number;
+  blood_pressure_diastolic?: number;
+  body_temperature_c?: number;
+  ecg_classification?: string;
+  water_intake_ml?: number;
 }
 
 /** Shape for Supabase ingest-health-data Edge Function */
@@ -339,6 +348,110 @@ async function pullAppleHealth(userId: string): Promise<PullResult> {
     }
   } catch { /* ok */ }
 
+  // ── Walking distance today (meters → km) ──
+  try {
+    const distResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "distanceWalkingRunning",
+      startDate: fmt(todayStart),
+      endDate: fmt(now),
+      limit: 200,
+    });
+    if (distResult.resultData.length > 0) {
+      const totalMeters = distResult.resultData.reduce((sum, s) => sum + s.value, 0);
+      payload.walking_distance_km = totalMeters / 1000;
+    }
+  } catch { /* ok */ }
+
+  // ── Flights climbed today ──
+  try {
+    const flightsResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "flightsClimbed",
+      startDate: fmt(todayStart),
+      endDate: fmt(now),
+      limit: 200,
+    });
+    if (flightsResult.resultData.length > 0) {
+      payload.flights_climbed = flightsResult.resultData.reduce((sum, s) => sum + s.value, 0);
+    }
+  } catch { /* ok */ }
+
+  // ── Standing hours today (Apple Stand Hours) ──
+  try {
+    const standResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "appleStandHour",
+      startDate: fmt(todayStart),
+      endDate: fmt(now),
+      limit: 24,
+    });
+    if (standResult.resultData.length > 0) {
+      payload.standing_hours = standResult.resultData.reduce((sum, s) => sum + s.value, 0);
+    }
+  } catch { /* ok */ }
+
+  // ── Blood pressure (last 24 hours) ──
+  try {
+    const bpSystolic = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "bloodPressureSystolic",
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 5,
+    });
+    if (bpSystolic.resultData.length > 0) {
+      payload.blood_pressure_systolic = bpSystolic.resultData[bpSystolic.resultData.length - 1].value;
+    }
+    const bpDiastolic = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "bloodPressureDiastolic",
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 5,
+    });
+    if (bpDiastolic.resultData.length > 0) {
+      payload.blood_pressure_diastolic = bpDiastolic.resultData[bpDiastolic.resultData.length - 1].value;
+    }
+  } catch { /* ok */ }
+
+  // ── Body temperature (absolute value, not deviation) ──
+  try {
+    const btResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "bodyTemperature",
+      startDate: fmt(new Date(now.getTime() - 12 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 3,
+    });
+    if (btResult.resultData.length > 0) {
+      payload.body_temperature_c = btResult.resultData[0].value;
+    }
+  } catch { /* ok */ }
+
+  // ── ECG / AFib classification (if available) ──
+  try {
+    const ecgResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number; classification: string }>({
+      sampleName: "electrocardiogram",
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      limit: 3,
+    });
+    if (ecgResult.resultData.length > 0) {
+      const latest = ecgResult.resultData[ecgResult.resultData.length - 1];
+      payload.ecg_classification = latest.classification ?? "unknown";
+    }
+  } catch { /* ok */ }
+
+  // ── Water intake (dietary water, last 24 hours) ──
+  try {
+    const waterResult = await CapacitorHealthkit.queryHKitSampleType<{ value: number }>({
+      sampleName: "dietaryWater",
+      startDate: fmt(todayStart),
+      endDate: fmt(now),
+      limit: 50,
+    });
+    if (waterResult.resultData.length > 0) {
+      // HealthKit stores dietary water in liters; convert to ml
+      const totalLiters = waterResult.resultData.reduce((sum, s) => sum + s.value, 0);
+      payload.water_intake_ml = totalLiters * 1000;
+    }
+  } catch { /* ok */ }
+
   // ── Workouts (last 24 hours) ──
   const workouts: WorkoutData[] = [];
   try {
@@ -522,6 +635,13 @@ async function requestPermissionsIos(): Promise<void> {
       "height",
       "vo2Max",
       "workout",
+      "distanceWalkingRunning",
+      "flightsClimbed",
+      "appleStandHour",
+      "bloodPressureSystolic",
+      "bloodPressureDiastolic",
+      "electrocardiogram",
+      "dietaryWater",
     ],
     write: [],
   });
@@ -596,6 +716,15 @@ function buildSupabaseSamples(
   add("lean_mass_kg", payload.lean_mass_kg, "kg");
   add("height_cm", payload.height_cm, "cm");
   add("vo2_max", payload.vo2_max, "ml/kg/min");
+
+  // Extended metrics
+  add("walking_distance_km", payload.walking_distance_km, "km");
+  add("flights_climbed", payload.flights_climbed, "count");
+  add("standing_hours", payload.standing_hours, "hours");
+  add("blood_pressure_systolic", payload.blood_pressure_systolic, "mmHg");
+  add("blood_pressure_diastolic", payload.blood_pressure_diastolic, "mmHg");
+  add("body_temperature", payload.body_temperature_c, "degC");
+  add("water_intake_ml", payload.water_intake_ml, "ml");
 
   // Workouts → workout_strain per workout (with metadata)
   for (const w of workouts) {

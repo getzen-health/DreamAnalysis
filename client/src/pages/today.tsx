@@ -933,27 +933,46 @@ export default function Today() {
         </p>
       </div>
 
-      {/* ── Stress Relief — appears when stress > 50% ── */}
-      {(checkin?.stress_index ?? 0) > 0.5 && (
+      {/* ── Stress Warning — appears when stress > 60% ── */}
+      {(checkin?.stress_index ?? 0) > 0.6 && (
         <div
           style={{
             background: "var(--card)",
-            border: "1px solid #2d1f18",
+            border: "1px solid #3d1f1f",
             borderRadius: 14,
             padding: 16,
             marginBottom: 14,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-            <span style={{ fontSize: 24 }}>😮‍💨</span>
+            <span style={{ fontSize: 24 }}>&#x26A0;&#xFE0F;</span>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#e879a8" }}>Your stress is elevated</div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
-                A quick breathing exercise can lower stress by up to 40%
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#e879a8" }}>Your stress levels are elevated</div>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.6 }}>
+                Take a moment to breathe. Try the 4-7-8 breathing technique:<br />
+                <span style={{ fontWeight: 500, color: "var(--foreground)" }}>
+                  Inhale 4 seconds &rarr; Hold 7 seconds &rarr; Exhale 8 seconds
+                </span>
               </div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => window.open("https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO", "_blank")}
+              style={{
+                flex: 1,
+                background: "linear-gradient(135deg, #1DB954, #158a3e)",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px 16px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Listen to Calm Music
+            </button>
             <button
               onClick={() => setShowBreathe(true)}
               style={{
@@ -968,23 +987,7 @@ export default function Today() {
                 cursor: "pointer",
               }}
             >
-              🧘 1-min calm
-            </button>
-            <button
-              onClick={() => navigate("/biofeedback")}
-              style={{
-                flex: 1,
-                background: "var(--card)",
-                color: "var(--foreground)",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: "10px 16px",
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-            >
-              Full session →
+              Breathing Exercise
             </button>
           </div>
         </div>
@@ -1147,6 +1150,50 @@ export default function Today() {
               transition: "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
             }}
           />
+        </div>
+      </div>
+
+      {/* ── Quick Listen — Music Section ── */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{
+          fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+          textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 8,
+        }}>
+          Quick Listen
+        </div>
+        <div style={{
+          display: "flex", gap: 10, overflowX: "auto",
+          paddingBottom: 4, scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch",
+        }}>
+          {[
+            { emoji: "\uD83C\uDFB5", title: "Focus", url: "https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ" },
+            { emoji: "\uD83E\uDDD8", title: "Calm", url: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO" },
+            { emoji: "\uD83C\uDF19", title: "Sleep", url: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp" },
+            { emoji: "\uD83C\uDFC3", title: "Workout", url: "https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" },
+          ].map((card) => (
+            <button
+              key={card.title}
+              onClick={() => window.open(card.url, "_blank")}
+              style={{
+                flex: "0 0 auto",
+                width: 90,
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: "12px 8px",
+                textAlign: "center",
+                cursor: "pointer",
+                transition: "transform 0.15s",
+              }}
+              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
+              onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+            >
+              <div style={{ fontSize: 24, marginBottom: 4 }}>{card.emoji}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)" }}>{card.title}</div>
+            </button>
+          ))}
         </div>
       </div>
 

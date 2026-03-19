@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Sun,
   Compass,
@@ -11,6 +11,19 @@ import { hapticLight, hapticMedium } from "@/lib/haptics";
 import { useQueryClient } from "@tanstack/react-query";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { getParticipantId } from "@/lib/participant";
+
+const AFFIRMATIONS = [
+  "You're doing great today",
+  "I believe in you",
+  "One step at a time",
+  "You are enough",
+  "Today is your day",
+  "Keep going, you're amazing",
+  "Breathe. You've got this",
+  "Progress, not perfection",
+  "You are stronger than you think",
+  "Every moment is a fresh start",
+];
 
 const tabs = [
   { path: "/",          icon: Sun,              label: "Today",     aliases: [] as string[] },
@@ -29,6 +42,17 @@ export function BottomTabs() {
   const [location] = useLocation();
   const [showCheckin, setShowCheckin] = useState(false);
   const queryClient = useQueryClient();
+
+  // Rotating affirmation — changes every 30 seconds
+  const [affirmation, setAffirmation] = useState(() =>
+    AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)]
+  );
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAffirmation(AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)]);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Allow other components (e.g. EmotionBadge) to open the voice analysis modal
   useEffect(() => {
@@ -139,7 +163,7 @@ export function BottomTabs() {
           {/* Left two tabs */}
           {LEFT_TABS.map(renderTab)}
 
-          {/* Center mic button */}
+          {/* Center mic button + affirmation */}
           <div className="relative flex flex-col items-center justify-center flex-1">
             <button
               aria-label="Voice analysis"
@@ -152,6 +176,12 @@ export function BottomTabs() {
             >
               <Mic style={{ width: 20, height: 20 }} strokeWidth={2} aria-hidden="true" />
             </button>
+            <span
+              className="absolute text-center text-muted-foreground/60 leading-tight pointer-events-none select-none"
+              style={{ fontSize: 10, top: 28, width: 120, maxWidth: 120 }}
+            >
+              {affirmation}
+            </span>
           </div>
 
           {/* Right two tabs */}

@@ -87,6 +87,41 @@ const SYMPTOMS = [
   "brain_fog", "hot_flashes", "dizziness", "constipation", "diarrhea",
 ];
 
+const SEVERITY_LABELS = ["Mild", "Moderate", "Severe"] as const;
+
+const HORMONE_PHASES: Record<string, { hormones: string; emoji: string; description: string }> = {
+  menstrual: {
+    hormones: "Estrogen + Progesterone low",
+    emoji: "🩸",
+    description: "Energy may be lower. Rest and gentle movement recommended.",
+  },
+  follicular: {
+    hormones: "Estrogen rising",
+    emoji: "🌱",
+    description: "Energy increasing. Great time for new activities and social plans.",
+  },
+  ovulatory: {
+    hormones: "Estrogen peak, LH surge",
+    emoji: "🌸",
+    description: "Peak energy and confidence. Fertility window open.",
+  },
+  luteal: {
+    hormones: "Progesterone high, then drops",
+    emoji: "🍂",
+    description: "Winding down. Cravings may increase. Self-care is key.",
+  },
+  late: {
+    hormones: "Progesterone dropping",
+    emoji: "🌙",
+    description: "PMS symptoms may appear. Be gentle with yourself.",
+  },
+  unknown: {
+    hormones: "Log more data to determine",
+    emoji: "🔮",
+    description: "Track a few cycles to get hormone phase insights.",
+  },
+};
+
 const PHASE_INFO: Record<string, { label: string; color: string; bg: string; description: string }> = {
   menstrual: { label: "Menstrual", color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20", description: "Day 1-5 of your cycle" },
   follicular: { label: "Follicular", color: "text-ndw-recovery", bg: "bg-ndw-recovery/10 border-ndw-recovery/20", description: "Estrogen rising, energy increasing" },
@@ -174,6 +209,7 @@ function CycleTab() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [flowLevel, setFlowLevel] = useState("none");
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
+  const [symptomSeverity, setSymptomSeverity] = useState<Record<string, number>>({});
   const [cycleNotes, setCycleNotes] = useState("");
 
   // Fetch cycle data
@@ -230,19 +266,61 @@ function CycleTab() {
       setFlowLevel(existing.flowLevel ?? "none");
       setSelectedSymptoms(existing.symptoms ?? []);
       setCycleNotes(existing.notes ?? "");
+      // Restore severity from notes metadata if stored as JSON suffix
+      setSymptomSeverity({});
     } else {
       setFlowLevel("none");
       setSelectedSymptoms([]);
+      setSymptomSeverity({});
       setCycleNotes("");
     }
     setLogDialogOpen(true);
   }
 
   function toggleSymptom(s: string) {
-    setSelectedSymptoms(prev =>
-      prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
-    );
+    setSelectedSymptoms(prev => {
+      if (prev.includes(s)) {
+        // Remove severity too
+        setSymptomSeverity(sev => {
+          const copy = { ...sev };
+          delete copy[s];
+          return copy;
+        });
+        return prev.filter(x => x !== s);
+      }
+      // Default severity = 1 (mild) when toggled on
+      setSymptomSeverity(sev => ({ ...sev, [s]: 1 }));
+      return [...prev, s];
+    });
   }
+
+  function setSeverity(s: string, level: number) {
+    setSymptomSeverity(prev => ({ ...prev, [s]: level }));
+  }
+
+  // Computed cycle insights
+  const cycleInsights = useMemo(() => {
+    if (!phaseInfo) return null;
+    const avgLen = phaseInfo.avgCycleLength || 28;
+    const dayOfCycle = phaseInfo.dayOfCycle || 0;
+    const ovulationDay = Math.round(avgLen - 14); // ~14 days before next period
+    const daysUntilOvulation = Math.max(0, ovulationDay - dayOfCycle);
+    const fertileWindowStart = Math.max(1, ovulationDay - 5);
+    const fertileWindowEnd = ovulationDay + 1;
+    const inFertileWindow = dayOfCycle >= fertileWindowStart && dayOfCycle <= fertileWindowEnd;
+    return { avgLen, ovulationDay, daysUntilOvulation, fertileWindowStart, fertileWindowEnd, inFertileWindow };
+  }, [phaseInfo]);
+
+  // Basal body temperature from cycle entries
+  const tempChartData = useMemo(() => {
+    return cycleData
+      .filter(e => e.basalTemp !== null && e.basalTemp !== undefined)
+      .map(e => ({
+        date: new Date(e.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+        temp: parseFloat(e.basalTemp!),
+      }))
+      .slice(-30);
+  }, [cycleData]);
 
   const monthDays = getMonthDays(viewDate.year, viewDate.month);
   const monthLabel = new Date(viewDate.year, viewDate.month).toLocaleDateString(undefined, {
@@ -281,6 +359,106 @@ function CycleTab() {
             </div>
           </div>
         </motion.div>
+      )}
+
+      {/* Hormone Phase Indicator */}
+      {phaseInfo && phaseInfo.currentPhase !== "unknown" && (() => {
+        const hp = HORMONE_PHASES[phaseInfo.currentPhase] ?? HORMONE_PHASES.unknown;
+        return (
+          <motion.div
+            className="rounded-xl border border-border bg-card p-4"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">Hormone Phase</p>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{hp.emoji}</span>
+              <div>
+                <p className="text-sm font-semibold text-foreground">{hp.hormones}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{hp.description}</p>
+              </div>
+            </div>
+          </motion.div>
+        );
+      })()}
+
+      {/* Cycle Insights + Fertility Window */}
+      {cycleInsights && phaseInfo && phaseInfo.periodStartCount >= 2 && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Avg Cycle</p>
+            <span className="text-xl font-bold text-foreground">{cycleInsights.avgLen}</span>
+            <span className="text-xs text-muted-foreground ml-1">days</span>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-3.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Ovulation In</p>
+            <span className="text-xl font-bold text-foreground">{cycleInsights.daysUntilOvulation}</span>
+            <span className="text-xs text-muted-foreground ml-1">days</span>
+          </div>
+          {cycleInsights.inFertileWindow && (
+            <div className="col-span-2 rounded-xl border border-ndw-stress/30 bg-ndw-stress/5 p-3.5 flex items-center gap-2">
+              <span className="text-lg">🌸</span>
+              <div>
+                <p className="text-xs font-semibold text-ndw-stress">Fertile Window</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Days {cycleInsights.fertileWindowStart}–{cycleInsights.fertileWindowEnd} of your cycle
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Basal Body Temperature Chart */}
+      {tempChartData.length > 3 && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-3">
+            Basal Body Temperature
+          </p>
+          <div className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={tempChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 8, fill: "var(--muted-foreground)" }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  domain={["auto", "auto"]}
+                  tick={{ fontSize: 8, fill: "var(--muted-foreground)" }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={32}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    fontSize: 11,
+                    color: "var(--foreground)",
+                  }}
+                  formatter={(value: number) => [`${value.toFixed(1)} C`, "Temp"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="temp"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={{ r: 2, fill: "#f59e0b" }}
+                  name="Temp (C)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[9px] text-muted-foreground mt-2 text-center">
+            BBT rises ~0.2-0.5 C after ovulation due to progesterone
+          </p>
+        </div>
       )}
 
       {/* Calendar */}
@@ -423,6 +601,35 @@ function CycleTab() {
                   </button>
                 ))}
               </div>
+
+              {/* Severity for selected symptoms */}
+              {selectedSymptoms.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Severity</Label>
+                  {selectedSymptoms.map(s => (
+                    <div key={s} className="flex items-center gap-2">
+                      <span className="text-[10px] text-foreground w-24 truncate">{formatSymptom(s)}</span>
+                      <div className="flex gap-1 flex-1">
+                        {SEVERITY_LABELS.map((label, i) => (
+                          <button
+                            key={label}
+                            onClick={() => setSeverity(s, i + 1)}
+                            className={`flex-1 py-1 rounded text-[9px] font-medium border transition-colors ${
+                              (symptomSeverity[s] ?? 1) === i + 1
+                                ? i === 0 ? "border-green-500 bg-green-500/10 text-green-500"
+                                : i === 1 ? "border-yellow-500 bg-yellow-500/10 text-yellow-500"
+                                : "border-red-500 bg-red-500/10 text-red-500"
+                                : "border-border text-muted-foreground"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Notes */}
