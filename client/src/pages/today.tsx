@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { motion } from "framer-motion";
+import { pageTransition } from "@/lib/animations";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
@@ -806,7 +808,10 @@ export default function Today() {
         onDismiss={dismissSplash}
       />
     )}
-    <main
+    <motion.main
+      initial={pageTransition.initial}
+      animate={pageTransition.animate}
+      transition={pageTransition.transition}
       style={{
         background: "var(--background)",
         minHeight: "100vh",
@@ -1198,7 +1203,7 @@ export default function Today() {
 
       {/* ── Daily Wellness Tip ── */}
       <DailyTip emotion={emotion} stress={stressVal} focus={focusVal} />
-    </main>
+    </motion.main>
     </>
   );
 }

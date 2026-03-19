@@ -447,9 +447,9 @@ function CycleTab() {
                 <Line
                   type="monotone"
                   dataKey="temp"
-                  stroke="#f59e0b"
+                  stroke="#ea580c"
                   strokeWidth={2}
-                  dot={{ r: 2, fill: "#f59e0b" }}
+                  dot={{ r: 2, fill: "#ea580c" }}
                   name="Temp (C)"
                 />
               </LineChart>
@@ -616,9 +616,9 @@ function CycleTab() {
                             onClick={() => setSeverity(s, i + 1)}
                             className={`flex-1 py-1 rounded text-[9px] font-medium border transition-colors ${
                               (symptomSeverity[s] ?? 1) === i + 1
-                                ? i === 0 ? "border-green-500 bg-green-500/10 text-green-500"
+                                ? i === 0 ? "border-cyan-500 bg-cyan-500/10 text-cyan-500"
                                 : i === 1 ? "border-yellow-500 bg-yellow-500/10 text-yellow-500"
-                                : "border-red-500 bg-red-500/10 text-red-500"
+                                : "border-rose-500 bg-rose-500/10 text-rose-500"
                                 : "border-border text-muted-foreground"
                             }`}
                           >

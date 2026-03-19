@@ -104,8 +104,8 @@ function PlaylistCard({ playlist }: { playlist: Playlist }) {
           <span
             className={`inline-block mt-2 text-[10px] font-medium px-2 py-0.5 rounded-full ${
               playlist.source === "spotify"
-                ? "bg-green-500/15 text-green-400"
-                : "bg-red-500/15 text-red-400"
+                ? "bg-cyan-500/15 text-cyan-400"
+                : "bg-rose-500/15 text-rose-400"
             }`}
           >
             {playlist.source === "spotify" ? "Spotify" : "YouTube"}

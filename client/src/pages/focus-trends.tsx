@@ -132,7 +132,7 @@ export default function FocusTrends() {
     focusPercent === null
       ? "var(--muted-foreground)"
       : focusPercent >= 70
-      ? "#3b82f6"
+      ? "#6366f1"
       : focusPercent >= 40
       ? "#d4a017"
       : "#94a3b8";
@@ -264,8 +264,8 @@ export default function FocusTrends() {
               >
                 <defs>
                   <linearGradient id="focusGradFT" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
@@ -299,7 +299,7 @@ export default function FocusTrends() {
                   type="monotone"
                   dataKey="focus"
                   name="Focus"
-                  stroke="#3b82f6"
+                  stroke="#6366f1"
                   fill="url(#focusGradFT)"
                   strokeWidth={2}
                   dot={false}
@@ -318,7 +318,7 @@ export default function FocusTrends() {
             </ResponsiveContainer>
             <div className="flex gap-4 mt-2 justify-center">
               {[
-                { label: "Focus", color: "#3b82f6" },
+                { label: "Focus", color: "#6366f1" },
                 { label: "Cog. Load", color: "#7c3aed", dashed: true },
               ].map((l) => (
                 <div key={l.label} className="flex items-center gap-1">
@@ -400,7 +400,7 @@ export default function FocusTrends() {
                     key={index}
                     fill={
                       bestHour && entry.hour === bestHour.hour
-                        ? "#3b82f6"
+                        ? "#6366f1"
                         : "hsl(220,18%,20%)"
                     }
                   />
@@ -410,10 +410,10 @@ export default function FocusTrends() {
           </ResponsiveContainer>
           {bestHour && (
             <div className="mt-3 flex items-center gap-2 rounded-xl p-3 bg-muted/30">
-              <Zap className="h-4 w-4 text-blue-400" />
+              <Zap className="h-4 w-4 text-indigo-400" />
               <span className="text-xs text-foreground">
                 Your peak focus time is around{" "}
-                <strong className="text-blue-400">{bestHour.hour}</strong> (
+                <strong className="text-indigo-400">{bestHour.hour}</strong> (
                 {bestHour.focus}% avg)
               </span>
             </div>

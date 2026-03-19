@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { pageTransition, cardVariants } from "@/lib/animations";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
@@ -400,7 +402,10 @@ export default function Discover() {
   const emotionLabel = hasData ? emotion : null;
 
   return (
-    <main
+    <motion.main
+      initial={pageTransition.initial}
+      animate={pageTransition.animate}
+      transition={pageTransition.transition}
       style={{
         background: "var(--background)",
         minHeight: "100vh",
@@ -678,9 +683,13 @@ export default function Discover() {
           marginBottom: 20,
         }}
       >
-        {NAV_CARDS.map((card) => (
-          <button
+        {NAV_CARDS.map((card, index) => (
+          <motion.button
             key={card.route}
+            custom={index}
+            variants={cardVariants}
+            initial="hidden"
+            animate="visible"
             onClick={() => navigate(card.route)}
             style={{
               background: "var(--card)",
@@ -707,9 +716,9 @@ export default function Discover() {
             <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>
               {card.subtitle}
             </p>
-          </button>
+          </motion.button>
         ))}
       </div>
-    </main>
+    </motion.main>
   );
 }

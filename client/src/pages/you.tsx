@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { motion } from "framer-motion";
+import { pageTransition } from "@/lib/animations";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { getParticipantId } from "@/lib/participant";
@@ -216,7 +218,10 @@ export default function You() {
   }
 
   return (
-    <main
+    <motion.main
+      initial={pageTransition.initial}
+      animate={pageTransition.animate}
+      transition={pageTransition.transition}
       style={{
         background: "var(--background)",
         minHeight: "100vh",
@@ -414,6 +419,6 @@ export default function You() {
       >
         Sign Out
       </button>
-    </main>
+    </motion.main>
   );
 }

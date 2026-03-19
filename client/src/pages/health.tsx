@@ -130,21 +130,21 @@ function HeartTab() {
           label="Heart Rate"
           value={hr ? Math.round(hr) : null}
           unit="bpm"
-          color="#ef4444"
+          color="#e879a8"
           sub={hr ? (hr < 60 ? "Low" : hr < 100 ? "Normal" : "Elevated") : undefined}
         />
         <MetricCard
           label="Resting HR"
           value={rhr ? Math.round(rhr) : null}
           unit="bpm"
-          color="#f97316"
+          color="#ea580c"
           sub={rhr ? (rhr < 50 ? "Athletic" : rhr < 70 ? "Good" : "Average") : undefined}
         />
         <MetricCard
           label="SpO2"
           value={spo2 ? Math.round(spo2) : null}
           unit="%"
-          color="#3b82f6"
+          color="#6366f1"
           sub={spo2 ? (spo2 >= 95 ? "Normal" : "Low") : undefined}
         />
         <MetricCard
@@ -167,15 +167,15 @@ function HeartTab() {
               <AreaChart data={hrChartData}>
                 <defs>
                   <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#e879a8" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#e879a8" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
                 <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={30} />
                 <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11, color: "var(--foreground)" }} />
-                <Area type="monotone" dataKey="hr" stroke="#ef4444" fill="url(#hrGrad)" strokeWidth={2} dot={{ r: 2, fill: "#ef4444" }} name="HR (bpm)" />
+                <Area type="monotone" dataKey="hr" stroke="#e879a8" fill="url(#hrGrad)" strokeWidth={2} dot={{ r: 2, fill: "#e879a8" }} name="HR (bpm)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -287,19 +287,19 @@ function ActivityTab() {
           label="Flights Climbed"
           value={flights ? Math.round(flights) : null}
           unit="floors"
-          color="#f59e0b"
+          color="#ea580c"
         />
         <MetricCard
           label="Standing Hours"
           value={standing ? Math.round(standing) : null}
           unit="hrs"
-          color="#10b981"
+          color="#0891b2"
         />
         <MetricCard
           label="Active Calories"
           value={calories ? Math.round(calories) : null}
           unit="kcal"
-          color="#ef4444"
+          color="#e879a8"
         />
       </div>
 
