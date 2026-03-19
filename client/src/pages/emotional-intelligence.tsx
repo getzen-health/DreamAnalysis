@@ -50,8 +50,8 @@ const GRADE_COLOR: Record<string, string> = {
 };
 
 const GRADE_RING: Record<string, string> = {
-  A: "stroke-green-400",
-  B: "stroke-emerald-400",
+  A: "stroke-cyan-400",
+  B: "stroke-cyan-400",
   C: "stroke-amber-400",
   D: "stroke-orange-400",
   F: "stroke-rose-400",

@@ -195,7 +195,7 @@ function HeartTab() {
                 <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={30} />
                 <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11, color: "var(--foreground)" }} />
-                <Line type="monotone" dataKey="hrv" stroke="#22c55e" strokeWidth={2} dot={{ r: 2, fill: "#22c55e" }} name="HRV (ms)" />
+                <Line type="monotone" dataKey="hrv" stroke="#06b6d4" strokeWidth={2} dot={{ r: 2, fill: "#06b6d4" }} name="HRV (ms)" />
               </LineChart>
             </ResponsiveContainer>
           </div>

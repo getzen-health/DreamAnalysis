@@ -631,7 +631,7 @@ export default function StudySession() {
                           formatter={(v: number, name: string) => [`${(v * 100).toFixed(0)}%`, name]}
                         />
                         <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="#e879a833" name="Stress" strokeWidth={2} dot={false} />
-                        <Area type="monotone" dataKey="alpha" stroke="#22c55e" fill="#22c55e22" name="Alpha" strokeWidth={1.5} dot={false} />
+                        <Area type="monotone" dataKey="alpha" stroke="#06b6d4" fill="#06b6d422" name="Alpha" strokeWidth={1.5} dot={false} />
                         <Area type="monotone" dataKey="beta" stroke="#3b82f6" fill="#3b82f622" name="Beta" strokeWidth={1.5} dot={false} />
                         <Area type="monotone" dataKey="theta" stroke="#a855f7" fill="#a855f722" name="Theta" strokeWidth={1.5} dot={false} />
                       </AreaChart>

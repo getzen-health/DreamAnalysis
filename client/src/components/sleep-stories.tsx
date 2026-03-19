@@ -28,7 +28,7 @@ const PLAYLISTS: Playlist[] = [
     description: "Ambient drones and slow pads for deep rest",
     url: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp",
     source: "spotify",
-    gradient: "from-indigo-600/30 to-blue-900/30",
+    gradient: "from-violet-600/30 to-indigo-900/30",
   },
   {
     id: "sleep-sounds",
@@ -44,7 +44,7 @@ const PLAYLISTS: Playlist[] = [
     description: "Gentle piano pieces for winding down",
     url: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO",
     source: "spotify",
-    gradient: "from-cyan-600/30 to-blue-900/30",
+    gradient: "from-cyan-600/30 to-indigo-900/30",
   },
   {
     id: "nature-sounds",
@@ -52,7 +52,7 @@ const PLAYLISTS: Playlist[] = [
     description: "Rain, ocean, forest, and birdsong",
     url: "https://open.spotify.com/playlist/37i9dQZF1DX4PP3DA4J0N8",
     source: "spotify",
-    gradient: "from-emerald-600/30 to-teal-900/30",
+    gradient: "from-cyan-600/30 to-cyan-900/30",
   },
   {
     id: "yt-sleep-music",
@@ -60,7 +60,7 @@ const PLAYLISTS: Playlist[] = [
     description: "Long-play ambient tracks on YouTube",
     url: "https://www.youtube.com/results?search_query=8+hour+sleep+music",
     source: "youtube",
-    gradient: "from-red-600/30 to-rose-900/30",
+    gradient: "from-rose-600/30 to-rose-900/30",
   },
   {
     id: "yt-rain",

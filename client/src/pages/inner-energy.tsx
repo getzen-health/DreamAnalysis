@@ -70,7 +70,7 @@ const CHAKRA_COLORS: Record<string, string> = {
   root: "#be185d",
   sacral: "#ea580c",
   solar_plexus: "#d4a017",
-  heart: "#22c55e",
+  heart: "#06b6d4",
   throat: "#3b82f6",
   third_eye: "#6366f1",
   crown: "#a855f7",

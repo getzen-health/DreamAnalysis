@@ -63,7 +63,7 @@ interface HabitLog {
 /* ---------- prebuilt habits ---------- */
 
 const PREBUILT_HABITS = [
-  { name: "Water", category: "health", icon: "droplets", targetValue: 8, unit: "glasses", iconBg: "bg-blue-500/15", iconColor: "text-blue-400" },
+  { name: "Water", category: "health", icon: "droplets", targetValue: 8, unit: "glasses", iconBg: "bg-indigo-500/15", iconColor: "text-indigo-400" },
   { name: "Sunlight", category: "health", icon: "sun", targetValue: 30, unit: "min", iconBg: "bg-ndw-stress/15", iconColor: "text-ndw-stress" },
   { name: "Screen Time", category: "wellness", icon: "monitor", targetValue: 2, unit: "hrs", iconBg: "bg-ndw-sleep/15", iconColor: "text-ndw-sleep" },
   { name: "Caffeine", category: "nutrition", icon: "coffee", targetValue: 3, unit: "cups", iconBg: "bg-ndw-nutrition/15", iconColor: "text-ndw-nutrition" },

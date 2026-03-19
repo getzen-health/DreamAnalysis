@@ -410,7 +410,7 @@ function SupplementTracker() {
       }}>
         <span>Supplements</span>
         {totalCount > 0 && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: takenCount === totalCount ? "#22c55e" : "#d4a017" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: takenCount === totalCount ? "#06b6d4" : "#d4a017" }}>
             {takenCount}/{totalCount}
           </span>
         )}
@@ -433,8 +433,8 @@ function SupplementTracker() {
                   onClick={() => toggleTaken(supp.id)}
                   style={{
                     width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                    border: taken ? "2px solid #22c55e" : "2px solid var(--border)",
-                    background: taken ? "#22c55e" : "transparent",
+                    border: taken ? "2px solid #06b6d4" : "2px solid var(--border)",
+                    background: taken ? "#06b6d4" : "transparent",
                     cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                     color: "white", fontSize: 12, fontWeight: 700,
                   }}
@@ -578,7 +578,7 @@ function CalorieRing({ calories }: { calories: number }) {
     ? Math.abs(remaining) > 300
       ? "#e879a8" // way over — rose
       : "#d4a017" // slightly over — amber
-    : "#22c55e"; // on track — green
+    : "#06b6d4"; // on track — green
 
   return (
     <motion.div
@@ -815,7 +815,7 @@ function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
         {VITAMIN_TARGETS.map((vt) => {
           const val = vitaminTotals[vt.key];
           const pct = vt.daily > 0 ? (val / vt.daily) * 100 : 0;
-          const color = pct >= 80 ? "#22c55e" : pct >= 50 ? "#d4a017" : "#e879a8";
+          const color = pct >= 80 ? "#06b6d4" : pct >= 50 ? "#d4a017" : "#e879a8";
           return (
             <div key={vt.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 60, fontSize: 11, fontWeight: 500, color: "var(--foreground)" }}>
@@ -906,7 +906,7 @@ function Glp1Tracker({
     [todayLogs, totalProtein, totalCalories],
   );
 
-  const scoreColor = glp1.score >= 70 ? "#22c55e" : glp1.score >= 40 ? "#0891b2" : "#94a3b8";
+  const scoreColor = glp1.score >= 70 ? "#06b6d4" : glp1.score >= 40 ? "#0891b2" : "#94a3b8";
 
   return (
     <motion.div
@@ -1347,7 +1347,7 @@ function GlucoseSection({ userId }: { userId: string }) {
 
   const glucoseColor =
     glucose >= 70 && glucose <= 120
-      ? "#22c55e"
+      ? "#06b6d4"
       : glucose > 120 && glucose <= 140
         ? "#d4a017"
         : "#e879a8";
@@ -1720,7 +1720,7 @@ export default function Nutrition() {
           {(qualityIndicators.positives.length > 0 || qualityIndicators.negatives.length > 0) ? (
             <>
               {qualityIndicators.positives.map((p, i) => (
-                <div key={`p-${i}`} style={{ fontSize: 11, color: "#22c55e", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                <div key={`p-${i}`} style={{ fontSize: 11, color: "#06b6d4", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
                   <span style={{ fontSize: 8 }}>+</span> {p}
                 </div>
               ))}
