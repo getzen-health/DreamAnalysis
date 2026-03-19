@@ -1287,6 +1287,22 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
+  // Emotional Fitness Score
+  app.get("/api/brain/emotional-fitness/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const force = req.query.force === "true";
+      const days = parseInt(req.query.days as string) || 14;
+      const { computeEmotionalFitness } = await import("./efs-compute");
+      const mlBaseUrl = process.env.VITE_ML_API_URL || "http://localhost:8080";
+      const result = await computeEmotionalFitness(userId, mlBaseUrl, force, days);
+      res.json(result);
+    } catch (error) {
+      console.error("Emotional fitness error:", error);
+      res.status(500).json({ message: "Failed to compute emotional fitness score" });
+    }
+  });
+
   // GET /api/brain/patterns/:userId
   // Long-term pattern engine: correlates 30 days of emotion readings with time-of-day,
   // day-of-week, sleep quality, and biofeedback sessions to produce actionable patterns.

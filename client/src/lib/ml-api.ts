@@ -1030,6 +1030,38 @@ export async function getMultimodalStatus(): Promise<MultimodalStatus> {
   return mlFetch<MultimodalStatus>("/multimodal/status");
 }
 
+// ─── Emotional Fitness Score ─────────────────────────────────────────────────
+
+export interface EFSVitalData {
+  score: number | null;
+  status: "available" | "unavailable";
+  insight: string;
+  unlockHint?: string;
+  history: { date: string; score: number }[];
+}
+
+export interface EFSData {
+  score: number | null;
+  color: "green" | "amber" | "red" | null;
+  label: string | null;
+  confidence: "full" | "early_estimate" | "building";
+  progress?: { daysTracked: number; daysRequired: number; percentage: number; message: string };
+  trend: { direction: "up" | "down" | "stable"; delta: number; period: string } | null;
+  vitals: Record<string, EFSVitalData>;
+  dailyInsight: { text: string; type: string; actionNudge: string } | null;
+  computedAt: string | null;
+}
+
+export async function getEmotionalFitness(userId: string, force = false, days = 14): Promise<EFSData> {
+  const params = new URLSearchParams();
+  if (force) params.set("force", "true");
+  if (days !== 14) params.set("days", String(days));
+  const qs = params.toString();
+  const res = await fetch(`/api/brain/emotional-fitness/${encodeURIComponent(userId)}${qs ? `?${qs}` : ""}`);
+  if (!res.ok) throw new Error("Failed to fetch emotional fitness");
+  return res.json();
+}
+
 export type {
   EEGAnalysisResult,
   SimulationResult,
