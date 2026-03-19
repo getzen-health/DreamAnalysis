@@ -10,6 +10,7 @@ import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
 import { forecastMood } from "@/lib/mood-patterns";
+import { StreakProtector } from "@/components/streak-protector";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -907,6 +908,9 @@ export default function Today() {
           trend={focusTrend}
         />
       </div>
+
+      {/* ── Streak Protection Nudge ── */}
+      <StreakProtector />
 
       {/* ── Mental Fitness Score ── */}
       <MentalFitnessCard voice={voiceData} />
