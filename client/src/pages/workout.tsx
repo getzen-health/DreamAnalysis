@@ -367,7 +367,7 @@ export default function WorkoutPage() {
             <p className="text-[13px] font-semibold text-foreground">Weekly Activity</p>
             <span className="text-[10px] text-muted-foreground ml-auto">Last 4 weeks</span>
           </div>
-          <ResponsiveContainer width="100%" height={140}>
+          <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={weeklyChart} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
               <defs>
                 <linearGradient id="workoutGrad" x1="0" y1="0" x2="0" y2="1">

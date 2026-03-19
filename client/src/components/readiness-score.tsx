@@ -251,7 +251,7 @@ export function ReadinessScore({ userId }: ReadinessScoreProps) {
                 type="monotone"
                 dataKey="score"
                 stroke={lineColor}
-                strokeWidth={1.5}
+                strokeWidth={2.5}
                 dot={false}
                 isAnimationActive={false}
               />

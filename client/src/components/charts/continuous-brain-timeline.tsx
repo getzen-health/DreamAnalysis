@@ -215,7 +215,7 @@ export function ContinuousBrainTimeline({
           No data for this period — connect Muse 2 to start recording
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={160}>
+        <ResponsiveContainer width="100%" height={240}>
           <LineChart data={chartData}>
             <CartesianGrid
               strokeDasharray="3 3"

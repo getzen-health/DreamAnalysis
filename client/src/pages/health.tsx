@@ -174,7 +174,7 @@ function HeartTab() {
                 <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={30} />
                 <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11, color: "var(--foreground)" }} />
-                <Area type="monotone" dataKey="hr" stroke="#e879a8" fill="url(#hrGrad)" strokeWidth={2} dot={{ r: 2, fill: "#e879a8" }} name="HR (bpm)" />
+                <Area type="monotone" dataKey="hr" stroke="#e879a8" fill="url(#hrGrad)" strokeWidth={2.5} dot={{ r: 2, fill: "#e879a8" }} name="HR (bpm)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -201,7 +201,7 @@ function HeartTab() {
                 <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={30} />
                 <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11, color: "var(--foreground)" }} />
-                <Area type="monotone" dataKey="hrv" stroke="#06b6d4" fill="url(#hrvGrad)" strokeWidth={2} dot={{ r: 2, fill: "#06b6d4" }} name="HRV (ms)" />
+                <Area type="monotone" dataKey="hrv" stroke="#06b6d4" fill="url(#hrvGrad)" strokeWidth={2.5} dot={{ r: 2, fill: "#06b6d4" }} name="HRV (ms)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

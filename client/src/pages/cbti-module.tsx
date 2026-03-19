@@ -393,7 +393,7 @@ export default function CbtiModule() {
             <p className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">
               Sleep efficiency %
             </p>
-            <ResponsiveContainer width="100%" height={120}>
+            <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={weeklyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="sleepEffGrad" x1="0" y1="0" x2="0" y2="1">
@@ -445,7 +445,7 @@ export default function CbtiModule() {
             <p className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">
               Sleep window (hours)
             </p>
-            <ResponsiveContainer width="100%" height={100}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={weeklyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="sleepWindowGrad" x1="0" y1="0" x2="0" y2="1">
@@ -480,7 +480,7 @@ export default function CbtiModule() {
             <p className="mb-2 text-[11px] uppercase tracking-wider text-zinc-500">
               Compliance %
             </p>
-            <ResponsiveContainer width="100%" height={100}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={weeklyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="complianceGrad" x1="0" y1="0" x2="0" y2="1">

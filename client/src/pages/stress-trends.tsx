@@ -356,7 +356,7 @@ export default function StressTrends() {
         </div>
 
         {stressTrend.length >= 2 ? (
-          <ResponsiveContainer width="100%" height={160}>
+          <ResponsiveContainer width="100%" height={240}>
             <AreaChart
               data={stressTrend}
               margin={{ left: 0, right: 4, top: 4, bottom: 0 }}
@@ -401,7 +401,7 @@ export default function StressTrends() {
                 name="Stress"
                 stroke={STRESS_HIGH}
                 fill="url(#stressGrad)"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={false}
                 activeDot={{
                   r: 4,

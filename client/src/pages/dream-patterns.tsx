@@ -474,7 +474,7 @@ export default function DreamPatterns() {
                     />
                     <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(152, 60%, 48%)" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: "hsl(152, 60%, 48%)" }} />
                     <Line type="monotone" dataKey="relaxation" name="Relaxation" stroke="hsl(200, 70%, 55%)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "hsl(200, 70%, 55%)" }} />
-                    <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(262, 45%, 65%)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} activeDot={{ r: 4, fill: "hsl(262, 45%, 65%)" }} />
+                    <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(262, 45%, 65%)" strokeWidth={2.5} strokeDasharray="4 3" dot={false} activeDot={{ r: 4, fill: "hsl(262, 45%, 65%)" }} />
                   </LineChart>
                 </ResponsiveContainer>
                 <div className="flex gap-4 mt-2 flex-wrap">

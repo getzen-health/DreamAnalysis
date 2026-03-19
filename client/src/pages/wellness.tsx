@@ -300,7 +300,7 @@ function CycleWheel({ cycleInfo }: { cycleInfo: ComputedCycleInfo }) {
               fill={color}
               opacity={isActive ? 1 : 0.25}
               stroke="var(--background)"
-              strokeWidth={1.5}
+              strokeWidth={2.5}
               initial={{ opacity: 0 }}
               animate={{ opacity: isActive ? 1 : 0.25 }}
               transition={{ duration: 0.5 }}
@@ -1380,7 +1380,7 @@ function MoodTab() {
                   dataKey="energy"
                   stroke="#d4a017"
                   fill="url(#energyGradient)"
-                  strokeWidth={1.5}
+                  strokeWidth={2.5}
                   dot={{ r: 1.5 }}
                   strokeDasharray="4 2"
                   name="Energy"

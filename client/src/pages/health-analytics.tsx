@@ -396,7 +396,7 @@ export default function HealthAnalytics() {
                   />
                   <Line type="monotone" dataKey="calm"     name="Calm (α)"     stroke="hsl(152,65%,50%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
                   <Line type="monotone" dataKey="alert"    name="Alert (β)"    stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={2.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">
@@ -451,9 +451,9 @@ export default function HealthAnalytics() {
                   formatter={(v: number) => [`${v}%`]}
                 />
                 <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(200,70%,55%)" fill="url(#focusGradH)" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="relaxation" name="Relax" stroke="hsl(152,60%,48%)" strokeWidth={1.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(262,45%,65%)" strokeWidth={1.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={2.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="relaxation" name="Relax" stroke="hsl(152,60%,48%)" strokeWidth={2.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(262,45%,65%)" strokeWidth={2.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
               </AreaChart>
             </ResponsiveContainer>
             <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">

@@ -339,7 +339,7 @@ export default function FocusTrends() {
         </div>
 
         {focusTrend.length >= 2 ? (
-          <ResponsiveContainer width="100%" height={160}>
+          <ResponsiveContainer width="100%" height={240}>
             <AreaChart
               data={focusTrend}
               margin={{ left: 0, right: 4, top: 4, bottom: 0 }}
@@ -384,7 +384,7 @@ export default function FocusTrends() {
                 name="Focus"
                 stroke={FOCUS_PRIMARY}
                 fill="url(#focusGradFT)"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={{ r: 3, fill: FOCUS_PRIMARY, strokeWidth: 0 }}
                 activeDot={{ r: 5, fill: FOCUS_PRIMARY, strokeWidth: 2, stroke: "#fff" }}
               />
@@ -412,7 +412,7 @@ export default function FocusTrends() {
               Focus by Time of Day
             </span>
           </div>
-          <ResponsiveContainer width="100%" height={140}>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart
               data={focusByHour}
               margin={{ left: 0, right: 0, top: 4, bottom: 0 }}

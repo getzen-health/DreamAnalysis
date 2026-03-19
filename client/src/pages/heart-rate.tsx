@@ -367,7 +367,7 @@ export default function HeartRate() {
                   dataKey="hr"
                   stroke={HR_COLOR}
                   fill="url(#heartRateGrad)"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   dot={{ r: 2.5, fill: HR_COLOR }}
                   activeDot={{ r: 4, fill: HR_COLOR }}
                   name="HR (bpm)"

@@ -520,7 +520,7 @@ export default function BodyMetrics() {
                 dataKey="movingAvg"
                 name="7-day avg"
                 stroke="hsl(38,85%,58%)"
-                strokeWidth={1.5}
+                strokeWidth={2.5}
                 strokeDasharray="5 3"
                 fill="none"
                 dot={false}
@@ -571,7 +571,7 @@ export default function BodyMetrics() {
             <p className="text-[13px] font-semibold text-foreground">Body Composition</p>
           </div>
 
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={260}>
             <AreaChart
               data={chartData}
               margin={{ left: 0, right: 4, top: 4, bottom: 0 }}

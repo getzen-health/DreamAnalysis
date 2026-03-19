@@ -356,7 +356,7 @@ export default function EmotionalIntelligencePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={140}>
+                <ResponsiveContainer width="100%" height={240}>
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="eiqTrendGrad" x1="0" y1="0" x2="0" y2="1">
@@ -379,7 +379,7 @@ export default function EmotionalIntelligencePage() {
                       dataKey="eiq"
                       stroke="#7c3aed"
                       fill="url(#eiqTrendGrad)"
-                      strokeWidth={2}
+                      strokeWidth={2.5}
                       dot={false}
                       activeDot={{ r: 4, fill: "#7c3aed" }}
                     />

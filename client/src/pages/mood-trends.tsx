@@ -401,7 +401,7 @@ export default function MoodTrends() {
               Last 7 days
             </span>
           </div>
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={260}>
             <BarChart
               data={distribution}
               margin={{ left: 0, right: 0, top: 4, bottom: 0 }}

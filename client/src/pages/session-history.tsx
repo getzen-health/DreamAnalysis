@@ -451,13 +451,13 @@ export default function DataHub() {
                 <TrendingUp className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-medium">Focus & Stress Over Time</h3>
               </div>
-              <ResponsiveContainer width="100%" height={160}>
+              <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={sessionTrendData}>
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis hide domain={[0, 100]} />
                   <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v}%`]} />
                   <Line type="monotone" dataKey="focus" name="Focus" stroke="hsl(152,60%,48%)" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+                  <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={2.5} dot={false} strokeDasharray="4 4" />
                 </LineChart>
               </ResponsiveContainer>
             </Card>
@@ -643,7 +643,7 @@ export default function DataHub() {
                 <h3 className="text-sm font-medium">Emotion Timeline</h3>
                 <span className="text-xs text-muted-foreground">{emotions.length} readings</span>
               </div>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={260}>
                 <AreaChart data={emotionChartData} margin={{ left: -24 }}>
                   <defs>
                     <linearGradient id="stressG" x1="0" y1="0" x2="0" y2="1">
@@ -663,9 +663,9 @@ export default function DataHub() {
                   <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
                   <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v}%`]} />
-                  <Area type="monotone" dataKey="stress" name="Stress" stroke="hsl(340,70%,55%)" fill="url(#stressG)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(200,70%,55%)" fill="url(#focusG)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="happiness" name="Happiness" stroke="hsl(38,85%,58%)" fill="url(#happyG)" strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="stress" name="Stress" stroke="hsl(340,70%,55%)" fill="url(#stressG)" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(200,70%,55%)" fill="url(#focusG)" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="happiness" name="Happiness" stroke="hsl(38,85%,58%)" fill="url(#happyG)" strokeWidth={2.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Card>
