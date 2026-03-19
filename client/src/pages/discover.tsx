@@ -674,7 +674,7 @@ export default function Discover() {
           width: "100%",
           background: "var(--card)",
           border: "1px solid #1f3a2e",
-          borderRadius: 18,
+          borderRadius: 14,
           padding: 18,
           marginBottom: 14,
           cursor: "pointer",

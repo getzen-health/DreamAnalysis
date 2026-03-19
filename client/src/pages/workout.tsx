@@ -288,7 +288,7 @@ export default function WorkoutPage() {
 
       {/* Sync Status + Button */}
       <motion.div
-        className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+        className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
         {...fadeInUp}
         transition={{ ...fadeInUp.transition, delay: 0.05 }}
       >
@@ -327,7 +327,7 @@ export default function WorkoutPage() {
       {/* Weekly Summary */}
       {weeklyStats.count > 0 && (
         <motion.div
-          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.1 }}
         >
@@ -358,7 +358,7 @@ export default function WorkoutPage() {
       {/* Exercise Minutes Chart (4 weeks) */}
       {hasChartData && (
         <motion.div
-          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.15 }}
         >
@@ -432,7 +432,7 @@ export default function WorkoutPage() {
           {todayWorkouts.length > 0 ? "Previous Workouts" : "Workout History"}
         </p>
         {workoutHistory.length === 0 ? (
-          <div className="rounded-2xl p-6 text-center bg-card border border-border">
+          <div className="rounded-[14px] p-6 text-center bg-card border border-border">
             <Dumbbell className="h-8 w-8 mx-auto mb-3 text-muted-foreground/40" />
             <p className="text-[13px] font-medium text-foreground/70">
               No workouts yet

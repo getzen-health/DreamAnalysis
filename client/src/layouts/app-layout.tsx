@@ -14,6 +14,7 @@ import { pingBackend } from "@/lib/ml-api";
 import { Loader2, Sun, Moon, Monitor, ChevronLeft } from "lucide-react";
 import { StreakCelebration } from "@/components/streak-celebration";
 import { EmotionBadge } from "@/components/emotion-badge";
+import { ScoreHeader } from "@/components/score-header";
 
 const routeTitles: Record<string, string> = {
   "/": "Today",
@@ -176,6 +177,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
             />
           </div>
         )}
+
+        {/* Bevel pattern: scores first, content second — shown on every page */}
+        <ScoreHeader />
 
         {/* pb-safe: extra bottom padding on devices with home indicator + bottom tab bar on mobile */}
         {/* Tab bar is 56px tall — 3.75rem */}

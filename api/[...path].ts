@@ -782,7 +782,8 @@ const FOOD_JSON_SCHEMA = `{
   "glycemicImpact": "low|medium|high",
   "moodImpact": "2-sentence prediction of mood/energy 2-4 hours later",
   "dreamRelevance": "2-sentence note on how this may affect tonight's sleep or dream vividness",
-  "summary": "One plain-English sentence describing what was eaten"
+  "summary": "One plain-English sentence describing what was eaten",
+  "vitamins": {"vitamin_d_mcg":0,"vitamin_b12_mcg":0,"vitamin_c_mg":0,"iron_mg":0,"magnesium_mg":0,"zinc_mg":0,"omega3_g":0}
 }`;
 
 async function foodAnalyze(req: VercelRequest, res: VercelResponse) {

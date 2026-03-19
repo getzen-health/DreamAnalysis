@@ -1706,7 +1706,8 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
   "glycemicImpact": "low|medium|high",
   "moodImpact": "2-sentence prediction: how this meal typically affects mood/energy 2-4 hours later",
   "dreamRelevance": "2-sentence note: how this nutrition may affect tonight's sleep depth or dream vividness",
-  "summary": "One plain-English sentence describing what was eaten"
+  "summary": "One plain-English sentence describing what was eaten",
+  "vitamins": {"vitamin_d_mcg":0,"vitamin_b12_mcg":0,"vitamin_c_mg":0,"iron_mg":0,"magnesium_mg":0,"zinc_mg":0,"omega3_g":0}
 }`;
 
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user

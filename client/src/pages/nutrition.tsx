@@ -21,6 +21,16 @@ interface FoodItem {
   fat_g: number;
 }
 
+interface VitaminData {
+  vitamin_d_mcg: number;
+  vitamin_b12_mcg: number;
+  vitamin_c_mg: number;
+  iron_mg: number;
+  magnesium_mg: number;
+  zinc_mg: number;
+  omega3_g: number;
+}
+
 interface FoodLog {
   id: string;
   loggedAt: string;
@@ -29,6 +39,7 @@ interface FoodLog {
   totalCalories: number | null;
   dominantMacro: string | null;
   foodItems: FoodItem[] | null;
+  vitamins?: VitaminData | null;
 }
 
 interface FavoriteMeal {
@@ -309,6 +320,316 @@ function MacroBar({ value, goal, color }: { value: number; goal: number; color: 
         }}
       />
     </div>
+  );
+}
+
+// ── Vitamin Tracker ──────────────────────────────────────────────────────────
+
+interface VitaminTarget {
+  key: keyof VitaminData;
+  label: string;
+  unit: string;
+  daily: number;
+}
+
+const VITAMIN_TARGETS: VitaminTarget[] = [
+  { key: "vitamin_d_mcg", label: "Vitamin D", unit: "mcg", daily: 15 },
+  { key: "vitamin_b12_mcg", label: "B12", unit: "mcg", daily: 2.4 },
+  { key: "vitamin_c_mg", label: "Vitamin C", unit: "mg", daily: 90 },
+  { key: "iron_mg", label: "Iron", unit: "mg", daily: 18 },
+  { key: "magnesium_mg", label: "Magnesium", unit: "mg", daily: 400 },
+  { key: "zinc_mg", label: "Zinc", unit: "mg", daily: 11 },
+  { key: "omega3_g", label: "Omega-3", unit: "g", daily: 1.6 },
+];
+
+/** Estimate micronutrients from food item names when GPT vitamins data is unavailable. */
+function estimateVitaminsFromFood(items: FoodItem[]): VitaminData {
+  const v: VitaminData = {
+    vitamin_d_mcg: 0, vitamin_b12_mcg: 0, vitamin_c_mg: 0,
+    iron_mg: 0, magnesium_mg: 0, zinc_mg: 0, omega3_g: 0,
+  };
+  for (const item of items) {
+    const n = item.name.toLowerCase();
+    // Vitamin D sources
+    if (/salmon|tuna|sardine|mackerel|trout|herring/i.test(n)) v.vitamin_d_mcg += 10;
+    if (/egg/i.test(n)) v.vitamin_d_mcg += 1;
+    if (/milk|yogurt|cheese/i.test(n)) v.vitamin_d_mcg += 2.5;
+    // B12 sources
+    if (/beef|steak|lamb/i.test(n)) v.vitamin_b12_mcg += 2.5;
+    if (/chicken|turkey|poultry/i.test(n)) v.vitamin_b12_mcg += 0.3;
+    if (/salmon|tuna|fish|sardine/i.test(n)) v.vitamin_b12_mcg += 4;
+    if (/egg/i.test(n)) v.vitamin_b12_mcg += 0.6;
+    if (/milk|yogurt/i.test(n)) v.vitamin_b12_mcg += 1;
+    // Vitamin C sources
+    if (/orange|lemon|lime|grapefruit|citrus/i.test(n)) v.vitamin_c_mg += 50;
+    if (/strawberry|kiwi|mango|papaya|pineapple/i.test(n)) v.vitamin_c_mg += 40;
+    if (/broccoli|pepper|tomato|cauliflower|brussels/i.test(n)) v.vitamin_c_mg += 40;
+    if (/spinach|kale|cabbage/i.test(n)) v.vitamin_c_mg += 20;
+    // Iron sources
+    if (/beef|steak|lamb/i.test(n)) v.iron_mg += 3;
+    if (/spinach|kale|lentil|bean|chickpea/i.test(n)) v.iron_mg += 3;
+    if (/tofu|tempeh/i.test(n)) v.iron_mg += 3;
+    // Magnesium sources
+    if (/almond|cashew|peanut|nut/i.test(n)) v.magnesium_mg += 50;
+    if (/spinach|avocado|banana/i.test(n)) v.magnesium_mg += 30;
+    if (/dark choc|cacao/i.test(n)) v.magnesium_mg += 60;
+    if (/quinoa|oat|brown rice|whole grain/i.test(n)) v.magnesium_mg += 40;
+    // Zinc sources
+    if (/beef|steak|lamb/i.test(n)) v.zinc_mg += 4;
+    if (/oyster|crab|lobster|shrimp/i.test(n)) v.zinc_mg += 6;
+    if (/chicken|turkey/i.test(n)) v.zinc_mg += 2;
+    if (/chickpea|lentil|bean/i.test(n)) v.zinc_mg += 1.5;
+    // Omega-3 sources
+    if (/salmon|sardine|mackerel|herring|anchov/i.test(n)) v.omega3_g += 1.5;
+    if (/tuna|trout/i.test(n)) v.omega3_g += 0.8;
+    if (/walnut|flax|chia/i.test(n)) v.omega3_g += 0.5;
+    if (/avocado/i.test(n)) v.omega3_g += 0.1;
+  }
+  return v;
+}
+
+function VitaminBar({ value, goal, color }: { value: number; goal: number; color: string }) {
+  const pct = Math.min((value / goal) * 100, 100);
+  return (
+    <div
+      style={{
+        height: 4,
+        background: "var(--border)",
+        borderRadius: 2,
+        overflow: "hidden",
+        flex: 1,
+      }}
+    >
+      <div
+        style={{
+          height: "100%",
+          width: `${pct}%`,
+          background: color,
+          borderRadius: 2,
+          transition: "width 0.5s ease",
+        }}
+      />
+    </div>
+  );
+}
+
+function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
+  const vitaminTotals = useMemo(() => {
+    const totals: VitaminData = {
+      vitamin_d_mcg: 0, vitamin_b12_mcg: 0, vitamin_c_mg: 0,
+      iron_mg: 0, magnesium_mg: 0, zinc_mg: 0, omega3_g: 0,
+    };
+    for (const log of todayLogs) {
+      // Use GPT vitamins data if available, otherwise estimate from food names
+      if (log.vitamins) {
+        for (const k of Object.keys(totals) as (keyof VitaminData)[]) {
+          totals[k] += log.vitamins[k] ?? 0;
+        }
+      } else if (log.foodItems) {
+        const est = estimateVitaminsFromFood(log.foodItems);
+        for (const k of Object.keys(totals) as (keyof VitaminData)[]) {
+          totals[k] += est[k];
+        }
+      }
+    }
+    return totals;
+  }, [todayLogs]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.12 }}
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 16,
+      }}
+    >
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+        textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
+      }}>
+        Micronutrients
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {VITAMIN_TARGETS.map((vt) => {
+          const val = vitaminTotals[vt.key];
+          const pct = vt.daily > 0 ? (val / vt.daily) * 100 : 0;
+          const color = pct >= 80 ? "#22c55e" : pct >= 50 ? "#d4a017" : "#e879a8";
+          return (
+            <div key={vt.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 60, fontSize: 11, fontWeight: 500, color: "var(--foreground)" }}>
+                {vt.label}
+              </div>
+              <VitaminBar value={val} goal={vt.daily} color={color} />
+              <div style={{ width: 56, fontSize: 10, textAlign: "right", color: "var(--muted-foreground)" }}>
+                {val > 0 ? `${Math.round(val * 10) / 10}${vt.unit}` : "--"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {todayLogs.length === 0 && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8 }}>
+          Log meals to track micronutrients
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ── GLP-1 Support Tracker ────────────────────────────────────────────────────
+
+const GLP1_FOODS: Record<string, string[]> = {
+  protein: ["chicken", "turkey", "fish", "salmon", "tuna", "egg", "beef", "steak", "tofu", "tempeh", "shrimp", "pork", "lamb", "whey", "protein", "greek yogurt"],
+  fiber: ["oat", "quinoa", "lentil", "bean", "chickpea", "broccoli", "brussels", "artichoke", "pea", "apple", "berry", "chia", "flax", "whole grain", "brown rice", "avocado", "sweet potato"],
+  healthyFat: ["avocado", "almond", "walnut", "cashew", "olive", "nut butter", "peanut butter", "coconut oil", "flax", "chia", "salmon", "sardine", "mackerel"],
+  fermented: ["yogurt", "kefir", "kimchi", "sauerkraut", "miso", "tempeh", "kombucha", "pickle"],
+};
+
+function computeGlp1Score(
+  todayLogs: FoodLog[],
+  totalProtein: number,
+  totalCalories: number,
+): { score: number; foods: string[]; breakdown: { protein: number; fiber: number; healthyFat: number; fermented: number } } {
+  const foods: string[] = [];
+  let fiberCount = 0;
+  let healthyFatCount = 0;
+  let fermentedCount = 0;
+
+  for (const log of todayLogs) {
+    for (const item of log.foodItems ?? []) {
+      const n = item.name.toLowerCase();
+      for (const [cat, keywords] of Object.entries(GLP1_FOODS)) {
+        if (keywords.some((kw) => n.includes(kw))) {
+          if (!foods.includes(item.name)) foods.push(item.name);
+          if (cat === "fiber") fiberCount++;
+          if (cat === "healthyFat") healthyFatCount++;
+          if (cat === "fermented") fermentedCount++;
+        }
+      }
+    }
+  }
+
+  // Score components (0-25 each, total 0-100)
+  const proteinPct = totalCalories > 0 ? (totalProtein * 4 / totalCalories) * 100 : 0;
+  const proteinScore = Math.min(25, (proteinPct / 25) * 25);
+  const fiberScore = Math.min(25, (fiberCount / 3) * 25);
+  const fatScore = Math.min(25, (healthyFatCount / 2) * 25);
+  const fermentedScore = Math.min(25, fermentedCount > 0 ? 25 : 0);
+
+  const score = Math.round(proteinScore + fiberScore + fatScore + fermentedScore);
+
+  return {
+    score,
+    foods,
+    breakdown: {
+      protein: Math.round(proteinScore),
+      fiber: Math.round(fiberScore),
+      healthyFat: Math.round(fatScore),
+      fermented: Math.round(fermentedScore),
+    },
+  };
+}
+
+function Glp1Tracker({
+  todayLogs,
+  totalProtein,
+  totalCalories,
+}: {
+  todayLogs: FoodLog[];
+  totalProtein: number;
+  totalCalories: number;
+}) {
+  const glp1 = useMemo(
+    () => computeGlp1Score(todayLogs, totalProtein, totalCalories),
+    [todayLogs, totalProtein, totalCalories],
+  );
+
+  const scoreColor = glp1.score >= 70 ? "#22c55e" : glp1.score >= 40 ? "#0891b2" : "#94a3b8";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.15 }}
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 16,
+      }}
+    >
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+        textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <span>GLP-1 Support</span>
+        <span style={{
+          fontSize: 18, fontWeight: 700, color: scoreColor,
+          background: `linear-gradient(135deg, ${scoreColor}, #0891b2)`,
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        }}>
+          {glp1.score}
+        </span>
+      </div>
+
+      {/* Score breakdown */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
+        {([
+          { label: "Protein", value: glp1.breakdown.protein, max: 25 },
+          { label: "Fiber", value: glp1.breakdown.fiber, max: 25 },
+          { label: "Healthy Fats", value: glp1.breakdown.healthyFat, max: 25 },
+          { label: "Fermented", value: glp1.breakdown.fermented, max: 25 },
+        ] as const).map((item) => (
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ fontSize: 10, color: "var(--muted-foreground)", width: 68, flexShrink: 0 }}>
+              {item.label}
+            </div>
+            <div style={{ flex: 1, height: 3, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${(item.value / item.max) * 100}%`,
+                background: "linear-gradient(90deg, #0891b2, #22d3ee)",
+                borderRadius: 2,
+                transition: "width 0.5s ease",
+              }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Contributing foods */}
+      {glp1.foods.length > 0 ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {glp1.foods.slice(0, 6).map((f, i) => (
+            <span
+              key={i}
+              style={{
+                fontSize: 10,
+                padding: "2px 8px",
+                borderRadius: 10,
+                background: "hsl(180 65% 50% / 0.12)",
+                color: "#0891b2",
+                fontWeight: 500,
+              }}
+            >
+              {f}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+          Log meals rich in protein, fiber, and healthy fats to boost GLP-1 support
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -963,6 +1284,12 @@ export default function Nutrition() {
           <MacroBar value={totalFat} goal={FAT_GOAL} color="#e879a8" />
         </motion.div>
       </motion.div>
+
+      {/* Vitamin Tracker */}
+      <VitaminTracker todayLogs={todayLogs} />
+
+      {/* GLP-1 Support Tracker */}
+      <Glp1Tracker todayLogs={todayLogs} totalProtein={totalProtein} totalCalories={totalCalories} />
 
       {/* Nutrition Score + Food Quality */}
       <motion.div

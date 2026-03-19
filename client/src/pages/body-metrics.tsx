@@ -233,7 +233,7 @@ export default function BodyMetrics() {
 
       {/* Synced from Health Card */}
       <motion.div
-        className="rounded-2xl p-5 bg-card border border-border shadow-sm"
+        className="rounded-[14px] p-5 bg-card border border-border shadow-sm"
         {...fadeInUp}
         transition={{ ...fadeInUp.transition, delay: 0.05 }}
       >
@@ -313,7 +313,7 @@ export default function BodyMetrics() {
       {/* Current Stats Card */}
       {latestWeight !== null && (
         <motion.div
-          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.1 }}
         >
@@ -396,7 +396,7 @@ export default function BodyMetrics() {
       {/* Rate of Change Indicator */}
       {rateOfChange && (
         <motion.div
-          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.15 }}
         >
@@ -444,7 +444,7 @@ export default function BodyMetrics() {
       {/* Weight Trend Chart */}
       {chartData.length >= 2 && (
         <motion.div
-          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.2 }}
         >
@@ -555,7 +555,7 @@ export default function BodyMetrics() {
       {/* Body Composition Chart */}
       {hasBodyFatData && chartData.length >= 2 && (
         <motion.div
-          className="rounded-2xl p-4 bg-card border border-border shadow-sm"
+          className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.25 }}
         >
@@ -656,7 +656,7 @@ export default function BodyMetrics() {
       {/* Empty state */}
       {history.length === 0 && latestWeight === null && (
         <motion.div
-          className="rounded-2xl p-6 text-center bg-card border border-border"
+          className="rounded-[14px] p-6 text-center bg-card border border-border"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.1 }}
         >

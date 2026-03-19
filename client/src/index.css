@@ -122,8 +122,15 @@
 }
 
 @layer components {
+  .card-std {
+    @apply rounded-[14px] p-4 bg-card border border-border;
+  }
+  .card-std-sm {
+    @apply rounded-[14px] p-3 bg-card border border-border;
+  }
+
   .glass-card {
-    @apply rounded-2xl border;
+    @apply rounded-[14px] border;
     background: var(--card);
     border-color: var(--border);
     backdrop-filter: blur(12px);
@@ -144,7 +151,7 @@
   }
 
   .score-card {
-    @apply rounded-2xl border;
+    @apply rounded-[14px] border;
     background: var(--card);
     border-color: var(--border);
     box-shadow: 0 4px 24px hsl(0 0% 0% / 0.06);
@@ -201,7 +208,7 @@
   }
 
   .ai-insight-card {
-    @apply rounded-2xl border p-5;
+    @apply rounded-[14px] border p-5;
     background: hsl(152 30% 95%);
     border-color: hsl(152 60% 40% / 0.2);
   }
