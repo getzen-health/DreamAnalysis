@@ -220,6 +220,7 @@ from .cnn_kan_trainer import router as _cnn_kan_trainer
 from .voice_depression import router as _voice_depression
 from .device_adapters import router as _device_adapters
 from .emotion_forecaster import router as _emotion_forecaster
+from .pilot_validation import router as _pilot_validation
 
 router = APIRouter()
 
@@ -409,3 +410,4 @@ router.include_router(_cnn_kan_trainer)
 router.include_router(_voice_depression)
 router.include_router(_device_adapters)
 router.include_router(_emotion_forecaster)
+router.include_router(_pilot_validation)

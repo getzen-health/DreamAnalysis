@@ -14,9 +14,13 @@ const config: CapacitorConfig = {
   ios: {
     // Minimum iOS version — 14+ covers all iPhones since 2017
     minVersion: "14.0",
+    // URL scheme for deep linking (neuraldream://)
+    scheme: "Neural Dream Workshop",
     // Allow inline media without user gesture (for biofeedback animations)
     allowsInlineMediaPlayback: true,
     backgroundColor: "#0d0f14",
+    // Content inset behavior for safe areas (iPhone notch/Dynamic Island)
+    contentInset: "automatic",
   },
   android: {
     // Minimum Android API level 24 (Android 7, 2016+)
