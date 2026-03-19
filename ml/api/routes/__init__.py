@@ -199,6 +199,9 @@ from .psychedelic_integration import router as _psychedelic_integration
 from .epigenetic import router as _epigenetic
 from .adaptive_education import router as _adaptive_education
 from .perinatal import router as _perinatal
+from .neuro_rights import router as _neuro_rights
+from .emotion_os import router as _emotion_os
+from .synthetic_eeg import router as _synthetic_eeg
 
 router = APIRouter()
 
@@ -367,3 +370,6 @@ router.include_router(_psychedelic_integration)
 router.include_router(_epigenetic)
 router.include_router(_adaptive_education)
 router.include_router(_perinatal)
+router.include_router(_neuro_rights)
+router.include_router(_emotion_os)
+router.include_router(_synthetic_eeg)
