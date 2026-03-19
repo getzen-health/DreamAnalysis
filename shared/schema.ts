@@ -772,6 +772,50 @@ export const cycleTracking = pgTable("cycle_tracking", {
   uniqueIndex("cycle_tracking_user_date_uidx").on(table.userId, table.date),
 ]);
 
+// ── Circadian profiles (issue #410) ──────────────────────────────────────────
+// Stores computed circadian rhythm parameters per user, updated daily.
+
+export const circadianProfiles = pgTable("circadian_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  chronotype: text("chronotype").notNull(),                // "early_bird" | "night_owl" | "intermediate"
+  chronotypeConfidence: real("chronotype_confidence"),      // 0–1
+  acrophaseH: real("acrophase_h").notNull(),               // peak alertness hour (0–24)
+  amplitude: real("amplitude"),                             // rhythm strength
+  periodH: real("period_h").default(24.0),                 // fitted period
+  phaseStability: real("phase_stability"),                  // 0–1
+  predictedFocusWindow: text("predicted_focus_window"),     // e.g. "9:30am – 12:00pm"
+  predictedSlumpWindow: text("predicted_slump_window"),     // e.g. "2:00pm – 3:30pm"
+  phaseShiftHours: real("phase_shift_hours").default(0),   // drift from baseline
+  fits: jsonb("fits"),                                      // per-stream cosinor fit details
+  dataDays: integer("data_days").default(0),               // days of data used
+  computedAt: timestamp("computed_at").defaultNow().notNull(),
+}, (table) => [
+  index("circadian_profiles_user_ts_idx").on(table.userId, table.computedAt),
+]);
+
+// ── Emotion calibration (issue #411) ─────────────────────────────────────────
+// Stores paired observations of reported vs measured emotion for self-report calibration.
+
+export const emotionCalibration = pgTable("emotion_calibration", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  reportedValence: real("reported_valence"),       // user self-report (-1 to 1)
+  reportedArousal: real("reported_arousal"),        // user self-report (0 to 1)
+  measuredValence: real("measured_valence"),        // EEG/voice measured (-1 to 1)
+  measuredArousal: real("measured_arousal"),        // EEG/voice measured (0 to 1)
+  eegValence: real("eeg_valence"),                 // EEG-only measurement
+  voiceValence: real("voice_valence"),             // voice-only measurement
+  channelAgreement: real("channel_agreement"),     // cosine similarity EEG<>voice
+  reporterType: text("reporter_type"),             // computed: accurate|suppressor|amplifier|inconsistent
+  awarenessScore: real("awareness_score"),          // computed: 0–100
+  context: text("context"),                        // optional tag (e.g. "after_meeting")
+  sessionId: varchar("session_id"),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+}, (table) => [
+  index("emotion_calibration_user_ts_idx").on(table.userId, table.recordedAt),
+]);
+
 export const moodLogs = pgTable("mood_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
@@ -853,6 +897,20 @@ export const insertHabitLogSchema = createInsertSchema(habitLogs).omit({
 export const insertCycleTrackingSchema = createInsertSchema(cycleTracking).omit({
   id: true,
 });
+
+export const insertCircadianProfileSchema = createInsertSchema(circadianProfiles).omit({
+  id: true,
+  computedAt: true,
+});
+export type CircadianProfile = typeof circadianProfiles.$inferSelect;
+export type InsertCircadianProfile = z.infer<typeof insertCircadianProfileSchema>;
+
+export const insertEmotionCalibrationSchema = createInsertSchema(emotionCalibration).omit({
+  id: true,
+  recordedAt: true,
+});
+export type EmotionCalibrationEntry = typeof emotionCalibration.$inferSelect;
+export type InsertEmotionCalibration = z.infer<typeof insertEmotionCalibrationSchema>;
 
 export const insertMoodLogSchema = createInsertSchema(moodLogs).omit({
   id: true,

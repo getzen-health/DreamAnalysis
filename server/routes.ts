@@ -36,6 +36,7 @@ import {
   bodyMetrics, exerciseHistory,
   habits, habitLogs, cycleTracking, moodLogs,
   deviceConnections,
+  circadianProfiles,
 } from "@shared/schema";
 import { wearableAdapters } from "../lib/wearables";
 import { computeCardioLoad } from "@shared/cardio";
@@ -1091,6 +1092,123 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
       res.json({ userId, insights: ranked });
     } catch (error) {
       res.status(500).json({ message: "Failed to compute yesterday insights" });
+    }
+  });
+
+  // GET /api/brain/circadian-profile/:userId — personalized circadian rhythm profile
+  // Fetches emotion readings from the last N days, extracts time-stamped features,
+  // sends them to the ML backend for cosinor fitting, and caches the result.
+  app.get("/api/brain/circadian-profile/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const days = Math.min(90, Math.max(7, parseInt(req.query.days as string) || 14));
+      const fromTs = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      // Fetch emotion readings for the window
+      const readings = await storage.getEmotionReadings(userId, 2000, fromTs);
+      if (!readings || readings.length < 6) {
+        return res.json({
+          available: false,
+          message: `Need at least 6 data points across ${days} days. Currently have ${readings?.length ?? 0}.`,
+          minimum_days: 7,
+        });
+      }
+
+      // Extract time-stamped feature streams from emotion readings
+      const streams: Record<string, { time_h: number; value: number }[]> = {
+        valence: [],
+        arousal: [],
+        stress: [],
+        focus: [],
+      };
+
+      for (const r of readings) {
+        const ts = new Date(r.timestamp);
+        const time_h = ts.getHours() + ts.getMinutes() / 60;
+
+        if (r.valence != null) streams.valence.push({ time_h, value: r.valence });
+        if (r.arousal != null) streams.arousal.push({ time_h, value: r.arousal });
+        if (r.stress != null && r.stress > 0) streams.stress.push({ time_h, value: r.stress });
+        if (r.focus != null && r.focus > 0) streams.focus.push({ time_h, value: r.focus });
+      }
+
+      // Also try to get HRV data from health_samples
+      const hrvSamples = await db.select()
+        .from(healthSamples)
+        .where(and(
+          eq(healthSamples.userId, userId),
+          eq(healthSamples.metric, "hrv"),
+          gte(healthSamples.recordedAt, fromTs),
+        ))
+        .orderBy(asc(healthSamples.recordedAt))
+        .limit(500);
+
+      if (hrvSamples.length > 0) {
+        streams["hrv"] = hrvSamples.map(s => ({
+          time_h: new Date(s.recordedAt).getHours() + new Date(s.recordedAt).getMinutes() / 60,
+          value: parseFloat(String(s.value)),
+        }));
+      }
+
+      // Compute current hour
+      const now = new Date();
+      const current_hour = now.getHours() + now.getMinutes() / 60;
+
+      // Check for previous profile (for phase-shift detection)
+      const [prevProfile] = await db.select()
+        .from(circadianProfiles)
+        .where(eq(circadianProfiles.userId, userId))
+        .orderBy(desc(circadianProfiles.computedAt))
+        .limit(1);
+
+      const baseline_acrophase = prevProfile?.acrophaseH ?? null;
+
+      // Call ML backend
+      const mlUrl = process.env.VITE_ML_API_URL || "http://localhost:8080";
+      const mlRes = await fetch(`${mlUrl}/api/circadian/compute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          feature_streams: streams,
+          current_hour,
+          baseline_acrophase,
+        }),
+      });
+
+      if (!mlRes.ok) {
+        const errText = await mlRes.text();
+        logger.warn(`Circadian ML call failed (${mlRes.status}): ${errText}`);
+        return res.status(mlRes.status).json({ error: errText });
+      }
+
+      const profile = await mlRes.json();
+
+      // Cache in DB (upsert-like: just insert, old profiles remain for history)
+      try {
+        await db.insert(circadianProfiles).values({
+          userId,
+          chronotype: profile.chronotype,
+          chronotypeConfidence: profile.chronotype_confidence,
+          acrophaseH: profile.acrophase_h,
+          amplitude: profile.amplitude,
+          periodH: profile.period_h,
+          phaseStability: profile.phase_stability,
+          predictedFocusWindow: profile.predicted_focus_window,
+          predictedSlumpWindow: profile.predicted_slump_window,
+          phaseShiftHours: profile.phase_shift_hours,
+          fits: profile.fits,
+          dataDays: profile.data_days,
+        });
+      } catch (dbErr) {
+        logger.warn("Failed to cache circadian profile:", dbErr);
+        // Non-fatal — still return the computed profile
+      }
+
+      res.json(profile);
+    } catch (error) {
+      logger.error("Circadian profile error:", error);
+      res.status(500).json({ message: "Failed to compute circadian profile" });
     }
   });
 

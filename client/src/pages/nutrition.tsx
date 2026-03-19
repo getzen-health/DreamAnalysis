@@ -1623,7 +1623,7 @@ export default function Nutrition() {
                 imageBase64: base64,
               });
               const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("Analysis timed out")), 5000)
+                setTimeout(() => reject(new Error("Analysis timed out")), 30000)
               );
               const res = await Promise.race([apiPromise, timeoutPromise]);
               await res.json();
@@ -1686,7 +1686,7 @@ export default function Nutrition() {
                 imageBase64: base64,
               });
               const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error("Analysis timed out")), 5000)
+                setTimeout(() => reject(new Error("Analysis timed out")), 30000)
               );
               const res = await Promise.race([apiPromise, timeoutPromise]);
               await res.json();
@@ -1880,7 +1880,7 @@ export default function Nutrition() {
                             textDescription: mealText.trim(),
                           });
                           const timeoutPromise = new Promise<never>((_, reject) =>
-                            setTimeout(() => reject(new Error("Analysis timed out")), 5000)
+                            setTimeout(() => reject(new Error("Analysis timed out")), 30000)
                           );
                           const res = await Promise.race([apiPromise, timeoutPromise]);
                           await res.json();
@@ -1892,14 +1892,20 @@ export default function Nutrition() {
                         } catch {
                           try {
                             const local = estimateNutritionLocally(mealText.trim());
-                            await apiRequest("POST", "/api/food/log", {
-                              userId,
-                              mealType: autoMealType(),
-                              summary: local.summary,
-                              totalCalories: local.total_calories,
-                              dominantMacro: local.dominant_macro,
-                              foodItems: local.food_items,
-                            });
+                            const fallbackTimeout = new Promise<never>((_, reject) =>
+                              setTimeout(() => reject(new Error("Fallback timed out")), 10000)
+                            );
+                            await Promise.race([
+                              apiRequest("POST", "/api/food/log", {
+                                userId,
+                                mealType: autoMealType(),
+                                summary: local.summary,
+                                totalCalories: local.total_calories,
+                                dominantMacro: local.dominant_macro,
+                                foodItems: local.food_items,
+                              }),
+                              fallbackTimeout,
+                            ]);
                             hapticSuccess();
                             setMealText("");
                             await new Promise(r => setTimeout(r, 500));

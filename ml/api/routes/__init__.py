@@ -164,6 +164,21 @@ from .cnn_kan import router as _cnn_kan
 from .barlow_twins import router as _barlow_twins
 from .eegnet_lite import router as _eegnet_lite
 from .health_emotion import router as _health_emotion
+from .circadian import router as _circadian
+from .self_report_calibration import router as _self_report_calibration
+from .burnout import router as _burnout
+from .neurodivergent import router as _neurodivergent
+from .ambient_sound import router as _ambient_sound
+from .respiratory import router as _respiratory
+from .somatic import router as _somatic
+from .emotion_contagion import router as _emotion_contagion
+from .emotional_twin import router as _emotional_twin
+from .interoception import router as _interoception
+from .polyvagal import router as _polyvagal
+from .granularity import router as _granularity
+from .micro_intervention import router as _micro_intervention
+from .dream_sleep_fusion import router as _dream_sleep_fusion
+from .pharmacological import router as _pharmacological
 
 router = APIRouter()
 
@@ -297,3 +312,18 @@ router.include_router(_cnn_kan)
 router.include_router(_barlow_twins)
 router.include_router(_eegnet_lite)
 router.include_router(_health_emotion)
+router.include_router(_circadian)
+router.include_router(_self_report_calibration)
+router.include_router(_burnout)
+router.include_router(_neurodivergent)
+router.include_router(_ambient_sound)
+router.include_router(_respiratory)
+router.include_router(_somatic)
+router.include_router(_emotion_contagion)
+router.include_router(_emotional_twin)
+router.include_router(_interoception)
+router.include_router(_polyvagal)
+router.include_router(_granularity)
+router.include_router(_micro_intervention)
+router.include_router(_dream_sleep_fusion)
+router.include_router(_pharmacological)
