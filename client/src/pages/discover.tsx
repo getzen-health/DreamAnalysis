@@ -127,30 +127,100 @@ interface Recommendation {
   route: string;
 }
 
+// All possible features for progressive discovery
+const ALL_FEATURES = [
+  { route: "/biofeedback", title: "Breathing Exercise", emoji: "🧘", category: "calm" },
+  { route: "/sleep-session", title: "Sleep Music", emoji: "🎵", category: "calm" },
+  { route: "/inner-energy", title: "Inner Energy", emoji: "✨", category: "energy" },
+  { route: "/mood", title: "Mood Trends", emoji: "😊", category: "insight" },
+  { route: "/neurofeedback", title: "Neurofeedback", emoji: "🎯", category: "focus" },
+  { route: "/dreams", title: "Dream Journal", emoji: "📝", category: "insight" },
+  { route: "/workout", title: "Workout", emoji: "🏋️", category: "energy" },
+  { route: "/brain-monitor", title: "Brain Monitor", emoji: "🧠", category: "insight" },
+  { route: "/habits", title: "Habit Tracker", emoji: "📊", category: "insight" },
+  { route: "/ai-companion", title: "AI Companion", emoji: "💬", category: "support" },
+  { route: "/insights", title: "Wellness Insights", emoji: "💡", category: "insight" },
+];
+
+function getUsedFeatures(): Set<string> {
+  try {
+    const raw = localStorage.getItem("ndw_feature_usage");
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function trackFeatureUsage(route: string) {
+  try {
+    const used = getUsedFeatures();
+    used.add(route);
+    localStorage.setItem("ndw_feature_usage", JSON.stringify([...used]));
+  } catch { /* ignore */ }
+}
+
 function getRecommendations(stress: number, valence: number, focus: number): Recommendation[] {
   const recs: Recommendation[] = [];
+  const hour = new Date().getHours();
+  const isEvening = hour >= 17;
+  const isMorning = hour >= 5 && hour < 12;
+  const usedFeatures = getUsedFeatures();
 
+  // Emotion-based (highest priority)
   if (stress > 0.5) {
     recs.push({ emoji: "🧘", title: "Breathing Exercise", reason: "Your stress is elevated", route: "/biofeedback" });
-    recs.push({ emoji: "🎵", title: "Sleep Stories", reason: "Wind down with calming audio", route: "/sleep-stories" });
+    if (isEvening) {
+      recs.push({ emoji: "🎵", title: "Sleep Music", reason: "Wind down before bed", route: "/sleep-session" });
+    }
   }
   if (valence < -0.1) {
+    recs.push({ emoji: "💬", title: "AI Companion", reason: "Talk through how you're feeling", route: "/ai-companion" });
     recs.push({ emoji: "✨", title: "Inner Energy", reason: "Rebalance your energy centers", route: "/inner-energy" });
-    recs.push({ emoji: "😊", title: "Mood Trends", reason: "Track how you're feeling", route: "/mood" });
   }
   if (focus < 0.4) {
     recs.push({ emoji: "🎯", title: "Neurofeedback", reason: "Train your focus", route: "/neurofeedback" });
   }
   if (valence > 0.3 && stress < 0.3) {
-    recs.push({ emoji: "📝", title: "Dream Journal", reason: "Great mood — record your dreams", route: "/dreams" });
-    recs.push({ emoji: "🏋️", title: "Workout", reason: "Ride this positive energy", route: "/workout" });
+    if (isMorning) {
+      recs.push({ emoji: "🏋️", title: "Workout", reason: "Ride this morning energy", route: "/workout" });
+    }
+    recs.push({ emoji: "📝", title: "Dream Journal", reason: "Great mood — capture your dreams", route: "/dreams" });
   }
+
+  // Time-of-day suggestions (if we don't have enough yet)
+  if (recs.length < 2) {
+    if (isMorning) {
+      recs.push({ emoji: "💡", title: "Wellness Insights", reason: "Start your day with awareness", route: "/insights" });
+    } else if (isEvening) {
+      recs.push({ emoji: "🎵", title: "Sleep Music", reason: "Prepare for a restful night", route: "/sleep-session" });
+    } else {
+      recs.push({ emoji: "😊", title: "Mood Trends", reason: "See your patterns", route: "/mood" });
+    }
+  }
+
+  // Progressive discovery — suggest an unused feature
+  if (recs.length < 3) {
+    const unused = ALL_FEATURES.filter(f =>
+      !usedFeatures.has(f.route) && !recs.some(r => r.route === f.route)
+    );
+    if (unused.length > 0) {
+      // Pick a random unused feature
+      const pick = unused[Math.floor(Math.random() * unused.length)];
+      recs.push({
+        emoji: pick.emoji,
+        title: pick.title,
+        reason: "Try something new",
+        route: pick.route,
+      });
+    }
+  }
+
+  // Fallback
   if (recs.length === 0) {
-    recs.push({ emoji: "😊", title: "Mood Trends", reason: "See your patterns", route: "/mood" });
     recs.push({ emoji: "🧠", title: "Brain Monitor", reason: "Explore your brainwaves", route: "/brain-monitor" });
   }
 
-  return recs.slice(0, 3); // Max 3 recommendations
+  return recs.slice(0, 3);
 }
 
 function RecommendedSection({ stress, valence, focus, navigate }: {
@@ -171,7 +241,7 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
         {recs.map((rec) => (
           <button
             key={rec.route}
-            onClick={() => navigate(rec.route)}
+            onClick={() => { trackFeatureUsage(rec.route); navigate(rec.route); }}
             style={{
               background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: 14, padding: "12px 14px", minWidth: 150, flexShrink: 0,
