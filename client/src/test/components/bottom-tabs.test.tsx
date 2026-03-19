@@ -34,7 +34,7 @@ describe("BottomTabs", () => {
     renderWithProviders(<BottomTabs />);
     expect(screen.getByText("Today")).toBeInTheDocument();
     expect(screen.getByText("Discover")).toBeInTheDocument();
-    expect(screen.getByText("Nutrition")).toBeInTheDocument();
+    expect(screen.getByText("AI Chat")).toBeInTheDocument();
     expect(screen.getByText("You")).toBeInTheDocument();
   });
 
@@ -50,7 +50,7 @@ describe("BottomTabs", () => {
     const hrefs = links.map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/");
     expect(hrefs).toContain("/discover");
-    expect(hrefs).toContain("/nutrition");
+    expect(hrefs).toContain("/ai-companion");
     expect(hrefs).toContain("/you");
   });
 
@@ -82,11 +82,11 @@ describe("BottomTabs", () => {
     expect(todayLabel.className).not.toContain("text-primary");
   });
 
-  it("highlights Nutrition tab when location is /nutrition", () => {
+  it("highlights Discover tab when location is /nutrition (alias)", () => {
     currentLocation = "/nutrition";
     renderWithProviders(<BottomTabs />);
-    const nutritionLabel = screen.getByText("Nutrition");
-    expect(nutritionLabel.className).toContain("text-primary");
+    const discoverLabel = screen.getByText("Discover");
+    expect(discoverLabel.className).toContain("text-primary");
   });
 
   it("highlights You tab when location is /you", () => {

@@ -324,12 +324,12 @@ interface NavCard {
 
 const NAV_CARDS: NavCard[] = [
   { emoji: "😊", title: "Emotions",     subtitle: "Mood trends, emotion history",       route: "/mood" },
-  { emoji: "😰", title: "Stress",       subtitle: "Stress score, HRV, trends",          route: "/stress" },
-  { emoji: "🎯", title: "Focus",        subtitle: "Focus score, cognitive trends",       route: "/focus" },
+  { emoji: "🍎", title: "Nutrition",    subtitle: "Food, vitamins, supplements",         route: "/nutrition" },
   { emoji: "🧠", title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor" },
   { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep" },
   { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health" },
-  { emoji: "🧘", title: "Wellness",     subtitle: "Habits, cycle, mood log",             route: "/wellness" },
+  { emoji: "✨", title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy" },
+  { emoji: "🧘", title: "Wellness",     subtitle: "Habits, menstrual cycle tracking",    route: "/wellness" },
 ];
 
 // Sample sparkline points (normalized 0-40 in Y space, 0-280 in X)
@@ -448,18 +448,18 @@ export default function Discover() {
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
           }}>
             <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Focus</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#3b82f6" }}>{Math.round(focus * 100)}%</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#6366f1" }}>{Math.round(focus * 100)}%</div>
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
               {focus >= 0.7 ? "Sharp" : focus >= 0.4 ? "Moderate" : "Diffuse"}
             </div>
           </button>
 
-          {/* Relaxation Score */}
+          {/* Inner Energy Score */}
           <button onClick={() => navigate("/inner-energy")} style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
           }}>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Relaxation</div>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Inner Energy</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: "#7c3aed" }}>{Math.round(relaxation * 100)}%</div>
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
               {relaxation >= 0.6 ? "Calm" : relaxation >= 0.3 ? "Mixed" : "Tense"}
@@ -534,17 +534,17 @@ export default function Discover() {
         </button>
       </div>
 
-      {/* ── Nutrition + Emotion row — 2 columns ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-        {/* Calories / Nutrition */}
-        <button
-          onClick={() => navigate("/nutrition")}
-          style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
-            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
-            WebkitTapHighlightColor: "transparent",
-          }}
-        >
+      {/* ── Nutrition summary ── */}
+      <button
+        onClick={() => navigate("/nutrition")}
+        style={{
+          width: "100%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
+          padding: "14px 16px", textAlign: "left" as const, cursor: "pointer",
+          WebkitTapHighlightColor: "transparent", marginBottom: 16,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}
+      >
+        <div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Nutrition</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#d4a017" }}>
             {caloriesToday != null && caloriesToday > 0
@@ -555,44 +555,17 @@ export default function Discover() {
             )}
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-            {caloriesToday != null && caloriesToday > 0
-              ? `of 2,000 goal`
-              : "No logs today"}
+            {caloriesToday != null && caloriesToday > 0 ? "of 2,000 goal" : "No logs today"}
           </div>
-        </button>
-
-        {/* Emotion Score */}
-        <button
-          onClick={() => navigate("/mood")}
-          style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
-            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
-            WebkitTapHighlightColor: "transparent",
-          }}
-        >
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Emotion Score</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#2dd4bf" }}>
-            {emotionScore != null ? `${emotionScore}` : "—"}
-          </div>
-          <div style={{
-            fontSize: 10, color: "var(--muted-foreground)", marginTop: 2,
-            textTransform: "capitalize" as const,
-          }}>
-            {emotionLabel ?? "No analysis"}
-          </div>
-        </button>
-      </div>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--primary)", fontWeight: 500 }}>Log meal →</div>
+      </button>
 
       {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
       <EmotionTimeline userId={userId} />
 
       {/* ── Mood Insights — pattern detection from emotion history ── */}
       <MoodInsightsCard userId={userId} />
-
-      {/* ── Recommended for You — emotion-based suggestions ── */}
-      {hasData && (
-        <RecommendedSection stress={stress} valence={valence} focus={focus} navigate={navigate} />
-      )}
 
       {/* ── Community Mood — anonymous peer support ── */}
       <CommunityMood />
@@ -605,79 +578,7 @@ export default function Discover() {
         Explore
       </div>
 
-      {/* ── Featured Card — Emotion Trends ── */}
-      <button
-        onClick={() => navigate("/mood")}
-        style={{
-          width: "100%",
-          background: "var(--card)",
-          border: "1px solid #1f3a2e",
-          borderRadius: 14,
-          padding: 18,
-          marginBottom: 14,
-          cursor: "pointer",
-          textAlign: "left",
-          WebkitTapHighlightColor: "transparent",
-          boxSizing: "border-box",
-        }}
-      >
-        {/* Title row */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: 14,
-          }}
-        >
-          <div>
-            <p
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: "#0891b2",
-                margin: "0 0 3px 0",
-              }}
-            >
-              Emotion Trends
-            </p>
-            <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: 0 }}>
-              7-day mood journey
-            </p>
-          </div>
-          <span style={{ fontSize: 24 }}>📈</span>
-        </div>
-
-        {/* Sparkline SVG */}
-        <svg
-          viewBox="0 0 280 40"
-          style={{ width: "100%", height: 40, display: "block" }}
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0891b2" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          {/* Area fill */}
-          <path
-            d={pointsToArea(SPARKLINE_POINTS)}
-            fill="url(#sparkGrad)"
-          />
-          {/* Line */}
-          <polyline
-            points={pointsToPolyline(SPARKLINE_POINTS)}
-            fill="none"
-            stroke="#0891b2"
-            strokeWidth={1.5}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
-
-      {/* ── 2-column navigation grid — 8 main cards (2x4) ── */}
+      {/* ── 2-column navigation grid ── */}
       <div
         style={{
           display: "grid",
