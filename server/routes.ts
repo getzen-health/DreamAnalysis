@@ -1833,6 +1833,31 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
+  // POST /api/food/log — directly log a meal with pre-computed nutrition data (no GPT needed)
+  // Used as fallback when /api/food/analyze fails (e.g. no API key)
+  app.post("/api/food/log", async (req, res) => {
+    try {
+      const { userId, mealType, summary, totalCalories, dominantMacro, foodItems } = req.body;
+      if (!userId) return res.status(400).json({ message: "userId required" });
+      if (!foodItems || !Array.isArray(foodItems)) return res.status(400).json({ message: "foodItems required" });
+
+      const [log] = await db.insert(foodLogs).values({
+        userId,
+        mealType: mealType ?? "snack",
+        foodItems: foodItems as object[],
+        totalCalories: typeof totalCalories === "number" ? totalCalories : null,
+        dominantMacro: typeof dominantMacro === "string" ? dominantMacro : null,
+        summary: typeof summary === "string" ? summary : null,
+      }).returning();
+
+      res.json({ id: log.id, loggedAt: log.loggedAt, totalCalories, summary });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      logger.error({ error: msg }, "Food log error");
+      res.status(500).json({ message: `Food log failed: ${msg}` });
+    }
+  });
+
   // GET /api/food/logs/:userId — food logs with pagination (default 50, max 200)
   // No auth gate — data is scoped by userId (same pattern as /api/brain/history).
   // Native APK uses localStorage participant IDs without JWT sessions.

@@ -135,8 +135,8 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
     recs.push({ emoji: "🎵", title: "Sleep Stories", reason: "Wind down with calming audio", route: "/sleep-stories" });
   }
   if (valence < -0.1) {
-    recs.push({ emoji: "🤖", title: "Talk to AI Companion", reason: "Process what you're feeling", route: "/ai-companion" });
     recs.push({ emoji: "✨", title: "Inner Energy", reason: "Rebalance your energy centers", route: "/inner-energy" });
+    recs.push({ emoji: "😊", title: "Mood Trends", reason: "Track how you're feeling", route: "/mood" });
   }
   if (focus < 0.4) {
     recs.push({ emoji: "🎯", title: "Neurofeedback", reason: "Train your focus", route: "/neurofeedback" });
@@ -146,7 +146,7 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
     recs.push({ emoji: "🏋️", title: "Workout", reason: "Ride this positive energy", route: "/workout" });
   }
   if (recs.length === 0) {
-    recs.push({ emoji: "💡", title: "Weekly Insights", reason: "See your patterns", route: "/insights" });
+    recs.push({ emoji: "😊", title: "Mood Trends", reason: "See your patterns", route: "/mood" });
     recs.push({ emoji: "🧠", title: "Brain Monitor", reason: "Explore your brainwaves", route: "/brain-monitor" });
   }
 
@@ -247,7 +247,7 @@ interface NavCard {
   route: string;
 }
 
-// ── Data — 10 main navigation cards (consolidated) ────────────────────────
+// ── Data — 8 main navigation cards (2x4 grid) ─────────────────────────────
 
 const NAV_CARDS: NavCard[] = [
   { emoji: "😊", title: "Emotions",     subtitle: "Mood trends, emotion history",       route: "/mood" },
@@ -258,8 +258,6 @@ const NAV_CARDS: NavCard[] = [
   { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep" },
   { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health" },
   { emoji: "🧘", title: "Wellness",     subtitle: "Habits, cycle, mood log",             route: "/wellness" },
-  { emoji: "🤖", title: "AI Companion", subtitle: "Your wellness coach",                 route: "/ai-companion" },
-  { emoji: "💡", title: "Insights",     subtitle: "AI brain insights",                   route: "/insights" },
 ];
 
 // Sample sparkline points (normalized 0-40 in Y space, 0-280 in X)
@@ -601,7 +599,7 @@ export default function Discover() {
         </svg>
       </button>
 
-      {/* ── 2-column navigation grid — 10 main cards ── */}
+      {/* ── 2-column navigation grid — 8 main cards (2x4) ── */}
       <div
         style={{
           display: "grid",

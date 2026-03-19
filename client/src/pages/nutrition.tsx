@@ -199,6 +199,363 @@ function generateInsights(
   return insights.slice(0, 2);
 }
 
+// ── Local fallback food analysis (no API key needed) ──────────────────────────
+
+interface LocalFoodAnalysis {
+  food_items: FoodItem[];
+  total_calories: number;
+  dominant_macro: string;
+  summary: string;
+}
+
+function estimateNutritionLocally(description: string): LocalFoodAnalysis {
+  const lower = description.toLowerCase();
+  const items = description.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+
+  const foodItems: FoodItem[] = items.map(name => {
+    const n = name.toLowerCase();
+    let calories = 200;
+    let protein = 8;
+    let carbs = 25;
+    let fat = 8;
+
+    // Protein-rich foods
+    if (/chicken|turkey|poultry/.test(n)) { calories = 230; protein = 30; carbs = 0; fat = 10; }
+    else if (/fish|salmon|tuna|shrimp|prawns/.test(n)) { calories = 200; protein = 28; carbs = 0; fat = 8; }
+    else if (/beef|steak|lamb|pork/.test(n)) { calories = 280; protein = 26; carbs = 0; fat = 18; }
+    else if (/egg/.test(n)) { calories = 155; protein = 13; carbs = 1; fat = 11; }
+    else if (/tofu|tempeh/.test(n)) { calories = 145; protein = 15; carbs = 4; fat = 8; }
+    else if (/paneer/.test(n)) { calories = 260; protein = 18; carbs = 4; fat = 20; }
+
+    // Carb-rich foods
+    else if (/rice/.test(n)) { calories = 210; protein = 4; carbs = 45; fat = 1; }
+    else if (/bread|toast|naan|roti|chapati/.test(n)) { calories = 180; protein = 6; carbs = 34; fat = 3; }
+    else if (/pasta|noodle|spaghetti/.test(n)) { calories = 220; protein = 8; carbs = 43; fat = 1; }
+    else if (/potato|sweet potato/.test(n)) { calories = 160; protein = 4; carbs = 37; fat = 0; }
+    else if (/oat|oatmeal|cereal|granola/.test(n)) { calories = 190; protein = 7; carbs = 32; fat = 5; }
+
+    // Vegetables & salads
+    else if (/salad|lettuce|greens/.test(n)) { calories = 50; protein = 2; carbs = 8; fat = 1; }
+    else if (/vegetable|broccoli|spinach|carrot|cauliflower|zucchini|pepper|asparagus/.test(n)) { calories = 60; protein = 3; carbs = 10; fat = 1; }
+    else if (/avocado/.test(n)) { calories = 160; protein = 2; carbs = 9; fat = 15; }
+
+    // Fruits
+    else if (/banana/.test(n)) { calories = 105; protein = 1; carbs = 27; fat = 0; }
+    else if (/apple|orange|pear|peach|mango|berry|berries|strawberr/.test(n)) { calories = 80; protein = 1; carbs = 20; fat = 0; }
+
+    // Dairy
+    else if (/milk/.test(n)) { calories = 120; protein = 8; carbs = 12; fat = 5; }
+    else if (/yogurt|curd|dahi/.test(n)) { calories = 100; protein = 10; carbs = 6; fat = 4; }
+    else if (/cheese/.test(n)) { calories = 110; protein = 7; carbs = 1; fat = 9; }
+
+    // Fats & oils
+    else if (/butter|oil|ghee/.test(n)) { calories = 100; protein = 0; carbs = 0; fat = 11; }
+    else if (/nut|almond|cashew|peanut|walnut/.test(n)) { calories = 170; protein = 6; carbs = 6; fat = 15; }
+
+    // Snacks & drinks
+    else if (/chips|fries/.test(n)) { calories = 250; protein = 3; carbs = 30; fat = 14; }
+    else if (/pizza/.test(n)) { calories = 300; protein = 12; carbs = 36; fat = 12; }
+    else if (/burger/.test(n)) { calories = 400; protein = 20; carbs = 35; fat = 20; }
+    else if (/sandwich|wrap/.test(n)) { calories = 350; protein = 15; carbs = 40; fat = 14; }
+    else if (/soup/.test(n)) { calories = 150; protein = 8; carbs = 18; fat = 5; }
+    else if (/coffee|tea/.test(n)) { calories = 5; protein = 0; carbs = 1; fat = 0; }
+    else if (/juice|smoothie/.test(n)) { calories = 120; protein = 1; carbs = 28; fat = 0; }
+    else if (/soda|cola/.test(n)) { calories = 140; protein = 0; carbs = 39; fat = 0; }
+
+    // Indian foods
+    else if (/dal|daal|lentil/.test(n)) { calories = 180; protein = 12; carbs = 30; fat = 3; }
+    else if (/biryani/.test(n)) { calories = 350; protein = 15; carbs = 45; fat = 12; }
+    else if (/curry/.test(n)) { calories = 250; protein = 12; carbs = 15; fat = 16; }
+    else if (/dosa|idli|sambar/.test(n)) { calories = 160; protein = 5; carbs = 28; fat = 4; }
+    else if (/samosa|pakora/.test(n)) { calories = 250; protein = 5; carbs = 25; fat = 15; }
+
+    return {
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      portion: "1 serving",
+      calories,
+      protein_g: protein,
+      carbs_g: carbs,
+      fat_g: fat,
+    };
+  });
+
+  const totalCalories = foodItems.reduce((s, fi) => s + fi.calories, 0);
+  const totalProtein = foodItems.reduce((s, fi) => s + fi.protein_g, 0);
+  const totalCarbs = foodItems.reduce((s, fi) => s + fi.carbs_g, 0);
+  const totalFat = foodItems.reduce((s, fi) => s + fi.fat_g, 0);
+
+  const dominant =
+    totalProtein >= totalCarbs && totalProtein >= totalFat ? "protein"
+    : totalCarbs >= totalFat ? "carbs"
+    : "fat";
+
+  return {
+    food_items: foodItems,
+    total_calories: totalCalories,
+    dominant_macro: dominant,
+    summary: items.map(i => i.charAt(0).toUpperCase() + i.slice(1)).join(", "),
+  };
+}
+
+// ── Supplement Tracking ─────────────────────────────────────────────────────
+
+interface Supplement {
+  id: string;
+  name: string;
+  dosage: string;
+  timeOfDay: string;
+  type: "vitamin" | "mineral" | "glp1" | "other";
+}
+
+interface SupplementDailyLog {
+  [supplementId: string]: boolean;
+}
+
+const SUPPLEMENT_PRESETS = [
+  { name: "Vitamin D", dosage: "2000 IU", type: "vitamin" as const },
+  { name: "Vitamin B12", dosage: "1000 mcg", type: "vitamin" as const },
+  { name: "Fish Oil / Omega-3", dosage: "1000 mg", type: "other" as const },
+  { name: "Magnesium", dosage: "400 mg", type: "mineral" as const },
+  { name: "Iron", dosage: "18 mg", type: "mineral" as const },
+  { name: "Zinc", dosage: "15 mg", type: "mineral" as const },
+  { name: "Vitamin C", dosage: "500 mg", type: "vitamin" as const },
+  { name: "Calcium", dosage: "500 mg", type: "mineral" as const },
+  { name: "Probiotics", dosage: "1 capsule", type: "other" as const },
+  { name: "Ozempic", dosage: "0.5 mg", type: "glp1" as const },
+  { name: "Wegovy", dosage: "1.7 mg", type: "glp1" as const },
+  { name: "Mounjaro", dosage: "5 mg", type: "glp1" as const },
+];
+
+const SUPPLEMENTS_KEY = "ndw_supplements";
+const SUPPLEMENT_LOG_KEY = "ndw_supplement_log";
+
+function loadSupplements(): Supplement[] {
+  try {
+    const raw = localStorage.getItem(SUPPLEMENTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveSupplements(supps: Supplement[]) {
+  try { localStorage.setItem(SUPPLEMENTS_KEY, JSON.stringify(supps)); } catch {}
+}
+
+function getTodayLogKey(): string {
+  return `${SUPPLEMENT_LOG_KEY}_${new Date().toISOString().slice(0, 10)}`;
+}
+
+function loadTodayLog(): SupplementDailyLog {
+  try {
+    const raw = localStorage.getItem(getTodayLogKey());
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveTodayLog(log: SupplementDailyLog) {
+  try { localStorage.setItem(getTodayLogKey(), JSON.stringify(log)); } catch {}
+}
+
+function SupplementTracker() {
+  const [supplements, setSupplements] = useState<Supplement[]>(loadSupplements);
+  const [dailyLog, setDailyLog] = useState<SupplementDailyLog>(loadTodayLog);
+  const [showAdd, setShowAdd] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customDosage, setCustomDosage] = useState("");
+
+  const toggleTaken = (id: string) => {
+    const updated = { ...dailyLog, [id]: !dailyLog[id] };
+    setDailyLog(updated);
+    saveTodayLog(updated);
+  };
+
+  const addSupplement = (name: string, dosage: string, type: Supplement["type"]) => {
+    const newSupp: Supplement = {
+      id: `supp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name, dosage, timeOfDay: "morning", type,
+    };
+    const updated = [...supplements, newSupp];
+    setSupplements(updated);
+    saveSupplements(updated);
+    setCustomName("");
+    setCustomDosage("");
+    setShowAdd(false);
+  };
+
+  const removeSupplement = (id: string) => {
+    const updated = supplements.filter(s => s.id !== id);
+    setSupplements(updated);
+    saveSupplements(updated);
+  };
+
+  const takenCount = supplements.filter(s => dailyLog[s.id]).length;
+  const totalCount = supplements.length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.18 }}
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 16,
+      }}
+    >
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+        textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <span>Supplements</span>
+        {totalCount > 0 && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: takenCount === totalCount ? "#22c55e" : "#d4a017" }}>
+            {takenCount}/{totalCount}
+          </span>
+        )}
+      </div>
+
+      {/* Supplement list */}
+      {supplements.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+          {supplements.map(supp => {
+            const taken = !!dailyLog[supp.id];
+            const isGlp1 = supp.type === "glp1";
+            return (
+              <div key={supp.id} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "6px 8px", borderRadius: 8,
+                background: taken ? "rgba(34, 197, 94, 0.08)" : "transparent",
+                transition: "background 0.2s",
+              }}>
+                <button
+                  onClick={() => toggleTaken(supp.id)}
+                  style={{
+                    width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                    border: taken ? "2px solid #22c55e" : "2px solid var(--border)",
+                    background: taken ? "#22c55e" : "transparent",
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "white", fontSize: 12, fontWeight: 700,
+                  }}
+                >
+                  {taken ? "\u2713" : ""}
+                </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 12, fontWeight: 500, color: taken ? "var(--muted-foreground)" : "var(--foreground)",
+                    textDecoration: taken ? "line-through" : "none",
+                  }}>
+                    {supp.name}
+                    {isGlp1 && (
+                      <span style={{ fontSize: 9, color: "#7c3aed", marginLeft: 6, fontWeight: 600, textDecoration: "none" }}>GLP-1</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{supp.dosage}</div>
+                </div>
+                <button
+                  onClick={() => removeSupplement(supp.id)}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "var(--muted-foreground)", fontSize: 14, padding: 4, flexShrink: 0,
+                  }}
+                >
+                  x
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
+          Add supplements you take daily to track adherence
+        </div>
+      )}
+
+      {/* Add supplement UI */}
+      {showAdd ? (
+        <div style={{ marginBottom: 8 }}>
+          {/* Presets */}
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 6, fontWeight: 600 }}>
+            Quick add:
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+            {SUPPLEMENT_PRESETS.filter(p => !supplements.some(s => s.name === p.name)).slice(0, 8).map(preset => (
+              <button
+                key={preset.name}
+                onClick={() => addSupplement(preset.name, preset.dosage, preset.type)}
+                style={{
+                  fontSize: 10, padding: "4px 10px", borderRadius: 8,
+                  background: preset.type === "glp1" ? "rgba(124, 58, 237, 0.12)" : "var(--muted)",
+                  color: preset.type === "glp1" ? "#7c3aed" : "var(--foreground)",
+                  border: "1px solid var(--border)", cursor: "pointer", fontWeight: 500,
+                }}
+              >
+                + {preset.name}
+              </button>
+            ))}
+          </div>
+          {/* Custom */}
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              value={customName}
+              onChange={e => setCustomName(e.target.value)}
+              placeholder="Name"
+              style={{
+                flex: 2, background: "var(--background)", color: "var(--foreground)",
+                border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px",
+                fontSize: 12, outline: "none",
+              }}
+            />
+            <input
+              value={customDosage}
+              onChange={e => setCustomDosage(e.target.value)}
+              placeholder="Dosage"
+              style={{
+                flex: 1, background: "var(--background)", color: "var(--foreground)",
+                border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px",
+                fontSize: 12, outline: "none",
+              }}
+            />
+            <button
+              disabled={!customName.trim()}
+              onClick={() => addSupplement(customName.trim(), customDosage.trim() || "1 dose", "other")}
+              style={{
+                background: customName.trim() ? "var(--primary)" : "var(--muted)",
+                color: customName.trim() ? "white" : "var(--muted-foreground)",
+                borderRadius: 8, padding: "6px 12px", fontSize: 11, fontWeight: 600,
+                border: "none", cursor: "pointer",
+              }}
+            >
+              Add
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAdd(false)}
+            style={{
+              width: "100%", marginTop: 6, background: "none", border: "none",
+              color: "var(--muted-foreground)", fontSize: 11, cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowAdd(true)}
+          style={{
+            width: "100%", background: "var(--muted)", color: "var(--foreground)",
+            borderRadius: 10, padding: 8, fontSize: 12, fontWeight: 500,
+            border: "1px solid var(--border)", cursor: "pointer",
+          }}
+        >
+          + Add Supplement
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
 // ── Calorie Ring (SVG) ────────────────────────────────────────────────────────
 
 const CAL_GOAL = 2000;
@@ -1163,8 +1520,24 @@ export default function Nutrition() {
       hapticSuccess();
       await new Promise((r) => setTimeout(r, 500));
       qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-    } catch (err) {
-      setAnalysisError(err instanceof Error ? err.message : "Re-log failed");
+    } catch {
+      // Fallback: use local estimation when API fails
+      try {
+        const local = estimateNutritionLocally(summary);
+        await apiRequest("POST", "/api/food/log", {
+          userId,
+          mealType: autoMealType(),
+          summary: local.summary,
+          totalCalories: local.total_calories,
+          dominantMacro: local.dominant_macro,
+          foodItems: local.food_items,
+        });
+        hapticSuccess();
+        await new Promise((r) => setTimeout(r, 500));
+        qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+      } catch (fallbackErr) {
+        setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Re-log failed");
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -1185,8 +1558,28 @@ export default function Nutrition() {
       hapticSuccess();
       await new Promise((r) => setTimeout(r, 500));
       qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-    } catch (err) {
-      setAnalysisError(err instanceof Error ? err.message : "Barcode log failed");
+    } catch {
+      // Fallback: log barcode items directly when API fails
+      try {
+        const totalCal = items.reduce((s, i) => s + i.calories, 0);
+        const totalP = items.reduce((s, i) => s + i.protein_g, 0);
+        const totalC = items.reduce((s, i) => s + i.carbs_g, 0);
+        const totalF = items.reduce((s, i) => s + i.fat_g, 0);
+        const dominant = totalP >= totalC && totalP >= totalF ? "protein" : totalC >= totalF ? "carbs" : "fat";
+        await apiRequest("POST", "/api/food/log", {
+          userId,
+          mealType: autoMealType(),
+          summary,
+          totalCalories: totalCal,
+          dominantMacro: dominant,
+          foodItems: items,
+        });
+        hapticSuccess();
+        await new Promise((r) => setTimeout(r, 500));
+        qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+      } catch (fallbackErr) {
+        setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Barcode log failed");
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -1287,6 +1680,9 @@ export default function Nutrition() {
 
       {/* Vitamin Tracker */}
       <VitaminTracker todayLogs={todayLogs} />
+
+      {/* Supplement Tracker */}
+      <SupplementTracker />
 
       {/* GLP-1 Support Tracker */}
       <Glp1Tracker todayLogs={todayLogs} totalProtein={totalProtein} totalCalories={totalCalories} />
@@ -1545,7 +1941,7 @@ export default function Nutrition() {
         }}>
           <p style={{ fontSize: 12, color: "#e879a8", margin: 0 }}>
             {analysisError.includes("authentication") || analysisError.includes("API key") || analysisError.includes("not configured") || analysisError.includes("503")
-              ? "AI-powered meal suggestions require an active API key. Please check your configuration."
+              ? "AI analysis unavailable. Try describing your meal instead -- basic analysis works without an API key."
               : analysisError}
           </p>
           <button onClick={() => { setAnalysisError(null); setCaptureMode("none"); }}
@@ -1615,10 +2011,26 @@ export default function Nutrition() {
                   await new Promise(r => setTimeout(r, 500));
                   qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                   setCaptureMode("none");
-                } catch (err) {
-                  setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
-                } finally {
-                  setIsAnalyzing(false);
+                } catch {
+                  // Fallback: use local nutrition estimation when API fails (no API key needed)
+                  try {
+                    const local = estimateNutritionLocally(mealText.trim());
+                    await apiRequest("POST", "/api/food/log", {
+                      userId,
+                      mealType: autoMealType(),
+                      summary: local.summary,
+                      totalCalories: local.total_calories,
+                      dominantMacro: local.dominant_macro,
+                      foodItems: local.food_items,
+                    });
+                    hapticSuccess();
+                    setMealText("");
+                    await new Promise(r => setTimeout(r, 500));
+                    qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+                    setCaptureMode("none");
+                  } catch (fallbackErr) {
+                    setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
+                  }
                 }
               }}
               style={{
