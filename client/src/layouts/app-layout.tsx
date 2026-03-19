@@ -223,8 +223,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
         )}
 
-        {/* Bevel pattern: scores first, content second — shown on every page */}
-        <ScoreHeader />
+        {/* ScoreHeader removed — Recovery/Strain/Energy circles were confusing */}
 
         {/* pb-safe: extra bottom padding on devices with home indicator + bottom tab bar on mobile */}
         {/* Tab bar is 56px tall — 3.75rem */}
