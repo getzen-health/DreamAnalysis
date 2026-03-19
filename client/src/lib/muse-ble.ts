@@ -459,9 +459,17 @@ export class MuseBleManager {
     this.setStatus("scanning");
 
     try {
-      await ble.initialize({ androidNeverForLocation: true });
+      // androidNeverForLocation=false — Android 11 and below require location for BLE scan
+      await ble.initialize({ androidNeverForLocation: false });
     } catch (e) {
-      this.setStatus("error", `BLE init failed: ${String(e)}`);
+      const msg = String(e);
+      if (msg.includes("denied") || msg.includes("permission")) {
+        this.setStatus("error", "Bluetooth permission denied. Go to Settings > Apps > AntarAI > Permissions and enable Bluetooth + Location.");
+      } else if (msg.includes("disabled") || msg.includes("off")) {
+        this.setStatus("error", "Bluetooth is turned off. Please enable Bluetooth in your phone settings.");
+      } else {
+        this.setStatus("error", `BLE init failed: ${msg}`);
+      }
       throw e;
     }
 
@@ -471,9 +479,15 @@ export class MuseBleManager {
       device = await ble.requestDevice({
         services: [MUSE_SERVICE],
         optionalServices: [],
+        namePrefix: "Muse",
       });
     } catch (e) {
-      this.setStatus("idle", "Device selection cancelled");
+      const msg = String(e);
+      if (msg.includes("cancel")) {
+        this.setStatus("idle", "Device selection cancelled");
+      } else {
+        this.setStatus("error", "No Muse found. Make sure Muse is ON (LED blinking) and NOT paired in system Bluetooth settings.");
+      }
       throw e;
     }
 
@@ -481,14 +495,23 @@ export class MuseBleManager {
     this.deviceId   = device.deviceId;
     this.deviceName = device.name ?? "Muse";
 
+    // Connect with timeout — Muse can hang during GATT connection
     try {
-      await ble.connect(device.deviceId, () => {
-        // Disconnection callback
-        this.stopEmitter();
-        this.setStatus("idle", "Device disconnected");
-      });
+      await Promise.race([
+        ble.connect(device.deviceId, () => {
+          // Disconnection callback
+          this.stopEmitter();
+          this.setStatus("idle", "Device disconnected");
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
+      ]);
     } catch (e) {
-      this.setStatus("error", `Connection failed: ${String(e)}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === "timeout") {
+        this.setStatus("error", "Connection timed out. Turn Muse off (hold 5s), turn back on, then retry. Also unpair Muse from system Bluetooth settings.");
+      } else {
+        this.setStatus("error", `Connection failed: ${msg}. Try turning Bluetooth off and on, then retry.`);
+      }
       this.deviceId = null;
       throw e;
     }
