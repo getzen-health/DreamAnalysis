@@ -67,41 +67,40 @@ afterEach(() => {
 
 // ── Step 1: Welcome ───────────────────────────────────────────────────────────
 
-describe("Onboarding — Step 1 (Welcome)", () => {
+describe("Onboarding — Fast Track (new users)", () => {
   it("renders without crashing", () => {
     renderWithProviders(<Onboarding />);
   });
 
-  it("shows the Welcome to Neural Dream Workshop heading", () => {
+  it("shows the Welcome to AntarAI heading for fresh users", () => {
     renderWithProviders(<Onboarding />);
     expect(
-      screen.getByText("Welcome to Neural Dream Workshop")
+      screen.getByText("Welcome to AntarAI")
     ).toBeInTheDocument();
   });
 
-  it("shows a Get started button", () => {
+  it("shows a Try it now button", () => {
     renderWithProviders(<Onboarding />);
     expect(
-      screen.getByRole("button", { name: /Get started/i })
+      screen.getByText(/Try it now/i)
     ).toBeInTheDocument();
   });
 
-  it("shows step 1 of 5 in the progress bar", () => {
+  it("shows a Skip for now option", () => {
     renderWithProviders(<Onboarding />);
-    expect(screen.getByText(/Step 1 of 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/Skip for now/i)).toBeInTheDocument();
   });
 
-  it("has an accessible progressbar with correct aria attributes", () => {
+  it("shows 3 value proposition cards", () => {
     renderWithProviders(<Onboarding />);
-    const bar = screen.getByRole("progressbar");
-    expect(bar).toHaveAttribute("aria-valuenow", "1");
-    expect(bar).toHaveAttribute("aria-valuemin", "1");
-    expect(bar).toHaveAttribute("aria-valuemax", "5");
+    expect(screen.getByText("10-Second Voice Check-in")).toBeInTheDocument();
+    expect(screen.getByText("Personalized Insights")).toBeInTheDocument();
+    expect(screen.getByText("Holistic Wellness")).toBeInTheDocument();
   });
 
-  it("advances to step 2 when Get started is clicked", () => {
+  it("falls back to step 2 flow when step is already set", () => {
+    localStorage.setItem("ndw_onboarding_step", "2");
     renderWithProviders(<Onboarding />);
-    fireEvent.click(screen.getByRole("button", { name: /Get started/i }));
     expect(screen.getByText(/How do you want to start/i)).toBeInTheDocument();
     expect(screen.getByText(/Step 2 of 5/i)).toBeInTheDocument();
   });
@@ -312,12 +311,11 @@ describe("Onboarding — Step 5 (Done)", () => {
 // ── localStorage persistence ──────────────────────────────────────────────────
 
 describe("Onboarding — localStorage persistence", () => {
-  it("saves step to localStorage when step changes", () => {
+  it("saves onboarding complete when Skip for now is clicked", () => {
     localStorage.clear();
     renderWithProviders(<Onboarding />);
-    expect(localStorage.getItem("ndw_onboarding_step")).toBe("1");
-    fireEvent.click(screen.getByRole("button", { name: /Get started/i }));
-    expect(localStorage.getItem("ndw_onboarding_step")).toBe("2");
+    fireEvent.click(screen.getByText(/Skip for now/i));
+    expect(localStorage.getItem("ndw_onboarding_complete")).toBe("true");
   });
 
   it("resumes from step 2 when ndw_onboarding_step is set to 2", () => {

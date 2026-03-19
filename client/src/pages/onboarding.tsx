@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { FastOnboarding } from "@/components/fast-onboarding";
 import {
   Brain,
   CheckCircle,
@@ -866,6 +867,21 @@ export default function Onboarding() {
   function finish() {
     markComplete();
     navigate(user ? "/" : "/auth");
+  }
+
+  // Fast-track: show the 3-screen flow for brand-new users who haven't
+  // chosen a path yet. If they're resuming mid-flow (step > 1 or path
+  // already chosen), fall through to the full 5-step state machine.
+  const isFreshStart = step === 1 && pathChoice === null;
+  if (isFreshStart) {
+    return (
+      <FastOnboarding
+        onComplete={() => {
+          markComplete();
+          navigate(user ? "/" : "/auth");
+        }}
+      />
+    );
   }
 
   return (
