@@ -480,7 +480,7 @@ export default function Discover() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
         {/* Heart Rate */}
         <button
-          onClick={() => navigate("/health")}
+          onClick={() => navigate("/heart-rate")}
           style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
@@ -499,7 +499,7 @@ export default function Discover() {
 
         {/* Steps */}
         <button
-          onClick={() => navigate("/health")}
+          onClick={() => navigate("/steps")}
           style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",

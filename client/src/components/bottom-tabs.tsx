@@ -27,7 +27,7 @@ const AFFIRMATIONS = [
 
 const tabs = [
   { path: "/",          icon: Sun,              label: "Today",     aliases: [] as string[] },
-  { path: "/discover",  icon: Compass,          label: "Discover",  aliases: ["/inner-energy", "/nutrition", "/food", "/food-log", "/food-emotion", "/brain-monitor", "/dreams", "/neurofeedback", "/biofeedback", "/sleep-session", "/insights", "/weekly-summary", "/emotions", "/body-metrics", "/workout", "/habits", "/wellness", "/mood", "/stress", "/focus", "/sleep", "/health", "/brain-connectivity"] },
+  { path: "/discover",  icon: Compass,          label: "Discover",  aliases: ["/inner-energy", "/nutrition", "/food", "/food-log", "/food-emotion", "/brain-monitor", "/dreams", "/neurofeedback", "/biofeedback", "/sleep-session", "/insights", "/weekly-summary", "/emotions", "/body-metrics", "/workout", "/habits", "/wellness", "/mood", "/stress", "/focus", "/sleep", "/health", "/heart-rate", "/steps", "/brain-connectivity"] },
   // mic button stays in center (already implemented)
   { path: "/ai-companion",  icon: Bot, label: "AI Chat", aliases: [] },
   { path: "/you",        icon: CircleUser,      label: "You",       aliases: ["/settings", "/profile", "/sessions", "/records"] },

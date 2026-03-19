@@ -56,6 +56,8 @@ const StressTrends           = lazy(() => import("@/pages/stress-trends"));
 const FocusTrends            = lazy(() => import("@/pages/focus-trends"));
 const SleepPage              = lazy(() => import("@/pages/sleep"));
 const HealthPage             = lazy(() => import("@/pages/health"));
+const HeartRatePage          = lazy(() => import("@/pages/heart-rate"));
+const StepsPage              = lazy(() => import("@/pages/steps"));
 const BrainTabs              = lazy(() => import("@/pages/brain-tabs"));
 
 // ── Heavy / rarely-visited pages — lazy loaded ─────────────────────────────
@@ -282,6 +284,12 @@ function AppRoutes() {
       </Route>
       <Route path="/health">
         <ProtectedRoute><AppLayout><HealthPage /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/heart-rate">
+        <ProtectedRoute><AppLayout><HeartRatePage /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/steps">
+        <ProtectedRoute><AppLayout><StepsPage /></AppLayout></ProtectedRoute>
       </Route>
       {/* Bottom tab route aliases */}
       <Route path="/journal">
