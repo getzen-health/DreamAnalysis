@@ -1,0 +1,19 @@
+{
+  "dataset": "EAV-Audio",
+  "n_samples_original": 16288,
+  "n_samples_augmented": 16288,
+  "classifier": "LightGBM (PCA 92\u219260, 5-class)",
+  "accuracy": 0.6175,
+  "cv_accuracy_mean": 0.6175,
+  "cv_accuracy_std": 0.0111,
+  "n_features": 92,
+  "n_classes": 5,
+  "classes": [
+    "happy",
+    "sad",
+    "angry",
+    "neutral",
+    "calm"
+  ],
+  "note": "EAV has 5 emotions; fear/surprise absent from training data"
+}

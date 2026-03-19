@@ -14,6 +14,20 @@ activation functions parameterised as B-spline basis expansions. Each
 input-output edge has its own spline, giving richer function approximation
 with fewer parameters than a deep MLP.
 
+DANN Extension (Domain-Adversarial Neural Network):
+    DANNCNNKANModel adds a GradientReversalLayer + DomainClassifier branch
+    that shares the CNN feature extractor with the emotion head. During
+    training the gradient reversal trick forces the shared features to be
+    subject-invariant, improving cross-subject generalisation.
+
+    Architecture addition:
+      shared features (512-d) → GradientReversal(alpha)
+                              → DomainClassifier(512 → 64 → n_subjects)
+
+    Reference:
+        Ganin et al., "Domain-Adversarial Training of Neural Networks" (2016).
+        arXiv:1505.07818
+
 Reference:
     Liu et al., "KAN: Kolmogorov-Arnold Networks" (2024).
     arXiv:2404.19756
@@ -327,6 +341,281 @@ if _TORCH_AVAILABLE:
             model.load_state_dict(ckpt["state_dict"])
             return model
 
+    # ── DANN components ──────────────────────────────────────────────────────
+
+    class GradientReversal(torch.autograd.Function):
+        """Gradient reversal layer (Ganin et al., 2016).
+
+        Forward pass: identity (passes x through unchanged).
+        Backward pass: negates and scales the gradient by alpha.
+
+        This forces the upstream feature extractor to learn representations
+        that are *not* useful for identifying the source domain (subject),
+        making features domain/subject-invariant.
+
+        Usage:
+            x_reversed = GradientReversal.apply(x, alpha)
+
+        Args:
+            x:     Input tensor (any shape).
+            alpha: Gradient reversal strength ≥ 0.  Typically ramped from 0
+                   to 1.0 over training (see alpha_schedule in training script).
+        """
+
+        @staticmethod
+        def forward(ctx: Any, x: "torch.Tensor", alpha: float) -> "torch.Tensor":  # type: ignore[override]
+            ctx.alpha = alpha
+            return x.clone()
+
+        @staticmethod
+        def backward(ctx: Any, grad_output: "torch.Tensor") -> Tuple["torch.Tensor", None]:  # type: ignore[override]
+            # Reverse and scale the gradient; return None for the scalar alpha
+            return -ctx.alpha * grad_output, None
+
+    class DomainClassifier(nn.Module):
+        """Two-layer MLP that predicts which subject/domain an EEG epoch belongs to.
+
+        Sits downstream of the GradientReversal layer so that, during back-prop,
+        the feature extractor receives reversed gradients that push it toward
+        subject-invariant representations.
+
+        Architecture:
+            Linear(in_features → 64) → ReLU → Dropout(0.3)
+            → Linear(64 → n_domains)
+
+        Args:
+            in_features: Dimensionality of the shared feature vector (512 for CNN-KAN).
+            n_domains:   Number of subjects / source domains to discriminate.
+        """
+
+        def __init__(self, in_features: int, n_domains: int) -> None:
+            super().__init__()
+            self.n_domains = n_domains
+            self.fc = nn.Sequential(
+                nn.Linear(in_features, 64),
+                nn.ReLU(),
+                nn.Dropout(p=0.3),
+                nn.Linear(64, n_domains),
+            )
+
+        def forward(
+            self,
+            x: "torch.Tensor",
+            alpha: float = 1.0,
+        ) -> "torch.Tensor":
+            """
+            Args:
+                x:     (batch, in_features) — shared CNN features.
+                alpha: Gradient reversal strength (passed to GradientReversal).
+
+            Returns:
+                domain_logits: (batch, n_domains) — unnormalised domain scores.
+            """
+            x_rev = GradientReversal.apply(x, alpha)
+            return self.fc(x_rev)
+
+    class DANNCNNKANModel(nn.Module):
+        """CNN-KAN model with a Domain-Adversarial branch for cross-subject EEG.
+
+        Extends CNNKANModel with a DomainClassifier head that shares the CNN
+        backbone. The two heads are trained jointly:
+
+            total_loss = emotion_loss + lambda_d * domain_loss
+
+        where domain_loss uses gradient reversal to push features toward
+        subject-invariance.
+
+        Input shape:  (batch, n_channels, n_samples)
+        Output:
+            emotion_logits: (batch, n_classes)
+            domain_logits:  (batch, n_subjects)  — only during training
+
+        Args:
+            n_channels:  EEG channels (default 4 for Muse 2).
+            n_classes:   Emotion classes (default 3).
+            n_subjects:  Number of training subjects / domains (e.g. 32 for DEAP).
+            grid_size:   B-spline grid size for KAN layers.
+            spline_order: B-spline polynomial order.
+        """
+
+        def __init__(
+            self,
+            n_channels: int = 4,
+            n_classes: int = 3,
+            n_subjects: int = 32,
+            grid_size: int = 5,
+            spline_order: int = 3,
+        ) -> None:
+            super().__init__()
+            self.n_channels = n_channels
+            self.n_classes = n_classes
+            self.n_subjects = n_subjects
+
+            # ── Shared CNN backbone (identical to CNNKANModel) ────────────
+            self.conv1 = nn.Conv1d(
+                n_channels, 32, kernel_size=64, stride=16, padding=24
+            )
+            self.bn1 = nn.BatchNorm1d(32)
+            self.conv2 = nn.Conv1d(32, 64, kernel_size=16, stride=4, padding=6)
+            self.bn2 = nn.BatchNorm1d(64)
+            self.pool = nn.AdaptiveAvgPool1d(8)
+
+            # Shared feature dimension: 64 filters × 8 pool = 512
+            self._feat_dim = 64 * 8  # 512
+
+            # ── Emotion classification head (KAN) ─────────────────────────
+            self.kan1 = KANLinear(
+                self._feat_dim, 64,
+                grid_size=grid_size,
+                spline_order=spline_order,
+            )
+            self.dropout = nn.Dropout(p=0.3)
+            self.kan2 = KANLinear(
+                64, n_classes,
+                grid_size=grid_size,
+                spline_order=spline_order,
+            )
+
+            # ── Domain classification head (MLP + gradient reversal) ───────
+            self.domain_classifier = DomainClassifier(
+                in_features=self._feat_dim,
+                n_domains=n_subjects,
+            )
+
+        # ── Feature extraction (shared backbone) ─────────────────────────────
+
+        def extract_features(self, x: "torch.Tensor") -> "torch.Tensor":
+            """Run the shared CNN backbone and return the flat feature vector.
+
+            Args:
+                x: (batch, n_channels, n_samples)
+
+            Returns:
+                features: (batch, 512)
+            """
+            x = F.relu(self.bn1(self.conv1(x)))   # (batch, 32, ~64)
+            x = F.relu(self.bn2(self.conv2(x)))   # (batch, 64, ~16)
+            x = self.pool(x)                       # (batch, 64, 8)
+            return x.flatten(start_dim=1)          # (batch, 512)
+
+        # ── Emotion head ─────────────────────────────────────────────────────
+
+        def classify_emotion(self, features: "torch.Tensor") -> "torch.Tensor":
+            """Map shared features to emotion logits via KAN head.
+
+            Args:
+                features: (batch, 512)
+
+            Returns:
+                logits: (batch, n_classes)
+            """
+            x = F.relu(self.kan1(features))   # (batch, 64)
+            x = self.dropout(x)
+            return self.kan2(x)               # (batch, n_classes)
+
+        # ── Forward pass ─────────────────────────────────────────────────────
+
+        def forward(
+            self,
+            x: "torch.Tensor",
+            alpha: float = 1.0,
+        ) -> Tuple["torch.Tensor", "torch.Tensor"]:
+            """Full DANN forward pass: emotion logits + domain logits.
+
+            Args:
+                x:     (batch, n_channels, n_samples) — raw EEG epoch.
+                alpha: Gradient reversal strength.  Use 0.0 at training start
+                       and ramp up to 1.0 using alpha_schedule().
+
+            Returns:
+                emotion_logits: (batch, n_classes)
+                domain_logits:  (batch, n_subjects)
+            """
+            features = self.extract_features(x)                     # (batch, 512)
+            emotion_logits = self.classify_emotion(features)        # (batch, n_classes)
+            domain_logits = self.domain_classifier(features, alpha) # (batch, n_subjects)
+            return emotion_logits, domain_logits
+
+        def predict_emotion(self, x: "torch.Tensor") -> "torch.Tensor":
+            """Inference-only forward pass — returns emotion logits only.
+
+            Uses alpha=0.0 so the domain branch contributes nothing and does
+            not affect inference performance (gradient reversal is a no-op in
+            eval mode anyway).
+
+            Args:
+                x: (batch, n_channels, n_samples)
+
+            Returns:
+                emotion_logits: (batch, n_classes)
+            """
+            features = self.extract_features(x)
+            return self.classify_emotion(features)
+
+        def count_parameters(self) -> int:
+            return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+        def save(self, path: "Path | str") -> None:
+            """Save DANN model weights and config as a .pt checkpoint."""
+            path = Path(path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(
+                {
+                    "state_dict": self.state_dict(),
+                    "n_channels": self.n_channels,
+                    "n_classes": self.n_classes,
+                    "n_subjects": self.n_subjects,
+                    "grid_size": self.kan1.grid_size,
+                    "spline_order": self.kan1.spline_order,
+                    "model_type": "dann_cnn_kan",
+                },
+                path,
+            )
+
+        @classmethod
+        def load(cls, path: "Path | str") -> "DANNCNNKANModel":
+            """Load a saved DANN checkpoint."""
+            ckpt = torch.load(path, map_location="cpu")
+            model = cls(
+                n_channels=ckpt.get("n_channels", 4),
+                n_classes=ckpt.get("n_classes", 3),
+                n_subjects=ckpt.get("n_subjects", 32),
+                grid_size=ckpt.get("grid_size", 5),
+                spline_order=ckpt.get("spline_order", 3),
+            )
+            model.load_state_dict(ckpt["state_dict"])
+            return model
+
+
+# ── alpha schedule helper ─────────────────────────────────────────────────────
+
+def alpha_schedule(
+    epoch: int,
+    total_epochs: int,
+    gamma: float = 10.0,
+) -> float:
+    """Compute gradient reversal alpha using Ganin et al.'s schedule.
+
+    Ramps alpha smoothly from 0 to 1 as training progresses, following the
+    formula from the original DANN paper:
+
+        p   = epoch / total_epochs
+        alpha = 2 / (1 + exp(-gamma * p)) - 1
+
+    At p=0 (start): alpha ≈ 0   → domain branch has no influence.
+    At p=1 (end):   alpha ≈ 1   → full gradient reversal strength.
+
+    Args:
+        epoch:        Current training epoch (0-indexed or 1-indexed — both work).
+        total_epochs: Total number of training epochs.
+        gamma:        Sharpness of the ramp (default 10.0 from Ganin et al.).
+
+    Returns:
+        alpha: float in [0, 1].
+    """
+    p = float(epoch) / max(total_epochs, 1)
+    return float(2.0 / (1.0 + math.exp(-gamma * p)) - 1.0)
+
 
 # ── Band-power helper (scipy preferred, numpy fallback) ──────────────────────
 
@@ -411,11 +700,12 @@ def _soft_probs(valence: float) -> Dict[str, float]:
 class CNNKANClassifier:
     """CNN-KAN emotion classifier for 4-channel Muse 2 EEG.
 
-    Wraps CNNKANModel with:
+    Wraps CNNKANModel (or DANNCNNKANModel when a DANN checkpoint is found) with:
     - automatic weight loading from models/saved/cnn_kan_emotion.pt
     - per-channel z-score normalisation
     - feature-based fallback when PyTorch is unavailable or signal is too short
     - thread-safe singleton factory via get_cnn_kan_classifier()
+    - predict_with_dann() for domain-adapted inference
 
     Args:
         model_path: Optional path to a saved .pt checkpoint. If None, attempts
@@ -426,6 +716,7 @@ class CNNKANClassifier:
     """
 
     DEFAULT_MODEL_NAME = "cnn_kan_emotion.pt"
+    DANN_MODEL_NAME = "cnn_kan_dann_emotion.pt"
 
     def __init__(
         self,
@@ -438,14 +729,16 @@ class CNNKANClassifier:
         self.n_classes = n_classes
         self.fs = fs
         self._model: Optional[Any] = None
+        self._dann_model: Optional[Any] = None  # DANNCNNKANModel if available
 
         if not _TORCH_AVAILABLE:
             log.info("CNN-KAN: PyTorch unavailable — feature-based mode only")
             return
 
-        # Resolve model path
+        saved_dir = Path(__file__).parent / "saved"
+
+        # ── Load base model ───────────────────────────────────────────────
         if model_path is None:
-            saved_dir = Path(__file__).parent / "saved"
             model_path_obj = saved_dir / self.DEFAULT_MODEL_NAME
         else:
             model_path_obj = Path(model_path)
@@ -465,6 +758,22 @@ class CNNKANClassifier:
         else:
             log.info("CNN-KAN: no saved weights at %s — using untrained model", model_path_obj)
             self._model = self._init_untrained(n_channels, n_classes)
+
+        # ── Load DANN model if available ──────────────────────────────────
+        dann_path = saved_dir / self.DANN_MODEL_NAME
+        if dann_path.exists():
+            try:
+                self._dann_model = DANNCNNKANModel.load(dann_path)
+                self._dann_model.eval()
+                log.info(
+                    "CNN-KAN DANN loaded from %s — %d params",
+                    dann_path,
+                    self._dann_model.count_parameters(),
+                )
+            except Exception as exc:
+                log.warning("CNN-KAN DANN load failed: %s — DANN inference unavailable", exc)
+        else:
+            log.debug("CNN-KAN DANN: no checkpoint at %s", dann_path)
 
     @staticmethod
     def _init_untrained(n_channels: int, n_classes: int) -> "CNNKANModel":
@@ -506,6 +815,132 @@ class CNNKANClassifier:
             return self._cnn_predict(signals)
 
         return _feature_based_predict(signals, fs)
+
+    def predict_with_dann(
+        self,
+        eeg: np.ndarray,
+        fs: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Classify emotion using the domain-adapted DANN model.
+
+        Falls back to the base CNN-KAN predict() if no DANN checkpoint is loaded.
+
+        The DANN model's CNN backbone has been trained with gradient reversal
+        to produce subject-invariant features, which generally improves
+        cross-subject accuracy compared to the base model.
+
+        Args:
+            eeg: (4, n_samples) multi-channel or (n_samples,) single-channel.
+            fs:  Sampling frequency in Hz. Defaults to self.fs.
+
+        Returns:
+            dict with:
+                emotion       — "positive" | "neutral" | "negative"
+                probabilities — {class: float} summing to 1.0
+                valence       — continuous estimate in [-1, 1]
+                model_type    — "dann-cnn-kan" | "cnn-kan" | "feature-based"
+        """
+        if self._dann_model is None or not _TORCH_AVAILABLE:
+            # Graceful degradation — use base model
+            result = self.predict(eeg, fs)
+            if result.get("model_type") == "cnn-kan":
+                result["model_type"] = "cnn-kan (dann unavailable)"
+            return result
+
+        fs = fs or self.fs
+        eeg = np.asarray(eeg, dtype=np.float32)
+
+        if eeg.ndim == 1:
+            signals = eeg[np.newaxis, :]
+        elif eeg.ndim == 2:
+            signals = eeg
+        else:
+            signals = eeg.reshape(self.n_channels, -1)
+
+        if signals.shape[-1] < 64:
+            return self._neutral_result(signals)
+
+        try:
+            import torch
+
+            n_ch = self._dann_model.n_channels
+            if signals.shape[0] < n_ch:
+                pad = np.zeros(
+                    (n_ch - signals.shape[0], signals.shape[1]), dtype=np.float32
+                )
+                signals = np.concatenate([signals, pad], axis=0)
+            elif signals.shape[0] > n_ch:
+                signals = signals[:n_ch]
+
+            # Per-channel z-score normalisation
+            mu = signals.mean(axis=1, keepdims=True)
+            sd = signals.std(axis=1, keepdims=True) + 1e-8
+            signals_norm = (signals - mu) / sd
+
+            x = torch.from_numpy(signals_norm).unsqueeze(0)  # (1, ch, samples)
+
+            with torch.no_grad():
+                # predict_emotion uses only the emotion head (no domain branch)
+                logits = self._dann_model.predict_emotion(x)  # (1, n_classes)
+                probs_t = torch.softmax(logits, dim=-1)[0]
+
+            probs_np = probs_t.numpy().astype(float)
+            class_idx = int(np.argmax(probs_np))
+            emotion = EMOTION_CLASSES[class_idx]
+            probs = {
+                cls: round(float(p), 4)
+                for cls, p in zip(EMOTION_CLASSES, probs_np)
+            }
+            valence = float(
+                sum(_VALENCE_CENTROIDS[cls] * p for cls, p in probs.items())
+            )
+            return {
+                "emotion": emotion,
+                "probabilities": probs,
+                "valence": round(valence, 4),
+                "model_type": "dann-cnn-kan",
+            }
+
+        except Exception as exc:
+            log.warning("DANN forward pass failed: %s — falling back to base predict", exc)
+            return self.predict(eeg, fs)
+
+    def get_dann_model_info(self) -> Dict[str, Any]:
+        """Return DANN model architecture summary."""
+        if self._dann_model is not None and _TORCH_AVAILABLE:
+            return {
+                "architecture": "DANN-CNN-KAN",
+                "backend": "pytorch",
+                "n_channels": self._dann_model.n_channels,
+                "n_classes": self._dann_model.n_classes,
+                "n_subjects": self._dann_model.n_subjects,
+                "total_parameters": self._dann_model.count_parameters(),
+                "kan_grid_size": self._dann_model.kan1.grid_size,
+                "kan_spline_order": self._dann_model.kan1.spline_order,
+                "emotion_classes": EMOTION_CLASSES,
+                "description": (
+                    "Domain-Adversarial CNN-KAN. Shared 1D-CNN backbone + "
+                    "KAN emotion head + gradient-reversal domain classifier. "
+                    "Trained to produce subject-invariant features for improved "
+                    "cross-subject generalisation."
+                ),
+                "layers": [
+                    "Conv1d(4→32, k=64, s=16) + BN + ReLU  [shared]",
+                    "Conv1d(32→64, k=16, s=4) + BN + ReLU  [shared]",
+                    "AdaptiveAvgPool1d(8) → flatten(512)    [shared]",
+                    f"KANLinear(512→64, grid={self._dann_model.kan1.grid_size}) + ReLU + Dropout  [emotion]",
+                    f"KANLinear(64→3, grid={self._dann_model.kan2.grid_size})                    [emotion]",
+                    "GradientReversal(alpha) → Linear(512→64) → ReLU → Dropout → "
+                    f"Linear(64→{self._dann_model.n_subjects})                                   [domain]",
+                ],
+            }
+        return {
+            "architecture": "DANN-CNN-KAN (not loaded)",
+            "description": (
+                "No DANN checkpoint found at models/saved/cnn_kan_dann_emotion.pt. "
+                "Run ml/training/train_cnn_kan_dann.py to train."
+            ),
+        }
 
     def get_model_info(self) -> Dict[str, Any]:
         """Return architecture summary."""
