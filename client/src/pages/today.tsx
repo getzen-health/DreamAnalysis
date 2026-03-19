@@ -14,6 +14,7 @@ import { InlineBreathe } from "@/components/inline-breathe";
 import { forecastMood } from "@/lib/mood-patterns";
 import { StreakProtector } from "@/components/streak-protector";
 import { SleepInsights } from "@/components/sleep-insights";
+import { EFSMiniCard } from "@/components/efs-mini-card";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -926,6 +927,11 @@ export default function Today() {
 
       {/* ── Mental Fitness Score ── */}
       <MentalFitnessCard voice={voiceData} />
+
+      {/* ── Emotional Fitness Score ── */}
+      <div className="mb-3.5">
+        <EFSMiniCard userId={userId} />
+      </div>
 
       {/* ── Weekly Mood Strip ── */}
       <WeeklyMoodStrip userId={userId} />
