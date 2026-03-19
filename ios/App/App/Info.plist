@@ -50,9 +50,9 @@
 
 	<!-- Bluetooth - Muse 2 headband scanning -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>AntarAI uses Bluetooth to connect to your Muse 2 EEG headband for brain monitoring.</string>
+	<string>AntarAI uses Bluetooth to connect to your Muse EEG headband (Muse 2, Muse S, Muse Athena) for brain monitoring.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>AntarAI uses Bluetooth to connect to your Muse 2 EEG headband for brain monitoring.</string>
+	<string>AntarAI uses Bluetooth to connect to your Muse EEG headband (Muse 2, Muse S, Muse Athena) for brain monitoring.</string>
 
 	<!-- HealthKit - heart rate, HRV, sleep, steps -->
 	<key>NSHealthShareUsageDescription</key>
