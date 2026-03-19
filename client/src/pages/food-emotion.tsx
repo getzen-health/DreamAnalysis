@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import {
@@ -85,6 +85,240 @@ function topState(probs: Record<string, number>): string {
 }
 
 // ---------------------------------------------------------------------------
+// FoodMoodInsights — pattern detection from localStorage food logs
+// ---------------------------------------------------------------------------
+
+function FoodMoodInsights() {
+  const [insights, setInsights] = useState<string[]>([]);
+
+  useEffect(() => {
+    const patterns: string[] = [];
+
+    try {
+      const keys = Object.keys(localStorage).filter(k =>
+        k.startsWith("ndw_food_log_")
+      );
+      const logs: Array<{
+        emotion?: string;
+        calories?: number;
+        carbs?: number;
+        protein?: number;
+        fat?: number;
+        timestamp: number;
+      }> = [];
+
+      keys.forEach(k => {
+        try {
+          const raw = JSON.parse(localStorage.getItem(k) || "{}");
+          if (raw.timestamp) logs.push(raw);
+        } catch { /* skip */ }
+      });
+
+      if (logs.length < 3) {
+        setInsights([]);
+        return;
+      }
+
+      // Pattern 1: High-calorie meals during stress
+      const stressedMeals = logs.filter(
+        l => l.emotion === "angry" || l.emotion === "fear"
+      );
+      const calmMeals = logs.filter(
+        l => l.emotion === "happy" || l.emotion === "neutral"
+      );
+      if (stressedMeals.length >= 2 && calmMeals.length >= 2) {
+        const avgStressCalories =
+          stressedMeals.reduce((a, b) => a + (b.calories || 0), 0) /
+          stressedMeals.length;
+        const avgCalmCalories =
+          calmMeals.reduce((a, b) => a + (b.calories || 0), 0) /
+          calmMeals.length;
+        if (avgStressCalories > avgCalmCalories * 1.2) {
+          patterns.push(
+            `You eat ~${Math.round(avgStressCalories - avgCalmCalories)} more calories when stressed`
+          );
+        }
+      }
+
+      // Pattern 2: Carb preference during negative emotions
+      const negMeals = logs.filter(
+        l =>
+          l.emotion === "sad" ||
+          l.emotion === "angry" ||
+          l.emotion === "fear"
+      );
+      const posMeals = logs.filter(
+        l => l.emotion === "happy" || l.emotion === "surprise"
+      );
+      if (negMeals.length >= 2 && posMeals.length >= 2) {
+        const avgNegCarbs =
+          negMeals.reduce((a, b) => a + (b.carbs || 0), 0) / negMeals.length;
+        const avgPosCarbs =
+          posMeals.reduce((a, b) => a + (b.carbs || 0), 0) / posMeals.length;
+        if (avgNegCarbs > avgPosCarbs * 1.3) {
+          patterns.push("You tend to eat more carbs when feeling down");
+        }
+      }
+
+      // Pattern 3: Timing
+      const morningLogs = logs.filter(
+        l => new Date(l.timestamp).getHours() < 10
+      );
+      const eveningLogs = logs.filter(
+        l => new Date(l.timestamp).getHours() >= 19
+      );
+      if (
+        eveningLogs.length > morningLogs.length * 2 &&
+        eveningLogs.length >= 3
+      ) {
+        patterns.push("Most of your meals are logged in the evening");
+      }
+
+      // Pattern 4: Protein on focus days
+      const focusMeals = logs.filter(
+        l => l.emotion === "neutral" || l.emotion === "surprise"
+      );
+      if (focusMeals.length >= 2) {
+        const avgProtein =
+          focusMeals.reduce((a, b) => a + (b.protein || 0), 0) /
+          focusMeals.length;
+        if (avgProtein > 20) {
+          patterns.push("Your focused days tend to include more protein");
+        }
+      }
+    } catch { /* ignore */ }
+
+    setInsights(patterns);
+  }, []);
+
+  if (insights.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: "12px 14px",
+        marginBottom: 12,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: "var(--muted-foreground)",
+          textTransform: "uppercase" as const,
+          letterSpacing: "0.5px",
+          marginBottom: 8,
+        }}
+      >
+        Food-Mood Patterns
+      </div>
+      {insights.map((insight, i) => (
+        <div
+          key={i}
+          style={{
+            fontSize: 12,
+            color: "var(--foreground)",
+            padding: "6px 0",
+            borderTop: i > 0 ? "1px solid var(--border)" : "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: 16 }}>
+            {insight.includes("calorie")
+              ? "🔥"
+              : insight.includes("carb")
+              ? "🍞"
+              : insight.includes("evening")
+              ? "🌙"
+              : "💪"}
+          </span>
+          {insight}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MindfulEatingPrompt — pause-before-eating check-in
+// ---------------------------------------------------------------------------
+
+function MindfulEatingPrompt({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div
+      style={{
+        background:
+          "linear-gradient(135deg, hsl(165 30% 12% / 0.9), hsl(200 30% 10% / 0.9))",
+        border: "1px solid hsl(165 60% 45% / 0.2)",
+        borderRadius: 14,
+        padding: "14px 16px",
+        marginBottom: 12,
+        textAlign: "center" as const,
+      }}
+    >
+      <div style={{ fontSize: 22, marginBottom: 6 }}>🧘</div>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: "var(--foreground)",
+          marginBottom: 4,
+        }}
+      >
+        Pause before eating
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          color: "var(--muted-foreground)",
+          marginBottom: 10,
+          lineHeight: 1.4,
+        }}
+      >
+        Are you physically hungry, or eating in response to an emotion?
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+        <button
+          onClick={onDismiss}
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            padding: "6px 14px",
+            borderRadius: 8,
+            background: "hsl(165 60% 45% / 0.15)",
+            color: "hsl(165 60% 55%)",
+            border: "1px solid hsl(165 60% 45% / 0.3)",
+            cursor: "pointer",
+          }}
+        >
+          I'm hungry
+        </button>
+        <button
+          onClick={onDismiss}
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            padding: "6px 14px",
+            borderRadius: 8,
+            background: "hsl(38 85% 52% / 0.15)",
+            color: "hsl(38 85% 62%)",
+            border: "1px solid hsl(38 85% 52% / 0.3)",
+            cursor: "pointer",
+          }}
+        >
+          Emotional eating
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -92,8 +326,31 @@ export default function FoodEmotion() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const [mealResult, setMealResult] = useState<FoodImageAnalysisResult | null>(null);
+  const [showMindfulPrompt, setShowMindfulPrompt] = useState(true);
   const liveEmotions = latestFrame?.analysis?.emotions;
   const voiceData = useVoiceData();
+
+  /** Save a food-mood correlation entry to localStorage after a meal is captured. */
+  function saveFoodLog(result: FoodImageAnalysisResult) {
+    try {
+      const emotionRaw = localStorage.getItem("ndw_last_emotion");
+      const emotion = emotionRaw
+        ? (JSON.parse(emotionRaw)?.result?.emotion as string | undefined)
+        : undefined;
+      const logKey = `ndw_food_log_${Date.now()}`;
+      localStorage.setItem(
+        logKey,
+        JSON.stringify({
+          emotion,
+          calories: result.total_calories || 0,
+          carbs: result.total_carbs_g || 0,
+          protein: result.total_protein_g || 0,
+          fat: result.total_fat_g || 0,
+          timestamp: Date.now(),
+        })
+      );
+    } catch { /* ignore */ }
+  }
 
   // Only call ML API when streaming with real signals — never simulate
   const { data, isLoading } = useQuery<FoodEmotionResult>({
@@ -169,6 +426,14 @@ export default function FoodEmotion() {
         </div>
       </div>
 
+      {/* Mindful eating check-in — shown once per page load */}
+      {showMindfulPrompt && (
+        <MindfulEatingPrompt onDismiss={() => setShowMindfulPrompt(false)} />
+      )}
+
+      {/* Food-Mood pattern insights derived from past logs */}
+      <FoodMoodInsights />
+
       {/* Current State + Calibration */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Current Food State */}
@@ -184,7 +449,12 @@ export default function FoodEmotion() {
                 <p className="text-sm text-muted-foreground">
                   Your food state is derived from your latest voice analysis. Tap the mic button in the bottom tabs to update.
                 </p>
-                <FoodCapture onAnalyzed={setMealResult} />
+                <FoodCapture
+                  onAnalyzed={(result) => {
+                    setMealResult(result);
+                    saveFoodLog(result);
+                  }}
+                />
                 {voiceData && (
                   <div className="rounded-md bg-muted/40 p-3 text-xs space-y-1">
                     <div className="flex justify-between gap-3">
