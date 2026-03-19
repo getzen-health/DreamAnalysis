@@ -191,6 +191,14 @@ from .post_traumatic_growth import router as _post_traumatic_growth
 from .emotional_compiler import router as _emotional_compiler
 from .couples_resonance import router as _couples_resonance
 from .grief_companion import router as _grief_companion
+from .emotional_genome import router as _emotional_genome
+from .elderly_monitoring import router as _elderly_monitoring
+from .emotion_archaeology import router as _emotion_archaeology
+from .federated_emotion import router as _federated_emotion
+from .psychedelic_integration import router as _psychedelic_integration
+from .epigenetic import router as _epigenetic
+from .adaptive_education import router as _adaptive_education
+from .perinatal import router as _perinatal
 
 router = APIRouter()
 
@@ -351,3 +359,11 @@ router.include_router(_post_traumatic_growth)
 router.include_router(_emotional_compiler)
 router.include_router(_couples_resonance)
 router.include_router(_grief_companion)
+router.include_router(_emotional_genome)
+router.include_router(_elderly_monitoring)
+router.include_router(_emotion_archaeology)
+router.include_router(_federated_emotion)
+router.include_router(_psychedelic_integration)
+router.include_router(_epigenetic)
+router.include_router(_adaptive_education)
+router.include_router(_perinatal)
