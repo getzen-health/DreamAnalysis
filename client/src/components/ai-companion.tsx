@@ -420,6 +420,13 @@ export function AICompanion({ userId }: AICompanionProps) {
               <span className="text-[10px] font-mono text-primary">LIVE</span>
             </>
           )}
+          <button
+            onClick={() => navigate("/")}
+            className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       </div>
 

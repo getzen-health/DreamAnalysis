@@ -1617,19 +1617,42 @@ export default function Nutrition() {
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
               });
-              const res = await apiRequest("POST", "/api/food/analyze", {
+              const apiPromise = apiRequest("POST", "/api/food/analyze", {
                 userId,
                 mealType: autoMealType(),
                 imageBase64: base64,
               });
+              const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Analysis timed out")), 5000)
+              );
+              const res = await Promise.race([apiPromise, timeoutPromise]);
               await res.json();
               hapticSuccess();
               try { localStorage.setItem("ndw_meal_logged", "true"); } catch {}
               await new Promise(r => setTimeout(r, 500));
               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
               setCaptureMode("none");
-            } catch (err) {
-              setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
+            } catch {
+              // Fallback: use local estimation from filename or generic meal
+              try {
+                const fallbackDesc = file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ") || "mixed meal";
+                const local = estimateNutritionLocally(fallbackDesc);
+                await apiRequest("POST", "/api/food/log", {
+                  userId,
+                  mealType: autoMealType(),
+                  summary: local.summary,
+                  totalCalories: local.total_calories,
+                  dominantMacro: local.dominant_macro,
+                  foodItems: local.food_items,
+                });
+                hapticSuccess();
+                await new Promise(r => setTimeout(r, 500));
+                qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+                setCaptureMode("none");
+              } catch (fallbackErr) {
+                setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
+                setCaptureMode("none");
+              }
             } finally {
               setIsAnalyzing(false);
               if (cameraInputRef.current) cameraInputRef.current.value = "";
@@ -1657,18 +1680,41 @@ export default function Nutrition() {
                 reader.onerror = reject;
                 reader.readAsDataURL(file);
               });
-              const res = await apiRequest("POST", "/api/food/analyze", {
+              const apiPromise = apiRequest("POST", "/api/food/analyze", {
                 userId,
                 mealType: autoMealType(),
                 imageBase64: base64,
               });
+              const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Analysis timed out")), 5000)
+              );
+              const res = await Promise.race([apiPromise, timeoutPromise]);
               await res.json();
               hapticSuccess();
               await new Promise(r => setTimeout(r, 500));
               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
               setCaptureMode("none");
-            } catch (err) {
-              setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
+            } catch {
+              // Fallback: use local estimation from filename or generic meal
+              try {
+                const fallbackDesc = file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ") || "mixed meal";
+                const local = estimateNutritionLocally(fallbackDesc);
+                await apiRequest("POST", "/api/food/log", {
+                  userId,
+                  mealType: autoMealType(),
+                  summary: local.summary,
+                  totalCalories: local.total_calories,
+                  dominantMacro: local.dominant_macro,
+                  foodItems: local.food_items,
+                });
+                hapticSuccess();
+                await new Promise(r => setTimeout(r, 500));
+                qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+                setCaptureMode("none");
+              } catch (fallbackErr) {
+                setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
+                setCaptureMode("none");
+              }
             } finally {
               setIsAnalyzing(false);
               if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1828,11 +1874,15 @@ export default function Nutrition() {
                         setIsAnalyzing(true);
                         setAnalysisError(null);
                         try {
-                          const res = await apiRequest("POST", "/api/food/analyze", {
+                          const apiPromise = apiRequest("POST", "/api/food/analyze", {
                             userId,
                             mealType: autoMealType(),
                             textDescription: mealText.trim(),
                           });
+                          const timeoutPromise = new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error("Analysis timed out")), 5000)
+                          );
+                          const res = await Promise.race([apiPromise, timeoutPromise]);
                           await res.json();
                           hapticSuccess();
                           setMealText("");
@@ -1857,7 +1907,10 @@ export default function Nutrition() {
                             setCaptureMode("none");
                           } catch (fallbackErr) {
                             setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
+                            setCaptureMode("none");
                           }
+                        } finally {
+                          setIsAnalyzing(false);
                         }
                       }}
                       style={{
@@ -2080,22 +2133,98 @@ export default function Nutrition() {
               </div>
 
               {/* Craving Analysis Card */}
-              <div style={{
-                background: "var(--card)", border: "1px solid var(--border)",
-                borderRadius: 16, padding: 14, marginBottom: 16,
-                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-              }}>
-                <div style={{
-                  fontSize: 11, fontWeight: 600, color: "var(--primary)",
-                  marginBottom: 8, display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  <span>Craving Analysis</span>
-                </div>
-                <p style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5, margin: 0 }}>
-                  Right now you show signs of <strong style={{ color: "var(--foreground)" }}>{craving.text}</strong>.
-                  Track your meals to see how your emotional state shapes your eating patterns.
-                </p>
-              </div>
+              {(() => {
+                const cravingColors: Record<string, string> = {
+                  Stress: "#e879a8",
+                  Comfort: "#d4a017",
+                  Mindful: "#0891b2",
+                  Balanced: "#06b6d4",
+                };
+                const cravingColor = cravingColors[craving.label] ?? "#06b6d4";
+                const allLabels = ["Stress", "Comfort", "Mindful", "Balanced"] as const;
+
+                return (
+                  <div style={{
+                    background: "var(--card)", border: "1px solid var(--border)",
+                    borderRadius: 16, padding: 16, marginBottom: 16,
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                  }}>
+                    <div style={{
+                      fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                      textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 12,
+                    }}>
+                      Eating Pattern
+                    </div>
+
+                    {/* Active eating type badge */}
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 12, marginBottom: 14,
+                    }}>
+                      <div style={{
+                        width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+                        background: `linear-gradient(135deg, ${cravingColor}, ${cravingColor}88)`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        boxShadow: `0 4px 16px ${cravingColor}33`,
+                      }}>
+                        <span style={{ fontSize: 22, fontWeight: 800, color: "white" }}>
+                          {craving.label.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <div style={{
+                          fontSize: 18, fontWeight: 700,
+                          background: `linear-gradient(135deg, ${cravingColor}, ${cravingColor}cc)`,
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                        }}>
+                          {craving.label} Eating
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+                          Based on voice stress & valence analysis
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Visual bar showing position across eating types */}
+                    <div style={{
+                      display: "flex", gap: 4, marginBottom: 12,
+                    }}>
+                      {allLabels.map((label) => {
+                        const color = cravingColors[label];
+                        const isActive = label === craving.label;
+                        return (
+                          <div key={label} style={{ flex: 1, textAlign: "center" }}>
+                            <div style={{
+                              height: isActive ? 6 : 4,
+                              borderRadius: 3,
+                              background: isActive ? `linear-gradient(90deg, ${color}, ${color}cc)` : "var(--border)",
+                              transition: "all 0.3s ease",
+                              marginBottom: 4,
+                              boxShadow: isActive ? `0 2px 8px ${color}44` : "none",
+                            }} />
+                            <span style={{
+                              fontSize: 9, fontWeight: isActive ? 700 : 500,
+                              color: isActive ? color : "var(--muted-foreground)",
+                              transition: "all 0.3s ease",
+                            }}>
+                              {label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Description */}
+                    <p style={{
+                      fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, margin: 0,
+                      padding: "8px 10px", background: "var(--muted)", borderRadius: 10,
+                    }}>
+                      {craving.text.charAt(0).toUpperCase() + craving.text.slice(1)}.
+                      {" "}Track meals to see how emotions shape your eating.
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* AI Nutrition Insights */}
               {insights.length > 0 && (
