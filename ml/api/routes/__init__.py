@@ -179,6 +179,14 @@ from .granularity import router as _granularity
 from .micro_intervention import router as _micro_intervention
 from .dream_sleep_fusion import router as _dream_sleep_fusion
 from .pharmacological import router as _pharmacological
+from .cultural_calibration import router as _cultural_calibration
+from .clinical_bridge import router as _clinical_bridge
+from .narrative import router as _narrative
+from .neurochemical import router as _neurochemical
+from .emotional_first_aid import router as _emotional_first_aid
+from .flow_neurofeedback import router as _flow_neurofeedback
+from .neural_age import router as _neural_age
+from .lucid_induction_engine import router as _lucid_induction_engine
 
 router = APIRouter()
 
@@ -327,3 +335,11 @@ router.include_router(_granularity)
 router.include_router(_micro_intervention)
 router.include_router(_dream_sleep_fusion)
 router.include_router(_pharmacological)
+router.include_router(_cultural_calibration)
+router.include_router(_clinical_bridge)
+router.include_router(_narrative)
+router.include_router(_neurochemical)
+router.include_router(_emotional_first_aid)
+router.include_router(_flow_neurofeedback)
+router.include_router(_neural_age)
+router.include_router(_lucid_induction_engine)
