@@ -4,17 +4,33 @@
     android:height="96dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
-    <!-- Heart shape in rose/magenta -->
+    <!-- AntarAI logo: circle with EEG wave and neural nodes -->
+
+    <!-- Outer ring — violet -->
     <path
-        android:fillColor="#e879a8"
-        android:fillAlpha="0.9"
-        android:pathData="M256,380 C256,380 120,300 120,200 C120,150 158,115 200,115 C232,115 250,138 256,155 C262,138 280,115 312,115 C354,115 392,150 392,200 C392,300 256,380 256,380 Z" />
-    <!-- Heartbeat pulse line in golden -->
+        android:strokeColor="#7c3aed"
+        android:strokeWidth="18"
+        android:fillColor="#00000000"
+        android:strokeAlpha="0.9"
+        android:pathData="M256,256 m-220,0 a220,220 0 1,1 440,0 a220,220 0 1,1 -440,0" />
+
+    <!-- EEG brain wave — golden -->
     <path
         android:strokeColor="#fbbf24"
         android:strokeWidth="8"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M150,230 L210,230 L225,185 L250,280 L275,195 L300,230 L362,230" />
+        android:pathData="M80,256 C105,256 115,256 135,256 L155,256 C165,256 170,210 185,190 C200,170 210,256 225,280 C240,304 248,180 260,160 C272,140 280,310 295,330 C310,350 315,220 330,200 C340,185 348,256 358,256 L380,256 C400,256 410,256 432,256" />
+
+    <!-- Neural nodes -->
+    <path
+        android:fillColor="#fbbf24"
+        android:pathData="M185,190 m-6,0 a6,6 0 1,1 12,0 a6,6 0 1,1 -12,0" />
+    <path
+        android:fillColor="#e879a8"
+        android:pathData="M260,160 m-8,0 a8,8 0 1,1 16,0 a8,8 0 1,1 -16,0" />
+    <path
+        android:fillColor="#fbbf24"
+        android:pathData="M330,200 m-6,0 a6,6 0 1,1 12,0 a6,6 0 1,1 -12,0" />
 </vector>
