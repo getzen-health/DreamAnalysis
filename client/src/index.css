@@ -51,7 +51,7 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
   --font-futuristic: 'Inter', system-ui, sans-serif;
-  --radius: 12px;
+  --radius: 16px;
 }
 
 .dark {
@@ -146,8 +146,54 @@
     );
     border-color: hsl(260 10% 22% / 0.5);
     box-shadow:
-      0 4px 24px hsl(260 30% 5% / 0.3),
+      0 4px 16px hsl(260 30% 5% / 0.4),
+      0 16px 48px hsl(260 30% 5% / 0.2),
       inset 0 1px 0 hsl(40 25% 93% / 0.03);
+  }
+
+  /* Premium card with depth — Bevel-style */
+  .premium-card {
+    @apply rounded-2xl border;
+    background: var(--card);
+    border-color: var(--border);
+    box-shadow: 0 1px 3px hsl(0 0% 0% / 0.04), 0 6px 24px hsl(0 0% 0% / 0.06);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+  }
+
+  .premium-card:active {
+    transform: scale(0.98);
+  }
+
+  .dark .premium-card {
+    background: linear-gradient(160deg, hsl(260 18% 13%) 0%, hsl(255 12% 10%) 100%);
+    border-color: hsl(260 12% 20% / 0.6);
+    box-shadow: 0 2px 8px hsl(0 0% 0% / 0.3), 0 12px 40px hsl(260 30% 5% / 0.25), inset 0 1px 0 hsl(40 20% 95% / 0.04);
+  }
+
+  /* Score metric card — colored top accent border */
+  .metric-card {
+    @apply rounded-2xl border overflow-hidden;
+    background: var(--card);
+    border-color: var(--border);
+    box-shadow: 0 2px 12px hsl(0 0% 0% / 0.06);
+    position: relative;
+  }
+
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--metric-accent, var(--primary));
+    border-radius: 2xl 2xl 0 0;
+  }
+
+  .dark .metric-card {
+    background: linear-gradient(160deg, hsl(260 16% 13%) 0%, hsl(255 12% 10%) 100%);
+    border-color: hsl(260 10% 20% / 0.5);
+    box-shadow: 0 4px 20px hsl(0 0% 0% / 0.3), inset 0 1px 0 hsl(40 20% 95% / 0.03);
   }
 
   .score-card {
@@ -316,9 +362,22 @@
     animation: staggerIn 0.3s ease-out forwards;
     opacity: 0;
   }
+  .animate-count-up {
+    animation: countUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
   .font-futuristic {
     font-family: var(--font-futuristic);
   }
+  .text-gradient-recovery { background: linear-gradient(135deg, #0891b2, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .text-gradient-stress { background: linear-gradient(135deg, #e879a8, #be185d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .text-gradient-focus { background: linear-gradient(135deg, #6366f1, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .text-gradient-nutrition { background: linear-gradient(135deg, #d4a017, #ea580c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .text-gradient-sleep { background: linear-gradient(135deg, #7c3aed, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* ── Premium Animations ── */
@@ -559,4 +618,16 @@ html {
 .dark select option {
   color: #e8e0d4 !important;
   background-color: #161a22 !important;
+}
+
+.dark body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 300px;
+  background: linear-gradient(180deg, hsl(260 25% 12%) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: -1;
 }

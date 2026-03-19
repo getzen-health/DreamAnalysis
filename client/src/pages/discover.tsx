@@ -85,7 +85,8 @@ function EmotionTimeline({ userId }: { userId: string }) {
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 14, padding: "14px 16px", marginBottom: 14,
+      borderRadius: 20, padding: "14px 16px", marginBottom: 14,
+      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
     }}>
       <div style={{
         fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
@@ -247,8 +248,10 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
             onClick={() => { trackFeatureUsage(rec.route); navigate(rec.route); }}
             style={{
               background: "var(--card)", border: "1px solid var(--border)",
-              borderRadius: 14, padding: "12px 14px", minWidth: 150, flexShrink: 0,
+              borderRadius: 20, padding: "12px 14px", minWidth: 150, flexShrink: 0,
               textAlign: "left" as const, cursor: "pointer",
+              boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+              transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
             <span style={{ fontSize: 22 }}>{rec.emoji}</span>
@@ -318,18 +321,19 @@ interface NavCard {
   title: string;
   subtitle: string;
   route: string;
+  accentColor: string;
 }
 
 // ── Data — 8 main navigation cards (2x4 grid) ─────────────────────────────
 
 const NAV_CARDS: NavCard[] = [
-  { emoji: "😊", title: "Emotions",     subtitle: "Mood trends, emotion history",       route: "/mood" },
-  { emoji: "🍎", title: "Nutrition",    subtitle: "Food, vitamins, supplements",         route: "/nutrition" },
-  { emoji: "🧠", title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor" },
-  { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep" },
-  { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health" },
-  { emoji: "✨", title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy" },
-  { emoji: "🧘", title: "Wellness",     subtitle: "Habits, menstrual cycle tracking",    route: "/wellness" },
+  { emoji: "😊", title: "Emotions",     subtitle: "Mood trends, emotion history",       route: "/mood",           accentColor: "#0891b2" },
+  { emoji: "🍎", title: "Nutrition",    subtitle: "Food, vitamins, supplements",         route: "/nutrition",      accentColor: "#d4a017" },
+  { emoji: "🧠", title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor",  accentColor: "#6366f1" },
+  { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#7c3aed" },
+  { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health",         accentColor: "#e879a8" },
+  { emoji: "✨", title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#4ade80" },
+  { emoji: "🧘", title: "Wellness",     subtitle: "Habits, menstrual cycle tracking",    route: "/wellness",       accentColor: "#ea580c" },
 ];
 
 // Sample sparkline points (normalized 0-40 in Y space, 0-280 in X)
@@ -429,47 +433,75 @@ export default function Discover() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
           {/* Stress Score */}
           <button onClick={() => navigate("/stress")} style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
-            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
+            padding: 0, textAlign: "left" as const, cursor: "pointer",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
+            overflow: "hidden",
           }}>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Stress</div>
             <div style={{
-              fontSize: 22, fontWeight: 700,
-              color: stress < 0.3 ? "#0891b2" : stress < 0.6 ? "#d4a017" : "#e879a8",
-            }}>{Math.round(stress * 100)}%</div>
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-              {stress < 0.3 ? "Low" : stress < 0.6 ? "Moderate" : "High"}
+              height: 3,
+              background: `linear-gradient(90deg, ${stress < 0.3 ? "#0891b2" : stress < 0.6 ? "#d4a017" : "#e879a8"}, ${stress < 0.3 ? "#0891b288" : stress < 0.6 ? "#d4a01788" : "#e879a888"})`,
+            }} />
+            <div style={{ padding: "14px 12px" }}>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Stress</div>
+              <div style={{
+                fontSize: 28, fontWeight: 700,
+                color: stress < 0.3 ? "#0891b2" : stress < 0.6 ? "#d4a017" : "#e879a8",
+              }}>{Math.round(stress * 100)}%</div>
+              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                {stress < 0.3 ? "Low" : stress < 0.6 ? "Moderate" : "High"}
+              </div>
             </div>
           </button>
 
           {/* Focus Score */}
           <button onClick={() => navigate("/focus")} style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
-            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
+            padding: 0, textAlign: "left" as const, cursor: "pointer",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
+            overflow: "hidden",
           }}>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Focus</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#6366f1" }}>{Math.round(focus * 100)}%</div>
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-              {focus >= 0.7 ? "Sharp" : focus >= 0.4 ? "Moderate" : "Diffuse"}
+            <div style={{
+              height: 3,
+              background: "linear-gradient(90deg, #6366f1, #6366f188)",
+            }} />
+            <div style={{ padding: "14px 12px" }}>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Focus</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: "#6366f1" }}>{Math.round(focus * 100)}%</div>
+              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                {focus >= 0.7 ? "Sharp" : focus >= 0.4 ? "Moderate" : "Diffuse"}
+              </div>
             </div>
           </button>
 
           {/* Inner Energy Score */}
           <button onClick={() => navigate("/inner-energy")} style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
-            padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
+            padding: 0, textAlign: "left" as const, cursor: "pointer",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
+            overflow: "hidden",
           }}>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Inner Energy</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#7c3aed" }}>{Math.round(relaxation * 100)}%</div>
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-              {relaxation >= 0.6 ? "Calm" : relaxation >= 0.3 ? "Mixed" : "Tense"}
+            <div style={{
+              height: 3,
+              background: "linear-gradient(90deg, #7c3aed, #7c3aed88)",
+            }} />
+            <div style={{ padding: "14px 12px" }}>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Inner Energy</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: "#7c3aed" }}>{Math.round(relaxation * 100)}%</div>
+              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                {relaxation >= 0.6 ? "Calm" : relaxation >= 0.3 ? "Mixed" : "Tense"}
+              </div>
             </div>
           </button>
         </div>
       ) : (
         <div style={{
-          background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
+          background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
           padding: 20, marginBottom: 16, textAlign: "center",
+          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
         }}>
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎙️</div>
           <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Do a voice analysis to see your scores</div>
@@ -482,13 +514,15 @@ export default function Discover() {
         <button
           onClick={() => navigate("/heart-rate")}
           style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
             WebkitTapHighlightColor: "transparent",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
           }}
         >
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Heart Rate</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#e879a8" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#e879a8" }}>
             {heartRate != null ? `${Math.round(heartRate)}` : "—"}
             {heartRate != null && (
               <span style={{ fontSize: 11, fontWeight: 400, color: "#e879a8", marginLeft: 2 }}>bpm</span>
@@ -501,13 +535,15 @@ export default function Discover() {
         <button
           onClick={() => navigate("/steps")}
           style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
             WebkitTapHighlightColor: "transparent",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
           }}
         >
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Steps</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#0891b2" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#0891b2" }}>
             {steps != null ? steps.toLocaleString() : "—"}
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
@@ -519,13 +555,15 @@ export default function Discover() {
         <button
           onClick={() => navigate("/sleep")}
           style={{
-            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
             WebkitTapHighlightColor: "transparent",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
           }}
         >
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Sleep</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#7c3aed" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#7c3aed" }}>
             {sleepLabel ?? "—"}
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
@@ -538,15 +576,17 @@ export default function Discover() {
       <button
         onClick={() => navigate("/nutrition")}
         style={{
-          width: "100%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
+          width: "100%", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 20,
           padding: "14px 16px", textAlign: "left" as const, cursor: "pointer",
           WebkitTapHighlightColor: "transparent", marginBottom: 16,
           display: "flex", alignItems: "center", justifyContent: "space-between",
+          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
         }}
       >
         <div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>Nutrition</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#d4a017" }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#d4a017" }}>
             {caloriesToday != null && caloriesToday > 0
               ? caloriesToday.toLocaleString()
               : "—"}
@@ -598,12 +638,15 @@ export default function Discover() {
             style={{
               background: "var(--card)",
               border: "1px solid var(--border)",
-              borderRadius: 14,
+              borderLeft: `3px solid ${card.accentColor}`,
+              borderRadius: 20,
               padding: 16,
               textAlign: "left",
               cursor: "pointer",
               width: "100%",
               WebkitTapHighlightColor: "transparent",
+              boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+              transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
             <div style={{ fontSize: 28, marginBottom: 8 }}>{card.emoji}</div>

@@ -130,7 +130,8 @@ function ForecastCard({ userId }: { userId: string }) {
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 14, padding: 14, marginTop: 14,
+      borderRadius: 20, padding: 14, marginTop: 14,
+      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
     }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6,
@@ -193,7 +194,8 @@ function WeeklySummaryCard({ userId }: { userId: string }) {
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 14, padding: 14, marginTop: 14,
+      borderRadius: 20, padding: 14, marginTop: 14,
+      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
     }}>
       <div style={{
         fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
@@ -283,7 +285,8 @@ function DailyTip({ emotion, stress, focus }: { emotion: string; stress: number;
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 14, padding: 14, marginTop: 14,
+      borderRadius: 20, padding: 14, marginTop: 14,
+      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
     }}>
       <div style={{
         fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
@@ -328,7 +331,8 @@ function MentalFitnessCard({ voice }: { voice: VoiceCheckinData | null }) {
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 14, padding: 14, marginBottom: 14,
+      borderRadius: 20, padding: 14, marginBottom: 14,
+      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
@@ -418,7 +422,9 @@ function WeeklyMoodStrip({ userId }: { userId: string }) {
       onClick={() => window.location.href = "/discover"}
       style={{
         background: "var(--card)", border: "1px solid var(--border)",
-        borderRadius: 14, padding: "12px 14px", marginBottom: 14, cursor: "pointer",
+        borderRadius: 20, padding: "12px 14px", marginBottom: 14, cursor: "pointer",
+        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease",
       }}
     >
       <div style={{
@@ -580,16 +586,27 @@ function MiniCard({
       style={{
         background: "var(--card)",
         border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: "14px 10px",
+        borderRadius: 20,
+        padding: "0 10px 14px 10px",
         textAlign: "center",
         position: "relative",
         cursor: onClick ? "pointer" : "default",
+        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+        overflow: "hidden",
       }}
     >
+      {/* Colored top accent bar */}
+      <div style={{
+        height: 3,
+        background: `linear-gradient(90deg, ${valueColor}, ${valueColor}88)`,
+        marginBottom: 14,
+        marginLeft: -10,
+        marginRight: -10,
+      }} />
       <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>{label}</p>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-        <p style={{ fontSize: 22, fontWeight: 700, color: valueColor, margin: "0", lineHeight: 1 }}>
+        <p style={{ fontSize: 28, fontWeight: 700, color: valueColor, margin: "0", lineHeight: 1 }}>
           {value}
         </p>
         {trend && (
@@ -918,9 +935,10 @@ export default function Today() {
         style={{
           background: "var(--card)",
           border: "1px solid #1f3a2e",
-          borderRadius: 14,
+          borderRadius: 20,
           padding: 14,
           marginBottom: 14,
+          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
@@ -938,9 +956,10 @@ export default function Today() {
           style={{
             background: "var(--card)",
             border: "1px solid #3d1f1f",
-            borderRadius: 14,
+            borderRadius: 20,
             padding: 16,
             marginBottom: 14,
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -1003,11 +1022,13 @@ export default function Today() {
         style={{
           background: "var(--card)",
           border: "1px solid var(--border)",
-          borderRadius: 14,
+          borderRadius: 20,
           padding: 14,
           marginBottom: 14,
           cursor: "pointer",
           position: "relative",
+          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
         }}
       >
         <div
@@ -1066,14 +1087,16 @@ export default function Today() {
           style={{
             background: "var(--card)",
             border: "1px solid var(--border)",
-            borderRadius: 14,
+            borderRadius: 20,
             padding: 14,
             cursor: "pointer",
             position: "relative",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
           }}
         >
           <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>Heart Rate</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
+          <p style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
             {heartRate ? `${Math.round(heartRate)} bpm` : "—"}
           </p>
           <p style={{ fontSize: 10, color: "#0891b2", margin: 0 }}>
@@ -1094,14 +1117,16 @@ export default function Today() {
           style={{
             background: "var(--card)",
             border: "1px solid var(--border)",
-            borderRadius: 14,
+            borderRadius: 20,
             padding: 14,
             cursor: "pointer",
             position: "relative",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
           }}
         >
           <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>Steps</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
+          <p style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
             {steps > 0 ? steps.toLocaleString() : "—"}
           </p>
           <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>
@@ -1117,9 +1142,11 @@ export default function Today() {
         style={{
           background: "var(--card)",
           border: "1px solid var(--border)",
-          borderRadius: 14,
+          borderRadius: 20,
           padding: 14,
           cursor: "pointer",
+          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
         }}
       >
         <div
@@ -1187,11 +1214,12 @@ export default function Today() {
                 width: 90,
                 background: "var(--card)",
                 border: "1px solid var(--border)",
-                borderRadius: 14,
+                borderRadius: 20,
                 padding: "12px 8px",
                 textAlign: "center",
                 cursor: "pointer",
-                transition: "transform 0.15s",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}
               onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
               onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
