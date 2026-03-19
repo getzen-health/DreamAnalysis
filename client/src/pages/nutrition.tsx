@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { hapticSuccess } from "@/lib/haptics";
@@ -391,18 +391,7 @@ function SupplementTracker() {
   const totalCount = supplements.length;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.18 }}
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 16,
-      }}
-    >
+    <div>
       <div style={{
         fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
         textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
@@ -552,104 +541,57 @@ function SupplementTracker() {
           + Add Supplement
         </button>
       )}
-    </motion.div>
+    </div>
   );
 }
 
-// ── Calorie Ring (SVG) ────────────────────────────────────────────────────────
+// ── Calorie Ring (SVG) — compact version for sticky header ──────────────────
 
 const CAL_GOAL = 2000;
 const PROTEIN_GOAL = 50;
 const CARBS_GOAL = 275;
 const FAT_GOAL = 78;
 
-function CalorieRing({ calories }: { calories: number }) {
-  const r = 58;
-  const stroke = 8;
+function CalorieRingCompact({ calories }: { calories: number }) {
+  const size = 100;
+  const r = 40;
+  const stroke = 7;
   const circ = 2 * Math.PI * r;
   const pct = Math.min(calories / CAL_GOAL, 1);
   const dash = circ * pct;
-  const size = 140;
   const cx = size / 2;
 
   const remaining = CAL_GOAL - calories;
   const isOver = remaining < 0;
-  const goalColor = isOver
-    ? Math.abs(remaining) > 300
-      ? "#e879a8" // way over — rose
-      : "#d4a017" // slightly over — amber
-    : "#06b6d4"; // on track — green
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 4 }}
-    >
-      <div style={{ position: "relative", width: size, height: size }}>
-        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-          {/* Background track */}
-          <circle
-            cx={cx}
-            cy={cx}
-            r={r}
-            fill="none"
-            stroke="var(--border)"
-            strokeWidth={stroke}
-          />
-          {/* Fill arc */}
-          <circle
-            cx={cx}
-            cy={cx}
-            r={r}
-            fill="none"
-            stroke="url(#calGrad)"
-            strokeWidth={stroke}
-            strokeDasharray={`${dash} ${circ}`}
-            strokeLinecap="round"
-          />
-          <defs>
-            <linearGradient id="calGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#d4a017" />
-              <stop offset="100%" stopColor="#ea580c" />
-            </linearGradient>
-          </defs>
-        </svg>
-        {/* Center text */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <span style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", lineHeight: 1 }}>
-            {calories}
-          </span>
-          <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>of {CAL_GOAL} kcal</span>
-        </div>
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={cx} cy={cx} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
+        <circle
+          cx={cx} cy={cx} r={r} fill="none"
+          stroke="url(#calGradCompact)" strokeWidth={stroke}
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+        />
+        <defs>
+          <linearGradient id="calGradCompact" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#d4a017" />
+            <stop offset="100%" stopColor="#ea580c" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div style={{
+        position: "absolute", inset: 0,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      }}>
+        <span style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)", lineHeight: 1 }}>
+          {calories}
+        </span>
+        <span style={{ fontSize: 9, color: "var(--muted-foreground)", marginTop: 1 }}>
+          {isOver ? "over" : "kcal"}
+        </span>
       </div>
-      {/* Goal indicator */}
-      <div
-        style={{
-          marginTop: 8,
-          fontSize: 12,
-          fontWeight: 600,
-          color: goalColor,
-          textAlign: "center",
-        }}
-      >
-        {isOver
-          ? `${Math.abs(remaining)} kcal over`
-          : remaining === 0
-            ? "Goal reached"
-            : `${remaining} kcal remaining`}
-      </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -658,24 +600,11 @@ function CalorieRing({ calories }: { calories: number }) {
 function MacroBar({ value, goal, color }: { value: number; goal: number; color: string }) {
   const pct = Math.min((value / goal) * 100, 100);
   return (
-    <div
-      style={{
-        height: 3,
-        background: "var(--border)",
-        borderRadius: 2,
-        marginTop: 6,
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          width: `${pct}%`,
-          height: "100%",
-          background: color,
-          borderRadius: 2,
-          transition: "width 0.4s ease",
-        }}
-      />
+    <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", flex: 1 }}>
+      <div style={{
+        width: `${pct}%`, height: "100%", background: color,
+        borderRadius: 2, transition: "width 0.4s ease",
+      }} />
     </div>
   );
 }
@@ -748,24 +677,11 @@ function estimateVitaminsFromFood(items: FoodItem[]): VitaminData {
 function VitaminBar({ value, goal, color }: { value: number; goal: number; color: string }) {
   const pct = Math.min((value / goal) * 100, 100);
   return (
-    <div
-      style={{
-        height: 4,
-        background: "var(--border)",
-        borderRadius: 2,
-        overflow: "hidden",
-        flex: 1,
-      }}
-    >
-      <div
-        style={{
-          height: "100%",
-          width: `${pct}%`,
-          background: color,
-          borderRadius: 2,
-          transition: "width 0.5s ease",
-        }}
-      />
+    <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", flex: 1 }}>
+      <div style={{
+        height: "100%", width: `${pct}%`, background: color,
+        borderRadius: 2, transition: "width 0.5s ease",
+      }} />
     </div>
   );
 }
@@ -777,7 +693,6 @@ function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
       iron_mg: 0, magnesium_mg: 0, zinc_mg: 0, omega3_g: 0,
     };
     for (const log of todayLogs) {
-      // Use GPT vitamins data if available, otherwise estimate from food names
       if (log.vitamins) {
         for (const k of Object.keys(totals) as (keyof VitaminData)[]) {
           totals[k] += log.vitamins[k] ?? 0;
@@ -793,18 +708,7 @@ function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
   }, [todayLogs]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.12 }}
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 16,
-      }}
-    >
+    <div>
       <div style={{
         fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
         textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
@@ -834,7 +738,7 @@ function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
           Log meals to track micronutrients
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -871,7 +775,6 @@ function computeGlp1Score(
     }
   }
 
-  // Score components (0-25 each, total 0-100)
   const proteinPct = totalCalories > 0 ? (totalProtein * 4 / totalCalories) * 100 : 0;
   const proteinScore = Math.min(25, (proteinPct / 25) * 25);
   const fiberScore = Math.min(25, (fiberCount / 3) * 25);
@@ -909,18 +812,7 @@ function Glp1Tracker({
   const scoreColor = glp1.score >= 70 ? "#06b6d4" : glp1.score >= 40 ? "#0891b2" : "#94a3b8";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.15 }}
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 16,
-      }}
-    >
+    <div style={{ marginTop: 16 }}>
       <div style={{
         fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
         textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
@@ -969,12 +861,8 @@ function Glp1Tracker({
             <span
               key={i}
               style={{
-                fontSize: 10,
-                padding: "2px 8px",
-                borderRadius: 10,
-                background: "hsl(180 65% 50% / 0.12)",
-                color: "#0891b2",
-                fontWeight: 500,
+                fontSize: 10, padding: "2px 8px", borderRadius: 10,
+                background: "hsl(180 65% 50% / 0.12)", color: "#0891b2", fontWeight: 500,
               }}
             >
               {f}
@@ -986,7 +874,7 @@ function Glp1Tracker({
           Log meals rich in protein, fiber, and healthy fats to boost GLP-1 support
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -1047,7 +935,7 @@ function MealCard({
             {log.totalCalories} kcal
           </div>
         )}
-        <span style={{ color: "var(--muted-foreground)", fontSize: 14, transition: "transform 0.2s", transform: expanded ? "rotate(90deg)" : "none" }}>›</span>
+        <span style={{ color: "var(--muted-foreground)", fontSize: 14, transition: "transform 0.2s", transform: expanded ? "rotate(90deg)" : "none" }}>&rsaquo;</span>
       </div>
 
       {/* Expanded: per-item breakdown + AI insight + favorite */}
@@ -1074,9 +962,9 @@ function MealCard({
           <div style={{
             display: "flex", gap: 12, fontSize: 10, color: "var(--muted-foreground)", marginBottom: 8,
           }}>
-            <span><span style={{ color: "#7ba7d9" }}>P</span> {Math.round(totalP)}g</span>
-            <span><span style={{ color: "#e8b94a" }}>C</span> {Math.round(totalC)}g</span>
-            <span><span style={{ color: "#e87676" }}>F</span> {Math.round(totalF)}g</span>
+            <span><span style={{ color: "#e879a8" }}>P</span> {Math.round(totalP)}g</span>
+            <span><span style={{ color: "#0891b2" }}>C</span> {Math.round(totalC)}g</span>
+            <span><span style={{ color: "#7c3aed" }}>F</span> {Math.round(totalF)}g</span>
           </div>
 
           {/* AI insight */}
@@ -1098,7 +986,7 @@ function MealCard({
               color: isFav ? "#e8b94a" : "var(--muted-foreground)",
             }}
           >
-            <span>{isFav ? "★" : "☆"}</span>
+            <span>{isFav ? "\u2605" : "\u2606"}</span>
             <span>{isFav ? "Favorited" : "Save as Favorite"}</span>
           </button>
         </div>
@@ -1167,12 +1055,11 @@ function BarcodePanel({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       style={{
-        background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
-        padding: 14, marginBottom: 14,
+        background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)",
+        padding: 14, marginBottom: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 14 }}>📊</span>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", marginBottom: 8 }}>
         Barcode Lookup
       </div>
       <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 8px 0" }}>
@@ -1207,14 +1094,10 @@ function BarcodePanel({
 
       {/* Product found */}
       {product && (
-        <div style={{
-          background: "var(--muted)", borderRadius: 10, padding: 12, marginBottom: 8,
-        }}>
+        <div style={{ background: "var(--muted)", borderRadius: 10, padding: 12, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
             {product.imageUrl && (
-              <img
-                src={product.imageUrl}
-                alt={product.name}
+              <img src={product.imageUrl} alt={product.name}
                 style={{ width: 48, height: 48, borderRadius: 6, objectFit: "cover", border: "1px solid var(--border)" }}
               />
             )}
@@ -1230,15 +1113,15 @@ function BarcodePanel({
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>kcal</div>
             </div>
             <div style={{ background: "var(--card)", borderRadius: 6, padding: "4px 0" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#3b82f6" }}>{product.protein_g}g</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#e879a8" }}>{product.protein_g}g</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>protein</div>
             </div>
             <div style={{ background: "var(--card)", borderRadius: 6, padding: "4px 0" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#d4a017" }}>{product.carbs_g}g</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#0891b2" }}>{product.carbs_g}g</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>carbs</div>
             </div>
             <div style={{ background: "var(--card)", borderRadius: 6, padding: "4px 0" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#e879a8" }}>{product.fat_g}g</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed" }}>{product.fat_g}g</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>fat</div>
             </div>
           </div>
@@ -1250,11 +1133,8 @@ function BarcodePanel({
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Servings:</span>
             <input
-              type="number"
-              min="0.25"
-              step="0.25"
-              value={servings}
-              onChange={(e) => setServings(e.target.value)}
+              type="number" min="0.25" step="0.25"
+              value={servings} onChange={(e) => setServings(e.target.value)}
               style={{
                 width: 60, background: "var(--card)", color: "var(--foreground)",
                 border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px",
@@ -1262,14 +1142,11 @@ function BarcodePanel({
               }}
             />
           </div>
-          <button
-            onClick={handleLog}
-            style={{
-              width: "100%", background: "var(--primary)", color: "white",
-              borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 600,
-              border: "none", cursor: "pointer",
-            }}
-          >
+          <button onClick={handleLog} style={{
+            width: "100%", background: "var(--primary)", color: "white",
+            borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 600,
+            border: "none", cursor: "pointer",
+          }}>
             Log This Meal
           </button>
         </div>
@@ -1285,14 +1162,11 @@ function BarcodePanel({
         </div>
       )}
 
-      <button
-        onClick={onCancel}
-        style={{
-          width: "100%", background: "transparent", color: "var(--muted-foreground)",
-          borderRadius: 10, padding: 8, fontSize: 12, border: "1px solid var(--border)",
-          cursor: "pointer",
-        }}
-      >
+      <button onClick={onCancel} style={{
+        width: "100%", background: "transparent", color: "var(--muted-foreground)",
+        borderRadius: 10, padding: 8, fontSize: 12, border: "1px solid var(--border)",
+        cursor: "pointer",
+      }}>
         Cancel
       </button>
     </motion.div>
@@ -1353,24 +1227,13 @@ function GlucoseSection({ userId }: { userId: string }) {
         : "#e879a8";
 
   const trendArrow = glucoseData?.trend === "rising"
-    ? "↑"
+    ? "\u2191"
     : glucoseData?.trend === "falling"
-      ? "↓"
-      : "→";
+      ? "\u2193"
+      : "\u2192";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: 0.15 }}
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 16,
-      }}
-    >
+    <div style={{ marginTop: 16 }}>
       <div style={{
         fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
         textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8,
@@ -1391,9 +1254,37 @@ function GlucoseSection({ userId }: { userId: string }) {
               ? "Slightly elevated -- monitor over the next hour"
               : "Below range -- consider a small snack"}
       </div>
-    </motion.div>
+    </div>
   );
 }
+
+// ── Tab definitions ──────────────────────────────────────────────────────────
+
+type TabId = "log" | "vitamins" | "supplements" | "insights";
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "log", label: "Log" },
+  { id: "vitamins", label: "Vitamins" },
+  { id: "supplements", label: "Supplements" },
+  { id: "insights", label: "Insights" },
+];
+
+// ── Tab slide animation variants ─────────────────────────────────────────────
+
+const tabSlideVariants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 60 : -60,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction: number) => ({
+    x: direction > 0 ? -60 : 60,
+    opacity: 0,
+  }),
+};
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -1407,6 +1298,9 @@ export default function Nutrition() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [favorites, setFavorites] = useState<FavoriteMeal[]>(loadFavorites);
+
+  const [activeTab, setActiveTab] = useState<TabId>("log");
+  const [tabDirection, setTabDirection] = useState(0);
 
   const { scores } = useScores(userId);
 
@@ -1585,630 +1479,676 @@ export default function Nutrition() {
     }
   }, [userId, qc]);
 
+  // Tab switching with direction tracking
+  const handleTabChange = useCallback((newTab: TabId) => {
+    const oldIndex = TABS.findIndex(t => t.id === activeTab);
+    const newIndex = TABS.findIndex(t => t.id === newTab);
+    setTabDirection(newIndex > oldIndex ? 1 : -1);
+    setActiveTab(newTab);
+  }, [activeTab]);
+
+  // Calorie remaining text
+  const remaining = CAL_GOAL - totalCalories;
+  const isOver = remaining < 0;
+  const goalColor = isOver
+    ? Math.abs(remaining) > 300 ? "#e879a8" : "#d4a017"
+    : "#06b6d4";
+
   return (
     <main
       style={{
         background: "var(--background)",
         minHeight: "100vh",
-        padding: 16,
-        paddingBottom: 100,
         color: "var(--foreground)",
         fontFamily: "Inter, system-ui, sans-serif",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      {/* Header */}
-      <motion.h1
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        style={{ fontSize: 18, fontWeight: 600, marginBottom: 20, marginTop: 4 }}
-      >
-        Nutrition
-      </motion.h1>
-
-      {/* Calorie Ring */}
-      <CalorieRing calories={totalCalories} />
-
-      {/* Macro Cards */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 8,
-          marginBottom: 16,
-        }}
-      >
-        {/* Protein */}
-        <motion.div
-          custom={0}
-          variants={cardVariants}
-          style={{
-            background: "var(--card)",
-            borderRadius: 12,
-            border: "1px solid var(--border)",
-            padding: "12px 8px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#3b82f6" }}>
-            {Math.round(totalProtein)}g
-          </div>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Protein</div>
-          <MacroBar value={totalProtein} goal={PROTEIN_GOAL} color="#3b82f6" />
-        </motion.div>
-
-        {/* Carbs */}
-        <motion.div
-          custom={1}
-          variants={cardVariants}
-          style={{
-            background: "var(--card)",
-            borderRadius: 12,
-            border: "1px solid var(--border)",
-            padding: "12px 8px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#d4a017" }}>
-            {Math.round(totalCarbs)}g
-          </div>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Carbs</div>
-          <MacroBar value={totalCarbs} goal={CARBS_GOAL} color="#d4a017" />
-        </motion.div>
-
-        {/* Fat */}
-        <motion.div
-          custom={2}
-          variants={cardVariants}
-          style={{
-            background: "var(--card)",
-            borderRadius: 12,
-            border: "1px solid var(--border)",
-            padding: "12px 8px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#e879a8" }}>
-            {Math.round(totalFat)}g
-          </div>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>Fat</div>
-          <MacroBar value={totalFat} goal={FAT_GOAL} color="#e879a8" />
-        </motion.div>
-      </motion.div>
-
-      {/* Vitamin Tracker */}
-      <VitaminTracker todayLogs={todayLogs} />
-
-      {/* Supplement Tracker */}
-      <SupplementTracker />
-
-      {/* GLP-1 Support Tracker */}
-      <Glp1Tracker todayLogs={todayLogs} totalProtein={totalProtein} totalCalories={totalCalories} />
-
-      {/* Nutrition Score + Food Quality */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-        style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-          padding: 14,
-          marginBottom: 16,
-          display: "flex",
-          gap: 14,
-          alignItems: "flex-start",
-        }}
-      >
-        {/* Score gauge */}
-        <div style={{ flexShrink: 0 }}>
-          <ScoreGauge
-            value={scores?.nutritionScore ?? null}
-            label="Food Quality"
-            color="nutrition"
-            size="sm"
-          />
-        </div>
-        {/* Contributors */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 6 }}>
-            Food Quality Score
-          </div>
-          {(qualityIndicators.positives.length > 0 || qualityIndicators.negatives.length > 0) ? (
-            <>
-              {qualityIndicators.positives.map((p, i) => (
-                <div key={`p-${i}`} style={{ fontSize: 11, color: "#06b6d4", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ fontSize: 8 }}>+</span> {p}
-                </div>
-              ))}
-              {qualityIndicators.negatives.map((n, i) => (
-                <div key={`n-${i}`} style={{ fontSize: 11, color: "#e879a8", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ fontSize: 8 }}>-</span> {n}
-                </div>
-              ))}
-            </>
-          ) : (
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-              Log meals to see quality contributors
+      {/* ── Sticky Header: Title + Ring + Macros ─────────────────────────── */}
+      <div style={{
+        position: "sticky", top: 0, zIndex: 20,
+        background: "var(--background)",
+        borderBottom: "1px solid var(--border)",
+        padding: "12px 16px 10px",
+      }}>
+        {/* Row: title + calorie ring + remaining */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
+          <CalorieRingCompact calories={totalCalories} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--foreground)" }}>
+              Nutrition
+            </h1>
+            <div style={{ fontSize: 12, fontWeight: 600, color: goalColor, marginTop: 4 }}>
+              {isOver
+                ? `${Math.abs(remaining)} kcal over`
+                : remaining === 0
+                  ? "Goal reached"
+                  : `${remaining} kcal remaining`}
             </div>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Glucose Section (conditional) */}
-      <GlucoseSection userId={userId} />
-
-      {/* Craving Analysis Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.15 }}
-        style={{
-          background: "var(--card)",
-          border: "1px solid #2d2418",
-          borderRadius: 14,
-          padding: 14,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: "var(--primary)",
-            marginBottom: 8,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span>🧠</span>
-          <span>Craving Analysis</span>
-        </div>
-        <p style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5, margin: 0 }}>
-          Right now you show signs of <strong style={{ color: "var(--foreground)" }}>{craving.text}</strong>.
-          Track your meals to see how your emotional state shapes your eating patterns.
-        </p>
-      </motion.div>
-
-      {/* Hidden file inputs */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: "none" }}
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          setIsAnalyzing(true);
-          setAnalysisError(null);
-          setCaptureMode("camera");
-          try {
-            const reader = new FileReader();
-            const base64 = await new Promise<string>((resolve, reject) => {
-              reader.onload = () => {
-                const result = reader.result as string;
-                resolve(result.split(",")[1]); // strip data:image/...;base64,
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(file);
-            });
-            const res = await apiRequest("POST", "/api/food/analyze", {
-              userId,
-              mealType: autoMealType(),
-              imageBase64: base64,
-            });
-            await res.json();
-            hapticSuccess();
-            try { localStorage.setItem("ndw_meal_logged", "true"); } catch {}
-            await new Promise(r => setTimeout(r, 500));
-            qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-            setCaptureMode("none");
-          } catch (err) {
-            setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
-          } finally {
-            setIsAnalyzing(false);
-            if (cameraInputRef.current) cameraInputRef.current.value = "";
-          }
-        }}
-      />
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: "none" }}
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          setIsAnalyzing(true);
-          setAnalysisError(null);
-          setCaptureMode("camera");
-          try {
-            const reader = new FileReader();
-            const base64 = await new Promise<string>((resolve, reject) => {
-              reader.onload = () => {
-                const result = reader.result as string;
-                resolve(result.split(",")[1]);
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(file);
-            });
-            const res = await apiRequest("POST", "/api/food/analyze", {
-              userId,
-              mealType: autoMealType(),
-              imageBase64: base64,
-            });
-            await res.json();
-            hapticSuccess();
-            await new Promise(r => setTimeout(r, 500));
-            qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-            setCaptureMode("none");
-          } catch (err) {
-            setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
-          } finally {
-            setIsAnalyzing(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-          }
-        }}
-      />
-
-      {/* Mindful Eating Prompt -- appears when emotional eating detected */}
-      {captureMode === "none" && voiceData && (voiceData.stress_index ?? 0) > 0.4 && (
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: 14, padding: 14, marginBottom: 12,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 16 }}>🧘</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>Before you eat...</span>
-          </div>
-          <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.5 }}>
-            Your voice analysis shows elevated stress. Take a breath and ask yourself:
-            <strong style={{ color: "var(--foreground)" }}> Am I eating because I'm hungry, or because I'm feeling {voiceData.emotion ?? "stressed"}?</strong>
-          </p>
-          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "6px 0 0 0", fontStyle: "italic" }}>
-            No judgment -- just awareness. Log your meal either way.
-          </p>
-        </div>
-      )}
-
-      {/* Action Buttons -- Scan (primary) + Describe + Barcode */}
-      {captureMode === "none" && (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-          style={{ marginBottom: 14 }}
-        >
-          {/* Primary: Camera scan -- large button */}
-          <button
-            onClick={() => cameraInputRef.current?.click()}
-            style={{
-              width: "100%", background: "var(--primary)",
-              color: "white", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700,
-              border: "none", cursor: "pointer", marginBottom: 8,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            }}
-          >
-            Scan Your Meal
-          </button>
-          {/* Secondary row: Describe + Barcode */}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => setCaptureMode("text")}
-              style={{
-                flex: 1, background: "var(--card)", color: "var(--foreground)", borderRadius: 12,
-                padding: 10, fontSize: 12, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer",
-              }}
-            >
-              Describe Meal
-            </button>
-            <button
-              onClick={() => setCaptureMode("barcode")}
-              style={{
-                flex: 1, background: "var(--card)", color: "var(--foreground)", borderRadius: 12,
-                padding: 10, fontSize: 12, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer",
-              }}
-            >
-              Scan Barcode
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Analyzing state */}
-      {isAnalyzing && (
-        <div style={{
-          background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
-          padding: 20, marginBottom: 14, textAlign: "center",
-        }}>
-          <div style={{ width: 28, height: 28, border: "3px solid var(--primary)", borderTopColor: "transparent",
-            borderRadius: "50%", margin: "0 auto 8px", animation: "spin 0.8s linear infinite" }} />
-          <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0 }}>Analyzing your meal...</p>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      )}
-
-      {/* Error */}
-      {analysisError && (
-        <div style={{
-          background: "var(--card)", borderRadius: 14, border: "1px solid #2d1f18",
-          padding: 14, marginBottom: 14,
-        }}>
-          <p style={{ fontSize: 12, color: "#e879a8", margin: 0 }}>
-            {analysisError.includes("authentication") || analysisError.includes("API key") || analysisError.includes("not configured") || analysisError.includes("503")
-              ? "AI analysis unavailable. Try describing your meal instead -- basic analysis works without an API key."
-              : analysisError}
-          </p>
-          <button onClick={() => { setAnalysisError(null); setCaptureMode("none"); }}
-            style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", background: "none", border: "none", cursor: "pointer" }}>
-            Try again
-          </button>
-        </div>
-      )}
-
-      {/* Barcode mode */}
-      {captureMode === "barcode" && (
-        <BarcodePanel
-          onLog={handleBarcodeLog}
-          onCancel={() => setCaptureMode("none")}
-        />
-      )}
-
-      {/* Describe mode -- text input */}
-      {captureMode === "text" && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          style={{
-            background: "var(--card)", borderRadius: 14, border: "1px solid var(--border)",
-            padding: 14, marginBottom: 14,
-          }}
-        >
-          <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "0 0 8px 0" }}>
-            What did you eat? Be specific for better accuracy.
-          </p>
-          <textarea
-            value={mealText}
-            onChange={(e) => setMealText(e.target.value)}
-            placeholder="e.g. rice bowl with grilled chicken, steamed vegetables, and soy sauce"
-            style={{
-              width: "100%", minHeight: 80, background: "var(--background)", color: "var(--foreground)",
-              border: "1px solid var(--border)", borderRadius: 10, padding: 12, fontSize: 13,
-              resize: "none", outline: "none", fontFamily: "inherit",
-            }}
-          />
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button
-              onClick={() => { setCaptureMode("none"); setMealText(""); }}
-              style={{
-                flex: 1, background: "transparent", color: "var(--muted-foreground)", borderRadius: 10,
-                padding: 10, fontSize: 13, border: "1px solid var(--border)", cursor: "pointer",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              disabled={!mealText.trim() || isAnalyzing}
-              onClick={async () => {
-                if (!mealText.trim()) return;
-                setIsAnalyzing(true);
-                setAnalysisError(null);
-                try {
-                  const res = await apiRequest("POST", "/api/food/analyze", {
-                    userId,
-                    mealType: autoMealType(),
-                    textDescription: mealText.trim(),
-                  });
-                  await res.json();
-                  hapticSuccess();
-                  setMealText("");
-                  await new Promise(r => setTimeout(r, 500));
-                  qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-                  setCaptureMode("none");
-                } catch {
-                  // Fallback: use local nutrition estimation when API fails (no API key needed)
-                  try {
-                    const local = estimateNutritionLocally(mealText.trim());
-                    await apiRequest("POST", "/api/food/log", {
-                      userId,
-                      mealType: autoMealType(),
-                      summary: local.summary,
-                      totalCalories: local.total_calories,
-                      dominantMacro: local.dominant_macro,
-                      foodItems: local.food_items,
-                    });
-                    hapticSuccess();
-                    setMealText("");
-                    await new Promise(r => setTimeout(r, 500));
-                    qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-                    setCaptureMode("none");
-                  } catch (fallbackErr) {
-                    setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
-                  }
-                }
-              }}
-              style={{
-                flex: 1, background: mealText.trim() ? "var(--primary)" : "var(--muted)",
-                color: mealText.trim() ? "white" : "var(--muted-foreground)", borderRadius: 10,
-                padding: 10, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
-              }}
-            >
-              {isAnalyzing ? "Analyzing..." : "Log Meal"}
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Recent Meals + Favorites Quick Re-log */}
-      {captureMode === "none" && (recentMeals.length > 0 || favorites.length > 0) && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.25 }}
-          style={{ marginBottom: 16 }}
-        >
-          {/* Favorites section */}
-          {favorites.length > 0 && (
-            <>
-              <div style={{
-                fontSize: 11, fontWeight: 600, color: "#e8b94a",
-                textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6,
-              }}>
-                Favorites
-              </div>
-              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 8 }}>
-                {favorites.slice(0, 5).map((fav, i) => (
-                  <button
-                    key={fav.id}
-                    onClick={() => handleRelog(fav.summary, fav.foodItems)}
-                    disabled={isAnalyzing}
-                    style={{
-                      flexShrink: 0, background: "var(--card)", border: "1px solid var(--border)",
-                      borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 120, maxWidth: 160,
-                      textAlign: "left",
-                    }}
-                  >
-                    <div style={{ fontSize: 11, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {fav.summary}
-                    </div>
-                    <div style={{ fontSize: 9, color: "var(--muted-foreground)", marginTop: 2 }}>
-                      {fav.totalCalories} kcal · Tap to re-log
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Recent meals */}
-          {recentMeals.length > 0 && (
-            <>
-              <div style={{
-                fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-                textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6,
-              }}>
-                Recent Meals
-              </div>
-              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-                {recentMeals.map((meal, i) => (
-                  <button
-                    key={meal.id}
-                    onClick={() => handleRelog(meal.summary ?? "Meal", meal.foodItems ?? [])}
-                    disabled={isAnalyzing}
-                    style={{
-                      flexShrink: 0, background: "var(--card)", border: "1px solid var(--border)",
-                      borderRadius: 10, padding: "8px 12px", cursor: "pointer", minWidth: 120, maxWidth: 160,
-                      textAlign: "left",
-                    }}
-                  >
-                    <div style={{ fontSize: 11, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {meal.summary ?? "Meal"}
-                    </div>
-                    <div style={{ fontSize: 9, color: "var(--muted-foreground)", marginTop: 2 }}>
-                      {meal.totalCalories ?? 0} kcal · Tap to re-log
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </motion.div>
-      )}
-
-      {/* Today's Meals */}
-      <div>
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: "var(--muted-foreground)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            marginBottom: 8,
-          }}
-        >
-          Today's Meals
-        </div>
-
-        <div
-          style={{
-            background: "var(--card)",
-            borderRadius: 14,
-            border: "1px solid var(--border)",
-            overflow: "hidden",
-          }}
-        >
-          {todayLogs.length === 0 ? (
-            <div
-              style={{
-                padding: "24px 16px",
-                textAlign: "center",
-                fontSize: 13,
-                color: "var(--muted-foreground)",
-              }}
-            >
-              Log your first meal to start tracking
+            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+              of {CAL_GOAL} kcal goal
             </div>
-          ) : (
-            todayLogs.map((log, idx) => (
-              <MealCard
-                key={log.id}
-                log={log}
-                isLast={idx === todayLogs.length - 1}
-                onToggleFavorite={handleToggleFavorite}
-                isFav={isFavorite(log.id, favorites)}
-              />
-            ))
-          )}
+          </div>
+        </div>
+
+        {/* Macro bars — always visible */}
+        <div style={{ display: "flex", gap: 12 }}>
+          {/* Protein */}
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: "#e879a8" }}>Protein</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#e879a8" }}>{Math.round(totalProtein)}g</span>
+            </div>
+            <MacroBar value={totalProtein} goal={PROTEIN_GOAL} color="#e879a8" />
+          </div>
+          {/* Carbs */}
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: "#0891b2" }}>Carbs</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#0891b2" }}>{Math.round(totalCarbs)}g</span>
+            </div>
+            <MacroBar value={totalCarbs} goal={CARBS_GOAL} color="#0891b2" />
+          </div>
+          {/* Fat */}
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: "#7c3aed" }}>Fat</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#7c3aed" }}>{Math.round(totalFat)}g</span>
+            </div>
+            <MacroBar value={totalFat} goal={FAT_GOAL} color="#7c3aed" />
+          </div>
+        </div>
+
+        {/* ── Tab Bar ──────────────────────────────────────────────────── */}
+        <div style={{
+          display: "flex", gap: 6, marginTop: 12,
+          overflowX: "auto", WebkitOverflowScrolling: "touch",
+        }}>
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                style={{
+                  flex: "0 0 auto",
+                  padding: "6px 16px",
+                  borderRadius: 20,
+                  fontSize: 12,
+                  fontWeight: isActive ? 600 : 500,
+                  border: "none",
+                  cursor: "pointer",
+                  background: isActive ? "hsl(var(--primary) / 0.15)" : "transparent",
+                  color: isActive ? "var(--primary)" : "var(--muted-foreground)",
+                  transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* AI Nutrition Insights */}
-      {insights.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.3 }}
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-            borderRadius: 14,
-            padding: 14,
-            marginTop: 16,
+      {/* ── Tab Content ──────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, padding: "16px 16px 100px", overflow: "hidden" }}>
+        {/* Hidden file inputs — always rendered */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: "none" }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setIsAnalyzing(true);
+            setAnalysisError(null);
+            setCaptureMode("camera");
+            try {
+              const reader = new FileReader();
+              const base64 = await new Promise<string>((resolve, reject) => {
+                reader.onload = () => {
+                  const result = reader.result as string;
+                  resolve(result.split(",")[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+              const res = await apiRequest("POST", "/api/food/analyze", {
+                userId,
+                mealType: autoMealType(),
+                imageBase64: base64,
+              });
+              await res.json();
+              hapticSuccess();
+              try { localStorage.setItem("ndw_meal_logged", "true"); } catch {}
+              await new Promise(r => setTimeout(r, 500));
+              qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+              setCaptureMode("none");
+            } catch (err) {
+              setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
+            } finally {
+              setIsAnalyzing(false);
+              if (cameraInputRef.current) cameraInputRef.current.value = "";
+            }
           }}
-        >
-          <div style={{
-            fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-            textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8,
-          }}>
-            Nutrition Insights
-          </div>
-          {insights.map((insight, i) => (
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setIsAnalyzing(true);
+            setAnalysisError(null);
+            setCaptureMode("camera");
+            try {
+              const reader = new FileReader();
+              const base64 = await new Promise<string>((resolve, reject) => {
+                reader.onload = () => {
+                  const result = reader.result as string;
+                  resolve(result.split(",")[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+              const res = await apiRequest("POST", "/api/food/analyze", {
+                userId,
+                mealType: autoMealType(),
+                imageBase64: base64,
+              });
+              await res.json();
+              hapticSuccess();
+              await new Promise(r => setTimeout(r, 500));
+              qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+              setCaptureMode("none");
+            } catch (err) {
+              setAnalysisError(err instanceof Error ? err.message : "Analysis failed");
+            } finally {
+              setIsAnalyzing(false);
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }
+          }}
+        />
+
+        <AnimatePresence mode="wait" custom={tabDirection}>
+          {/* ═══════════ LOG TAB ═══════════ */}
+          {activeTab === "log" && (
             <motion.div
-              key={i}
-              custom={i}
-              initial="hidden"
-              animate="visible"
-              variants={listItemVariants}
-              style={{
-                fontSize: 12,
-                color: "var(--foreground)",
-                lineHeight: 1.5,
-                padding: "6px 0",
-                borderBottom: i < insights.length - 1 ? "1px solid var(--border)" : "none",
-              }}
+              key="log"
+              custom={tabDirection}
+              variants={tabSlideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
-              {insight}
+              {/* Mindful Eating Prompt — appears when emotional eating detected */}
+              {captureMode === "none" && voiceData && (voiceData.stress_index ?? 0) > 0.4 && (
+                <div style={{
+                  background: "var(--card)", border: "1px solid var(--border)",
+                  borderRadius: 16, padding: 14, marginBottom: 12,
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>Before you eat...</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.5 }}>
+                    Your voice analysis shows elevated stress. Take a breath and ask yourself:
+                    <strong style={{ color: "var(--foreground)" }}> Am I eating because I'm hungry, or because I'm feeling {voiceData.emotion ?? "stressed"}?</strong>
+                  </p>
+                  <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "6px 0 0 0", fontStyle: "italic" }}>
+                    No judgment -- just awareness. Log your meal either way.
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons — Scan (primary) + Describe + Barcode */}
+              {captureMode === "none" && (
+                <div style={{ marginBottom: 14 }}>
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    style={{
+                      width: "100%", background: "var(--primary)",
+                      color: "white", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700,
+                      border: "none", cursor: "pointer", marginBottom: 8,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    }}
+                  >
+                    Scan Your Meal
+                  </button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => setCaptureMode("text")}
+                      style={{
+                        flex: 1, background: "var(--card)", color: "var(--foreground)", borderRadius: 12,
+                        padding: 10, fontSize: 12, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer",
+                      }}
+                    >
+                      Describe Meal
+                    </button>
+                    <button
+                      onClick={() => setCaptureMode("barcode")}
+                      style={{
+                        flex: 1, background: "var(--card)", color: "var(--foreground)", borderRadius: 12,
+                        padding: 10, fontSize: 12, fontWeight: 500, border: "1px solid var(--border)", cursor: "pointer",
+                      }}
+                    >
+                      Scan Barcode
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Analyzing state */}
+              {isAnalyzing && (
+                <div style={{
+                  background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)",
+                  padding: 20, marginBottom: 14, textAlign: "center",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                }}>
+                  <div style={{
+                    width: 28, height: 28, border: "3px solid var(--primary)", borderTopColor: "transparent",
+                    borderRadius: "50%", margin: "0 auto 8px", animation: "spin 0.8s linear infinite",
+                  }} />
+                  <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0 }}>Analyzing your meal...</p>
+                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              )}
+
+              {/* Error */}
+              {analysisError && (
+                <div style={{
+                  background: "var(--card)", borderRadius: 16, border: "1px solid #2d1f18",
+                  padding: 14, marginBottom: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                }}>
+                  <p style={{ fontSize: 12, color: "#e879a8", margin: 0 }}>
+                    {analysisError.includes("authentication") || analysisError.includes("API key") || analysisError.includes("not configured") || analysisError.includes("503")
+                      ? "AI analysis unavailable. Try describing your meal instead -- basic analysis works without an API key."
+                      : analysisError}
+                  </p>
+                  <button onClick={() => { setAnalysisError(null); setCaptureMode("none"); }}
+                    style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)", background: "none", border: "none", cursor: "pointer" }}>
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {/* Barcode mode */}
+              {captureMode === "barcode" && (
+                <BarcodePanel
+                  onLog={handleBarcodeLog}
+                  onCancel={() => setCaptureMode("none")}
+                />
+              )}
+
+              {/* Describe mode — text input */}
+              {captureMode === "text" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                  style={{
+                    background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)",
+                    padding: 14, marginBottom: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                  }}
+                >
+                  <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "0 0 8px 0" }}>
+                    What did you eat? Be specific for better accuracy.
+                  </p>
+                  <textarea
+                    value={mealText}
+                    onChange={(e) => setMealText(e.target.value)}
+                    placeholder="e.g. rice bowl with grilled chicken, steamed vegetables, and soy sauce"
+                    style={{
+                      width: "100%", minHeight: 80, background: "var(--background)", color: "var(--foreground)",
+                      border: "1px solid var(--border)", borderRadius: 10, padding: 12, fontSize: 13,
+                      resize: "none", outline: "none", fontFamily: "inherit",
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      onClick={() => { setCaptureMode("none"); setMealText(""); }}
+                      style={{
+                        flex: 1, background: "transparent", color: "var(--muted-foreground)", borderRadius: 10,
+                        padding: 10, fontSize: 13, border: "1px solid var(--border)", cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      disabled={!mealText.trim() || isAnalyzing}
+                      onClick={async () => {
+                        if (!mealText.trim()) return;
+                        setIsAnalyzing(true);
+                        setAnalysisError(null);
+                        try {
+                          const res = await apiRequest("POST", "/api/food/analyze", {
+                            userId,
+                            mealType: autoMealType(),
+                            textDescription: mealText.trim(),
+                          });
+                          await res.json();
+                          hapticSuccess();
+                          setMealText("");
+                          await new Promise(r => setTimeout(r, 500));
+                          qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+                          setCaptureMode("none");
+                        } catch {
+                          try {
+                            const local = estimateNutritionLocally(mealText.trim());
+                            await apiRequest("POST", "/api/food/log", {
+                              userId,
+                              mealType: autoMealType(),
+                              summary: local.summary,
+                              totalCalories: local.total_calories,
+                              dominantMacro: local.dominant_macro,
+                              foodItems: local.food_items,
+                            });
+                            hapticSuccess();
+                            setMealText("");
+                            await new Promise(r => setTimeout(r, 500));
+                            qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+                            setCaptureMode("none");
+                          } catch (fallbackErr) {
+                            setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
+                          }
+                        }
+                      }}
+                      style={{
+                        flex: 1, background: mealText.trim() ? "var(--primary)" : "var(--muted)",
+                        color: mealText.trim() ? "white" : "var(--muted-foreground)", borderRadius: 10,
+                        padding: 10, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+                      }}
+                    >
+                      {isAnalyzing ? "Analyzing..." : "Log Meal"}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Today's Meals */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                  textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8,
+                }}>
+                  Today's Meals
+                </div>
+                <div style={{
+                  background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)",
+                  overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                }}>
+                  {todayLogs.length === 0 ? (
+                    <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
+                      Log your first meal to start tracking
+                    </div>
+                  ) : (
+                    todayLogs.map((log, idx) => (
+                      <MealCard
+                        key={log.id}
+                        log={log}
+                        isLast={idx === todayLogs.length - 1}
+                        onToggleFavorite={handleToggleFavorite}
+                        isFav={isFavorite(log.id, favorites)}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Favorites + Recent Meals */}
+              {captureMode === "none" && (recentMeals.length > 0 || favorites.length > 0) && (
+                <div style={{ marginBottom: 16 }}>
+                  {/* Favorites section */}
+                  {favorites.length > 0 && (
+                    <>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, color: "#e8b94a",
+                        textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6,
+                      }}>
+                        Favorites
+                      </div>
+                      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 8 }}>
+                        {favorites.slice(0, 5).map((fav) => (
+                          <button
+                            key={fav.id}
+                            onClick={() => handleRelog(fav.summary, fav.foodItems)}
+                            disabled={isAnalyzing}
+                            style={{
+                              flexShrink: 0, background: "var(--card)", border: "1px solid var(--border)",
+                              borderRadius: 12, padding: "8px 12px", cursor: "pointer", minWidth: 120, maxWidth: 160,
+                              textAlign: "left", boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                            }}
+                          >
+                            <div style={{ fontSize: 11, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {fav.summary}
+                            </div>
+                            <div style={{ fontSize: 9, color: "var(--muted-foreground)", marginTop: 2 }}>
+                              {fav.totalCalories} kcal -- Tap to re-log
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Recent meals */}
+                  {recentMeals.length > 0 && (
+                    <>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                        textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6,
+                      }}>
+                        Recent Meals
+                      </div>
+                      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                        {recentMeals.map((meal) => (
+                          <button
+                            key={meal.id}
+                            onClick={() => handleRelog(meal.summary ?? "Meal", meal.foodItems ?? [])}
+                            disabled={isAnalyzing}
+                            style={{
+                              flexShrink: 0, background: "var(--card)", border: "1px solid var(--border)",
+                              borderRadius: 12, padding: "8px 12px", cursor: "pointer", minWidth: 120, maxWidth: 160,
+                              textAlign: "left", boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                            }}
+                          >
+                            <div style={{ fontSize: 11, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {meal.summary ?? "Meal"}
+                            </div>
+                            <div style={{ fontSize: 9, color: "var(--muted-foreground)", marginTop: 2 }}>
+                              {meal.totalCalories ?? 0} kcal -- Tap to re-log
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </motion.div>
-          ))}
-        </motion.div>
-      )}
+          )}
+
+          {/* ═══════════ VITAMINS TAB ═══════════ */}
+          {activeTab === "vitamins" && (
+            <motion.div
+              key="vitamins"
+              custom={tabDirection}
+              variants={tabSlideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div style={{
+                background: "var(--card)", border: "1px solid var(--border)",
+                borderRadius: 16, padding: 16, marginBottom: 16,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              }}>
+                <VitaminTracker todayLogs={todayLogs} />
+              </div>
+
+              <div style={{
+                background: "var(--card)", border: "1px solid var(--border)",
+                borderRadius: 16, padding: 16,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              }}>
+                <Glp1Tracker todayLogs={todayLogs} totalProtein={totalProtein} totalCalories={totalCalories} />
+              </div>
+
+              {/* Glucose Section (conditional) */}
+              <GlucoseSection userId={userId} />
+            </motion.div>
+          )}
+
+          {/* ═══════════ SUPPLEMENTS TAB ═══════════ */}
+          {activeTab === "supplements" && (
+            <motion.div
+              key="supplements"
+              custom={tabDirection}
+              variants={tabSlideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div style={{
+                background: "var(--card)", border: "1px solid var(--border)",
+                borderRadius: 16, padding: 16,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              }}>
+                <SupplementTracker />
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══════════ INSIGHTS TAB ═══════════ */}
+          {activeTab === "insights" && (
+            <motion.div
+              key="insights"
+              custom={tabDirection}
+              variants={tabSlideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {/* Nutrition Score + Food Quality */}
+              <div style={{
+                background: "var(--card)", border: "1px solid var(--border)",
+                borderRadius: 16, padding: 14, marginBottom: 16,
+                display: "flex", gap: 14, alignItems: "flex-start",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              }}>
+                <div style={{ flexShrink: 0 }}>
+                  <ScoreGauge
+                    value={scores?.nutritionScore ?? null}
+                    label="Food Quality"
+                    color="nutrition"
+                    size="sm"
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 6 }}>
+                    Food Quality Score
+                  </div>
+                  {(qualityIndicators.positives.length > 0 || qualityIndicators.negatives.length > 0) ? (
+                    <>
+                      {qualityIndicators.positives.map((p, i) => (
+                        <div key={`p-${i}`} style={{ fontSize: 11, color: "#06b6d4", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontSize: 8 }}>+</span> {p}
+                        </div>
+                      ))}
+                      {qualityIndicators.negatives.map((n, i) => (
+                        <div key={`n-${i}`} style={{ fontSize: 11, color: "#e879a8", marginBottom: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontSize: 8 }}>-</span> {n}
+                        </div>
+                      ))}
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                      Log meals to see quality contributors
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Craving Analysis Card */}
+              <div style={{
+                background: "var(--card)", border: "1px solid var(--border)",
+                borderRadius: 16, padding: 14, marginBottom: 16,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 600, color: "var(--primary)",
+                  marginBottom: 8, display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <span>Craving Analysis</span>
+                </div>
+                <p style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5, margin: 0 }}>
+                  Right now you show signs of <strong style={{ color: "var(--foreground)" }}>{craving.text}</strong>.
+                  Track your meals to see how your emotional state shapes your eating patterns.
+                </p>
+              </div>
+
+              {/* AI Nutrition Insights */}
+              {insights.length > 0 && (
+                <div style={{
+                  background: "var(--card)", border: "1px solid var(--border)",
+                  borderRadius: 16, padding: 14, marginBottom: 16,
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                }}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                    textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8,
+                  }}>
+                    Nutrition Insights
+                  </div>
+                  {insights.map((insight, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        fontSize: 12, color: "var(--foreground)", lineHeight: 1.5,
+                        padding: "6px 0",
+                        borderBottom: i < insights.length - 1 ? "1px solid var(--border)" : "none",
+                      }}
+                    >
+                      {insight}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Weekly Nutrition Score placeholder */}
+              <div style={{
+                background: "var(--card)", border: "1px solid var(--border)",
+                borderRadius: 16, padding: 14,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+              }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                  textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8,
+                }}>
+                  Weekly Summary
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+                  {todayLogs.length > 0
+                    ? `Today: ${todayLogs.length} meal${todayLogs.length > 1 ? "s" : ""} logged, ${totalCalories} kcal total. ${
+                        totalProtein >= PROTEIN_GOAL ? "Protein goal met." : `${Math.round(PROTEIN_GOAL - totalProtein)}g protein to go.`
+                      }`
+                    : "Start logging meals to build your weekly nutrition profile."}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </main>
   );
 }

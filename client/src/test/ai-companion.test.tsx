@@ -27,22 +27,17 @@ describe("AICompanion component", () => {
     expect(screen.getByText("AI Brain Companion")).toBeInTheDocument();
   });
 
-  it("shows NO DEVICE when not streaming", () => {
+  it("shows Ready when not streaming", () => {
     renderWithProviders(<AICompanion userId="test-user" />);
-    expect(screen.getByText("NO DEVICE")).toBeInTheDocument();
+    expect(screen.getByText("Ready")).toBeInTheDocument();
   });
 
   it("renders quick action buttons", () => {
     renderWithProviders(<AICompanion userId="test-user" />);
-    expect(screen.getByText("Breathing Exercise")).toBeInTheDocument();
-    expect(screen.getByText("Guided Meditation")).toBeInTheDocument();
-    expect(screen.getByText("Mood Check-In")).toBeInTheDocument();
-    expect(screen.getByText("Stress Relief")).toBeInTheDocument();
-  });
-
-  it("renders live brain metrics section", () => {
-    renderWithProviders(<AICompanion userId="test-user" />);
-    expect(screen.getByText("Live Brain Metrics")).toBeInTheDocument();
+    expect(screen.getByText("Breathe")).toBeInTheDocument();
+    expect(screen.getByText("Meditate")).toBeInTheDocument();
+    expect(screen.getByText("Mood")).toBeInTheDocument();
+    expect(screen.getByText("De-stress")).toBeInTheDocument();
   });
 
   it("shows welcome message when no chat history", async () => {
@@ -54,7 +49,7 @@ describe("AICompanion component", () => {
 
   it("has a message input field", () => {
     renderWithProviders(<AICompanion userId="test-user" />);
-    const input = screen.getByPlaceholderText(/Message AI companion/);
+    const input = screen.getByPlaceholderText(/Message/);
     expect(input).toBeInTheDocument();
   });
 
@@ -67,8 +62,8 @@ describe("AICompanion component", () => {
 
   it("adds bot message when quick action clicked", () => {
     renderWithProviders(<AICompanion userId="test-user" />);
-    const breathingBtn = screen.getByText("Breathing Exercise");
-    fireEvent.click(breathingBtn);
+    const breatheBtn = screen.getByText("Breathe");
+    fireEvent.click(breatheBtn);
     setTimeout(() => {
       expect(screen.getByText(/breathing exercise/i)).toBeInTheDocument();
     }, 600);

@@ -22,7 +22,9 @@ import {
   Plus,
   Trash2,
   Target,
+  X,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDevice } from "@/hooks/use-device";
 import { OpenAIService, type ChatResponse } from "@/lib/openai";
 import {
@@ -39,42 +41,42 @@ interface AICompanionProps {
 }
 
 // ---------------------------------------------------------------------------
-// Local response engine — works without any backend API key
+// Local response engine -- works without any backend API key
 // ---------------------------------------------------------------------------
 function generateLocalResponse(message: string, eegContext: string): string {
   const msg = message.toLowerCase();
 
   if (msg.includes("breath") || msg.includes("breathing")) {
-    return `Let's do a **4-7-8 Breathing Exercise** together 🌬️
+    return `Let's do a **4-7-8 Breathing Exercise** together
 
-1. **Inhale** slowly for **4 counts** — fill your lungs completely
+1. **Inhale** slowly for **4 counts** -- fill your lungs completely
 2. **Hold** your breath for **7 counts**
-3. **Exhale** fully for **8 counts** — release every bit of air
+3. **Exhale** fully for **8 counts** -- release every bit of air
 
-*Start now... inhale 4…3…2…1… hold 7…6…5…4…3…2…1… exhale 8…7…6…5…4…3…2…1…*
+*Start now... inhale 4...3...2...1... hold 7...6...5...4...3...2...1... exhale 8...7...6...5...4...3...2...1...*
 
 Repeat this cycle 4 times. This technique activates your parasympathetic nervous system and lowers cortisol within minutes.
 
-Notice any changes after the first cycle. 🍃`;
+Notice any changes after the first cycle.`;
   }
 
   if (msg.includes("medit") || msg.includes("mindful")) {
-    return `Let's begin a **3-Minute Body Scan Meditation** 🧘
+    return `Let's begin a **3-Minute Body Scan Meditation**
 
 Find a comfortable position. Close your eyes if that feels right.
 
-**Settle into your breath** — notice the natural rhythm. Don't change it, just observe.
+**Settle into your breath** -- notice the natural rhythm. Don't change it, just observe.
 
 **Now scan your body:**
-- 👣 Feet on the ground — notice any tension and let it soften
-- 🦵 Legs and hips — release tightness on each exhale
-- 🫁 Stomach — let it expand freely with every breath
-- 🫀 Chest and shoulders — drop them away from your ears
-- 😌 Jaw, eyes, forehead — let every muscle soften
+- Feet on the ground -- notice any tension and let it soften
+- Legs and hips -- release tightness on each exhale
+- Stomach -- let it expand freely with every breath
+- Chest and shoulders -- drop them away from your ears
+- Jaw, eyes, forehead -- let every muscle soften
 
-**Rest here for a moment.** Your mind may wander — that's completely natural. Just gently return attention to your breath.
+**Rest here for a moment.** Your mind may wander -- that's completely natural. Just gently return attention to your breath.
 
-When you're ready, take a deep breath and slowly open your eyes. 🌿
+When you're ready, take a deep breath and slowly open your eyes.
 
 How was that for you?`;
   }
@@ -87,28 +89,28 @@ How was that for you?`;
     msg.includes("stress relief")
   ) {
     const eegNote = eegContext
-      ? ` Your EEG currently shows elevated beta activity — consistent with what you're feeling.`
+      ? ` Your EEG currently shows elevated beta activity -- consistent with what you're feeling.`
       : "";
     return `I hear you.${eegNote} Here are some immediate techniques that work:
 
 **5-4-3-2-1 Grounding** (do this right now):
-- 👁️ 5 things you can **see**
-- ✋ 4 things you can **feel** (textures, temperature)
-- 👂 3 things you can **hear**
-- 👃 2 things you can **smell**
-- 👅 1 thing you can **taste**
+- 5 things you can **see**
+- 4 things you can **feel** (textures, temperature)
+- 3 things you can **hear**
+- 2 things you can **smell**
+- 1 thing you can **taste**
 
 This activates your sensory cortex and interrupts the stress loop within 60 seconds.
 
-**Physiological sigh** — the fastest way to calm down:
+**Physiological sigh** -- the fastest way to calm down:
 - Double inhale through the nose (short sharp breath, then top it off)
 - Long slow exhale through the mouth
 
 **Physical resets:**
-- Cold water on your wrists or face — triggers the dive reflex, slows heart rate instantly
-- 5 minutes of walking — reduces cortisol by up to 50%
+- Cold water on your wrists or face -- triggers the dive reflex, slows heart rate instantly
+- 5 minutes of walking -- reduces cortisol by up to 50%
 
-What's driving your stress right now? Talking it through often helps too. 🤝`;
+What's driving your stress right now? Talking it through often helps too.`;
   }
 
   if (
@@ -119,20 +121,19 @@ What's driving your stress right now? Talking it through often helps too. 🤝`;
     msg.includes("emotion")
   ) {
     if (eegContext) {
-      return `Based on your live brain data, here's your analysis 🧠
+      return `Based on your live brain data, here's your analysis
 
 **Current EEG snapshot:** ${eegContext}
 
 **What this means:**
-- 🟢 **Alpha (calm)** = relaxed awareness — great for reflection and learning
-- 🔵 **Beta (alert)** = active thinking — good for problem-solving and focus
-- 🟣 **Theta (creative)** = meditative, imaginative — the creativity gateway
+- **Alpha (calm)** = relaxed awareness -- great for reflection and learning
+- **Beta (alert)** = active thinking -- good for problem-solving and focus
+- **Theta (creative)** = meditative, imaginative -- the creativity gateway
 
 Does this match how you're actually feeling? Sometimes the brain signals things our conscious mind hasn't caught up to yet.
 
 Would you like to explore any of these states further, or try a quick exercise to shift your mental state?`;
     }
-    // Check if voice data already exists today
     try {
       const raw = localStorage.getItem("ndw_last_emotion");
       if (raw) {
@@ -144,7 +145,7 @@ Would you like to explore any of these states further, or try a quick exercise t
           const stress = Math.round((r?.stress_index ?? r?.stress_from_watch ?? 0) * 100);
           const focus = Math.round((r?.focus_index ?? 0) * 100);
           const vLabel = valence > 0.2 ? "positive" : valence < -0.2 ? "negative" : "neutral";
-          return `Here's your current state from your voice analysis 🎙️
+          return `Here's your current state from your voice analysis
 
 - **Emotion**: ${emotion.charAt(0).toUpperCase() + emotion.slice(1)}
 - **Mood**: ${vLabel} (valence: ${valence.toFixed(2)})
@@ -153,29 +154,29 @@ Would you like to explore any of these states further, or try a quick exercise t
 
 ${stress > 60 ? "Your stress is elevated. Want a quick breathing exercise or a guided relaxation?" : valence > 0.2 ? "You're in a good space! This is a great time for creative work or learning." : "Your mood is neutral. Would you like to try a mindfulness exercise to center yourself?"}
 
-Ask me anything about your emotional state, or try a guided exercise. 💙`;
+Ask me anything about your emotional state, or try a guided exercise.`;
         }
       }
     } catch { /* ignore */ }
     return `I don't have voice data from today yet. Do a voice analysis on the dashboard first, then come back here for a personalized mood summary.
 
-Or tell me in your own words — what's on your mind right now? 💙`;
+Or tell me in your own words -- what's on your mind right now?`;
   }
 
   if (msg.includes("sleep") || msg.includes("tired") || msg.includes("insomnia") || msg.includes("rest")) {
-    return `Sleep is your brain's most powerful recovery tool. Here's what science recommends 😴
+    return `Sleep is your brain's most powerful recovery tool. Here's what science recommends
 
 **Tonight:**
-- 📵 Stop screens 30–60 min before bed — blue light suppresses melatonin by up to 50%
-- 🌡️ Keep your room at 65–68°F (18–20°C) — your core temp must drop to initiate sleep
-- 📝 Write down tomorrow's tasks — offloads your prefrontal cortex so it can rest
+- Stop screens 30-60 min before bed -- blue light suppresses melatonin by up to 50%
+- Keep your room at 65-68 F (18-20 C) -- your core temp must drop to initiate sleep
+- Write down tomorrow's tasks -- offloads your prefrontal cortex so it can rest
 
 **Military sleep method:**
-Relax your face → drop your shoulders → breathe out → relax your legs → clear your mind for 10 seconds (think of a calm lake). Most people fall asleep in under 2 minutes.
+Relax your face, drop your shoulders, breathe out, relax your legs, clear your mind for 10 seconds (think of a calm lake). Most people fall asleep in under 2 minutes.
 
-**EEG insight:** During deep N3 sleep, your brain's glymphatic system clears toxic metabolic waste — including the proteins linked to cognitive decline. Missing this is like never taking out the trash.
+**EEG insight:** During deep N3 sleep, your brain's glymphatic system clears toxic metabolic waste -- including the proteins linked to cognitive decline. Missing this is like never taking out the trash.
 
-Are you having trouble falling asleep, staying asleep, or waking too early? 🌙`;
+Are you having trouble falling asleep, staying asleep, or waking too early?`;
   }
 
   if (
@@ -184,42 +185,42 @@ Are you having trouble falling asleep, staying asleep, or waking too early? 🌙
     msg.includes("productive") ||
     msg.includes("distract")
   ) {
-    return `Here are research-backed focus techniques 🎯
+    return `Here are research-backed focus techniques
 
 **Pomodoro protocol:**
-- 25 min focused work → 5 min break
-- After 4 cycles → 20–30 min longer break
+- 25 min focused work, then 5 min break
+- After 4 cycles, take a 20-30 min longer break
 - During breaks: look at something 20+ feet away (resets ciliary muscles)
 
 **Your brain's natural rhythms:**
 - Ultradian cycles: ~90 min peak focus, ~20 min rest
-- Peak cognitive window: 2–4 hours after waking
+- Peak cognitive window: 2-4 hours after waking
 - Work WITH these cycles, not against them
 
 **Instant focus hacks:**
-- 🎵 Brown noise or lo-fi at moderate volume (boosts abstract thinking)
-- 💧 Drink water — even mild dehydration reduces cognitive performance by 10%
-- 🌊 Cold water on your face before a focus session (activates the trigeminal nerve)
+- Brown noise or lo-fi at moderate volume (boosts abstract thinking)
+- Drink water -- even mild dehydration reduces cognitive performance by 10%
+- Cold water on your face before a focus session (activates the trigeminal nerve)
 
-**EEG note:** Low beta waves (12–20 Hz) are the signature of focused calm. Anxious focus looks like high beta (20–30 Hz) — similar output, much higher cost.
+**EEG note:** Low beta waves (12-20 Hz) are the signature of focused calm. Anxious focus looks like high beta (20-30 Hz) -- similar output, much higher cost.
 
-What are you trying to focus on? I can give more tailored advice. 🧠`;
+What are you trying to focus on? I can give more tailored advice.`;
   }
 
   // Generic fallback
-  return `Hello! I'm your AI wellness companion 🌿
+  return `Hello! I'm your AI wellness companion.
 
 ${
   eegContext
     ? `Your brain is currently showing: ${eegContext}\n\n`
     : ""
 }I can help you with:
-- 🌬️ **Breathing exercises** — immediate calm
-- 🧘 **Guided meditation** — deepen presence
-- 💤 **Sleep optimization** — better recovery
-- 🎯 **Focus techniques** — sharper thinking
-- 💆 **Stress relief** — proven methods
-- 😊 **Mood analysis** — understand your emotional state
+- **Breathing exercises** -- immediate calm
+- **Guided meditation** -- deepen presence
+- **Sleep optimization** -- better recovery
+- **Focus techniques** -- sharper thinking
+- **Stress relief** -- proven methods
+- **Mood analysis** -- understand your emotional state
 
 Just ask me anything or use the quick action buttons. What would you like to explore today?`;
 }
@@ -231,6 +232,7 @@ export function AICompanion({ userId }: AICompanionProps) {
   const [message, setMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [brainDrawerOpen, setBrainDrawerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -240,7 +242,7 @@ export function AICompanion({ userId }: AICompanionProps) {
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
 
-  // Load chat history — swallow errors so the component always mounts cleanly
+  // Load chat history -- swallow errors so the component always mounts cleanly
   const { data: chatHistory = [], isLoading: chatLoading } = useQuery<ChatResponse[]>({
     queryKey: ["ai-chat", userId],
     queryFn: async () => {
@@ -307,7 +309,7 @@ export function AICompanion({ userId }: AICompanionProps) {
       });
       setIsOffline(false);
     } catch {
-      // API unavailable — generate a local response so the user always gets feedback
+      // API unavailable -- generate a local response so the user always gets feedback
       const eegContext = buildEegContext();
       const localReply: ChatResponse = {
         id: `local-${Date.now()}`,
@@ -343,19 +345,18 @@ export function AICompanion({ userId }: AICompanionProps) {
   }[] = [
     {
       icon: Wind,
-      label: "Breathing Exercise",
+      label: "Breathe",
       action: () => navigate("/biofeedback"),
     },
     {
       icon: Bot,
-      label: "Guided Meditation",
+      label: "Meditate",
       action: () => sendMessage("Guide me through a 5-minute meditation"),
     },
     {
       icon: Heart,
-      label: "Mood Check-In",
+      label: "Mood",
       action: () => {
-        // Pull existing voice analysis data instead of asking again
         let moodContext = "";
         try {
           const raw = localStorage.getItem("ndw_last_emotion");
@@ -380,7 +381,7 @@ export function AICompanion({ userId }: AICompanionProps) {
     },
     {
       icon: Leaf,
-      label: "Stress Relief",
+      label: "De-stress",
       action: () => sendMessage("I'm feeling stressed. Give me a quick stress relief exercise"),
     },
   ];
@@ -392,292 +393,335 @@ export function AICompanion({ userId }: AICompanionProps) {
   const valenceVal = ((emotions?.valence as number) ?? 0) * 100;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Chat Interface */}
-      <div
-        className="lg:col-span-2 glass-card rounded-xl hover-glow flex flex-col"
-        style={{ height: "calc(100vh - 10rem)" }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/30">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
-              <Bot className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold">AI Brain Companion</h3>
-              <p className="text-xs text-muted-foreground">
-                {isOffline ? "Offline mode — local responses" : "Powered by GPT-5"}
-              </p>
-            </div>
+    <div className="flex flex-col h-[calc(100vh-120px)] lg:h-[calc(100vh-10rem)] relative">
+      {/* ---- Sticky header ---- */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-background/80 backdrop-blur-sm shrink-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-gradient-to-br from-[#7c3aed] to-[#e879a8] rounded-full flex items-center justify-center">
+            <Bot className="h-4 w-4 text-white" />
           </div>
-          <div className="flex items-center gap-2">
-            {isOffline && (
-              <span className="flex items-center gap-1 text-xs text-amber-500 font-mono">
-                <WifiOff className="h-3 w-3" />
-                OFFLINE
-              </span>
-            )}
-            {isStreaming ? (
-              <>
-                <Activity className="h-3 w-3 text-primary animate-pulse" />
-                <span className="text-xs font-mono text-primary">LIVE EEG</span>
-              </>
-            ) : (
-              <span className="text-xs font-mono text-muted-foreground">NO DEVICE</span>
-            )}
+          <div>
+            <h3 className="text-sm font-semibold leading-tight">AI Brain Companion</h3>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              {isOffline ? "Offline mode" : isStreaming ? "Live EEG" : "Ready"}
+            </p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          {isOffline && (
+            <span className="flex items-center gap-1 text-[10px] text-amber-500 font-mono">
+              <WifiOff className="h-3 w-3" />
+              OFFLINE
+            </span>
+          )}
+          {isStreaming && (
+            <>
+              <Activity className="h-3 w-3 text-primary animate-pulse" />
+              <span className="text-[10px] font-mono text-primary">LIVE</span>
+            </>
+          )}
+        </div>
+      </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {chatLoading && (
-            <div className="space-y-4">
-              {/* Skeleton AI message */}
-              <div className="flex items-end gap-2">
-                <Skeleton className="w-8 h-8 rounded-full shrink-0" />
-                <div className="space-y-2 max-w-lg">
-                  <Skeleton className="h-3 w-48" />
-                  <Skeleton className="h-3 w-36" />
-                  <Skeleton className="h-3 w-24" />
-                </div>
-              </div>
-              {/* Skeleton user message */}
-              <div className="flex items-end gap-2 justify-end">
-                <div className="space-y-2 max-w-lg">
-                  <Skeleton className="h-3 w-32 ml-auto" />
-                  <Skeleton className="h-3 w-20 ml-auto" />
-                </div>
-                <Skeleton className="w-8 h-8 rounded-full shrink-0" />
-              </div>
-              {/* Skeleton AI response */}
-              <div className="flex items-end gap-2">
-                <Skeleton className="w-8 h-8 rounded-full shrink-0" />
-                <div className="space-y-2 max-w-lg">
-                  <Skeleton className="h-3 w-56" />
-                  <Skeleton className="h-3 w-44" />
-                </div>
+      {/* ---- Messages area ---- */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {chatLoading && (
+          <div className="space-y-4">
+            <div className="flex items-end gap-2">
+              <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+              <div className="space-y-2 max-w-[75%]">
+                <Skeleton className="h-3 w-48" />
+                <Skeleton className="h-3 w-36" />
+                <Skeleton className="h-3 w-24" />
               </div>
             </div>
-          )}
-
-          {!chatLoading && chatHistory.length === 0 && !isTyping && (
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shrink-0">
-                <Bot className="h-4 w-4 text-white" />
+            <div className="flex items-end gap-2 justify-end">
+              <div className="space-y-2 max-w-[75%]">
+                <Skeleton className="h-3 w-32 ml-auto" />
+                <Skeleton className="h-3 w-20 ml-auto" />
               </div>
-              <div className="bg-card/50 rounded-2xl rounded-tl-sm px-4 py-3 max-w-lg">
-                <p className="text-sm">
-                  {isStreaming
-                    ? "Hello! I'm reading your Muse 2 brain activity live. Ask me anything — breathing exercises, meditation, stress tips, or just have a conversation."
-                    : "Hello! I'm your AI wellness companion. Use the quick action buttons or type anything — I'm always here to help with focus, stress, sleep, or wellness."}
-                </p>
-                <span className="text-[10px] text-muted-foreground mt-1 block">
-                  {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
+              <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+            </div>
+            <div className="flex items-end gap-2">
+              <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+              <div className="space-y-2 max-w-[75%]">
+                <Skeleton className="h-3 w-56" />
+                <Skeleton className="h-3 w-44" />
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {chatHistory.map((chat) => (
+        {!chatLoading && chatHistory.length === 0 && !isTyping && (
+          <div className="flex items-start gap-2.5">
+            <div className="w-7 h-7 bg-gradient-to-br from-[#7c3aed] to-[#e879a8] rounded-full flex items-center justify-center shrink-0 mt-0.5">
+              <Bot className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div className="bg-card border-l-2 border-primary/40 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%]">
+              <p className="text-sm leading-relaxed">
+                {isStreaming
+                  ? "Hello! I'm reading your Muse 2 brain activity live. Ask me anything -- breathing exercises, meditation, stress tips, or just have a conversation."
+                  : "Hello! I'm your AI wellness companion. Use the quick actions or type anything -- I'm here to help with focus, stress, sleep, or wellness."}
+              </p>
+              <span className="text-[10px] text-muted-foreground mt-1 block">
+                {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {chatHistory.map((chat) => (
+          <div
+            key={chat.id}
+            className={`flex items-end gap-2 ${chat.isUser ? "justify-end" : "justify-start"}`}
+          >
+            {!chat.isUser && (
+              <div className="w-7 h-7 bg-gradient-to-br from-[#7c3aed] to-[#e879a8] rounded-full flex items-center justify-center shrink-0 mb-1">
+                <Bot className="h-3.5 w-3.5 text-white" />
+              </div>
+            )}
             <div
-              key={chat.id}
-              className={`flex items-end gap-2 ${chat.isUser ? "justify-end" : "justify-start"}`}
+              className={`rounded-2xl px-4 py-3 max-w-[80%] whitespace-pre-wrap ${
+                chat.isUser
+                  ? "bg-primary text-primary-foreground rounded-br-sm text-base"
+                  : "bg-card border-l-2 border-primary/40 rounded-bl-sm text-sm"
+              }`}
             >
-              {!chat.isUser && (
-                <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shrink-0 mb-1">
-                  <Bot className="h-4 w-4 text-white" />
-                </div>
-              )}
-              <div
-                className={`rounded-2xl px-4 py-3 max-w-lg text-sm whitespace-pre-wrap ${
+              {chat.message}
+              <span
+                className={`text-[10px] mt-1 block ${
                   chat.isUser
-                    ? "bg-primary text-primary-foreground rounded-br-sm"
-                    : "bg-card/60 rounded-bl-sm"
+                    ? "text-primary-foreground/60 text-right"
+                    : "text-muted-foreground"
                 }`}
               >
-                {chat.message}
-                <span
-                  className={`text-[10px] mt-1 block ${
-                    chat.isUser
-                      ? "text-primary-foreground/60 text-right"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {new Date(chat.timestamp).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-              {chat.isUser && (
-                <div className="w-8 h-8 bg-gradient-to-br from-success to-primary rounded-full flex items-center justify-center shrink-0 mb-1">
-                  <Brain className="h-4 w-4 text-white" />
-                </div>
-              )}
+                {new Date(chat.timestamp).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
             </div>
-          ))}
-
-          {isTyping && (
-            <div className="flex items-end gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shrink-0">
-                <Bot className="h-4 w-4 text-white" />
+            {chat.isUser && (
+              <div className="w-7 h-7 bg-gradient-to-br from-emerald-500 to-primary rounded-full flex items-center justify-center shrink-0 mb-1">
+                <Brain className="h-3.5 w-3.5 text-white" />
               </div>
-              <div className="bg-card/60 rounded-2xl rounded-bl-sm px-4 py-3">
-                <div className="flex gap-1 items-center h-4">
-                  <span
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                    style={{ animationDelay: "0ms" }}
-                  />
-                  <span
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                    style={{ animationDelay: "150ms" }}
-                  />
-                  <span
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                    style={{ animationDelay: "300ms" }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div className="px-6 py-4 border-t border-border/30">
-          <div className="flex items-end gap-3">
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Message AI companion… (Enter to send, Shift+Enter for new line)"
-              className="flex-1 min-h-[44px] max-h-32 resize-none border border-primary/30 rounded-xl text-sm"
-              rows={1}
-              disabled={isTyping}
-            />
-            <Button
-              onClick={() => sendMessage(message)}
-              disabled={!message.trim() || isTyping}
-              size="icon"
-              className="h-11 w-11 rounded-xl bg-gradient-to-r from-primary to-secondary text-primary-foreground shrink-0"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-2">
-            {isOffline
-              ? "Running in offline mode — responses are locally generated."
-              : isStreaming
-              ? "EEG context is automatically included with each message."
-              : "Voice and health context can guide responses now. EEG is optional later for live brain-aware input."}
-          </p>
-        </div>
-      </div>
-
-      {/* Sidebar */}
-      <div className="space-y-6">
-        {/* Coach Panel */}
-        <CoachPanel userId={userId} eegAnalysis={analysis} />
-
-        {/* Quick Actions */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <h3 className="text-sm font-semibold mb-4">Quick Actions</h3>
-          <div className="space-y-2">
-            {quickActions.map((qa, i) => {
-              const Icon = qa.icon;
-              return (
-                <button
-                  key={i}
-                  onClick={qa.action}
-                  disabled={isTyping}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border/30 bg-card/30 hover:bg-card/60 transition-colors text-sm text-left disabled:opacity-50 cursor-pointer"
-                >
-                  <Icon className="h-4 w-4 text-primary shrink-0" />
-                  <span>{qa.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-
-        {/* Live Brain Metrics */}
-        <Card className="glass-card p-6 rounded-xl hover-glow">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold">Live Brain Metrics</h3>
-            {isStreaming && (
-              <span className="text-[10px] font-mono text-primary animate-pulse">LIVE</span>
             )}
           </div>
-          <div className="space-y-4">
-            <MetricBar
-              label="Stress"
-              value={stressVal}
-              colorClass="bg-rose-500"
-              textClass="text-rose-400"
-              icon={Zap}
-            />
-            <MetricBar
-              label="Focus"
-              value={focusVal}
-              colorClass="bg-primary"
-              textClass="text-primary"
-              icon={Eye}
-            />
-            <MetricBar
-              label="Relax"
-              value={relaxVal}
-              colorClass="bg-cyan-500"
-              textClass="text-cyan-400"
-              icon={Leaf}
-            />
-            <MetricBar
-              label="Mood"
-              value={valenceVal}
-              colorClass="bg-secondary"
-              textClass="text-secondary"
-              icon={Heart}
-            />
-          </div>
+        ))}
 
-          {!isStreaming && (
-            <p className="text-[10px] text-muted-foreground mt-3 text-center">
-              Live EEG metrics appear here if you add optional Muse later
-            </p>
-          )}
-
-          {isStreaming && analysis && (
-            <div className="pt-3 mt-3 border-t border-border/30 space-y-2">
-              {!!(analysis.sleep_staging as Record<string, unknown> | undefined)?.stage && (
-                <StateChip
-                  label="Sleep"
-                  value={String(
-                    (analysis.sleep_staging as Record<string, unknown>).stage
-                  )}
-                  icon={Moon}
-                />
-              )}
-              {!!(analysis.attention as Record<string, unknown> | undefined)?.state && (
-                <StateChip
-                  label="Attention"
-                  value={String((analysis.attention as Record<string, unknown>).state)}
-                  icon={Eye}
-                />
-              )}
-              {!!(analysis.flow_state as Record<string, unknown> | undefined)?.in_flow && (
-                <StateChip label="Flow" value="In Flow" icon={Zap} />
-              )}
+        {isTyping && (
+          <div className="flex items-end gap-2">
+            <div className="w-7 h-7 bg-gradient-to-br from-[#7c3aed] to-[#e879a8] rounded-full flex items-center justify-center shrink-0">
+              <Bot className="h-3.5 w-3.5 text-white" />
             </div>
-          )}
-        </Card>
+            <div className="bg-card border-l-2 border-primary/40 rounded-2xl rounded-bl-sm px-4 py-3">
+              <div className="flex gap-1 items-center h-5">
+                <span
+                  className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
       </div>
+
+      {/* ---- Bottom input area: quick actions + text input ---- */}
+      <div className="shrink-0 border-t border-border/30 bg-background/80 backdrop-blur-sm px-4 pt-3 pb-4">
+        {/* Quick action pills -- horizontal scroll */}
+        <div className="flex gap-2 overflow-x-auto pb-2.5 scrollbar-hide -mx-1 px-1">
+          {quickActions.map((qa, i) => {
+            const Icon = qa.icon;
+            return (
+              <button
+                key={i}
+                onClick={qa.action}
+                disabled={isTyping}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-medium whitespace-nowrap hover:bg-primary/10 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {qa.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Input row */}
+        <div className="flex items-end gap-2">
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Message... (Enter to send)"
+            className="flex-1 min-h-[44px] max-h-32 resize-none border border-primary/30 rounded-xl text-sm"
+            rows={1}
+            disabled={isTyping}
+          />
+          {/* Brain drawer toggle */}
+          <Button
+            onClick={() => setBrainDrawerOpen((o) => !o)}
+            size="icon"
+            variant="outline"
+            className="h-11 w-11 rounded-xl border-primary/30 shrink-0"
+            title="Brain metrics and coach"
+          >
+            <Brain className={`h-4 w-4 ${brainDrawerOpen ? "text-primary" : "text-muted-foreground"}`} />
+          </Button>
+          {/* Send */}
+          <Button
+            onClick={() => sendMessage(message)}
+            disabled={!message.trim() || isTyping}
+            size="icon"
+            className="h-11 w-11 rounded-xl shrink-0 text-white"
+            style={{ background: "linear-gradient(135deg, #7c3aed, #e879a8)" }}
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5">
+          {isOffline
+            ? "Offline mode -- responses are locally generated."
+            : isStreaming
+            ? "EEG context is automatically included."
+            : "Voice and health context guide responses. EEG optional."}
+        </p>
+      </div>
+
+      {/* ---- Brain drawer (slide-up panel) ---- */}
+      <AnimatePresence>
+        {brainDrawerOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+              onClick={() => setBrainDrawerOpen(false)}
+            />
+            {/* Panel */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-40 lg:absolute lg:right-0 lg:left-auto lg:bottom-0 lg:top-0 lg:w-80 lg:z-20"
+            >
+              <div className="bg-background border-t lg:border-l lg:border-t-0 border-border/40 rounded-t-2xl lg:rounded-t-none lg:rounded-l-xl max-h-[75vh] lg:max-h-full lg:h-full overflow-y-auto shadow-xl">
+                {/* Drag handle (mobile) */}
+                <div className="flex justify-center pt-2 pb-1 lg:hidden">
+                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                </div>
+                {/* Close button */}
+                <div className="flex items-center justify-between px-4 pt-2 pb-3 border-b border-border/30">
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold">Brain Panel</span>
+                  </div>
+                  <button
+                    onClick={() => setBrainDrawerOpen(false)}
+                    className="p-1 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
+
+                <div className="p-4 space-y-5">
+                  {/* Coach Panel */}
+                  <CoachPanel userId={userId} eegAnalysis={analysis} />
+
+                  {/* Live Brain Metrics */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Live Metrics</h4>
+                      {isStreaming && (
+                        <span className="text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <MetricBar
+                        label="Stress"
+                        value={stressVal}
+                        colorClass="bg-rose-500"
+                        textClass="text-rose-400"
+                        icon={Zap}
+                      />
+                      <MetricBar
+                        label="Focus"
+                        value={focusVal}
+                        colorClass="bg-primary"
+                        textClass="text-primary"
+                        icon={Eye}
+                      />
+                      <MetricBar
+                        label="Relax"
+                        value={relaxVal}
+                        colorClass="bg-cyan-500"
+                        textClass="text-cyan-400"
+                        icon={Leaf}
+                      />
+                      <MetricBar
+                        label="Mood"
+                        value={valenceVal}
+                        colorClass="bg-[#e879a8]"
+                        textClass="text-[#e879a8]"
+                        icon={Heart}
+                      />
+                    </div>
+
+                    {!isStreaming && (
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        Live EEG metrics appear here if you add optional Muse later
+                      </p>
+                    )}
+
+                    {isStreaming && analysis && (
+                      <div className="pt-2 mt-2 border-t border-border/30 space-y-1.5">
+                        {!!(analysis.sleep_staging as Record<string, unknown> | undefined)?.stage && (
+                          <StateChip
+                            label="Sleep"
+                            value={String(
+                              (analysis.sleep_staging as Record<string, unknown>).stage
+                            )}
+                            icon={Moon}
+                          />
+                        )}
+                        {!!(analysis.attention as Record<string, unknown> | undefined)?.state && (
+                          <StateChip
+                            label="Attention"
+                            value={String((analysis.attention as Record<string, unknown>).state)}
+                            icon={Eye}
+                          />
+                        )}
+                        {!!(analysis.flow_state as Record<string, unknown> | undefined)?.in_flow && (
+                          <StateChip label="Flow" value="In Flow" icon={Zap} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// CoachPanel — persistent memory + tone toggle + context-aware quick prompts
+// CoachPanel -- persistent memory + tone toggle + context-aware quick prompts
 // ---------------------------------------------------------------------------
 
 interface CoachContext {
@@ -703,7 +747,6 @@ function CoachPanel({
   const [isCoachTyping, setIsCoachTyping] = useState(false);
   const [coachHistory, setCoachHistory] = useState<Array<{ message: string; isUser: boolean }>>([]);
 
-  // Load memories from IndexedDB on mount
   useEffect(() => {
     getMemories().then(setMemories).catch(() => {});
   }, []);
@@ -732,7 +775,6 @@ function CoachPanel({
     refreshMemories();
   };
 
-  // Build context from EEG analysis if streaming
   const buildContext = (): CoachContext => {
     if (!eegAnalysis) return {};
     const emotions = eegAnalysis.emotions as Record<string, number> | undefined;
@@ -742,7 +784,6 @@ function CoachPanel({
     };
   };
 
-  // Quick prompts derived from available data
   const quickPrompts: string[] = [
     "How does my sleep trend over the last week compare to normal?",
     "What's driving my stress patterns and what can I change?",
@@ -782,11 +823,11 @@ function CoachPanel({
   };
 
   return (
-    <Card className="glass-card p-5 rounded-xl hover-glow space-y-4">
+    <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2">
         <Target className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-semibold">AI Coach</h3>
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">AI Coach</h4>
       </div>
 
       {/* Tone toggle */}
@@ -831,7 +872,7 @@ function CoachPanel({
       {(isCoachTyping || coachReply) && (
         <div className="bg-card/50 rounded-xl px-3 py-2 text-xs leading-relaxed">
           {isCoachTyping ? (
-            <span className="text-muted-foreground animate-pulse">Coach is thinking…</span>
+            <span className="text-muted-foreground animate-pulse">Coach is thinking...</span>
           ) : (
             coachReply
           )}
@@ -910,7 +951,7 @@ function CoachPanel({
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
 
