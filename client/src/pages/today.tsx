@@ -13,6 +13,7 @@ import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
 import { forecastMood } from "@/lib/mood-patterns";
 import { StreakProtector } from "@/components/streak-protector";
+import { SleepInsights } from "@/components/sleep-insights";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1041,6 +1042,14 @@ export default function Today() {
           total={sleepTotal || 1}
         />
       </div>
+
+      {/* ── Sleep Insights ── */}
+      <SleepInsights
+        sleepHours={sleepTotal > 0 ? sleepTotal : null}
+        deepHours={sleepDeep > 0 ? sleepDeep : null}
+        remHours={sleepRem > 0 ? sleepRem : null}
+        efficiency={sleepEfficiency > 0 ? sleepEfficiency : null}
+      />
 
       {/* ── Health Metrics ── */}
       <div
