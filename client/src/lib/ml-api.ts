@@ -275,7 +275,7 @@ interface NeurofeedbackStopResult {
 }
 
 // Session types
-interface SessionSummary {
+export interface SessionSummary {
   session_id: string;
   user_id: string;
   session_type: string;

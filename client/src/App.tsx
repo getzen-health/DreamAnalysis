@@ -50,6 +50,14 @@ const StudySessionFood   = lazy(() => import("@/pages/study/StudySessionFood"));
 const StudyComplete      = lazy(() => import("@/pages/study/StudyComplete"));
 const StudyAdmin         = lazy(() => import("@/pages/study/StudyAdmin"));
 
+// ── New consolidated pages — lazy loaded ─────────────────────────────────────
+const MoodTrends             = lazy(() => import("@/pages/mood-trends"));
+const StressTrends           = lazy(() => import("@/pages/stress-trends"));
+const FocusTrends            = lazy(() => import("@/pages/focus-trends"));
+const SleepPage              = lazy(() => import("@/pages/sleep"));
+const HealthPage             = lazy(() => import("@/pages/health"));
+const BrainTabs              = lazy(() => import("@/pages/brain-tabs"));
+
 // ── Heavy / rarely-visited pages — lazy loaded ─────────────────────────────
 const BrainConnectivity      = lazy(() => import("@/pages/brain-connectivity"));
 const HealthAnalytics        = lazy(() => import("@/pages/health-analytics"));
@@ -258,6 +266,23 @@ function AppRoutes() {
       <Route path="/emotions">
         <ProtectedRoute><AppLayout><EmotionLab /></AppLayout></ProtectedRoute>
       </Route>
+      {/* New focused pages — split from emotion-lab */}
+      <Route path="/mood">
+        <ProtectedRoute><AppLayout><MoodTrends /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/stress">
+        <ProtectedRoute><AppLayout><StressTrends /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/focus">
+        <ProtectedRoute><AppLayout><FocusTrends /></AppLayout></ProtectedRoute>
+      </Route>
+      {/* Consolidated pages */}
+      <Route path="/sleep">
+        <ProtectedRoute><AppLayout><SleepPage /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/health">
+        <ProtectedRoute><AppLayout><HealthPage /></AppLayout></ProtectedRoute>
+      </Route>
       {/* Bottom tab route aliases */}
       <Route path="/journal">
         <ProtectedRoute><AppLayout><EmotionLab /></AppLayout></ProtectedRoute>
@@ -266,7 +291,7 @@ function AppRoutes() {
         <ProtectedRoute><AppLayout><HealthAnalytics /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/brain-monitor">
-        <ProtectedRoute><AppLayout><BrainMonitor /></AppLayout></ProtectedRoute>
+        <ProtectedRoute><AppLayout><BrainTabs /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/brain-connectivity">
         <ProtectedRoute><AppLayout><BrainConnectivity /></AppLayout></ProtectedRoute>

@@ -240,91 +240,29 @@ function MoodInsightsCard({ userId }: { userId: string }) {
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-interface FeatureCard {
+interface NavCard {
   emoji: string;
   title: string;
   subtitle: string;
   route: string;
 }
 
-interface ChipItem {
-  emoji: string;
-  label: string;
-  route: string;
-}
+// ── Data — 10 main navigation cards (consolidated) ────────────────────────
 
-// ── Data ───────────────────────────────────────────────────────────────────
-
-const GRID_CARDS: FeatureCard[] = [
-  {
-    emoji: "🧘",
-    title: "Inner Energy",
-    subtitle: "Chakras & aura vitality",
-    route: "/inner-energy",
-  },
-  {
-    emoji: "🤖",
-    title: "AI Companion",
-    subtitle: "Your wellness coach",
-    route: "/ai-companion",
-  },
-  {
-    emoji: "🧠",
-    title: "Brain Monitor",
-    subtitle: "Live EEG waveforms",
-    route: "/brain-monitor",
-  },
-  {
-    emoji: "🌃",
-    title: "Dreams",
-    subtitle: "Record & analyze dreams",
-    route: "/dreams",
-  },
+const NAV_CARDS: NavCard[] = [
+  { emoji: "😊", title: "Emotions",     subtitle: "Mood trends, emotion history",       route: "/mood" },
+  { emoji: "😰", title: "Stress",       subtitle: "Stress score, HRV, trends",          route: "/stress" },
+  { emoji: "🎯", title: "Focus",        subtitle: "Focus score, cognitive trends",       route: "/focus" },
+  { emoji: "🧠", title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor" },
+  { emoji: "🍎", title: "Nutrition",    subtitle: "Food, vitamins, food-mood",           route: "/nutrition" },
+  { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep" },
+  { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health" },
+  { emoji: "🧘", title: "Wellness",     subtitle: "Habits, cycle, mood log",             route: "/wellness" },
+  { emoji: "🤖", title: "AI Companion", subtitle: "Your wellness coach",                 route: "/ai-companion" },
+  { emoji: "💡", title: "Insights",     subtitle: "AI brain insights",                   route: "/insights" },
 ];
 
-const ROW_CARDS: FeatureCard[] = [
-  {
-    emoji: "🎯",
-    title: "Neurofeedback",
-    subtitle: "Train your focus",
-    route: "/neurofeedback",
-  },
-  {
-    emoji: "😴",
-    title: "Sleep Session",
-    subtitle: "Guided sleep protocol",
-    route: "/sleep-session",
-  },
-  {
-    emoji: "🍽️",
-    title: "Food & Mood",
-    subtitle: "How eating affects feelings",
-    route: "/food-emotion",
-  },
-  {
-    emoji: "📏",
-    title: "Body Metrics",
-    subtitle: "Weight, BMI & vitals",
-    route: "/body-metrics",
-  },
-  {
-    emoji: "🏋️",
-    title: "Workout",
-    subtitle: "Exercise & activity",
-    route: "/workout",
-  },
-];
-
-const CHIP_ITEMS: ChipItem[] = [
-  { emoji: "💡", label: "Insights", route: "/insights" },
-  { emoji: "📊", label: "Weekly Summary", route: "/weekly-summary" },
-  { emoji: "🎵", label: "Sleep Music", route: "/sleep-music" },
-  { emoji: "📖", label: "CBT-i", route: "/cbti" },
-  { emoji: "✅", label: "Habits", route: "/habits" },
-  { emoji: "❤️", label: "Wellness", route: "/wellness" },
-];
-
-// Sample sparkline points (normalized 0–40 in Y space, 0–280 in X)
+// Sample sparkline points (normalized 0-40 in Y space, 0-280 in X)
 const SPARKLINE_POINTS = [
   [0, 32],
   [40, 24],
@@ -346,82 +284,6 @@ function pointsToArea(pts: [number, number][]): string {
   const last = pts[pts.length - 1];
   const line = pts.map(([x, y]) => `${x},${y}`).join(" L ");
   return `M ${first[0]},${first[1]} L ${line} L ${last[0]},40 L ${first[0]},40 Z`;
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────
-
-function GridCard({
-  card,
-  onClick,
-}: {
-  card: FeatureCard;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 16,
-        textAlign: "left",
-        cursor: "pointer",
-        width: "100%",
-        WebkitTapHighlightColor: "transparent",
-      }}
-    >
-      <div style={{ fontSize: 28, marginBottom: 8 }}>{card.emoji}</div>
-      <p
-        style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: "var(--foreground)",
-          margin: "0 0 3px 0",
-        }}
-      >
-        {card.title}
-      </p>
-      <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>{card.subtitle}</p>
-    </button>
-  );
-}
-
-function RowCard({
-  card,
-  onClick,
-}: {
-  card: FeatureCard;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        flex: 1,
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 16,
-        textAlign: "left",
-        cursor: "pointer",
-        WebkitTapHighlightColor: "transparent",
-      }}
-    >
-      <div style={{ fontSize: 28, marginBottom: 8 }}>{card.emoji}</div>
-      <p
-        style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: "var(--foreground)",
-          margin: "0 0 3px 0",
-        }}
-      >
-        {card.title}
-      </p>
-      <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>{card.subtitle}</p>
-    </button>
-  );
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
@@ -493,7 +355,7 @@ export default function Discover() {
       {hasData ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
           {/* Stress Score */}
-          <button onClick={() => navigate("/emotions")} style={{
+          <button onClick={() => navigate("/stress")} style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
           }}>
@@ -508,7 +370,7 @@ export default function Discover() {
           </button>
 
           {/* Focus Score */}
-          <button onClick={() => navigate("/emotions")} style={{
+          <button onClick={() => navigate("/focus")} style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
           }}>
@@ -545,7 +407,7 @@ export default function Discover() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
         {/* Heart Rate */}
         <button
-          onClick={() => navigate("/health-analytics")}
+          onClick={() => navigate("/health")}
           style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
@@ -564,7 +426,7 @@ export default function Discover() {
 
         {/* Steps */}
         <button
-          onClick={() => navigate("/health-analytics")}
+          onClick={() => navigate("/health")}
           style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
@@ -582,7 +444,7 @@ export default function Discover() {
 
         {/* Sleep */}
         <button
-          onClick={() => navigate("/sleep-session")}
+          onClick={() => navigate("/sleep")}
           style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
@@ -628,7 +490,7 @@ export default function Discover() {
 
         {/* Emotion Score */}
         <button
-          onClick={() => navigate("/emotions")}
+          onClick={() => navigate("/mood")}
           style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14,
             padding: "14px 12px", textAlign: "left" as const, cursor: "pointer",
@@ -669,7 +531,7 @@ export default function Discover() {
 
       {/* ── Featured Card — Emotion Trends ── */}
       <button
-        onClick={() => navigate("/insights")}
+        onClick={() => navigate("/mood")}
         style={{
           width: "100%",
           background: "var(--card)",
@@ -739,96 +601,46 @@ export default function Discover() {
         </svg>
       </button>
 
-      {/* ── 2×2 Feature Grid ── */}
+      {/* ── 2-column navigation grid — 10 main cards ── */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
           gap: 10,
-          marginBottom: 10,
-        }}
-      >
-        {GRID_CARDS.map((card) => (
-          <GridCard
-            key={card.route}
-            card={card}
-            onClick={() => navigate(card.route)}
-          />
-        ))}
-      </div>
-
-      {/* ── 2×1 Row ── */}
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
           marginBottom: 20,
         }}
       >
-        {ROW_CARDS.map((card) => (
-          <RowCard
+        {NAV_CARDS.map((card) => (
+          <button
             key={card.route}
-            card={card}
             onClick={() => navigate(card.route)}
-          />
-        ))}
-      </div>
-
-      {/* ── More (horizontal scroll chips) ── */}
-      <div>
-        <p
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: "var(--muted-foreground)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            margin: "0 0 8px 0",
-          }}
-        >
-          More
-        </p>
-        <div
-          style={{
-            display: "flex",
-            overflowX: "auto",
-            gap: 10,
-            paddingBottom: 8,
-            // Hide scrollbar on webkit
-            scrollbarWidth: "none",
-          }}
-        >
-          {CHIP_ITEMS.map((chip) => (
-            <button
-              key={chip.route}
-              onClick={() => navigate(chip.route)}
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: 16,
+              textAlign: "left",
+              cursor: "pointer",
+              width: "100%",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <div style={{ fontSize: 28, marginBottom: 8 }}>{card.emoji}</div>
+            <p
               style={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
-                padding: "12px 16px",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                WebkitTapHighlightColor: "transparent",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--foreground)",
+                margin: "0 0 3px 0",
               }}
             >
-              <span style={{ fontSize: 16 }}>{chip.emoji}</span>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "var(--foreground)",
-                }}
-              >
-                {chip.label}
-              </span>
-            </button>
-          ))}
-        </div>
+              {card.title}
+            </p>
+            <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>
+              {card.subtitle}
+            </p>
+          </button>
+        ))}
       </div>
     </main>
   );
