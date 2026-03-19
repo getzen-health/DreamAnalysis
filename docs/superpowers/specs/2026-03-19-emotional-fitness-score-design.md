@@ -123,6 +123,7 @@ When user has insufficient data (< 3 days of any check-in activity):
   "dailyInsight": null,
   "computedAt": null
 }
+```
 
 ### Response Schema
 
