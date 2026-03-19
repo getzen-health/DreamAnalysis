@@ -99,6 +99,17 @@ export default function OfflineSyncBanner() {
               {queueSize} queued
             </span>
           )}
+          <button
+            onClick={() => { runSync().catch(() => {}); }}
+            style={{
+              fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6,
+              background: "rgba(255,255,255,0.15)", color: "inherit",
+              border: "1px solid rgba(255,255,255,0.2)", cursor: "pointer",
+              marginLeft: 6,
+            }}
+          >
+            Sync now
+          </button>
         </>
       )}
       {bannerState === "syncing" && (

@@ -30,12 +30,20 @@ const NETWORK_FIRST_API = [
   "/api/health",
   "/api/sessions",
   "/api/settings",
+  "/api/voice-emotion",
+  "/api/food-log",
 ];
 
 /** API routes for stale-while-revalidate (user profile, non-critical). */
 const STALE_WHILE_REVALIDATE_API = [
   "/api/user",
   "/api/profile",
+  "/api/brain/history",
+  "/api/brain/weekly-summary",
+  "/api/brain/patterns",
+  "/api/brain/today-totals",
+  "/api/streaks/status",
+  "/brain-report/streak",
 ];
 
 function isAppShellRequest(url) {

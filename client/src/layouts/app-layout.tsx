@@ -8,6 +8,7 @@ import { useHealthSync } from "@/hooks/use-health-sync";
 import { usePullRefresh } from "@/hooks/use-pull-refresh";
 import { registerNativePush } from "@/lib/native-push";
 import { initCheckinReminders } from "@/lib/checkin-reminders";
+import { registerServiceWorker } from "@/lib/register-sw";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useKeyboardScroll } from "@/hooks/use-keyboard-scroll";
@@ -67,6 +68,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
   useHealthSync();
   // On mobile, scroll focused inputs into view when the virtual keyboard opens
   useKeyboardScroll();
+
+  // Register service worker for offline-first caching (PWA)
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
 
   // Sync health data immediately on app open (Issue 5)
   useEffect(() => {
