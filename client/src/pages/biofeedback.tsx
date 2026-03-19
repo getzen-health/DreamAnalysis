@@ -933,6 +933,14 @@ export default function Biofeedback() {
                       <stop offset="0%" stopColor="hsl(0,70%,60%)" stopOpacity="0.35" />
                       <stop offset="100%" stopColor="hsl(0,70%,60%)" stopOpacity="0.02" />
                     </linearGradient>
+                    <linearGradient id="stress-line-grad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="hsl(0,70%,50%)" />
+                      <stop offset="100%" stopColor="hsl(0,70%,70%)" />
+                    </linearGradient>
+                    <radialGradient id="stress-dot-grad" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="hsl(0,70%,70%)" />
+                      <stop offset="100%" stopColor="hsl(0,70%,50%)" />
+                    </radialGradient>
                   </defs>
                   {/* grid lines */}
                   <line x1="0" y1={CHART_H * 0.5} x2={CHART_W} y2={CHART_H * 0.5}
@@ -942,7 +950,7 @@ export default function Biofeedback() {
                   {/* area fill */}
                   <path d={stressArea} fill="url(#stress-area-grad)" />
                   {/* stress line */}
-                  <path d={stressLine} fill="none" stroke="hsl(0,70%,60%)" strokeWidth="2.5" strokeLinejoin="round" />
+                  <path d={stressLine} fill="none" stroke="url(#stress-line-grad)" strokeWidth="2.5" strokeLinejoin="round" />
                   {/* latest dot */}
                   {(() => {
                     const last = readings[readings.length - 1];
@@ -950,8 +958,8 @@ export default function Biofeedback() {
                     const y = CHART_H - (last.stress / 100) * CHART_H;
                     return (
                       <>
-                        <circle cx={x} cy={y} r="5" fill="hsl(0,70%,60%)" />
-                        <circle cx={x} cy={y} r="9" fill="none" stroke="hsl(0,70%,60%)" strokeWidth="1" opacity="0.4" />
+                        <circle cx={x} cy={y} r="5" fill="url(#stress-dot-grad)" />
+                        <circle cx={x} cy={y} r="9" fill="none" stroke="url(#stress-line-grad)" strokeWidth="1" opacity="0.4" />
                       </>
                     );
                   })()}
@@ -1033,9 +1041,13 @@ export default function Biofeedback() {
                       <stop offset="0%" stopColor="hsl(0,70%,60%)" stopOpacity="0.3" />
                       <stop offset="100%" stopColor="hsl(0,70%,60%)" stopOpacity="0.0" />
                     </linearGradient>
+                    <linearGradient id="done-line-grad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="hsl(0,70%,50%)" />
+                      <stop offset="100%" stopColor="hsl(0,70%,70%)" />
+                    </linearGradient>
                   </defs>
                   <path d={stressArea} fill="url(#done-grad)" />
-                  <path d={stressLine} fill="none" stroke="hsl(0,70%,60%)" strokeWidth="2.5" strokeLinejoin="round" />
+                  <path d={stressLine} fill="none" stroke="url(#done-line-grad)" strokeWidth="2.5" strokeLinejoin="round" />
                 </svg>
               </div>
             )}

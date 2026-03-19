@@ -4,8 +4,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { Button } from "@/components/ui/button";
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
@@ -457,10 +455,17 @@ export default function BodyMetrics() {
           </div>
 
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart
+            <AreaChart
               data={chartData}
               margin={{ left: 0, right: 4, top: 4, bottom: 0 }}
             >
+              <defs>
+                <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#0891b2" stopOpacity={0.3} />
+                  <stop offset="50%" stopColor="#0891b2" stopOpacity={0.12} />
+                  <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="var(--border)"
@@ -499,27 +504,29 @@ export default function BodyMetrics() {
                   name === "movingAvg" ? "7-day avg" : "Weight",
                 ]}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="weight"
                 name="Weight"
                 stroke="#0891b2"
                 strokeWidth={2}
+                fill="url(#weightGrad)"
                 dot={{ r: 3, fill: "#0891b2" }}
                 activeDot={{ r: 5 }}
                 connectNulls
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="movingAvg"
                 name="7-day avg"
                 stroke="hsl(38,85%,58%)"
                 strokeWidth={1.5}
                 strokeDasharray="5 3"
+                fill="none"
                 dot={false}
                 connectNulls
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
 
           <div className="flex gap-4 mt-2 justify-center">

@@ -15,8 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  LineChart,
-  Line,
   Area,
   AreaChart,
   XAxis,
@@ -893,7 +891,14 @@ function CycleTab() {
           </p>
           <div className="h-36">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={tempChartData}>
+              <AreaChart data={tempChartData}>
+                <defs>
+                  <linearGradient id="bbtGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ea580c" stopOpacity={0.3} />
+                    <stop offset="50%" stopColor="#ea580c" stopOpacity={0.12} />
+                    <stop offset="100%" stopColor="#ea580c" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
                 <XAxis
                   dataKey="date"
@@ -919,15 +924,16 @@ function CycleTab() {
                   }}
                   formatter={(value: number) => [`${value.toFixed(1)} C`, "Temp"]}
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="temp"
                   stroke="#ea580c"
                   strokeWidth={2}
+                  fill="url(#bbtGrad)"
                   dot={{ r: 2, fill: "#ea580c" }}
                   name="Temp (C)"
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
           <p className="text-[9px] text-muted-foreground mt-2 text-center">
@@ -1326,8 +1332,14 @@ function MoodTab() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="moodGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#0891b2" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#0891b2" stopOpacity={0.3} />
+                    <stop offset="50%" stopColor="#0891b2" stopOpacity={0.12} />
+                    <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#d4a017" stopOpacity={0.3} />
+                    <stop offset="50%" stopColor="#d4a017" stopOpacity={0.12} />
+                    <stop offset="100%" stopColor="#d4a017" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
@@ -1367,7 +1379,7 @@ function MoodTab() {
                   type="monotone"
                   dataKey="energy"
                   stroke="#d4a017"
-                  fill="transparent"
+                  fill="url(#energyGradient)"
                   strokeWidth={1.5}
                   dot={{ r: 1.5 }}
                   strokeDasharray="4 2"

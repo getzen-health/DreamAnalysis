@@ -16,8 +16,8 @@ import {
 import { motion } from "framer-motion";
 import { EmotionStrip } from "@/components/emotion-strip";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -368,7 +368,14 @@ export default function WorkoutPage() {
             <span className="text-[10px] text-muted-foreground ml-auto">Last 4 weeks</span>
           </div>
           <ResponsiveContainer width="100%" height={140}>
-            <LineChart data={weeklyChart} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
+            <AreaChart data={weeklyChart} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
+              <defs>
+                <linearGradient id="workoutGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#0891b2" stopOpacity={0.3} />
+                  <stop offset="50%" stopColor="#0891b2" stopOpacity={0.12} />
+                  <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
               <XAxis
                 dataKey="label"
@@ -393,15 +400,16 @@ export default function WorkoutPage() {
                 }}
                 formatter={(v: number) => [`${v} min`, "Exercise"]}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="minutes"
                 stroke="#0891b2"
                 strokeWidth={2}
+                fill="url(#workoutGrad)"
                 dot={{ r: 3, fill: "#0891b2" }}
                 activeDot={{ r: 5 }}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </motion.div>
       )}

@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  AreaChart,
+  Area,
   LineChart,
   Line,
   BarChart,
@@ -392,7 +394,13 @@ export default function CbtiModule() {
               Sleep efficiency %
             </p>
             <ResponsiveContainer width="100%" height={120}>
-              <LineChart data={weeklyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <AreaChart data={weeklyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="sleepEffGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis
                   dataKey="week"
@@ -416,15 +424,16 @@ export default function CbtiModule() {
                 />
                 <ReferenceLine y={85} stroke="#0891b2" strokeDasharray="4 3" strokeOpacity={0.5} />
                 <ReferenceLine y={80} stroke="#d4a017" strokeDasharray="4 3" strokeOpacity={0.4} />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="efficiency"
                   stroke="#818cf8"
                   strokeWidth={2}
+                  fill="url(#sleepEffGrad)"
                   dot={{ r: 3, fill: "#818cf8" }}
                   activeDot={{ r: 5 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
             <p className="mt-1 text-[10px] text-zinc-600">
               Green line = 85% expand threshold · Amber = 80% maintain threshold
@@ -438,6 +447,12 @@ export default function CbtiModule() {
             </p>
             <ResponsiveContainer width="100%" height={100}>
               <BarChart data={weeklyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="sleepWindowGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.3} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis
                   dataKey="week"
@@ -455,7 +470,7 @@ export default function CbtiModule() {
                   formatter={(v: number) => [`${v}h`, "Window"]}
                   labelFormatter={(l) => `Week ${l}`}
                 />
-                <Bar dataKey="windowHours" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="windowHours" fill="url(#sleepWindowGrad)" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -467,6 +482,12 @@ export default function CbtiModule() {
             </p>
             <ResponsiveContainer width="100%" height={100}>
               <BarChart data={weeklyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="complianceGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0891b2" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#0891b2" stopOpacity={0.3} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis
                   dataKey="week"
@@ -484,7 +505,7 @@ export default function CbtiModule() {
                   formatter={(v: number) => [`${v}%`, "Compliance"]}
                   labelFormatter={(l) => `Week ${l}`}
                 />
-                <Bar dataKey="compliance" fill="#0891b2" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="compliance" fill="url(#complianceGrad)" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
