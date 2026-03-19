@@ -24,6 +24,60 @@ export interface MoodInsight {
 /**
  * Analyze emotion readings and return up to 3 actionable insights.
  */
+/**
+ * Predict tomorrow's likely emotional state based on recent patterns.
+ * Uses weighted average: recent days count more + same-day-last-week bonus.
+ */
+export function forecastMood(readings: EmotionReading[]): {
+  emotion: string;
+  confidence: number;
+  reason: string;
+} | null {
+  if (readings.length < 3) return null;
+
+  // Weight recent readings more (exponential decay)
+  const emotionScores: Record<string, number> = {};
+  const n = readings.length;
+  for (let i = 0; i < n; i++) {
+    const weight = Math.pow(0.85, n - i - 1); // most recent = weight 1.0
+    const emo = readings[i].dominantEmotion;
+    emotionScores[emo] = (emotionScores[emo] || 0) + weight;
+  }
+
+  // Bonus for same-day-last-week emotion
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const targetDay = tomorrow.getDay();
+  const sameDayReadings = readings.filter(r => new Date(r.timestamp).getDay() === targetDay);
+  for (const r of sameDayReadings) {
+    emotionScores[r.dominantEmotion] = (emotionScores[r.dominantEmotion] || 0) + 0.5;
+  }
+
+  // Pick top emotion
+  const sorted = Object.entries(emotionScores).sort((a, b) => b[1] - a[1]);
+  if (sorted.length === 0) return null;
+
+  const topEmo = sorted[0][0];
+  const totalWeight = sorted.reduce((s, [, w]) => s + w, 0);
+  const confidence = Math.min(0.9, sorted[0][1] / totalWeight);
+
+  // Generate reason
+  const recentCount = readings.slice(-3).filter(r => r.dominantEmotion === topEmo).length;
+  let reason: string;
+  if (recentCount >= 2) {
+    reason = `You've been ${topEmo} recently — likely to continue`;
+  } else if (sameDayReadings.length > 0 && sameDayReadings[sameDayReadings.length - 1].dominantEmotion === topEmo) {
+    reason = `You usually feel this way on ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][targetDay]}s`;
+  } else {
+    reason = `Based on your overall emotional pattern`;
+  }
+
+  return { emotion: topEmo, confidence, reason };
+}
+
+/**
+ * Analyze emotion readings and return up to 3 actionable insights.
+ */
 export function detectMoodPatterns(readings: EmotionReading[]): MoodInsight[] {
   if (readings.length < 3) return [];
 

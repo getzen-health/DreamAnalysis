@@ -9,6 +9,7 @@ import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
+import { forecastMood } from "@/lib/mood-patterns";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,59 @@ function formatDate(): string {
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+}
+
+// ── Tomorrow's Forecast Card ──────────────────────────────────────────────
+
+const FORECAST_EMOJI: Record<string, string> = {
+  happy: "😊", sad: "😢", angry: "😠", fear: "😨",
+  surprise: "😲", neutral: "😐",
+};
+
+function ForecastCard({ userId }: { userId: string }) {
+  const { data } = useQuery<Array<{ dominantEmotion: string; timestamp: string }>>({
+    queryKey: [`/api/brain/history/${userId}?days=7`],
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  if (!data || data.length < 3) return null;
+
+  const forecast = forecastMood(data);
+  if (!forecast) return null;
+
+  const emoji = FORECAST_EMOJI[forecast.emotion] ?? "🔮";
+  const confPct = Math.round(forecast.confidence * 100);
+
+  return (
+    <div style={{
+      background: "var(--card)", border: "1px solid var(--border)",
+      borderRadius: 14, padding: 14, marginTop: 14,
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6,
+      }}>
+        <div style={{
+          fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+          textTransform: "uppercase" as const, letterSpacing: "0.5px",
+        }}>
+          Tomorrow's forecast
+        </div>
+        <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{confPct}% likely</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 28 }}>{emoji}</span>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)", textTransform: "capitalize" as const }}>
+            {forecast.emotion}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+            {forecast.reason}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Weekly Summary Card ────────────────────────────────────────────────────
@@ -1095,6 +1149,9 @@ export default function Today() {
           />
         </div>
       </div>
+
+      {/* ── Tomorrow's Forecast ── */}
+      <ForecastCard userId={userId} />
 
       {/* ── Weekly Summary Card (shows on Sun/Mon or when 3+ days data) ── */}
       <WeeklySummaryCard userId={userId} />
