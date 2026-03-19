@@ -130,6 +130,7 @@ export default function SettingsPage() {
               startDate: new Date(Date.now() - 86400000).toISOString(),
               endDate: new Date().toISOString(),
               dataType: "steps",
+              bucket: "DAY",
             });
             setHealthStatus((prev) => ({ ...prev, google_fit: true }));
           } catch {

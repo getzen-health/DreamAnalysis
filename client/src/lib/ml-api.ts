@@ -1046,7 +1046,6 @@ export type {
   NeurofeedbackProtocol,
   NeurofeedbackEvalResult,
   NeurofeedbackStopResult,
-  SessionSummary,
   ConnectivityResult,
   CalibrationStatus,
   HealthSample,

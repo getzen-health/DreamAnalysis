@@ -610,20 +610,20 @@ export default function EmotionLab() {
             >
               <div className="rounded-xl bg-muted/20 p-2.5">
                 <div className="text-[14px] font-bold capitalize text-amber-400">
-                  {voiceEmotion.lastResult.emotion}
+                  {voiceEmotion.lastResult?.emotion}
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">Emotion</div>
               </div>
               <div className="rounded-xl bg-muted/20 p-2.5">
                 <div className="text-[14px] font-bold text-violet-400">
-                  {voiceEmotion.lastResult.valence >= 0 ? "+" : ""}
-                  {voiceEmotion.lastResult.valence.toFixed(2)}
+                  {(voiceEmotion.lastResult?.valence ?? 0) >= 0 ? "+" : ""}
+                  {voiceEmotion.lastResult?.valence?.toFixed(2)}
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">Valence</div>
               </div>
               <div className="rounded-xl bg-muted/20 p-2.5">
                 <div className="text-[14px] font-bold text-cyan-400">
-                  {Math.round(voiceEmotion.lastResult.confidence * 100)}%
+                  {Math.round((voiceEmotion.lastResult?.confidence ?? 0) * 100)}%
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">Confidence</div>
               </div>

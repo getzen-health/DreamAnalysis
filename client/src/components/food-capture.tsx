@@ -87,6 +87,7 @@ function aggregateResults(results: FoodImageAnalysisResult[]): FoodImageAnalysis
       glycemic_impact:  r.total_calories > acc.total_calories ? r.glycemic_impact : acc.glycemic_impact,
       dominant_macro:   r.total_calories > acc.total_calories ? r.dominant_macro  : acc.dominant_macro,
       confidence:      Math.min(acc.confidence, r.confidence),
+      analysis_method: "combined",
       summary:         `Combined meal (${results.length} images)`,
     }),
     {
@@ -99,6 +100,7 @@ function aggregateResults(results: FoodImageAnalysisResult[]): FoodImageAnalysis
       glycemic_impact: results[0].glycemic_impact,
       dominant_macro:  results[0].dominant_macro,
       confidence:      results[0].confidence,
+      analysis_method: results[0].analysis_method,
       summary:         "",
     }
   );
@@ -150,6 +152,7 @@ function barcodeToAnalysisResult(
     glycemic_impact,
     dominant_macro,
     confidence:      1.0,
+    analysis_method: "barcode",
     summary: `${product.name}${product.servingSize ? ` · ${product.servingSize}` : ""}`,
   };
 }

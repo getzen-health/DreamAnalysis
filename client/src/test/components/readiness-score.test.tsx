@@ -121,7 +121,7 @@ describe("ReadinessScore", () => {
       ...MOCK_DATA,
       factors: { sleep_quality: null, stress_avg: null, hrv_trend: null, voice_emotion: null },
     };
-    mockFetch(nullFactors as typeof MOCK_DATA);
+    mockFetch(nullFactors as unknown as typeof MOCK_DATA);
     renderWithProviders(<ReadinessScore userId="test-user" />);
 
     await waitFor(() => {

@@ -590,7 +590,7 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
     const weight = await Health.queryAggregated({
       startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
       endDate: fmt(now),
-      dataType: "weight",
+      dataType: "weight" as any,
       bucket: "DAY",
     });
     if (weight.aggregatedData.length > 0) {
@@ -603,7 +603,7 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
     const bf = await Health.queryAggregated({
       startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
       endDate: fmt(now),
-      dataType: "body-fat",
+      dataType: "body-fat" as any,
       bucket: "DAY",
     });
     if (bf.aggregatedData.length > 0) {
@@ -653,9 +653,7 @@ async function requestPermissionsAndroid(): Promise<void> {
     permissions: [
       "READ_HEART_RATE",
       "READ_STEPS",
-      "READ_ACTIVE_CALORIES_BURNED",
-      "READ_WEIGHT",
-      "READ_BODY_FAT",
+      "READ_ACTIVE_CALORIES",
       "READ_WORKOUTS",
       "READ_MINDFULNESS",
     ],

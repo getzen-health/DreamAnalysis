@@ -1,4 +1,5 @@
 /** Stub for @capacitor/camera — used in vitest (jsdom) environment only. */
+import { vi } from "vitest";
 
 export const CameraResultType = {
   Base64: "base64",

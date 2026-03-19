@@ -158,7 +158,7 @@ function trackFeatureUsage(route: string) {
   try {
     const used = getUsedFeatures();
     used.add(route);
-    localStorage.setItem("ndw_feature_usage", JSON.stringify([...used]));
+    localStorage.setItem("ndw_feature_usage", JSON.stringify(Array.from(used)));
   } catch { /* ignore */ }
 }
 

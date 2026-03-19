@@ -429,7 +429,7 @@ export function VoiceCheckinCard({
   if (!forceShow && cardState === "dismissed") return null;
   if (!forceShow && !period) return null;
 
-  const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
+  const periodLabel = period ? period.charAt(0).toUpperCase() + period.slice(1) : "Check-in";
 
   return (
     <Card className="bg-card rounded-xl border border-border/50 shadow-sm">
