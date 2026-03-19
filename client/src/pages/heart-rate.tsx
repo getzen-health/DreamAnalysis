@@ -196,7 +196,7 @@ export default function HeartRate() {
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="rounded-[14px] border border-border bg-card p-6 mb-4"
+        className="rounded-2xl border border-border bg-card p-6 mb-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
       >
         <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-2">
           Resting Heart Rate
@@ -233,7 +233,7 @@ export default function HeartRate() {
             </p>
             <div className="flex items-baseline gap-1.5">
               <span
-                className="text-xl font-bold tabular-nums"
+                className="text-2xl font-bold tabular-nums"
                 style={{ color: HR_COLOR }}
               >
                 {Math.round(hr)}
@@ -253,7 +253,7 @@ export default function HeartRate() {
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="rounded-[14px] border border-border bg-card p-4 mb-4"
+        className="rounded-2xl border border-border bg-card p-4 mb-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
       >
         <div className="flex items-center gap-2 mb-3">
           <Activity className="h-3.5 w-3.5 text-muted-foreground" />
@@ -293,7 +293,7 @@ export default function HeartRate() {
           variants={cardVariants}
           initial="hidden"
           animate="visible"
-          className="rounded-[14px] border border-border bg-card p-4 mb-4"
+          className="rounded-2xl border border-border bg-card p-4 mb-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         >
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
@@ -394,14 +394,14 @@ export default function HeartRate() {
           ].map((stat) => (
             <div
               key={stat.label}
-              className="rounded-[14px] border border-border bg-card p-3.5 text-center"
+              className="rounded-2xl border border-border bg-card p-3.5 text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
             >
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-1">
                 {stat.label}
               </p>
               <div className="flex items-baseline justify-center gap-1">
                 <span
-                  className="text-xl font-bold tabular-nums"
+                  className="text-2xl font-bold tabular-nums"
                   style={{ color: HR_COLOR }}
                 >
                   {stat.value}
@@ -419,7 +419,7 @@ export default function HeartRate() {
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="rounded-[14px] border border-border bg-card p-4"
+        className="rounded-2xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
       >
         <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold mb-3">
           Tips for your heart rate
@@ -444,7 +444,7 @@ export default function HeartRate() {
           variants={cardVariants}
           initial="hidden"
           animate="visible"
-          className="rounded-[14px] border border-border bg-card p-6 text-center mt-4"
+          className="rounded-2xl border border-border bg-card p-6 text-center mt-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         >
           <Heart className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">

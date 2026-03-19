@@ -111,7 +111,7 @@ export function StreakProtector() {
       style={{
         background: "var(--card)",
         border: `1px solid ${nudge.color}40`,
-        borderRadius: 14,
+        borderRadius: 20,
         padding: "12px 14px",
         marginBottom: 12,
         display: "flex",

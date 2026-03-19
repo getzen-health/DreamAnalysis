@@ -37,7 +37,7 @@ function StudyTab() {
   const [, navigate] = useLocation();
 
   return (
-    <div className="rounded-[14px] p-8 border border-border bg-card text-center">
+    <div className="rounded-2xl p-8 border border-border bg-card text-center">
       <GraduationCap className="h-10 w-10 mx-auto text-primary mb-3" />
       <h3 className="text-lg font-semibold text-foreground mb-2">
         Research Study

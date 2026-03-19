@@ -68,7 +68,7 @@ export function CommunityMood() {
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 14, padding: "12px 14px", marginBottom: 12,
+      borderRadius: 20, padding: "12px 14px", marginBottom: 12,
     }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 6, marginBottom: 8,

@@ -584,7 +584,7 @@ function CalorieRingCompact({ calories }: { calories: number }) {
         position: "absolute", inset: 0,
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       }}>
-        <span style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)", lineHeight: 1 }}>
+        <span style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", lineHeight: 1 }}>
           {calories}
         </span>
         <span style={{ fontSize: 9, color: "var(--muted-foreground)", marginTop: 1 }}>
@@ -820,7 +820,7 @@ function Glp1Tracker({
       }}>
         <span>GLP-1 Support</span>
         <span style={{
-          fontSize: 18, fontWeight: 700, color: scoreColor,
+          fontSize: 28, fontWeight: 700, color: scoreColor,
           background: `linear-gradient(135deg, ${scoreColor}, #0891b2)`,
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
@@ -1056,7 +1056,7 @@ function BarcodePanel({
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       style={{
         background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)",
-        padding: 14, marginBottom: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+        padding: 14, marginBottom: 14, boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
       }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", marginBottom: 8 }}>
@@ -1739,7 +1739,7 @@ export default function Nutrition() {
                 <div style={{
                   background: "var(--card)", border: "1px solid var(--border)",
                   borderRadius: 16, padding: 14, marginBottom: 12,
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>Before you eat...</span>
@@ -1761,7 +1761,7 @@ export default function Nutrition() {
                     onClick={() => cameraInputRef.current?.click()}
                     style={{
                       width: "100%", background: "var(--primary)",
-                      color: "white", borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 700,
+                      color: "white", borderRadius: 20, padding: 14, fontSize: 14, fontWeight: 700,
                       border: "none", cursor: "pointer", marginBottom: 8,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     }}
@@ -1796,7 +1796,7 @@ export default function Nutrition() {
                 <div style={{
                   background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)",
                   padding: 20, marginBottom: 14, textAlign: "center",
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                 }}>
                   <div style={{
                     width: 28, height: 28, border: "3px solid var(--primary)", borderTopColor: "transparent",
@@ -1811,7 +1811,7 @@ export default function Nutrition() {
               {analysisError && (
                 <div style={{
                   background: "var(--card)", borderRadius: 16, border: "1px solid #2d1f18",
-                  padding: 14, marginBottom: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                  padding: 14, marginBottom: 14, boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                 }}>
                   <p style={{ fontSize: 12, color: "#e879a8", margin: 0 }}>
                     {analysisError.includes("authentication") || analysisError.includes("API key") || analysisError.includes("not configured") || analysisError.includes("503")
@@ -1841,7 +1841,7 @@ export default function Nutrition() {
                   transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                   style={{
                     background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)",
-                    padding: 14, marginBottom: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                    padding: 14, marginBottom: 14, boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                   }}
                 >
                   <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: "0 0 8px 0" }}>
@@ -1941,7 +1941,7 @@ export default function Nutrition() {
                 </div>
                 <div style={{
                   background: "var(--card)", borderRadius: 16, border: "1px solid var(--border)",
-                  overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                  overflow: "hidden", boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                 }}>
                   {todayLogs.length === 0 ? (
                     <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
@@ -2048,7 +2048,7 @@ export default function Nutrition() {
               <div style={{
                 background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 16, padding: 16, marginBottom: 16,
-                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
                 <VitaminTracker todayLogs={todayLogs} />
               </div>
@@ -2056,7 +2056,7 @@ export default function Nutrition() {
               <div style={{
                 background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 16, padding: 16,
-                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
                 <Glp1Tracker todayLogs={todayLogs} totalProtein={totalProtein} totalCalories={totalCalories} />
               </div>
@@ -2080,7 +2080,7 @@ export default function Nutrition() {
               <div style={{
                 background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 16, padding: 16,
-                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
                 <SupplementTracker />
               </div>
@@ -2103,7 +2103,7 @@ export default function Nutrition() {
                 background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 16, padding: 14, marginBottom: 16,
                 display: "flex", gap: 14, alignItems: "flex-start",
-                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
                 <div style={{ flexShrink: 0 }}>
                   <ScoreGauge
@@ -2153,7 +2153,7 @@ export default function Nutrition() {
                   <div style={{
                     background: "var(--card)", border: "1px solid var(--border)",
                     borderRadius: 16, padding: 16, marginBottom: 16,
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                    boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                   }}>
                     <div style={{
                       fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
@@ -2167,7 +2167,7 @@ export default function Nutrition() {
                       display: "flex", alignItems: "center", gap: 12, marginBottom: 14,
                     }}>
                       <div style={{
-                        width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+                        width: 48, height: 48, borderRadius: 20, flexShrink: 0,
                         background: `linear-gradient(135deg, ${cravingColor}, ${cravingColor}88)`,
                         display: "flex", alignItems: "center", justifyContent: "center",
                         boxShadow: `0 4px 16px ${cravingColor}33`,
@@ -2237,7 +2237,7 @@ export default function Nutrition() {
                 <div style={{
                   background: "var(--card)", border: "1px solid var(--border)",
                   borderRadius: 16, padding: 14, marginBottom: 16,
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                 }}>
                   <div style={{
                     fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
@@ -2264,7 +2264,7 @@ export default function Nutrition() {
               <div style={{
                 background: "var(--card)", border: "1px solid var(--border)",
                 borderRadius: 16, padding: 14,
-                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
                 <div style={{
                   fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",

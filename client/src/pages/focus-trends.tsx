@@ -227,7 +227,7 @@ export default function FocusTrends() {
 
       {/* Focus Gauge — hero card */}
       <motion.div
-        className="rounded-[14px] p-6 border border-border bg-card flex flex-col items-center"
+        className="rounded-2xl p-6 border border-border bg-card flex flex-col items-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -299,7 +299,7 @@ export default function FocusTrends() {
       {/* Week average stat */}
       {weekAvg !== null && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card flex items-center gap-4"
+          className="rounded-2xl p-4 border border-border bg-card flex items-center gap-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={1}
           initial="hidden"
           animate="visible"
@@ -313,7 +313,7 @@ export default function FocusTrends() {
           </div>
           <div>
             <div className="text-xs text-muted-foreground">7-Day Average</div>
-            <div className="text-lg font-bold text-foreground font-mono">
+            <div className="text-2xl font-bold text-foreground font-mono">
               {weekAvg}%
             </div>
           </div>
@@ -325,7 +325,7 @@ export default function FocusTrends() {
 
       {/* 7-Day Focus Trend */}
       <motion.div
-        className="rounded-[14px] p-4 border border-border bg-card"
+        className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         custom={2}
         initial="hidden"
         animate="visible"
@@ -400,7 +400,7 @@ export default function FocusTrends() {
       {/* Best Focus Times */}
       {focusByHour.length >= 3 && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
+          className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={3}
           initial="hidden"
           animate="visible"
@@ -486,7 +486,7 @@ export default function FocusTrends() {
       {/* Focus Tips */}
       {tips.length > 0 && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
+          className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={4}
           initial="hidden"
           animate="visible"
@@ -514,7 +514,7 @@ export default function FocusTrends() {
 
       {/* Empty state — no data at all */}
       {focusTrend.length === 0 && focusPercent === null && (
-        <div className="rounded-[14px] p-8 border border-border bg-card text-center">
+        <div className="rounded-2xl p-8 border border-border bg-card text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <Target className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">
             No focus data yet. Complete a voice check-in to start tracking your

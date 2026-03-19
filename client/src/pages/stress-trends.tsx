@@ -226,7 +226,7 @@ export default function StressTrends() {
 
       {/* Stress Gauge — hero card */}
       <motion.div
-        className="rounded-[14px] p-6 border border-border bg-card flex flex-col items-center"
+        className="rounded-2xl p-6 border border-border bg-card flex flex-col items-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -293,7 +293,7 @@ export default function StressTrends() {
 
       {/* HRV card */}
       <motion.div
-        className="rounded-[14px] p-4 border border-border bg-card"
+        className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         custom={1}
         initial="hidden"
         animate="visible"
@@ -305,7 +305,7 @@ export default function StressTrends() {
             Heart Rate Variability (HRV)
           </span>
         </div>
-        <div className="text-xl font-bold text-foreground font-mono">
+        <div className="text-2xl font-bold text-foreground font-mono">
           {hrv !== null ? `${Math.round(hrv)}` : "\u2014"}
           {hrv !== null && (
             <span className="text-xs font-normal text-muted-foreground ml-1">
@@ -342,7 +342,7 @@ export default function StressTrends() {
 
       {/* 7-Day Stress Trend */}
       <motion.div
-        className="rounded-[14px] p-4 border border-border bg-card"
+        className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         custom={2}
         initial="hidden"
         animate="visible"
@@ -422,7 +422,7 @@ export default function StressTrends() {
       {/* Daily Stress Pattern */}
       {dailyPattern.length > 0 && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
+          className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={3}
           initial="hidden"
           animate="visible"
@@ -490,7 +490,7 @@ export default function StressTrends() {
       {/* Stress Management Tips */}
       {tips.length > 0 && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
+          className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={4}
           initial="hidden"
           animate="visible"
@@ -527,7 +527,7 @@ export default function StressTrends() {
 
       {/* Empty state — no data at all */}
       {stressTrend.length === 0 && stressPercent === null && (
-        <div className="rounded-[14px] p-8 border border-border bg-card text-center">
+        <div className="rounded-2xl p-8 border border-border bg-card text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <Activity className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">
             No stress data yet. Complete a voice or EEG session to start

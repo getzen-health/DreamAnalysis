@@ -53,7 +53,7 @@ function SleepDataTab() {
   return (
     <div className="space-y-4">
       {/* Sleep Duration hero */}
-      <div className="rounded-[14px] p-6 border border-border bg-card text-center">
+      <div className="rounded-2xl p-6 border border-border bg-card text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
         <Moon className="h-8 w-8 mx-auto text-indigo-400 mb-3" />
         <div className="text-3xl font-bold text-foreground">
           {sleepLabel ?? "\u2014"}
@@ -70,7 +70,7 @@ function SleepDataTab() {
 
       {/* Sleep Stages */}
       {totalMins > 0 && (
-        <div className="rounded-[14px] p-4 border border-border bg-card">
+        <div className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
             Sleep Stages
           </div>
@@ -111,7 +111,7 @@ function SleepDataTab() {
 
       {/* Empty state */}
       {sleepHours == null && (
-        <div className="rounded-[14px] p-8 border border-border bg-card text-center">
+        <div className="rounded-2xl p-8 border border-border bg-card text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <Moon className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">
             Connect Apple Health or Google Fit to see your sleep data

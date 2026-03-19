@@ -105,6 +105,7 @@ function ListItem({
         padding: "13px 14px",
         borderBottom: isLast ? "none" : "1px solid var(--border)",
         cursor: onClick ? "pointer" : "default",
+        transition: onClick ? "background 0.2s ease" : "none",
       }}
     >
       <span style={{ fontSize: 18, marginRight: 10 }}>{emoji}</span>
@@ -144,9 +145,10 @@ function GroupedList({ children }: { children: React.ReactNode }) {
     <div
       style={{
         background: "var(--card)",
-        borderRadius: 14,
+        borderRadius: 20,
         border: "1px solid var(--border)",
         overflow: "hidden",
+        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
         marginBottom: 14,
       }}
     >
@@ -280,13 +282,14 @@ export default function You() {
         <div
           style={{
             background: "var(--card)",
-            borderRadius: 14,
+            borderRadius: 20,
             border: "1px solid var(--border)",
             padding: 14,
             textAlign: "center",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
           }}
         >
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#d4a017" }}>{streak}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#d4a017" }}>{streak}</div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>Day Streak 🔥</div>
         </div>
 
@@ -294,13 +297,14 @@ export default function You() {
         <div
           style={{
             background: "var(--card)",
-            borderRadius: 14,
+            borderRadius: 20,
             border: "1px solid var(--border)",
             padding: 14,
             textAlign: "center",
+            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
           }}
         >
-          <div style={{ fontSize: 24, fontWeight: 700, color: "#0891b2" }}>{sessions}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "#0891b2" }}>{sessions}</div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>Sessions Total</div>
         </div>
       </div>
@@ -414,6 +418,7 @@ export default function You() {
           fontSize: 14,
           fontWeight: 500,
           cursor: "pointer",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
           marginTop: 4,
         }}
       >

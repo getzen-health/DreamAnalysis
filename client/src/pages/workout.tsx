@@ -134,7 +134,8 @@ function WorkoutCard({ workout }: { workout: Workout }) {
       style={{
         background: "var(--card)",
         border: "1px solid var(--border)",
-        borderRadius: 14,
+        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+        borderRadius: 20,
         padding: 14,
       }}
     >
@@ -288,7 +289,7 @@ export default function WorkoutPage() {
 
       {/* Sync Status + Button */}
       <motion.div
-        className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
+        className="rounded-2xl p-4 bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
         {...fadeInUp}
         transition={{ ...fadeInUp.transition, delay: 0.05 }}
       >
@@ -327,7 +328,7 @@ export default function WorkoutPage() {
       {/* Weekly Summary */}
       {weeklyStats.count > 0 && (
         <motion.div
-          className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
+          className="rounded-2xl p-4 bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.1 }}
         >
@@ -336,17 +337,17 @@ export default function WorkoutPage() {
           </p>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <p className="text-xl font-bold text-foreground">{weeklyStats.count}</p>
+              <p className="text-2xl font-bold text-foreground">{weeklyStats.count}</p>
               <p className="text-[10px] text-muted-foreground">Workouts</p>
             </div>
             <div>
-              <p className="text-xl font-bold text-foreground">
+              <p className="text-2xl font-bold text-foreground">
                 {formatDurationMin(weeklyStats.totalMin)}
               </p>
               <p className="text-[10px] text-muted-foreground">Active Time</p>
             </div>
             <div>
-              <p className="text-xl font-bold text-orange-400">
+              <p className="text-2xl font-bold text-orange-400">
                 {Math.round(weeklyStats.totalCal).toLocaleString()}
               </p>
               <p className="text-[10px] text-muted-foreground">Calories</p>
@@ -358,7 +359,7 @@ export default function WorkoutPage() {
       {/* Exercise Minutes Chart (4 weeks) */}
       {hasChartData && (
         <motion.div
-          className="rounded-[14px] p-4 bg-card border border-border shadow-sm"
+          className="rounded-2xl p-4 bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
           {...fadeInUp}
           transition={{ ...fadeInUp.transition, delay: 0.15 }}
         >
@@ -394,6 +395,7 @@ export default function WorkoutPage() {
                 contentStyle={{
                   background: "var(--popover)",
                   border: "1px solid var(--border)",
+        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                   borderRadius: 10,
                   fontSize: 11,
                   color: "var(--foreground)",
@@ -440,7 +442,7 @@ export default function WorkoutPage() {
           {todayWorkouts.length > 0 ? "Previous Workouts" : "Workout History"}
         </p>
         {workoutHistory.length === 0 ? (
-          <div className="rounded-[14px] p-6 text-center bg-card border border-border">
+          <div className="rounded-2xl p-6 text-center bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]">
             <Dumbbell className="h-8 w-8 mx-auto mb-3 text-muted-foreground/40" />
             <p className="text-[13px] font-medium text-foreground/70">
               No workouts yet

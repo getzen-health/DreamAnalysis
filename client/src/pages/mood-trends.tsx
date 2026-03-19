@@ -217,7 +217,7 @@ export default function MoodTrends() {
 
       {/* Current Emotion -- hero card */}
       <motion.div
-        className="rounded-[14px] p-6 border border-border bg-card"
+        className="rounded-2xl p-6 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -246,7 +246,7 @@ export default function MoodTrends() {
               </div>
               <div className="flex-1 min-w-0">
                 <p
-                  className="text-2xl font-bold capitalize"
+                  className="text-3xl font-bold capitalize"
                   style={{ color: emotionColor }}
                 >
                   {emotionDisplayName}
@@ -320,7 +320,7 @@ export default function MoodTrends() {
       {/* 7-Day Mood Trend -- line chart */}
       {valenceTrend.length >= 2 && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
+          className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={1}
           initial="hidden"
           animate="visible"
@@ -386,7 +386,7 @@ export default function MoodTrends() {
       {/* Emotion Distribution -- bar chart */}
       {distribution.length > 0 && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
+          className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={2}
           initial="hidden"
           animate="visible"
@@ -453,7 +453,7 @@ export default function MoodTrends() {
       {/* Your Week in Emotions -- dot timeline */}
       {hasHistory && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
+          className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={3}
           initial="hidden"
           animate="visible"
@@ -511,7 +511,7 @@ export default function MoodTrends() {
       {/* Weekly Summary */}
       {hasHistory && (
         <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
+          className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={4}
           initial="hidden"
           animate="visible"
@@ -532,7 +532,7 @@ export default function MoodTrends() {
       {/* Empty state */}
       {!hasHistory && !currentEmotion && (
         <motion.div
-          className="rounded-[14px] p-8 border border-border bg-card text-center"
+          className="rounded-2xl p-8 border border-border bg-card text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           custom={1}
           initial="hidden"
           animate="visible"

@@ -204,7 +204,7 @@ export default function ScoresDashboard() {
 
       {/* ── Hero: Energy Bank ──────────────────────────────────────────── */}
       <motion.div
-        className="flex justify-center py-4 rounded-[14px] backdrop-blur-sm bg-card/80 border border-border animate-heartbeat"
+        className="flex justify-center py-4 rounded-2xl backdrop-blur-sm bg-card/80 border border-border animate-heartbeat shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -252,7 +252,7 @@ export default function ScoresDashboard() {
         />
         {/* Cardio Load status card (uses strain color for visual grouping) */}
         <div
-          className="rounded-[14px] p-4 flex flex-col justify-center bg-card border border-border"
+          className="rounded-2xl p-4 flex flex-col justify-center bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
           style={{ borderLeft: "3px solid #e879a8" }}
         >
           <div className="flex items-center gap-2 mb-2">
@@ -280,7 +280,7 @@ export default function ScoresDashboard() {
 
       {/* ── Today's Summary Card ──────────────────────────────────────── */}
       <motion.div
-        className="rounded-[14px] p-5 bg-card border border-border animate-fade-in-up"
+        className="rounded-2xl p-5 bg-card border border-border animate-fade-in-up shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -390,7 +390,7 @@ export default function ScoresDashboard() {
             {visibleAlerts.map((alert) => (
               <motion.div
                 key={alert.id}
-                className={`flex items-start gap-3 rounded-[14px] p-3 bg-card border ${
+                className={`flex items-start gap-3 rounded-2xl p-3 bg-card border shadow-[0_2px_16px_rgba(0,0,0,0.06)] ${
                   alert.type === "negative"
                     ? "border-rose-500/30"
                     : alert.type === "positive"
@@ -414,7 +414,7 @@ export default function ScoresDashboard() {
                 </p>
                 <button
                   onClick={() => dismissAlert(alert.id)}
-                  className="shrink-0 p-0.5 rounded hover:bg-muted transition-colors"
+                  className="shrink-0 p-0.5 rounded hover:bg-muted transition-all duration-200"
                   aria-label="Dismiss alert"
                 >
                   <X className="h-3.5 w-3.5 text-muted-foreground" />

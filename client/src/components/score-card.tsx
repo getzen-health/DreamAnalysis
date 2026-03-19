@@ -42,7 +42,7 @@ export function ScoreCard({
 
   return (
     <div
-      className="relative group rounded-[14px] p-4 transition-all duration-200 hover:brightness-110 bg-card border border-border"
+      className="relative group rounded-2xl p-4 transition-all duration-200 hover:brightness-110 bg-card border border-border"
       style={{
         borderLeft: `3px solid ${accentColor}`,
       }}

@@ -58,12 +58,12 @@ function MetricCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-[14px] border border-border bg-card p-3.5">
+    <div className="rounded-2xl border border-border bg-card p-3.5" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-1">
         {label}
       </p>
       <div className="flex items-baseline gap-1">
-        <span className="text-xl font-bold" style={{ color }}>
+        <span className="text-2xl font-bold" style={{ color }}>
           {value ?? "--"}
         </span>
         <span className="text-xs text-muted-foreground">{unit}</span>
@@ -156,7 +156,7 @@ function HeartTab() {
 
       {/* HR Trend (7d) */}
       {hrChartData.length > 1 && (
-        <div className="rounded-[14px] border border-border bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold mb-3">
             Heart rate trend (7d)
           </p>
@@ -183,7 +183,7 @@ function HeartTab() {
 
       {/* HRV Trend (7d) */}
       {hrvChartData.length > 1 && (
-        <div className="rounded-[14px] border border-border bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold mb-3">
             HRV trend (7d)
           </p>
@@ -210,7 +210,7 @@ function HeartTab() {
 
       {/* No data state */}
       {!hr && !rhr && !spo2 && !bpSys && hrChartData.length === 0 && (
-        <div className="rounded-[14px] border border-border bg-card p-6 text-center">
+        <div className="rounded-2xl border border-border bg-card p-6 text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <HeartIcon className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No heart data yet</p>
           <p className="text-[10px] text-muted-foreground mt-1">
@@ -259,12 +259,12 @@ function ActivityTab() {
   return (
     <div className="space-y-4 mt-4">
       {/* Steps progress */}
-      <div className="rounded-[14px] border border-border bg-card p-4">
+      <div className="rounded-2xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Steps</p>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-bold text-foreground">{steps > 0 ? steps.toLocaleString() : "--"}</span>
+              <span className="text-3xl font-bold text-foreground">{steps > 0 ? steps.toLocaleString() : "--"}</span>
               <span className="text-xs text-muted-foreground">/ {stepsGoal.toLocaleString()}</span>
             </div>
           </div>
@@ -320,7 +320,7 @@ function ActivityTab() {
 
       {/* Weekly activity summary chart */}
       {weeklyChartData.length > 1 && (
-        <div className="rounded-[14px] border border-border bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold mb-3">
             Weekly activity
           </p>
@@ -346,7 +346,7 @@ function ActivityTab() {
 
       {/* No data state */}
       {steps === 0 && !distance && !flights && weeklyChartData.length === 0 && (
-        <div className="rounded-[14px] border border-border bg-card p-6 text-center">
+        <div className="rounded-2xl border border-border bg-card p-6 text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <Footprints className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No activity data yet</p>
           <p className="text-[10px] text-muted-foreground mt-1">

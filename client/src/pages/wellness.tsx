@@ -405,7 +405,7 @@ function CycleSetupPrompt({ onComplete }: { onComplete: (data: LocalCycleData) =
 
   return (
     <motion.div
-      className="rounded-xl border border-border bg-card p-5 space-y-5"
+      className="rounded-xl border border-border bg-card p-5 space-y-5" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
@@ -749,7 +749,7 @@ function CycleTab() {
       {/* Cycle Wheel — Withings-style circular phase visualization */}
       {localCycleInfo && effectiveCycleInfo && (
         <motion.div
-          className="rounded-xl border border-border bg-card p-4"
+          className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
@@ -785,7 +785,7 @@ function CycleTab() {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-foreground">Day {effectiveCycleInfo.dayOfCycle}</p>
+              <p className="text-3xl font-bold text-foreground">Day {effectiveCycleInfo.dayOfCycle}</p>
               <p className="text-[10px] text-muted-foreground">
                 of {effectiveCycleInfo.cycleLength} days
               </p>
@@ -809,7 +809,7 @@ function CycleTab() {
         const hp = HORMONE_PHASES[phaseKey] ?? HORMONE_PHASES.unknown;
         return (
           <motion.div
-            className="rounded-xl border border-border bg-card p-4"
+            className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.15 }}
@@ -828,14 +828,14 @@ function CycleTab() {
       {/* Cycle Insights + Fertility Window */}
       {cycleInsights && phaseInfo && phaseInfo.periodStartCount >= 2 && (
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-border bg-card p-3.5">
+          <div className="rounded-xl border border-border bg-card p-3.5" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Avg Cycle</p>
-            <span className="text-xl font-bold text-foreground">{cycleInsights.avgLen}</span>
+            <span className="text-2xl font-bold text-foreground">{cycleInsights.avgLen}</span>
             <span className="text-xs text-muted-foreground ml-1">days</span>
           </div>
-          <div className="rounded-xl border border-border bg-card p-3.5">
+          <div className="rounded-xl border border-border bg-card p-3.5" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Ovulation In</p>
-            <span className="text-xl font-bold text-foreground">{cycleInsights.daysUntilOvulation}</span>
+            <span className="text-2xl font-bold text-foreground">{cycleInsights.daysUntilOvulation}</span>
             <span className="text-xs text-muted-foreground ml-1">days</span>
           </div>
           {cycleInsights.inFertileWindow && (
@@ -885,7 +885,7 @@ function CycleTab() {
 
       {/* Basal Body Temperature Chart */}
       {tempChartData.length > 3 && (
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-3">
             Basal Body Temperature
           </p>
@@ -943,7 +943,7 @@ function CycleTab() {
       )}
 
       {/* Calendar */}
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
         <div className="flex items-center justify-between mb-3">
           <Button
             variant="ghost"
@@ -1235,7 +1235,7 @@ function MoodTab() {
     <div className="space-y-5">
       {/* Mood input card */}
       <motion.div
-        className="rounded-xl border border-border bg-card p-4 space-y-4"
+        className="rounded-xl border border-border bg-card p-4 space-y-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
@@ -1319,7 +1319,7 @@ function MoodTab() {
       {/* Mood over time chart */}
       {chartData.length > 2 && (
         <motion.div
-          className="rounded-xl border border-border bg-card p-4"
+          className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.1 }}
@@ -1393,7 +1393,7 @@ function MoodTab() {
 
       {/* Mood by time of day */}
       {timePattern.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Mood by time of day
           </p>
@@ -1420,7 +1420,7 @@ function MoodTab() {
 
       {/* Recent mood entries */}
       {moodLogs.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Recent entries
           </p>

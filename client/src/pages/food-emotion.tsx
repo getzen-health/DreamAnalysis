@@ -198,9 +198,10 @@ function FoodMoodInsights() {
       style={{
         background: "var(--card)",
         border: "1px solid var(--border)",
-        borderRadius: 14,
+        borderRadius: 20,
         padding: "12px 14px",
         marginBottom: 12,
+        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
       }}
     >
       <div
@@ -255,9 +256,10 @@ function MindfulEatingPrompt({ onDismiss }: { onDismiss: () => void }) {
         background:
           "linear-gradient(135deg, hsl(165 30% 12% / 0.9), hsl(200 30% 10% / 0.9))",
         border: "1px solid hsl(165 60% 45% / 0.2)",
-        borderRadius: 14,
+        borderRadius: 20,
         padding: "14px 16px",
         marginBottom: 12,
+        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
         textAlign: "center" as const,
       }}
     >
@@ -294,6 +296,7 @@ function MindfulEatingPrompt({ onDismiss }: { onDismiss: () => void }) {
             color: "hsl(165 60% 55%)",
             border: "1px solid hsl(165 60% 45% / 0.3)",
             cursor: "pointer",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
           }}
         >
           I'm hungry
@@ -309,6 +312,7 @@ function MindfulEatingPrompt({ onDismiss }: { onDismiss: () => void }) {
             color: "hsl(38 85% 62%)",
             border: "1px solid hsl(38 85% 52% / 0.3)",
             cursor: "pointer",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
           }}
         >
           Emotional eating

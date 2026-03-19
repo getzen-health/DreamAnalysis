@@ -126,7 +126,7 @@ export function FastOnboarding({ onComplete }: Props) {
                   style={{
                     background: "var(--card)",
                     border: "1px solid var(--border)",
-                    borderRadius: 14,
+                    borderRadius: 20,
                     padding: "14px 16px",
                     display: "flex",
                     alignItems: "center",

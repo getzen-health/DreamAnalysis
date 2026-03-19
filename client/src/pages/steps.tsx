@@ -119,7 +119,7 @@ function StatCard({
       variants={cardVariants}
       initial="hidden"
       animate="visible"
-      className="rounded-[14px] border border-border bg-card p-3.5"
+      className="rounded-2xl border border-border bg-card p-3.5" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
     >
       <div className="flex items-center gap-1.5 mb-1">
         <Icon className="h-3.5 w-3.5" style={{ color: STEP_COLOR }} />
@@ -128,7 +128,7 @@ function StatCard({
         </p>
       </div>
       <div className="flex items-baseline gap-1">
-        <span className="text-xl font-bold" style={{ color: STEP_COLOR }}>
+        <span className="text-2xl font-bold" style={{ color: STEP_COLOR }}>
           {value ?? "--"}
         </span>
         <span className="text-xs text-muted-foreground">{unit}</span>
@@ -209,7 +209,7 @@ export default function Steps() {
         variants={cardVariants}
         initial="hidden"
         animate="visible"
-        className="rounded-[14px] border border-border bg-card p-5 mb-4"
+        className="rounded-2xl border border-border bg-card p-5 mb-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
       >
         <div className="flex items-center justify-between">
           {/* Left: step count */}
@@ -304,7 +304,7 @@ export default function Steps() {
           variants={cardVariants}
           initial="hidden"
           animate="visible"
-          className="rounded-[14px] border border-border bg-card p-4"
+          className="rounded-2xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         >
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold mb-3">
             Steps over the last 7 days
@@ -385,7 +385,7 @@ export default function Steps() {
           variants={cardVariants}
           initial="hidden"
           animate="visible"
-          className="rounded-[14px] border border-border bg-card p-6 text-center"
+          className="rounded-2xl border border-border bg-card p-6 text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         >
           <Footprints className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">

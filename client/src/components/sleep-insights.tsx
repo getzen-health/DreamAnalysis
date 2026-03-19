@@ -99,7 +99,7 @@ export function SleepInsights({ sleepHours, deepHours, remHours, efficiency }: S
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 14, padding: "12px 14px", marginBottom: 14,
+      borderRadius: 20, padding: "12px 14px", marginBottom: 14,
     }}>
       <div style={{
         fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
