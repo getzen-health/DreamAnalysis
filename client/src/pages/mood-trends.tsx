@@ -18,8 +18,8 @@ import { pageTransition, cardVariants } from "@/lib/animations";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import { getParticipantId } from "@/lib/participant";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
@@ -333,10 +333,16 @@ export default function MoodTrends() {
             </span>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart
+            <AreaChart
               data={valenceTrend}
               margin={{ left: 0, right: 8, top: 8, bottom: 0 }}
             >
+              <defs>
+                <linearGradient id="moodValenceGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#0891b2" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="hsl(220,18%,14%)"
@@ -359,16 +365,17 @@ export default function MoodTrends() {
                 }
               />
               <Tooltip content={<ValenceTooltip />} />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="valence"
                 name="Valence"
                 stroke="#0891b2"
+                fill="url(#moodValenceGrad)"
                 strokeWidth={2.5}
                 dot={{ fill: "#0891b2", r: 4, strokeWidth: 2, stroke: "#0e1117" }}
                 activeDot={{ r: 6, fill: "#0891b2", stroke: "#0e1117", strokeWidth: 2 }}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
           <p className="text-[10px] text-muted-foreground/50 text-center mt-2">
             Daily average valence score
@@ -399,6 +406,14 @@ export default function MoodTrends() {
               data={distribution}
               margin={{ left: 0, right: 0, top: 4, bottom: 0 }}
             >
+              <defs>
+                {distribution.map((entry, index) => (
+                  <linearGradient key={index} id={`moodBarGrad-${index}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
+                    <stop offset="100%" stopColor={entry.color} stopOpacity={0.5} />
+                  </linearGradient>
+                ))}
+              </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="hsl(220,18%,14%)"
@@ -426,8 +441,8 @@ export default function MoodTrends() {
                 }}
               />
               <Bar dataKey="count" name="Occurrences" radius={[4, 4, 0, 0]}>
-                {distribution.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
+                {distribution.map((_, index) => (
+                  <Cell key={index} fill={`url(#moodBarGrad-${index})`} />
                 ))}
               </Bar>
             </BarChart>

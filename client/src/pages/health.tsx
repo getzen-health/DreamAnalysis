@@ -17,8 +17,6 @@ import { useHealthSync } from "@/hooks/use-health-sync";
 import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
@@ -167,8 +165,9 @@ function HeartTab() {
               <AreaChart data={hrChartData}>
                 <defs>
                   <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#e879a8" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#e879a8" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#e879a8" stopOpacity={0.3} />
+                    <stop offset="50%" stopColor="#be185d" stopOpacity={0.12} />
+                    <stop offset="100%" stopColor="#be185d" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
@@ -190,13 +189,20 @@ function HeartTab() {
           </p>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={hrvChartData}>
+              <AreaChart data={hrvChartData}>
+                <defs>
+                  <linearGradient id="hrvGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
+                    <stop offset="50%" stopColor="#0891b2" stopOpacity={0.12} />
+                    <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
                 <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={30} />
                 <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11, color: "var(--foreground)" }} />
-                <Line type="monotone" dataKey="hrv" stroke="#06b6d4" strokeWidth={2} dot={{ r: 2, fill: "#06b6d4" }} name="HRV (ms)" />
-              </LineChart>
+                <Area type="monotone" dataKey="hrv" stroke="#06b6d4" fill="url(#hrvGrad)" strokeWidth={2} dot={{ r: 2, fill: "#06b6d4" }} name="HRV (ms)" />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -321,11 +327,17 @@ function ActivityTab() {
           <div className="h-36">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyChartData}>
+                <defs>
+                  <linearGradient id="stepsBarGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0891b2" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.5} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
                 <XAxis dataKey="day" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={30} />
                 <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11, color: "var(--foreground)" }} />
-                <Bar dataKey="steps" fill="#0891b2" radius={[4, 4, 0, 0]} name="Steps" />
+                <Bar dataKey="steps" fill="url(#stepsBarGrad)" radius={[4, 4, 0, 0]} name="Steps" />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -35,8 +35,9 @@ import {
   Angry,
   ChevronLeft,
   ChevronRight,
+  Settings2,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
 /* ---------- types ---------- */
@@ -147,6 +148,336 @@ function formatSymptom(s: string): string {
   return s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
+/* ---------- localStorage cycle data ---------- */
+
+interface LocalCycleData {
+  lastPeriodStart: string; // ISO date string
+  cycleLength: number;
+  periodLength: number;
+}
+
+const CYCLE_STORAGE_KEY = "ndw_cycle_data";
+
+function getLocalCycleData(): LocalCycleData | null {
+  try {
+    const raw = localStorage.getItem(CYCLE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.lastPeriodStart && parsed.cycleLength && parsed.periodLength) {
+      return parsed as LocalCycleData;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function setLocalCycleData(data: LocalCycleData): void {
+  localStorage.setItem(CYCLE_STORAGE_KEY, JSON.stringify(data));
+}
+
+/* ---------- cycle phase computation ---------- */
+
+const CYCLE_PHASES = [
+  { key: "menstrual", label: "Menstrual", color: "#e879a8" },
+  { key: "follicular", label: "Follicular", color: "#0891b2" },
+  { key: "ovulation", label: "Ovulation", color: "#d4a017" },
+  { key: "luteal", label: "Luteal", color: "#7c3aed" },
+] as const;
+
+type CyclePhaseKey = typeof CYCLE_PHASES[number]["key"];
+
+interface ComputedCycleInfo {
+  currentPhase: CyclePhaseKey;
+  dayOfCycle: number;
+  cycleLength: number;
+  periodLength: number;
+  nextPeriodDate: string;
+  phaseRanges: { key: CyclePhaseKey; startDay: number; endDay: number }[];
+}
+
+function computeCycleInfo(data: LocalCycleData): ComputedCycleInfo {
+  const { lastPeriodStart, cycleLength, periodLength } = data;
+  const startDate = new Date(lastPeriodStart + "T12:00:00");
+  const now = new Date();
+  const diffMs = now.getTime() - startDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const dayOfCycle = ((diffDays % cycleLength) + cycleLength) % cycleLength + 1;
+
+  const ovulationDay = cycleLength - 14;
+  const follicularEnd = ovulationDay - 1;
+  const ovulationEnd = ovulationDay + 1;
+
+  const phaseRanges: ComputedCycleInfo["phaseRanges"] = [
+    { key: "menstrual", startDay: 1, endDay: periodLength },
+    { key: "follicular", startDay: periodLength + 1, endDay: follicularEnd },
+    { key: "ovulation", startDay: ovulationDay, endDay: ovulationEnd },
+    { key: "luteal", startDay: ovulationEnd + 1, endDay: cycleLength },
+  ];
+
+  let currentPhase: CyclePhaseKey = "luteal";
+  if (dayOfCycle <= periodLength) {
+    currentPhase = "menstrual";
+  } else if (dayOfCycle <= follicularEnd) {
+    currentPhase = "follicular";
+  } else if (dayOfCycle <= ovulationEnd) {
+    currentPhase = "ovulation";
+  } else {
+    currentPhase = "luteal";
+  }
+
+  // Compute next period date
+  const daysUntilNextPeriod = cycleLength - dayOfCycle + 1;
+  const nextPeriod = new Date(now);
+  nextPeriod.setDate(nextPeriod.getDate() + daysUntilNextPeriod);
+  const nextPeriodDate = nextPeriod.toISOString().slice(0, 10);
+
+  return { currentPhase, dayOfCycle, cycleLength, periodLength, nextPeriodDate, phaseRanges };
+}
+
+/* ---------- SVG Cycle Wheel ---------- */
+
+function CycleWheel({ cycleInfo }: { cycleInfo: ComputedCycleInfo }) {
+  const size = 220;
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR = 90;
+  const innerR = 58;
+  const { cycleLength, dayOfCycle, phaseRanges, currentPhase } = cycleInfo;
+
+  function dayToAngle(day: number): number {
+    return ((day - 1) / cycleLength) * 360 - 90;
+  }
+
+  function polarToCartesian(centerX: number, centerY: number, radius: number, angleDeg: number) {
+    const rad = (angleDeg * Math.PI) / 180;
+    return { x: centerX + radius * Math.cos(rad), y: centerY + radius * Math.sin(rad) };
+  }
+
+  function arcPath(startAngle: number, endAngle: number, rOuter: number, rInner: number): string {
+    let sweep = endAngle - startAngle;
+    if (sweep <= 0) sweep += 360;
+    const largeArc = sweep > 180 ? 1 : 0;
+
+    const outerStart = polarToCartesian(cx, cy, rOuter, startAngle);
+    const outerEnd = polarToCartesian(cx, cy, rOuter, endAngle);
+    const innerStart = polarToCartesian(cx, cy, rInner, endAngle);
+    const innerEnd = polarToCartesian(cx, cy, rInner, startAngle);
+
+    return [
+      `M ${outerStart.x} ${outerStart.y}`,
+      `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
+      `L ${innerStart.x} ${innerStart.y}`,
+      `A ${rInner} ${rInner} 0 ${largeArc} 0 ${innerEnd.x} ${innerEnd.y}`,
+      "Z",
+    ].join(" ");
+  }
+
+  // Current day marker position
+  const markerAngle = dayToAngle(dayOfCycle);
+  const markerPos = polarToCartesian(cx, cy, outerR + 8, markerAngle);
+
+  const phaseColorMap: Record<string, string> = {
+    menstrual: "#e879a8",
+    follicular: "#0891b2",
+    ovulation: "#d4a017",
+    luteal: "#7c3aed",
+  };
+
+  const currentPhaseData = CYCLE_PHASES.find(p => p.key === currentPhase);
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {/* Phase arcs */}
+        {phaseRanges.map((range) => {
+          const startAngle = dayToAngle(range.startDay);
+          const endAngle = dayToAngle(range.endDay + 1);
+          const isActive = range.key === currentPhase;
+          const color = phaseColorMap[range.key];
+          return (
+            <motion.path
+              key={range.key}
+              d={arcPath(startAngle, endAngle, outerR, innerR)}
+              fill={color}
+              opacity={isActive ? 1 : 0.25}
+              stroke="var(--background)"
+              strokeWidth={1.5}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: isActive ? 1 : 0.25 }}
+              transition={{ duration: 0.5 }}
+            />
+          );
+        })}
+
+        {/* Phase labels around the wheel */}
+        {phaseRanges.map((range) => {
+          const midDay = (range.startDay + range.endDay) / 2;
+          const labelAngle = dayToAngle(midDay);
+          const labelPos = polarToCartesian(cx, cy, (outerR + innerR) / 2, labelAngle);
+          const isActive = range.key === currentPhase;
+          return (
+            <text
+              key={`label-${range.key}`}
+              x={labelPos.x}
+              y={labelPos.y}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill={isActive ? "#fff" : "var(--muted-foreground)"}
+              fontSize={isActive ? 9 : 8}
+              fontWeight={isActive ? 700 : 400}
+              className="select-none pointer-events-none"
+            >
+              {CYCLE_PHASES.find(p => p.key === range.key)?.label ?? ""}
+            </text>
+          );
+        })}
+
+        {/* Current day marker dot */}
+        <motion.circle
+          cx={markerPos.x}
+          cy={markerPos.y}
+          r={5}
+          fill={phaseColorMap[currentPhase]}
+          stroke="var(--background)"
+          strokeWidth={2}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.3 }}
+        />
+
+        {/* Center text */}
+        <text x={cx} y={cy - 10} textAnchor="middle" fill="var(--foreground)" fontSize={22} fontWeight={700}>
+          Day {dayOfCycle}
+        </text>
+        <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--muted-foreground)" fontSize={11}>
+          of {cycleLength}
+        </text>
+      </svg>
+
+      {/* Current phase label below wheel */}
+      <motion.div
+        className="mt-2 text-center"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4, duration: 0.3 }}
+      >
+        <span
+          className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white"
+          style={{ backgroundColor: currentPhaseData?.color }}
+        >
+          {currentPhaseData?.label} Phase
+        </span>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ---------- Cycle Setup Prompt ---------- */
+
+function CycleSetupPrompt({ onComplete }: { onComplete: (data: LocalCycleData) => void }) {
+  const [lastPeriodDate, setLastPeriodDate] = useState("");
+  const [cycleLength, setCycleLength] = useState(28);
+  const [periodLength, setPeriodLength] = useState(5);
+  const { toast } = useToast();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!lastPeriodDate) {
+      toast({ title: "Please enter your last period start date", variant: "destructive" });
+      return;
+    }
+    if (cycleLength < 20 || cycleLength > 45) {
+      toast({ title: "Cycle length should be between 20 and 45 days", variant: "destructive" });
+      return;
+    }
+    if (periodLength < 2 || periodLength > 10) {
+      toast({ title: "Period length should be between 2 and 10 days", variant: "destructive" });
+      return;
+    }
+    const data: LocalCycleData = {
+      lastPeriodStart: lastPeriodDate,
+      cycleLength,
+      periodLength,
+    };
+    setLocalCycleData(data);
+    onComplete(data);
+    toast({ title: "Cycle data saved" });
+  }
+
+  return (
+    <motion.div
+      className="rounded-xl border border-border bg-card p-5 space-y-5"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      <div>
+        <h3 className="text-sm font-bold text-foreground">Set Up Menstrual Cycle Tracking</h3>
+        <p className="text-xs text-muted-foreground mt-1">
+          Enter your cycle details to get phase predictions, next period estimates, and symptom tracking.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="lastPeriodDate" className="text-xs font-medium">
+            When did your last period start?
+          </Label>
+          <Input
+            id="lastPeriodDate"
+            type="date"
+            value={lastPeriodDate}
+            onChange={e => setLastPeriodDate(e.target.value)}
+            max={getToday()}
+            className="mt-1"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="cycleLength" className="text-xs font-medium">
+            Average cycle length (days)
+          </Label>
+          <div className="flex items-center gap-3 mt-1">
+            <Slider
+              value={[cycleLength]}
+              onValueChange={([v]) => setCycleLength(v)}
+              min={20}
+              max={45}
+              step={1}
+              className="flex-1"
+            />
+            <span className="text-sm font-bold w-8 text-right">{cycleLength}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Most cycles are 24-35 days. Default: 28.</p>
+        </div>
+
+        <div>
+          <Label htmlFor="periodLength" className="text-xs font-medium">
+            Average period length (days)
+          </Label>
+          <div className="flex items-center gap-3 mt-1">
+            <Slider
+              value={[periodLength]}
+              onValueChange={([v]) => setPeriodLength(v)}
+              min={2}
+              max={10}
+              step={1}
+              className="flex-1"
+            />
+            <span className="text-sm font-bold w-8 text-right">{periodLength}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Average period lasts 3-7 days. Default: 5.</p>
+        </div>
+
+        <Button type="submit" className="w-full">
+          Start Tracking
+        </Button>
+      </form>
+    </motion.div>
+  );
+}
+
 /* ---------- helpers ---------- */
 
 function getToday(): string {
@@ -200,6 +531,21 @@ function CycleTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const today = getToday();
+
+  // Local cycle data from localStorage
+  const [localCycleData, setLocalCycleData_] = useState<LocalCycleData | null>(() => getLocalCycleData());
+  const [showSettings, setShowSettings] = useState(false);
+
+  const handleCycleSetup = useCallback((data: LocalCycleData) => {
+    setLocalCycleData_(data);
+    setShowSettings(false);
+  }, []);
+
+  // Computed cycle info from localStorage data
+  const localCycleInfo = useMemo(() => {
+    if (!localCycleData) return null;
+    return computeCycleInfo(localCycleData);
+  }, [localCycleData]);
 
   const [viewDate, setViewDate] = useState(() => {
     const now = new Date();
@@ -330,30 +676,128 @@ function CycleTab() {
 
   const phase = phaseInfo ? PHASE_INFO[phaseInfo.currentPhase] ?? PHASE_INFO.unknown : PHASE_INFO.unknown;
 
+  // Determine which cycle info source to use: prefer server data, fall back to local
+  const effectiveCycleInfo = useMemo(() => {
+    if (phaseInfo && phaseInfo.currentPhase !== "unknown") {
+      return {
+        source: "server" as const,
+        currentPhase: phaseInfo.currentPhase as CyclePhaseKey,
+        dayOfCycle: phaseInfo.dayOfCycle,
+        cycleLength: phaseInfo.avgCycleLength || 28,
+        nextPeriodDate: phaseInfo.nextPeriodDate,
+      };
+    }
+    if (localCycleInfo) {
+      return {
+        source: "local" as const,
+        currentPhase: localCycleInfo.currentPhase,
+        dayOfCycle: localCycleInfo.dayOfCycle,
+        cycleLength: localCycleInfo.cycleLength,
+        nextPeriodDate: localCycleInfo.nextPeriodDate,
+      };
+    }
+    return null;
+  }, [phaseInfo, localCycleInfo]);
+
   return (
     <div className="space-y-5">
-      {/* Phase indicator */}
-      {phaseInfo && phaseInfo.currentPhase !== "unknown" && (
+      {/* Setup prompt — show when no cycle data exists anywhere */}
+      {!effectiveCycleInfo && !showSettings && (
+        <CycleSetupPrompt onComplete={handleCycleSetup} />
+      )}
+
+      {/* Settings edit dialog — re-enter cycle data */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <CycleSetupPrompt onComplete={handleCycleSetup} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Menstrual Cycle header + settings toggle */}
+      {effectiveCycleInfo && (
         <motion.div
-          className={`rounded-xl border p-4 ${phase.bg}`}
+          className="flex items-center justify-between"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+              Menstrual Cycle
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Day {effectiveCycleInfo.dayOfCycle} of {effectiveCycleInfo.cycleLength}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={() => setShowSettings(prev => !prev)}
+            title="Edit cycle settings"
+          >
+            <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Cycle Wheel — Withings-style circular phase visualization */}
+      {localCycleInfo && effectiveCycleInfo && (
+        <motion.div
+          className="rounded-xl border border-border bg-card p-4"
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
+          transition={{ duration: 0.4 }}
+        >
+          <CycleWheel cycleInfo={localCycleInfo} />
+        </motion.div>
+      )}
+
+      {/* Phase details + next period card */}
+      {effectiveCycleInfo && (
+        <motion.div
+          className="rounded-xl border p-4"
+          style={{
+            borderColor: CYCLE_PHASES.find(p => p.key === effectiveCycleInfo.currentPhase)?.color + "33",
+            backgroundColor: CYCLE_PHASES.find(p => p.key === effectiveCycleInfo.currentPhase)?.color + "0a",
+          }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.1 }}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Current Phase</p>
-              <p className={`text-lg font-bold ${phase.color}`}>{phase.label}</p>
-              <p className="text-xs text-muted-foreground">{phase.description}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                Current Phase
+              </p>
+              <p className="text-lg font-bold" style={{ color: CYCLE_PHASES.find(p => p.key === effectiveCycleInfo.currentPhase)?.color }}>
+                {CYCLE_PHASES.find(p => p.key === effectiveCycleInfo.currentPhase)?.label}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {HORMONE_PHASES[effectiveCycleInfo.currentPhase]?.description
+                  ?? HORMONE_PHASES[effectiveCycleInfo.currentPhase === "ovulation" ? "ovulatory" : effectiveCycleInfo.currentPhase]?.description
+                  ?? ""}
+              </p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-foreground">Day {phaseInfo.dayOfCycle}</p>
+              <p className="text-2xl font-bold text-foreground">Day {effectiveCycleInfo.dayOfCycle}</p>
               <p className="text-[10px] text-muted-foreground">
-                Avg cycle: {phaseInfo.avgCycleLength} days
+                of {effectiveCycleInfo.cycleLength} days
               </p>
-              {phaseInfo.nextPeriodDate && (
-                <p className="text-[10px] text-muted-foreground">
-                  Next period: {new Date(phaseInfo.nextPeriodDate + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              {effectiveCycleInfo.nextPeriodDate && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Next period:{" "}
+                  {new Date(effectiveCycleInfo.nextPeriodDate + "T12:00:00").toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })}
                 </p>
               )}
             </div>
@@ -362,18 +806,18 @@ function CycleTab() {
       )}
 
       {/* Hormone Phase Indicator */}
-      {phaseInfo && phaseInfo.currentPhase !== "unknown" && (() => {
-        const hp = HORMONE_PHASES[phaseInfo.currentPhase] ?? HORMONE_PHASES.unknown;
+      {effectiveCycleInfo && (() => {
+        const phaseKey = effectiveCycleInfo.currentPhase === "ovulation" ? "ovulatory" : effectiveCycleInfo.currentPhase;
+        const hp = HORMONE_PHASES[phaseKey] ?? HORMONE_PHASES.unknown;
         return (
           <motion.div
             className="rounded-xl border border-border bg-card p-4"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
           >
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">Hormone Phase</p>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{hp.emoji}</span>
+            <div className="flex items-start gap-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">{hp.hormones}</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{hp.description}</p>
@@ -398,15 +842,46 @@ function CycleTab() {
           </div>
           {cycleInsights.inFertileWindow && (
             <div className="col-span-2 rounded-xl border border-ndw-stress/30 bg-ndw-stress/5 p-3.5 flex items-center gap-2">
-              <span className="text-lg">🌸</span>
               <div>
                 <p className="text-xs font-semibold text-ndw-stress">Fertile Window</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Days {cycleInsights.fertileWindowStart}–{cycleInsights.fertileWindowEnd} of your cycle
+                  Days {cycleInsights.fertileWindowStart}--{cycleInsights.fertileWindowEnd} of your cycle
                 </p>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Phase Legend — horizontal row of all 4 phases */}
+      {effectiveCycleInfo && (
+        <div className="grid grid-cols-4 gap-2">
+          {CYCLE_PHASES.map((p) => {
+            const isActive = p.key === effectiveCycleInfo.currentPhase;
+            return (
+              <motion.div
+                key={p.key}
+                className={`rounded-lg border p-2 text-center transition-colors ${
+                  isActive ? "border-opacity-100" : "border-border opacity-50"
+                }`}
+                style={{
+                  borderColor: isActive ? p.color : undefined,
+                  backgroundColor: isActive ? p.color + "15" : undefined,
+                }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: isActive ? 1 : 0.5, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.2 }}
+              >
+                <div
+                  className="w-2.5 h-2.5 rounded-full mx-auto mb-1"
+                  style={{ backgroundColor: p.color }}
+                />
+                <p className="text-[9px] font-semibold" style={{ color: isActive ? p.color : "var(--muted-foreground)" }}>
+                  {p.label}
+                </p>
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
@@ -997,7 +1472,7 @@ export default function Wellness() {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="cycle" className="gap-1.5">
             <Calendar className="h-3.5 w-3.5" />
-            Cycle
+            Menstrual Cycle
           </TabsTrigger>
           <TabsTrigger value="mood" className="gap-1.5">
             <Smile className="h-3.5 w-3.5" />

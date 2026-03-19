@@ -235,6 +235,12 @@ export default function StressTrends() {
           <>
             <div className="relative w-32 h-32 mb-3">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                <defs>
+                  <linearGradient id="stressGaugeGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#e879a8" />
+                    <stop offset="100%" stopColor="#be185d" />
+                  </linearGradient>
+                </defs>
                 <circle
                   cx="50"
                   cy="50"
@@ -248,7 +254,7 @@ export default function StressTrends() {
                   cy="50"
                   r="42"
                   fill="none"
-                  stroke={stressColor}
+                  stroke="url(#stressGaugeGrad)"
                   strokeWidth="8"
                   strokeLinecap="round"
                   strokeDasharray={`${(stressPercent / 100) * 264} 264`}
@@ -357,8 +363,9 @@ export default function StressTrends() {
             >
               <defs>
                 <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={STRESS_HIGH} stopOpacity={0.25} />
-                  <stop offset="95%" stopColor={STRESS_HIGH} stopOpacity={0} />
+                  <stop offset="0%" stopColor="#e879a8" stopOpacity={0.3} />
+                  <stop offset="50%" stopColor="#be185d" stopOpacity={0.12} />
+                  <stop offset="100%" stopColor="#be185d" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid

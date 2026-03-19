@@ -236,6 +236,12 @@ export default function FocusTrends() {
           <>
             <div className="relative w-32 h-32 mb-3">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                <defs>
+                  <linearGradient id="focusGaugeGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#6366f1" />
+                    <stop offset="100%" stopColor="#818cf8" />
+                  </linearGradient>
+                </defs>
                 <circle
                   cx="50"
                   cy="50"
@@ -249,7 +255,7 @@ export default function FocusTrends() {
                   cy="50"
                   r="42"
                   fill="none"
-                  stroke={classification.color}
+                  stroke="url(#focusGaugeGrad)"
                   strokeWidth="8"
                   strokeLinecap="round"
                   strokeDasharray={`${(focusPercent / 100) * 264} 264`}
@@ -340,8 +346,9 @@ export default function FocusTrends() {
             >
               <defs>
                 <linearGradient id="focusGradFT" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={FOCUS_PRIMARY} stopOpacity={0.25} />
-                  <stop offset="95%" stopColor={FOCUS_PRIMARY} stopOpacity={0} />
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
+                  <stop offset="50%" stopColor="#818cf8" stopOpacity={0.12} />
+                  <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid
@@ -410,6 +417,16 @@ export default function FocusTrends() {
               data={focusByHour}
               margin={{ left: 0, right: 0, top: 4, bottom: 0 }}
             >
+              <defs>
+                <linearGradient id="focusBarGradPeak" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#818cf8" stopOpacity={0.5} />
+                </linearGradient>
+                <linearGradient id="focusBarGradDim" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(220,18%,24%)" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="hsl(220,18%,18%)" stopOpacity={0.5} />
+                </linearGradient>
+              </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="hsl(220,18%,14%)"
@@ -443,8 +460,8 @@ export default function FocusTrends() {
                     key={index}
                     fill={
                       bestHour && entry.hour === bestHour.hour
-                        ? FOCUS_PRIMARY
-                        : "hsl(220,18%,20%)"
+                        ? "url(#focusBarGradPeak)"
+                        : "url(#focusBarGradDim)"
                     }
                   />
                 ))}

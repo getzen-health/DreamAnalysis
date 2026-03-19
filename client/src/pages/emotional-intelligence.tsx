@@ -12,8 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -49,14 +49,6 @@ const GRADE_COLOR: Record<string, string> = {
   F: "text-rose-400",
 };
 
-const GRADE_RING: Record<string, string> = {
-  A: "stroke-cyan-400",
-  B: "stroke-cyan-400",
-  C: "stroke-amber-400",
-  D: "stroke-orange-400",
-  F: "stroke-rose-400",
-};
-
 // ── Dimension labels ───────────────────────────────────────────────────────────
 
 const DIM_LABELS: Record<string, string> = {
@@ -77,25 +69,40 @@ const DIM_COLOR: Record<string, string> = {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+const GRADE_GRADIENT: Record<string, { from: string; to: string }> = {
+  A: { from: "#0891b2", to: "#06b6d4" },
+  B: { from: "#0891b2", to: "#06b6d4" },
+  C: { from: "#d4a017", to: "#ea580c" },
+  D: { from: "#ea580c", to: "#c2410c" },
+  F: { from: "#e879a8", to: "#be185d" },
+};
+
 function ScoreCircle({ score, grade }: { score: number; grade: string }) {
   const r = 54;
   const circ = 2 * Math.PI * r;
   const dash = (score / 100) * circ;
-  const ringClass = GRADE_RING[grade] ?? "stroke-zinc-500";
   const textClass = GRADE_COLOR[grade] ?? "text-zinc-400";
+  const gradColors = GRADE_GRADIENT[grade] ?? { from: "#71717a", to: "#52525b" };
 
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="relative w-36 h-36">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+          <defs>
+            <linearGradient id="eiqScoreGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor={gradColors.from} />
+              <stop offset="100%" stopColor={gradColors.to} />
+            </linearGradient>
+          </defs>
           <circle cx="60" cy="60" r={r} fill="none" stroke="#27272a" strokeWidth="10" />
           <circle
             cx="60" cy="60" r={r}
             fill="none"
+            stroke="url(#eiqScoreGrad)"
             strokeWidth="10"
             strokeLinecap="round"
             strokeDasharray={`${dash} ${circ}`}
-            className={`transition-all duration-700 ${ringClass}`}
+            className="transition-all duration-700"
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -350,7 +357,14 @@ export default function EmotionalIntelligencePage() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={140}>
-                  <LineChart data={chartData}>
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="eiqTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.3} />
+                        <stop offset="50%" stopColor="#6366f1" stopOpacity={0.12} />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                     <XAxis dataKey="idx" tick={{ fontSize: 10, fill: "#71717a" }} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#71717a" }} />
@@ -360,15 +374,16 @@ export default function EmotionalIntelligencePage() {
                       itemStyle={{ color: "#7c3aed" }}
                       formatter={(v: number) => [v.toFixed(1), "EIQ"]}
                     />
-                    <Line
+                    <Area
                       type="monotone"
                       dataKey="eiq"
                       stroke="#7c3aed"
+                      fill="url(#eiqTrendGrad)"
                       strokeWidth={2}
                       dot={false}
                       activeDot={{ r: 4, fill: "#7c3aed" }}
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
