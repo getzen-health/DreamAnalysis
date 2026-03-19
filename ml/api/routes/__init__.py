@@ -187,6 +187,10 @@ from .emotional_first_aid import router as _emotional_first_aid
 from .flow_neurofeedback import router as _flow_neurofeedback
 from .neural_age import router as _neural_age
 from .lucid_induction_engine import router as _lucid_induction_engine
+from .post_traumatic_growth import router as _post_traumatic_growth
+from .emotional_compiler import router as _emotional_compiler
+from .couples_resonance import router as _couples_resonance
+from .grief_companion import router as _grief_companion
 
 router = APIRouter()
 
@@ -343,3 +347,7 @@ router.include_router(_emotional_first_aid)
 router.include_router(_flow_neurofeedback)
 router.include_router(_neural_age)
 router.include_router(_lucid_induction_engine)
+router.include_router(_post_traumatic_growth)
+router.include_router(_emotional_compiler)
+router.include_router(_couples_resonance)
+router.include_router(_grief_companion)
