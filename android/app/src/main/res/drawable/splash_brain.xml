@@ -4,33 +4,41 @@
     android:height="96dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
-    <!-- AntarAI logo: circle with EEG wave and neural nodes -->
+    <!-- AntarAI splash: EEG wave + neural nodes, centered -->
 
-    <!-- Outer ring — violet -->
+    <!-- Subtle outer ring for splash only (not clipped by adaptive icon) -->
     <path
         android:strokeColor="#7c3aed"
-        android:strokeWidth="18"
+        android:strokeWidth="12"
         android:fillColor="#00000000"
-        android:strokeAlpha="0.9"
-        android:pathData="M256,256 m-220,0 a220,220 0 1,1 440,0 a220,220 0 1,1 -440,0" />
+        android:strokeAlpha="0.6"
+        android:pathData="M256,256 m-200,0 a200,200 0 1,1 400,0 a200,200 0 1,1 -400,0" />
 
-    <!-- EEG brain wave — golden -->
+    <!-- EEG brain wave — golden, thicker for splash -->
     <path
         android:strokeColor="#fbbf24"
-        android:strokeWidth="8"
+        android:strokeWidth="10"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M80,256 C105,256 115,256 135,256 L155,256 C165,256 170,210 185,190 C200,170 210,256 225,280 C240,304 248,180 260,160 C272,140 280,310 295,330 C310,350 315,220 330,200 C340,185 348,256 358,256 L380,256 C400,256 410,256 432,256" />
+        android:pathData="M80,256 C105,256 120,256 140,256 L160,256 C170,256 175,210 190,190 C205,170 215,256 230,280 C245,304 253,180 265,160 C277,140 285,310 300,330 C315,350 320,220 335,200 C345,185 355,256 365,256 L385,256 C405,256 415,256 432,256" />
 
     <!-- Neural nodes -->
     <path
         android:fillColor="#fbbf24"
-        android:pathData="M185,190 m-6,0 a6,6 0 1,1 12,0 a6,6 0 1,1 -12,0" />
+        android:pathData="M190,190 m-10,0 a10,10 0 1,1 20,0 a10,10 0 1,1 -20,0" />
     <path
         android:fillColor="#e879a8"
-        android:pathData="M260,160 m-8,0 a8,8 0 1,1 16,0 a8,8 0 1,1 -16,0" />
+        android:pathData="M265,160 m-12,0 a12,12 0 1,1 24,0 a12,12 0 1,1 -24,0" />
     <path
         android:fillColor="#fbbf24"
-        android:pathData="M330,200 m-6,0 a6,6 0 1,1 12,0 a6,6 0 1,1 -12,0" />
+        android:pathData="M335,200 m-10,0 a10,10 0 1,1 20,0 a10,10 0 1,1 -20,0" />
+
+    <!-- Subtle connection lines -->
+    <path
+        android:strokeColor="#fbbf24"
+        android:strokeWidth="2"
+        android:strokeAlpha="0.2"
+        android:fillColor="#00000000"
+        android:pathData="M190,190 L265,160 L335,200" />
 </vector>
