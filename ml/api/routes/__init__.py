@@ -202,6 +202,12 @@ from .perinatal import router as _perinatal
 from .neuro_rights import router as _neuro_rights
 from .emotion_os import router as _emotion_os
 from .synthetic_eeg import router as _synthetic_eeg
+from .neural_time_travel import router as _neural_time_travel
+from .emotional_constitution import router as _emotional_constitution
+from .embodied_companion import router as _embodied_companion
+from .emotion_accessibility import router as _emotion_accessibility
+from .collective_emotion import router as _collective_emotion
+from .temporal_compression import router as _temporal_compression
 
 router = APIRouter()
 
@@ -373,3 +379,9 @@ router.include_router(_perinatal)
 router.include_router(_neuro_rights)
 router.include_router(_emotion_os)
 router.include_router(_synthetic_eeg)
+router.include_router(_neural_time_travel)
+router.include_router(_emotional_constitution)
+router.include_router(_embodied_companion)
+router.include_router(_emotion_accessibility)
+router.include_router(_collective_emotion)
+router.include_router(_temporal_compression)
