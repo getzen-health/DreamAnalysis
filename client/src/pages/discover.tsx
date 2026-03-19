@@ -7,6 +7,7 @@ import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
+import { CommunityMood } from "@/components/community-mood";
 
 // ── Emotion data from localStorage ──────────────────────────────────────
 
@@ -593,6 +594,9 @@ export default function Discover() {
       {hasData && (
         <RecommendedSection stress={stress} valence={valence} focus={focus} navigate={navigate} />
       )}
+
+      {/* ── Community Mood — anonymous peer support ── */}
+      <CommunityMood />
 
       {/* ── Section label ── */}
       <div style={{

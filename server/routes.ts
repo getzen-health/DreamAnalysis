@@ -4745,6 +4745,45 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
     }
   });
 
+  // ── Anonymous Community Mood ──────────────────────────────────────────────
+  // In-memory store — no personal data, just emotion counts
+  const communityMoods: Array<{ emotion: string; timestamp: number }> = [];
+
+  app.post("/api/community/share-mood", (req, res) => {
+    try {
+      const { emotion } = req.body;
+      const VALID_EMOTIONS = ["happy", "sad", "angry", "fear", "surprise", "neutral"];
+      if (!emotion || !VALID_EMOTIONS.includes(emotion)) {
+        return res.status(400).json({ message: "Invalid emotion" });
+      }
+      communityMoods.push({ emotion, timestamp: Date.now() });
+      // Keep only last 24 hours
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      while (communityMoods.length > 0 && communityMoods[0].timestamp < cutoff) {
+        communityMoods.shift();
+      }
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to share mood" });
+    }
+  });
+
+  app.get("/api/community/mood-feed", (_req, res) => {
+    try {
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      const recent = communityMoods.filter(m => m.timestamp >= cutoff);
+      // Aggregate by emotion
+      const counts: Record<string, number> = {};
+      recent.forEach(m => {
+        counts[m.emotion] = (counts[m.emotion] || 0) + 1;
+      });
+      const total = recent.length;
+      res.json({ counts, total });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch mood feed" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
