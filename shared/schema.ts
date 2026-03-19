@@ -816,6 +816,35 @@ export const emotionCalibration = pgTable("emotion_calibration", {
   index("emotion_calibration_user_ts_idx").on(table.userId, table.recordedAt),
 ]);
 
+// ── Emotional Fitness Scores (EFS) ───────────────────────────────────────────
+// Daily composite emotional health scores computed from calibration + mood data.
+
+export const emotionalFitnessScores = pgTable("emotional_fitness_scores", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  date: date("date").notNull(),
+  score: integer("score"),
+  resilience: integer("resilience"),
+  regulation: integer("regulation"),
+  awareness: integer("awareness"),
+  range: integer("range"),
+  stability: integer("stability"),
+  dailyInsightText: text("daily_insight_text"),
+  dailyInsightType: varchar("daily_insight_type", { length: 50 }),
+  confidence: varchar("confidence", { length: 20 }).notNull().default("full"),
+  computedAt: timestamp("computed_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("efs_user_date_idx").on(table.userId, table.date),
+  index("efs_user_idx").on(table.userId),
+]);
+
+export const insertEmotionalFitnessScoreSchema = createInsertSchema(emotionalFitnessScores).omit({
+  id: true,
+  computedAt: true,
+});
+export type EmotionalFitnessScore = typeof emotionalFitnessScores.$inferSelect;
+export type InsertEmotionalFitnessScore = z.infer<typeof insertEmotionalFitnessScoreSchema>;
+
 export const moodLogs = pgTable("mood_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
