@@ -18,13 +18,33 @@ The analogy: **VO2 Max for emotional health.** One number everyone understands, 
 
 ## The Five Emotional Vital Signs
 
-| Vital Sign | What It Measures | Source (Already Built) | Scoring Logic |
+| Vital Sign | What It Measures | Source | Scoring Logic |
 |---|---|---|---|
-| **Resilience** | How fast you bounce back from negative emotional states | `emotion_trajectory.py` — recovery speed from valence dips | Time-to-baseline after negative dips. Faster recovery = higher score. Measured over 14-day rolling window. |
-| **Regulation** | How effectively you manage emotional intensity | `emotion_regulation.py` — LPP proxy + frontal theta | Frequency and success rate of regulation attempts. Higher success rate = higher score. |
-| **Awareness** | How accurately you perceive your own emotions | `emotionCalibration` table — `awarenessScore` (0-100) | Gap between self-reported and measured valence/arousal. Smaller gap = higher score. Already computed. |
-| **Range** | How many distinct emotions you can differentiate | `emotional_granularity.py` — 27-emotion VAD mapping | Count of distinct emotions differentiated in past 14 days. More granularity = higher score. |
-| **Stability** | Baseline emotional consistency, resistance to external disruption | `emotional_genome.py` — stability trait | Variance of baseline emotional state over 7 days. Lower variance = higher score. |
+| **Resilience** | How fast you bounce back from negative emotional states | `emotional_genome.py` — `recovery_speed` trait (autocorrelation decay rate). **New code needed:** also compute event-level recovery from `emotionReadings` table — detect valence dips below -0.3, measure time until valence returns to user's rolling baseline. | `score = clamp(recovery_speed_normalized * 60 + event_recovery_score * 40, 0, 100)`. `event_recovery_score`: map median recovery time: ≤5 min → 100, 10 min → 75, 20 min → 50, 30+ min → 25. If no dip events in 14 days, use genome trait alone. 14-day rolling window. |
+| **Regulation** | How effectively you manage emotional intensity | `emotion_regulation.py` — per-session `regulation_score` (0-100) and `regulation_success` (boolean). **New code needed:** aggregate endpoint that queries last 14 days of regulation events. | `score = mean(regulation_scores)` from last 14 days, weighted by recency (exponential decay, half-life = 7 days). If < 3 regulation events, use fallback: stress recovery rate from `emotionReadings` (how often high-stress episodes resolve within 15 min). |
+| **Awareness** | How accurately you perceive your own emotions | `emotionCalibration` table — `awarenessScore` (0-100). Already computed and stored. | Direct read: `score = awarenessScore`. If multiple calibration records exist, use the most recent. If no calibration record exists, vital is marked `unavailable`. |
+| **Range** | How many distinct emotions you can differentiate | `emotional_granularity.py` — returns `granularity_score` (0-1) with sub-scores: `label_diversity`, `taxonomy_depth`, `distribution_evenness`, `icc`. | `score = round(granularity_score * 100)`. Uses the existing composite score which already blends diversity, depth, evenness, and ICC. If < 5 granularity episodes in 14 days, vital is marked `unavailable`. |
+| **Stability** | Baseline emotional consistency, resistance to external disruption | `emotional_genome.py` — `emotional_stability` trait (0-1, computed from valence variance). | `score = round(emotional_stability * 100)`. Uses the genome trait directly. The genome computes stability over all available data, not a fixed window — this is intentional (stability is a trait, not a state). If genome not yet computed (< 7 days data), vital is marked `unavailable`. |
+
+### Data Persistence for Vitals
+
+**Important:** `EmotionTrajectoryTracker` and `EmotionRegulationTrainer` are in-memory only with no persistence across server restarts. The EFS compute endpoint must NOT rely on in-memory state. Instead:
+
+- **Resilience**: Query `emotionReadings` table (persisted) for valence time series. Detect negative dips and measure recovery. Supplement with `emotional_genome.recovery_speed` trait.
+- **Regulation**: Query `emotionReadings` for stress→calm transitions as a proxy if no explicit regulation session data exists. If regulation sessions are tracked in-memory only, add a new `regulationEvents` table (userId, sessionDate, regulationScore, regulationSuccess, computedAt).
+- **Range, Stability**: Already use genome/granularity endpoints which persist their own state.
+- **Awareness**: Already persisted in `emotionCalibration` table.
+
+### Partial Vital Data Handling
+
+Not all vitals will be available for every user. Rules:
+
+| Available Vitals | Behavior |
+|---|---|
+| 5 of 5 | Full EFS score, no caveats |
+| 3-4 of 5 | Compute EFS using available vitals only. Re-normalize weights to sum to 1.0. Show "Partial — N of 5 vitals active" badge. Show unavailable vitals as locked cards with "Complete a calibration session to unlock Awareness" guidance. |
+| 1-2 of 5 | No composite EFS score. Show individual vitals that are available. Show "Keep tracking to unlock your Emotional Fitness Score" message. |
+| 0 of 5 | Show onboarding: "Do your first voice check-in to start building your Emotional Fitness profile." |
 
 ## Composite Score Formula
 
@@ -55,22 +75,54 @@ EFS = (Resilience × 0.25) + (Regulation × 0.20) + (Awareness × 0.25) + (Range
 | 3-7 days | Compute with "Early estimate" badge. Wider confidence interval displayed. |
 | 7+ days | Full confidence score. No badge. |
 
+**Definition of "check-in":** Any data-producing interaction that creates an `emotionReadings` row: voice check-in, EEG session, or manual mood log. A "day of check-ins" means at least one such event on that calendar date (UTC). The minimum 3-day requirement ensures at least 3 distinct calendar days with data, not 3 events on the same day.
+
 ## API Design
 
-### Endpoint: `POST /emotional-fitness/compute/{user_id}`
+### Endpoint: `GET /emotional-fitness/{user_id}`
+
+GET is correct — this is a read-heavy operation that returns cached daily scores. Use `?force=true` query param to trigger recomputation.
 
 **Orchestration flow:**
-1. Fetch last 14 days of emotion trajectory → compute Resilience (0-100)
-2. Fetch last 14 days of regulation events → compute Regulation (0-100)
-3. Fetch latest `emotionCalibration` → pull Awareness (`awarenessScore`, already 0-100)
-4. Fetch last 14 days of granularity episodes → compute Range (0-100)
-5. Fetch emotional genome stability trait → compute Stability (0-100)
-6. Weighted blend → EFS composite score
-7. Generate daily insight (highest-priority available)
-8. Store in `emotionalFitnessScores` table
-9. Return full response
+1. Check `emotionalFitnessScores` table for today's cached score (by userId + date). If exists and `force` is not set, return cached response.
+2. Query `emotionReadings` table for last 14 days of valence data → compute Resilience (detect dips, measure recovery time, blend with genome recovery_speed)
+3. Query regulation events (from `regulationEvents` table if exists, else infer from `emotionReadings` stress→calm transitions) → compute Regulation
+4. Query latest `emotionCalibration` record → pull Awareness (`awarenessScore`)
+5. Call emotional granularity endpoint → get Range (`granularity_score * 100`)
+6. Call emotional genome endpoint → get Stability (`emotional_stability * 100`)
+7. Mark unavailable vitals (insufficient data per the rules above)
+8. Compute weighted EFS from available vitals (re-normalize weights if < 5 vitals)
+9. Compute trend: query score from 30 days ago in `emotionalFitnessScores`. If no 30-day-ago score, try 14 days. If no prior score at all, trend is `null`.
+10. Generate daily insight (highest-priority available, respecting rotation rule)
+11. Upsert into `emotionalFitnessScores` table (unique on userId + date)
+12. Return full response
 
-**Caching:** Compute once daily (first request after midnight local time). Cache until next day. Force recompute available via `?force=true` query param.
+**Caching:** Score is computed on first request of the day and cached. "Day" is determined by UTC date — simpler than local timezone, avoids needing user timezone storage. The score represents a rolling 14-day window, so UTC vs local date difference (at most ±1 day) is negligible. Force recompute via `?force=true`.
+
+### Error / Insufficient Data Response
+
+When user has insufficient data (< 3 days of any check-in activity):
+
+```json
+{
+  "score": null,
+  "confidence": "building",
+  "progress": {
+    "daysTracked": 1,
+    "daysRequired": 3,
+    "percentage": 33,
+    "message": "Keep tracking for 2 more days to unlock your Emotional Fitness Score"
+  },
+  "vitals": {
+    "resilience": { "score": null, "status": "unavailable", "unlockHint": "Track for 3+ days" },
+    "regulation": { "score": null, "status": "unavailable", "unlockHint": "Track for 3+ days" },
+    "awareness": { "score": null, "status": "unavailable", "unlockHint": "Complete a calibration session" },
+    "range": { "score": null, "status": "unavailable", "unlockHint": "Do 5+ check-ins" },
+    "stability": { "score": null, "status": "unavailable", "unlockHint": "Track for 7+ days" }
+  },
+  "dailyInsight": null,
+  "computedAt": null
+}
 
 ### Response Schema
 
@@ -121,6 +173,12 @@ EFS = (Resilience × 0.25) + (Regulation × 0.20) + (Awareness × 0.25) + (Range
 }
 ```
 
+**Response field notes:**
+- `color` and `label`: Derived at response time from score thresholds, not stored in DB.
+- `trend`: Computed at response time by querying prior scores in `emotionalFitnessScores` table. Period is always 30 days. If no score exists 30 days ago, try 14 days. If no prior score at all, `trend` is `null`.
+- `history` arrays: Return last 14 days by default. The UI timeline (30/60/90 day toggles) makes separate queries with `?days=30|60|90` param.
+- `actionNudge`: Generated deterministically from `dailyInsightType` using a static lookup table (one nudge per insight type). Not stored — regenerated on each response from the stored type.
+
 ## Database Schema
 
 ### New table: `emotionalFitnessScores`
@@ -143,6 +201,8 @@ EFS = (Resilience × 0.25) + (Regulation × 0.20) + (Awareness × 0.25) + (Range
 
 **Unique constraint:** `(userId, date)` — one score per user per day.
 
+**Implementation note:** This table must be added to `shared/schema.ts` using Drizzle ORM (matching the existing schema pattern) and migrated via `drizzle-kit push`. The Markdown table above defines the logical schema; the actual implementation is Drizzle TypeScript.
+
 ## Insight Engine
 
 ### Priority-ranked insight categories
@@ -159,8 +219,9 @@ EFS = (Resilience × 0.25) + (Regulation × 0.20) + (Awareness × 0.25) + (Range
 ### Insight rules
 - Never compare to other users. Always compare to YOUR past self.
 - One insight per day. Pick the highest-priority available.
-- Each insight ends with an actionable nudge.
-- Insights rotate — don't show the same type two days in a row.
+- Each insight ends with an actionable nudge (from static lookup by type).
+- Rotation: prefer not to show the same type two days in a row. If the highest-priority type was shown yesterday, skip to priority 2. But if ONLY one type triggers (e.g., `awareness_gap` every day for a chronic Suppressor), show it anyway rather than showing nothing. The rotation rule is soft, not hard.
+- `improvement` threshold (10+ points in 30 days) is absolute, not percentage-based. This is intentional — a 10-point jump is meaningful at any level on the 0-100 scale.
 
 ## UI Design
 
@@ -218,6 +279,30 @@ EFS = (Resilience × 0.25) + (Regulation × 0.20) + (Awareness × 0.25) + (Range
 | EFSShareCard | `client/src/components/efs-share-card.tsx` | PNG export for sharing |
 | EFSMiniCard | `client/src/components/efs-mini-card.tsx` | Dashboard widget |
 
+### Vital Card Detail View Content (static per vital)
+
+Each vital card, when tapped, expands to show a detail view. Content is static strings per vital:
+
+| Vital | Explanation | Tips to Improve |
+|---|---|---|
+| Resilience | "How quickly your emotions return to baseline after a negative event. Measured from your valence dips over the past 14 days." | "Practice 4-7-8 breathing during stressful moments. Regular sleep improves recovery speed." |
+| Regulation | "How effectively you manage emotional intensity when it spikes. Based on your stress-to-calm transitions." | "Try the biofeedback exercises in the app. Even 2 minutes of guided breathing strengthens regulation." |
+| Awareness | "How accurately you perceive your own emotions. Compares what you report vs what your brain and voice actually show." | "During check-ins, pause before answering. Notice body sensations first, then name the emotion." |
+| Range | "How many distinct emotions you can identify and differentiate. Higher range = better emotion regulation." | "When you feel 'bad', try to be more specific: frustrated? disappointed? anxious? lonely? The distinction matters." |
+| Stability | "How consistent your emotional baseline is day to day. Higher stability means less emotional volatility." | "Consistent sleep schedule, regular meals, and daily routines all contribute to emotional stability." |
+
+### EFS Mini Card Spec
+
+The `EFSMiniCard` component for the dashboard:
+- Height: same as other dashboard cards (compact)
+- Content: EFS score number (large), trend arrow (↑/↓/→) with delta, "Emotional Fitness" label
+- Tap navigates to `/emotional-fitness`
+- If score is null (building), show progress ring with percentage instead
+
+### Share Card Reference
+
+The PNG share card uses the same canvas-to-PNG pattern as `client/src/pages/weekly-summary.tsx` (the Weekly Brain Summary export). Reference that file for the implementation approach (Canvas 2D API, `toDataURL()`, share sheet).
+
 ## Integration Points
 
 | Location | What Shows | Purpose |
@@ -232,18 +317,19 @@ EFS = (Resilience × 0.25) + (Regulation × 0.20) + (Awareness × 0.25) + (Range
 - **EFS** = "How emotionally fit are you OVERALL?" → rolling 14-day window, identity-level
 - Readiness is weather. EFS is climate. They complement, not compete.
 
-## Data Dependencies (all already built)
+## Data Dependencies
 
-| Dependency | Status | Required For |
-|---|---|---|
-| Emotion trajectory tracking | Running | Resilience |
-| emotion_regulation.py | Running | Regulation |
-| emotionCalibration table + compute endpoint | Running | Awareness |
-| emotional_granularity.py | Running | Range |
-| emotional_genome.py | Running | Stability |
-| Voice check-ins OR EEG sessions | Running | All (data input) |
+| Dependency | Status | Required For | New Code Needed |
+|---|---|---|---|
+| `emotionReadings` table | Running, persisted | Resilience (valence dip detection) | Yes — recovery time computation from stored readings |
+| `emotional_genome.py` recovery_speed + stability traits | Running | Resilience, Stability | No — existing traits, just call the endpoint |
+| `emotion_regulation.py` | Running (in-memory only) | Regulation | Yes — either persist regulation events to new `regulationEvents` table, or infer from `emotionReadings` stress transitions |
+| `emotionCalibration` table + compute endpoint | Running, persisted | Awareness | No — direct read of `awarenessScore` |
+| `emotional_granularity.py` | Running | Range | No — use existing `granularity_score` |
+| Voice check-ins OR EEG sessions | Running | All (data input) | No |
+| `emotionalFitnessScores` table | **New** | EFS storage + history | Yes — Drizzle schema + migration |
 
-**No new ML models needed.** EFS is purely an orchestration + UI layer on existing infrastructure.
+**No new ML models needed.** EFS requires new orchestration code (the compute endpoint), a new DB table, and recovery-time computation logic — but no new model training.
 
 ## What Makes This Category-Defining
 
