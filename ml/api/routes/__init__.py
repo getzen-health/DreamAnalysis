@@ -208,6 +208,18 @@ from .embodied_companion import router as _embodied_companion
 from .emotion_accessibility import router as _emotion_accessibility
 from .collective_emotion import router as _collective_emotion
 from .temporal_compression import router as _temporal_compression
+from .mdjpt import router as _mdjpt
+from .dsp_mcf import router as _dsp_mcf
+from .dff_net import router as _dff_net
+from .cscl_emotion import router as _cscl_emotion
+from .voice_augmentation import router as _voice_augmentation
+from .self_supervised_eeg import router as _self_supervised_eeg
+from .cnn_kan_features import router as _cnn_kan_features
+from .ameegnet import router as _ameegnet
+from .cnn_kan_trainer import router as _cnn_kan_trainer
+from .voice_depression import router as _voice_depression
+from .device_adapters import router as _device_adapters
+from .emotion_forecaster import router as _emotion_forecaster
 
 router = APIRouter()
 
@@ -385,3 +397,15 @@ router.include_router(_embodied_companion)
 router.include_router(_emotion_accessibility)
 router.include_router(_collective_emotion)
 router.include_router(_temporal_compression)
+router.include_router(_mdjpt)
+router.include_router(_dsp_mcf)
+router.include_router(_dff_net)
+router.include_router(_cscl_emotion)
+router.include_router(_voice_augmentation)
+router.include_router(_self_supervised_eeg)
+router.include_router(_cnn_kan_features)
+router.include_router(_ameegnet)
+router.include_router(_cnn_kan_trainer)
+router.include_router(_voice_depression)
+router.include_router(_device_adapters)
+router.include_router(_emotion_forecaster)
