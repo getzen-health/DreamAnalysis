@@ -82,6 +82,7 @@ const PrivacyPolicy          = lazy(() => import("@/pages/privacy-policy"));
 const ArchitectureGuide      = lazy(() => import("@/pages/architecture-guide"));
 const SupplementsPage        = lazy(() => import("@/pages/supplements"));
 const EmotionalIntelligence  = lazy(() => import("@/pages/emotional-intelligence"));
+const EmotionalFitness       = lazy(() => import("@/pages/emotional-fitness"));
 const SleepMusic             = lazy(() => import("@/components/sleep-stories"));
 const CbtiModule             = lazy(() => import("@/pages/cbti-module"));
 const BodyMetrics            = lazy(() => import("@/pages/body-metrics"));
@@ -409,6 +410,13 @@ function AppRoutes() {
         <Suspense fallback={<PageLoader />}>
           <AppLayout><EmotionalIntelligence /></AppLayout>
         </Suspense>
+      </Route>
+      <Route path="/emotional-fitness">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><EmotionalFitness /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
       </Route>
       <Route path="/sleep-music">
         <ProtectedRoute>
