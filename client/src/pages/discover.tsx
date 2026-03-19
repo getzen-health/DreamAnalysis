@@ -327,7 +327,6 @@ const NAV_CARDS: NavCard[] = [
   { emoji: "😰", title: "Stress",       subtitle: "Stress score, HRV, trends",          route: "/stress" },
   { emoji: "🎯", title: "Focus",        subtitle: "Focus score, cognitive trends",       route: "/focus" },
   { emoji: "🧠", title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor" },
-  { emoji: "🍎", title: "Nutrition",    subtitle: "Food, vitamins, food-mood",           route: "/nutrition" },
   { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep" },
   { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health" },
   { emoji: "🧘", title: "Wellness",     subtitle: "Habits, cycle, mood log",             route: "/wellness" },

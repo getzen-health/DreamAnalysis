@@ -1,24 +1,25 @@
 /**
- * MoodTrends -- Emotion/Mood focused page.
+ * MoodTrends -- Dedicated mood dashboard page.
  *
- * Shows:
- * 1. Current detected emotion (prominently)
- * 2. Emotion distribution pie/bar chart (last 7 days)
- * 3. Valence/arousal trend lines
- * 4. Emotion history over time
+ * Shows ONLY mood/emotion content:
+ * 1. Current detected emotion with label
+ * 2. Mood valence score (positive/negative)
+ * 3. 7-day mood trend line chart
+ * 4. Emotion distribution bar chart
+ * 5. Weekly mood summary text
  *
- * Data: useCurrentEmotion, /api/brain/history/:userId
+ * Data: useCurrentEmotion, /api/brain/history/:userId?days=7
  */
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import { getParticipantId } from "@/lib/participant";
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   BarChart,
   Bar,
   XAxis,
@@ -28,7 +29,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { Brain, Smile, TrendingUp } from "lucide-react";
+import { TrendingUp, BarChart3, Activity, Calendar } from "lucide-react";
 
 /* ---------- constants ---------- */
 
@@ -38,22 +39,18 @@ const EMOTION_COLORS: Record<string, string> = {
   angry: "#ea580c",
   fear: "#7c3aed",
   fearful: "#7c3aed",
-  surprise: "#d946ef",
+  surprise: "#d4a017",
   neutral: "#94a3b8",
-  relaxed: "#2dd4bf",
-  focused: "#3b82f6",
 };
 
-const EMOTION_EMOJI: Record<string, string> = {
-  happy: "😊",
-  sad: "😢",
-  angry: "😠",
-  fear: "😨",
-  fearful: "😨",
-  surprise: "😮",
-  neutral: "😐",
-  relaxed: "😌",
-  focused: "🎯",
+const EMOTION_LABELS: Record<string, string> = {
+  happy: "Happy",
+  sad: "Sad",
+  angry: "Angry",
+  fear: "Fearful",
+  fearful: "Fearful",
+  surprise: "Surprised",
+  neutral: "Neutral",
 };
 
 /* ---------- types ---------- */
@@ -63,13 +60,13 @@ interface HistoryEntry {
   timestamp: string;
   valence?: number;
   arousal?: number;
-  stress_index?: number;
-  focus_index?: number;
 }
 
 /* ---------- helpers ---------- */
 
-function buildDistribution(data: HistoryEntry[]): { name: string; count: number; color: string }[] {
+function buildDistribution(
+  data: HistoryEntry[]
+): { name: string; count: number; color: string }[] {
   const counts: Record<string, number> = {};
   for (const d of data) {
     const e = d.dominantEmotion ?? "neutral";
@@ -78,37 +75,98 @@ function buildDistribution(data: HistoryEntry[]): { name: string; count: number;
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .map(([name, count]) => ({
-      name,
+      name: EMOTION_LABELS[name] ?? name,
       count,
       color: EMOTION_COLORS[name] ?? "#94a3b8",
     }));
 }
 
-function buildValenceTrend(data: HistoryEntry[]): { date: string; valence: number; arousal: number }[] {
-  // Group by day, average
-  const dayMap = new Map<string, { valences: number[]; arousals: number[]; ts: number }>();
+function buildDailyValenceTrend(
+  data: HistoryEntry[]
+): { date: string; valence: number }[] {
+  const dayMap = new Map<string, { values: number[]; ts: number }>();
   for (const r of data) {
     const d = new Date(r.timestamp);
-    const key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const key = d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
     const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    if (!dayMap.has(key)) dayMap.set(key, { valences: [], arousals: [], ts });
+    if (!dayMap.has(key)) dayMap.set(key, { values: [], ts });
     const entry = dayMap.get(key)!;
-    if (r.valence != null) entry.valences.push(r.valence);
-    if (r.arousal != null) entry.arousals.push(r.arousal);
+    if (r.valence != null) entry.values.push(r.valence);
   }
 
   return Array.from(dayMap.entries())
     .sort(([, a], [, b]) => a.ts - b.ts)
     .slice(-7)
-    .map(([date, { valences, arousals }]) => ({
+    .map(([date, { values }]) => ({
       date,
-      valence: valences.length
-        ? Math.round((valences.reduce((a, b) => a + b, 0) / valences.length) * 100)
-        : 0,
-      arousal: arousals.length
-        ? Math.round((arousals.reduce((a, b) => a + b, 0) / arousals.length) * 100)
+      valence: values.length
+        ? Math.round(
+            (values.reduce((a, b) => a + b, 0) / values.length) * 100
+          ) / 100
         : 0,
     }));
+}
+
+function valenceLabel(v: number): string {
+  if (v > 0.5) return "Very Positive";
+  if (v > 0.2) return "Positive";
+  if (v > -0.2) return "Neutral";
+  if (v > -0.5) return "Slightly Negative";
+  return "Negative";
+}
+
+function valenceColor(v: number): string {
+  if (v > 0.2) return "#0891b2";
+  if (v > -0.2) return "#94a3b8";
+  return "#6366f1";
+}
+
+function generateWeeklySummary(
+  data: HistoryEntry[],
+  distribution: { name: string; count: number }[]
+): string {
+  if (data.length === 0) return "No mood data recorded this week.";
+
+  const avgValence =
+    data.filter((d) => d.valence != null).reduce((sum, d) => sum + (d.valence ?? 0), 0) /
+    (data.filter((d) => d.valence != null).length || 1);
+
+  const topEmotion = distribution[0]?.name ?? "neutral";
+  const totalReadings = data.length;
+
+  let tone = "balanced";
+  if (avgValence > 0.3) tone = "positive";
+  else if (avgValence > 0.1) tone = "slightly positive";
+  else if (avgValence < -0.3) tone = "challenging";
+  else if (avgValence < -0.1) tone = "slightly low";
+
+  return `Over ${totalReadings} reading${totalReadings !== 1 ? "s" : ""} this week, your mood has been ${tone} overall. Your most frequent emotion was ${topEmotion}, with an average valence of ${avgValence >= 0 ? "+" : ""}${avgValence.toFixed(2)}.`;
+}
+
+/* ---------- custom tooltip ---------- */
+
+interface ValenceTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
+}
+
+function ValenceTooltip({ active, payload, label }: ValenceTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  const val = payload[0].value;
+  return (
+    <div className="rounded-lg bg-card border border-border px-3 py-2 text-xs shadow-lg">
+      <p className="text-muted-foreground">{label}</p>
+      <p className="text-foreground font-medium mt-0.5">
+        Valence: {val >= 0 ? "+" : ""}
+        {val.toFixed(2)}
+      </p>
+      <p className="text-muted-foreground mt-0.5">{valenceLabel(val)}</p>
+    </div>
+  );
 }
 
 /* ---------- component ---------- */
@@ -123,13 +181,23 @@ export default function MoodTrends() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const distribution = history ? buildDistribution(history) : [];
-  const valenceTrend = history ? buildValenceTrend(history) : [];
+  const distribution = useMemo(
+    () => (history ? buildDistribution(history) : []),
+    [history]
+  );
+  const valenceTrend = useMemo(
+    () => (history ? buildDailyValenceTrend(history) : []),
+    [history]
+  );
+  const weeklySummary = useMemo(
+    () => generateWeeklySummary(history ?? [], distribution),
+    [history, distribution]
+  );
   const hasHistory = history && history.length > 0;
 
   const emotionLabel = currentEmotion?.emotion ?? "neutral";
   const emotionColor = EMOTION_COLORS[emotionLabel] ?? "#94a3b8";
-  const emotionEmoji = EMOTION_EMOJI[emotionLabel] ?? "😐";
+  const emotionDisplayName = EMOTION_LABELS[emotionLabel] ?? emotionLabel;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-24">
@@ -143,57 +211,114 @@ export default function MoodTrends() {
           Mood Trends
         </h1>
         <p className="text-sm mt-1 text-muted-foreground">
-          Emotion history and patterns
+          Your emotional patterns over time
         </p>
       </motion.div>
 
-      {/* Current Emotion — hero card */}
+      {/* Current Emotion -- hero card */}
       <motion.div
-        className="rounded-[14px] p-6 border border-border bg-card text-center"
+        className="rounded-[14px] p-6 border border-border bg-card"
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div className="text-5xl mb-3">{emotionEmoji}</div>
-        <div
-          className="text-2xl font-bold capitalize mb-1"
-          style={{ color: emotionColor }}
-        >
-          {emotionLabel}
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="h-4 w-4 text-cyan-500" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Current Emotion
+          </span>
         </div>
+
         {currentEmotion ? (
-          <div className="flex items-center justify-center gap-4 mt-3">
-            <div className="text-center">
-              <div className="text-xs text-muted-foreground">Valence</div>
-              <div className="text-sm font-mono font-semibold text-foreground">
-                {currentEmotion.valence > 0 ? "+" : ""}
-                {currentEmotion.valence.toFixed(2)}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+                style={{
+                  background: `${emotionColor}18`,
+                  border: `2px solid ${emotionColor}50`,
+                }}
+              >
+                <span
+                  className="w-6 h-6 rounded-full"
+                  style={{ backgroundColor: emotionColor }}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-2xl font-bold capitalize"
+                  style={{ color: emotionColor }}
+                >
+                  {emotionDisplayName}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {currentEmotion.confidence
+                    ? `${Math.round(currentEmotion.confidence * 100)}% confidence`
+                    : "Detected from latest analysis"}
+                </p>
               </div>
             </div>
-            <div className="w-px h-8 bg-border" />
-            <div className="text-center">
-              <div className="text-xs text-muted-foreground">Arousal</div>
-              <div className="text-sm font-mono font-semibold text-foreground">
-                {(currentEmotion.arousal * 100).toFixed(0)}%
+
+            {/* Valence indicator */}
+            <div className="rounded-xl bg-muted/20 border border-border/50 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">
+                  Mood Valence
+                </span>
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: valenceColor(currentEmotion.valence) }}
+                >
+                  {valenceLabel(currentEmotion.valence)}
+                </span>
               </div>
-            </div>
-            <div className="w-px h-8 bg-border" />
-            <div className="text-center">
-              <div className="text-xs text-muted-foreground">Confidence</div>
-              <div className="text-sm font-mono font-semibold text-foreground">
-                {(currentEmotion.confidence * 100).toFixed(0)}%
+              <div className="relative h-2 rounded-full bg-muted/40 overflow-hidden">
+                <div
+                  className="absolute top-0 left-1/2 h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${Math.abs(currentEmotion.valence) * 50}%`,
+                    transform:
+                      currentEmotion.valence >= 0
+                        ? "translateX(0)"
+                        : `translateX(-100%)`,
+                    background: valenceColor(currentEmotion.valence),
+                  }}
+                />
+                <div className="absolute top-0 left-1/2 w-px h-full bg-muted-foreground/30" />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-[9px] text-muted-foreground/60">
+                  Negative
+                </span>
+                <span className="text-[9px] text-muted-foreground/60">
+                  Positive
+                </span>
               </div>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground mt-2">
-            Run a voice analysis to detect your current mood
-          </p>
+          <div className="text-center py-4">
+            <div
+              className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-3"
+              style={{
+                background: `${emotionColor}18`,
+                border: `2px solid ${emotionColor}30`,
+              }}
+            >
+              <span
+                className="w-6 h-6 rounded-full"
+                style={{ backgroundColor: emotionColor, opacity: 0.5 }}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              No emotion detected yet. Run a voice analysis to start tracking.
+            </p>
+          </div>
         )}
       </motion.div>
 
-      {/* Emotion Distribution — bar chart */}
-      {distribution.length > 0 && (
+      {/* 7-Day Mood Trend -- line chart */}
+      {valenceTrend.length >= 2 && (
         <motion.div
           className="rounded-[14px] p-4 border border-border bg-card"
           custom={1}
@@ -202,14 +327,83 @@ export default function MoodTrends() {
           variants={cardVariants}
         >
           <div className="flex items-center gap-2 mb-4">
-            <Smile className="h-4 w-4 text-primary" />
+            <TrendingUp className="h-4 w-4 text-cyan-500" />
             <span className="text-sm font-semibold text-foreground">
-              Emotion Distribution (7 days)
+              7-Day Mood Trend
+            </span>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart
+              data={valenceTrend}
+              margin={{ left: 0, right: 8, top: 8, bottom: 0 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(220,18%,14%)"
+                opacity={0.5}
+              />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: "hsl(220,12%,42%)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                domain={[-1, 1]}
+                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                axisLine={false}
+                tickLine={false}
+                width={32}
+                tickFormatter={(v: number) =>
+                  v === 0 ? "0" : v > 0 ? `+${v}` : `${v}`
+                }
+              />
+              <Tooltip content={<ValenceTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="valence"
+                name="Valence"
+                stroke="#0891b2"
+                strokeWidth={2.5}
+                dot={{ fill: "#0891b2", r: 4, strokeWidth: 2, stroke: "#0e1117" }}
+                activeDot={{ r: 6, fill: "#0891b2", stroke: "#0e1117", strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+          <p className="text-[10px] text-muted-foreground/50 text-center mt-2">
+            Daily average valence score
+          </p>
+        </motion.div>
+      )}
+
+      {/* Emotion Distribution -- bar chart */}
+      {distribution.length > 0 && (
+        <motion.div
+          className="rounded-[14px] p-4 border border-border bg-card"
+          custom={2}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-4 w-4 text-rose-400" />
+            <span className="text-sm font-semibold text-foreground">
+              Emotion Distribution
+            </span>
+            <span className="text-[10px] text-muted-foreground ml-auto">
+              Last 7 days
             </span>
           </div>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={distribution} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
+            <BarChart
+              data={distribution}
+              margin={{ left: 0, right: 0, top: 4, bottom: 0 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(220,18%,14%)"
+                opacity={0.5}
+              />
               <XAxis
                 dataKey="name"
                 tick={{ fontSize: 10, fill: "hsl(220,12%,42%)" }}
@@ -221,6 +415,7 @@ export default function MoodTrends() {
                 axisLine={false}
                 tickLine={false}
                 width={24}
+                allowDecimals={false}
               />
               <Tooltip
                 contentStyle={{
@@ -230,7 +425,7 @@ export default function MoodTrends() {
                   fontSize: 11,
                 }}
               />
-              <Bar dataKey="count" name="Count" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="count" name="Occurrences" radius={[4, 4, 0, 0]}>
                 {distribution.map((entry, index) => (
                   <Cell key={index} fill={entry.color} />
                 ))}
@@ -240,108 +435,7 @@ export default function MoodTrends() {
         </motion.div>
       )}
 
-      {/* Valence & Arousal Trends */}
-      {valenceTrend.length >= 2 && (
-        <motion.div
-          className="rounded-[14px] p-4 border border-border bg-card"
-          custom={2}
-          initial="hidden"
-          animate="visible"
-          variants={cardVariants}
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">
-              Valence & Arousal Trends
-            </span>
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart
-              data={valenceTrend}
-              margin={{ left: 0, right: 4, top: 4, bottom: 0 }}
-            >
-              <defs>
-                <linearGradient id="valenceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0891b2" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#0891b2" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="hsl(220,18%,14%)"
-                opacity={0.5}
-              />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                domain={[-100, 100]}
-                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
-                axisLine={false}
-                tickLine={false}
-                width={30}
-                tickFormatter={(v) => `${v}`}
-              />
-              <Tooltip
-                cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1 }}
-                contentStyle={{
-                  background: "var(--popover)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 10,
-                  fontSize: 11,
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="valence"
-                name="Valence"
-                stroke="#0891b2"
-                fill="url(#valenceGrad)"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Area
-                type="monotone"
-                dataKey="arousal"
-                name="Arousal"
-                stroke="#d4a017"
-                fill="none"
-                strokeWidth={1.5}
-                strokeDasharray="4 3"
-                dot={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-          <div className="flex gap-4 mt-2 justify-center">
-            {[
-              { label: "Valence", color: "#0891b2" },
-              { label: "Arousal", color: "#d4a017", dashed: true },
-            ].map((l) => (
-              <div key={l.label} className="flex items-center gap-1">
-                <svg width="14" height="8">
-                  <line
-                    x1="0"
-                    y1="4"
-                    x2="14"
-                    y2="4"
-                    stroke={l.color}
-                    strokeWidth="2"
-                    strokeDasharray={l.dashed ? "4 3" : "0"}
-                  />
-                </svg>
-                <span className="text-[10px] text-muted-foreground">
-                  {l.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Emotion timeline — dots for last 7 days */}
+      {/* Your Week in Emotions -- dot timeline */}
       {hasHistory && (
         <motion.div
           className="rounded-[14px] p-4 border border-border bg-card"
@@ -351,7 +445,7 @@ export default function MoodTrends() {
           variants={cardVariants}
         >
           <div className="flex items-center gap-2 mb-3">
-            <Brain className="h-4 w-4 text-primary" />
+            <Calendar className="h-4 w-4 text-amber-500" />
             <span className="text-sm font-semibold text-foreground">
               Your Week in Emotions
             </span>
@@ -375,6 +469,7 @@ export default function MoodTrends() {
                 .slice(-7);
               return days.map(([key, { emotion, label }]) => {
                 const color = EMOTION_COLORS[emotion] ?? "#94a3b8";
+                const displayName = EMOTION_LABELS[emotion] ?? emotion;
                 return (
                   <div
                     key={key}
@@ -382,13 +477,10 @@ export default function MoodTrends() {
                   >
                     <div
                       className="w-8 h-8 rounded-full"
-                      style={{
-                        background: color,
-                        opacity: 0.85,
-                      }}
+                      style={{ background: color, opacity: 0.85 }}
                     />
                     <span className="text-[9px] text-muted-foreground capitalize">
-                      {emotion.slice(0, 3)}
+                      {displayName.slice(0, 3)}
                     </span>
                     <span className="text-[9px] text-muted-foreground/60">
                       {label}
@@ -401,15 +493,42 @@ export default function MoodTrends() {
         </motion.div>
       )}
 
+      {/* Weekly Summary */}
+      {hasHistory && (
+        <motion.div
+          className="rounded-[14px] p-4 border border-border bg-card"
+          custom={4}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="h-4 w-4 text-indigo-400" />
+            <span className="text-sm font-semibold text-foreground">
+              Weekly Summary
+            </span>
+          </div>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {weeklySummary}
+          </p>
+        </motion.div>
+      )}
+
       {/* Empty state */}
       {!hasHistory && !currentEmotion && (
-        <div className="rounded-[14px] p-8 border border-border bg-card text-center">
-          <Smile className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+        <motion.div
+          className="rounded-[14px] p-8 border border-border bg-card text-center"
+          custom={1}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
+          <Activity className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">
-            No emotion data yet. Run a voice analysis to start tracking your
-            mood.
+            No mood data yet. Run a voice analysis to start tracking your
+            emotional patterns.
           </p>
-        </div>
+        </motion.div>
       )}
     </div>
   );

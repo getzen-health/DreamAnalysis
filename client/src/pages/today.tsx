@@ -883,7 +883,7 @@ export default function Today() {
           value={emotion === "—" ? "—" : emotion.charAt(0).toUpperCase() + emotion.slice(1)}
           sub={topProb > 0 ? `${Math.round(topProb * 100)}% confidence` : "No data"}
           valueColor="#0891b2"
-          onClick={() => navigate("/emotions")}
+          onClick={() => navigate("/mood")}
           trend={moodTrend}
         />
         <MiniCard
@@ -891,15 +891,15 @@ export default function Today() {
           value={stressVal > 0 ? `${Math.round(stressVal * 100)}%` : "—"}
           sub={stressVal > 0 ? getStressLabel(stressVal) : "No data"}
           valueColor={stressVal > 0 ? getStressColor(stressVal) : "var(--muted-foreground)"}
-          onClick={() => navigate("/emotions")}
+          onClick={() => navigate("/stress")}
           trend={stressTrend}
         />
         <MiniCard
           label="Focus"
           value={focusVal > 0 ? `${Math.round(focusVal * 100)}%` : "—"}
           sub={focusVal > 0 ? getFocusLabel(focusVal) : "No data"}
-          valueColor="#3b82f6"
-          onClick={() => navigate("/emotions")}
+          valueColor="#6366f1"
+          onClick={() => navigate("/focus")}
           trend={focusTrend}
         />
       </div>

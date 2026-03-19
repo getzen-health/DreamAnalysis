@@ -1,22 +1,20 @@
 /**
- * FocusTrends -- Focus focused page.
+ * FocusTrends -- Focus-only dashboard page.
  *
  * Shows:
- * 1. Focus Score gauge (from useCurrentEmotion)
- * 2. Focus trend line (last 7/30 days)
- * 3. Cognitive load history
- * 4. Best focus times of day
+ * 1. Current focus level as percentage with color-coded gauge
+ * 2. Focus classification label (Diffuse/Moderate/Sharp/Deep)
+ * 3. 7-day focus trend chart (AreaChart with gradient fill)
+ * 4. Focus tips based on current level
+ * 5. Best focus times of day (when data available)
  *
- * Data: useScores, useCurrentEmotion, sessions
+ * Data: /api/brain/history/:userId?days=7, localStorage "ndw_last_emotion"
  */
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
-import { useScores } from "@/hooks/use-scores";
-import { useCurrentEmotion } from "@/hooks/use-current-emotion";
-import { useAuth } from "@/hooks/use-auth";
 import { getParticipantId } from "@/lib/participant";
 import {
   AreaChart,
@@ -30,61 +28,103 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { Target, Clock, Brain, Zap } from "lucide-react";
-import { listSessions, type SessionSummary } from "@/lib/ml-api";
+import { Target, Zap, TrendingUp, Lightbulb, Clock, Sun, Sunset, Moon } from "lucide-react";
+
+/* ---------- constants ---------- */
+
+const FOCUS_PRIMARY = "#6366f1"; // indigo
+const FOCUS_ACCENT = "#0891b2"; // cyan
+
+/* ---------- types ---------- */
+
+interface HistoryEntry {
+  dominantEmotion: string;
+  timestamp: string;
+  focus_index?: number;
+}
 
 /* ---------- helpers ---------- */
 
-function buildFocusTrend(
-  sessions: SessionSummary[],
-  days: number
-): { date: string; focus: number; cogLoad: number }[] {
-  const map: Record<
-    string,
-    { focuses: number[]; cogLoads: number[]; ts: number }
-  > = {};
-  const cutoff = Date.now() / 1000 - days * 86400;
+function getCurrentFocus(): { focusIndex: number; timestamp: number } | null {
+  try {
+    const raw = localStorage.getItem("ndw_last_emotion");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.timestamp || Date.now() - parsed.timestamp > 86_400_000) return null;
+    const fi = parsed.result?.focus_index;
+    if (fi == null || typeof fi !== "number") return null;
+    return { focusIndex: fi, timestamp: parsed.timestamp };
+  } catch {
+    return null;
+  }
+}
 
-  for (const s of sessions) {
-    if ((s.start_time ?? 0) < cutoff) continue;
-    if (s.summary?.avg_focus == null) continue;
-    const d = new Date((s.start_time ?? 0) * 1000);
-    const key =
-      days <= 7
-        ? d.toLocaleDateString("en-US", { weekday: "short" })
-        : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function classifyFocus(percent: number): {
+  label: string;
+  color: string;
+  description: string;
+} {
+  if (percent >= 80)
+    return {
+      label: "Deep",
+      color: FOCUS_PRIMARY,
+      description: "Exceptional concentration — you are in the zone.",
+    };
+  if (percent >= 55)
+    return {
+      label: "Sharp",
+      color: FOCUS_ACCENT,
+      description: "Strong focus — ideal for complex tasks.",
+    };
+  if (percent >= 30)
+    return {
+      label: "Moderate",
+      color: "#d4a017",
+      description: "Baseline attention — fine for routine work.",
+    };
+  return {
+    label: "Diffuse",
+    color: "#94a3b8",
+    description: "Scattered attention — consider a short break.",
+  };
+}
+
+function buildDailyFocusTrend(
+  data: HistoryEntry[]
+): { date: string; focus: number; ts: number }[] {
+  const dayMap = new Map<
+    string,
+    { values: number[]; ts: number }
+  >();
+
+  for (const entry of data) {
+    if (entry.focus_index == null) continue;
+    const d = new Date(entry.timestamp);
+    const key = d.toLocaleDateString("en-US", { weekday: "short" });
     const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    if (!map[key]) map[key] = { focuses: [], cogLoads: [], ts };
-    map[key].focuses.push((s.summary.avg_focus ?? 0) * 100);
-    // Cognitive load approximated from stress (inverse of focus)
-    const cogLoad = 1 - (s.summary.avg_focus ?? 0);
-    map[key].cogLoads.push(cogLoad * 100);
+    if (!dayMap.has(key)) dayMap.set(key, { values: [], ts });
+    dayMap.get(key)!.values.push(entry.focus_index * 100);
   }
 
-  return Object.entries(map)
+  return Array.from(dayMap.entries())
     .sort(([, a], [, b]) => a.ts - b.ts)
-    .map(([date, { focuses, cogLoads }]) => ({
+    .map(([date, { values, ts }]) => ({
       date,
-      focus: Math.round(
-        focuses.reduce((a, b) => a + b, 0) / focuses.length
-      ),
-      cogLoad: cogLoads.length
-        ? Math.round(cogLoads.reduce((a, b) => a + b, 0) / cogLoads.length)
-        : 0,
+      focus: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
+      ts,
     }));
 }
 
 function buildFocusByHour(
-  sessions: SessionSummary[]
-): { hour: string; focus: number }[] {
+  data: HistoryEntry[]
+): { hour: string; focus: number; hourNum: number }[] {
   const hourMap: Record<number, number[]> = {};
 
-  for (const s of sessions) {
-    if (s.summary?.avg_focus == null) continue;
-    const d = new Date((s.start_time ?? 0) * 1000);
-    const h = d.getHours();
+  for (const entry of data) {
+    if (entry.focus_index == null) continue;
+    const h = new Date(entry.timestamp).getHours();
     if (!hourMap[h]) hourMap[h] = [];
-    hourMap[h].push(s.summary.avg_focus * 100);
+    hourMap[h].push(entry.focus_index * 100);
   }
 
   return Object.entries(hourMap)
@@ -93,54 +133,81 @@ function buildFocusByHour(
       hour: `${parseInt(hour) % 12 || 12}${parseInt(hour) < 12 ? "a" : "p"}`,
       focus: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
     }))
-    .sort((a, b) => a.hourNum - b.hourNum)
-    .map(({ hour, focus }) => ({ hour, focus }));
+    .sort((a, b) => a.hourNum - b.hourNum);
+}
+
+function getFocusTips(percent: number | null): { icon: React.ReactNode; text: string }[] {
+  if (percent === null) return [];
+  if (percent >= 80)
+    return [
+      { icon: <Zap className="h-4 w-4 text-indigo-400" />, text: "You are in deep focus. Tackle your hardest task now." },
+      { icon: <Target className="h-4 w-4 text-cyan-400" />, text: "Block notifications to maintain this state." },
+    ];
+  if (percent >= 55)
+    return [
+      { icon: <Zap className="h-4 w-4 text-cyan-400" />, text: "Good focus level. Prioritize complex work while it lasts." },
+      { icon: <Target className="h-4 w-4 text-indigo-400" />, text: "A short walk after 25 minutes keeps focus sharp." },
+    ];
+  if (percent >= 30)
+    return [
+      { icon: <Target className="h-4 w-4 text-amber-400" />, text: "Try a 5-minute breathing exercise to sharpen attention." },
+      { icon: <Zap className="h-4 w-4 text-amber-400" />, text: "Handle simpler tasks first, then ramp up." },
+      { icon: <Lightbulb className="h-4 w-4 text-amber-400" />, text: "Reduce open browser tabs and background noise." },
+    ];
+  return [
+    { icon: <Target className="h-4 w-4 text-slate-400" />, text: "Step away from screens for a few minutes." },
+    { icon: <Zap className="h-4 w-4 text-slate-400" />, text: "Hydrate and do some light stretching." },
+    { icon: <Lightbulb className="h-4 w-4 text-slate-400" />, text: "This may not be the time for deep work — save it for later." },
+  ];
+}
+
+function timeOfDayLabel(hourNum: number): { label: string; icon: React.ReactNode } {
+  if (hourNum >= 5 && hourNum < 12)
+    return { label: "Morning", icon: <Sun className="h-4 w-4 text-amber-400" /> };
+  if (hourNum >= 12 && hourNum < 17)
+    return { label: "Afternoon", icon: <Sun className="h-4 w-4 text-orange-400" /> };
+  if (hourNum >= 17 && hourNum < 21)
+    return { label: "Evening", icon: <Sunset className="h-4 w-4 text-rose-400" /> };
+  return { label: "Night", icon: <Moon className="h-4 w-4 text-indigo-300" /> };
 }
 
 /* ---------- component ---------- */
 
 export default function FocusTrends() {
-  const { user } = useAuth();
-  const userId = user?.id?.toString();
-  const { scores } = useScores(userId);
-  const { emotion: currentEmotion } = useCurrentEmotion();
-  const [periodDays, setPeriodDays] = useState(7);
+  const userId = getParticipantId();
 
-  const { data: allSessions = [] } = useQuery<SessionSummary[]>({
-    queryKey: ["sessions"],
-    queryFn: () => listSessions(),
+  const { data: history } = useQuery<HistoryEntry[]>({
+    queryKey: [`/api/brain/history/${userId}?days=7`],
     retry: false,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
-  const focusTrend = buildFocusTrend(allSessions, periodDays);
-  const focusByHour = buildFocusByHour(allSessions);
-  const currentFocus = currentEmotion?.focus ?? null;
-  const focusPercent =
-    currentFocus !== null ? Math.round(currentFocus * 100) : null;
+  const current = useMemo(() => getCurrentFocus(), []);
+  const focusPercent = current ? Math.round(current.focusIndex * 100) : null;
+  const classification = focusPercent !== null ? classifyFocus(focusPercent) : null;
 
-  const focusLevel =
-    focusPercent === null
-      ? "Unknown"
-      : focusPercent >= 70
-      ? "Sharp"
-      : focusPercent >= 40
-      ? "Moderate"
-      : "Diffuse";
+  const focusTrend = useMemo(
+    () => (history ? buildDailyFocusTrend(history) : []),
+    [history]
+  );
 
-  const focusColor =
-    focusPercent === null
-      ? "var(--muted-foreground)"
-      : focusPercent >= 70
-      ? "#6366f1"
-      : focusPercent >= 40
-      ? "#d4a017"
-      : "#94a3b8";
+  const focusByHour = useMemo(
+    () => (history ? buildFocusByHour(history) : []),
+    [history]
+  );
 
-  // Find best focus hour
-  const bestHour = focusByHour.length
-    ? focusByHour.reduce((best, h) => (h.focus > best.focus ? h : best))
-    : null;
+  const bestHour = useMemo(() => {
+    if (focusByHour.length === 0) return null;
+    return focusByHour.reduce((best, h) => (h.focus > best.focus ? h : best));
+  }, [focusByHour]);
+
+  const weekAvg = useMemo(() => {
+    if (focusTrend.length === 0) return null;
+    const sum = focusTrend.reduce((s, d) => s + d.focus, 0);
+    return Math.round(sum / focusTrend.length);
+  }, [focusTrend]);
+
+  const tips = getFocusTips(focusPercent);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-24">
@@ -154,18 +221,18 @@ export default function FocusTrends() {
           Focus
         </h1>
         <p className="text-sm mt-1 text-muted-foreground">
-          Concentration, cognitive load, and peak times
+          Concentration levels, trends, and peak times
         </p>
       </motion.div>
 
-      {/* Focus Gauge — hero */}
+      {/* Focus Gauge — hero card */}
       <motion.div
         className="rounded-[14px] p-6 border border-border bg-card flex flex-col items-center"
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
-        {focusPercent !== null ? (
+        {focusPercent !== null && classification ? (
           <>
             <div className="relative w-32 h-32 mb-3">
               <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
@@ -182,7 +249,7 @@ export default function FocusTrends() {
                   cy="50"
                   r="42"
                   fill="none"
-                  stroke={focusColor}
+                  stroke={classification.color}
                   strokeWidth="8"
                   strokeLinecap="round"
                   strokeDasharray={`${(focusPercent / 100) * 264} 264`}
@@ -196,7 +263,7 @@ export default function FocusTrends() {
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span
                   className="text-3xl font-bold"
-                  style={{ color: focusColor }}
+                  style={{ color: classification.color }}
                 >
                   {focusPercent}
                 </span>
@@ -205,10 +272,13 @@ export default function FocusTrends() {
             </div>
             <div
               className="text-sm font-semibold"
-              style={{ color: focusColor }}
+              style={{ color: classification.color }}
             >
-              {focusLevel} Focus
+              {classification.label} Focus
             </div>
+            <p className="text-xs text-muted-foreground mt-1 text-center max-w-[240px]">
+              {classification.description}
+            </p>
           </>
         ) : (
           <div className="text-center py-4">
@@ -220,129 +290,102 @@ export default function FocusTrends() {
         )}
       </motion.div>
 
-      {/* Focus Trend */}
+      {/* Week average stat */}
+      {weekAvg !== null && (
+        <motion.div
+          className="rounded-[14px] p-4 border border-border bg-card flex items-center gap-4"
+          custom={1}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: `${FOCUS_PRIMARY}20` }}
+          >
+            <TrendingUp className="h-5 w-5" style={{ color: FOCUS_PRIMARY }} />
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">7-Day Average</div>
+            <div className="text-lg font-bold text-foreground font-mono">
+              {weekAvg}%
+            </div>
+          </div>
+          <div className="ml-auto text-[10px] text-muted-foreground">
+            {focusTrend.length} {focusTrend.length === 1 ? "day" : "days"} of data
+          </div>
+        </motion.div>
+      )}
+
+      {/* 7-Day Focus Trend */}
       <motion.div
         className="rounded-[14px] p-4 border border-border bg-card"
-        custom={1}
+        custom={2}
         initial="hidden"
         animate="visible"
         variants={cardVariants}
       >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">
-              Focus Trend
-            </span>
-          </div>
-          <div className="flex gap-1">
-            {[
-              { label: "7d", days: 7 },
-              { label: "30d", days: 30 },
-            ].map((tab) => (
-              <button
-                key={tab.days}
-                onClick={() => setPeriodDays(tab.days)}
-                className={`px-2.5 py-1 text-[11px] rounded-full transition-colors ${
-                  periodDays === tab.days
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-2 mb-4">
+          <Target className="h-4 w-4" style={{ color: FOCUS_PRIMARY }} />
+          <span className="text-sm font-semibold text-foreground">
+            Focus Trend (7 days)
+          </span>
         </div>
 
         {focusTrend.length >= 2 ? (
-          <>
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart
-                data={focusTrend}
-                margin={{ left: 0, right: 4, top: 4, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="focusGradFT" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(220,18%,14%)"
-                  opacity={0.5}
-                />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  domain={[0, 100]}
-                  tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={24}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--popover)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 10,
-                    fontSize: 11,
-                  }}
-                  formatter={(v: number) => [`${v}%`]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="focus"
-                  name="Focus"
-                  stroke="#6366f1"
-                  fill="url(#focusGradFT)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="cogLoad"
-                  name="Cog. Load"
-                  stroke="#7c3aed"
-                  fill="none"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 3"
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-            <div className="flex gap-4 mt-2 justify-center">
-              {[
-                { label: "Focus", color: "#6366f1" },
-                { label: "Cog. Load", color: "#7c3aed", dashed: true },
-              ].map((l) => (
-                <div key={l.label} className="flex items-center gap-1">
-                  <svg width="14" height="8">
-                    <line
-                      x1="0"
-                      y1="4"
-                      x2="14"
-                      y2="4"
-                      stroke={l.color}
-                      strokeWidth="2"
-                      strokeDasharray={l.dashed ? "4 3" : "0"}
-                    />
-                  </svg>
-                  <span className="text-[10px] text-muted-foreground">
-                    {l.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart
+              data={focusTrend}
+              margin={{ left: 0, right: 4, top: 4, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="focusGradFT" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={FOCUS_PRIMARY} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={FOCUS_PRIMARY} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(220,18%,14%)"
+                opacity={0.5}
+              />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                axisLine={false}
+                tickLine={false}
+                width={24}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--popover)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  fontSize: 11,
+                }}
+                formatter={(v: number) => [`${v}%`, "Focus"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="focus"
+                name="Focus"
+                stroke={FOCUS_PRIMARY}
+                fill="url(#focusGradFT)"
+                strokeWidth={2}
+                dot={{ r: 3, fill: FOCUS_PRIMARY, strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: FOCUS_PRIMARY, strokeWidth: 2, stroke: "#fff" }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         ) : (
           <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
-            Not enough sessions to show trend
+            Not enough data to show a trend yet
           </div>
         )}
       </motion.div>
@@ -351,13 +394,13 @@ export default function FocusTrends() {
       {focusByHour.length >= 3 && (
         <motion.div
           className="rounded-[14px] p-4 border border-border bg-card"
-          custom={2}
+          custom={3}
           initial="hidden"
           animate="visible"
           variants={cardVariants}
         >
           <div className="flex items-center gap-2 mb-4">
-            <Clock className="h-4 w-4 text-primary" />
+            <Clock className="h-4 w-4" style={{ color: FOCUS_ACCENT }} />
             <span className="text-sm font-semibold text-foreground">
               Focus by Time of Day
             </span>
@@ -400,7 +443,7 @@ export default function FocusTrends() {
                     key={index}
                     fill={
                       bestHour && entry.hour === bestHour.hour
-                        ? "#6366f1"
+                        ? FOCUS_PRIMARY
                         : "hsl(220,18%,20%)"
                     }
                   />
@@ -410,24 +453,55 @@ export default function FocusTrends() {
           </ResponsiveContainer>
           {bestHour && (
             <div className="mt-3 flex items-center gap-2 rounded-xl p-3 bg-muted/30">
-              <Zap className="h-4 w-4 text-indigo-400" />
+              {timeOfDayLabel(bestHour.hourNum).icon}
               <span className="text-xs text-foreground">
-                Your peak focus time is around{" "}
-                <strong className="text-indigo-400">{bestHour.hour}</strong> (
-                {bestHour.focus}% avg)
+                Peak focus at{" "}
+                <strong style={{ color: FOCUS_PRIMARY }}>{bestHour.hour}</strong>{" "}
+                ({bestHour.focus}% avg) &mdash;{" "}
+                {timeOfDayLabel(bestHour.hourNum).label.toLowerCase()} works best
+                for you
               </span>
             </div>
           )}
         </motion.div>
       )}
 
-      {/* Empty state */}
+      {/* Focus Tips */}
+      {tips.length > 0 && (
+        <motion.div
+          className="rounded-[14px] p-4 border border-border bg-card"
+          custom={4}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Lightbulb className="h-4 w-4" style={{ color: FOCUS_ACCENT }} />
+            <span className="text-sm font-semibold text-foreground">
+              Focus Tips
+            </span>
+          </div>
+          <div className="space-y-2">
+            {tips.map((tip, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-xl p-3 bg-muted/30"
+              >
+                {tip.icon}
+                <span className="text-xs text-foreground">{tip.text}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Empty state — no data at all */}
       {focusTrend.length === 0 && focusPercent === null && (
         <div className="rounded-[14px] p-8 border border-border bg-card text-center">
           <Target className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">
-            No focus data yet. Complete some sessions to track your focus
-            patterns.
+            No focus data yet. Complete a voice check-in to start tracking your
+            concentration patterns.
           </p>
         </div>
       )}
