@@ -15,21 +15,21 @@ import { cn } from "@/lib/utils";
 // ── Score status helpers ─────────────────────────────────────────────────────
 
 function getRecoveryStatus(value: number): { label: string; color: string } {
-  if (value >= 67) return { label: "Great", color: "text-green-400" };
-  if (value >= 34) return { label: "Good", color: "text-yellow-400" };
-  return { label: "Low", color: "text-red-400" };
+  if (value >= 67) return { label: "Great", color: "text-cyan-400" };
+  if (value >= 34) return { label: "Good", color: "text-amber-400" };
+  return { label: "Low", color: "text-rose-400" };
 }
 
 function getStrainStatus(value: number): { label: string; color: string } {
-  if (value >= 67) return { label: "Heavy", color: "text-red-400" };
-  if (value >= 34) return { label: "Moderate", color: "text-yellow-400" };
-  return { label: "Light", color: "text-green-400" };
+  if (value >= 67) return { label: "Heavy", color: "text-rose-400" };
+  if (value >= 34) return { label: "Moderate", color: "text-amber-400" };
+  return { label: "Light", color: "text-cyan-400" };
 }
 
 function getEnergyStatus(value: number): { label: string; color: string } {
-  if (value >= 67) return { label: "Full", color: "text-green-400" };
-  if (value >= 34) return { label: "Half", color: "text-yellow-400" };
-  return { label: "Low", color: "text-red-400" };
+  if (value >= 67) return { label: "Full", color: "text-cyan-400" };
+  if (value >= 34) return { label: "Half", color: "text-amber-400" };
+  return { label: "Low", color: "text-rose-400" };
 }
 
 // ── Score descriptions ───────────────────────────────────────────────────────
@@ -142,18 +142,18 @@ function MiniScoreArc({
             <stop offset="100%" stopColor={colorTo} />
           </linearGradient>
         </defs>
-        {/* Background track */}
+        {/* Background track — very subtle, thinner */}
         <circle
           cx={cx}
           cy={cy}
           r={r}
           fill="none"
           stroke="var(--border)"
-          strokeWidth={stroke}
+          strokeWidth={stroke - 1}
           strokeDasharray={`${arcLength} ${gapLength}`}
           strokeLinecap="round"
           transform={`rotate(135 ${cx} ${cy})`}
-          opacity={0.4}
+          opacity={0.15}
         />
         {/* Score arc */}
         {value !== null && (
