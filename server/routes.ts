@@ -1094,6 +1094,81 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
+  // GET /api/brain/weekly-summary/:userId — 7-day wellness summary (no GPT, structured data only)
+  app.get("/api/brain/weekly-summary/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const fromTs = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const readings = await storage.getEmotionReadings(userId, 500, fromTs);
+
+      if (!readings || readings.length === 0) {
+        return res.json({ available: false, message: "Not enough data for a weekly summary" });
+      }
+
+      const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+      const stressVals = readings.map(r => r.stress).filter(v => v > 0);
+      const focusVals = readings.map(r => r.focus).filter(v => v > 0);
+      const happinessVals = readings.map(r => r.happiness).filter(v => v > 0);
+      const energyVals = readings.map(r => r.energy).filter(v => v > 0);
+
+      // Dominant emotion
+      const emotionCounts: Record<string, number> = {};
+      readings.forEach(r => {
+        if (r.dominantEmotion) {
+          emotionCounts[r.dominantEmotion] = (emotionCounts[r.dominantEmotion] || 0) + 1;
+        }
+      });
+      const sortedEmotions = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1]);
+      const dominantEmotion = sortedEmotions[0]?.[0] || "neutral";
+
+      // Stress trend: first half vs second half
+      const mid = Math.floor(stressVals.length / 2);
+      const firstHalf = stressVals.slice(0, mid);
+      const secondHalf = stressVals.slice(mid);
+      const stressTrend = avg(secondHalf) - avg(firstHalf); // positive = increasing stress
+
+      // Unique check-in days
+      const checkinDays = new Set(readings.map(r => new Date(r.timestamp).toISOString().slice(0, 10))).size;
+
+      // Generate insight text
+      let insight = "";
+      if (avg(stressVals) > 0.6) {
+        insight = "Your stress has been elevated this week. Consider adding breathing exercises to your routine.";
+      } else if (stressTrend < -0.1) {
+        insight = "Great news — your stress levels are trending down. Keep up whatever you're doing!";
+      } else if (avg(focusVals) > 0.6) {
+        insight = "Your focus has been strong this week. You're in a productive flow.";
+      } else if (avg(happinessVals) > 0.6) {
+        insight = "You've had a positive week overall. Savor this emotional momentum.";
+      } else {
+        insight = "Consistency is key — keep checking in daily to build awareness of your patterns.";
+      }
+
+      res.json({
+        available: true,
+        period: {
+          start: fromTs.toISOString().slice(0, 10),
+          end: new Date().toISOString().slice(0, 10),
+        },
+        summary: {
+          total_readings: readings.length,
+          checkin_days: checkinDays,
+          avg_stress: Math.round(avg(stressVals) * 100),
+          avg_focus: Math.round(avg(focusVals) * 100),
+          avg_happiness: Math.round(avg(happinessVals) * 100),
+          avg_energy: Math.round(avg(energyVals) * 100),
+          dominant_emotion: dominantEmotion,
+          emotion_distribution: Object.fromEntries(sortedEmotions),
+          stress_trend: stressTrend > 0.05 ? "increasing" : stressTrend < -0.05 ? "decreasing" : "stable",
+        },
+        insight,
+      });
+    } catch (error) {
+      console.error("Weekly summary error:", error);
+      res.status(500).json({ message: "Failed to generate weekly summary" });
+    }
+  });
+
   // GET /api/brain/patterns/:userId
   // Long-term pattern engine: correlates 30 days of emotion readings with time-of-day,
   // day-of-week, sleep quality, and biofeedback sessions to produce actionable patterns.
