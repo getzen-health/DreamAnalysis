@@ -119,6 +119,135 @@ def _sanitize_nan(signal: np.ndarray) -> np.ndarray:
     return signal
 
 
+def wavelet_denoise_channel(
+    signal: np.ndarray, fs: int = 256, wavelet: str = "db4", level: int = 4
+) -> np.ndarray:
+    """Single-channel wavelet denoising for consumer EEG.
+
+    Works per-channel -- suitable for Muse 2's 4 channels (no ICA needed).
+
+    Method: DWT decomposition -> threshold detail coefficients -> reconstruct.
+    Uses universal threshold (VisuShrink) with soft thresholding.
+
+    Args:
+        signal: 1D EEG signal.
+        fs: Sample rate (256 Hz for Muse).
+        wavelet: Wavelet family ('db4' is standard for EEG).
+        level: Decomposition level (4 for 256 Hz captures delta through gamma).
+
+    Returns:
+        Denoised signal, same length as input.
+    """
+    # Sanitize NaN/inf before processing
+    signal = _sanitize_nan(signal)
+
+    n = len(signal)
+
+    # Edge case: all-zero or constant signal
+    if n == 0 or np.std(signal) < 1e-12:
+        return signal.copy()
+
+    # Edge case: signal too short for the requested decomposition
+    wav = pywt.Wavelet(wavelet)
+    max_level = pywt.dwt_max_level(n, wav.dec_len)
+    if max_level < 1:
+        # Cannot decompose at all -- return as-is
+        return signal.copy()
+    use_level = min(level, max_level)
+
+    # DWT decomposition
+    coeffs = pywt.wavedec(signal, wavelet, level=use_level)
+
+    # Estimate noise sigma from finest detail coefficients using MAD
+    # MAD = median(|d|) / 0.6745  (robust noise estimator)
+    d1 = coeffs[-1]
+    mad = np.median(np.abs(d1))
+    sigma = mad / 0.6745 if mad > 0 else 1e-10
+
+    # Universal (VisuShrink) threshold
+    threshold = sigma * np.sqrt(2 * np.log(n))
+
+    # Soft-threshold all detail coefficients (index 1..end); preserve approximation (index 0)
+    denoised_coeffs = [coeffs[0]]
+    for detail in coeffs[1:]:
+        denoised_coeffs.append(pywt.threshold(detail, value=threshold, mode="soft"))
+
+    # Reconstruct
+    reconstructed = pywt.waverec(denoised_coeffs, wavelet)
+
+    # waverec can produce an output 1 sample longer than the input due to
+    # even/odd length rounding; trim to match original length
+    return reconstructed[:n]
+
+
+def adaptive_blink_filter(
+    signal: np.ndarray, fs: int = 256, threshold_uv: float = 75.0
+) -> np.ndarray:
+    """Detect and interpolate blink artifacts using Savitzky-Golay reference.
+
+    For frontal channels (AF7/AF8) where blinks are strongest.
+    No separate EOG reference electrode needed.
+
+    Method:
+        1. Compute a slow envelope using Savitzky-Golay filter (~0.5s window).
+        2. Detect blinks where |signal - envelope| > threshold.
+        3. Interpolate blink segments using cubic interpolation.
+        4. Return cleaned signal.
+
+    Args:
+        signal: 1D EEG signal.
+        fs: Sample rate (256 Hz for Muse).
+        threshold_uv: Amplitude threshold in microvolts for blink detection.
+
+    Returns:
+        Cleaned signal, same length as input.
+    """
+    # Sanitize NaN/inf before processing
+    signal = _sanitize_nan(signal)
+
+    n = len(signal)
+    out = signal.copy()
+
+    # Edge case: too short for Savitzky-Golay (needs odd window >= polyorder + 2)
+    window_samples = int(0.5 * fs)  # ~0.5 seconds
+    if window_samples % 2 == 0:
+        window_samples += 1  # must be odd
+    polyorder = 3
+
+    if n < window_samples or n < polyorder + 2:
+        return out
+
+    # Compute slow envelope via Savitzky-Golay
+    envelope = scipy_signal.savgol_filter(out, window_length=window_samples, polyorder=polyorder)
+
+    # Detect blink samples: where residual exceeds threshold
+    residual = np.abs(out - envelope)
+    blink_mask = residual > threshold_uv
+
+    if not np.any(blink_mask):
+        return out
+
+    # Expand blink regions slightly (20 ms margin on each side) to catch tails
+    margin = max(1, int(0.02 * fs))
+    expanded_mask = blink_mask.copy()
+    for i in range(n):
+        if blink_mask[i]:
+            lo = max(0, i - margin)
+            hi = min(n, i + margin + 1)
+            expanded_mask[lo:hi] = True
+
+    # Interpolate blink segments using cubic interpolation from clean samples
+    clean_idx = np.where(~expanded_mask)[0]
+    if len(clean_idx) < 2:
+        # Almost entire signal is artifact -- fall back to envelope
+        return envelope
+
+    blink_idx = np.where(expanded_mask)[0]
+    out[blink_idx] = np.interp(blink_idx, clean_idx, out[clean_idx])
+
+    return out
+
+
 def preprocess(
     raw_eeg: np.ndarray,
     fs: float = 256.0,
@@ -144,6 +273,10 @@ def preprocess(
     filtered = bandpass_filter(raw_eeg, 1.0, 50.0, fs)
     filtered = notch_filter(filtered, 50.0, fs)
     filtered = notch_filter(filtered, 60.0, fs)
+
+    # Wavelet denoising + blink artifact removal (per-channel, no ICA needed)
+    filtered = wavelet_denoise_channel(filtered, fs=int(fs))
+    filtered = adaptive_blink_filter(filtered, fs=int(fs))
 
     if clean_artifacts:
         filtered = clean_artifacts_easr(filtered, fs=fs, easr_instance=easr_instance)
