@@ -65,7 +65,7 @@ function ProgressBar({
 }) {
   const pct = Math.min((value / max) * 100, 100);
   return (
-    <div className="w-full h-2 rounded-full bg-muted">
+    <div className="w-full h-3 rounded-full bg-muted">
       <motion.div
         className="h-2 rounded-full"
         style={{ background: color }}

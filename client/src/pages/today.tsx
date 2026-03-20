@@ -365,19 +365,19 @@ function MentalFitnessCard({ voice }: { voice: VoiceCheckinData | null }) {
       <div style={{ display: "flex", gap: 8, fontSize: 9, color: "var(--muted-foreground)" }}>
         <div style={{ flex: 1 }}>
           <div style={{ marginBottom: 2 }}>Calm {Math.round((1 - stress) * 100)}%</div>
-          <div style={{ height: 3, background: "var(--border)", borderRadius: 2 }}>
+          <div style={{ height: 8, background: "var(--border)", borderRadius: 4 }}>
             <div style={{ width: `${(1 - stress) * 100}%`, height: "100%", background: "#4ade80", borderRadius: 2 }} />
           </div>
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ marginBottom: 2 }}>Focus {Math.round(focus * 100)}%</div>
-          <div style={{ height: 3, background: "var(--border)", borderRadius: 2 }}>
+          <div style={{ height: 8, background: "var(--border)", borderRadius: 4 }}>
             <div style={{ width: `${focus * 100}%`, height: "100%", background: "#3b82f6", borderRadius: 2 }} />
           </div>
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ marginBottom: 2 }}>Mood {Math.round(((valence + 1) / 2) * 100)}%</div>
-          <div style={{ height: 3, background: "var(--border)", borderRadius: 2 }}>
+          <div style={{ height: 8, background: "var(--border)", borderRadius: 4 }}>
             <div style={{ width: `${((valence + 1) / 2) * 100}%`, height: "100%", background: "#e8b94a", borderRadius: 2 }} />
           </div>
         </div>
@@ -655,7 +655,7 @@ function SleepStageBar({
         style={{
           display: "flex",
           height: 6,
-          borderRadius: 3,
+          borderRadius: 6,
           overflow: "hidden",
           background: "var(--border)",
           marginBottom: 6,
@@ -1154,7 +1154,7 @@ export default function Today() {
         <div
           style={{
             height: 6,
-            borderRadius: 3,
+            borderRadius: 6,
             background: "var(--border)",
             overflow: "hidden",
           }}
@@ -1164,7 +1164,7 @@ export default function Today() {
               height: "100%",
               width: `${calPct * 100}%`,
               background: "linear-gradient(90deg, #d4a017, #ea580c)",
-              borderRadius: 3,
+              borderRadius: 6,
               transition: "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
             }}
           />

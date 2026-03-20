@@ -600,7 +600,7 @@ function CalorieRingCompact({ calories }: { calories: number }) {
 function MacroBar({ value, goal, color }: { value: number; goal: number; color: string }) {
   const pct = Math.min((value / goal) * 100, 100);
   return (
-    <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", flex: 1 }}>
+    <div style={{ height: 8, background: "var(--border)", borderRadius: 4, overflow: "hidden", flex: 1 }}>
       <div style={{
         width: `${pct}%`, height: "100%", background: color,
         borderRadius: 2, transition: "width 0.4s ease",
@@ -677,7 +677,7 @@ function estimateVitaminsFromFood(items: FoodItem[]): VitaminData {
 function VitaminBar({ value, goal, color }: { value: number; goal: number; color: string }) {
   const pct = Math.min((value / goal) * 100, 100);
   return (
-    <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", flex: 1 }}>
+    <div style={{ height: 8, background: "var(--border)", borderRadius: 4, overflow: "hidden", flex: 1 }}>
       <div style={{
         height: "100%", width: `${pct}%`, background: color,
         borderRadius: 2, transition: "width 0.5s ease",
@@ -841,7 +841,7 @@ function Glp1Tracker({
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", width: 68, flexShrink: 0 }}>
               {item.label}
             </div>
-            <div style={{ flex: 1, height: 3, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{ flex: 1, height: 8, background: "var(--border)", borderRadius: 4, overflow: "hidden" }}>
               <div style={{
                 height: "100%",
                 width: `${(item.value / item.max) * 100}%`,
