@@ -11,6 +11,14 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Headphones, Play, Square, Volume2, VolumeX, Trophy, Target, Timer, Radio } from "lucide-react";
 import {
   getNeurofeedbackProtocols,
@@ -21,6 +29,12 @@ import {
 import { writeMindfulSession } from "@/lib/health-connect";
 import { useDevice } from "@/hooks/use-device";
 import { useToast } from "@/hooks/use-toast";
+import { NeurofeedbackScheduleCard } from "@/components/neurofeedback-schedule-card";
+import {
+  getSessionSchedule,
+  getSessionHistory,
+  recordNeurofeedbackSession,
+} from "@/lib/neurofeedback-schedule";
 
 type SessionPhase = "idle" | "calibrating" | "training" | "summary";
 
@@ -48,6 +62,13 @@ export default function Neurofeedback() {
   const [elapsed, setElapsed] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [stats, setStats] = useState<SessionStats | null>(null);
+  const [showTooSoonDialog, setShowTooSoonDialog] = useState(false);
+
+  // Session scheduling — recalculate when phase changes back to idle
+  const [sessionHistory, setSessionHistory] = useState<Date[]>(() =>
+    getSessionHistory()
+  );
+  const schedule = getSessionSchedule(sessionHistory);
 
   const { toast } = useToast();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -109,8 +130,19 @@ export default function Neurofeedback() {
     }
   }, [audioEnabled]);
 
-  const handleStart = async () => {
+  const handleStartRequest = () => {
     if (!isStreaming) return;
+    // If session is too soon, show a gentle suggestion (not a gate)
+    if (schedule.isTooSoon) {
+      setShowTooSoonDialog(true);
+      return;
+    }
+    doStart();
+  };
+
+  const doStart = async () => {
+    if (!isStreaming) return;
+    setShowTooSoonDialog(false);
     sessionStartRef.current = new Date();
     try {
       const result = await startNeurofeedback(selectedProtocol, true);
@@ -181,6 +213,9 @@ export default function Neurofeedback() {
 
     try {
       const result = await stopNeurofeedback();
+      // Record completed session for scheduling
+      recordNeurofeedbackSession();
+      setSessionHistory(getSessionHistory());
       setStats(result.stats);
       setPhase("summary");
     } catch {
@@ -246,6 +281,11 @@ export default function Neurofeedback() {
         )}
       </div>
 
+      {/* Session Schedule Card — shown in idle phase */}
+      {phase === "idle" && (
+        <NeurofeedbackScheduleCard schedule={schedule} />
+      )}
+
       {/* Idle: Protocol Selection */}
       {phase === "idle" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -288,7 +328,7 @@ export default function Neurofeedback() {
               </div>
 
               <Button
-                onClick={handleStart}
+                onClick={handleStartRequest}
                 disabled={!isStreaming}
                 className="w-full bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 disabled:opacity-50"
               >
@@ -437,6 +477,36 @@ export default function Neurofeedback() {
           </div>
         </Card>
       )}
+      {/* Too-Soon Dialog — gentle suggestion, never blocks */}
+      <Dialog open={showTooSoonDialog} onOpenChange={setShowTooSoonDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Your brain benefits from rest</DialogTitle>
+            <DialogDescription>
+              Research shows 2-3 day spacing between sessions leads to better
+              long-term results. Want to do a quick meditation instead?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={doStart}
+              className="border-primary/30 text-foreground"
+            >
+              Start anyway
+            </Button>
+            <Button
+              onClick={() => {
+                setShowTooSoonDialog(false);
+                window.location.href = "/inner-energy";
+              }}
+              className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
+            >
+              Try meditation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
