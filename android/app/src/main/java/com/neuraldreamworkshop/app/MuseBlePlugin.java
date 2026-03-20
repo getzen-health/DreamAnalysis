@@ -99,20 +99,19 @@ public class MuseBlePlugin extends Plugin {
             }
         };
 
-        ScanFilter filter = new ScanFilter.Builder()
-            .setServiceUuid(new ParcelUuid(MUSE_SERVICE))
-            .build();
         ScanSettings settings = new ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build();
 
+        // Scan WITHOUT service filter — Muse S may not always advertise service UUID
         try {
-            scanner.startScan(Collections.singletonList(filter), settings, scanCb);
+            scanner.startScan(null, settings, scanCb);
         } catch (SecurityException e) {
             call.reject("Scan permission denied");
             return;
         }
 
+        // Scan for 12 seconds (longer to catch Muse S advertising cycle)
         handler.postDelayed(() -> {
             try { scanner.stopScan(scanCb); } catch (Exception ignored) {}
             JSObject result = new JSObject();
@@ -120,7 +119,7 @@ public class MuseBlePlugin extends Plugin {
             for (JSONObject d : devices) arr.put(d);
             result.put("devices", arr);
             call.resolve(result);
-        }, 8000);
+        }, 12000);
     }
 
     @PluginMethod
