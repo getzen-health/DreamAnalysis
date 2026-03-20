@@ -16,6 +16,7 @@ import {
 import { ChronotypeQuiz } from "@/components/chronotype-quiz";
 import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
 import { BrainAgeCard } from "@/components/brain-age-card";
+import { NotificationPrefsSheet } from "@/components/notification-prefs-sheet";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -179,6 +180,7 @@ export default function You() {
   const [healthConnected] = useState(() => getHealthConnectStatus());
   const [museConnected] = useState(() => getMuseStatus());
   const [showChronotypeQuiz, setShowChronotypeQuiz] = useState(false);
+  const [showNotificationPrefs, setShowNotificationPrefs] = useState(false);
   const [chronotype, setChronotype] = useState<ChronotypeCategory | null>(
     () => getStoredChronotype()?.category ?? null,
   );
@@ -407,7 +409,7 @@ export default function You() {
           icon={Bell}
           iconColor="#d4a017"
           title="Notifications"
-          onClick={() => setLocation("/notifications")}
+          onClick={() => setShowNotificationPrefs(true)}
         />
         <ListItem
           icon={Download}
@@ -460,6 +462,12 @@ export default function You() {
           onClose={() => setShowChronotypeQuiz(false)}
         />
       )}
+
+      {/* Notification Preferences Sheet */}
+      <NotificationPrefsSheet
+        open={showNotificationPrefs}
+        onOpenChange={setShowNotificationPrefs}
+      />
     </motion.main>
   );
 }
