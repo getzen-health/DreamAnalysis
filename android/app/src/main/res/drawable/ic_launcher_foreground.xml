@@ -17,7 +17,7 @@
     <!-- EEG brain wave — thick, bright, fills safe zone -->
     <path
         android:strokeColor="#fbbf24"
-        android:strokeWidth="5"
+        android:strokeWidth="8"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
@@ -37,7 +37,7 @@
     <!-- Connection lines between nodes — visible -->
     <path
         android:strokeColor="#e879a8"
-        android:strokeWidth="1.5"
+        android:strokeWidth="2.5"
         android:strokeAlpha="0.4"
         android:fillColor="#00000000"
         android:pathData="M38,36 L54,28 L70,38" />
