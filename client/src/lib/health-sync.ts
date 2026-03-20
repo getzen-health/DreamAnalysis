@@ -526,23 +526,77 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
   todayStart.setHours(0, 0, 0, 0);
   const fmt = (d: Date) => d.toISOString();
 
-  // ── Heart rate from workouts ──
+  // ── Heart rate — try direct query first, fall back to workouts ──
   try {
-    const workouts = await Health.queryWorkouts({
-      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+    const hr = await Health.queryAggregated({
+      startDate: fmt(new Date(now.getTime() - 4 * 60 * 60 * 1000)),
       endDate: fmt(now),
-      includeHeartRate: true,
-      includeRoute: false,
-      includeSteps: false,
+      dataType: "heart-rate",
+      bucket: "HOUR",
     });
-    if (workouts.workouts.length > 0) {
-      const latest = workouts.workouts[workouts.workouts.length - 1];
-      if (latest.heartRate && latest.heartRate.length > 0) {
-        const hrSamples = latest.heartRate.map((h) => h.bpm).filter((v) => v > 0);
-        if (hrSamples.length > 0) {
-          payload.current_heart_rate = hrSamples[hrSamples.length - 1];
+    if (hr.aggregatedData.length > 0) {
+      const latest = hr.aggregatedData[hr.aggregatedData.length - 1];
+      if (latest.value > 0) payload.current_heart_rate = Math.round(latest.value);
+    }
+  } catch { /* heart-rate aggregated not supported — try workouts */ }
+
+  if (!payload.current_heart_rate) {
+    try {
+      const workouts = await Health.queryWorkouts({
+        startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+        endDate: fmt(now),
+        includeHeartRate: true,
+        includeRoute: false,
+        includeSteps: false,
+      });
+      if (workouts.workouts.length > 0) {
+        const latest = workouts.workouts[workouts.workouts.length - 1];
+        if (latest.heartRate && latest.heartRate.length > 0) {
+          const hrSamples = latest.heartRate.map((h: { bpm: number }) => h.bpm).filter((v: number) => v > 0);
+          if (hrSamples.length > 0) {
+            payload.current_heart_rate = hrSamples[hrSamples.length - 1];
+          }
         }
       }
+    } catch { /* ok */ }
+  }
+
+  // ── Resting heart rate ──
+  try {
+    const rhr = await Health.queryAggregated({
+      startDate: fmt(todayStart),
+      endDate: fmt(now),
+      dataType: "resting-heart-rate",
+      bucket: "DAY",
+    });
+    if (rhr.aggregatedData.length > 0 && rhr.aggregatedData[0].value > 0) {
+      payload.resting_heart_rate = Math.round(rhr.aggregatedData[0].value);
+    }
+  } catch { /* ok */ }
+
+  // ── Sleep ──
+  try {
+    const sleep = await Health.queryAggregated({
+      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      endDate: fmt(now),
+      dataType: "sleep",
+      bucket: "DAY",
+    });
+    if (sleep.aggregatedData.length > 0 && sleep.aggregatedData[0].value > 0) {
+      payload.sleep_total_hours = sleep.aggregatedData[0].value / 60; // minutes to hours
+    }
+  } catch { /* ok */ }
+
+  // ── Distance ──
+  try {
+    const dist = await Health.queryAggregated({
+      startDate: fmt(todayStart),
+      endDate: fmt(now),
+      dataType: "distance",
+      bucket: "DAY",
+    });
+    if (dist.aggregatedData.length > 0 && dist.aggregatedData[0].value > 0) {
+      payload.walking_distance_km = dist.aggregatedData[0].value / 1000; // meters to km
     }
   } catch { /* ok */ }
 
@@ -656,6 +710,11 @@ async function requestPermissionsAndroid(): Promise<void> {
       "READ_ACTIVE_CALORIES",
       "READ_WORKOUTS",
       "READ_MINDFULNESS",
+      "READ_WEIGHT",
+      "READ_BODY_FAT",
+      "READ_SLEEP",
+      "READ_RESTING_HEART_RATE",
+      "READ_DISTANCE",
     ],
   });
 }
