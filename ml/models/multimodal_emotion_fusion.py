@@ -279,23 +279,68 @@ class MultimodalEmotionFusion:
             (activity_arousal, 0.05),
         ])
 
-        # ── 8. Voice layer (30% EEG / 70% weight blend when present) ────────
+        # ── 8. Voice layer — adaptive quality-weighted fusion ──────────────
+        #
+        # Instead of a fixed 70/30 blend, voice weight scales with its
+        # confidence (which already incorporates SNR penalty from the voice
+        # model).  EEG confidence comes from the classifier output.
+        #
+        # Weight formula:
+        #   voice_effective = base_voice_max * voice_conf / (eeg_conf + voice_conf)
+        #   eeg_effective   = 1 - voice_effective
+        #
+        # This means:
+        #   - High voice confidence + low EEG confidence → voice up to 45%
+        #   - Low voice confidence + high EEG confidence → voice drops to ~10%
+        #   - Equal confidence → voice ≈ 30% (same as before)
+        #   - Voice confidence ≤ 0.3 → voice excluded entirely (same gate)
+        #
+        # Disagreement detection: when EEG and voice predict different
+        # dominant emotions, flag it and lower the fused confidence.
+        voice_disagreement = False
+        voice_effective_weight = 0.0
+        eeg_effective_weight = 1.0
+
         if voice_result and voice_result.get("confidence", 0) > 0.3:
-            voice_weight = 0.30
-            eeg_weight = 0.70
+            voice_conf = float(voice_result.get("confidence", 0.5))
+            eeg_conf = float(eeg_result.get("confidence", 0.5))
+
+            # Clamp to avoid division-by-zero or degenerate weights
+            voice_conf = max(0.05, min(1.0, voice_conf))
+            eeg_conf = max(0.05, min(1.0, eeg_conf))
+
+            # Adaptive weight: voice gets a share of the max voice budget
+            # (0.45) proportional to its relative confidence.
+            _VOICE_MAX_WEIGHT = 0.45
+            relative_voice = voice_conf / (eeg_conf + voice_conf)
+            voice_effective_weight = _VOICE_MAX_WEIGHT * relative_voice
+            eeg_effective_weight = 1.0 - voice_effective_weight
+
             # Blend valence
             if "valence" in voice_result:
                 valence = (
-                    valence * eeg_weight + float(voice_result["valence"]) * voice_weight
+                    valence * eeg_effective_weight
+                    + float(voice_result["valence"]) * voice_effective_weight
                 )
                 valence = max(-1.0, min(1.0, valence))
             # Blend arousal (voice arousal is 0-1 scale, same as EEG)
             if "arousal" in voice_result:
                 arousal = (
-                    arousal * eeg_weight + float(voice_result["arousal"]) * voice_weight
+                    arousal * eeg_effective_weight
+                    + float(voice_result["arousal"]) * voice_effective_weight
                 )
                 arousal = max(0.0, min(1.0, arousal))
             signals_used.append("voice")
+
+            # Disagreement detection: EEG and voice predict different emotions
+            voice_emotion = voice_result.get("emotion")
+            if voice_emotion and voice_emotion != eeg_emotion:
+                voice_disagreement = True
+                log.debug(
+                    "EEG-voice disagreement: EEG=%s vs voice=%s "
+                    "(eeg_conf=%.2f, voice_conf=%.2f)",
+                    eeg_emotion, voice_emotion, eeg_conf, voice_conf,
+                )
 
         # ── Dream readiness (for sleep-mode sessions) ─────────────────────
         dream_readiness = self._dream_readiness_score(bio, eeg_result)
@@ -304,6 +349,11 @@ class MultimodalEmotionFusion:
         n_signals = len(signals_used)
         # 1 signal (EEG only) = 0.40 confidence; full panel (10+) = 1.0
         biometric_confidence = min(1.0, 0.40 + (n_signals - 1) * 0.07)
+
+        # When EEG and voice disagree, penalize overall confidence by 15%
+        # to signal that the fusion result is less reliable.
+        if voice_disagreement:
+            biometric_confidence = biometric_confidence * 0.85
 
         return {
             "stress_index":          round(float(stress_index), 3),
@@ -325,6 +375,10 @@ class MultimodalEmotionFusion:
             # Voice fusion metadata (populated when voice cache was available)
             "voice_emotion":         voice_result.get("emotion") if voice_result else None,
             "voice_confidence":      voice_result.get("confidence") if voice_result else None,
+            # Adaptive fusion metadata
+            "voice_weight":          round(float(voice_effective_weight), 3),
+            "eeg_weight":            round(float(eeg_effective_weight), 3),
+            "voice_disagreement":    voice_disagreement,
         }
 
     # ── HRV sub-model ─────────────────────────────────────────────────────
