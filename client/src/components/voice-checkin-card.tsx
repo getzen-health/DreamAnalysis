@@ -156,6 +156,51 @@ const EMOTION_EMOJI: Record<string, string> = {
   neutral: "😐",
 };
 
+// ─── emotion context ────────────────────────────────────────────────────────
+// Evidence-informed descriptions of what each detected emotion means in the
+// context of voice biomarkers. Voice emotion detection uses acoustic features
+// like pitch variability, speaking rate, energy, and spectral tilt — these
+// descriptions help users understand what was detected and why, rather than
+// showing a bare label. Phrased as observations, not diagnoses.
+//
+// Sources: Scherer (2003) vocal affect expression, Juslin & Laukka (2003)
+// acoustic profiles of emotion, Schuller et al. (2018) computational
+// paralinguistics.
+
+interface EmotionContext {
+  /** What voice patterns are associated with this emotion */
+  voicePattern: string;
+  /** A brief, gentle insight — not a diagnosis */
+  insight: string;
+}
+
+const EMOTION_CONTEXT: Record<string, EmotionContext> = {
+  happy: {
+    voicePattern: "Higher pitch, varied intonation, energetic pace",
+    insight: "Your voice sounds upbeat. Positive energy tends to show up as wider pitch range and lively rhythm.",
+  },
+  sad: {
+    voicePattern: "Lower pitch, slower pace, less variation",
+    insight: "Your voice sounds quieter and more subdued. This can reflect tiredness or low mood — both are normal parts of the day.",
+  },
+  angry: {
+    voicePattern: "Higher energy, faster rate, tense quality",
+    insight: "Your voice carries more tension and intensity. This could reflect frustration, urgency, or just a stressful moment.",
+  },
+  fear: {
+    voicePattern: "Higher pitch, uneven rhythm, breathier quality",
+    insight: "Your voice shows some tension and irregularity. This can come from anxiety, uncertainty, or simply feeling unsettled.",
+  },
+  surprise: {
+    voicePattern: "Sudden pitch jumps, varied energy, quick shifts",
+    insight: "Your voice has noticeable shifts in pitch and energy, which can reflect alertness or reacting to something unexpected.",
+  },
+  neutral: {
+    voicePattern: "Steady pitch, moderate pace, even energy",
+    insight: "Your voice sounds calm and balanced. A steady vocal pattern often reflects a settled, present state of mind.",
+  },
+};
+
 function valenceLabel(v: number): { text: string; className: string } {
   if (v >= 0.4) return { text: "Positive", className: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" };
   if (v <= -0.4) return { text: "Negative", className: "bg-rose-500/20 text-rose-400 border-rose-500/30" };
@@ -603,10 +648,11 @@ export function VoiceCheckinCard({
           </div>
         )}
 
-        {/* Done state — show result */}
+        {/* Done state — show result with emotion context */}
         {cardState === "done" && result && (() => {
           const vl = valenceLabel(result.valence);
           const emoji = EMOTION_EMOJI[result.emotion] ?? "🧠";
+          const ctx = EMOTION_CONTEXT[result.emotion];
           return (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
@@ -621,10 +667,24 @@ export function VoiceCheckinCard({
                   {vl.text}
                 </Badge>
               </div>
+              {/* Emotion context — explain what was detected and why */}
+              {ctx && (
+                <div className="rounded-lg bg-muted/30 border border-border/30 p-2.5 space-y-1">
+                  <p className="text-xs text-foreground/80 leading-relaxed">
+                    {ctx.insight}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+                    Voice pattern: {ctx.voicePattern}
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Stress: <span className="font-mono text-foreground/80">{Math.round(result.stress_index * 100)}%</span></span>
                 <span>Focus: <span className="font-mono text-foreground/80">{Math.round(result.focus_index * 100)}%</span></span>
               </div>
+              <p className="text-[10px] text-muted-foreground/60 italic">
+                Voice analysis reflects acoustic patterns, not a clinical assessment.
+              </p>
               <p className="text-xs text-muted-foreground">
                 Next analysis at {nextWindowLabel(period)}
               </p>

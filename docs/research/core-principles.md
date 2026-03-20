@@ -65,4 +65,12 @@
 
 **Implication:** When building any real-time sensor pipeline: (1) add NaN/inf sanitization at the very first processing step before any filter or transform, (2) use linear interpolation for short gaps (standard in EEG for BT drops), zeros for total disconnection, (3) never assume upstream data is clean -- Bluetooth, USB, and WiFi all produce sporadic NaN/dropout, (4) add `np.isfinite` guards on EMA accumulators as a defense-in-depth measure even after input sanitization.
 
+### 8. Emotion Labels Must Include Plain-Language Explanation and Source Attribution
+
+**Principle:** Whenever the app shows an emotion classification to the user -- whether from voice, EEG, or self-report -- the label must be accompanied by (1) a plain-language explanation of what signals contributed to the classification, (2) a brief insight phrased as an observation rather than a diagnosis, and (3) a disclaimer clarifying the analysis type (acoustic, neural, self-reported) and its non-clinical nature.
+
+**Evidence:** The voice check-in card displayed a bare emotion label ("fear") with a confidence percentage and no context. Users have no way to know what "fear 72% confidence" means -- is the system saying they are afraid? That their voice sounds like fear? That 72% of something matched? Scherer (2003) and Juslin & Laukka (2003) established that each basic emotion produces distinct vocal profiles (e.g., sadness = lower pitch + slower rate, anger = higher energy + faster rate) that can be described accessibly. Without explanation, emotion labels risk being perceived as authoritative judgments rather than pattern observations. This is especially problematic for negatively-valenced labels (fear, anger, sad) which can cause alarm.
+
+**Implication:** When presenting any emotion classification: (1) include a brief plain-language description of the signals (vocal patterns, brain wave patterns, or self-report) that contributed, (2) phrase insights as observations ("your voice sounds...") not assertions ("you are feeling..."), (3) always include a non-clinical disclaimer, (4) for voice-based detection, cite the acoustic features (pitch, rate, energy, spectral tilt). For EEG, cite the neural markers (FAA, alpha/beta ratio). Never show a bare emotion label without context.
+
 <!-- Principles will be appended below by the research agent -->
