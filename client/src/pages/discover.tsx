@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -8,6 +8,9 @@ import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
 import { CommunityMood } from "@/components/community-mood";
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from "recharts";
 
 // ── Emotion data from localStorage ──────────────────────────────────────
 
@@ -327,7 +330,7 @@ interface NavCard {
 // ── Data — 8 main navigation cards (2x4 grid) ─────────────────────────────
 
 const NAV_CARDS: NavCard[] = [
-  { emoji: "😊", title: "Emotions",     subtitle: "Mood trends, emotion history",       route: "/mood",           accentColor: "#0891b2" },
+  { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#7c3aed" },
   { emoji: "🧠", title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor",  accentColor: "#6366f1" },
   { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health",         accentColor: "#e879a8" },
   { emoji: "✨", title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#4ade80" },
@@ -356,6 +359,143 @@ function pointsToArea(pts: [number, number][]): string {
   const last = pts[pts.length - 1];
   const line = pts.map(([x, y]) => `${x},${y}`).join(" L ");
   return `M ${first[0]},${first[1]} L ${line} L ${last[0]},40 L ${first[0]},40 Z`;
+}
+
+// ── Emotions Overview — combined stress/focus/mood chart ──────────────────
+
+interface HistoryRow {
+  stress: number;
+  happiness: number;
+  focus: number;
+  dominantEmotion: string;
+  timestamp: string;
+}
+
+function EmotionsOverview({ userId, navigate }: { userId: string; navigate: (p: string) => void }) {
+  const { data } = useQuery<HistoryRow[]>({
+    queryKey: [`/api/brain/history/${userId}?days=7`],
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const chartData = useMemo(() => {
+    if (!data || !Array.isArray(data) || data.length === 0) return [];
+    // Group by day, average values
+    const dayMap = new Map<string, { stress: number[]; focus: number[]; mood: number[] }>();
+    for (const r of data) {
+      const day = new Date(r.timestamp).toLocaleDateString(undefined, { weekday: "short" });
+      if (!dayMap.has(day)) dayMap.set(day, { stress: [], focus: [], mood: [] });
+      const d = dayMap.get(day)!;
+      d.stress.push((r.stress ?? 0) * 100);
+      d.focus.push((r.focus ?? 0) * 100);
+      d.mood.push((r.happiness ?? 0.5) * 100);
+    }
+    return Array.from(dayMap.entries()).map(([day, v]) => ({
+      day,
+      stress: Math.round(v.stress.reduce((a, b) => a + b, 0) / v.stress.length),
+      focus: Math.round(v.focus.reduce((a, b) => a + b, 0) / v.focus.length),
+      mood: Math.round(v.mood.reduce((a, b) => a + b, 0) / v.mood.length),
+    }));
+  }, [data]);
+
+  // Current values from localStorage
+  const current = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("ndw_last_emotion");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const r = parsed?.result ?? parsed;
+      return {
+        stress: Math.round((r?.stress_index ?? 0) * 100),
+        focus: Math.round((r?.focus_index ?? 0) * 100),
+        mood: r?.emotion ?? "neutral",
+      };
+    } catch { return null; }
+  }, []);
+
+  return (
+    <button
+      onClick={() => navigate("/mood")}
+      style={{
+        width: "100%", background: "var(--card)", border: "1px solid var(--border)",
+        borderRadius: 20, padding: 16, marginBottom: 14, cursor: "pointer",
+        textAlign: "left" as const, boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>Emotions</p>
+          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "2px 0 0" }}>Stress, Focus, Mood — 7 day trends</p>
+        </div>
+        {current && (
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#e879a8" }}>{current.stress}%</div>
+              <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Stress</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#6366f1" }}>{current.focus}%</div>
+              <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Focus</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {chartData.length > 1 ? (
+        <div style={{ height: 140 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="discStressG" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#e879a8" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#e879a8" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="discFocusG" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="discMoodG" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#0891b2" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 100]} hide />
+              <Tooltip
+                contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 11 }}
+                labelStyle={{ color: "var(--muted-foreground)" }}
+              />
+              <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2.5} dot={false} name="Stress" />
+              <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2.5} dot={false} name="Focus" />
+              <Area type="monotone" dataKey="mood" stroke="#0891b2" fill="url(#discMoodG)" strokeWidth={2.5} dot={false} name="Mood" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <p style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Do a voice analysis to see emotion trends</p>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 14, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ width: 8, height: 3, borderRadius: 2, background: "#e879a8" }} />
+          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Stress</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ width: 8, height: 3, borderRadius: 2, background: "#6366f1" }} />
+          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Focus</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ width: 8, height: 3, borderRadius: 2, background: "#0891b2" }} />
+          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Mood</span>
+        </div>
+      </div>
+    </button>
+  );
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
@@ -425,6 +565,9 @@ export default function Discover() {
           Your scores at a glance
         </p>
       </div>
+
+      {/* ── Emotions Overview — combined stress, focus, mood graph ── */}
+      <EmotionsOverview userId={userId} navigate={navigate} />
 
       {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
       <EmotionTimeline userId={userId} />
