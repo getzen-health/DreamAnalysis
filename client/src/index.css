@@ -14,9 +14,9 @@
   --card-foreground: hsl(260 15% 15%);
   --popover: hsl(0 0% 100%);
   --popover-foreground: hsl(260 15% 15%);
-  --primary: hsl(165 55% 38%);         /* warm teal — matches dark theme */
+  --primary: hsl(262 50% 55%);         /* AntarAI violet — distinct from teal */
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(270 35% 55%);
+  --secondary: hsl(330 55% 55%);      /* warm rose accent */
   --secondary-foreground: hsl(0 0% 100%);
   --muted: hsl(40 15% 92%);            /* warm muted, not cold gray */
   --muted-foreground: hsl(30 10% 45%); /* warm taupe */
@@ -26,7 +26,7 @@
   --destructive-foreground: hsl(0 0% 100%);
   --border: hsl(40 15% 87%);           /* warm border */
   --input: hsl(40 15% 90%);
-  --ring: hsl(165 55% 38%);
+  --ring: hsl(262 50% 55%);
   --success: hsl(152 60% 40%);
   --success-foreground: hsl(0 0% 100%);
   --warning: hsl(38 85% 52%);
@@ -35,19 +35,19 @@
   --neural-cyan: hsl(180 65% 50%);
   --neural-purple: hsl(262 45% 65%);
   --neural-green: hsl(152 60% 48%);
-  --chart-1: hsl(152 60% 40%);
+  --chart-1: hsl(262 50% 55%);
   --chart-2: hsl(262 45% 58%);
   --chart-3: hsl(38 85% 52%);
   --chart-4: hsl(200 70% 55%);
   --chart-5: hsl(320 55% 60%);
   --sidebar: hsl(0 0% 100%);
   --sidebar-foreground: hsl(222 25% 10%);
-  --sidebar-primary: hsl(152 60% 40%);
+  --sidebar-primary: hsl(262 50% 55%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
   --sidebar-accent: hsl(220 14% 94%);
   --sidebar-accent-foreground: hsl(222 25% 10%);
   --sidebar-border: hsl(220 14% 85%);
-  --sidebar-ring: hsl(152 60% 40%);
+  --sidebar-ring: hsl(262 50% 55%);
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
   --font-futuristic: 'Inter', system-ui, sans-serif;
@@ -68,10 +68,10 @@
   --card-foreground: hsl(40 18% 90%);
   --popover: hsl(255 15% 11%);
   --popover-foreground: hsl(40 25% 93%);
-  --primary: hsl(165 60% 45%);         /* #1db88a — slightly warmer teal, Calm-inspired */
+  --primary: hsl(262 55% 60%);         /* AntarAI violet — warm, distinct from teal/Claude */
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(270 40% 60%);       /* softer purple — emotional, not cold */
-  --secondary-foreground: hsl(270 15% 95%);
+  --secondary: hsl(330 55% 58%);       /* warm rose — emotional, vivid */
+  --secondary-foreground: hsl(0 0% 100%);
   --muted: hsl(255 12% 16%);           /* #27243a — warm muted */
   --muted-foreground: hsl(30 12% 63%); /* warm taupe — WCAG AA 4.5:1 on dark bg */
   --accent: hsl(32 85% 55%);           /* warm amber-gold — emotion warmth */
@@ -80,7 +80,7 @@
   --destructive-foreground: hsl(0 0% 96%);
   --border: hsl(255 10% 18%);          /* #2d2a3a — warm subtle border */
   --input: hsl(255 10% 15%);
-  --ring: hsl(165 60% 45%);
+  --ring: hsl(262 55% 60%);
 }
 
 @layer base {
@@ -102,7 +102,7 @@
 
   /* WCAG 2.1 AA — visible focus indicators on all interactive elements */
   :focus-visible {
-    outline: 2px solid hsl(165 60% 45%);
+    outline: 2px solid hsl(262 55% 60%);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -222,22 +222,22 @@
   .hover-glow:hover {
     box-shadow:
       0 8px 32px hsl(0 0% 0% / 0.08),
-      0 0 0 1px hsl(152 60% 40% / 0.15);
-    border-color: hsl(152 60% 40% / 0.25);
+      0 0 0 1px hsl(262 50% 55% / 0.15);
+    border-color: hsl(262 50% 55% / 0.25);
   }
 
   .dark .hover-glow:hover {
     box-shadow:
       0 8px 32px hsl(0 0% 0% / 0.3),
-      0 0 0 1px hsl(152 60% 48% / 0.15),
+      0 0 0 1px hsl(262 55% 60% / 0.15),
       inset 0 1px 0 hsl(38 20% 92% / 0.06);
-    border-color: hsl(152 60% 48% / 0.25);
+    border-color: hsl(262 55% 60% / 0.25);
   }
 
   .glow-effect {
     box-shadow:
-      0 0 20px hsl(152 60% 48% / 0.2),
-      0 0 40px hsl(152 60% 48% / 0.08);
+      0 0 20px hsl(262 55% 60% / 0.2),
+      0 0 40px hsl(262 55% 60% / 0.08);
   }
 
   .neural-glow {
@@ -256,7 +256,7 @@
   .ai-insight-card {
     @apply rounded-[14px] border p-5;
     background: hsl(152 30% 95%);
-    border-color: hsl(152 60% 40% / 0.2);
+    border-color: hsl(262 50% 55% / 0.2);
   }
 
   .dark .ai-insight-card {
@@ -265,7 +265,7 @@
       hsl(152 30% 10% / 0.8) 0%,
       hsl(38 30% 10% / 0.6) 100%
     );
-    border-color: hsl(152 60% 48% / 0.2);
+    border-color: hsl(262 55% 60% / 0.2);
   }
 
   .shift-alert {
@@ -286,7 +286,7 @@
   .shift-alert-calm {
     @apply rounded-xl border p-4;
     background: hsl(152 40% 96%);
-    border-color: hsl(152 60% 40% / 0.3);
+    border-color: hsl(262 50% 55% / 0.3);
   }
 
   .dark .shift-alert-calm {
@@ -295,7 +295,7 @@
       hsl(152 40% 10% / 0.9) 0%,
       hsl(152 30% 8% / 0.8) 100%
     );
-    border-color: hsl(152 60% 48% / 0.3);
+    border-color: hsl(262 55% 60% / 0.3);
   }
 
   .nav-section-label {
