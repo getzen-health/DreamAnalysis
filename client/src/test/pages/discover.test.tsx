@@ -133,7 +133,8 @@ describe("Discover page", () => {
   it("shows navigation cards for all categories", async () => {
     renderWithProviders(<Discover />);
     await waitFor(() => {
-      expect(screen.getByText("Sleep")).toBeInTheDocument();
+      // "Sleep" appears in both EEG Music fallback and nav grid, so use getAllByText
+      expect(screen.getAllByText("Sleep").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Brain")).toBeInTheDocument();
       expect(screen.getByText("Health")).toBeInTheDocument();
       expect(screen.getByText("Inner Energy")).toBeInTheDocument();

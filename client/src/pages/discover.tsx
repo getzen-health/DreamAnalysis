@@ -8,6 +8,7 @@ import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
 import { CommunityMood } from "@/components/community-mood";
+import { EegMusicCard } from "@/components/eeg-music-card";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -16,6 +17,7 @@ import {
   BedDouble, Brain, Heart, Sparkles, Wind, Moon, Target, BookOpen, Dumbbell,
   Smile, Activity, BarChart3, MessageCircle, Lightbulb, Star, TrendingDown,
   TrendingUp, Sunrise, CloudMoon as CloudMoonIcon, Palette, RefreshCw, Waves,
+  HeartHandshake,
   type LucideIcon,
 } from "lucide-react";
 
@@ -428,6 +430,7 @@ const NAV_CARDS: NavCard[] = [
   { icon: Heart,      title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health",         accentColor: "#e879a8" },
   { icon: Sparkles,   title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#4ade80" },
   { icon: Wind,       title: "Wellness",     subtitle: "Habits, menstrual cycle tracking",    route: "/wellness",       accentColor: "#ea580c" },
+  { icon: HeartHandshake, title: "Couples Meditation", subtitle: "Brain synchrony with your partner", route: "/couples-meditation", accentColor: "#e879a8" },
 ];
 
 // Sample sparkline points (normalized 0-40 in Y space, 0-280 in X)
@@ -727,6 +730,9 @@ export default function Discover() {
 
       {/* ── Community Mood — anonymous peer support ── */}
       <CommunityMood />
+
+      {/* ── EEG-Adaptive Music — or static Quick Listen fallback ── */}
+      <EegMusicCard />
 
       {/* ── Section label ── */}
       <div style={{
