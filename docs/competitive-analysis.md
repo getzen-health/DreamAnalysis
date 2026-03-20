@@ -74,22 +74,24 @@ Consumer brain-computer interface (BCI) and emotion-tracking apps are fragmentin
 
 ## Feature Matrix
 
-| Feature | NDW | Muse Athena | Emotiv | FocusCalm | Bearable |
-|---|:---:|:---:|:---:|:---:|:---:|
-| 6-class emotion | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Valence / arousal | ✅ | ❌ | Partial | ❌ | ❌ |
-| Sleep staging | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Dream detection | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Food-emotion link | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Supplement correlation | ✅ | ❌ | ❌ | ❌ | Partial |
-| HRV fusion | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Voice emotion | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Neurofeedback | ✅ | ❌ | ❌ | ✅ | ❌ |
-| EI composite score | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Interpersonal EI | ✅ | ❌ | ❌ | ❌ | ❌ |
-| AI wellness chat | ✅ | ❌ | ❌ | ❌ | ❌ |
-| No hardware required | ✅ (voice mode) | ❌ | ❌ | ❌ | ✅ |
-| Open-source ML | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Feature | NDW | Muse Athena | Emotiv | FocusCalm | Bearable | Oura | Whoop |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 6-class emotion | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Valence / arousal | ✅ | ❌ | Partial | ❌ | ❌ | ❌ | ❌ |
+| Sleep staging | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Dream detection | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Food-emotion link | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Supplement correlation | ✅ | ❌ | ❌ | ❌ | Partial | ❌ | ❌ |
+| HRV fusion | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Voice emotion | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Neurofeedback | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Daily composite score | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Share cards (social) | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| EI composite score | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Interpersonal EI | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| AI wellness chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| No hardware required | ✅ (voice mode) | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| Open-source ML | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -109,6 +111,60 @@ Consumer brain-computer interface (BCI) and emotion-tracking apps are fragmentin
 
 ---
 
+## Indirect Competitors (Wellness / Health Apps)
+
+### 6. Oura Ring (~$300 ring + $6/mo)
+
+| Dimension | Oura | NDW |
+|---|---|---|
+| Hardware | Smart ring (temp, HRV, SpO2, accel) | Muse 2 EEG (user-owned) |
+| Primary hook | **Readiness Score** (0-100 every morning) | No single composite daily score |
+| Sleep analysis | Sleep staging + sleep score | Sleep staging + dream detection + REM |
+| Emotion detection | None (infers stress from HRV only) | 6-class emotion from EEG + voice |
+| Retention driver | Daily score + trends + share cards | Dashboard metrics (no single score) |
+| 12-month retention | ~65% (hardware lock-in + daily score) | Unknown |
+| Our edge | No brain data, no emotion detection, no voice biomarkers — Oura knows your body, NDW knows your mind |
+
+### 7. Whoop (~$30/mo subscription)
+
+| Dimension | Whoop | NDW |
+|---|---|---|
+| Hardware | Wrist strap (HRV, HR, skin temp, SpO2) | Muse 2 EEG (user-owned) |
+| Primary hook | **Recovery Score** (green/yellow/red) | No single composite score |
+| Sleep analysis | Sleep staging + sleep coach | Sleep staging + dream detection |
+| Emotion detection | None | 6-class emotion from EEG + voice |
+| Social features | Team/group features, leaderboards | Community endpoint (issue #235) |
+| Retention driver | Recovery score drives daily behavior change | Insights but no daily action driver |
+| Our edge | No brain data, no emotion, no dream detection — Whoop optimizes physical recovery, NDW tracks mental and emotional state |
+
+### 8. Calm / Headspace (~$70/yr)
+
+| Dimension | Calm / Headspace | NDW |
+|---|---|---|
+| Hardware | None (pure software) | Muse 2 EEG (optional, enhances) |
+| Primary hook | Guided meditation content library | Real-time neurofeedback + ML insights |
+| Emotion detection | Self-report mood check-in | Objective EEG + voice biomarker detection |
+| Sleep features | Sleep stories, soundscapes | Sleep staging, dream detection, REM |
+| Retention driver | Streaks + daily reminders + new content | Dashboard insights |
+| 12-month retention | ~30% (with streaks), ~15% (without) | Unknown |
+| Content volume | 1000+ guided sessions | Protocol-based (breathing, neurofeedback) |
+| Our edge | Cannot measure whether meditation actually worked — NDW shows the before/after EEG shift |
+
+### Retention & Growth Analysis
+
+| Mechanism | Oura | Whoop | Calm | NDW Status |
+|---|---|---|---|---|
+| Daily composite score | Readiness (0-100) | Recovery (G/Y/R) | None | **Missing — issue #464** |
+| Streaks | Activity streaks | Strain streaks | Meditation streaks | **Missing** |
+| Share cards (social) | Sleep/readiness cards | Recovery cards | Mindful minutes | **Missing — issue #464** |
+| Push notifications | Score ready, bedtime | Recovery ready | Daily reminder | **Missing (no mobile)** |
+| Content library | None | Podcasts | 1000+ sessions | Protocols only |
+| Personalization | Learns your baselines | Adapts strain targets | Recommends content | BaselineCalibrator (API) |
+
+**Key insight**: The top-retained health apps all have a **daily score** users check every morning. NDW has the richest data (EEG + voice + sleep + HRV) but no single number that answers "How am I today?" This is the #1 retention gap.
+
+---
+
 ## Gaps We Need to Close
 
 | Gap | Priority | Timeline |
@@ -117,6 +173,8 @@ Consumer brain-computer interface (BCI) and emotion-tracking apps are fragmentin
 | No mobile app (web only) | High | See issue #201 (App Store) |
 | No clinical validation | Medium | See issue #200 (10-person pilot) |
 | Accuracy not yet peer-reviewed | Medium | Paper draft in progress |
+| No daily composite score (vs. Oura/Whoop) | **Critical** | See issue #464 (Daily Wellness Score) |
+| No share cards for social growth | High | See issue #464 |
 | No community features (vs. Oura/Whoop social) | Low | Community endpoint shipped in #235 |
 
 ---

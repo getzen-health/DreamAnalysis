@@ -5,7 +5,7 @@
 
 ---
 
-## Last updated: 2026-03-19
+## Last updated: 2026-03-20
 
 ---
 
@@ -32,5 +32,13 @@
 **Evidence:** Gross (2015) process model identifies distinct regulation families with different cognitive costs. Sheppes et al. (2011) demonstrated that cognitive reappraisal requires prefrontal resources that are depleted under high arousal -- making it the wrong strategy when someone is highly anxious or angry. Distraction (attentional deployment) and acceptance (mindfulness-based observation) are more effective under high arousal because they require less top-down cognitive control. Webb et al. (2012) meta-analysis confirmed differential effectiveness across strategy types and arousal levels.
 
 **Implication:** When adding regulation suggestions to any module: (1) label each strategy with its type from the evidence-based taxonomy, (2) order strategies so that high-arousal states lead with distraction/acceptance, (3) reserve cognitive reappraisal for moderate-arousal or low-arousal states where the user has cognitive bandwidth to reframe. Never present a single strategy type for all emotional states.
+
+### 4. One Daily Number Drives Retention — Not Dashboards
+
+**Principle:** A single composite daily score (0-100) that users check every morning is the strongest retention mechanism in consumer health apps. Dashboards with multiple metrics inform but do not create daily habits. The score must be actionable ("expect lower focus today") and occasionally surprising ("your stress recovered faster than usual").
+
+**Evidence:** Oura Ring's Readiness Score (0-100) and Whoop's Recovery Score (green/yellow/red) are the primary retention drivers for their respective platforms. Oura reports ~65% 12-month retention (aided by hardware lock-in, but daily score is the behavioral hook). Headspace with streaks achieves ~30% 12-month retention; without streaks, ~15%. Calm and Headspace — pure software with content but no objective daily score — retain far worse than Oura/Whoop despite larger user bases. The pattern: **objective daily measurement + one actionable number > content library + streaks**.
+
+**Implication:** NDW must synthesize its 16 ML models, sleep staging, HRV, and voice biomarkers into a single Daily Wellness Score (issue #464). The score should be the first thing on the Home page, available via push notification on mobile, and rendered as a shareable image card for social growth. Without this, NDW remains a "dashboard app" — interesting to explore but not habit-forming.
 
 <!-- Principles will be appended below by the research agent -->
