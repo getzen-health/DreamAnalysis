@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Brain, LogIn, UserPlus, Loader2, Check, X as XIcon } from 'lucide-react';
+import { LogIn, UserPlus, Loader2, Check, X as XIcon } from 'lucide-react';
 
 // ── Password & username validation ───────────────────────────────────────────
 
@@ -186,10 +186,10 @@ export default function AuthPage() {
       {/* Left panel: Hero / Branding */}
       <div className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 relative z-10">
         <div className="max-w-lg text-center space-y-8">
-          <div className="flex items-center justify-center space-x-3 mb-6">
+          <div className="flex items-center justify-center mb-6">
             <div className="relative">
-              <Brain className="h-16 w-16 text-primary" />
-              <div className="absolute inset-0 h-16 w-16 bg-primary/20 rounded-full blur-xl animate-pulse" />
+              <img src="/logo-antarai.svg" alt="AntarAI" className="h-20 w-20" />
+              <div className="absolute inset-0 h-20 w-20 bg-primary/20 rounded-full blur-xl animate-pulse" />
             </div>
           </div>
           <h1 className="text-5xl font-futuristic font-bold text-gradient leading-tight">
@@ -201,16 +201,16 @@ export default function AuthPage() {
           </p>
           <div className="grid grid-cols-3 gap-6 pt-6">
             <div className="glass-card rounded-xl p-4 border border-primary/20">
-              <div className="text-2xl font-bold text-primary font-mono">4</div>
-              <div className="text-xs text-foreground/60 mt-1">EEG Channels</div>
+              <div className="text-2xl font-bold text-primary font-mono">Voice</div>
+              <div className="text-xs text-foreground/60 mt-1">Emotion Analysis</div>
             </div>
             <div className="glass-card rounded-xl p-4 border border-secondary/20">
-              <div className="text-2xl font-bold text-secondary font-mono">AI</div>
-              <div className="text-xs text-foreground/60 mt-1">Dream Analysis</div>
+              <div className="text-2xl font-bold text-secondary font-mono">EEG</div>
+              <div className="text-xs text-foreground/60 mt-1">Brain Insights</div>
             </div>
             <div className="glass-card rounded-xl p-4 border border-accent/20">
-              <div className="text-2xl font-bold text-accent font-mono">24/7</div>
-              <div className="text-xs text-foreground/60 mt-1">Monitoring</div>
+              <div className="text-2xl font-bold text-accent font-mono">Health</div>
+              <div className="text-xs text-foreground/60 mt-1">Daily Tracking</div>
             </div>
           </div>
         </div>
@@ -221,7 +221,7 @@ export default function AuthPage() {
         <Card className="w-full max-w-md glass-card border border-primary/20 shadow-2xl shadow-primary/5">
           <CardHeader className="text-center pb-2">
             <div className="flex items-center justify-center space-x-2 mb-4 lg:hidden">
-              <Brain className="h-8 w-8 text-primary" />
+              <img src="/logo-antarai.svg" alt="AntarAI" className="h-10 w-10" />
               <span className="text-xl font-futuristic font-bold text-gradient">AntarAI</span>
             </div>
             <CardTitle className="text-2xl font-futuristic text-gradient">
