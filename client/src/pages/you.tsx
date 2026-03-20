@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ChronotypeQuiz } from "@/components/chronotype-quiz";
 import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
+import { BrainAgeCard } from "@/components/brain-age-card";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -326,6 +327,10 @@ export default function You() {
 
       {/* Achievements */}
       <AchievementBadges />
+
+      {/* Brain Health Section */}
+      <SectionLabel>Brain Health</SectionLabel>
+      <BrainAgeCard />
 
       {/* Activity Section */}
       <SectionLabel>Activity</SectionLabel>

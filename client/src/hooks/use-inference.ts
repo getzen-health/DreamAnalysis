@@ -10,6 +10,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { analyzeEEG, type EEGAnalysisResult } from "@/lib/ml-api";
+import { computeAndCacheBrainAge } from "@/lib/brain-age";
 
 interface InferenceResult {
   analyze: (signals: number[][], fs?: number) => Promise<EEGAnalysisResult | null>;
@@ -97,6 +98,11 @@ export function useInference(): InferenceResult {
             setLatencyMs(elapsed);
             setIsLocal(true);
 
+            // Compute and cache brain age from extracted band powers
+            const { extractBandPowers } = await import("@/lib/eeg-features");
+            const bandPowers = extractBandPowers(signal, fs);
+            computeAndCacheBrainAge(bandPowers);
+
             return {
               sleep_stage: sleep,
               emotions: {
@@ -132,6 +138,13 @@ export function useInference(): InferenceResult {
         const elapsed = performance.now() - start;
         setLatencyMs(elapsed);
         setIsLocal(false);
+
+        // Compute and cache brain age from server-returned band powers
+        if (result?.band_powers) {
+          const se = result.features?.spectral_entropy ?? 0.65;
+          computeAndCacheBrainAge(result.band_powers, se);
+        }
+
         return result;
       } catch {
         return null;
