@@ -1337,17 +1337,26 @@ export default function Nutrition() {
   const { data: logs } = useQuery<FoodLog[]>({
     queryKey: ["/api/food/logs", userId],
     queryFn: async () => {
+      let apiLogs: FoodLog[] = [];
       try {
         const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data)) return data;
+          if (Array.isArray(data)) apiLogs = data;
         }
       } catch { /* API unavailable */ }
-      // Fallback: read from localStorage
+      // Merge with localStorage (local entries may not have synced to DB yet)
+      let localLogs: FoodLog[] = [];
       try {
-        return JSON.parse(localStorage.getItem(`ndw_food_logs_${userId}`) || "[]");
-      } catch { return []; }
+        localLogs = JSON.parse(localStorage.getItem(`ndw_food_logs_${userId}`) || "[]");
+      } catch { /* ignore */ }
+      if (localLogs.length === 0) return apiLogs;
+      if (apiLogs.length === 0) return localLogs;
+      // Deduplicate by id, prefer API version
+      const apiIds = new Set(apiLogs.map((l) => l.id));
+      const merged = [...apiLogs, ...localLogs.filter((l) => !apiIds.has(l.id))];
+      merged.sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+      return merged;
     },
   });
 
