@@ -31,31 +31,6 @@ function TabLoader() {
   );
 }
 
-/* ---------- Study tab content ---------- */
-
-function StudyTab() {
-  const [, navigate] = useLocation();
-
-  return (
-    <div className="rounded-2xl p-8 border border-border bg-card text-center">
-      <GraduationCap className="h-10 w-10 mx-auto text-primary mb-3" />
-      <h3 className="text-lg font-semibold text-foreground mb-2">
-        Research Study
-      </h3>
-      <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
-        Participate in our neuroscience research study. Your data helps advance
-        brain-computer interface technology.
-      </p>
-      <Button
-        onClick={() => navigate("/study")}
-        className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
-      >
-        View Study Details
-      </Button>
-    </div>
-  );
-}
-
 /* ---------- Main component ---------- */
 
 export default function BrainTabs() {
@@ -90,6 +65,30 @@ export default function BrainTabs() {
             <Network className="h-3.5 w-3.5" />
             Connect
           </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="eeg">
+          <Suspense fallback={<TabLoader />}>
+            <BrainMonitor />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="neurofeedback">
+          <Suspense fallback={<TabLoader />}>
+            <Neurofeedback />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="connectivity">
+          <Suspense fallback={<TabLoader />}>
+            <BrainConnectivity />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+TabsTrigger>
           <TabsTrigger value="study" className="flex-1 gap-1.5">
             <GraduationCap className="h-3.5 w-3.5" />
             Study
@@ -109,6 +108,19 @@ export default function BrainTabs() {
         </TabsContent>
 
         <TabsContent value="connectivity">
+          <Suspense fallback={<TabLoader />}>
+            <BrainConnectivity />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="study">
+          <StudyTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+ty">
           <Suspense fallback={<TabLoader />}>
             <BrainConnectivity />
           </Suspense>

@@ -26,28 +26,32 @@ export default function IntentSelect() {
           <p className="text-muted-foreground">What brings you here today?</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Card
-            className="cursor-pointer border-2 hover:border-primary transition-colors"
-            onClick={() => !loading && choose("study")}
-          >
-            <CardContent className="pt-8 pb-8 text-center space-y-4">
-              <FlaskConical className="w-10 h-10 mx-auto text-primary" />
-              <div>
-                <p className="font-semibold text-lg">Join the Study</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Participate in EEG research sessions. ~30 min total.
-                </p>
-              </div>
-              {loading === "study" && <Loader2 className="w-4 h-4 mx-auto animate-spin" />}
-            </CardContent>
-          </Card>
-
+        <div className="grid grid-cols-1 gap-4">
           <Card
             className="cursor-pointer border-2 hover:border-primary transition-colors"
             onClick={() => !loading && choose("explore")}
           >
             <CardContent className="pt-8 pb-8 text-center space-y-4">
+              <Brain className="w-10 h-10 mx-auto text-violet-400" />
+              <div>
+                <p className="font-semibold text-lg">Get Started</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Explore the full dashboard — emotions, health, brain monitoring, and more.
+                </p>
+              </div>
+              {loading === "explore" && <Loader2 className="w-4 h-4 mx-auto animate-spin" />}
+            </CardContent>
+          </Card>
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground">
+          Your personal wellness companion powered by AI and neuroscience.
+        </p>
+      </div>
+    </div>
+  );
+}
+e="pt-8 pb-8 text-center space-y-4">
               <Brain className="w-10 h-10 mx-auto text-violet-400" />
               <div>
                 <p className="font-semibold text-lg">Explore the App</p>
