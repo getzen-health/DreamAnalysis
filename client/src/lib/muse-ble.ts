@@ -533,9 +533,15 @@ export class MuseBleManager {
     // Connect + discover services — up to 2 attempts
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        // Clear any stale connection
+        // Clear any stale connection + GATT cache
         try { await ble.disconnect(device.deviceId); } catch { /* ok */ }
-        await new Promise((r) => setTimeout(r, attempt === 1 ? 500 : 2000));
+        await new Promise((r) => setTimeout(r, attempt === 1 ? 500 : 3000));
+
+        // On retry: try bonding to force GATT cache refresh (Android 16 fix)
+        if (attempt === 2) {
+          try { await ble.createBond(device.deviceId); } catch { /* bonding optional */ }
+          await new Promise((r) => setTimeout(r, 1000));
+        }
 
         // Connect with 30s timeout
         await Promise.race([
