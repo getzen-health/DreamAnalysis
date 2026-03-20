@@ -321,6 +321,9 @@ function HealthMetricCard({
   onClick,
   barPercent,
   barGradient,
+  accentColor,
+  emptyEmoji,
+  emptyCta,
 }: {
   label: string;
   value: string;
@@ -330,7 +333,15 @@ function HealthMetricCard({
   onClick?: () => void;
   barPercent?: number;
   barGradient?: string;
+  /** Identity color for this metric — used for left border accent in empty state */
+  accentColor?: string;
+  /** Emoji shown in empty state to give visual identity */
+  emptyEmoji?: string;
+  /** Call-to-action text shown when no data is available */
+  emptyCta?: string;
 }) {
+  const isEmpty = value === "---";
+
   return (
     <motion.div
       variants={itemVariants}
@@ -341,65 +352,105 @@ function HealthMetricCard({
         display: "flex",
         flexDirection: "column",
         gap: 10,
+        ...(isEmpty && accentColor
+          ? {
+              borderLeft: `3px solid ${accentColor}`,
+              background: `linear-gradient(135deg, ${accentColor}08 0%, var(--card) 40%)`,
+            }
+          : {}),
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 500,
-            color: "var(--muted-foreground)",
-            textTransform: "uppercase" as const,
-            letterSpacing: "0.6px",
-          }}
-        >
-          {label}
-        </span>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div
+          {isEmpty && emptyEmoji && (
+            <span style={{ fontSize: 14, lineHeight: 1 }}>{emptyEmoji}</span>
+          )}
+          <span
             style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: dotColor,
-              flexShrink: 0,
+              fontSize: 11,
+              fontWeight: 500,
+              color: isEmpty && accentColor ? accentColor : "var(--muted-foreground)",
+              textTransform: "uppercase" as const,
+              letterSpacing: "0.6px",
             }}
-          />
-          <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{statusLabel}</span>
+          >
+            {label}
+          </span>
         </div>
+        {!isEmpty && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: dotColor,
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{statusLabel}</span>
+          </div>
+        )}
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-        <span
-          style={{
-            fontSize: 24,
-            fontWeight: 700,
-            color: "var(--foreground)",
-            lineHeight: 1,
-          }}
-        >
-          {value}
-        </span>
-        <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{unit}</span>
-      </div>
-      {barPercent !== undefined && (
-        <div
-          style={{
-            height: 10,
-            borderRadius: 6,
-            background: "var(--muted)",
-            overflow: "hidden",
-          }}
-        >
-          <div
+      {isEmpty ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span
             style={{
-              height: "100%",
-              width: `${clamp(barPercent, 0, 100)}%`,
-              background: barGradient || "linear-gradient(90deg, #7c3aed, #e879a8)",
-              borderRadius: 6,
-              transition: "width 1s cubic-bezier(0.22, 1, 0.36, 1)",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--muted-foreground)",
+              lineHeight: 1.4,
             }}
-          />
+          >
+            {emptyCta || "No data yet"}
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              color: accentColor || "var(--muted-foreground)",
+              opacity: 0.8,
+              fontWeight: 500,
+            }}
+          >
+            Tap to get started
+          </span>
         </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+            <span
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: "var(--foreground)",
+                lineHeight: 1,
+              }}
+            >
+              {value}
+            </span>
+            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{unit}</span>
+          </div>
+          {barPercent !== undefined && (
+            <div
+              style={{
+                height: 10,
+                borderRadius: 6,
+                background: "var(--muted)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${clamp(barPercent, 0, 100)}%`,
+                  background: barGradient || "linear-gradient(90deg, #7c3aed, #e879a8)",
+                  borderRadius: 6,
+                  transition: "width 1s cubic-bezier(0.22, 1, 0.36, 1)",
+                }}
+              />
+            </div>
+          )}
+        </>
       )}
     </motion.div>
   );
@@ -888,6 +939,9 @@ export default function Today() {
               onClick={() => navigate("/sleep-session")}
               barPercent={sleepTotal > 0 ? Math.min(100, (sleepTotal / 8) * 100) : undefined}
               barGradient="linear-gradient(90deg, #7c3aed, #a78bfa)"
+              accentColor="#7c3aed"
+              emptyEmoji={"\uD83D\uDE34"}
+              emptyCta="Sync sleep data"
             />
 
             {/* Heart Rate */}
@@ -898,6 +952,9 @@ export default function Today() {
               statusLabel={hrStatus.label}
               dotColor={hrStatus.color}
               onClick={() => navigate("/health-analytics")}
+              accentColor="#e879a8"
+              emptyEmoji={"\u2764\uFE0F"}
+              emptyCta="Connect Health to track"
             />
 
             {/* Steps */}
@@ -910,6 +967,9 @@ export default function Today() {
               onClick={() => navigate("/health-analytics")}
               barPercent={steps > 0 ? stepsPct : undefined}
               barGradient="linear-gradient(90deg, #06b6d4, #22d3ee)"
+              accentColor="#06b6d4"
+              emptyEmoji={"\uD83D\uDC5F"}
+              emptyCta="Sync to see steps"
             />
 
             {/* Nutrition */}
@@ -922,6 +982,9 @@ export default function Today() {
               onClick={() => navigate("/nutrition")}
               barPercent={todayCalories > 0 ? calPct : undefined}
               barGradient="linear-gradient(90deg, #d4a017, #ea580c)"
+              accentColor="#d4a017"
+              emptyEmoji={"\uD83C\uDF4E"}
+              emptyCta="Log a meal to start"
             />
           </motion.div>
 
