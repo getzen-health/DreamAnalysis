@@ -770,7 +770,13 @@ class HealthSyncManager {
   private state: HealthSyncState = {
     status: "unavailable",
     lastSyncAt: null,
-    latestPayload: null,
+    // Load cached health data on startup so UI has data immediately
+    latestPayload: (() => {
+      try {
+        const saved = localStorage.getItem("ndw_health_payload");
+        return saved ? JSON.parse(saved) : null;
+      } catch { return null; }
+    })(),
     error: null,
   };
   private listeners: Set<(s: HealthSyncState) => void> = new Set();
@@ -864,13 +870,24 @@ class HealthSyncManager {
 
       const { payload, workouts } = result;
 
-      // Post to ML backend (existing pipeline)
-      await postToBackend(payload);
+      // Set latestPayload IMMEDIATELY so UI has data even if backends fail
+      this.set({
+        status: "ok",
+        lastSyncAt: new Date(),
+        latestPayload: payload,
+        error: null,
+      });
 
-      // Post to Supabase health pipeline (additive — best-effort)
+      // Also save to localStorage so data persists across page navigations
+      try { localStorage.setItem("ndw_health_payload", JSON.stringify(payload)); } catch { /* ok */ }
+
+      // Post to ML backend (best-effort — not available on native APK)
+      try { await postToBackend(payload); } catch { /* ML backend unavailable — ok */ }
+
+      // Post to Supabase health pipeline (best-effort)
       const source = os === "ios" ? "apple_health" as const : "google_fit" as const;
       const samples = buildSupabaseSamples(payload, workouts, source);
-      await postToSupabase(userId, samples);
+      try { await postToSupabase(userId, samples); } catch { /* Supabase unavailable — ok */ }
 
       // Persist body metrics to body_metrics table (best-effort)
       if (payload.weight_kg || payload.body_fat_pct) {
@@ -905,16 +922,23 @@ class HealthSyncManager {
         }
       }
 
-      this.set({
-        status: "ok",
-        lastSyncAt: new Date(),
-        latestPayload: payload,
-        error: null,
-      });
+      // latestPayload already set above — just update status if backends succeeded
     } catch (e) {
+      // Even on error, try to preserve any previously pulled data
+      const cached = this.state.latestPayload;
+      if (!cached) {
+        // No data at all — try loading from localStorage
+        try {
+          const saved = localStorage.getItem("ndw_health_payload");
+          if (saved) {
+            this.set({ status: "ok", latestPayload: JSON.parse(saved), error: null });
+            return;
+          }
+        } catch { /* ok */ }
+      }
       this.set({
-        status: "error",
-        error: String(e),
+        status: cached ? "ok" : "error",
+        error: cached ? null : String(e),
       });
     }
   }
