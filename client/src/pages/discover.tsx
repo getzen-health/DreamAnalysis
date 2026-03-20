@@ -46,9 +46,11 @@ function useCheckinData(): CheckinData | null {
     };
     window.addEventListener("ndw-voice-updated", handler);
     window.addEventListener("ndw-emotion-update", handler);
+    window.addEventListener("storage", handler);
     return () => {
       window.removeEventListener("ndw-voice-updated", handler);
       window.removeEventListener("ndw-emotion-update", handler);
+      window.removeEventListener("storage", handler);
     };
   }, []);
   return data;
@@ -371,7 +373,7 @@ interface HistoryRow {
   timestamp: string;
 }
 
-function EmotionsOverview({ userId, navigate }: { userId: string; navigate: (p: string) => void }) {
+function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navigate: (p: string) => void; checkin: CheckinData | null }) {
   const { data } = useQuery<HistoryRow[]>({
     queryKey: [`/api/brain/history/${userId}?days=7`],
     retry: false,
@@ -398,20 +400,15 @@ function EmotionsOverview({ userId, navigate }: { userId: string; navigate: (p: 
     }));
   }, [data]);
 
-  // Current values from localStorage
+  // Current values from checkin data (reactive via useCheckinData hook)
   const current = useMemo(() => {
-    try {
-      const raw = localStorage.getItem("ndw_last_emotion");
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      const r = parsed?.result ?? parsed;
-      return {
-        stress: Math.round((r?.stress_index ?? 0) * 100),
-        focus: Math.round((r?.focus_index ?? 0) * 100),
-        mood: r?.emotion ?? "neutral",
-      };
-    } catch { return null; }
-  }, []);
+    if (!checkin) return null;
+    return {
+      stress: Math.round((checkin.stress_index ?? 0) * 100),
+      focus: Math.round((checkin.focus_index ?? 0) * 100),
+      mood: checkin.emotion ?? "neutral",
+    };
+  }, [checkin]);
 
   return (
     <button
@@ -567,7 +564,7 @@ export default function Discover() {
       </div>
 
       {/* ── Emotions Overview — combined stress, focus, mood graph ── */}
-      <EmotionsOverview userId={userId} navigate={navigate} />
+      <EmotionsOverview userId={userId} navigate={navigate} checkin={checkin} />
 
       {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
       <EmotionTimeline userId={userId} />

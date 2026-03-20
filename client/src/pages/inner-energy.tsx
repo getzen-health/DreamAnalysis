@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScoreCircle } from "@/components/score-circle";
 import { Sparkles, Activity, Radio, Heart } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
+import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import { useQuery } from "@tanstack/react-query";
 
 const CURRENT_USER = getParticipantId();
@@ -107,6 +108,7 @@ export default function InnerEnergy() {
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
+  const { emotion: currentEmotion } = useCurrentEmotion();
 
   const { data: latestVoice } = useQuery<Record<string, unknown> | null>({
     queryKey: ["voice-inner-energy", CURRENT_USER],
@@ -140,7 +142,7 @@ export default function InnerEnergy() {
     return healthMetrics[0]; // Already sorted by timestamp desc from API
   }, [healthMetrics]);
 
-  const hasVoice = !isStreaming && !!latestVoice;
+  const hasVoice = !isStreaming && (!!latestVoice || !!currentEmotion);
   const hasHealth = !isStreaming && !hasVoice && !!latestHealth;
   const hasAnyData = isStreaming || hasVoice || hasHealth;
 
@@ -168,11 +170,19 @@ export default function InnerEnergy() {
     ];
 
     let voiceFallback: number[] | null = null;
-    if (hasVoice && latestVoice) {
-      const vv = (latestVoice.valence as number) ?? 0;
-      const va = (latestVoice.arousal as number) ?? 0.5;
-      const vs = (latestVoice.stress_from_watch as number) ?? 0.5;
-      voiceFallback = voiceChakraActivations(vv, va, vs);
+    if (hasVoice) {
+      if (latestVoice) {
+        const vv = (latestVoice.valence as number) ?? 0;
+        const va = (latestVoice.arousal as number) ?? 0.5;
+        const vs = (latestVoice.stress_from_watch as number) ?? 0.5;
+        voiceFallback = voiceChakraActivations(vv, va, vs);
+      } else if (currentEmotion) {
+        voiceFallback = voiceChakraActivations(
+          currentEmotion.valence,
+          currentEmotion.arousal,
+          currentEmotion.stress,
+        );
+      }
     }
 
     let healthFallback: number[] | null = null;
@@ -192,13 +202,13 @@ export default function InnerEnergy() {
       activation: isStreaming ? activations[i] : (voiceFallback ? voiceFallback[i] : (healthFallback ? healthFallback[i] : 0)),
       color: CHAKRA_COLORS[c.key],
     }));
-  }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming, hasVoice, latestVoice, hasHealth, latestHealth]);
+  }, [bandPowers.delta, bandPowers.theta, bandPowers.alpha, bandPowers.beta, bandPowers.gamma, isStreaming, hasVoice, latestVoice, currentEmotion, hasHealth, latestHealth]);
 
   // Meditation depth from meditation model
   const meditationScore = meditation?.meditation_score ?? 0;
-  const voiceArousal = (latestVoice?.arousal as number) ?? 0.5;
-  const voiceValence = (latestVoice?.valence as number) ?? 0;
-  const voiceFocusIndex = (latestVoice?.focus_index as number) ?? 0.4;
+  const voiceArousal = (latestVoice?.arousal as number) ?? currentEmotion?.arousal ?? 0.5;
+  const voiceValence = (latestVoice?.valence as number) ?? currentEmotion?.valence ?? 0;
+  const voiceFocusIndex = (latestVoice?.focus_index as number) ?? currentEmotion?.focus ?? 0.4;
   const healthStress = latestHealth?.stressLevel ?? 5;
   const healthSleep = latestHealth?.sleepQuality ?? 5;
   const healthFocus = latestHealth?.neuralActivity ?? 50;
@@ -245,9 +255,9 @@ export default function InnerEnergy() {
 
   useEffect(() => {
     if (!isStreaming) {
-      if (hasVoice && latestVoice) {
-        const emotion = (latestVoice.emotion as string) ?? "neutral";
-        const valence = (latestVoice.valence as number) ?? 0;
+      if (hasVoice && (latestVoice || currentEmotion)) {
+        const emotion = (latestVoice?.emotion as string) ?? currentEmotion?.emotion ?? "neutral";
+        const valence = (latestVoice?.valence as number) ?? currentEmotion?.valence ?? 0;
         const voiceGuide = valence > 0.2
           ? `Voice analysis shows a ${emotion} state with positive energy. ${getGuidance(dominantChakra.name, "—")} Connect EEG for deeper readings.`
           : valence < -0.1
@@ -272,7 +282,7 @@ export default function InnerEnergy() {
     guidanceTimerRef.current = now;
     setGuidance(getGuidance(dominantChakra.name, meditationStage));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestFrame?.timestamp, hasVoice, hasHealth]);
+  }, [latestFrame?.timestamp, hasVoice, hasHealth, currentEmotion]);
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">

@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
+import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import {
   AreaChart,
   Area,
@@ -185,7 +186,10 @@ function PeriodIcon({ name }: { name: string }) {
 export default function StressTrends() {
   const userId = getParticipantId();
   const { latestPayload } = useHealthSync();
-  const stressPercent = useMemo(() => readCurrentStress(), []);
+  const { emotion: currentEmotion } = useCurrentEmotion();
+  const stressPercent = currentEmotion?.stress != null
+    ? Math.round(currentEmotion.stress * 100)
+    : null;
 
   const { data: historyData = [] } = useQuery<HistoryEntry[]>({
     queryKey: ["brain-history-stress", userId],

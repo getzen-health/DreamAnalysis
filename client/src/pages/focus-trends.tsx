@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
+import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import {
   AreaChart,
   Area,
@@ -182,8 +183,10 @@ export default function FocusTrends() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const current = useMemo(() => getCurrentFocus(), []);
-  const focusPercent = current ? Math.round(current.focusIndex * 100) : null;
+  const { emotion: currentEmotion } = useCurrentEmotion();
+  const focusPercent = currentEmotion?.focus != null
+    ? Math.round(currentEmotion.focus * 100)
+    : null;
   const classification = focusPercent !== null ? classifyFocus(focusPercent) : null;
 
   const focusTrend = useMemo(
