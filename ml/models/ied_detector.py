@@ -83,6 +83,12 @@ class IEDDetector:
             "spikes": spikes_detected[:10],  # cap at 10 for response size
             "note": "Screening only — clinical diagnosis requires full 10-20 EEG",
             "model_used": "threshold_spike_detector",
+            "not_validated": True,
+            "scale_context": (
+                "Scores are research-grade estimates from consumer EEG hardware. "
+                "They have not been validated against clinical diagnostic instruments "
+                "and must not be used for clinical diagnosis."
+            ),
         }
 
 

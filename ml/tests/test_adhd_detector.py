@@ -82,7 +82,7 @@ class TestAssess:
         expected_keys = {
             "tbr_score", "tbr_percentile", "attention_variability",
             "inhibition_index", "risk_level", "attention_profile",
-            "component_scores", "disclaimer",
+            "component_scores", "disclaimer", "not_validated", "scale_context",
         }
         assert expected_keys.issubset(set(result.keys()))
 
@@ -151,14 +151,14 @@ class TestAttentionProfile:
             eeg = _make_eeg(seed=seed)
             result = detector.assess(eeg, FS)
             assert result["attention_profile"] in {
-                "inattentive", "hyperactive", "combined", "typical",
+                "theta_dominant", "beta_deficit", "mixed_pattern", "typical",
             }
 
     def test_high_theta_inattentive(self, detector):
-        # High theta, low beta -> inattentive pattern
+        # High theta, low beta -> theta_dominant or mixed_pattern
         eeg = _high_tbr_eeg()
         result = detector.assess(eeg, FS)
-        assert result["attention_profile"] in {"inattentive", "combined"}
+        assert result["attention_profile"] in {"theta_dominant", "mixed_pattern"}
 
     def test_typical_pattern(self, detector):
         # Balanced theta/beta -> typical

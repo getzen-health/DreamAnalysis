@@ -226,6 +226,11 @@ class ADHDDetector:
             "has_baseline": user_id in self._baselines,
             "age_group": self._age_group,
             "disclaimer": DISCLAIMER,
+            "not_validated": True,
+            "scale_context": (
+                "EEG pattern scores are research-grade estimates from consumer hardware. "
+                "They have not been validated against clinical diagnostic instruments."
+            ),
         }
 
         # Store in history
@@ -391,13 +396,13 @@ class ADHDDetector:
         beta_deficit: float,
         beta_relative: float,
     ) -> str:
-        """Classify attention profile into ADHD subtypes.
+        """Classify EEG attention pattern.
 
         Based on Clarke et al. (2001) EEG subtypes:
-        - Inattentive: elevated TBR, high theta, normal/low beta
-        - Hyperactive: normal/low TBR, low beta, elevated beta variability
-        - Combined: elevated TBR + low beta
-        - Typical: normal TBR, balanced powers
+        - theta_dominant: elevated TBR, high theta, normal/low beta
+        - beta_deficit: normal/low TBR, low beta, elevated beta variability
+        - mixed_pattern: elevated TBR + low beta
+        - typical: normal TBR, balanced powers
         """
         norms = _NORMATIVE_TBR[self._age_group]
         tbr_elevated = tbr > (norms["mean"] + norms["std"])
@@ -405,9 +410,9 @@ class ADHDDetector:
         low_beta = beta_deficit > 0.4
 
         if tbr_elevated and high_theta and low_beta:
-            return "combined"
+            return "mixed_pattern"
         elif tbr_elevated or high_theta:
-            return "inattentive"
+            return "theta_dominant"
         elif low_beta and beta_relative < 0.25:
-            return "hyperactive"
+            return "beta_deficit"
         return "typical"

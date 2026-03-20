@@ -63,6 +63,12 @@ class AutismScreener:
             "eeg_complexity": round(complexity, 4),
             "note": "Screening only — not a clinical diagnosis",
             "model_used": "feature_based_connectivity",
+            "not_validated": True,
+            "scale_context": (
+                "Scores are research-grade estimates from consumer EEG hardware. "
+                "They have not been validated against clinical diagnostic instruments "
+                "and must not be used for clinical diagnosis."
+            ),
         }
 
 _model = AutismScreener()

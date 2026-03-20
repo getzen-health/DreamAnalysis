@@ -180,6 +180,12 @@ class AttentionScreener:
             "beta_power": round(float(beta), 4),
             "disclaimer": DISCLAIMER,
             "model_type": "aperiodic_tbr_heuristic",
+            "not_validated": True,
+            "scale_context": (
+                "Scores are research-grade estimates from consumer EEG hardware. "
+                "They have not been validated against clinical diagnostic instruments "
+                "and must not be used for clinical diagnosis."
+            ),
         }
 
     def record_rest_baseline(self, signals: np.ndarray, fs: float = 256.0) -> Dict:

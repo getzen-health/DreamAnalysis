@@ -163,6 +163,15 @@ def _observation_resource(
     if components:
         obs["component"] = components
 
+    # Flag non-validated custom NDW scores
+    if ndw:
+        obs["note"] = [{
+            "text": (
+                "This observation is derived from consumer-grade EEG hardware "
+                "and has not been clinically validated. Research use only."
+            )
+        }]
+
     return obs
 
 

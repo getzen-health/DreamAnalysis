@@ -341,6 +341,12 @@ class VoiceCognitiveScreener:
                 "prosodic_variation": round(prosodic_score, 4),
                 "voice_quality": round(vq_score, 4),
             },
+            "not_validated": True,
+            "scale_context": (
+                "Scores are research-grade estimates from consumer EEG hardware. "
+                "They have not been validated against clinical diagnostic instruments "
+                "and must not be used for clinical diagnosis."
+            ),
         }
 
     def add_longitudinal_point(
@@ -536,6 +542,12 @@ class ElderlyEmotionMonitor:
             "loneliness_risk": loneliness,
             "positivity_deviation": round(positivity_deviation, 4),
             "is_elderly_adjusted": is_elderly,
+            "not_validated": True,
+            "scale_context": (
+                "Scores are research-grade estimates from consumer EEG hardware. "
+                "They have not been validated against clinical diagnostic instruments "
+                "and must not be used for clinical diagnosis."
+            ),
         }
 
     def assess_loneliness_risk(self, voice_features: Dict) -> Dict:
