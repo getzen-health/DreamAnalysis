@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import {
@@ -195,7 +196,7 @@ export default function StressTrends() {
   const { data: historyData = [] } = useQuery<HistoryEntry[]>({
     queryKey: ["brain-history-stress", userId],
     queryFn: async () => {
-      const res = await fetch(`/api/brain/history/${userId}?days=7`);
+      const res = await fetch(resolveUrl(`/api/brain/history/${userId}?days=7`));
       if (!res.ok) return [];
       const json = await res.json();
       return Array.isArray(json) ? json : json?.entries ?? json?.data ?? [];

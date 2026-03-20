@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import {
   AreaChart,
@@ -41,7 +42,8 @@ const FOCUS_ACCENT = "#0891b2"; // cyan
 interface HistoryEntry {
   dominantEmotion: string;
   timestamp: string;
-  focus_index?: number;
+  focus?: number;        // API returns "focus", not "focus_index"
+  focus_index?: number;  // keep for backwards compat with any cached data
 }
 
 /* ---------- helpers ---------- */
@@ -99,12 +101,13 @@ function buildDailyFocusTrend(
   >();
 
   for (const entry of data) {
-    if (entry.focus_index == null) continue;
+    const focusVal = entry.focus ?? entry.focus_index;
+    if (focusVal == null) continue;
     const d = new Date(entry.timestamp);
     const key = d.toLocaleDateString("en-US", { weekday: "short" });
     const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     if (!dayMap.has(key)) dayMap.set(key, { values: [], ts });
-    dayMap.get(key)!.values.push(entry.focus_index * 100);
+    dayMap.get(key)!.values.push(focusVal * 100);
   }
 
   return Array.from(dayMap.entries())
@@ -122,10 +125,11 @@ function buildFocusByHour(
   const hourMap: Record<number, number[]> = {};
 
   for (const entry of data) {
-    if (entry.focus_index == null) continue;
+    const focusVal = entry.focus ?? entry.focus_index;
+    if (focusVal == null) continue;
     const h = new Date(entry.timestamp).getHours();
     if (!hourMap[h]) hourMap[h] = [];
-    hourMap[h].push(entry.focus_index * 100);
+    hourMap[h].push(focusVal * 100);
   }
 
   return Object.entries(hourMap)
@@ -178,7 +182,13 @@ export default function FocusTrends() {
   const userId = getParticipantId();
 
   const { data: history } = useQuery<HistoryEntry[]>({
-    queryKey: [`/api/brain/history/${userId}?days=7`],
+    queryKey: ["brain-history-focus", userId],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/brain/history/${userId}?days=7`));
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json) ? json : json?.entries ?? json?.data ?? [];
+    },
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
@@ -289,9 +299,9 @@ export default function FocusTrends() {
               {classification.description}
             </p>
             {(() => {
-              const entries = (history ?? []).filter((e) => e.focus_index != null);
-              const prevFocus = entries.length >= 2 ? entries[entries.length - 2]?.focus_index : null;
-              const curFocus = entries.length >= 1 ? entries[entries.length - 1]?.focus_index : null;
+              const entries = (history ?? []).filter((e) => (e.focus ?? e.focus_index) != null);
+              const prevFocus = entries.length >= 2 ? (entries[entries.length - 2]?.focus ?? entries[entries.length - 2]?.focus_index) : null;
+              const curFocus = entries.length >= 1 ? (entries[entries.length - 1]?.focus ?? entries[entries.length - 1]?.focus_index) : null;
               const focusDelta = prevFocus != null && curFocus != null ? (curFocus - prevFocus) * 100 : null;
               if (focusDelta == null || Math.abs(focusDelta) <= 2) return null;
               return (

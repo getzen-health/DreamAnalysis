@@ -254,33 +254,57 @@ async function shareWellnessScore(score: number, emotion: string, insight: strin
   ctx.font = "500 22px system-ui, -apple-system, sans-serif";
   ctx.fillText("NeuralDreamWorkshop", cx, H - 60);
 
-  // Export as blob and share
-  canvas.toBlob(async (blob) => {
-    if (!blob) return;
-
-    const file = new File([blob], "wellness-score.png", { type: "image/png" });
-
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: `My Wellness Score: ${score}`,
-          text: `My wellness score today is ${score}/100. ${insight}`,
-          files: [file],
-        });
-        return;
-      } catch {
-        // User cancelled or share failed — fall through to download
-      }
+  // Export as blob and share (wrapped in Promise so caller can await)
+  const blob = await new Promise<Blob | null>((resolve) => {
+    try {
+      canvas.toBlob((b) => resolve(b), "image/png");
+    } catch {
+      resolve(null);
     }
+  });
 
-    // Fallback: download
+  // If toBlob failed, try toDataURL as fallback
+  if (!blob) {
+    try {
+      const link = document.createElement("a");
+      link.download = "antarai-wellness.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch { /* last resort failed */ }
+    return;
+  }
+
+  const file = new File([blob], "antarai-wellness.png", { type: "image/png" });
+
+  // Try Web Share API with file
+  try {
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        title: `My Wellness Score: ${score}`,
+        text: `My wellness score today is ${score}/100. ${insight}`,
+        files: [file],
+      });
+      return;
+    }
+  } catch {
+    // User cancelled or share failed — fall through to download
+  }
+
+  // Fallback: download the image directly
+  try {
+    const link = document.createElement("a");
+    link.download = "antarai-wellness.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  } catch {
+    // toDataURL fallback failed — try blob URL
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "wellness-score.png";
+    a.download = "antarai-wellness.png";
     a.click();
     URL.revokeObjectURL(url);
-  }, "image/png");
+  }
 }
 
 // ── Animation variants ──────────────────────────────────────────────────

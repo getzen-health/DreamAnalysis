@@ -17,6 +17,7 @@ import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 import {
   AreaChart,
   Area,
@@ -200,7 +201,13 @@ export default function MoodTrends() {
   const { emotion: currentEmotion } = useCurrentEmotion();
 
   const { data: history } = useQuery<HistoryEntry[]>({
-    queryKey: [`/api/brain/history/${userId}?days=7`],
+    queryKey: ["brain-history-mood", userId],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/brain/history/${userId}?days=7`));
+      if (!res.ok) return [];
+      const json = await res.json();
+      return Array.isArray(json) ? json : json?.entries ?? json?.data ?? [];
+    },
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
