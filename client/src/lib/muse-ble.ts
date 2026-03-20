@@ -235,12 +235,12 @@ export class MuseBleManager {
     return Capacitor.isNativePlatform();
   }
 
-  /** True when the browser exposes the Web Bluetooth API (Chrome desktop/Android). */
+  /** True when the browser exposes the Web Bluetooth API. */
   get isWebBluetooth(): boolean {
-    return !this.isNative && typeof navigator !== "undefined" && "bluetooth" in navigator;
+    return typeof navigator !== "undefined" && "bluetooth" in navigator;
   }
 
-  /** True if any BLE path is available (native Capacitor OR Web Bluetooth). */
+  /** True if any BLE path is available (Web Bluetooth OR native Capacitor). */
   get isAvailable(): boolean {
     return this.isNative || this.isWebBluetooth;
   }
@@ -445,14 +445,33 @@ export class MuseBleManager {
    * Throws if BLE is unavailable (no native + no Web Bluetooth support).
    */
   async connect(): Promise<void> {
-    if (!this.isNative && !this.isWebBluetooth) {
+    if (!this.isAvailable) {
       throw new Error(
-        "Bluetooth not available. Use Chrome on desktop/Android, or the iOS app."
+        "Bluetooth not available. Use Chrome on desktop/Android, or the iOS/Android app."
       );
     }
 
+    // Prefer Web Bluetooth — proven to work with Muse on Chrome/Android
+    // Capacitor BLE plugin has GATT discovery issues on Android 16+
     if (this.isWebBluetooth) {
-      return this._connectWebBluetooth();
+      try {
+        return await this._connectWebBluetooth();
+      } catch (webBtErr) {
+        // Web Bluetooth not supported in this WebView — fall back to Capacitor
+        const msg = String(webBtErr);
+        if (msg.includes("requestDevice") || msg.includes("not a function") || msg.includes("not supported") || msg.includes("SecurityError")) {
+          console.warn("Web Bluetooth unavailable in WebView, falling back to Capacitor BLE:", msg);
+          // Fall through to Capacitor path
+        } else {
+          // Web Bluetooth IS available but connection itself failed — don't fallback
+          throw webBtErr;
+        }
+      }
+    }
+
+    // Capacitor BLE plugin — fallback for iOS and Android WebViews without Web Bluetooth
+    if (!this.isNative) {
+      throw new Error("Bluetooth not available in this environment.");
     }
 
     const ble = await this.getBleClient();
