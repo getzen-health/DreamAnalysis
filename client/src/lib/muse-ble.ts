@@ -428,25 +428,39 @@ export class MuseBleManager {
       }
     };
     await writeCommand(CMD_PRESET_P21);
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 500));
     await writeCommand(CMD_START);
 
-    // Auto-detect Muse 2 vs Muse S EEG UUIDs
-    let activeEegChars = MUSE_EEG_CHARS_MUSE_S; // try Muse S first
-    try {
-      await service.getCharacteristic(MUSE_EEG_CHARS_MUSE_S[0]);
-      MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE_S];
-    } catch {
-      activeEegChars = MUSE_EEG_CHARS_MUSE2; // fall back to Muse 2
-      MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE2];
+    // Wait for Muse to reconfigure GATT after preset command
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Auto-detect Muse S vs Muse 2 EEG UUIDs
+    // Try ALL known UUIDs and use whichever ones exist
+    const allPossibleChars = [
+      ...MUSE_EEG_CHARS_MUSE_S,  // 0013, 0014, 0015, 0016
+      ...MUSE_EEG_CHARS_MUSE2,   // 0003, 0004, 0005, 0006
+    ];
+
+    const foundChars: BluetoothRemoteGATTCharacteristic[] = [];
+    for (const uuid of allPossibleChars) {
+      try {
+        const ch = await service.getCharacteristic(uuid);
+        foundChars.push(ch);
+        if (foundChars.length >= 4) break; // found all 4 channels
+      } catch {
+        // This UUID doesn't exist — try next
+      }
     }
 
-    // Subscribe to EEG channels
-    for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-      const charUuid = activeEegChars[ch];
-      const characteristic = await service.getCharacteristic(charUuid);
+    if (foundChars.length === 0) {
+      throw new Error("No EEG characteristics found. Muse may need a firmware update.");
+    }
+
+    // Subscribe to found channels
+    for (let i = 0; i < foundChars.length; i++) {
+      const characteristic = foundChars[i];
       await characteristic.startNotifications();
-      const channelIndex = ch;
+      const channelIndex = i;
       characteristic.addEventListener("characteristicvaluechanged", (ev: Event) => {
         const target = ev.target as BluetoothRemoteGATTCharacteristic;
         if (target.value) this.onEegNotification(channelIndex, target.value);
