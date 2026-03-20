@@ -36,12 +36,18 @@ async def models_status():
         "flow_state": {
             "loaded": True,
             "type": flow_model.model_type,
-            "classes": ["no_flow", "micro_flow", "flow", "deep_flow"],
+            "classes": ["no_flow", "shallow", "moderate", "deep"],
+            "binary_classes": ["no_flow", "flow"],
+            "accuracy": "62.86% CV",
+            "accuracy_note": "Marginal accuracy; binary mode recommended. Calibration required.",
+            "calibrated": flow_model.is_calibrated,
         },
         "creativity": {
             "loaded": True,
             "type": creativity_model.model_type,
             "classes": ["analytical", "transitional", "creative", "insight"],
+            "experimental": creativity_model.EXPERIMENTAL,
+            "confidence_note": creativity_model.CONFIDENCE_NOTE,
         },
         "memory_encoding": {
             "loaded": True,

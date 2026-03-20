@@ -33,9 +33,24 @@ from processing.eeg_processor import extract_band_powers, extract_features, prep
 
 
 class CreativityDetector:
-    """Detects creative vs analytical thinking states from EEG."""
+    """Detects creative vs analytical thinking states from EEG.
+
+    EXPERIMENTAL: This model has not been validated on sufficient data for
+    reliable generalization.  The 99.18% benchmark accuracy is an overfit
+    artifact (850 training samples, ~212 per class).  All outputs include an
+    ``experimental`` flag and a ``confidence_note`` explaining the limitation.
+    Do NOT display the 99.18% figure as "model accuracy" in any user-facing
+    surface.
+    """
 
     STATES = ["analytical", "transitional", "creative", "insight"]
+
+    # Evidence-based validation metadata
+    EXPERIMENTAL = True
+    CONFIDENCE_NOTE = (
+        "experimental — insufficient training data (850 samples) for reliable "
+        "generalization; reported 99.18% accuracy is an overfit artifact"
+    )
 
     def __init__(self, model_path: Optional[str] = None):
         self.model_type = "feature-based"
@@ -167,6 +182,8 @@ class CreativityDetector:
             "state_index": state_idx,
             "creativity_score": round(creativity_score, 3),
             "confidence": round(confidence, 3),
+            "experimental": self.EXPERIMENTAL,
+            "confidence_note": self.CONFIDENCE_NOTE,
             "components": {
                 "divergent_thinking": round(divergent, 3),
                 "insight_potential": round(insight, 3),
@@ -198,6 +215,8 @@ class CreativityDetector:
             "state_index": state_idx,
             "creativity_score": round(float(np.clip(creativity_score, 0, 1)), 3),
             "confidence": round(float(probs[state_idx]), 3),
+            "experimental": self.EXPERIMENTAL,
+            "confidence_note": self.CONFIDENCE_NOTE,
             "components": {
                 "divergent_thinking": round(float(probs[2]) if len(probs) > 2 else 0.3, 3),
                 "insight_potential": round(float(probs[3]) if len(probs) > 3 else 0.1, 3),

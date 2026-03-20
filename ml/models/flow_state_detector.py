@@ -27,6 +27,7 @@ Flow intensity levels:
 - deep: score >= 0.75
 """
 
+import warnings
 import numpy as np
 from typing import Dict, Optional
 from processing.eeg_processor import (
@@ -35,10 +36,31 @@ from processing.eeg_processor import (
 
 
 FLOW_STATES = ["no_flow", "shallow", "moderate", "deep"]
+FLOW_STATES_BINARY = ["no_flow", "flow"]
+
+# Minimum epoch length in seconds.  Flow state research (Katahira 2018,
+# Ulrich 2014) uses 30-60 second analysis windows.  Shorter epochs have
+# insufficient spectral resolution for reliable theta/alpha/beta estimation.
+MIN_EPOCH_SECONDS = 30.0
+
+# Model accuracy metadata — surface to users for trust calibration
+FLOW_MODEL_ACCURACY = 62.86
+FLOW_ACCURACY_NOTE = (
+    "62.86% cross-validated accuracy — marginally above chance for 4-class "
+    "detection; binary (flow/no-flow) mode is recommended for higher reliability"
+)
 
 
 class FlowStateDetector:
-    """EEG-based flow state detector using frequency band analysis."""
+    """EEG-based flow state detector using frequency band analysis.
+
+    Accuracy: 62.86% CV (4-class).  Binary flow/no-flow mode achieves
+    higher reliability (~70-75% estimated).
+
+    Calibration is required before producing scores.  Call ``calibrate()``
+    with 30-60 seconds of resting EEG before the first ``predict()`` call.
+    Without calibration, predictions carry a ``calibration_warning``.
+    """
 
     def __init__(self, model_path: Optional[str] = None):
         self.model_type = "feature-based"
@@ -49,9 +71,15 @@ class FlowStateDetector:
         self.baseline_alpha = None
         self.baseline_beta = None
         self.baseline_theta = None
+        self._is_calibrated = False
 
         if model_path:
             self._load_model(model_path)
+
+    @property
+    def is_calibrated(self) -> bool:
+        """Whether the detector has been calibrated with resting EEG."""
+        return self._is_calibrated
 
     def _load_model(self, model_path: str):
         """Load trained model from pkl file."""
@@ -73,22 +101,54 @@ class FlowStateDetector:
         self.baseline_alpha = bands.get("alpha", 0.2)
         self.baseline_beta = bands.get("beta", 0.15)
         self.baseline_theta = bands.get("theta", 0.15)
+        self._is_calibrated = True
 
-    def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
+    def predict(self, eeg: np.ndarray, fs: float = 256.0, binary: bool = False) -> Dict:
         """Detect flow state from EEG signal.
 
         Accepts either a 1D single-channel signal or a 2D multichannel array
         (shape: n_channels x n_samples). When multichannel, channels are assumed
         to follow BrainFlow Muse 2 order: [TP9, AF7, AF8, TP10].
 
+        Args:
+            eeg: Raw EEG signal (1D or 2D array).
+            fs: Sampling frequency in Hz (default 256.0).
+            binary: If True, return binary flow/no-flow classification instead
+                of 4-state classification.  Binary mode is recommended for
+                higher reliability (~70-75% vs 62.86%).
+
         Returns:
             Dict with 'state', 'flow_score', 'confidence',
             'components' (theta_flow, flow_ratio, beta_decrease, beta_symmetry),
-            'flow_intensity', 'band_powers'
+            'flow_intensity', 'band_powers', 'model_accuracy', 'accuracy_note'.
+            May also include 'calibration_warning' and/or 'epoch_length_warning'.
         """
+        # --- Epoch length validation ---
+        n_samples = eeg.shape[-1]  # last axis is always samples
+        epoch_seconds = n_samples / fs
+        epoch_warning = None
+        if epoch_seconds < MIN_EPOCH_SECONDS:
+            epoch_warning = (
+                f"Epoch length {epoch_seconds:.1f}s is below the recommended "
+                f"minimum of {MIN_EPOCH_SECONDS:.0f}s for flow state detection; "
+                f"results may be unreliable"
+            )
+            warnings.warn(epoch_warning, stacklevel=2)
+
+        # --- Calibration enforcement ---
+        calibration_warning = None
+        if not self._is_calibrated:
+            calibration_warning = (
+                "Flow detector is not calibrated. Call calibrate() with "
+                "30-60 seconds of resting EEG for reliable results."
+            )
+            warnings.warn(calibration_warning, stacklevel=2)
+
         if self.sklearn_model is not None:
             try:
-                return self._predict_sklearn(eeg, fs)
+                result = self._predict_sklearn(eeg, fs)
+                result = self._add_metadata(result, binary, calibration_warning, epoch_warning)
+                return result
             except Exception:
                 pass  # fall through to feature-based
 
@@ -203,7 +263,7 @@ class FlowStateDetector:
             0.3, 0.95
         ))
 
-        return {
+        result = {
             "state": FLOW_STATES[state_idx],
             "state_index": state_idx,
             "flow_score": round(flow_score, 3),
@@ -217,6 +277,7 @@ class FlowStateDetector:
             },
             "band_powers": bands,
         }
+        return self._add_metadata(result, binary, calibration_warning, epoch_warning)
 
     def _predict_sklearn(self, eeg: np.ndarray, fs: float) -> Dict:
         """Sklearn model inference using extracted features."""
@@ -238,6 +299,7 @@ class FlowStateDetector:
             "state_index": state_idx,
             "flow_score": round(float(np.clip(flow_score, 0, 1)), 3),
             "confidence": round(float(probs[state_idx]), 3),
+            "flow_intensity": FLOW_STATES[state_idx],
             "components": {
                 "absorption": round(float(probs[2] + probs[3]) / 2, 3) if len(probs) > 3 else 0.5,
                 "effortlessness": round(float(bands.get("alpha", 0.3)), 3),
@@ -246,3 +308,42 @@ class FlowStateDetector:
             },
             "band_powers": bands,
         }
+
+    def _add_metadata(
+        self,
+        result: Dict,
+        binary: bool,
+        calibration_warning: Optional[str],
+        epoch_warning: Optional[str],
+    ) -> Dict:
+        """Add validation metadata, warnings, and optional binary mode to result.
+
+        Centralises the accuracy note, calibration check, epoch-length check,
+        and binary flow/no-flow reclassification so that all code paths
+        (feature-based and sklearn) behave consistently.
+        """
+        # Accuracy transparency
+        result["model_accuracy"] = FLOW_MODEL_ACCURACY
+        result["accuracy_note"] = FLOW_ACCURACY_NOTE
+
+        # Calibration warning
+        if calibration_warning:
+            result["calibration_warning"] = calibration_warning
+
+        # Epoch length warning
+        if epoch_warning:
+            result["epoch_length_warning"] = epoch_warning
+
+        # Binary mode: collapse 4 states into flow / no-flow
+        if binary:
+            flow_score = result["flow_score"]
+            # Threshold at 0.45 — same as the moderate/shallow boundary
+            is_flow = flow_score >= 0.45
+            result["state"] = "flow" if is_flow else "no_flow"
+            result["state_index"] = 1 if is_flow else 0
+            result["flow_intensity"] = "flow" if is_flow else "none"
+            result["binary_mode"] = True
+        else:
+            result["binary_mode"] = False
+
+        return result
