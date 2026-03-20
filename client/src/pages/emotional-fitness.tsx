@@ -63,11 +63,15 @@ export default function EmotionalFitness() {
   });
 
   return (
-    <main className="min-h-screen bg-background p-4 pb-24 max-w-2xl mx-auto">
+    <main className="min-h-screen bg-background pb-24 max-w-2xl mx-auto">
       {/* Header */}
-      <h1 className="text-lg font-semibold text-foreground mb-6">
-        Emotional Fitness
-      </h1>
+      <div className="px-4 pt-6 pb-4">
+        <h1 className="text-xl font-bold text-foreground tracking-tight">
+          Emotional Fitness
+        </h1>
+        <p className="text-xs text-muted-foreground mt-1">Your emotional health, measured daily</p>
+      </div>
+      <div className="px-4">
 
       {isLoading && <EFSSkeleton />}
 
@@ -128,6 +132,7 @@ export default function EmotionalFitness() {
           </p>
         </div>
       )}
+      </div>
     </main>
   );
 }

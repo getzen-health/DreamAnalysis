@@ -6,7 +6,7 @@
  * Share icon in top-right (copies text or uses navigator.share).
  */
 
-import { Share2 } from "lucide-react";
+import { Share2, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -44,10 +44,12 @@ export function EFSInsightBanner({ insight }: EFSInsightBannerProps) {
   };
 
   return (
-    <Card className="bg-card rounded-xl border border-border/50 shadow-sm border-l-2 border-l-cyan-500">
+    <Card className="bg-cyan-950/20 rounded-xl border border-cyan-500/20 shadow-sm border-l-2 border-l-cyan-500">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
+          <Lightbulb className="h-5 w-5 text-cyan-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-cyan-400/80 uppercase tracking-wider mb-1">Today's Insight</p>
             <p className="text-sm text-foreground leading-relaxed">{insight.text}</p>
             {insight.actionNudge && (
               <p className="text-xs text-muted-foreground mt-2">{insight.actionNudge}</p>

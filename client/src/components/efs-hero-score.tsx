@@ -39,8 +39,8 @@ interface EFSHeroScoreProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function EFSHeroScore({ score, color, label, confidence, trend, progress }: EFSHeroScoreProps) {
-  const size = 180;
-  const strokeWidth = 10;
+  const size = 220;
+  const strokeWidth = 12;
   const r = (size - strokeWidth * 2) / 2;
   const cx = size / 2;
   const cy = size / 2;
@@ -151,6 +151,16 @@ export function EFSHeroScore({ score, color, label, confidence, trend, progress 
             transform={`rotate(135 ${cx} ${cy})`}
             opacity={0.4}
           />
+          {/* Glow filter */}
+          <defs>
+            <filter id="efs-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
           {/* Score arc */}
           <circle
             cx={cx}
@@ -163,6 +173,7 @@ export function EFSHeroScore({ score, color, label, confidence, trend, progress 
             strokeDashoffset={dashOffset}
             strokeLinecap="round"
             transform={`rotate(135 ${cx} ${cy})`}
+            filter="url(#efs-glow)"
             style={{
               transition: "stroke-dashoffset 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
             }}
@@ -170,26 +181,28 @@ export function EFSHeroScore({ score, color, label, confidence, trend, progress 
           {/* Score number */}
           <text
             x={cx}
-            y={cy - 6}
+            y={cy - 8}
             textAnchor="middle"
             dominantBaseline="central"
-            fill="hsl(var(--foreground))"
-            fontSize={40}
-            fontWeight="700"
+            fill={fill}
+            fontSize={52}
+            fontWeight="800"
             fontFamily="Inter, system-ui, sans-serif"
           >
             {displayScore}
           </text>
           <text
             x={cx}
-            y={cy + 20}
+            y={cy + 24}
             textAnchor="middle"
             dominantBaseline="central"
             fill="hsl(var(--muted-foreground))"
-            fontSize={11}
+            fontSize={12}
+            fontWeight="500"
             fontFamily="Inter, system-ui, sans-serif"
+            letterSpacing="0.05em"
           >
-            / 100
+            EMOTIONAL FITNESS
           </text>
         </svg>
       </div>
