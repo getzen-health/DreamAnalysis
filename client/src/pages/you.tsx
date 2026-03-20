@@ -389,7 +389,7 @@ export default function You() {
           icon={Bell}
           iconColor="#d4a017"
           title="Notifications"
-          onClick={() => setLocation("/settings")}
+          onClick={() => setLocation("/notifications")}
         />
         <ListItem
           icon={Download}

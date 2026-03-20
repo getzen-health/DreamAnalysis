@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, Apple, Smartphone, Upload, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Cpu, Heart, Brain, LogOut, User, Shield, Watch, RefreshCw, Link, Unlink, Loader2 } from "lucide-react";
+import { AlertTriangle, Download, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Brain, LogOut, User, Shield, ChevronRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/use-theme";
 import { useLocation } from "wouter";
@@ -36,9 +36,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 const USER_ID = getParticipantId();
 import { useToast } from "@/hooks/use-toast";
-import { ingestHealthData, addBaselineFrame, getBaselineStatus, resetBaselineCalibration, getCalibrationStatus, getPersonalStatus, triggerPersonalFineTune } from "@/lib/ml-api";
+import { addBaselineFrame, getBaselineStatus, resetBaselineCalibration, getCalibrationStatus, getPersonalStatus, triggerPersonalFineTune } from "@/lib/ml-api";
 import { getPushStatus, type PushStatusResult } from "@/lib/native-push";
-import HealthSyncDashboard from "@/components/health-sync-dashboard";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -60,11 +59,6 @@ const defaultSettings: SettingsState = {
   anonymousAnalytics: false,
 };
 
-interface HealthConnectionStatus {
-  apple_health: boolean;
-  google_fit: boolean;
-}
-
 export default function SettingsPage() {
   const { theme, themeSetting, setTheme } = useTheme();
   const userId = USER_ID;
@@ -72,31 +66,9 @@ export default function SettingsPage() {
   const [, setLocation] = useLocation();
   const { state: deviceState, deviceStatus } = useDevice();
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
-  const [healthStatus, setHealthStatus] = useState<HealthConnectionStatus>({
-    apple_health: false,
-    google_fit: false,
-  });
-  const [isConnectingApple, setIsConnectingApple] = useState(false);
-  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [exportingHealthkit, setExportingHealthkit] = useState(false);
   const [exportingData, setExportingData] = useState(false);
   const [exportingDreams, setExportingDreams] = useState(false);
   const [seedingDemo, setSeedingDemo] = useState(false);
-  const [platform, setPlatform] = useState<"web" | "ios" | "android">("web");
-
-  // Detect platform once on mount
-  useEffect(() => {
-    import("@capacitor/core").then(({ Capacitor }) => {
-      const p = Capacitor.getPlatform();
-      setPlatform(p === "ios" ? "ios" : p === "android" ? "android" : "web");
-    }).catch(() => {
-      // Capacitor not available — running in browser
-    });
-  }, []);
-
-  const appleFileRef = useRef<HTMLInputElement>(null);
-  const googleFileRef = useRef<HTMLInputElement>(null);
 
   // Load settings from API on mount
   useEffect(() => {
@@ -113,128 +85,6 @@ export default function SettingsPage() {
     }
     loadSettings();
   }, [userId]);
-
-  // Check health connection status locally (Capacitor plugin) — not from server
-  const refetchHealthStatus = useCallback(async () => {
-    try {
-      const { Capacitor } = await import("@capacitor/core");
-      const platform = Capacitor.getPlatform();
-      if (platform === "android") {
-        const { Health } = await import("capacitor-health");
-        const available = await Health.isHealthAvailable();
-        if (available.available) {
-          // If Health Connect is available, check if we have permissions
-          // by trying a lightweight query. If it succeeds, we're connected.
-          try {
-            await Health.queryAggregated({
-              startDate: new Date(Date.now() - 86400000).toISOString(),
-              endDate: new Date().toISOString(),
-              dataType: "steps",
-              bucket: "DAY",
-            });
-            setHealthStatus((prev) => ({ ...prev, google_fit: true }));
-          } catch {
-            // Permission not granted or no data — check stored flag
-            const stored = localStorage.getItem("ndw_health_connect_granted");
-            if (stored === "true") {
-              setHealthStatus((prev) => ({ ...prev, google_fit: true }));
-            }
-          }
-        }
-      } else if (platform === "ios") {
-        // iOS: check stored flag from onboarding
-        const stored = localStorage.getItem("ndw_apple_health_granted");
-        if (stored === "true") {
-          setHealthStatus((prev) => ({ ...prev, apple_health: true }));
-        }
-      }
-    } catch {
-      // Not on native — check localStorage flags from previous connections
-      const gfit = localStorage.getItem("ndw_health_connect_granted") === "true";
-      const apple = localStorage.getItem("ndw_apple_health_granted") === "true";
-      if (gfit) setHealthStatus((prev) => ({ ...prev, google_fit: true }));
-      if (apple) setHealthStatus((prev) => ({ ...prev, apple_health: true }));
-    }
-  }, []);
-
-  useEffect(() => {
-    refetchHealthStatus();
-  }, [refetchHealthStatus]);
-
-  const handleAppleHealthConnect = async () => {
-    setIsConnectingApple(true);
-    try {
-      await fetch(resolveUrl("/api/health/connect"), { method: "POST" });
-      refetchHealthStatus();
-    } catch {
-      // Silently fail — not critical
-    } finally {
-      setIsConnectingApple(false);
-    }
-  };
-
-  const handleGoogleFitConnect = async () => {
-    setIsConnectingGoogle(true);
-    try {
-      // Use the capacitor-health plugin (same as health-sync.ts Android path)
-      const { Capacitor } = await import("@capacitor/core");
-      const platform = Capacitor.getPlatform();
-
-      if (platform === "android") {
-        const { Health } = await import("capacitor-health");
-        // Check if Health Connect is available
-        const available = await Health.isHealthAvailable();
-        if (!available.available) {
-          toast({
-            title: "Health Connect Not Available",
-            description: "Please install Google Health Connect from the Play Store.",
-            variant: "destructive",
-          });
-          return;
-        }
-        // Request permissions
-        await Health.requestHealthPermissions({
-          permissions: [
-            "READ_STEPS",
-            "READ_HEART_RATE",
-            "READ_ACTIVE_CALORIES",
-            "READ_WORKOUTS",
-            "READ_MINDFULNESS",
-          ],
-        });
-        setHealthStatus((prev) => ({ ...prev, google_fit: true }));
-        localStorage.setItem("ndw_health_connect_granted", "true");
-        toast({
-          title: "Google Health Connect",
-          description: "Connected successfully. Health data will sync automatically.",
-        });
-        // Also notify the server
-        await fetch(resolveUrl("/api/health/connect"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: "google_fit" }),
-        }).catch(() => {});
-      } else if (platform === "web") {
-        toast({
-          title: "Health Connect",
-          description: "Google Health Connect is available on Android devices only. Use the mobile app to connect.",
-        });
-      } else {
-        toast({
-          title: "Health Connect",
-          description: "Google Health Connect is available on Android only. Use Apple Health on iOS.",
-        });
-      }
-    } catch (e) {
-      toast({
-        title: "Connection Failed",
-        description: `Could not connect to Health Connect: ${String(e)}`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsConnectingGoogle(false);
-    }
-  };
 
   // Save settings to API
   const saveSettings = useCallback(
@@ -259,63 +109,6 @@ export default function SettingsPage() {
     const updated = { ...settings, [key]: value };
     setSettings(updated);
     saveSettings(updated);
-  };
-
-  const handleHealthUpload = async (source: "apple_health" | "google_fit", file: File) => {
-    setUploading(source);
-    try {
-      const text = await file.text();
-      let data: Record<string, unknown>;
-
-      if (file.name.endsWith(".json")) {
-        data = JSON.parse(text);
-      } else {
-        // XML or other — wrap raw text for backend parsing
-        data = { raw_xml: text, filename: file.name };
-      }
-
-      const result = await ingestHealthData(userId, source, data);
-      setHealthStatus((prev) => ({ ...prev, [source]: true }));
-      toast({
-        title: "Health Data Imported",
-        description: `Successfully imported ${result.stored} samples (${result.metrics.join(", ")}).`,
-      });
-    } catch (error) {
-      console.error("Health upload failed:", error);
-      toast({
-        title: "Import Failed",
-        description: "Could not parse the health export file. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(null);
-    }
-  };
-
-  const handleHealthkitExport = async () => {
-    setExportingHealthkit(true);
-    try {
-      const res = await fetch(resolveUrl(`/api/ml/health/export-to-healthkit/${userId}`), { method: "POST" });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `healthkit_export_${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast({
-        title: "HealthKit export ready",
-        description: `${data.count} samples exported. Import with Shortcuts or Health app on iOS.`,
-      });
-    } catch (err) {
-      toast({ title: "Export failed", description: String(err), variant: "destructive" });
-    } finally {
-      setExportingHealthkit(false);
-    }
   };
 
   const handleDataExport = async () => {
@@ -385,7 +178,6 @@ export default function SettingsPage() {
         method: "DELETE",
       });
       setSettings(defaultSettings);
-      setHealthStatus({ apple_health: false, google_fit: false });
       toast({
         title: "Data Cleared",
         description: "All your data has been permanently removed.",
@@ -402,249 +194,26 @@ export default function SettingsPage() {
 
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6">
-      {/* Connected Devices */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Cpu className="h-5 w-5" />
-            Connected Devices
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">
-                {deviceStatus?.device_type ?? "No device connected"}
-              </p>
-              <p className="text-xs text-muted-foreground capitalize">
-                Status: {deviceState}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLocation("/device-setup")}
-            >
-              {deviceState === "disconnected" ? "Connect" : "Manage"}
-            </Button>
+      {/* Connected Assets — link to dedicated page */}
+      <Card className="glass-card p-5 rounded-xl">
+        <div
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => setLocation("/connected-assets")}
+        >
+          <div>
+            <h3 className="text-base font-semibold">Connected Assets</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Manage health, BCI, and wearable connections
+            </p>
           </div>
-        </CardContent>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </div>
       </Card>
-
-      {/* Health Integrations */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Heart className="h-5 w-5" />
-            Health Integrations
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {/* Apple Health — iOS only (or web with informational message) */}
-            {(platform === "ios" || platform === "web") && (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Apple Health</p>
-                  <p className="text-xs text-muted-foreground">
-                    {platform === "web"
-                      ? "Available on iOS — use the mobile app to connect"
-                      : healthStatus.apple_health
-                      ? "Connected"
-                      : "Not connected"}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAppleHealthConnect}
-                  disabled={isConnectingApple || platform === "web"}
-                >
-                  {isConnectingApple
-                    ? "Connecting..."
-                    : healthStatus.apple_health
-                    ? "Disconnect"
-                    : "Connect"}
-                </Button>
-              </div>
-            )}
-            {/* Google Health Connect — Android only (or web with informational message) */}
-            {(platform === "android" || platform === "web") && (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Google Health Connect</p>
-                  <p className="text-xs text-muted-foreground">
-                    {platform === "web"
-                      ? "Available on Android — use the mobile app to connect"
-                      : healthStatus.google_fit
-                      ? "Connected"
-                      : "Install Google Health Connect from Play Store to sync health data"}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGoogleFitConnect}
-                  disabled={isConnectingGoogle || platform === "web"}
-                >
-                  {isConnectingGoogle
-                    ? "Connecting..."
-                    : healthStatus.google_fit
-                    ? "Disconnect"
-                    : "Connect"}
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Health Sync Status Dashboard */}
-      <HealthSyncDashboard />
 
       {/* ML Backend URL */}
       <MLBackendCard />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Health Connections */}
-        <Card className="glass-card p-6 rounded-xl">
-          <h3 className="text-lg font-semibold mb-6">
-            Health Connections
-          </h3>
-          <div className="space-y-5">
-            {/* Apple Health — iOS only (or web as informational) */}
-            {(platform === "ios" || platform === "web") && (
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-destructive/10">
-                    <Apple className="h-5 w-5 text-destructive" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Apple Health</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {platform === "web" ? (
-                        <>
-                          <Info className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">Available on iOS mobile app</span>
-                        </>
-                      ) : healthStatus.apple_health ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 text-success" />
-                          <span className="text-xs text-success">Connected</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">Not Connected</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {platform === "ios" && (
-                  <div>
-                    <Input
-                      ref={appleFileRef}
-                      type="file"
-                      accept=".xml,.zip,.json"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleHealthUpload("apple_health", file);
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={uploading === "apple_health"}
-                      onClick={() => appleFileRef.current?.click()}
-                    >
-                      <Upload className="h-3.5 w-3.5 mr-1.5" />
-                      {uploading === "apple_health" ? "Uploading..." : "Upload Export"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Google Health Connect — Android only (or web as informational) */}
-            {(platform === "android" || platform === "web") && (
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10">
-                    <Smartphone className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Google Health Connect</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {platform === "web" ? (
-                        <>
-                          <Info className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">Available on Android mobile app</span>
-                        </>
-                      ) : healthStatus.google_fit ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 text-success" />
-                          <span className="text-xs text-success">Connected</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">
-                            Install Google Health Connect from Play Store to sync health data
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {platform === "android" && (
-                  <div>
-                    <Input
-                      ref={googleFileRef}
-                      type="file"
-                      accept=".xml,.zip,.json"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleHealthUpload("google_fit", file);
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={uploading === "google_fit"}
-                      onClick={() => googleFileRef.current?.click()}
-                    >
-                      <Upload className="h-3.5 w-3.5 mr-1.5" />
-                      {uploading === "google_fit" ? "Uploading..." : "Upload Export"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Apple HealthKit export */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-start gap-2">
-                <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                <p className="text-xs text-muted-foreground">
-                  Export your brain sessions as HealthKit-formatted JSON. Import on iOS via Shortcuts or the Health app.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={exportingHealthkit}
-                onClick={handleHealthkitExport}
-              >
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                {exportingHealthkit ? "Exporting..." : "Export to HealthKit"}
-              </Button>
-            </div>
-          </div>
-        </Card>
-
         {/* Interface Settings */}
         <Card className="glass-card p-6 rounded-xl">
           <h3 className="text-lg font-semibold mb-6">
@@ -840,11 +409,27 @@ export default function SettingsPage() {
       {/* Personal Model Personalization */}
       <PersonalModelCard userId={userId} />
 
-      {/* Connected Wearable Devices */}
-      <ConnectedDevicesCard userId={userId} />
-
       {/* Notifications */}
       <NotificationsCard userId={userId} />
+
+      {/* Privacy Policy link */}
+      <Card className="glass-card p-5 rounded-xl">
+        <div
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => setLocation("/privacy")}
+        >
+          <div>
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Shield className="h-4 w-4 text-primary" />
+              Privacy Policy
+            </h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              How we collect, store, and protect your data
+            </p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </div>
+      </Card>
 
       {/* Export Brain Data */}
       <ExportBrainDataCard userId={userId} />
@@ -1736,315 +1321,9 @@ function PersonalModelCard({ userId }: { userId: string }) {
   );
 }
 
-/* ── Connected Wearable Devices Card ─────────────────────────────────────── */
+/* ── (Connected Devices moved to /connected-assets page) ─── */
 
-interface DeviceInfo {
-  id: string;
-  provider: string;
-  lastSyncAt: string | null;
-  syncStatus: string;
-  errorMessage: string | null;
-  connectedAt: string;
-  scopes: string[] | null;
-}
-
-const WEARABLE_PROVIDERS = [
-  {
-    id: 'whoop',
-    name: 'WHOOP',
-    description: 'Recovery, strain, sleep, HRV',
-    color: 'text-yellow-500',
-    bgColor: 'bg-yellow-500/10',
-    borderColor: 'border-yellow-500/30',
-  },
-  {
-    id: 'oura',
-    name: 'Oura Ring',
-    description: 'Readiness, sleep, activity, heart rate',
-    color: 'text-indigo-400',
-    bgColor: 'bg-indigo-400/10',
-    borderColor: 'border-indigo-400/30',
-  },
-  {
-    id: 'garmin',
-    name: 'Garmin',
-    description: 'Steps, stress, body battery, workouts',
-    color: 'text-cyan-400',
-    bgColor: 'bg-cyan-400/10',
-    borderColor: 'border-cyan-400/30',
-  },
-];
-
-function ConnectedDevicesCard({ userId }: { userId: string }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
-  const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
-  const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
-
-  // Fetch connected devices
-  const { data: devicesData, refetch: refetchDevices } = useQuery({
-    queryKey: ['devices', userId],
-    queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/devices/${userId}`), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return { devices: [] as DeviceInfo[] };
-      return res.json() as Promise<{ devices: DeviceInfo[] }>;
-    },
-    staleTime: 30_000,
-  });
-
-  const connectedDevices = devicesData?.devices ?? [];
-  const connectedProviderIds = new Set(connectedDevices.map(d => d.provider));
-
-  // Listen for OAuth popup completion
-  useEffect(() => {
-    function handleMessage(e: MessageEvent) {
-      if (e.data?.type === 'device-connected') {
-        refetchDevices();
-        toast({
-          title: "Device connected",
-          description: `${e.data.provider} has been connected and initial sync started.`,
-        });
-        setConnectingProvider(null);
-      }
-    }
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [refetchDevices, toast]);
-
-  const handleConnect = async (provider: string) => {
-    setConnectingProvider(provider);
-    try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/devices/connect/${provider}`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error ?? 'Failed to start connection');
-      }
-      const { authUrl } = await res.json();
-      // Open OAuth flow in popup
-      const popup = window.open(authUrl, `connect-${provider}`, 'width=600,height=700,scrollbars=yes');
-      if (!popup) {
-        toast({
-          title: "Popup blocked",
-          description: "Please allow popups for this site and try again.",
-          variant: "destructive",
-        });
-        setConnectingProvider(null);
-      }
-    } catch (error) {
-      toast({
-        title: "Connection failed",
-        description: String(error),
-        variant: "destructive",
-      });
-      setConnectingProvider(null);
-    }
-  };
-
-  const handleSync = async (provider: string) => {
-    setSyncingProvider(provider);
-    try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/devices/sync/${provider}`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error ?? 'Sync failed');
-      }
-      const data = await res.json();
-      toast({
-        title: "Sync complete",
-        description: `Synced ${data.synced} health samples from ${provider}.`,
-      });
-      refetchDevices();
-    } catch (error) {
-      toast({
-        title: "Sync failed",
-        description: String(error),
-        variant: "destructive",
-      });
-    } finally {
-      setSyncingProvider(null);
-    }
-  };
-
-  const handleDisconnect = async (provider: string) => {
-    setDisconnectingProvider(provider);
-    try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/devices/${provider}`), {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error ?? 'Failed to disconnect');
-      }
-      toast({
-        title: "Device disconnected",
-        description: `${provider} has been disconnected.`,
-      });
-      refetchDevices();
-    } catch (error) {
-      toast({
-        title: "Disconnect failed",
-        description: String(error),
-        variant: "destructive",
-      });
-    } finally {
-      setDisconnectingProvider(null);
-    }
-  };
-
-  return (
-    <Card className="glass-card p-6 rounded-xl">
-      <div className="flex items-center gap-2 mb-4">
-        <Watch className="h-5 w-5 text-primary" />
-        <h3 className="text-lg font-semibold">Connected Devices</h3>
-      </div>
-      <p className="text-sm text-muted-foreground mb-5">
-        Connect your wearable devices to automatically sync health data — HRV, sleep stages,
-        recovery scores, and more — into your Neural Dream profile.
-      </p>
-
-      <div className="space-y-3">
-        {WEARABLE_PROVIDERS.map((wp) => {
-          const connection = connectedDevices.find(d => d.provider === wp.id);
-          const isConnected = !!connection;
-          const isConnecting = connectingProvider === wp.id;
-          const isSyncing = syncingProvider === wp.id;
-          const isDisconnecting = disconnectingProvider === wp.id;
-
-          return (
-            <div
-              key={wp.id}
-              className={`rounded-lg border p-4 ${isConnected ? wp.borderColor : 'border-border/50'} ${isConnected ? wp.bgColor : 'bg-card/50'}`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${wp.bgColor}`}>
-                    <Watch className={`h-5 w-5 ${wp.color}`} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{wp.name}</span>
-                      {isConnected && (
-                        <Badge variant="outline" className="text-xs border-cyan-500/40 text-cyan-500">
-                          Connected
-                        </Badge>
-                      )}
-                      {connection?.syncStatus === 'error' && (
-                        <Badge variant="outline" className="text-xs border-destructive/40 text-destructive">
-                          Error
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{wp.description}</p>
-                    {connection?.lastSyncAt && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Last sync: {new Date(connection.lastSyncAt).toLocaleString()}
-                      </p>
-                    )}
-                    {connection?.errorMessage && (
-                      <p className="text-xs text-destructive mt-0.5">
-                        {connection.errorMessage}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {isConnected ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleSync(wp.id)}
-                        disabled={isSyncing}
-                        className="h-8"
-                      >
-                        {isSyncing ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-3.5 w-3.5" />
-                        )}
-                        <span className="ml-1.5 text-xs">{isSyncing ? "Syncing..." : "Sync"}</span>
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 border-destructive/30 text-destructive hover:bg-destructive/10"
-                            disabled={isDisconnecting}
-                          >
-                            {isDisconnecting ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Unlink className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="glass-card">
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Disconnect {wp.name}?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will remove the connection to your {wp.name} account.
-                              Previously synced data will remain in your profile. You can
-                              reconnect at any time.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDisconnect(wp.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Disconnect
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => handleConnect(wp.id)}
-                      disabled={isConnecting}
-                      className="h-8"
-                    >
-                      {isConnecting ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                      ) : (
-                        <Link className="h-3.5 w-3.5 mr-1.5" />
-                      )}
-                      <span className="text-xs">{isConnecting ? "Connecting..." : "Connect"}</span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
+/* ConnectedDevicesCard removed — all device connections are now on /connected-assets */
 
 /* ── Data & Privacy Card (GDPR Art. 15 / 17 / 20) ───────────────────────── */
 

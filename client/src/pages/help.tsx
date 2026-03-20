@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,10 @@ import {
   ChevronUp,
   Send,
   ExternalLink,
+  Utensils,
+  Download,
+  Pill,
+  Shield,
 } from "lucide-react";
 
 /* ── FAQ Data ───────────────────────────────────────────────── */
@@ -30,7 +35,7 @@ const faqs: FAQ[] = [
   {
     question: "How does voice-based emotion analysis work?",
     answer:
-      "When you start a voice check-in, the app records a short audio sample and analyzes vocal features — pitch, tone, rhythm, and energy — to estimate your emotional state. No words are transcribed or stored. The analysis runs through our ML backend and returns focus, stress, and mood scores.",
+      "When you start a voice check-in, the app records a short audio sample and analyzes vocal features — pitch, tone, rhythm, and energy — to estimate your emotional state. No words are transcribed or stored. The analysis runs on-device (or through our ML backend) and returns focus, stress, and mood scores. If you disagree with the result, tap the emotion to correct it — the app learns from your feedback over time.",
     icon: Mic,
   },
   {
@@ -46,22 +51,40 @@ const faqs: FAQ[] = [
     icon: Heart,
   },
   {
+    question: "How does nutrition logging work?",
+    answer:
+      "Go to the Nutrition page to log meals, snacks, and supplements. You can also track GLP-1 medication injections with dose, site, and schedule. The app correlates nutrition data with your mood and energy levels to show food-emotion patterns over time.",
+    icon: Utensils,
+  },
+  {
     question: "What is a dream journal entry?",
     answer:
       "After waking up, go to the Dream Journal page and describe your dream in your own words. The app uses AI to identify symbols, recurring themes, and emotional patterns. Over time, it reveals trends in your dream life.",
     icon: Moon,
   },
   {
+    question: "How can I export my data?",
+    answer:
+      "Go to the Export page (You > Export Data) to download all your data. You can export brain session data as CSV or JSON, filter by date range and metrics, and download health data, dream journals, and emotion readings. Under GDPR Art. 20, you can also download a full JSON archive of everything from Settings > Data & Privacy.",
+    icon: Download,
+  },
+  {
     question: "How is my data stored?",
     answer:
-      "Session data is stored securely on our servers. Health data synced from wearables stays in your account. You can export all your data at any time from the Export Data page, and delete everything from Settings > Privacy & Data. We follow GDPR and CCPA privacy standards.",
-    icon: Watch,
+      "Session data is stored securely on our servers (PostgreSQL with AES-256 encryption at rest). Voice analysis is processed on-device and not sent to external servers. Health data synced from wearables stays in your account. You can export all your data at any time, and delete everything from Settings > Data & Privacy. See our Privacy Policy for full details.",
+    icon: Shield,
   },
   {
     question: "What does the calibration step do?",
     answer:
-      "Calibration records 2-3 minutes of resting-state brain activity (if using EEG) or voice baseline. This establishes your personal baseline so that readings are compared against YOUR normal state rather than population averages. Calibration significantly improves accuracy.",
+      "Calibration records 30 seconds of resting-state brain activity (if using EEG). This establishes your personal baseline so that readings are compared against YOUR normal state rather than population averages. Calibration improves emotion detection accuracy by 15-29%. You can recalibrate any time from Settings.",
     icon: Brain,
+  },
+  {
+    question: "What are GLP-1 injections and how does tracking work?",
+    answer:
+      "GLP-1 receptor agonists (like semaglutide) are medications used for weight management and metabolic health. The app lets you log injection date, dose, and injection site. It tracks your schedule and sends reminders so you never miss a dose. This data is private and stored only on your device.",
+    icon: Pill,
   },
 ];
 
@@ -185,6 +208,8 @@ function FeedbackForm() {
 /* ── Main Component ─────────────────────────────────────────── */
 
 export default function HelpPage() {
+  const [, setLocation] = useLocation();
+
   return (
     <main className="p-4 md:p-6 pb-24 space-y-6 max-w-3xl">
       {/* Header */}
@@ -210,25 +235,31 @@ export default function HelpPage() {
               step: "1",
               title: "Check in with your voice",
               description:
-                "Tap the emotion lab from Discover and record a short check-in. The app analyzes your voice to estimate mood, stress, and focus.",
+                "Tap the Emotion Lab from Discover and record a short check-in. The app analyzes your voice to estimate mood, stress, and focus. If the detected emotion feels wrong, tap to correct it — the model learns from your feedback.",
             },
             {
               step: "2",
-              title: "Review your session",
+              title: "Log your nutrition",
               description:
-                "After each check-in, view your results on the Session History page. Track trends over days and weeks.",
+                "Track meals, supplements, and GLP-1 injections on the Nutrition page. The app correlates food with mood and energy to reveal patterns.",
             },
             {
               step: "3",
               title: "Connect your devices",
               description:
-                "Add health data from Apple Health, Google Health Connect, or wearables (Oura, WHOOP, Garmin) to get a complete picture.",
+                "Go to Connected Assets (You > Connected Assets) to link Apple Health, Google Health Connect, EEG headbands (Muse 2/S), or wearables (Oura, WHOOP, Garmin).",
             },
             {
               step: "4",
+              title: "Review your trends",
+              description:
+                "Check Session History, mood trends, and the weekly summary. Export your data anytime from the Export page as CSV or JSON.",
+            },
+            {
+              step: "5",
               title: "Journal your dreams",
               description:
-                "Use the Dream Journal to record and analyze your dreams. The AI identifies symbols and emotional patterns.",
+                "Use the Dream Journal to record and analyze your dreams. The AI identifies symbols, recurring themes, and emotional patterns.",
             },
           ].map((item) => (
             <div key={item.step} className="flex gap-3">
@@ -301,7 +332,7 @@ export default function HelpPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open("/privacy", "_blank")}
+              onClick={() => setLocation("/privacy")}
             >
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
               View

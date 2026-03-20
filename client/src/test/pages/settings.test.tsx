@@ -26,7 +26,6 @@ vi.mock("@/hooks/use-toast", () => ({
 }));
 
 vi.mock("@/lib/ml-api", () => ({
-  ingestHealthData: vi.fn().mockResolvedValue({ stored: 10, metrics: ["heart_rate"] }),
   getBaselineStatus: vi.fn().mockResolvedValue({ ready: false, n_frames: 0 }),
   addBaselineFrame: vi.fn().mockResolvedValue({ ok: true }),
   resetBaselineCalibration: vi.fn().mockResolvedValue({ ok: true }),
@@ -83,10 +82,11 @@ describe("Settings page", () => {
     });
   });
 
-  it("shows Health Connections section", async () => {
+  it("shows Connected Assets link", async () => {
     renderWithProviders(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Health Connections")).toBeInTheDocument();
+      expect(screen.getByText("Connected Assets")).toBeInTheDocument();
+      expect(screen.getByText("Manage health, BCI, and wearable connections")).toBeInTheDocument();
     });
   });
 
@@ -123,17 +123,11 @@ describe("Settings page", () => {
     });
   });
 
-  it("shows health integrations section", async () => {
+  it("shows Privacy Policy link", async () => {
     renderWithProviders(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Health Integrations")).toBeInTheDocument();
-    });
-  });
-
-  it("shows Export to HealthKit button", async () => {
-    renderWithProviders(<SettingsPage />);
-    await waitFor(() => {
-      expect(screen.getByText("Export to HealthKit")).toBeInTheDocument();
+      expect(screen.getByText("Privacy Policy")).toBeInTheDocument();
+      expect(screen.getByText("How we collect, store, and protect your data")).toBeInTheDocument();
     });
   });
 

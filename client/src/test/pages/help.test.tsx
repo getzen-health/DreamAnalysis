@@ -7,6 +7,10 @@ vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+vi.mock("wouter", () => ({
+  useLocation: () => ["/help", vi.fn()],
+}));
+
 describe("Help page", () => {
   beforeEach(() => {
     global.fetch = vi.fn().mockResolvedValue({
@@ -37,11 +41,12 @@ describe("Help page", () => {
     expect(screen.getByText("Quick Start")).toBeInTheDocument();
   });
 
-  it("shows all four quick start steps", () => {
+  it("shows all five quick start steps", () => {
     renderWithProviders(<HelpPage />);
     expect(screen.getByText("Check in with your voice")).toBeInTheDocument();
-    expect(screen.getByText("Review your session")).toBeInTheDocument();
+    expect(screen.getByText("Log your nutrition")).toBeInTheDocument();
     expect(screen.getByText("Connect your devices")).toBeInTheDocument();
+    expect(screen.getByText("Review your trends")).toBeInTheDocument();
     expect(screen.getByText("Journal your dreams")).toBeInTheDocument();
   });
 
