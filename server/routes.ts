@@ -37,6 +37,7 @@ import {
   habits, habitLogs, cycleTracking, moodLogs,
   deviceConnections,
   circadianProfiles,
+  userReadings,
 } from "@shared/schema";
 import { wearableAdapters } from "../lib/wearables";
 import { computeCardioLoad } from "@shared/cardio";
@@ -821,15 +822,55 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
   // ── Brain history endpoints ────────────────────────────────────────
 
   // GET /api/brain/history/:userId?days=1  — time-range emotion history (cap 2000 rows)
+  // Merges data from BOTH emotionReadings (EEG) AND userReadings (voice/food/health)
   app.get("/api/brain/history/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
       const days = Math.min(Math.max(parseInt((req.query.days as string) || "1", 10), 1), 30);
       const fromTs = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      const readings = await storage.getEmotionReadings(userId, 2000, fromTs);
-      // Return oldest-first for chart rendering
-      res.json(readings.reverse());
+
+      // 1. EEG emotion readings (original source)
+      const eegReadings = await storage.getEmotionReadings(userId, 2000, fromTs);
+
+      // 2. Voice/food/health readings from userReadings table
+      const voiceReadings = await db
+        .select({
+          id: userReadings.id,
+          userId: userReadings.userId,
+          dominantEmotion: userReadings.emotion,
+          timestamp: userReadings.createdAt,
+          valence: userReadings.valence,
+          arousal: userReadings.arousal,
+          stress: userReadings.stress,
+          source: userReadings.source,
+          confidence: userReadings.confidence,
+        })
+        .from(userReadings)
+        .where(and(
+          eq(userReadings.userId, userId),
+          gte(userReadings.createdAt, fromTs),
+        ))
+        .orderBy(desc(userReadings.createdAt))
+        .limit(2000);
+
+      // 3. Normalize voice readings to match emotionReadings shape
+      const normalizedVoice = voiceReadings.map(r => ({
+        ...r,
+        dominantEmotion: r.dominantEmotion || "neutral",
+        stress: r.stress ?? 0.5,
+        happiness: r.valence != null ? Math.max(0, r.valence) : 0.5,
+        focus: 0.5, // voice doesn't measure focus — neutral default
+        energy: r.arousal ?? 0.5,
+      }));
+
+      // 4. Merge and sort oldest-first for chart rendering
+      const all = [...eegReadings, ...normalizedVoice]
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        .slice(-2000);
+
+      res.json(all);
     } catch (error) {
+      console.error("Brain history error:", error);
       res.status(500).json({ message: "Failed to fetch emotion history" });
     }
   });
