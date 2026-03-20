@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { getParticipantId } from "@/lib/participant";
 import { useQuery } from "@tanstack/react-query";
 import { resolveUrl } from "@/lib/queryClient";
+import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { AchievementBadges } from "@/components/achievements";
 import {
   Flame, Calendar, Trophy, BarChart3, Heart, Brain, Palette,
@@ -175,18 +176,40 @@ export default function You() {
   const [healthConnected] = useState(() => getHealthConnectStatus());
   const [museConnected] = useState(() => getMuseStatus());
 
-  // Streak from localStorage (updated by bottom-tabs on every voice check-in)
-  const streak = (() => {
-    try { return parseInt(localStorage.getItem("ndw_streak_count") || "0", 10); } catch { return 0; }
-  })();
-
-  // Session count from brain history API (each voice analysis = 1 session)
-  const { data: historyData } = useQuery<Array<{ timestamp: string }>>({
-    queryKey: [`/api/brain/history/${userId}?days=30`],
+  // Sessions from ML backend (Railway) — where voice check-in data actually lives
+  const { data: sessionList } = useQuery<SessionSummary[]>({
+    queryKey: ["sessions", userId],
+    queryFn: () => listSessions(userId),
+    staleTime: 30_000,
     retry: false,
-    staleTime: 60_000,
   });
-  const sessions = Array.isArray(historyData) ? historyData.length : 0;
+  const sessions = Array.isArray(sessionList) ? sessionList.length : 0;
+
+  // Streak: count consecutive days with at least one session
+  const streak = (() => {
+    if (!sessionList || sessionList.length === 0) return 0;
+    const daySet = new Set<string>();
+    for (const s of sessionList) {
+      if (s.start_time) {
+        const d = new Date(s.start_time * 1000);
+        daySet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+      }
+    }
+    // Count consecutive days backwards from today
+    let count = 0;
+    const now = new Date();
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (daySet.has(key)) {
+        count++;
+      } else if (i > 0) {
+        break; // streak broken
+      }
+    }
+    return count;
+  })();
 
   const displayName = user?.username ?? "Dreamer";
   const initial = displayName.charAt(0).toUpperCase();
