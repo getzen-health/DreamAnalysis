@@ -6,10 +6,16 @@
  */
 
 import { useState, useEffect } from "react";
+import {
+  Mic, Flame, Star, Sparkles, Trophy, Sunrise, Moon, Heart,
+  UtensilsCrossed, GraduationCap, Palette, Brain, Lock,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface Badge {
   id: string;
-  emoji: string;
+  icon: LucideIcon;
+  iconColor: string;
   name: string;
   description: string;
   earned: boolean;
@@ -22,7 +28,8 @@ function checkBadges(): Badge[] {
   const hasCheckin = !!localStorage.getItem("ndw_last_emotion");
   badges.push({
     id: "first-checkin",
-    emoji: "🎙️",
+    icon: Mic,
+    iconColor: "#0891b2",
     name: "First Voice",
     description: "Completed your first voice analysis",
     earned: hasCheckin,
@@ -33,28 +40,32 @@ function checkBadges(): Badge[] {
   const streak = streakStr ? parseInt(streakStr, 10) : 0;
   badges.push({
     id: "streak-3",
-    emoji: "🔥",
+    icon: Flame,
+    iconColor: "#ea580c",
     name: "3-Day Streak",
     description: "Checked in 3 days in a row",
     earned: streak >= 3,
   });
   badges.push({
     id: "streak-7",
-    emoji: "⭐",
+    icon: Star,
+    iconColor: "#d4a017",
     name: "Weekly Warrior",
     description: "7-day analysis streak",
     earned: streak >= 7,
   });
   badges.push({
     id: "streak-14",
-    emoji: "💫",
+    icon: Sparkles,
+    iconColor: "#a78bfa",
     name: "Two-Week Titan",
     description: "14-day analysis streak",
     earned: streak >= 14,
   });
   badges.push({
     id: "streak-30",
-    emoji: "🏆",
+    icon: Trophy,
+    iconColor: "#d4a017",
     name: "Monthly Champion",
     description: "30-day analysis streak",
     earned: streak >= 30,
@@ -69,14 +80,16 @@ function checkBadges(): Badge[] {
         const hour = new Date(ts).getHours();
         badges.push({
           id: "early-bird",
-          emoji: "🌅",
+          icon: Sunrise,
+          iconColor: "#d4a017",
           name: "Early Bird",
           description: "Checked in before 8 AM",
           earned: hour < 8,
         });
         badges.push({
           id: "night-owl",
-          emoji: "🦉",
+          icon: Moon,
+          iconColor: "#7c3aed",
           name: "Night Owl",
           description: "Checked in after 10 PM",
           earned: hour >= 22,
@@ -90,7 +103,8 @@ function checkBadges(): Badge[] {
     || localStorage.getItem("ndw_apple_health_granted") === "true";
   badges.push({
     id: "health-sync",
-    emoji: "❤️",
+    icon: Heart,
+    iconColor: "#e879a8",
     name: "Health Synced",
     description: "Connected a health data source",
     earned: healthConnected,
@@ -100,7 +114,8 @@ function checkBadges(): Badge[] {
   const mealLogged = !!localStorage.getItem("ndw_meal_logged");
   badges.push({
     id: "first-meal",
-    emoji: "🍽️",
+    icon: UtensilsCrossed,
+    iconColor: "#ea580c",
     name: "First Meal",
     description: "Logged your first meal",
     earned: mealLogged,
@@ -110,7 +125,8 @@ function checkBadges(): Badge[] {
   const onboarded = localStorage.getItem("ndw_onboarding_complete") === "true";
   badges.push({
     id: "onboarded",
-    emoji: "🎓",
+    icon: GraduationCap,
+    iconColor: "#0891b2",
     name: "All Set Up",
     description: "Completed app onboarding",
     earned: onboarded,
@@ -123,7 +139,8 @@ function checkBadges(): Badge[] {
     const allSeen = ALL_EMOTIONS.every(e => seen.includes(e));
     badges.push({
       id: "emotion-explorer",
-      emoji: "🌈",
+      icon: Palette,
+      iconColor: "#4ade80",
       name: "Emotion Explorer",
       description: "Logged all 6 emotions",
       earned: allSeen,
@@ -131,7 +148,8 @@ function checkBadges(): Badge[] {
   } catch {
     badges.push({
       id: "emotion-explorer",
-      emoji: "🌈",
+      icon: Palette,
+      iconColor: "#4ade80",
       name: "Emotion Explorer",
       description: "Logged all 6 emotions",
       earned: false,
@@ -142,7 +160,8 @@ function checkBadges(): Badge[] {
   const museConnected = localStorage.getItem("ndw_muse_connected") === "true";
   badges.push({
     id: "muse-connected",
-    emoji: "🧠",
+    icon: Brain,
+    iconColor: "#6366f1",
     name: "Brain Reader",
     description: "Connected an EEG headband",
     earned: museConnected,
@@ -184,19 +203,22 @@ export function AchievementBadges() {
       <div style={{
         display: "flex", flexWrap: "wrap" as const, gap: 8, marginBottom: earned.length > 0 && locked.length > 0 ? 8 : 0,
       }}>
-        {earned.map(b => (
+        {earned.map(b => {
+          const IconComp = b.icon;
+          return (
           <div key={b.id} style={{
             background: "var(--card)", border: "1px solid var(--border)",
             borderRadius: 12, padding: "8px 12px",
             display: "flex", alignItems: "center", gap: 6,
           }}>
-            <span style={{ fontSize: 18 }}>{b.emoji}</span>
+            <IconComp style={{ width: 18, height: 18, color: b.iconColor, flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)" }}>{b.name}</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{b.description}</div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Locked badges — dimmed */}
@@ -207,7 +229,7 @@ export function AchievementBadges() {
             borderRadius: 12, padding: "8px 12px", opacity: 0.4,
             display: "flex", alignItems: "center", gap: 6,
           }}>
-            <span style={{ fontSize: 18 }}>🔒</span>
+            <Lock style={{ width: 18, height: 18, color: "var(--muted-foreground)", flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)" }}>{b.name}</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{b.description}</div>

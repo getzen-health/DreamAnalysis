@@ -15,7 +15,8 @@ export interface EmotionReading {
 }
 
 export interface MoodInsight {
-  emoji: string;
+  /** Icon identifier — mapped to a lucide-react icon in the rendering component */
+  icon: string;
   title: string;
   description: string;
   type: "positive" | "warning" | "neutral";
@@ -95,19 +96,19 @@ export function detectMoodPatterns(readings: EmotionReading[]): MoodInsight[] {
   if (topEmotion && topPct > 40) {
     if (topEmotion === "happy") {
       insights.push({
-        emoji: "🌟", title: "Consistently positive",
+        icon: "star", title: "Consistently positive",
         description: `You've been happy ${topPct}% of the time — that's great emotional resilience.`,
         type: "positive",
       });
     } else if (topEmotion === "sad" || topEmotion === "fear") {
       insights.push({
-        emoji: "💙", title: "Persistent low mood",
+        icon: "heart", title: "Persistent low mood",
         description: `${topEmotion === "sad" ? "Sadness" : "Anxiety"} appeared in ${topPct}% of check-ins. Consider talking to someone you trust.`,
         type: "warning",
       });
     } else if (topEmotion === "angry") {
       insights.push({
-        emoji: "🌊", title: "Frequent frustration",
+        icon: "waves", title: "Frequent frustration",
         description: `Anger showed up ${topPct}% of the time. Physical activity or journaling may help channel this energy.`,
         type: "warning",
       });
@@ -124,13 +125,13 @@ export function detectMoodPatterns(readings: EmotionReading[]): MoodInsight[] {
 
     if (avgSecond < avgFirst - 0.05) {
       insights.push({
-        emoji: "📉", title: "Stress is decreasing",
+        icon: "trending-down", title: "Stress is decreasing",
         description: `Your stress dropped from ${Math.round(avgFirst * 100)}% to ${Math.round(avgSecond * 100)}%. Whatever you're doing is working.`,
         type: "positive",
       });
     } else if (avgSecond > avgFirst + 0.05) {
       insights.push({
-        emoji: "📈", title: "Stress is climbing",
+        icon: "trending-up", title: "Stress is climbing",
         description: `Stress went from ${Math.round(avgFirst * 100)}% to ${Math.round(avgSecond * 100)}%. Try adding a daily breathing session.`,
         type: "warning",
       });
@@ -153,13 +154,13 @@ export function detectMoodPatterns(readings: EmotionReading[]): MoodInsight[] {
 
     if (morningValence > eveningValence + 0.15) {
       insights.push({
-        emoji: "🌅", title: "Morning person detected",
+        icon: "sunrise", title: "Morning person detected",
         description: "Your mood is consistently better in the morning. Schedule important tasks early.",
         type: "neutral",
       });
     } else if (eveningValence > morningValence + 0.15) {
       insights.push({
-        emoji: "🌙", title: "Night owl energy",
+        icon: "cloud-moon", title: "Night owl energy",
         description: "You feel better in the evenings. Your creative window may be later in the day.",
         type: "neutral",
       });
@@ -170,13 +171,13 @@ export function detectMoodPatterns(readings: EmotionReading[]): MoodInsight[] {
   const uniqueEmotions = Object.keys(emotionCounts).length;
   if (uniqueEmotions >= 4 && readings.length >= 7) {
     insights.push({
-      emoji: "🌈", title: "Emotionally diverse",
+      icon: "palette", title: "Emotionally diverse",
       description: `You've experienced ${uniqueEmotions} different emotions this week. That's healthy emotional range.`,
       type: "positive",
     });
   } else if (uniqueEmotions <= 1 && readings.length >= 5) {
     insights.push({
-      emoji: "🔄", title: "Emotional flatness",
+      icon: "refresh", title: "Emotional flatness",
       description: "You've been in the same emotional state consistently. Try new activities to shift your state.",
       type: "neutral",
     });

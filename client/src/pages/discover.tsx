@@ -11,6 +11,12 @@ import { CommunityMood } from "@/components/community-mood";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import {
+  BedDouble, Brain, Heart, Sparkles, Wind, Moon, Target, BookOpen, Dumbbell,
+  Smile, Activity, BarChart3, MessageCircle, Lightbulb, Star, TrendingDown,
+  TrendingUp, Sunrise, CloudMoon as CloudMoonIcon, Palette, RefreshCw, Waves,
+  type LucideIcon,
+} from "lucide-react";
 
 // ── Emotion data from localStorage ──────────────────────────────────────
 
@@ -130,7 +136,8 @@ function EmotionTimeline({ userId }: { userId: string }) {
 // ── Recommended Section — personalized suggestions based on emotion ────────
 
 interface Recommendation {
-  emoji: string;
+  icon: LucideIcon;
+  iconColor: string;
   title: string;
   reason: string;
   route: string;
@@ -138,17 +145,17 @@ interface Recommendation {
 
 // All possible features for progressive discovery
 const ALL_FEATURES = [
-  { route: "/biofeedback", title: "Breathing Exercise", emoji: "🧘", category: "calm" },
-  { route: "/sleep-session", title: "Sleep Music", emoji: "🎵", category: "calm" },
-  { route: "/inner-energy", title: "Inner Energy", emoji: "✨", category: "energy" },
-  { route: "/mood", title: "Mood Trends", emoji: "😊", category: "insight" },
-  { route: "/neurofeedback", title: "Neurofeedback", emoji: "🎯", category: "focus" },
-  { route: "/dreams", title: "Dream Journal", emoji: "📝", category: "insight" },
-  { route: "/workout", title: "Workout", emoji: "🏋️", category: "energy" },
-  { route: "/brain-monitor", title: "Brain Monitor", emoji: "🧠", category: "insight" },
-  { route: "/habits", title: "Habit Tracker", emoji: "📊", category: "insight" },
-  { route: "/ai-companion", title: "AI Companion", emoji: "💬", category: "support" },
-  { route: "/insights", title: "Wellness Insights", emoji: "💡", category: "insight" },
+  { route: "/biofeedback", title: "Breathing Exercise", icon: Wind as LucideIcon, iconColor: "#0891b2", category: "calm" },
+  { route: "/sleep-session", title: "Sleep Music", icon: Moon as LucideIcon, iconColor: "#7c3aed", category: "calm" },
+  { route: "/inner-energy", title: "Inner Energy", icon: Sparkles as LucideIcon, iconColor: "#4ade80", category: "energy" },
+  { route: "/mood", title: "Mood Trends", icon: Smile as LucideIcon, iconColor: "#0891b2", category: "insight" },
+  { route: "/neurofeedback", title: "Neurofeedback", icon: Target as LucideIcon, iconColor: "#6366f1", category: "focus" },
+  { route: "/dreams", title: "Dream Journal", icon: BookOpen as LucideIcon, iconColor: "#a78bfa", category: "insight" },
+  { route: "/workout", title: "Workout", icon: Dumbbell as LucideIcon, iconColor: "#ea580c", category: "energy" },
+  { route: "/brain-monitor", title: "Brain Monitor", icon: Brain as LucideIcon, iconColor: "#6366f1", category: "insight" },
+  { route: "/habits", title: "Habit Tracker", icon: BarChart3 as LucideIcon, iconColor: "#d4a017", category: "insight" },
+  { route: "/ai-companion", title: "AI Companion", icon: MessageCircle as LucideIcon, iconColor: "#0891b2", category: "support" },
+  { route: "/insights", title: "Wellness Insights", icon: Lightbulb as LucideIcon, iconColor: "#d4a017", category: "insight" },
 ];
 
 function getUsedFeatures(): Set<string> {
@@ -177,33 +184,33 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
 
   // Emotion-based (highest priority)
   if (stress > 0.5) {
-    recs.push({ emoji: "🧘", title: "Breathing Exercise", reason: "Your stress is elevated", route: "/biofeedback" });
+    recs.push({ icon: Wind, iconColor: "#0891b2", title: "Breathing Exercise", reason: "Your stress is elevated", route: "/biofeedback" });
     if (isEvening) {
-      recs.push({ emoji: "🎵", title: "Sleep Music", reason: "Wind down before bed", route: "/sleep-session" });
+      recs.push({ icon: Moon, iconColor: "#7c3aed", title: "Sleep Music", reason: "Wind down before bed", route: "/sleep-session" });
     }
   }
   if (valence < -0.1) {
-    recs.push({ emoji: "💬", title: "AI Companion", reason: "Talk through how you're feeling", route: "/ai-companion" });
-    recs.push({ emoji: "✨", title: "Inner Energy", reason: "Rebalance your energy centers", route: "/inner-energy" });
+    recs.push({ icon: MessageCircle, iconColor: "#0891b2", title: "AI Companion", reason: "Talk through how you're feeling", route: "/ai-companion" });
+    recs.push({ icon: Sparkles, iconColor: "#4ade80", title: "Inner Energy", reason: "Rebalance your energy centers", route: "/inner-energy" });
   }
   if (focus < 0.4) {
-    recs.push({ emoji: "🎯", title: "Neurofeedback", reason: "Train your focus", route: "/neurofeedback" });
+    recs.push({ icon: Target, iconColor: "#6366f1", title: "Neurofeedback", reason: "Train your focus", route: "/neurofeedback" });
   }
   if (valence > 0.3 && stress < 0.3) {
     if (isMorning) {
-      recs.push({ emoji: "🏋️", title: "Workout", reason: "Ride this morning energy", route: "/workout" });
+      recs.push({ icon: Dumbbell, iconColor: "#ea580c", title: "Workout", reason: "Ride this morning energy", route: "/workout" });
     }
-    recs.push({ emoji: "📝", title: "Dream Journal", reason: "Great mood — capture your dreams", route: "/dreams" });
+    recs.push({ icon: BookOpen, iconColor: "#a78bfa", title: "Dream Journal", reason: "Great mood -- capture your dreams", route: "/dreams" });
   }
 
   // Time-of-day suggestions (if we don't have enough yet)
   if (recs.length < 2) {
     if (isMorning) {
-      recs.push({ emoji: "💡", title: "Wellness Insights", reason: "Start your day with awareness", route: "/insights" });
+      recs.push({ icon: Lightbulb, iconColor: "#d4a017", title: "Wellness Insights", reason: "Start your day with awareness", route: "/insights" });
     } else if (isEvening) {
-      recs.push({ emoji: "🎵", title: "Sleep Music", reason: "Prepare for a restful night", route: "/sleep-session" });
+      recs.push({ icon: Moon, iconColor: "#7c3aed", title: "Sleep Music", reason: "Prepare for a restful night", route: "/sleep-session" });
     } else {
-      recs.push({ emoji: "😊", title: "Mood Trends", reason: "See your patterns", route: "/mood" });
+      recs.push({ icon: Smile, iconColor: "#0891b2", title: "Mood Trends", reason: "See your patterns", route: "/mood" });
     }
   }
 
@@ -216,7 +223,8 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
       // Pick a random unused feature
       const pick = unused[Math.floor(Math.random() * unused.length)];
       recs.push({
-        emoji: pick.emoji,
+        icon: pick.icon,
+        iconColor: pick.iconColor,
         title: pick.title,
         reason: "Try something new",
         route: pick.route,
@@ -226,7 +234,7 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
 
   // Fallback
   if (recs.length === 0) {
-    recs.push({ emoji: "🧠", title: "Brain Monitor", reason: "Explore your brainwaves", route: "/brain-monitor" });
+    recs.push({ icon: Brain, iconColor: "#6366f1", title: "Brain Monitor", reason: "Explore your brainwaves", route: "/brain-monitor" });
   }
 
   return recs.slice(0, 3);
@@ -259,7 +267,7 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
               transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
-            <span style={{ fontSize: 22 }}>{rec.emoji}</span>
+            <rec.icon style={{ width: 22, height: 22, color: rec.iconColor }} />
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginTop: 6 }}>{rec.title}</div>
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{rec.reason}</div>
           </button>
@@ -289,6 +297,18 @@ function MoodInsightsCard({ userId }: { userId: string }) {
     neutral: "var(--border)",
   };
 
+  const INSIGHT_ICONS: Record<string, { Icon: LucideIcon; color: string }> = {
+    "star": { Icon: Star, color: "#d4a017" },
+    "heart": { Icon: Heart, color: "#6366f1" },
+    "waves": { Icon: Waves, color: "#0891b2" },
+    "trending-down": { Icon: TrendingDown, color: "#4ade80" },
+    "trending-up": { Icon: TrendingUp, color: "#e879a8" },
+    "sunrise": { Icon: Sunrise, color: "#d4a017" },
+    "cloud-moon": { Icon: CloudMoonIcon, color: "#7c3aed" },
+    "palette": { Icon: Palette, color: "#4ade80" },
+    "refresh": { Icon: RefreshCw, color: "#94a3b8" },
+  };
+
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{
@@ -298,14 +318,18 @@ function MoodInsightsCard({ userId }: { userId: string }) {
         Mood insights
       </div>
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
-        {insights.map((insight, i) => (
+        {insights.map((insight, i) => {
+          const iconEntry = INSIGHT_ICONS[insight.icon];
+          const IconComp = iconEntry?.Icon ?? Activity;
+          const iconColor = iconEntry?.color ?? "var(--muted-foreground)";
+          return (
           <div key={i} style={{
             background: "var(--card)",
             border: `1px solid ${borderColors[insight.type] ?? "var(--border)"}`,
             borderRadius: 12, padding: "10px 12px",
             display: "flex", alignItems: "flex-start", gap: 8,
           }}>
-            <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.2 }}>{insight.emoji}</span>
+            <IconComp style={{ width: 18, height: 18, flexShrink: 0, color: iconColor, marginTop: 1 }} />
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{insight.title}</div>
               <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2, lineHeight: 1.4 }}>
@@ -313,7 +337,8 @@ function MoodInsightsCard({ userId }: { userId: string }) {
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -322,7 +347,7 @@ function MoodInsightsCard({ userId }: { userId: string }) {
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface NavCard {
-  emoji: string;
+  icon: LucideIcon;
   title: string;
   subtitle: string;
   route: string;
@@ -332,11 +357,11 @@ interface NavCard {
 // ── Data — 8 main navigation cards (2x4 grid) ─────────────────────────────
 
 const NAV_CARDS: NavCard[] = [
-  { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#7c3aed" },
-  { emoji: "🧠", title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor",  accentColor: "#6366f1" },
-  { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health",         accentColor: "#e879a8" },
-  { emoji: "✨", title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#4ade80" },
-  { emoji: "🧘", title: "Wellness",     subtitle: "Habits, menstrual cycle tracking",    route: "/wellness",       accentColor: "#ea580c" },
+  { icon: BedDouble,  title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#7c3aed" },
+  { icon: Brain,      title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor",  accentColor: "#6366f1" },
+  { icon: Heart,      title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health",         accentColor: "#e879a8" },
+  { icon: Sparkles,   title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#4ade80" },
+  { icon: Wind,       title: "Wellness",     subtitle: "Habits, menstrual cycle tracking",    route: "/wellness",       accentColor: "#ea580c" },
 ];
 
 // Sample sparkline points (normalized 0-40 in Y space, 0-280 in X)
@@ -614,7 +639,7 @@ export default function Discover() {
               transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
-            <div style={{ fontSize: 28, marginBottom: 8 }}>{card.emoji}</div>
+            <card.icon style={{ width: 28, height: 28, marginBottom: 8, color: card.accentColor }} />
             <p
               style={{
                 fontSize: 13,

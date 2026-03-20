@@ -8,6 +8,10 @@ import { getParticipantId } from "@/lib/participant";
 import { useQuery } from "@tanstack/react-query";
 import { resolveUrl } from "@/lib/queryClient";
 import { AchievementBadges } from "@/components/achievements";
+import {
+  Flame, Calendar, Trophy, BarChart3, Heart, Brain, Palette,
+  Bell, Share, Lock, HelpCircle, type LucideIcon,
+} from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -82,14 +86,16 @@ function StatusBadge({ connected }: { connected: boolean }) {
 // ── List Item ─────────────────────────────────────────────────────────────────
 
 function ListItem({
-  emoji,
+  icon: Icon,
+  iconColor,
   title,
   rightText,
   rightBadge,
   onClick,
   isLast,
 }: {
-  emoji: string;
+  icon: LucideIcon;
+  iconColor?: string;
   title: string;
   rightText?: string;
   rightBadge?: React.ReactNode;
@@ -108,7 +114,7 @@ function ListItem({
         transition: onClick ? "background 0.2s ease" : "none",
       }}
     >
-      <span style={{ fontSize: 18, marginRight: 10 }}>{emoji}</span>
+      <Icon style={{ width: 18, height: 18, marginRight: 10, color: iconColor ?? "var(--muted-foreground)", flexShrink: 0 }} />
       <div style={{ flex: 1, fontSize: 14, color: "var(--foreground)" }}>{title}</div>
       {rightBadge}
       {rightText && (
@@ -272,7 +278,7 @@ export default function You() {
           }}
         >
           <div style={{ fontSize: 28, fontWeight: 700, color: "#d4a017" }}>{streak}</div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>Day Streak 🔥</div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>Day Streak <Flame style={{ width: 12, height: 12, color: "#d4a017" }} /></div>
         </div>
 
         {/* Sessions */}
@@ -298,17 +304,20 @@ export default function You() {
       <SectionLabel>Activity</SectionLabel>
       <GroupedList>
         <ListItem
-          emoji="📅"
+          icon={Calendar}
+          iconColor="#0891b2"
           title="Session History"
           onClick={() => setLocation("/sessions")}
         />
         <ListItem
-          emoji="🏆"
+          icon={Trophy}
+          iconColor="#d4a017"
           title="Personal Records"
           onClick={() => setLocation("/records")}
         />
         <ListItem
-          emoji="📊"
+          icon={BarChart3}
+          iconColor="#6366f1"
           title="Weekly Summary"
           onClick={() => setLocation("/weekly-summary")}
           isLast
@@ -320,7 +329,8 @@ export default function You() {
       <GroupedList>
         {platform === "android" && (
           <ListItem
-            emoji="❤️"
+            icon={Heart}
+            iconColor="#e879a8"
             title="Google Health Connect"
             rightBadge={<StatusBadge connected={healthConnected} />}
             onClick={() => setLocation("/settings")}
@@ -328,7 +338,8 @@ export default function You() {
         )}
         {platform === "ios" && (
           <ListItem
-            emoji="❤️"
+            icon={Heart}
+            iconColor="#e879a8"
             title="Apple Health"
             rightBadge={<StatusBadge connected={healthConnected} />}
             onClick={() => setLocation("/settings")}
@@ -336,14 +347,16 @@ export default function You() {
         )}
         {platform === "web" && (
           <ListItem
-            emoji="❤️"
+            icon={Heart}
+            iconColor="#e879a8"
             title="Health Connect"
             rightBadge={<StatusBadge connected={healthConnected} />}
             onClick={() => setLocation("/settings")}
           />
         )}
         <ListItem
-          emoji="🧠"
+          icon={Brain}
+          iconColor="#6366f1"
           title="Muse 2 EEG"
           rightBadge={<StatusBadge connected={museConnected} />}
           onClick={() => setLocation("/device-setup")}
@@ -355,7 +368,8 @@ export default function You() {
       <SectionLabel>Settings</SectionLabel>
       <GroupedList>
         <ListItem
-          emoji="🎨"
+          icon={Palette}
+          iconColor="#a78bfa"
           title="Appearance"
           rightText={themeSetting === "auto" ? "Auto" : themeSetting === "dark" ? "Dark" : "Light"}
           onClick={() => {
@@ -365,22 +379,26 @@ export default function You() {
           }}
         />
         <ListItem
-          emoji="🔔"
+          icon={Bell}
+          iconColor="#d4a017"
           title="Notifications"
           onClick={() => setLocation("/settings")}
         />
         <ListItem
-          emoji="📤"
+          icon={Share}
+          iconColor="#0891b2"
           title="Export Data"
           onClick={handleExportData}
         />
         <ListItem
-          emoji="🔒"
+          icon={Lock}
+          iconColor="#e879a8"
           title="Privacy & Data"
           onClick={() => setLocation("/privacy")}
         />
         <ListItem
-          emoji="❓"
+          icon={HelpCircle}
+          iconColor="#94a3b8"
           title="Help & Feedback"
           onClick={() => setLocation("/settings")}
           isLast

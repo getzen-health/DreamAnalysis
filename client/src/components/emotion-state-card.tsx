@@ -1,6 +1,10 @@
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import {
+  Smile, CloudSun, AlertTriangle, Battery, Brain, TreePine, Zap, Minus, Lightbulb,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface EmotionStateCardProps {
   emotion: string;       // "happy" | "sad" | "angry" | "fear" | "surprise" | "neutral"
@@ -12,15 +16,15 @@ export interface EmotionStateCardProps {
   source?: string;       // "voice" | "eeg" | "health"
 }
 
-function getStateLabel(valence: number, arousal: number): { emoji: string; label: string } {
-  if (valence > 0.3 && arousal > 0.6)  return { emoji: "😊", label: "You're energized" };
-  if (valence > 0.3 && arousal <= 0.6) return { emoji: "😌", label: "You're in a calm state" };
-  if (valence <= -0.3 && arousal > 0.6) return { emoji: "😤", label: "You're feeling stressed" };
-  if (valence <= -0.3 && arousal <= 0.6) return { emoji: "😔", label: "You're low on energy" };
-  if (valence > 0 && arousal > 0.5)    return { emoji: "🧠", label: "You're alert and focused" };
-  if (valence > 0)                     return { emoji: "🌿", label: "You're relaxed" };
-  if (arousal > 0.6)                   return { emoji: "⚡", label: "You're tense" };
-  return { emoji: "😐", label: "You're in neutral mode" };
+function getStateLabel(valence: number, arousal: number): { icon: LucideIcon; iconColor: string; label: string } {
+  if (valence > 0.3 && arousal > 0.6)  return { icon: Smile, iconColor: "#4ade80", label: "You're energized" };
+  if (valence > 0.3 && arousal <= 0.6) return { icon: CloudSun, iconColor: "#0891b2", label: "You're in a calm state" };
+  if (valence <= -0.3 && arousal > 0.6) return { icon: AlertTriangle, iconColor: "#e879a8", label: "You're feeling stressed" };
+  if (valence <= -0.3 && arousal <= 0.6) return { icon: Battery, iconColor: "#6366f1", label: "You're low on energy" };
+  if (valence > 0 && arousal > 0.5)    return { icon: Brain, iconColor: "#6366f1", label: "You're alert and focused" };
+  if (valence > 0)                     return { icon: TreePine, iconColor: "#4ade80", label: "You're relaxed" };
+  if (arousal > 0.6)                   return { icon: Zap, iconColor: "#d4a017", label: "You're tense" };
+  return { icon: Minus, iconColor: "#94a3b8", label: "You're in neutral mode" };
 }
 
 function getSuggestion(valence: number, arousal: number, stressIndex?: number): string {
@@ -65,7 +69,7 @@ export default function EmotionStateCard({
   confidence,
   source,
 }: EmotionStateCardProps) {
-  const { emoji, label } = getStateLabel(valence, arousal);
+  const { icon: StateIcon, iconColor, label } = getStateLabel(valence, arousal);
   const suggestion = getSuggestion(valence, arousal, stressIndex);
 
   const energy = deriveEnergy(arousal);
@@ -77,7 +81,7 @@ export default function EmotionStateCard({
       {/* State header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-4xl">{emoji}</span>
+          <StateIcon className="w-9 h-9" style={{ color: iconColor }} />
           <span className="text-base font-semibold text-gray-100">{label}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -114,8 +118,9 @@ export default function EmotionStateCard({
       </div>
 
       {/* Suggestion */}
-      <p className="text-xs italic text-gray-400">
-        💡 {suggestion}
+      <p className="text-xs italic text-gray-400 flex items-center gap-1.5">
+        <Lightbulb className="w-3 h-3 text-amber-400 shrink-0" />
+        {suggestion}
       </p>
     </Card>
   );
