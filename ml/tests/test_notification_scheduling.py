@@ -473,3 +473,76 @@ class TestWindDownActivitySelection:
         from notifications.smart_notifications import WIND_DOWN_ACTIVITIES
         for act in WIND_DOWN_ACTIVITIES:
             assert act.route in {"/biofeedback", "/neurofeedback"}
+
+
+# ── WeeklySummaryGenerator ───────────────────────────────────────────────────
+
+class TestWeeklySummaryGenerator:
+    def test_generate_returns_required_keys(self):
+        from notifications.smart_notifications import WeeklySummaryGenerator
+        gen = WeeklySummaryGenerator()
+        result = gen.generate("weekly_test", voice_history=[], health_data={})
+        for key in ("title", "body", "route", "stats", "has_data"):
+            assert key in result
+
+    def test_route_is_weekly_brain_summary(self):
+        from notifications.smart_notifications import WeeklySummaryGenerator
+        gen = WeeklySummaryGenerator()
+        result = gen.generate("weekly_route", voice_history=[], health_data={})
+        assert result["route"] == "/weekly-brain-summary"
+
+    def test_no_data_message(self):
+        from notifications.smart_notifications import WeeklySummaryGenerator
+        gen = WeeklySummaryGenerator()
+        result = gen.generate("weekly_nodata", voice_history=[], health_data={})
+        assert result["has_data"] is False
+        assert "Start tracking" in result["body"]
+
+    def test_with_voice_history(self):
+        from notifications.smart_notifications import WeeklySummaryGenerator
+        gen = WeeklySummaryGenerator()
+        now = time.time()
+        voice = [
+            {"timestamp": now - 3600, "emotion": "happy", "valence": 0.6, "stress_index": 0.3, "focus_index": 0.7},
+            {"timestamp": now - 7200, "emotion": "happy", "valence": 0.4, "stress_index": 0.2, "focus_index": 0.8},
+            {"timestamp": now - 90000, "emotion": "sad", "valence": -0.2, "stress_index": 0.5, "focus_index": 0.4},
+        ]
+        result = gen.generate("weekly_voice", voice_history=voice, health_data={})
+        assert result["has_data"] is True
+        stats = result["stats"]
+        assert stats["total_checkins"] == 3
+        assert stats["dominant_emotion"] == "happy"
+        assert stats["emotion_variety"] == 2
+        assert 0.0 < stats["avg_stress"] < 1.0
+        assert 0.0 < stats["avg_focus"] < 1.0
+
+    def test_body_contains_checkin_count(self):
+        from notifications.smart_notifications import WeeklySummaryGenerator
+        gen = WeeklySummaryGenerator()
+        now = time.time()
+        voice = [
+            {"timestamp": now - 3600, "emotion": "neutral", "valence": 0.0, "stress_index": 0.4, "focus_index": 0.5},
+        ]
+        result = gen.generate("weekly_body", voice_history=voice, health_data={})
+        assert "1 check-in" in result["body"]
+
+    def test_with_health_data(self):
+        from notifications.smart_notifications import WeeklySummaryGenerator
+        gen = WeeklySummaryGenerator()
+        health = {"sleep_efficiency": 82.5, "hrv_sdnn": 45.0}
+        result = gen.generate("weekly_health", voice_history=[], health_data=health)
+        assert result["has_data"] is True
+        stats = result["stats"]
+        assert stats["sleep_score"] == 82.5
+        assert stats["hrv_avg"] == 45.0
+
+    def test_dominant_emotion_excludes_neutral_from_body(self):
+        from notifications.smart_notifications import WeeklySummaryGenerator
+        gen = WeeklySummaryGenerator()
+        now = time.time()
+        voice = [
+            {"timestamp": now - 3600, "emotion": "neutral", "valence": 0.0, "stress_index": 0.3, "focus_index": 0.5},
+        ]
+        result = gen.generate("weekly_neutral", voice_history=voice, health_data={})
+        # Neutral should not appear as "Top mood" in the body
+        assert "Top mood" not in result["body"]

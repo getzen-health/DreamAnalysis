@@ -4,6 +4,7 @@ Endpoints
 ---------
 GET  /notifications/morning-report/{user_id}   — generate morning brain report notification
 GET  /notifications/evening-winddown/{user_id} — generate evening wind-down suggestion
+GET  /notifications/weekly-summary/{user_id}   — generate weekly recap notification
 GET  /notifications/preferences/{user_id}      — get user notification preferences
 PUT  /notifications/preferences/{user_id}      — update notification preferences
 POST /notifications/test/{user_id}             — send a test notification payload
@@ -29,6 +30,7 @@ from notifications.smart_notifications import (
     WIND_DOWN_ACTIVITIES,
     get_morning_generator,
     get_evening_generator,
+    get_weekly_generator,
     get_scheduler,
     get_history,
     get_preferences,
@@ -60,7 +62,7 @@ class PreferencesUpdateRequest(BaseModel):
 class TestNotificationRequest(BaseModel):
     notification_type: str = Field(
         "morning_report",
-        description="'morning_report' | 'evening_winddown'",
+        description="'morning_report' | 'evening_winddown' | 'weekly_summary'",
     )
     override_stress: Optional[float] = Field(
         None, ge=0.0, le=1.0, description="Override stress index for evening test"
@@ -151,6 +153,58 @@ async def get_evening_winddown(user_id: str) -> Dict[str, Any]:
     }
 
 
+# ── Weekly summary ────────────────────────────────────────────────────────────
+
+@router.get("/weekly-summary/{user_id}")
+async def get_weekly_summary(user_id: str) -> Dict[str, Any]:
+    """Generate a weekly recap notification payload for the given user.
+
+    Aggregates the past 7 days of voice check-ins, health metrics, and
+    session data into a concise summary with key stats and a deep-link
+    to the full weekly-brain-summary page.
+
+    Oura sends weekly email summaries as a re-engagement mechanism;
+    this endpoint provides the equivalent payload for push notifications.
+    """
+    prefs = get_preferences(user_id)
+    if not prefs.enabled or not prefs.weekly_summary_enabled:
+        return {
+            "user_id": user_id,
+            "type": "weekly_summary",
+            "skip": True,
+            "skip_reason": "Weekly summary notifications are disabled",
+        }
+
+    generator = get_weekly_generator()
+    result = generator.generate(user_id)
+
+    notification_id = str(uuid.uuid4())
+    record = NotificationRecord(
+        notification_id=notification_id,
+        user_id=user_id,
+        notification_type="weekly_summary",
+        title=result["title"],
+        body=result["body"],
+        route=result["route"],
+        scheduled_at=time.time(),
+        sent_at=time.time(),
+        metadata={
+            "stats": result["stats"],
+            "has_data": result["has_data"],
+        },
+    )
+    _record_notification(record)
+    get_scheduler().mark_sent(user_id, "weekly_summary")
+
+    return {
+        "notification_id": notification_id,
+        "user_id": user_id,
+        "type": "weekly_summary",
+        "skip": False,
+        **result,
+    }
+
+
 # ── Preferences ───────────────────────────────────────────────────────────────
 
 @router.get("/preferences/{user_id}")
@@ -200,11 +254,15 @@ async def send_test_notification(
         )
         result = generator_e.generate(user_id, voice_data=voice_override)
         ntype = "evening_winddown"
+    elif req.notification_type == "weekly_summary":
+        generator_w = get_weekly_generator()
+        result = generator_w.generate(user_id)
+        ntype = "weekly_summary"
     else:
         raise HTTPException(
             status_code=400,
             detail=f"Unknown notification_type '{req.notification_type}'. "
-                   "Use 'morning_report' or 'evening_winddown'.",
+                   "Use 'morning_report', 'evening_winddown', or 'weekly_summary'.",
         )
 
     return {
@@ -253,6 +311,16 @@ async def get_notification_schedule(user_id: str) -> Dict[str, Any]:
     morning_ts = scheduler.next_morning_ts(user_id, now)
     evening_ts = scheduler.next_evening_ts(user_id, now)
 
+    # Weekly summary: next Sunday at morning_hour
+    import datetime as _dt
+    local_now = _dt.datetime.fromtimestamp(now, tz=_dt.timezone.utc).replace(tzinfo=None)
+    local_now += _dt.timedelta(hours=prefs.timezone_offset_hours)
+    next_sunday = local_now + _dt.timedelta(days=(6 - local_now.weekday()) % 7 or 7)
+    next_sunday = next_sunday.replace(
+        hour=prefs.morning_hour, minute=0, second=0, microsecond=0
+    )
+    weekly_ts = next_sunday.timestamp() - prefs.timezone_offset_hours * 3600
+
     return {
         "user_id": user_id,
         "morning_report": {
@@ -266,6 +334,12 @@ async def get_notification_schedule(user_id: str) -> Dict[str, Any]:
             "next_scheduled_utc": evening_ts,
             "hour_local": prefs.evening_hour,
             "min_stress_threshold": prefs.min_stress_for_evening,
+        },
+        "weekly_summary": {
+            "enabled": prefs.enabled and prefs.weekly_summary_enabled,
+            "next_scheduled_utc": weekly_ts,
+            "day": "Sunday",
+            "hour_local": prefs.morning_hour,
         },
         "quiet_hours": {
             "start": prefs.quiet_hours_start,

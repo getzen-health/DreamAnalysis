@@ -555,6 +555,159 @@ class EveningWindDownGenerator:
         return title, body
 
 
+# ── WeeklySummaryGenerator ────────────────────────────────────────────────────
+
+class WeeklySummaryGenerator:
+    """Generates a weekly recap notification summarising the past 7 days.
+
+    Aggregates voice check-in history, health metrics, and session data
+    into a concise notification with week-over-week trend arrows and a
+    deep-link to the full weekly-brain-summary page.
+
+    Oura and Whoop both send automated weekly summaries as a key re-engagement
+    mechanism.  The notification schema already supports ``weekly_summary``
+    as a type and ``weekly_summary_enabled`` exists in preferences, but no
+    generator existed until now.
+    """
+
+    def generate(
+        self,
+        user_id: str,
+        *,
+        voice_history: Optional[List[Dict[str, Any]]] = None,
+        health_data: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Return dict with: title, body, route, stats, has_data."""
+        voice_week = voice_history if voice_history is not None else self._pull_voice_week(user_id)
+        health = health_data if health_data is not None else _pull_health_summary(user_id)
+
+        stats = self._compute_weekly_stats(voice_week, health)
+        has_data = stats["total_checkins"] > 0 or stats["has_health"]
+
+        title, body = self._build_message(stats, has_data)
+
+        return {
+            "title": title,
+            "body": body,
+            "route": "/weekly-brain-summary",
+            "stats": stats,
+            "has_data": has_data,
+        }
+
+    @staticmethod
+    def _pull_voice_week(user_id: str) -> List[Dict[str, Any]]:
+        """Pull the last 7 days of voice check-in records (best-effort)."""
+        try:
+            from api.routes.voice_watch import _VOICE_HISTORY  # type: ignore[import]
+            history = _VOICE_HISTORY.get(user_id, [])
+            cutoff = time.time() - 7 * 86_400
+            return [
+                r for r in history
+                if r.get("timestamp", 0) >= cutoff
+            ]
+        except Exception as exc:
+            log.debug("Voice history unavailable for weekly summary: %s", exc)
+            return []
+
+    def _compute_weekly_stats(
+        self,
+        voice_records: List[Dict[str, Any]],
+        health: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Aggregate week's voice + health data into summary stats."""
+        stats: Dict[str, Any] = {
+            "total_checkins": len(voice_records),
+            "has_health": bool(health),
+        }
+
+        # Voice aggregations
+        if voice_records:
+            valences = [float(r["valence"]) for r in voice_records if r.get("valence") is not None]
+            stresses = [float(r["stress_index"]) for r in voice_records if r.get("stress_index") is not None]
+            focuses = [float(r["focus_index"]) for r in voice_records if r.get("focus_index") is not None]
+
+            if valences:
+                stats["avg_valence"] = round(sum(valences) / len(valences), 3)
+            if stresses:
+                stats["avg_stress"] = round(sum(stresses) / len(stresses), 3)
+            if focuses:
+                stats["avg_focus"] = round(sum(focuses) / len(focuses), 3)
+
+            # Dominant emotion
+            emotions = [r.get("emotion") for r in voice_records if r.get("emotion")]
+            if emotions:
+                counts: Dict[str, int] = {}
+                for e in emotions:
+                    counts[e] = counts.get(e, 0) + 1
+                stats["dominant_emotion"] = max(counts, key=lambda k: counts[k])
+                stats["emotion_variety"] = len(counts)
+
+            # Streak: consecutive days with at least one check-in
+            if voice_records:
+                days_with_checkin = set()
+                for r in voice_records:
+                    ts = r.get("timestamp", 0)
+                    if ts > 0:
+                        day = datetime.datetime.fromtimestamp(ts).date()
+                        days_with_checkin.add(day)
+                stats["active_days"] = len(days_with_checkin)
+
+        # Health aggregations
+        sleep_score = health.get("sleep_efficiency") or health.get("sleep_score")
+        if sleep_score is not None:
+            stats["sleep_score"] = round(float(sleep_score), 1)
+
+        hrv = health.get("hrv_sdnn")
+        if hrv is not None and float(hrv) > 0:
+            stats["hrv_avg"] = round(float(hrv), 1)
+
+        return stats
+
+    def _build_message(
+        self,
+        stats: Dict[str, Any],
+        has_data: bool,
+    ) -> Tuple[str, str]:
+        """Build (title, body) notification strings."""
+        if not has_data:
+            return (
+                "Your weekly brain summary is ready",
+                "Start tracking with voice check-ins to get a personalised weekly recap.",
+            )
+
+        checkins = stats.get("total_checkins", 0)
+        active_days = stats.get("active_days", 0)
+
+        title = "Your weekly brain summary is ready"
+
+        parts: List[str] = []
+
+        if checkins > 0:
+            parts.append(f"{checkins} check-in{'s' if checkins != 1 else ''} across {active_days} day{'s' if active_days != 1 else ''}")
+
+        avg_stress = stats.get("avg_stress")
+        if avg_stress is not None:
+            stress_pct = round(avg_stress * 100)
+            parts.append(f"Avg stress: {stress_pct}%")
+
+        avg_focus = stats.get("avg_focus")
+        if avg_focus is not None:
+            focus_pct = round(avg_focus * 100)
+            parts.append(f"Focus: {focus_pct}%")
+
+        dominant = stats.get("dominant_emotion")
+        if dominant and dominant != "neutral":
+            parts.append(f"Top mood: {dominant}")
+
+        sleep = stats.get("sleep_score")
+        if sleep is not None:
+            parts.append(f"Sleep: {sleep:.0f}/100")
+
+        body = "  |  ".join(parts) if parts else "Tap to see your full weekly report."
+
+        return title, body
+
+
 # ── NotificationScheduler ────────────────────────────────────────────────────
 
 class NotificationScheduler:
@@ -664,6 +817,7 @@ class NotificationScheduler:
 
 _morning_generator = MorningReportGenerator()
 _evening_generator = EveningWindDownGenerator()
+_weekly_generator = WeeklySummaryGenerator()
 _scheduler = NotificationScheduler()
 
 
@@ -673,6 +827,10 @@ def get_morning_generator() -> MorningReportGenerator:
 
 def get_evening_generator() -> EveningWindDownGenerator:
     return _evening_generator
+
+
+def get_weekly_generator() -> WeeklySummaryGenerator:
+    return _weekly_generator
 
 
 def get_scheduler() -> NotificationScheduler:

@@ -105,4 +105,12 @@
 
 **Implication:** When building any user correction feature: (1) trace the corrected value through every API that returns historical data -- not just the write path, (2) use a `COALESCE(corrected, original)` pattern so corrected labels always take precedence, (3) ensure the visualization layer has full coverage of every possible label (colors, display names, icons) including all labels available in the correction UI, (4) test the full round-trip: correct a label, reload the visualization, verify the corrected label appears with proper styling.
 
+### 13. Every Defined Notification Type Must Have a Generator
+
+**Principle:** If the data model defines a notification type (schema field, preference toggle, enum value), a generator class must exist that produces the notification payload. Half-built notification infrastructure -- where the toggle exists but the generator does not -- is worse than having no toggle at all, because it creates a false sense of completeness in settings UI and blocks future wiring without anyone noticing the gap.
+
+**Evidence:** `NotificationPreferences` had `weekly_summary_enabled: bool = True` and `NotificationRecord` supported `notification_type: "weekly_summary"`, but no `WeeklySummaryGenerator` class existed. The `MorningReportGenerator` and `EveningWindDownGenerator` were fully implemented with API routes, but weekly summary was a dead schema entry. Oura sends automated weekly recap emails as a primary re-engagement mechanism (users who don't open the app for 3-4 days are pulled back by the weekly email). NDW had the full weekly summary page (`weekly-brain-summary.tsx`) with rich data (stress/focus/sleep + voice + food + dreams), but no push notification to drive users to it. The notification preferences UI would show "Weekly Summary: ON" while the backend silently never generated one.
+
+**Implication:** When defining a notification type in the data model: (1) implement the generator class at the same time, even if minimal, (2) add an API endpoint that produces the notification payload, (3) wire the endpoint into the test notification flow so the full pipeline is exercised, (4) add the type to the schedule endpoint so the frontend can show "next delivery: Sunday at 8am." Never ship a preference toggle without the corresponding backend logic -- it teaches users that toggles don't do anything.
+
 <!-- Principles will be appended below by the research agent -->
