@@ -495,44 +495,56 @@ export class MuseBleManager {
     this.deviceId   = device.deviceId;
     this.deviceName = device.name ?? "Muse";
 
-    // Connect with timeout — Muse can hang during GATT connection
-    try {
-      await Promise.race([
-        ble.connect(device.deviceId, () => {
-          // Disconnection callback
-          this.stopEmitter();
-          this.setStatus("idle", "Device disconnected");
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
-      ]);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "timeout") {
-        this.setStatus("error", "Connection timed out. Turn Muse off (hold 5s), turn back on, then retry. Also unpair Muse from system Bluetooth settings.");
-      } else {
-        this.setStatus("error", `Connection failed: ${msg}. Try turning Bluetooth off and on, then retry.`);
+    // Helper: write command with writeWithoutResponse fallback
+    const writeCmd = async (id: string, cmd: DataView) => {
+      try {
+        await ble.writeWithoutResponse(id, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+      } catch {
+        await ble.write(id, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
       }
-      this.deviceId = null;
-      throw e;
-    }
+    };
 
-    try {
-      // Muse control characteristic requires Write Without Response.
-      // Try writeWithoutResponse first, fall back to write (with response) if unavailable.
-      const writeCmd = async (cmd: DataView) => {
-        try {
-          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
-        } catch {
-          await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+    // Auto-retry: attempt connect + start up to 3 times
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        // Disconnect first if already connected (handles "already paired" case)
+        try { await ble.disconnect(device.deviceId); } catch { /* ignore */ }
+        await new Promise((r) => setTimeout(r, attempt > 1 ? 2000 : 300));
+
+        this.setStatus("connecting");
+
+        // Connect with timeout
+        await Promise.race([
+          ble.connect(device.deviceId, () => {
+            this.stopEmitter();
+            this.setStatus("idle", "Device disconnected");
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 12000)),
+        ]);
+
+        // Wait for GATT services to settle
+        await new Promise((r) => setTimeout(r, 500));
+
+        // Send preset + start commands
+        await writeCmd(device.deviceId, CMD_PRESET_P21);
+        await new Promise((r) => setTimeout(r, 200));
+        await writeCmd(device.deviceId, CMD_START);
+
+        // Success — break out of retry loop
+        break;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`Muse connect attempt ${attempt}/${MAX_RETRIES} failed:`, msg);
+
+        if (attempt === MAX_RETRIES) {
+          this.setStatus("error", `Connection failed after ${MAX_RETRIES} attempts: ${msg}`);
+          this.deviceId = null;
+          throw e;
         }
-      };
-      // Set standard preset (4-channel EEG) then start data
-      await writeCmd(CMD_PRESET_P21);
-      await new Promise((r) => setTimeout(r, 100)); // brief pause between commands
-      await writeCmd(CMD_START);
-    } catch (e) {
-      this.setStatus("error", `Failed to start EEG stream: ${String(e)}. Try: turn Muse off (hold 5s), turn back on, then retry.`);
-      throw e;
+        // Retry after brief pause
+        this.setStatus("connecting");
+      }
     }
 
     // Subscribe to all 4 EEG channel characteristics
