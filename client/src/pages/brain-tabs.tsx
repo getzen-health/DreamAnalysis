@@ -5,16 +5,13 @@
  * - Live EEG (existing brain monitor content)
  * - Neurofeedback (existing neurofeedback.tsx)
  * - Connectivity (existing brain-connectivity.tsx)
- * - Study (link to research study)
  */
 
 import { lazy, Suspense } from "react";
-import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { pageTransition } from "@/lib/animations";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Activity, Radio, Network, GraduationCap } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Activity, Radio, Network } from "lucide-react";
 
 // Lazy-load tab contents from existing pages
 const BrainMonitor = lazy(() => import("@/pages/brain-monitor"));
@@ -83,51 +80,6 @@ export default function BrainTabs() {
           <Suspense fallback={<TabLoader />}>
             <BrainConnectivity />
           </Suspense>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-TabsTrigger>
-          <TabsTrigger value="study" className="flex-1 gap-1.5">
-            <GraduationCap className="h-3.5 w-3.5" />
-            Study
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="eeg">
-          <Suspense fallback={<TabLoader />}>
-            <BrainMonitor />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="neurofeedback">
-          <Suspense fallback={<TabLoader />}>
-            <Neurofeedback />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="connectivity">
-          <Suspense fallback={<TabLoader />}>
-            <BrainConnectivity />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="study">
-          <StudyTab />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-ty">
-          <Suspense fallback={<TabLoader />}>
-            <BrainConnectivity />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="study">
-          <StudyTab />
         </TabsContent>
       </Tabs>
     </div>
