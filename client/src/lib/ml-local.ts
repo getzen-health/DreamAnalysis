@@ -7,6 +7,13 @@
  */
 
 import { extractFeatures, extractBandPowers } from "./eeg-features";
+import {
+  softmax,
+  normalizeChannels,
+  eegnetEmotionFromProbabilities,
+  validateEEGNetInput,
+  type EEGNetEmotionResult,
+} from "./eegnet-utils";
 
 // onnxruntime-web is loaded dynamically to avoid hard failures if not installed
 let ort: typeof import("onnxruntime-web") | null = null;
@@ -153,6 +160,7 @@ function dreamHeuristic(features: number[], fs: number, signal: number[]): Dream
 
 class LocalMLEngine {
   private emotionSession: InferenceSession | null = null;
+  private eegnetSession: InferenceSession | null = null;
   private _ready = false;
   private _initPromise: Promise<void> | null = null;
   private _lastSignal: number[] = [];
@@ -183,16 +191,85 @@ class LocalMLEngine {
       // Model not served — heuristics only
     }
 
+    // Try to load EEGNet model (4KB, fast)
+    try {
+      this.eegnetSession = await ortModule.InferenceSession.create(
+        "/models/eegnet_emotion_4ch.onnx",
+        { executionProviders: ["wasm"] }
+      );
+      console.info("EEGNet ONNX loaded (4KB, 4-channel)");
+    } catch {
+      // EEGNet not served — fall back to generic emotion model or heuristics
+    }
+
     // Always ready: heuristics handle sleep + dream, ONNX handles emotion when available
     this._ready = true;
   }
 
   isReady(): boolean { return this._ready; }
 
+  /** Check if EEGNet model is loaded and available */
+  isEEGNetReady(): boolean { return this.eegnetSession !== null; }
+
   /** Cache the raw signal so heuristics can use it */
   setLastSignal(signal: number[], fs: number): void {
     this._lastSignal = signal;
     this._lastFs = fs;
+  }
+
+  /**
+   * Run EEGNet inference on raw 4-channel EEG data.
+   *
+   * Input: array of 4 Float32Arrays, each 1024 samples (4 seconds @ 256 Hz).
+   * Normalizes each channel to zero-mean unit-variance before inference.
+   * Returns structured emotion result or null if EEGNet is not loaded.
+   */
+  async analyzeEmotionEEGNet(
+    rawChannels: Float32Array[],
+    _sampleRate: number = 256
+  ): Promise<EmotionPrediction | null> {
+    if (!this.eegnetSession) return null;
+
+    // Validate input shape
+    if (!validateEEGNetInput(rawChannels)) {
+      console.warn(
+        `EEGNet: expected ${4} channels x ${1024} samples, got ${rawChannels.length} channels x ${rawChannels[0]?.length ?? 0} samples`
+      );
+      return null;
+    }
+
+    const ortModule = await loadOrt();
+    if (!ortModule) return null;
+
+    try {
+      // Normalize each channel to zero-mean, unit-variance
+      const normalized = normalizeChannels(rawChannels);
+
+      // Flatten into [1, 4, 1024] tensor
+      const flat = new Float32Array(4 * 1024);
+      for (let c = 0; c < 4; c++) {
+        flat.set(normalized[c], c * 1024);
+      }
+
+      const input = new ortModule.Tensor("float32", flat, [1, 4, 1024]);
+      const inputName = this.eegnetSession.inputNames[0];
+      const results = await this.eegnetSession.run({ [inputName]: input });
+      const outputName = this.eegnetSession.outputNames[0];
+      const logits = Array.from(results[outputName].data as Float32Array);
+
+      // Softmax → probabilities → structured result
+      const probs = softmax(logits);
+      const result: EEGNetEmotionResult = eegnetEmotionFromProbabilities(probs);
+
+      return {
+        emotion: result.emotion,
+        confidence: result.confidence,
+        probabilities: result.probabilities,
+      };
+    } catch (err) {
+      console.warn("EEGNet inference failed:", err);
+      return null;
+    }
   }
 
   async analyzeSleep(features: number[]): Promise<SleepPrediction | null> {

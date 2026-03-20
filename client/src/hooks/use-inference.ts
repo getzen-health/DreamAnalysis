@@ -55,9 +55,40 @@ export function useInference(): InferenceResult {
           localML.setLastSignal(signal, fs);
           const features = extractFeatures(signal, fs);
 
-          const [sleep, emotion, dream] = await Promise.all([
+          // Try EEGNet first (4-channel, raw EEG input, 4KB model)
+          // then fall back to generic emotion model (17-feature, 2.2MB)
+          let emotion: Awaited<ReturnType<typeof localML.analyzeEmotion>> = null;
+          let eegnetValence = 0;
+          let eegnetArousal = 0;
+
+          if (localML.isEEGNetReady() && signals.length >= 4) {
+            // Convert number[][] to Float32Array[] for EEGNet
+            const rawChannels = signals.slice(0, 4).map((ch) => new Float32Array(ch));
+            const eegnetResult = await localML.analyzeEmotionEEGNet(rawChannels, fs);
+            if (eegnetResult) {
+              emotion = eegnetResult;
+              // Import utils to get valence/arousal from probabilities
+              const { eegnetEmotionFromProbabilities } = await import("@/lib/eegnet-utils");
+              const probs = Object.values(eegnetResult.probabilities);
+              // Probabilities are already ordered by EEGNET_EMOTIONS in the dict,
+              // but dict ordering may not match — extract in order
+              const { EEGNET_EMOTIONS } = await import("@/lib/eegnet-utils");
+              const orderedProbs = EEGNET_EMOTIONS.map(
+                (e: string) => eegnetResult.probabilities[e] ?? 0
+              );
+              const full = eegnetEmotionFromProbabilities(orderedProbs);
+              eegnetValence = full.valence;
+              eegnetArousal = full.arousal;
+            }
+          }
+
+          // Fall back to generic emotion model if EEGNet didn't produce a result
+          if (!emotion) {
+            emotion = await localML.analyzeEmotion(features);
+          }
+
+          const [sleep, dream] = await Promise.all([
             localML.analyzeSleep(features),
-            localML.analyzeEmotion(features),
             localML.detectDream(features),
           ]);
 
@@ -72,8 +103,8 @@ export function useInference(): InferenceResult {
                 emotion: emotion.emotion,
                 confidence: emotion.confidence,
                 probabilities: emotion.probabilities,
-                valence: 0,
-                arousal: 0,
+                valence: eegnetValence,
+                arousal: eegnetArousal,
                 stress_index: 0,
                 focus_index: 0,
                 relaxation_index: 0,
