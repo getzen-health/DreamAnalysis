@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { InterventionBanner } from "@/components/intervention-banner";
@@ -13,16 +13,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useKeyboardScroll } from "@/hooks/use-keyboard-scroll";
 import { pingBackend } from "@/lib/ml-api";
-import { Loader2, Sun, Moon, Monitor, ChevronLeft, Bot } from "lucide-react";
+import { Loader2, Sun, Moon, Monitor, ChevronLeft } from "lucide-react";
 import { StreakCelebration } from "@/components/streak-celebration";
 import { EmotionBadge } from "@/components/emotion-badge";
 import { ScoreHeader } from "@/components/score-header";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { getParticipantId } from "@/lib/participant";
-
-const LazyAICompanion = lazy(() =>
-  import("@/components/ai-companion").then((m) => ({ default: m.AICompanion }))
-);
 
 const routeTitles: Record<string, string> = {
   "/": "Today",
@@ -176,23 +171,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 showLabel
                 onClick={() => window.dispatchEvent(new Event("ndw-open-voice-checkin"))}
               />
-              <Sheet>
-                <SheetTrigger asChild>
-                  <button
-                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted/50 transition-colors"
-                    aria-label="Open AI Companion"
-                  >
-                    <Bot className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-full sm:w-[400px] p-0">
-                  <Suspense fallback={<div className="flex items-center justify-center h-full text-muted-foreground text-sm">Loading...</div>}>
-                    <div className="h-full overflow-y-auto p-4">
-                      <LazyAICompanion userId={getParticipantId()} />
-                    </div>
-                  </Suspense>
-                </SheetContent>
-              </Sheet>
               <button
                 onClick={() => {
                   const next = themeSetting === "dark" ? "light" : themeSetting === "light" ? "auto" : "dark";

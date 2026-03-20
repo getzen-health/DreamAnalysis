@@ -553,10 +553,28 @@ function CycleTab() {
   const [symptomSeverity, setSymptomSeverity] = useState<Record<string, number>>({});
   const [cycleNotes, setCycleNotes] = useState("");
 
-  // Fetch cycle data
+  // Fetch cycle data — API with localStorage fallback
   const { data: cycleData = [] } = useQuery<CycleEntry[]>({
-    queryKey: [`/api/cycle/${user?.id}?days=365`],
-    enabled: !!user?.id,
+    queryKey: [`/api/cycle/${user?.id ?? "local"}?days=365`],
+    queryFn: async () => {
+      if (user?.id) {
+        try {
+          const res = await fetch(`/api/cycle/${user.id}?days=365`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("auth_token") ?? ""}` },
+          });
+          if (res.ok) return res.json();
+        } catch { /* API unavailable */ }
+      }
+      // Fallback: read from localStorage
+      try {
+        const raw = JSON.parse(localStorage.getItem("ndw_cycle_logs") || "{}");
+        return Object.entries(raw).map(([date, entry]: [string, any]) => ({
+          id: date, userId: null, date, flowLevel: entry.flowLevel,
+          symptoms: entry.symptoms, phase: null, contraception: null,
+          basalTemp: null, notes: entry.notes,
+        }));
+      } catch { return []; }
+    },
     retry: false,
     staleTime: 30_000,
   });
@@ -578,16 +596,27 @@ function CycleTab() {
     return map;
   }, [cycleData]);
 
-  // Log cycle mutation
+  // Log cycle mutation — API first, localStorage fallback when auth unavailable
   const logCycleMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/cycle", {
+      const entry = {
         date: selectedDate,
         flowLevel,
         symptoms: selectedSymptoms.length > 0 ? selectedSymptoms : null,
         notes: cycleNotes || null,
-      });
-      return res.json();
+      };
+      try {
+        const res = await apiRequest("POST", "/api/cycle", entry);
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      } catch {
+        // API unavailable or auth missing — save to localStorage
+        const key = "ndw_cycle_logs";
+        const existing: Record<string, typeof entry> = JSON.parse(localStorage.getItem(key) || "{}");
+        existing[selectedDate] = entry;
+        localStorage.setItem(key, JSON.stringify(existing));
+        return entry;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cycle/${user?.id}?days=365`] });
