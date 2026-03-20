@@ -16,6 +16,7 @@ from ._shared import (
     NeurofeedbackStartRequest, NeurofeedbackEvalRequest,
     _get_nf_protocol, _set_nf_protocol,
 )
+from neurofeedback.progress_tracker import NeurofeedbackProgressTracker
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -31,6 +32,9 @@ _user_rl_agents: Dict[str, object] = {}
 
 # Per-user trajectory buffers (stored during active neurofeedback sessions)
 _trajectory_buffers: Dict[str, list] = {}
+
+# Cooldown tracking: user_id -> timestamp of last session end
+_last_session_end: Dict[str, float] = {}
 
 
 def _load_rl_agent():
@@ -107,16 +111,39 @@ async def start_neurofeedback(request: NeurofeedbackStartRequest):
     # Attempt to load the RL agent (no-op if already loaded or file absent)
     _load_rl_agent()
 
+    # Check 2-hour cooldown between sessions
+    last_end = _last_session_end.get(request.user_id, 0)
+    cooldown_remaining = max(0, 7200 - (time.time() - last_end))
+
     if request.calibrate:
         protocol.start_calibration()
-        return {"status": "calibrating", "protocol": request.protocol_type}
+        result: Dict = {"status": "calibrating", "protocol": request.protocol_type}
+        if cooldown_remaining > 0:
+            result["cooldown_warning"] = {
+                "recommended_wait_minutes": round(cooldown_remaining / 60, 1),
+                "message": "Recommended 2-hour cooldown between sessions for optimal results.",
+            }
+        return result
 
     protocol.start()
-    return {
+    result = {
         "status": "active",
         "protocol": request.protocol_type,
         "rl_active": _rl_agent is not None and _rl_agent.is_trained,
     }
+    if cooldown_remaining > 0:
+        result["cooldown_warning"] = {
+            "recommended_wait_minutes": round(cooldown_remaining / 60, 1),
+            "message": "Recommended 2-hour cooldown between sessions for optimal results.",
+        }
+
+    # Include dosing alerts from cross-session progress tracker
+    tracker = NeurofeedbackProgressTracker(request.user_id, request.protocol_type)
+    dosing_alerts = tracker.get_dosing_alerts()
+    if dosing_alerts:
+        result["dosing_alerts"] = dosing_alerts
+
+    return result
 
 
 @router.post("/neurofeedback/evaluate")
@@ -162,6 +189,10 @@ async def evaluate_neurofeedback(request: NeurofeedbackEvalRequest):
         buf = _trajectory_buffers.setdefault(request.user_id, [])
         buf.append(step)
 
+    # ── Safety checks ────────────────────────────────────────────────────────────────────────────
+    result["session_limits"] = protocol.check_session_limits()
+    result["fatigue"] = protocol.detect_fatigue()
+
     return {"status": "active", **result}
 
 
@@ -189,6 +220,32 @@ async def stop_neurofeedback(user_id: str):
     else:
         stats["trajectory_saved"] = False
 
+    # Record session for cross-session progress tracking
+    protocol_type = protocol.protocol_type if hasattr(protocol, "protocol_type") else "unknown"
+    tracker = NeurofeedbackProgressTracker(user_id, protocol_type)
+    tracker.record_session(
+        duration_minutes=stats.get("duration_seconds", 0) / 60,
+        avg_score=stats.get("avg_score", 0),
+        reward_rate=stats.get("reward_rate", 0),
+        max_streak=stats.get("max_streak", 0),
+        baseline_value=stats.get("baseline", {}).get("alpha") if isinstance(stats.get("baseline"), dict) else None,
+    )
+    stats["cross_session_progress"] = tracker.get_progress()
+
+    # Record session end for cooldown tracking
+    _last_session_end[user_id] = time.time()
+
+    # Post-session safety check prompt
+    stats["post_session_check"] = {
+        "duration_minutes": protocol.get_session_duration_minutes(),
+        "check_items": [
+            "Any headache or head pressure?",
+            "Any dizziness or lightheadedness?",
+            "Any unusual mood changes?",
+            "Any difficulty concentrating?",
+        ],
+    }
+
     return {"status": "stopped", "stats": stats}
 
 
@@ -213,6 +270,15 @@ async def rl_status(user_id: str):
         "n_trajectories": n_trajectories,
         "agent_path": str(_RL_AGENT_PATH),
     }
+
+
+@router.get("/neurofeedback/progress/{user_id}")
+async def get_neurofeedback_progress(user_id: str, protocol_type: str = "alpha_up"):
+    """Return cross-session neurofeedback progress and dosing compliance."""
+    tracker = NeurofeedbackProgressTracker(user_id, protocol_type)
+    progress = tracker.get_progress()
+    progress["dosing_alerts"] = tracker.get_dosing_alerts()
+    return progress
 
 
 @router.post("/neurofeedback/rl/train")

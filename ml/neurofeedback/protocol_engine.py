@@ -5,6 +5,7 @@ protocols (alpha up-training, SMR, theta/beta ratio, alpha asymmetry).
 Supports baseline calibration and session statistics.
 """
 
+import time
 import numpy as np
 from typing import Dict, List, Optional
 from collections import deque
@@ -22,6 +23,9 @@ PROTOCOLS = {
             "Gruzelier JH (2014). EEG-neurofeedback for optimising performance. Neurosci Biobehav Rev, 44, 279-304.",
             "Zoefel B et al. (2011). Neurofeedback training of the upper alpha frequency band in EEG improves cognitive performance. Clin Neurophysiol, 122(11), 2220-2227.",
         ],
+        "max_session_minutes": 30,
+        "safety_notes": "May cause headache if session exceeds 30 minutes (Hammond 2011). Watch for reactive beta increase (anxiety rebound).",
+        "contraindications": ["Active seizure disorder"],
     },
     "smr_up": {
         "name": "SMR Training",
@@ -34,6 +38,9 @@ PROTOCOLS = {
             "Arns M et al. (2009). Efficacy of neurofeedback treatment in ADHD. Clin EEG Neurosci, 40(3), 180-189.",
             "Enriquez-Geppert S et al. (2019). Neurofeedback as a treatment intervention in ADHD. Curr Psychiatry Rep, 21(6), 46.",
         ],
+        "max_session_minutes": 30,
+        "safety_notes": "Well-tolerated. Monitor for drowsiness in extended sessions.",
+        "contraindications": [],
     },
     "theta_beta_ratio": {
         "name": "Theta/Beta Ratio",
@@ -46,6 +53,9 @@ PROTOCOLS = {
             "Arns M et al. (2009). Efficacy of neurofeedback treatment in ADHD. Clin EEG Neurosci, 40(3), 180-189.",
             "Lubar JF (1995). Neurofeedback for the management of attention-deficit/hyperactivity disorders. Biofeedback Self Regul, 20(2), 111-127.",
         ],
+        "max_session_minutes": 25,
+        "safety_notes": "Can induce drowsiness spikes during fatigue. Theta uptraining contraindicated in epilepsy.",
+        "contraindications": ["Epilepsy", "Seizure history"],
     },
     "alpha_asymmetry": {
         "name": "Alpha Asymmetry",
@@ -58,6 +68,9 @@ PROTOCOLS = {
             "Baehr E et al. (2001). Clinical use of an alpha asymmetry neurofeedback protocol in the treatment of mood disorders. J Neurother, 4(4), 11-18.",
             "Peeters F et al. (2014). Oxytocin and neurofeedback for depression-related frontal alpha asymmetry. Psychiatry Res, 223(2), 180-184.",
         ],
+        "max_session_minutes": 25,
+        "safety_notes": "Emotional dysregulation possible without clinician oversight. Evidence grade B — ideally supervised.",
+        "contraindications": ["Bipolar disorder without clinician oversight"],
     },
     "custom": {
         "name": "Custom Protocol",
@@ -67,6 +80,9 @@ PROTOCOLS = {
         "default_threshold": 0.5,
         "evidence_grade": "N/A",
         "evidence_references": [],
+        "max_session_minutes": 30,
+        "safety_notes": "User-defined protocol — no safety data available.",
+        "contraindications": [],
     },
 }
 
@@ -107,6 +123,13 @@ class NeurofeedbackProtocol:
         self.total_rewards = 0
         self.total_evaluations = 0
 
+        # Session timer
+        self._session_start_time: Optional[float] = None
+
+        # Fatigue tracking — rolling window of last 30 feedback_value scores
+        self._feedback_window: deque = deque(maxlen=30)
+        self._session_peak_score: float = 0.0
+
     def start_calibration(self):
         """Begin baseline calibration period."""
         self.is_calibrating = True
@@ -136,6 +159,9 @@ class NeurofeedbackProtocol:
         self.total_rewards = 0
         self.total_evaluations = 0
         self.history.clear()
+        self._session_start_time = time.time()
+        self._feedback_window.clear()
+        self._session_peak_score = 0.0
 
     def stop(self) -> Dict:
         """Stop the session and return final statistics."""
@@ -201,6 +227,12 @@ class NeurofeedbackProtocol:
         }
 
         self.history.append(result)
+
+        # Update fatigue tracking window
+        self._feedback_window.append(feedback_value)
+        if feedback_value > self._session_peak_score:
+            self._session_peak_score = feedback_value
+
         return result
 
     def get_session_stats(self) -> Dict:
@@ -232,6 +264,60 @@ class NeurofeedbackProtocol:
             "time_above_threshold": float(self.total_rewards / max(self.total_evaluations, 1)),
             "max_streak": max_streak,
             "total_evaluations": self.total_evaluations,
+        }
+
+    def get_session_duration_minutes(self) -> float:
+        """Return elapsed session time in minutes, or 0.0 if session not started."""
+        if self._session_start_time is None:
+            return 0.0
+        return (time.time() - self._session_start_time) / 60.0
+
+    def check_session_limits(self) -> Dict:
+        """Return session duration status against soft and hard limits.
+
+        Returns:
+            Dict with duration_minutes, soft_limit_minutes, hard_limit_minutes,
+            approaching_limit (within 5 min of soft limit), exceeded_hard_limit.
+        """
+        duration = self.get_session_duration_minutes()
+        soft_limit = 25
+        hard_limit = 45
+        return {
+            "duration_minutes": round(duration, 2),
+            "soft_limit_minutes": soft_limit,
+            "hard_limit_minutes": hard_limit,
+            "approaching_limit": duration >= (soft_limit - 5),
+            "exceeded_hard_limit": duration >= hard_limit,
+        }
+
+    def detect_fatigue(self) -> Dict:
+        """Detect cognitive fatigue from rolling feedback score decline.
+
+        Fatigue is flagged when the rolling mean of the last 10 feedback_value
+        scores is more than 20% below the session peak score.
+
+        Returns:
+            Dict with fatigue_detected, score_decline_pct, reason.
+        """
+        window = list(self._feedback_window)
+        if len(window) < 10 or self._session_peak_score < 1e-6:
+            return {
+                "fatigue_detected": False,
+                "score_decline_pct": 0.0,
+                "reason": None,
+            }
+
+        recent_mean = float(np.mean(window[-10:]))
+        decline_pct = float(
+            (self._session_peak_score - recent_mean) / max(self._session_peak_score, 1e-10) * 100.0
+        )
+        fatigue_detected = decline_pct > 20.0
+        reason = "sustained_score_decline" if fatigue_detected else None
+
+        return {
+            "fatigue_detected": fatigue_detected,
+            "score_decline_pct": round(decline_pct, 2),
+            "reason": reason,
         }
 
     def get_rl_state(self, band_powers: Dict[str, float]) -> Dict:
