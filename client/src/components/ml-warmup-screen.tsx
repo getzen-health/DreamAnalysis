@@ -35,8 +35,11 @@ export function MLWarmupScreen({ onSimulationMode }: MLWarmupScreenProps): JSX.E
   const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messageIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Only render during active warm-up phases.
-  const isVisible = status === "connecting" || status === "warming";
+  // On native (iOS/Android), BLE handles EEG directly — skip ML warmup entirely
+  const isNative = typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.();
+
+  // Only render during active warm-up phases (never on native).
+  const isVisible = !isNative && (status === "connecting" || status === "warming");
 
   useEffect(() => {
     if (!isVisible) return;
