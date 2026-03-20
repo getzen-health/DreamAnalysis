@@ -29,13 +29,19 @@ export function useHealthSync(): UseHealthSyncReturn {
     // Subscribe to state changes
     const unsubscribe = healthSync.subscribe((s) => setState(s));
 
-    // Initialize once (requests permissions, detects platform)
-    healthSync.initialize().then(() => {
-      // Start 15-min auto-sync after permissions granted
-      healthSync.startAutoSync();
-    }).catch(() => {
-      // Permissions denied or platform unavailable — silent fail
-    });
+    // Initialize and start syncing — try regardless of errors
+    (async () => {
+      try {
+        await healthSync.initialize();
+      } catch {
+        // Permissions denied or platform unavailable — still try sync for cached data
+      }
+      try {
+        healthSync.startAutoSync();
+      } catch {
+        // Auto-sync failed — at least we have cached data from localStorage
+      }
+    })();
 
     return () => {
       unsubscribe();
