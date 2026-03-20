@@ -49,4 +49,12 @@
 
 **Implication:** When adding any new page: (1) build the skeleton loading state FIRST, matching the real layout's grid, card count, and section hierarchy, (2) use the existing `Skeleton` component from shadcn/ui, (3) never use a bare spinner as the only loading indicator for a full-page load. Reserve spinners for inline actions (button presses, small data fetches within an already-rendered page).
 
+### 6. Never Map Unvalidated Scores onto Clinical Instrument Scales
+
+**Principle:** When a model produces risk estimates from non-standard inputs (voice, EEG, accelerometry), it must never output scores on a validated clinical instrument's scale (PHQ-9 0-27, GAD-7 0-21, etc.) without explicit, unmissable warnings that the score is not a validated result from that instrument. Borrowing clinical scales creates false authority that can lead to self-diagnosis or treatment decisions.
+
+**Evidence:** The voice depression screener mapped acoustic features onto PHQ-9 (0-27) and GAD-7 (0-21) scales, producing outputs like `phq9_score: 18, severity: moderately_severe`. Meanwhile, the same app has a separate module (`mental_health_questionnaire.py`) that implements the actual validated PHQ-9/GAD-7 self-report instruments. A user seeing both would reasonably assume they are equivalent. The voice-derived scores were never validated against actual PHQ-9/GAD-7 ground truth. The ADHD detector similarly classifies users into DSM-5 subtypes ("inattentive", "hyperactive", "combined") from EEG heuristics alone.
+
+**Implication:** When any model produces risk scores: (1) use a custom scale (e.g., 0-100 "risk index") rather than mapping onto a clinical instrument's scale, OR (2) if using a clinical scale for readability, include `not_validated: true`, a `scale_context` field, and a disclaimer that explicitly names the instrument and says "this is NOT a validated [instrument] result." (3) Never label output categories with DSM/ICD diagnostic subtypes — use descriptive terms like "theta-dominant pattern" instead of "inattentive ADHD profile."
+
 <!-- Principles will be appended below by the research agent -->

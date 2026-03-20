@@ -209,8 +209,10 @@ def test_api_status(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["ready"] is True
-    assert "depression_phq9" in data["screening_models"]
-    assert "anxiety_gad7" in data["screening_models"]
+    assert "depression_voice_risk" in data["screening_models"]
+    assert "anxiety_voice_risk" in data["screening_models"]
+    assert data["not_validated"] is True
+    assert "clinical_warning" in data
 
 
 def test_api_disclaimer_present(client):

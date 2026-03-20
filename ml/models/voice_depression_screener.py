@@ -1,8 +1,9 @@
-"""Voice biomarker depression/anxiety screening.
+"""Voice biomarker depression/anxiety risk estimation.
 
 Extracts vocal biomarkers correlated with depression and anxiety, producing
-PHQ-9 compatible depression risk scores (0-27) and GAD-7 compatible anxiety
-risk scores (0-21) from voice features alone.
+voice-derived risk scores mapped onto PHQ-9 (0-27) and GAD-7 (0-21) scales
+for readability. These are NOT validated PHQ-9/GAD-7 questionnaire results
+and must not be used for clinical diagnosis or treatment decisions.
 
 Based on:
     Sonde Health (2024): vocal biomarkers detect depression with >80% sensitivity
@@ -122,16 +123,18 @@ def extract_vocal_biomarkers(audio: np.ndarray, sr: int = 16000) -> Dict:
 
 
 def score_depression_risk(biomarkers: Dict) -> Dict:
-    """Compute PHQ-9 compatible depression risk score from vocal biomarkers.
+    """Compute voice-derived depression risk score mapped to PHQ-9 scale.
 
-    Maps voice features to a 0-27 scale compatible with PHQ-9 clinical scoring.
-    Higher scores indicate higher depression risk.
+    WARNING: This is NOT a validated PHQ-9 questionnaire result. It maps voice
+    biomarkers onto the 0-27 PHQ-9 scale for readability only. The mapping has
+    not been clinically validated. Do not use for diagnosis or treatment decisions.
 
     Args:
         biomarkers: Output of extract_vocal_biomarkers().
 
     Returns:
-        Dict with phq9_score, severity, contributing_indicators, disclaimer.
+        Dict with phq9_score, severity, not_validated, scale_context,
+        contributing_indicators, disclaimer.
     """
     if "error" in biomarkers:
         return {
@@ -204,21 +207,29 @@ def score_depression_risk(biomarkers: Dict) -> Dict:
         "phq9_score": phq9_score,
         "severity": _severity_label_phq9(phq9_score),
         "indicators": indicators,
+        "not_validated": True,
+        "scale_context": (
+            "This score is mapped onto the PHQ-9 (0-27) scale for readability but "
+            "is derived from voice biomarkers, NOT from the validated PHQ-9 "
+            "questionnaire. It should not be interpreted as a PHQ-9 result."
+        ),
         "disclaimer": _DISCLAIMER,
     }
 
 
 def score_anxiety_risk(biomarkers: Dict) -> Dict:
-    """Compute GAD-7 compatible anxiety risk score from vocal biomarkers.
+    """Compute voice-derived anxiety risk score mapped to GAD-7 scale.
 
-    Maps voice features to a 0-21 scale compatible with GAD-7 clinical scoring.
-    Higher scores indicate higher anxiety risk.
+    WARNING: This is NOT a validated GAD-7 questionnaire result. It maps voice
+    biomarkers onto the 0-21 GAD-7 scale for readability only. The mapping has
+    not been clinically validated. Do not use for diagnosis or treatment decisions.
 
     Args:
         biomarkers: Output of extract_vocal_biomarkers().
 
     Returns:
-        Dict with gad7_score, severity, contributing_indicators, disclaimer.
+        Dict with gad7_score, severity, not_validated, scale_context,
+        contributing_indicators, disclaimer.
     """
     if "error" in biomarkers:
         return {
@@ -289,6 +300,12 @@ def score_anxiety_risk(biomarkers: Dict) -> Dict:
         "gad7_score": gad7_score,
         "severity": _severity_label_gad7(gad7_score),
         "indicators": indicators,
+        "not_validated": True,
+        "scale_context": (
+            "This score is mapped onto the GAD-7 (0-21) scale for readability but "
+            "is derived from voice biomarkers, NOT from the validated GAD-7 "
+            "questionnaire. It should not be interpreted as a GAD-7 result."
+        ),
         "disclaimer": _DISCLAIMER,
     }
 
@@ -403,7 +420,10 @@ def profile_to_dict(profile: Dict) -> Dict:
 # -- internal helpers ---------------------------------------------------------
 
 _DISCLAIMER = (
-    "These scores are research-grade estimates, not clinical diagnoses. "
+    "IMPORTANT: These voice-derived risk scores are NOT validated PHQ-9 or GAD-7 "
+    "questionnaire results. They are experimental estimates mapped onto clinical "
+    "scales for readability only. They have not been clinically validated and must "
+    "not be used for diagnosis, treatment decisions, or self-assessment. "
     "Consult a qualified mental health professional for any concerns."
 )
 
