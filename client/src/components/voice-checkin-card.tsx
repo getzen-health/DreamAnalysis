@@ -23,6 +23,7 @@ import { getMLApiUrl, submitVoiceWatch } from "@/lib/ml-api";
 import type { VoiceWatchCheckinResult } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import { runVoiceEmotionONNX } from "@/lib/voice-onnx";
+import { writeEmotionToHealth } from "@/lib/health-connect";
 
 // ─── positive affirmations shown during recording ───────────────────────────
 
@@ -676,6 +677,9 @@ export function VoiceCheckinCard({
         window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
 
         onComplete?.(checkinResult);
+
+        // Fire-and-forget: write emotion to HealthKit (iOS only, Android/web no-op)
+        writeEmotionToHealth(checkinResult.emotion, checkinResult.valence).catch(() => {});
 
         // Fire-and-forget: record a streak check-in so the StreakCard updates
         fetch(`${getMLApiUrl()}/api/streaks/checkin`, {

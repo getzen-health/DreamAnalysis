@@ -18,6 +18,7 @@ import {
   evaluateNeurofeedback,
   stopNeurofeedback,
 } from "@/lib/ml-api";
+import { writeMindfulSession } from "@/lib/health-connect";
 import { useDevice } from "@/hooks/use-device";
 import { useToast } from "@/hooks/use-toast";
 
@@ -53,6 +54,7 @@ export default function Neurofeedback() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const calibrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionStartRef = useRef<Date | null>(null);
 
   // Load protocols on mount
   useEffect(() => {
@@ -109,6 +111,7 @@ export default function Neurofeedback() {
 
   const handleStart = async () => {
     if (!isStreaming) return;
+    sessionStartRef.current = new Date();
     try {
       const result = await startNeurofeedback(selectedProtocol, true);
       if (result.status === "calibrating") {
@@ -169,6 +172,12 @@ export default function Neurofeedback() {
   const handleStop = async () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
+
+    // Write mindful session to HealthKit / Health Connect (fire-and-forget)
+    const sessionEnd = new Date();
+    const sessionStart = sessionStartRef.current ?? new Date(sessionEnd.getTime() - elapsed * 1000);
+    const durationMin = Math.max(1, Math.round(elapsed / 60));
+    writeMindfulSession(sessionStart, sessionEnd, durationMin).catch(() => {});
 
     try {
       const result = await stopNeurofeedback();

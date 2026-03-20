@@ -47,6 +47,10 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!-- Health Connect (mindfulness session read/write) -->
+    <uses-permission android:name="android.permission.health.READ_MINDFULNESS_SESSIONS"/>
+    <uses-permission android:name="android.permission.health.WRITE_MINDFULNESS_SESSIONS"/>
+
     <!-- Microphone (voice emotion check-in) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />

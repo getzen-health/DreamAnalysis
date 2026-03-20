@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
 import { resolveUrl } from "@/lib/queryClient";
 import { ingestHealthData } from "@/lib/ml-api";
+import { requestHealthWritePermissions } from "@/lib/health-connect";
 import {
   Heart,
   Brain,
@@ -139,6 +140,8 @@ function ConnectHealthSection() {
             "READ_MINDFULNESS",
           ],
         });
+        // Also request write permission for Mindful Minutes (fire-and-forget)
+        requestHealthWritePermissions().catch(() => {});
         setHealthConnected(true);
         localStorage.setItem("ndw_health_connect_granted", "true");
         toast({
@@ -147,6 +150,8 @@ function ConnectHealthSection() {
         });
       } else if (platform === "ios") {
         await fetch(resolveUrl("/api/health/connect"), { method: "POST" });
+        // Also request write permission for Mindful Minutes (fire-and-forget)
+        requestHealthWritePermissions().catch(() => {});
         setHealthConnected(true);
         localStorage.setItem("ndw_apple_health_granted", "true");
         toast({

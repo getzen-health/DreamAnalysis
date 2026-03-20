@@ -58,7 +58,7 @@
 	<key>NSHealthShareUsageDescription</key>
 	<string>AntarAI reads heart rate, HRV, sleep, and steps from Apple Health to enrich brain state analysis when EEG is not connected.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>AntarAI can write mindfulness session data to Apple Health.</string>
+	<string>AntarAI writes meditation session data and mood readings to Apple Health.</string>
 
 	<!-- Microphone - voice emotion analysis -->
 	<key>NSMicrophoneUsageDescription</key>
