@@ -23,6 +23,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Register native Muse BLE plugin (must be before super.onCreate)
+        registerPlugin(MuseBlePlugin.class);
+
         super.onCreate(savedInstanceState);
 
         WebView webView = getBridge().getWebView();

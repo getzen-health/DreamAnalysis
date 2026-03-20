@@ -281,6 +281,77 @@ export class MuseBleManager {
     return this.BleClient;
   }
 
+  // ── Native Android Muse plugin (bypasses Capacitor BLE GATT issues) ──────
+  private _nativeMuseListener: any = null;
+
+  private async _connectNativeMusePlugin(): Promise<void> {
+    const { registerPlugin } = await import("@capacitor/core");
+    const MuseBle = registerPlugin<{
+      scan: () => Promise<{ devices: Array<{ deviceId: string; name: string; rssi: number }> }>;
+      connect: (opts: { deviceId: string }) => Promise<{ connected: boolean; channels: number }>;
+      disconnect: () => Promise<void>;
+      isConnected: () => Promise<{ connected: boolean }>;
+      addListener: (event: string, cb: (data: any) => void) => Promise<any>;
+    }>("MuseBle");
+
+    this.setStatus("scanning");
+
+    // Scan for Muse devices
+    let scanResult;
+    try {
+      scanResult = await MuseBle.scan();
+    } catch (e) {
+      this.setStatus("error", `Scan failed: ${e instanceof Error ? e.message : String(e)}`);
+      throw e;
+    }
+
+    const devices = scanResult.devices ?? [];
+    if (devices.length === 0) {
+      this.setStatus("error", "No Muse device found. Make sure it is powered ON.");
+      throw new Error("No Muse found");
+    }
+
+    // Pick the first Muse device (or strongest signal)
+    const target = devices.sort((a, b) => b.rssi - a.rssi)[0];
+    this.deviceId = target.deviceId;
+    this.deviceName = target.name;
+    this.setStatus("connecting");
+
+    // Listen for EEG data events from native
+    if (this._nativeMuseListener) {
+      try { await this._nativeMuseListener.remove(); } catch { /* ok */ }
+    }
+    this._nativeMuseListener = await MuseBle.addListener("museEegData", (event: { channel: number; data: string }) => {
+      // Decode base64 data to DataView
+      const binary = atob(event.data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      this.onEegNotification(event.channel, new DataView(bytes.buffer));
+    });
+
+    // Listen for disconnect
+    await MuseBle.addListener("museDisconnected", () => {
+      this.stopEmitter();
+      this.setStatus("idle", "Device disconnected");
+    });
+
+    // Connect
+    try {
+      const result = await MuseBle.connect({ deviceId: target.deviceId });
+      if (!result.connected) {
+        this.setStatus("error", "Muse connection failed");
+        throw new Error("Connection failed");
+      }
+    } catch (e) {
+      this.setStatus("error", `Connection failed: ${e instanceof Error ? e.message : String(e)}`);
+      this.deviceId = null;
+      throw e;
+    }
+
+    this.startEmitter();
+    this.setStatus("streaming");
+  }
+
   // ── Web Bluetooth internals ─────────────────────────────────────────────────
   private _webGattServer: BluetoothRemoteGATTServer | null = null;
 
@@ -451,13 +522,16 @@ export class MuseBleManager {
       );
     }
 
-    // Prefer Web Bluetooth — proven to work with Muse on Chrome/Android
-    // Capacitor BLE plugin has GATT discovery issues on Android 16+
+    // On Android native: use our custom MuseBle native plugin (bypasses Capacitor BLE GATT issues)
+    if (this.isNative && Capacitor.getPlatform() === "android") {
+      return this._connectNativeMusePlugin();
+    }
+
+    // Web Bluetooth path (Chrome desktop/Android browser)
     if (this.isWebBluetooth) {
       try {
         return await this._connectWebBluetooth();
       } catch (webBtErr) {
-        // Web Bluetooth not supported in this WebView — fall back to Capacitor
         const msg = String(webBtErr);
         if (msg.includes("requestDevice") || msg.includes("not a function") || msg.includes("not supported") || msg.includes("SecurityError")) {
           console.warn("Web Bluetooth unavailable in WebView, falling back to Capacitor BLE:", msg);
