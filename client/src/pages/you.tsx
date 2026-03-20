@@ -169,36 +169,18 @@ export default function You() {
   const [healthConnected] = useState(() => getHealthConnectStatus());
   const [museConnected] = useState(() => getMuseStatus());
 
-  const { data: streakData } = useQuery<StreakStatus>({
-    queryKey: ["/api/streaks/status", userId],
-    queryFn: async () => {
-      try {
-        const res = await fetch(resolveUrl(`/api/streaks/status/${userId}`));
-        if (!res.ok) return { current_streak: 0, longest_streak: 0 };
-        return res.json();
-      } catch {
-        return { current_streak: 0, longest_streak: 0 };
-      }
-    },
-    retry: false,
-  });
+  // Streak from localStorage (updated by bottom-tabs on every voice check-in)
+  const streak = (() => {
+    try { return parseInt(localStorage.getItem("ndw_streak_count") || "0", 10); } catch { return 0; }
+  })();
 
-  const { data: sessionData } = useQuery<SessionCount>({
-    queryKey: ["/api/sessions/count", userId],
-    queryFn: async () => {
-      try {
-        const res = await fetch(resolveUrl(`/api/sessions/count/${userId}`));
-        if (!res.ok) return { count: 0 };
-        return res.json();
-      } catch {
-        return { count: 0 };
-      }
-    },
+  // Session count from brain history API (each voice analysis = 1 session)
+  const { data: historyData } = useQuery<Array<{ timestamp: string }>>({
+    queryKey: [`/api/brain/history/${userId}?days=30`],
     retry: false,
+    staleTime: 60_000,
   });
-
-  const streak = streakData?.current_streak ?? 0;
-  const sessions = sessionData?.count ?? 0;
+  const sessions = Array.isArray(historyData) ? historyData.length : 0;
 
   const displayName = user?.username ?? "Dreamer";
   const initial = displayName.charAt(0).toUpperCase();
