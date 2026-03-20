@@ -515,6 +515,14 @@ class SelfReportRequest(BaseModel):
     features: Optional[List[float]] = None
 
 
+class BinaryFeedbackRequest(BaseModel):
+    user_id: str = Field(..., description="User identifier")
+    model_name: str = Field(..., description="Model being rated")
+    predicted_state: str = Field(..., description="What the model predicted")
+    was_correct: bool = Field(..., description="True if prediction was correct")
+    features: Optional[List[float]] = None
+
+
 class EmotionShiftRequest(BaseModel):
     signals: List[List[float]] = Field(..., description="EEG signals (channels x samples)")
     fs: float = Field(default=256.0)

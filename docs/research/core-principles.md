@@ -81,4 +81,12 @@
 
 **Implication:** When building any daily-check feature: (1) place the share button within 1 tap of the score reveal, (2) generate a visually polished image card that includes the score, branding, and a brief insight -- text-only shares have 3-5x lower engagement than image shares on social platforms, (3) use `navigator.share` with file support for native share sheets on mobile (higher completion rate than clipboard copy), (4) only show the share button when there is meaningful data (score > 0) -- sharing an empty state degrades brand perception.
 
+### 10. User-Reported Accuracy Must Be Labeled as Subjective, Not Clinical
+
+**Principle:** When computing per-user model accuracy from correction feedback ("Was this right?"), the result must always be labeled as "user-perceived accuracy" with a disclaimer, never as "model accuracy" or "diagnostic accuracy." The denominator must count only entries that carry a correctness signal (state corrections + binary feedback), excluding self-reports which contribute training data but no accuracy measurement.
+
+**Evidence:** `get_feedback_stats()` in `user_feedback.py` double-counted state corrections in the accuracy denominator, computing `feedback_total = corrections + (total - reports)` which expanded to `2 * corrections + binary_feedback` instead of the correct `corrections + binary_feedback`. A user with 8 corrections (6 correct) and 2 self-reports would see accuracy = 0.375 instead of the true 0.75. Additionally, the `record_binary_feedback()` method existed but had no API route to call it, and there was no endpoint to retrieve the accuracy stats at all. The computed `user_perceived_accuracy` was silently buried inside `personalization/status` for only 6 hardcoded models.
+
+**Implication:** When building any user-feedback-driven accuracy metric: (1) clearly separate entries that measure accuracy (corrections, binary up/down) from entries that contribute training data (self-reports), (2) always include a disclaimer explaining that accuracy reflects user agreement rate, not clinical validation, (3) expose the metric via a dedicated GET endpoint so the frontend can build a "Your Model Accuracy" card, (4) never present user-reported accuracy alongside clinical benchmark numbers without clearly distinguishing them.
+
 <!-- Principles will be appended below by the research agent -->

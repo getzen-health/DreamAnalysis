@@ -291,3 +291,46 @@ class TestUserFeedback:
         pm = PersonalizedModel("test", "flow_state")
         pm.fit(X, y)
         assert pm.is_fitted is False
+
+    def test_accuracy_no_double_count(self):
+        """user_perceived_accuracy must not double-count state corrections."""
+        from processing.user_feedback import FeedbackCollector, FEEDBACK_DIR
+
+        fc = FeedbackCollector("_pytest_acc")
+        # 8 corrections: predicted == corrected (was_correct=True) for 6,
+        # predicted != corrected (was_correct=False) for 2 → accuracy = 6/8 = 0.75
+        for i in range(8):
+            correct = "happy" if i < 6 else "sad"
+            fc.record_state_correction(
+                "emotion", "happy", correct, np.random.randn(17)
+            )
+        # 2 self-reports (should NOT affect accuracy denominator)
+        for _ in range(2):
+            fc.record_self_report("neutral", "emotion", np.random.randn(17))
+
+        stats = fc.get_feedback_stats()
+        model = stats["models"]["emotion"]
+        # Total = 10 (8 corrections + 2 reports), rated = 8 (total - reports)
+        assert model["total"] == 10
+        assert model["reports"] == 2
+        assert model["correct"] == 6
+        assert model["user_perceived_accuracy"] == 0.75
+
+        # Cleanup
+        os.unlink(FEEDBACK_DIR / "_pytest_acc_feedback.jsonl")
+
+    def test_binary_feedback_accuracy(self):
+        """Binary feedback (thumbs up/down) should be counted in accuracy."""
+        from processing.user_feedback import FeedbackCollector, FEEDBACK_DIR
+
+        fc = FeedbackCollector("_pytest_bin")
+        # 4 binary correct, 1 binary wrong → accuracy = 4/5 = 0.8
+        for i in range(5):
+            fc.record_binary_feedback("stress", "high", was_correct=(i < 4))
+
+        stats = fc.get_feedback_stats()
+        model = stats["models"]["stress"]
+        assert model["correct"] == 4
+        assert model["user_perceived_accuracy"] == 0.8
+
+        os.unlink(FEEDBACK_DIR / "_pytest_bin_feedback.jsonl")

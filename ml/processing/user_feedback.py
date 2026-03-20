@@ -147,9 +147,11 @@ class FeedbackCollector:
             elif entry["type"] == "self_report":
                 model_stats[model]["reports"] += 1
 
-        # Compute per-model accuracy where we have feedback
+        # Compute per-model accuracy where we have feedback.
+        # feedback_total = all entries that carry a was_correct signal
+        # (state_correction + binary_feedback, i.e. total minus self_reports).
         for model, stats in model_stats.items():
-            feedback_total = stats["corrections"] + (stats["total"] - stats["reports"])
+            feedback_total = stats["total"] - stats["reports"]
             if feedback_total > 0:
                 stats["user_perceived_accuracy"] = round(
                     stats["correct"] / feedback_total, 3

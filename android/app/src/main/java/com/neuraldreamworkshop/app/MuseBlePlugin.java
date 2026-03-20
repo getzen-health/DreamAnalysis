@@ -53,6 +53,7 @@ public class MuseBlePlugin extends Plugin {
     private boolean isStreaming = false;
     private int subscribedChannels = 0;
     private int pendingDescriptorWrites = 0;
+    private boolean commandsSent = false; // true after preset+start sent
 
     @PluginMethod
     public void scan(PluginCall call) {
@@ -128,6 +129,7 @@ public class MuseBlePlugin extends Plugin {
         }
         isStreaming = false;
         subscribedChannels = 0;
+        commandsSent = false;
 
         BluetoothDevice device;
         try {
@@ -162,7 +164,7 @@ public class MuseBlePlugin extends Plugin {
 
             @Override
             public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-                Log.d(TAG, "Services discovered: " + status + " count: " + gatt.getServices().size());
+                Log.d(TAG, "Services discovered: " + status + " count: " + gatt.getServices().size() + " commandsSent: " + commandsSent);
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     rejectConnect("Service discovery failed");
                     return;
@@ -178,18 +180,35 @@ public class MuseBlePlugin extends Plugin {
                     return;
                 }
 
-                handler.postDelayed(() -> {
-                    BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CONTROL_CHAR);
-                    if (ctrl == null) {
-                        rejectConnect("Control characteristic not found");
-                        return;
-                    }
-                    writeChar(gatt, ctrl, CMD_PRESET);
+                // Log all characteristics in the service
+                Log.d(TAG, "Muse service has " + svc.getCharacteristics().size() + " characteristics:");
+                for (BluetoothGattCharacteristic c : svc.getCharacteristics()) {
+                    Log.d(TAG, "  Char: " + c.getUuid() + " props: " + c.getProperties());
+                }
+
+                if (!commandsSent) {
+                    // FIRST discovery: send preset + start commands, then re-discover
+                    commandsSent = true;
                     handler.postDelayed(() -> {
-                        writeChar(gatt, ctrl, CMD_START);
-                        handler.postDelayed(() -> subscribeEeg(gatt, svc), 500);
+                        BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CONTROL_CHAR);
+                        if (ctrl == null) {
+                            rejectConnect("Control characteristic not found");
+                            return;
+                        }
+                        writeChar(gatt, ctrl, CMD_PRESET);
+                        handler.postDelayed(() -> {
+                            writeChar(gatt, ctrl, CMD_START);
+                            // Re-discover after Muse reconfigures its GATT table
+                            handler.postDelayed(() -> {
+                                Log.d(TAG, "Re-discovering services after preset+start...");
+                                try { gatt.discoverServices(); } catch (SecurityException ignored) {}
+                            }, 2000);
+                        }, 500);
                     }, 500);
-                }, 500);
+                } else {
+                    // SECOND discovery: subscribe to EEG channels
+                    handler.postDelayed(() -> subscribeEeg(gatt, svc), 500);
+                }
             }
 
             @Override
@@ -207,18 +226,34 @@ public class MuseBlePlugin extends Plugin {
             public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor desc, int status) {
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     subscribedChannels++;
-                    Log.d(TAG, "Subscribed " + subscribedChannels + "/4");
+                    Log.d(TAG, "Subscribed channel " + subscribedChannels);
+                } else {
+                    Log.e(TAG, "Descriptor write failed: " + status);
                 }
+                // Trigger next channel subscription (subscribeNextChannel handles completion)
                 pendingDescriptorWrites--;
-                if (pendingDescriptorWrites <= 0) {
-                    if (subscribedChannels > 0) {
-                        isStreaming = true;
-                        JSObject r = new JSObject();
-                        r.put("connected", true);
-                        r.put("channels", subscribedChannels);
-                        resolveConnect(r);
+                // Find which EEG char this descriptor belongs to and subscribe next
+                BluetoothGattService svc = gatt.getService(MUSE_SERVICE);
+                if (svc != null) {
+                    List<BluetoothGattCharacteristic> eegChars = new ArrayList<>();
+                    for (UUID u : EEG_CHARS) {
+                        BluetoothGattCharacteristic c = svc.getCharacteristic(u);
+                        if (c != null) eegChars.add(c);
+                    }
+                    int nextIdx = subscribedChannels + (subscribedChannels < eegChars.size() ? 0 : 0);
+                    if (nextIdx < eegChars.size()) {
+                        handler.postDelayed(() -> subscribeNextChannel(gatt, eegChars, nextIdx), 250);
                     } else {
-                        rejectConnect("No EEG channels subscribed");
+                        // All channels processed
+                        if (subscribedChannels > 0) {
+                            isStreaming = true;
+                            JSObject r = new JSObject();
+                            r.put("connected", true);
+                            r.put("channels", subscribedChannels);
+                            resolveConnect(r);
+                        } else {
+                            rejectConnect("No EEG channels subscribed");
+                        }
                     }
                 }
             }
@@ -323,34 +358,31 @@ public class MuseBlePlugin extends Plugin {
         subscribedChannels = 0;
         pendingDescriptorWrites = 0;
 
+        // Collect available EEG characteristics
+        List<BluetoothGattCharacteristic> eegChars = new ArrayList<>();
         for (int i = 0; i < EEG_CHARS.length; i++) {
             BluetoothGattCharacteristic ch = svc.getCharacteristic(EEG_CHARS[i]);
-            if (ch == null) {
-                Log.e(TAG, "EEG char " + i + " not found");
-                continue;
+            if (ch != null) {
+                eegChars.add(ch);
+                Log.d(TAG, "EEG char " + i + " found: " + ch.getUuid());
+            } else {
+                Log.e(TAG, "EEG char " + i + " NOT found: " + EEG_CHARS[i]);
             }
-            try {
-                gatt.setCharacteristicNotification(ch, true);
-                BluetoothGattDescriptor desc = ch.getDescriptor(CCC_DESCRIPTOR);
-                if (desc != null) {
-                    pendingDescriptorWrites++;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        gatt.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                    } else {
-                        desc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                        gatt.writeDescriptor(desc);
-                    }
-                }
-            } catch (SecurityException e) {
-                Log.e(TAG, "Subscribe denied ch " + i + ": " + e.getMessage());
-            }
-
-            // Wait between descriptor writes (BLE requires sequential)
-            try { Thread.sleep(250); } catch (InterruptedException ignored) {}
         }
 
-        // If no descriptor writes were needed, resolve immediately
-        if (pendingDescriptorWrites == 0) {
+        if (eegChars.isEmpty()) {
+            rejectConnect("No EEG characteristics found in Muse service");
+            return;
+        }
+
+        // Subscribe one at a time with delays (BLE requires sequential descriptor writes)
+        pendingDescriptorWrites = eegChars.size();
+        subscribeNextChannel(gatt, eegChars, 0);
+    }
+
+    private void subscribeNextChannel(BluetoothGatt gatt, List<BluetoothGattCharacteristic> chars, int index) {
+        if (index >= chars.size()) {
+            // All done
             if (subscribedChannels > 0) {
                 isStreaming = true;
                 JSObject r = new JSObject();
@@ -358,8 +390,32 @@ public class MuseBlePlugin extends Plugin {
                 r.put("channels", subscribedChannels);
                 resolveConnect(r);
             } else {
-                rejectConnect("No EEG channels available");
+                rejectConnect("Failed to subscribe to any EEG channel");
             }
+            return;
+        }
+
+        BluetoothGattCharacteristic ch = chars.get(index);
+        try {
+            gatt.setCharacteristicNotification(ch, true);
+            BluetoothGattDescriptor desc = ch.getDescriptor(CCC_DESCRIPTOR);
+            if (desc != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    gatt.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                } else {
+                    desc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                    gatt.writeDescriptor(desc);
+                }
+                // onDescriptorWrite callback will trigger next channel
+            } else {
+                // No descriptor needed — count as subscribed
+                subscribedChannels++;
+                // Subscribe next after short delay
+                handler.postDelayed(() -> subscribeNextChannel(gatt, chars, index + 1), 100);
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "Subscribe denied: " + e.getMessage());
+            handler.postDelayed(() -> subscribeNextChannel(gatt, chars, index + 1), 100);
         }
     }
 

@@ -20,6 +20,7 @@ from ._shared import (
     preprocess, extract_features,
     SignalQualityRequest, CalibrationEpochRequest,
     AccurateAnalysisRequest, FeedbackRequest, SelfReportRequest,
+    BinaryFeedbackRequest,
 )
 
 router = APIRouter()
@@ -182,6 +183,62 @@ async def submit_self_report(req: SelfReportRequest):
     features = np.array(req.features) if req.features else None
     fc.record_self_report(req.reported_state, req.model_name, features)
     return {"status": "recorded"}
+
+
+@router.post("/feedback/binary")
+async def submit_binary_feedback(req: BinaryFeedbackRequest):
+    """Submit simple right/wrong feedback on a prediction.
+
+    This is the fastest feedback path: the user just taps thumbs-up
+    or thumbs-down on a prediction. No need to specify the correct label.
+    """
+    fc = FeedbackCollector(req.user_id)
+    features = np.array(req.features) if req.features else None
+    fc.record_binary_feedback(
+        req.model_name, req.predicted_state, req.was_correct, features
+    )
+    stats = fc.get_feedback_stats()
+    model_acc = stats.get("models", {}).get(req.model_name, {})
+    return {
+        "status": "recorded",
+        "total_feedback": stats["total_entries"],
+        "model_accuracy": model_acc.get("user_perceived_accuracy"),
+    }
+
+
+@router.get("/feedback/stats/{user_id}")
+async def get_feedback_stats(user_id: str):
+    """Get per-model accuracy stats computed from the user's own corrections.
+
+    Returns how often each model got it right *for this specific user*,
+    based on their correction and binary feedback history. This powers
+    the "Your Model Accuracy" card in the UI.
+    """
+    fc = FeedbackCollector(user_id)
+    stats = fc.get_feedback_stats()
+
+    # Build a user-friendly per-model accuracy summary
+    accuracy_cards = {}
+    for model_name, model_stats in stats.get("models", {}).items():
+        rated_count = model_stats["total"] - model_stats["reports"]
+        accuracy_cards[model_name] = {
+            "accuracy": model_stats.get("user_perceived_accuracy"),
+            "correct": model_stats["correct"],
+            "rated": rated_count,
+            "total_feedback": model_stats["total"],
+            "self_reports": model_stats["reports"],
+        }
+
+    return {
+        "user_id": user_id,
+        "total_entries": stats["total_entries"],
+        "models": accuracy_cards,
+        "disclaimer": (
+            "Accuracy reflects how often the model matched YOUR corrections, "
+            "not clinical diagnostic accuracy. Based on "
+            f"{stats['total_entries']} feedback entries."
+        ),
+    }
 
 
 @router.get("/personalization/status/{user_id}")
