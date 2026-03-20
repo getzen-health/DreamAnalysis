@@ -325,7 +325,7 @@ export function VoiceCheckinCard({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ correctedEmotion: emotion }),
-    }).catch(() => {});
+    }).catch((err) => console.error("Failed to save emotion correction:", err));
   }, [resolvedUserId]);
 
   const confirmEmotion = useCallback(async () => {
@@ -544,7 +544,7 @@ export function VoiceCheckinCard({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: resolvedUserId, checkin_type: "voice" }),
-        }).catch(() => {}); // ignore errors — streak is best-effort
+        }).catch((err) => console.error("Failed to save streak check-in:", err));
 
         // Save emotion reading to Express DB so Daily Report + Session History see it
         fetch(resolveUrl("/api/emotion-readings/batch"), {
@@ -563,7 +563,23 @@ export function VoiceCheckinCard({
               arousal: checkinResult.arousal,
             }],
           }),
-        }).catch(() => {}); // best-effort — don't break the flow
+        }).catch((err) => console.error("Failed to save voice reading:", err));
+
+        // Also save to userReadings for the brain history merge
+        fetch(resolveUrl("/api/user-readings"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: resolvedUserId,
+            source: "voice",
+            emotion: checkinResult.emotion,
+            valence: checkinResult.valence,
+            arousal: checkinResult.arousal,
+            stress: checkinResult.stress_index,
+            confidence: checkinResult.confidence,
+            modelType: checkinResult.model_type || "voice",
+          }),
+        }).catch((err) => console.error("Failed to save user reading:", err));
 
         // Invalidate cached queries so Daily Report, Sessions, Streak, and Emotion Lab update
         queryClient.invalidateQueries({ queryKey: ["streak-status"] });
@@ -577,6 +593,7 @@ export function VoiceCheckinCard({
         // Emotion Lab mood trends + recent readings
         queryClient.invalidateQueries({ queryKey: [`/api/brain/history/${resolvedUserId}?days=1`] });
         queryClient.invalidateQueries({ queryKey: [`/api/brain/history/${resolvedUserId}?days=7`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/brain/history/${resolvedUserId}?days=30`] });
         // Inner Energy voice fallback
         queryClient.invalidateQueries({ queryKey: ["voice-inner-energy", resolvedUserId] });
         // Food-emotion correlation

@@ -1601,6 +1601,18 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
+  // POST /api/user-readings — insert a single reading into userReadings (voice/food/health)
+  app.post("/api/user-readings", async (req, res) => {
+    try {
+      const data = req.body;
+      const rows = await db.insert(userReadings).values(data).returning();
+      res.json(rows[0]);
+    } catch (error) {
+      console.error("User reading save error:", error);
+      res.status(500).json({ message: "Failed to save reading" });
+    }
+  });
+
   // POST /api/datadog/webhook — Datadog monitor webhook receiver + auto-remediation
   app.post("/api/datadog/webhook", async (req, res) => {
     try {
