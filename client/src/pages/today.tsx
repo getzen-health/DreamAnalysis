@@ -924,6 +924,58 @@ export default function Today() {
               barGradient="linear-gradient(90deg, #d4a017, #ea580c)"
             />
           </motion.div>
+
+          {/* ── Quick Listen — Spotify Music Section ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.5, ease: "easeOut" }}
+            style={{ marginBottom: 14 }}
+          >
+            <div style={{
+              fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+              textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 8,
+            }}>
+              Quick Listen
+            </div>
+            <div style={{
+              display: "flex", gap: 10, overflowX: "auto",
+              paddingBottom: 4, scrollbarWidth: "none",
+              WebkitOverflowScrolling: "touch",
+            }}>
+              {[
+                { emoji: "\uD83C\uDFB5", title: "Focus", url: "https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ" },
+                { emoji: "\uD83E\uDDD8", title: "Calm", url: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO" },
+                { emoji: "\uD83C\uDF19", title: "Sleep", url: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp" },
+                { emoji: "\uD83C\uDFC3", title: "Workout", url: "https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" },
+                { emoji: "\uD83C\uDF3F", title: "Energize", url: "https://open.spotify.com/playlist/37i9dQZF1DX3rxVfibe1L0" },
+              ].map((card) => (
+                <button
+                  key={card.title}
+                  onClick={() => window.open(card.url, "_blank")}
+                  style={{
+                    flex: "0 0 auto",
+                    width: 90,
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 20,
+                    padding: "12px 8px",
+                    textAlign: "center" as const,
+                    cursor: "pointer",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                  }}
+                  onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
+                  onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                >
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>{card.emoji}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)" }}>{card.title}</div>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
         </motion.div>
       </motion.main>
     </>
