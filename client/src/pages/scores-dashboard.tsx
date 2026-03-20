@@ -34,6 +34,7 @@ import { ScoreGauge } from "@/components/score-gauge";
 import { EnergyBattery } from "@/components/energy-battery";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { EmotionStrip } from "@/components/emotion-strip";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -162,11 +163,81 @@ export default function ScoresDashboard() {
     setDismissedAlerts((prev) => new Set(prev).add(id));
   };
 
-  // Loading state
+  // Loading state — skeleton that mirrors the real layout
   if (scoresLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="h-6 w-6 rounded-full border-2 border-ndw-energy border-t-transparent animate-spin" />
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {/* Header skeleton */}
+        <div>
+          <Skeleton className="h-6 w-36 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+
+        {/* Energy Bank hero skeleton */}
+        <div className="flex justify-center py-6 rounded-2xl bg-card/80 border border-border">
+          <Skeleton className="h-28 w-28 rounded-full" />
+        </div>
+
+        {/* Primary Scores 2x2 grid skeleton */}
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-2xl p-4 bg-card border border-border"
+              style={{ borderLeft: "3px solid var(--border)" }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-7 w-7 rounded-lg" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                </div>
+                <Skeleton className="h-14 w-14 rounded-full shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Secondary row skeleton */}
+        <div className="grid grid-cols-2 gap-3">
+          <div
+            className="rounded-2xl p-4 bg-card border border-border"
+            style={{ borderLeft: "3px solid var(--border)" }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Skeleton className="h-7 w-7 rounded-lg" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+            <Skeleton className="h-14 w-14 rounded-full ml-auto" />
+          </div>
+          <div
+            className="rounded-2xl p-4 bg-card border border-border"
+            style={{ borderLeft: "3px solid var(--border)" }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Skeleton className="h-7 w-7 rounded-lg" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-3 w-16 ml-9" />
+          </div>
+        </div>
+
+        {/* Today's Summary skeleton */}
+        <div className="rounded-2xl p-5 bg-card border border-border">
+          <Skeleton className="h-4 w-12 mb-4" />
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between py-1">
+                <div className="flex items-center gap-2.5">
+                  <Skeleton className="h-4 w-4 rounded" />
+                  <Skeleton className="h-3.5 w-24" />
+                </div>
+                <Skeleton className="h-3.5 w-12" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

@@ -41,4 +41,12 @@
 
 **Implication:** NDW must synthesize its 16 ML models, sleep staging, HRV, and voice biomarkers into a single Daily Wellness Score (issue #464). The score should be the first thing on the Home page, available via push notification on mobile, and rendered as a shareable image card for social growth. Without this, NDW remains a "dashboard app" — interesting to explore but not habit-forming.
 
+### 5. Loading States Must Mirror Content Layout (Skeleton-First)
+
+**Principle:** Every page loading state must use skeleton placeholders that match the real content layout -- same grid, same card sizes, same spatial hierarchy. A bare spinner on an empty page signals "nothing here yet" and creates layout shift when content arrives. A skeleton signals "your data is coming" and trains the eye to where content will appear.
+
+**Evidence:** The scores dashboard (main health overview) used a centered spinner while dashboard, settings, session-history, and daily-brain-report all used layout-matching skeletons. Oura and Whoop both show shimmer layouts that preview the real content structure during loading. Nielsen Norman Group research on perceived performance shows skeleton screens reduce perceived wait time by 10-20% compared to spinners because they give users spatial context and a sense of progress.
+
+**Implication:** When adding any new page: (1) build the skeleton loading state FIRST, matching the real layout's grid, card count, and section hierarchy, (2) use the existing `Skeleton` component from shadcn/ui, (3) never use a bare spinner as the only loading indicator for a full-page load. Reserve spinners for inline actions (button presses, small data fetches within an already-rendered page).
+
 <!-- Principles will be appended below by the research agent -->
