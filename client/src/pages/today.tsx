@@ -27,6 +27,7 @@ interface EmotionCheckin {
 interface FoodLog {
   totalCalories?: number;
   date?: string;
+  loggedAt?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -487,9 +488,21 @@ export default function Today() {
     };
   }, []);
 
-  // Fetch food logs for today
+  // Fetch food logs for today — API with localStorage fallback
   const { data: foodLogs } = useQuery<FoodLog[]>({
-    queryKey: [resolveUrl(`/api/food/logs/${userId}`)],
+    queryKey: ["/api/food/logs", userId],
+    queryFn: async () => {
+      try {
+        const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) return data;
+        }
+      } catch { /* API unavailable */ }
+      try {
+        return JSON.parse(localStorage.getItem(`ndw_food_logs_${userId}`) || "[]");
+      } catch { return []; }
+    },
     retry: false,
   });
 
@@ -497,7 +510,7 @@ export default function Today() {
   const todayCalories = useMemo(() => {
     if (!foodLogs) return 0;
     return foodLogs
-      .filter((l) => l.date?.startsWith(today))
+      .filter((l) => (l.date ?? l.loggedAt ?? "").startsWith(today))
       .reduce((sum, l) => sum + (l.totalCalories ?? 0), 0);
   }, [foodLogs, today]);
 
