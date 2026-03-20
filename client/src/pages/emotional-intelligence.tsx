@@ -210,7 +210,13 @@ export default function EmotionalIntelligencePage() {
   // Latest EIQ entry
   const history = histQ.data?.history ?? [];
   const latest = history.length > 0 ? history[history.length - 1] : null;
+  const previous = history.length > 1 ? history[history.length - 2] : null;
   const fw = modalQ.data?.fusion_weights ?? { eeg: 0.5, audio: 0, video: 0 };
+
+  // EIQ trend delta
+  const eiqDelta = (latest && previous)
+    ? latest.eiq_score - previous.eiq_score
+    : null;
 
   // Chart data
   const chartData = history.map((h, i) => ({
@@ -250,7 +256,21 @@ export default function EmotionalIntelligencePage() {
         <>
           {/* Score + stats row */}
           <div className="grid grid-cols-[auto,1fr] gap-4 items-start">
-            <ScoreCircle score={latest.eiq_score} grade={latest.eiq_grade} />
+            <div className="flex flex-col items-center gap-1">
+              <ScoreCircle score={latest.eiq_score} grade={latest.eiq_grade} />
+              {eiqDelta != null && Math.abs(eiqDelta) > 2 && (
+                <div className="flex items-center gap-1 mt-1">
+                  {eiqDelta > 0 ? (
+                    <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
+                  ) : (
+                    <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+                  )}
+                  <span className={`text-xs ${eiqDelta > 0 ? "text-cyan-400" : "text-rose-400"}`}>
+                    {eiqDelta > 0 ? "+" : ""}{Math.round(eiqDelta)} vs last
+                  </span>
+                </div>
+              )}
+            </div>
             <div className="space-y-2 pt-2">
               <div className="flex gap-3 text-sm">
                 <div>

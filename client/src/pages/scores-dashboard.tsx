@@ -9,7 +9,7 @@
  * 5. Trend Alerts: dismissable list
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Heart,
@@ -32,9 +32,10 @@ import { useScores } from "@/hooks/use-scores";
 import { ScoreCard } from "@/components/score-card";
 import { ScoreGauge } from "@/components/score-gauge";
 import { EnergyBattery } from "@/components/energy-battery";
-import { getMLApiUrl } from "@/lib/ml-api";
+import { getMLApiUrl, listSessions, type SessionSummary } from "@/lib/ml-api";
 import { EmotionStrip } from "@/components/emotion-strip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getParticipantId } from "@/lib/participant";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -154,6 +155,46 @@ export default function ScoresDashboard() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+
+  // Fetch session data for trend arrows
+  const participantId = getParticipantId();
+  const { data: sessions } = useQuery<SessionSummary[]>({
+    queryKey: ["sessions", participantId],
+    queryFn: () => listSessions(participantId),
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  // Compute trend deltas from last two sessions for each score type
+  const scoreTrends = useMemo(() => {
+    if (!sessions || sessions.length < 2) return null;
+    const sorted = [...sessions]
+      .filter((s) => s.summary)
+      .sort((a, b) => (a.start_time ?? 0) - (b.start_time ?? 0));
+    if (sorted.length < 2) return null;
+    const prev = sorted[sorted.length - 2].summary;
+    const cur = sorted[sorted.length - 1].summary;
+
+    function computeTrend(curVal: number | undefined | null, prevVal: number | undefined | null): { trend: "up" | "down" | "stable"; trendValue: string } | null {
+      if (curVal == null || prevVal == null) return null;
+      const delta = (curVal - prevVal) * 100;
+      if (Math.abs(delta) <= 2) return null;
+      return {
+        trend: delta > 0 ? "up" : "down",
+        trendValue: `${delta > 0 ? "+" : ""}${Math.round(delta)}% vs last`,
+      };
+    }
+
+    return {
+      // Map session avg fields to score card names
+      // Recovery maps to relaxation, Sleep maps to avg_relaxation too (best proxy),
+      // Strain maps to arousal, Stress maps to avg_stress, Nutrition is not in sessions
+      stress: computeTrend(cur.avg_stress, prev.avg_stress),
+      recovery: computeTrend(cur.avg_relaxation, prev.avg_relaxation),
+      focus: computeTrend(cur.avg_focus, prev.avg_focus),
+      strain: computeTrend(cur.avg_arousal, prev.avg_arousal),
+    };
+  }, [sessions]);
 
   const visibleAlerts = (trendAlerts ?? []).filter(
     (a) => !dismissedAlerts.has(a.id)
@@ -286,26 +327,37 @@ export default function ScoresDashboard() {
       {/* ── Primary Scores Grid (2x2) ─────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { title: "Recovery", value: scores?.recoveryScore ?? null, color: "recovery" as const, icon: <Heart className="h-3.5 w-3.5 text-ndw-recovery" /> },
-          { title: "Sleep", value: scores?.sleepScore ?? null, color: "sleep" as const, icon: <Moon className="h-3.5 w-3.5 text-ndw-sleep" /> },
-          { title: "Strain", value: scores?.strainScore ?? null, color: "strain" as const, icon: <Flame className="h-3.5 w-3.5 text-ndw-strain" /> },
-          { title: "Stress", value: scores?.stressScore ?? null, color: "stress" as const, icon: <Brain className="h-3.5 w-3.5 text-ndw-stress" /> },
-        ].map((card, i) => (
-          <motion.div
-            key={card.title}
-            custom={i}
-            initial="hidden"
-            animate="visible"
-            variants={cardVariants}
-          >
-            <ScoreCard
-              title={card.title}
-              value={card.value}
-              color={card.color}
-              icon={card.icon}
-            />
-          </motion.div>
-        ))}
+          { title: "Recovery", value: scores?.recoveryScore ?? null, color: "recovery" as const, icon: <Heart className="h-3.5 w-3.5 text-ndw-recovery" />, trendKey: "recovery" as const },
+          { title: "Sleep", value: scores?.sleepScore ?? null, color: "sleep" as const, icon: <Moon className="h-3.5 w-3.5 text-ndw-sleep" />, trendKey: null },
+          { title: "Strain", value: scores?.strainScore ?? null, color: "strain" as const, icon: <Flame className="h-3.5 w-3.5 text-ndw-strain" />, trendKey: "strain" as const },
+          { title: "Stress", value: scores?.stressScore ?? null, color: "stress" as const, icon: <Brain className="h-3.5 w-3.5 text-ndw-stress" />, trendKey: "stress" as const },
+        ].map((card, i) => {
+          const t = card.trendKey && scoreTrends ? scoreTrends[card.trendKey] : null;
+          // For stress, invert the arrow color logic: up stress is bad (rose), down stress is good (cyan)
+          // ScoreCard already uses cyan for "up" and rose for "down", so for stress we flip the trend direction display
+          const trendForStress = card.title === "Stress" && t ? {
+            trend: (t.trend === "up" ? "up" : "down") as "up" | "down",
+            trendValue: t.trendValue,
+          } : t;
+          return (
+            <motion.div
+              key={card.title}
+              custom={i}
+              initial="hidden"
+              animate="visible"
+              variants={cardVariants}
+            >
+              <ScoreCard
+                title={card.title}
+                value={card.value}
+                color={card.color}
+                icon={card.icon}
+                trend={trendForStress?.trend}
+                trendValue={trendForStress?.trendValue}
+              />
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* ── Secondary Row ─────────────────────────────────────────────── */}
@@ -320,6 +372,7 @@ export default function ScoresDashboard() {
           value={scores?.nutritionScore ?? null}
           color="nutrition"
           icon={<Apple className="h-3.5 w-3.5 text-ndw-nutrition" />}
+          // Nutrition has no session-level proxy, no trend arrow
         />
         {/* Cardio Load status card (uses strain color for visual grouping) */}
         <div

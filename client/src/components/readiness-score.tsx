@@ -8,9 +8,9 @@
  *   sleep quality (40%), stress avg (25%), HRV trend (20%), voice emotion (15%)
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, TrendingUp, TrendingDown } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -225,6 +225,16 @@ export function ReadinessScore({ userId }: ReadinessScoreProps) {
   const sparkData = history.map((h) => ({ date: h.date, score: h.score ?? 0 }));
   const lineColor = scoreColor(color);
 
+  // Compute trend from history: compare today vs previous day
+  const readinessTrend = useMemo(() => {
+    const validHistory = history.filter((h) => h.score != null);
+    if (validHistory.length < 2) return null;
+    const prevScore = validHistory[validHistory.length - 2].score!;
+    const delta = score - prevScore;
+    if (Math.abs(delta) <= 2) return null;
+    return { delta, direction: delta > 0 ? "up" as const : "down" as const };
+  }, [history, score]);
+
   return (
     <Card className="bg-card rounded-xl border border-border/50 shadow-sm">
       <CardContent className="p-4">
@@ -237,6 +247,18 @@ export function ReadinessScore({ userId }: ReadinessScoreProps) {
             <p className={`text-sm font-semibold mt-0.5 ${scoreColorClass(color)}`}>
               {label}
             </p>
+            {readinessTrend && (
+              <div className="flex items-center gap-1 mt-1">
+                {readinessTrend.direction === "up" ? (
+                  <TrendingUp className="h-3 w-3 text-cyan-400" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 text-rose-400" />
+                )}
+                <span className={`text-[10px] ${readinessTrend.direction === "up" ? "text-cyan-400" : "text-rose-400"}`}>
+                  {readinessTrend.delta > 0 ? "+" : ""}{Math.round(readinessTrend.delta)} vs last
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Circular score */}

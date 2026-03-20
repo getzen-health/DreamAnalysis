@@ -8,6 +8,7 @@ import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
 import { CommunityMood } from "@/components/community-mood";
+import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -405,6 +406,32 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch session data for trend comparison
+  const { data: sessions } = useQuery<SessionSummary[]>({
+    queryKey: ["sessions", userId],
+    queryFn: () => listSessions(userId),
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  // Compute trend deltas from last two sessions
+  const trends = useMemo(() => {
+    if (!sessions || sessions.length < 2) return null;
+    const sorted = [...sessions]
+      .filter((s) => s.summary && (s.summary.avg_stress != null || s.summary.avg_focus != null))
+      .sort((a, b) => (a.start_time ?? 0) - (b.start_time ?? 0));
+    if (sorted.length < 2) return null;
+    const prev = sorted[sorted.length - 2].summary;
+    const cur = sorted[sorted.length - 1].summary;
+    const stressDelta = (cur.avg_stress != null && prev.avg_stress != null)
+      ? (cur.avg_stress - prev.avg_stress) * 100
+      : null;
+    const focusDelta = (cur.avg_focus != null && prev.avg_focus != null)
+      ? (cur.avg_focus - prev.avg_focus) * 100
+      : null;
+    return { stressDelta, focusDelta };
+  }, [sessions]);
+
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data) || data.length === 0) return [];
     // Group by day, average values
@@ -455,10 +482,34 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#e879a8" }}>{current.stress}%</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Stress</div>
+              {trends?.stressDelta != null && Math.abs(trends.stressDelta) > 2 && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginTop: 2 }}>
+                  {trends.stressDelta > 0 ? (
+                    <TrendingUp style={{ width: 12, height: 12, color: "#e879a8" }} />
+                  ) : (
+                    <TrendingDown style={{ width: 12, height: 12, color: "#0891b2" }} />
+                  )}
+                  <span style={{ fontSize: 8, color: "var(--muted-foreground)" }}>
+                    {Math.abs(Math.round(trends.stressDelta))}% vs last
+                  </span>
+                </div>
+              )}
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#6366f1" }}>{current.focus}%</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Focus</div>
+              {trends?.focusDelta != null && Math.abs(trends.focusDelta) > 2 && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginTop: 2 }}>
+                  {trends.focusDelta > 0 ? (
+                    <TrendingUp style={{ width: 12, height: 12, color: "#0891b2" }} />
+                  ) : (
+                    <TrendingDown style={{ width: 12, height: 12, color: "#e879a8" }} />
+                  )}
+                  <span style={{ fontSize: 8, color: "var(--muted-foreground)" }}>
+                    {Math.abs(Math.round(trends.focusDelta))}% vs last
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
