@@ -12,6 +12,7 @@ import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
 import { syncMoodLogToML } from "@/lib/ml-api";
+import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -847,14 +848,29 @@ export default function Today() {
   const readiness = useMemo(() => computeReadiness(checkin), [checkin]);
   const aiInsight = useMemo(() => getAIInsight(checkin), [checkin]);
 
-  // Derived values
+  // Derived values (raw from model)
   const emotion = checkin?.emotion ?? "---";
-  const stressVal = checkin?.stress_index ?? 0;
-  const focusVal = checkin?.focus_index ?? 0;
-  const valenceVal = checkin?.valence ?? 0;
+  const rawStress = checkin?.stress_index ?? 0;
+  const rawFocus = checkin?.focus_index ?? 0;
+  const rawValence = checkin?.valence ?? 0;
   const topProb = checkin?.probabilities
     ? Math.max(...Object.values(checkin.probabilities))
     : 0;
+
+  // Chronotype-aware baseline adjustment (display-level only)
+  const chronotypeAdj = useMemo(() => {
+    const ct = getStoredChronotype();
+    if (!ct) return null;
+    return getBaselineAdjustment(ct.category, new Date().getHours());
+  }, [checkin]); // recompute when checkin changes (captures current hour)
+
+  const stressVal = chronotypeAdj
+    ? clamp(rawStress - chronotypeAdj.arousalOffset, 0, 1)
+    : rawStress;
+  const focusVal = rawFocus; // focus not adjusted by chronotype
+  const valenceVal = chronotypeAdj
+    ? clamp(rawValence + chronotypeAdj.valenceOffset, -1, 1)
+    : rawValence;
 
   // Yesterday comparison — read from localStorage history
   const yesterday = useMemo(() => {
@@ -1070,6 +1086,47 @@ export default function Today() {
               S
             </div>
           </motion.div>
+
+          {/* ── Chronotype prompt (if not set) ── */}
+          {!getStoredChronotype() && (
+            <motion.div
+              variants={itemVariants}
+              onClick={() => navigate("/you")}
+              style={{
+                ...premiumCard,
+                marginBottom: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "12px 16px",
+              }}
+            >
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: "rgba(167,139,250,0.15)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Clock style={{ width: 16, height: 16, color: "#a78bfa" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>
+                  Personalize your brain data
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                  Take a 1-minute quiz to adjust readings for your sleep type
+                </div>
+              </div>
+              <span style={{ color: "var(--muted-foreground)", fontSize: 16 }}>{">"}</span>
+            </motion.div>
+          )}
 
           {/* ── 2. Hero Wellness Circle ── */}
           <motion.div

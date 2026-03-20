@@ -11,8 +11,10 @@ import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { AchievementBadges } from "@/components/achievements";
 import {
   Flame, Calendar, Trophy, BarChart3, Heart, Brain, Palette,
-  Bell, Download, Lock, HelpCircle, Watch, type LucideIcon,
+  Bell, Download, Lock, HelpCircle, Watch, Sun, type LucideIcon,
 } from "lucide-react";
+import { ChronotypeQuiz } from "@/components/chronotype-quiz";
+import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -175,6 +177,10 @@ export default function You() {
   const [platform] = useState(() => getPlatform());
   const [healthConnected] = useState(() => getHealthConnectStatus());
   const [museConnected] = useState(() => getMuseStatus());
+  const [showChronotypeQuiz, setShowChronotypeQuiz] = useState(false);
+  const [chronotype, setChronotype] = useState<ChronotypeCategory | null>(
+    () => getStoredChronotype()?.category ?? null,
+  );
 
   // Sessions from ML backend (Railway) — where voice check-in data actually lives
   const { data: sessionList } = useQuery<SessionSummary[]>({
@@ -375,6 +381,13 @@ export default function You() {
       <SectionLabel>Settings</SectionLabel>
       <GroupedList>
         <ListItem
+          icon={Sun}
+          iconColor="#d4a017"
+          title="Chronotype"
+          rightText={chronotype ? chronotype.charAt(0).toUpperCase() + chronotype.slice(1) : "Not set"}
+          onClick={() => setShowChronotypeQuiz(true)}
+        />
+        <ListItem
           icon={Palette}
           iconColor="#a78bfa"
           title="Appearance"
@@ -431,6 +444,17 @@ export default function You() {
       >
         Sign Out
       </button>
+
+      {/* Chronotype Quiz Overlay */}
+      {showChronotypeQuiz && (
+        <ChronotypeQuiz
+          onComplete={(category) => {
+            setChronotype(category);
+            setShowChronotypeQuiz(false);
+          }}
+          onClose={() => setShowChronotypeQuiz(false)}
+        />
+      )}
     </motion.main>
   );
 }
