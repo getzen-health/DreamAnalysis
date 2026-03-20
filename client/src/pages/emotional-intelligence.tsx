@@ -382,6 +382,9 @@ export default function EmotionalIntelligencePage() {
                       strokeWidth={2.5}
                       dot={false}
                       activeDot={{ r: 4, fill: "#7c3aed" }}
+                      isAnimationActive={true}
+                      animationDuration={1200}
+                      animationEasing="ease-out"
                     />
                   </AreaChart>
                 </ResponsiveContainer>

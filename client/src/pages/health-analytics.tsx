@@ -394,9 +394,9 @@ export default function HealthAnalytics() {
                     contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
                     formatter={(v: number, name: string) => [`${v}%`, name]}
                   />
-                  <Line type="monotone" dataKey="calm"     name="Calm (α)"     stroke="hsl(152,65%,50%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="alert"    name="Alert (β)"    stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={2.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="calm"     name="Calm (α)"     stroke="hsl(152,65%,50%)" strokeWidth={2}   dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="alert"    name="Alert (β)"    stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={2.5} strokeDasharray="5 3" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">
@@ -441,6 +441,18 @@ export default function HealthAnalytics() {
                     <stop offset="5%" stopColor="hsl(200,70%,55%)" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="hsl(200,70%,55%)" stopOpacity={0} />
                   </linearGradient>
+                  <linearGradient id="stressGradH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(38,85%,58%)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="hsl(38,85%,58%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="relaxGradH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(152,60%,48%)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="hsl(152,60%,48%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="flowGradH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(262,45%,65%)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="hsl(262,45%,65%)" stopOpacity={0} />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
                 <XAxis dataKey={dataKey} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
@@ -450,10 +462,10 @@ export default function HealthAnalytics() {
                   contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
                   formatter={(v: number) => [`${v}%`]}
                 />
-                <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(200,70%,55%)" fill="url(#focusGradH)" strokeWidth={2} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" strokeWidth={2.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="relaxation" name="Relax" stroke="hsl(152,60%,48%)" strokeWidth={2.5} dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
-                <Line type="monotone" dataKey="flow" name="Flow" stroke="hsl(262,45%,65%)" strokeWidth={2.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(200,70%,55%)" fill="url(#focusGradH)" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" fill="url(#stressGradH)" strokeWidth={2.5} strokeDasharray="4 3" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="relaxation" name="Relax" stroke="hsl(152,60%,48%)" fill="url(#relaxGradH)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="flow" name="Flow" stroke="hsl(262,45%,65%)" fill="url(#flowGradH)" strokeWidth={2.5} strokeDasharray="2 2" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
               </AreaChart>
             </ResponsiveContainer>
             <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">

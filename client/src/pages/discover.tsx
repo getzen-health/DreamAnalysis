@@ -464,9 +464,9 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
                 contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 11 }}
                 labelStyle={{ color: "var(--muted-foreground)" }}
               />
-              <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2.5} dot={false} name="Stress" />
-              <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2.5} dot={false} name="Focus" />
-              <Area type="monotone" dataKey="mood" stroke="#0891b2" fill="url(#discMoodG)" strokeWidth={2.5} dot={false} name="Mood" />
+              <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2.5} dot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2.5} dot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="mood" stroke="#0891b2" fill="url(#discMoodG)" strokeWidth={2.5} dot={false} name="Mood" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
             </AreaChart>
           </ResponsiveContainer>
         </div>

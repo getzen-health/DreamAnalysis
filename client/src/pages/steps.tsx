@@ -369,6 +369,9 @@ export default function Steps() {
                   fill="url(#stepsPageBarGrad)"
                   radius={[4, 4, 0, 0]}
                   name="Steps"
+                  isAnimationActive={true}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                 />
               </BarChart>
             </ResponsiveContainer>

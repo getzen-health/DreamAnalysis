@@ -371,6 +371,9 @@ export default function HeartRate() {
                   dot={{ r: 2.5, fill: HR_COLOR }}
                   activeDot={{ r: 4, fill: HR_COLOR }}
                   name="HR (bpm)"
+                  isAnimationActive={true}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                 />
               </AreaChart>
             </ResponsiveContainer>

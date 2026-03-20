@@ -928,6 +928,9 @@ function CycleTab() {
                   fill="url(#bbtGrad)"
                   dot={{ r: 2, fill: "#ea580c" }}
                   name="Temp (C)"
+                  isAnimationActive={true}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -1404,6 +1407,9 @@ function MoodTab() {
                   strokeWidth={2}
                   dot={{ r: 2, fill: "#0891b2" }}
                   name="Mood"
+                  isAnimationActive={true}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                 />
                 <Area
                   type="monotone"
@@ -1414,6 +1420,9 @@ function MoodTab() {
                   dot={{ r: 1.5 }}
                   strokeDasharray="4 2"
                   name="Energy"
+                  isAnimationActive={true}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                 />
               </AreaChart>
             </ResponsiveContainer>
