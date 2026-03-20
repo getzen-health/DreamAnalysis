@@ -56,7 +56,7 @@ class GenerateRequest(BaseModel):
     inject_muscle: float = Field(default=0.0, ge=0.0, le=5.0, description="Muscle artifact rate")
     inject_electrode_pop: float = Field(default=0.0, ge=0.0, le=5.0, description="Electrode pop rate")
     seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
-    validate: bool = Field(default=True, description="Run quality validation on generated signal")
+    run_validation: bool = Field(default=True, description="Run quality validation on generated signal")
 
 
 class GenerateResponse(BaseModel):
@@ -178,7 +178,7 @@ async def generate_endpoint(req: GenerateRequest):
 
         # Validation
         validation = None
-        if req.validate:
+        if req.run_validation:
             stats = validate_synthetic_quality(signals, fs=req.fs)
             validation = stats_to_dict(stats)
 

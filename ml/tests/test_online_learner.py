@@ -36,6 +36,19 @@ def _make_features(n: int = 17, seed: int = 0) -> dict:
 class TestAdaptFromFeatures:
     """Test the new adapt_from_features method that closes the correction loop."""
 
+    _TEST_USER_IDS = [
+        "test_auto_init", "test_incr", "test_pred", "test_unknown", "test_legacy",
+    ]
+
+    def setup_method(self):
+        """Remove stale persisted models so each test starts from clean state."""
+        from models.online_learner import USER_MODELS_DIR
+        import shutil
+        for uid in self._TEST_USER_IDS:
+            user_dir = USER_MODELS_DIR / uid
+            if user_dir.exists():
+                shutil.rmtree(user_dir)
+
     def test_auto_initialize_on_first_correction(self):
         """SGDClassifier should auto-create on first call without prior calibrate()."""
         base = MagicMock()

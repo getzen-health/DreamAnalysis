@@ -59,7 +59,7 @@ RESPONSE_SCALE = {
 
 class PHQ9Submission(BaseModel):
     user_id: str
-    responses: List[int] = Field(..., min_items=9, max_items=9,
+    responses: List[int] = Field(..., min_length=9, max_length=9,
                                   description="9 integers 0-3")
     session_id: Optional[str] = None
     eeg_session_id: Optional[str] = None   # for pairing with EEG data
@@ -73,7 +73,7 @@ class PHQ9Submission(BaseModel):
 
 class GAD7Submission(BaseModel):
     user_id: str
-    responses: List[int] = Field(..., min_items=7, max_items=7,
+    responses: List[int] = Field(..., min_length=7, max_length=7,
                                   description="7 integers 0-3")
     session_id: Optional[str] = None
     eeg_session_id: Optional[str] = None
