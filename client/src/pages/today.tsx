@@ -11,10 +11,6 @@ import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
-import { forecastMood } from "@/lib/mood-patterns";
-import { StreakProtector } from "@/components/streak-protector";
-import { SleepInsights } from "@/components/sleep-insights";
-import { EFSMiniCard } from "@/components/efs-mini-card";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -63,7 +59,7 @@ function getStressLabel(stress: number): string {
 }
 
 function getStressColor(stress: number): string {
-  if (stress < 0.3) return "#0891b2";
+  if (stress < 0.3) return "#06b6d4";
   if (stress < 0.6) return "#d4a017";
   return "#e879a8";
 }
@@ -72,6 +68,18 @@ function getFocusLabel(focus: number): string {
   if (focus >= 0.7) return "Sharp";
   if (focus >= 0.45) return "Moderate";
   return "Diffuse";
+}
+
+function getMoodLabel(valence: number): string {
+  if (valence > 0.3) return "Positive";
+  if (valence > -0.1) return "Normal";
+  return "Low";
+}
+
+function getMoodDotColor(valence: number): string {
+  if (valence > 0.3) return "#06b6d4";
+  if (valence > -0.1) return "#d4a017";
+  return "#e879a8";
 }
 
 function getAIInsight(checkin: EmotionCheckin | null): string {
@@ -106,580 +114,294 @@ function formatDate(): string {
   return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
 }
 
-// ── Tomorrow's Forecast Card ──────────────────────────────────────────────
+// ── Animation variants ──────────────────────────────────────────────────
 
-const FORECAST_EMOJI: Record<string, string> = {
-  happy: "😊", sad: "😢", angry: "😠", fear: "😨",
-  surprise: "😲", neutral: "😐",
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.06,
+    },
+  },
 };
 
-function ForecastCard({ userId }: { userId: string }) {
-  const { data } = useQuery<Array<{ dominantEmotion: string; timestamp: string }>>({
-    queryKey: [`/api/brain/history/${userId}?days=7`],
-    retry: false,
-    staleTime: 10 * 60 * 1000,
-  });
-
-  if (!data || data.length < 3) return null;
-
-  const forecast = forecastMood(data);
-  if (!forecast) return null;
-
-  const emoji = FORECAST_EMOJI[forecast.emotion] ?? "🔮";
-  const confPct = Math.round(forecast.confidence * 100);
-
-  return (
-    <div style={{
-      background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 20, padding: 14, marginTop: 14,
-      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6,
-      }}>
-        <div style={{
-          fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-          textTransform: "uppercase" as const, letterSpacing: "0.5px",
-        }}>
-          Tomorrow's forecast
-        </div>
-        <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{confPct}% likely</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 28 }}>{emoji}</span>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)", textTransform: "capitalize" as const }}>
-            {forecast.emotion}
-          </div>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-            {forecast.reason}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Weekly Summary Card ────────────────────────────────────────────────────
-
-function WeeklySummaryCard({ userId }: { userId: string }) {
-  const dayOfWeek = new Date().getDay();
-  // Only show on Sunday (0) and Monday (1)
-  if (dayOfWeek !== 0 && dayOfWeek !== 1) return null;
-
-  const { data } = useQuery<{
-    available: boolean;
-    summary?: {
-      total_readings: number;
-      checkin_days: number;
-      avg_stress: number;
-      avg_focus: number;
-      avg_happiness: number;
-      avg_energy: number;
-      dominant_emotion: string;
-      stress_trend: string;
-    };
-    insight?: string;
-  }>({
-    queryKey: [`/api/brain/weekly-summary/${userId}`],
-    staleTime: 60 * 60 * 1000, // Cache for 1 hour
-    retry: false,
-  });
-
-  if (!data?.available || !data.summary) return null;
-  const s = data.summary;
-
-  const trendIcon = s.stress_trend === "decreasing" ? "↓" : s.stress_trend === "increasing" ? "↑" : "→";
-  const trendColor = s.stress_trend === "decreasing" ? "#4ade80" : s.stress_trend === "increasing" ? "#e87676" : "var(--muted-foreground)";
-
-  return (
-    <div style={{
-      background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 20, padding: 14, marginTop: 14,
-      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-    }}>
-      <div style={{
-        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 8,
-      }}>
-        Weekly Wellness Report
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-        <div style={{ background: "var(--muted)", borderRadius: 10, padding: "8px 10px" }}>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>Avg Stress</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--foreground)" }}>
-            {s.avg_stress}%
-            <span style={{ fontSize: 12, color: trendColor, marginLeft: 4 }}>{trendIcon}</span>
-          </div>
-        </div>
-        <div style={{ background: "var(--muted)", borderRadius: 10, padding: "8px 10px" }}>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>Avg Focus</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--foreground)" }}>{s.avg_focus}%</div>
-        </div>
-        <div style={{ background: "var(--muted)", borderRadius: 10, padding: "8px 10px" }}>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>Check-in Days</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--foreground)" }}>{s.checkin_days}/7</div>
-        </div>
-        <div style={{ background: "var(--muted)", borderRadius: 10, padding: "8px 10px" }}>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>Top Mood</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", textTransform: "capitalize" as const }}>{s.dominant_emotion}</div>
-        </div>
-      </div>
-      {data.insight && (
-        <div style={{
-          fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5,
-          padding: "8px 0", borderTop: "1px solid var(--border)",
-        }}>
-          {data.insight}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Daily Wellness Tip ────────────────────────────────────────────────────
-
-const TIPS_BY_STATE: Record<string, string[]> = {
-  happy: [
-    "🌟 You're in a great mood! This is the perfect time for creative projects or learning something new.",
-    "😊 Positive energy detected. Share it with someone — positivity is contagious.",
-    "🎨 Your brain is in a receptive state. Try journaling or expressing yourself creatively.",
-    "💡 Happy state = better problem solving. Tackle that thing you've been putting off.",
-  ],
-  sad: [
-    "💙 It's okay to feel low. A 10-minute walk outside can boost serotonin naturally.",
-    "🫂 Be gentle with yourself today. Reaching out to a friend can help more than you think.",
-    "🎵 Music therapy works — listening to uplifting music for 15 minutes can shift your mood.",
-    "☕ Warm drinks activate comfort pathways. Take a moment with your favorite tea.",
-  ],
-  angry: [
-    "🌊 Anger carries energy. Channel it into a workout or power walk — physical movement helps.",
-    "🧊 Try the cold water trick: splash cold water on your wrists to activate the dive reflex and calm down.",
-    "📝 Write it out. Putting anger into words reduces its emotional intensity by up to 50%.",
-    "⏸️ The 4-7-8 breath: inhale 4s, hold 7s, exhale 8s. Repeat 3 times.",
-  ],
-  fear: [
-    "🤗 Anxiety often feels bigger than the situation warrants. Name what you're afraid of — naming reduces fear.",
-    "🌳 Grounding technique: name 5 things you see, 4 you feel, 3 you hear, 2 you smell, 1 you taste.",
-    "💪 Remind yourself: you've handled hard things before. You can handle this too.",
-    "🕯️ Progressive muscle relaxation: tense each muscle group for 5s, then release. Start from your toes.",
-  ],
-  neutral: [
-    "⚖️ Balanced state — a good baseline for mindfulness practice or setting intentions.",
-    "🎯 Neutral is underrated. Use this calm moment to plan your day with clarity.",
-    "📚 Your brain is receptive right now. Great time for reading or learning.",
-    "🧘 Try a 5-minute meditation to deepen this peaceful state.",
-  ],
-  default: [
-    "🎙️ Record a voice note to get personalized wellness tips based on your emotional state.",
-    "💫 Your emotional data shapes your wellness journey. The more you track, the better the insights.",
-  ],
+const itemVariants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.4,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
 };
 
-function DailyTip({ emotion, stress, focus }: { emotion: string; stress: number; focus: number }) {
-  // Pick a consistent daily tip (changes once per day, not on every render)
-  const dayIndex = new Date().getDate();
-  const state = emotion === "—" ? "default" : emotion;
-  const tips = TIPS_BY_STATE[state] ?? TIPS_BY_STATE.default;
-  const tip = tips[dayIndex % tips.length];
+// ── Bevel card style ─────────────────────────────────────────────────────
 
-  return (
-    <div style={{
-      background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 20, padding: 14, marginTop: 14,
-      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-    }}>
-      <div style={{
-        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 6,
-      }}>
-        Daily tip
-      </div>
-      <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0, lineHeight: 1.5 }}>
-        {tip}
-      </p>
-    </div>
-  );
-}
-
-// ── Mental Fitness Score ───────────────────────────────────────────────────
-
-function MentalFitnessCard({ voice }: { voice: VoiceCheckinData | null }) {
-  if (!voice?.stress_index) return null;
-
-  const stress = voice.stress_index ?? 0.5;
-  const focus = voice.focus_index ?? 0.5;
-  const valence = voice.valence ?? 0;
-  const arousal = voice.arousal ?? 0.5;
-
-  // Mental Fitness = composite of low stress + high focus + positive valence + balanced arousal
-  const stressScore = (1 - stress) * 30;      // 0-30: lower stress = better
-  const focusScore = focus * 25;               // 0-25: higher focus = better
-  const valenceScore = ((valence + 1) / 2) * 25; // 0-25: positive = better
-  const arousalBalance = (1 - Math.abs(arousal - 0.5) * 2) * 20; // 0-20: moderate = best
-  const raw = stressScore + focusScore + valenceScore + arousalBalance;
-  const score = Math.min(100, Math.max(0, Math.round(raw)));
-
-  const color = score >= 70 ? "#4ade80" : score >= 45 ? "#e8b94a" : "#e87676";
-  const label = score >= 80 ? "Excellent" : score >= 65 ? "Good" : score >= 45 ? "Fair" : "Low";
-  const desc = score >= 70
-    ? "Your mental fitness is strong — keep it up"
-    : score >= 45
-    ? "Room for improvement — try a breathing exercise"
-    : "Your mind needs rest — prioritize self-care today";
-
-  // Simple bar visualization
-  return (
-    <div style={{
-      background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: 20, padding: 14, marginBottom: 14,
-      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <div>
-          <div style={{
-            fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-            textTransform: "uppercase" as const, letterSpacing: "0.5px",
-          }}>
-            Mental Fitness
-          </div>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-            From voice biomarkers
-          </div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color, lineHeight: 1 }}>{score}</div>
-          <div style={{ fontSize: 10, color }}>{label}</div>
-        </div>
-      </div>
-
-      {/* Score bar */}
-      <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
-        <div style={{
-          width: `${score}%`, height: "100%", background: color,
-          borderRadius: 3, transition: "width 1.2s cubic-bezier(0.22, 1, 0.36, 1)",
-        }} />
-      </div>
-
-      {/* Breakdown mini bars */}
-      <div style={{ display: "flex", gap: 8, fontSize: 9, color: "var(--muted-foreground)" }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ marginBottom: 2 }}>Calm {Math.round((1 - stress) * 100)}%</div>
-          <div style={{ height: 8, background: "var(--border)", borderRadius: 4 }}>
-            <div style={{ width: `${(1 - stress) * 100}%`, height: "100%", background: "#4ade80", borderRadius: 2 }} />
-          </div>
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ marginBottom: 2 }}>Focus {Math.round(focus * 100)}%</div>
-          <div style={{ height: 8, background: "var(--border)", borderRadius: 4 }}>
-            <div style={{ width: `${focus * 100}%`, height: "100%", background: "#3b82f6", borderRadius: 2 }} />
-          </div>
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ marginBottom: 2 }}>Mood {Math.round(((valence + 1) / 2) * 100)}%</div>
-          <div style={{ height: 8, background: "var(--border)", borderRadius: 4 }}>
-            <div style={{ width: `${((valence + 1) / 2) * 100}%`, height: "100%", background: "#e8b94a", borderRadius: 2 }} />
-          </div>
-        </div>
-      </div>
-
-      <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "8px 0 0 0", fontStyle: "italic" }}>
-        {desc}
-      </p>
-    </div>
-  );
-}
-
-// ── Weekly Mood Strip ──────────────────────────────────────────────────────
-
-const MOOD_COLORS: Record<string, string> = {
-  happy: "#4ade80", sad: "#7ba7d9", angry: "#e87676", fear: "#b49ae0",
-  surprise: "#e8b94a", neutral: "#a09890",
+const bevelCard: React.CSSProperties = {
+  borderRadius: 20,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "var(--card)",
+  padding: 16,
 };
 
-function WeeklyMoodStrip({ userId }: { userId: string }) {
-  const { data } = useQuery<Array<{ dominantEmotion: string; timestamp: string }>>({
-    queryKey: [`/api/brain/history/${userId}?days=7`],
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
+// ── Hero Wellness Gauge ──────────────────────────────────────────────────
 
-  if (!data || data.length === 0) return null;
-
-  // Group by day, take last emotion per day
-  const dayMap = new Map<string, { emotion: string; label: string }>();
-  for (const r of data) {
-    const d = new Date(r.timestamp);
-    const key = d.toISOString().slice(0, 10);
-    const label = d.toLocaleDateString(undefined, { weekday: "narrow" });
-    dayMap.set(key, { emotion: r.dominantEmotion, label });
-  }
-
-  const days = Array.from(dayMap.entries()).sort(([a], [b]) => a.localeCompare(b)).slice(-7);
-  if (days.length < 2) return null;
-
-  return (
-    <div
-      onClick={() => window.location.href = "/discover"}
-      style={{
-        background: "var(--card)", border: "1px solid var(--border)",
-        borderRadius: 20, padding: "12px 14px", marginBottom: 14, cursor: "pointer",
-        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-        transition: "transform 0.2s ease, box-shadow 0.2s ease",
-      }}
-    >
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8,
-      }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase" as const, letterSpacing: "0.5px" }}>
-          This week
-        </span>
-        <span style={{ fontSize: 16, color: "var(--muted-foreground)" }}>›</span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        {days.map(([key, { emotion, label }]) => (
-          <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: "50%",
-              background: MOOD_COLORS[emotion] ?? "#94a3b8", opacity: 0.85,
-            }} />
-            <span style={{ fontSize: 8, color: "var(--muted-foreground)" }}>{label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Emotion emojis ────────────────────────────────────────────────────────
-
-const EMOTION_EMOJI: Record<string, string> = {
-  happy: "😊", sad: "😢", angry: "😠", fear: "😨",
-  surprise: "😲", neutral: "😐",
-};
-
-const EMOTION_COLOR: Record<string, string> = {
-  happy: "#4ade80", sad: "#7ba7d9", angry: "#e87676", fear: "#b49ae0",
-  surprise: "#e8b94a", neutral: "#a09890",
-};
-
-// ── Hero Section: Emotion + Readiness ─────────────────────────────────────
-
-function EmotionHero({ checkin, score }: { checkin: EmotionCheckin | null; score: number }) {
-  const emotion = checkin?.emotion ?? "neutral";
-  const emoji = EMOTION_EMOJI[emotion] ?? "😐";
-  const color = EMOTION_COLOR[emotion] ?? "#94a3b8";
-  // Read confidence from the raw localStorage result
-  const confidence = (() => {
-    try {
-      const raw = localStorage.getItem("ndw_last_emotion");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return Math.round((parsed?.result?.confidence ?? 0) * 100);
-      }
-    } catch { /* ignore */ }
-    return 0;
-  })();
-  const label = getEmotionScoreLabel(score);
-  const hasData = !!checkin?.emotion;
-
-  // Arc params
-  const r = 52;
-  const cx = 65;
-  const cy = 65;
-  const totalArc = (270 / 360) * 2 * Math.PI * r; // ~245
+function WellnessGauge({ score }: { score: number }) {
+  const size = 160;
+  const strokeWidth = 10;
+  const r = (size - strokeWidth) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
   const circumference = 2 * Math.PI * r;
-  const filled = (score / 100) * totalArc;
+  // Use 270 degrees of arc
+  const arcLength = (270 / 360) * circumference;
+  const filled = (score / 100) * arcLength;
+  const gradientId = "gaugeGrad";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, margin: "8px 0 4px" }}>
-      {/* Emotion emoji + label */}
-      {hasData ? (
-        <>
-          <div style={{
-            fontSize: 52, lineHeight: 1,
-            animation: "gentleFloat 4s ease-in-out infinite",
-          }}>{emoji}</div>
-          <style>{`@keyframes gentleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }`}</style>
-          <div style={{ fontSize: 22, fontWeight: 700, color, textTransform: "capitalize" as const }}>{emotion}</div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-            {confidence > 0 ? `${confidence}% confidence` : "via voice"} · valence {(checkin?.valence ?? 0) >= 0 ? "+" : ""}{(checkin?.valence ?? 0).toFixed(1)}
-          </div>
-          {/* Time since check-in */}
-          {(() => {
-            try {
-              const raw = localStorage.getItem("ndw_last_emotion");
-              if (raw) {
-                const ts = JSON.parse(raw)?.timestamp;
-                if (ts) {
-                  const mins = Math.floor((Date.now() - ts) / 60000);
-                  const label = mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
-                  return <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2, opacity: 0.7 }}>Detected {label}</div>;
-                }
-              }
-            } catch { /* ignore */ }
-            return null;
-          })()}
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>Detecting your emotional state</div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 4, lineHeight: 1.5 }}>
-            Record a voice note to detect your emotional state automatically.
-          </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", opacity: 0.7 }}>
-            Emotions are detected from voice analysis, health data, and EEG signals.
-          </div>
-        </>
-      )}
-
-      {/* Readiness arc (smaller, below emotion) */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 8 }}>
-        <svg width={130} height={130} viewBox="0 0 130 130">
-          <defs>
-            <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#0891b2" />
-              <stop offset="100%" stopColor="#0e7490" />
-            </linearGradient>
-          </defs>
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--muted)" strokeWidth={7}
-            strokeDasharray={`${totalArc} ${circumference - totalArc}`}
-            strokeLinecap="round" transform={`rotate(135 ${cx} ${cy})`} />
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="url(#arcGrad)" strokeWidth={7}
-            strokeDasharray={`${filled} ${circumference - filled}`}
-            strokeLinecap="round" transform={`rotate(135 ${cx} ${cy})`}
-            style={{ transition: "stroke-dasharray 1.2s cubic-bezier(0.22, 1, 0.36, 1)" }} />
-          <text x={cx} y={cy - 4} textAnchor="middle" fill="var(--foreground)" fontSize={32} fontWeight={700}
-            fontFamily="system-ui, -apple-system, sans-serif">{score}</text>
-          <text x={cx} y={cy + 14} textAnchor="middle" fill="var(--muted-foreground)" fontSize={10}
-            fontFamily="system-ui, -apple-system, sans-serif">Score</text>
-        </svg>
-      </div>
-
-      <p style={{ fontSize: 12, color: score === 0 ? "var(--muted-foreground)" : "#0891b2", margin: 0, textAlign: "center" }}>
-        {label}
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#7c3aed" />
+            <stop offset="100%" stopColor="#e879a8" />
+          </linearGradient>
+        </defs>
+        {/* Background arc */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke="var(--muted)"
+          strokeWidth={strokeWidth}
+          strokeDasharray={`${arcLength} ${circumference - arcLength}`}
+          strokeLinecap="round"
+          transform={`rotate(135 ${cx} ${cy})`}
+        />
+        {/* Filled arc */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke={`url(#${gradientId})`}
+          strokeWidth={strokeWidth}
+          strokeDasharray={`${filled} ${circumference - filled}`}
+          strokeLinecap="round"
+          transform={`rotate(135 ${cx} ${cy})`}
+          style={{
+            transition: "stroke-dasharray 1.4s cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        />
+        {/* Percentage text */}
+        <text
+          x={cx}
+          y={cy - 6}
+          textAnchor="middle"
+          fill="var(--foreground)"
+          fontSize={36}
+          fontWeight={700}
+          fontFamily="system-ui, -apple-system, sans-serif"
+        >
+          {score}
+        </text>
+        <text
+          x={cx}
+          y={cy + 16}
+          textAnchor="middle"
+          fill="var(--muted-foreground)"
+          fontSize={12}
+          fontFamily="system-ui, -apple-system, sans-serif"
+          letterSpacing="0.5"
+        >
+          Wellness
+        </text>
+      </svg>
+      <p
+        style={{
+          fontSize: 13,
+          color: score === 0 ? "var(--muted-foreground)" : "#7c3aed",
+          margin: 0,
+          textAlign: "center",
+          lineHeight: 1.5,
+          maxWidth: 220,
+        }}
+      >
+        {getEmotionScoreLabel(score)}
       </p>
     </div>
   );
 }
 
-// ── Mini Score Card ────────────────────────────────────────────────────────
+// ── Score Card (Mood / Stress / Focus) ───────────────────────────────────
 
-function MiniCard({
+function ScoreCard({
   label,
   value,
-  sub,
-  valueColor,
+  statusLabel,
+  dotColor,
   onClick,
-  trend,
 }: {
   label: string;
   value: string;
-  sub: string;
-  valueColor: string;
+  statusLabel: string;
+  dotColor: string;
   onClick?: () => void;
-  /** "up" = improved, "down" = declined, "same" = unchanged, undefined = no data */
-  trend?: "up" | "down" | "same";
 }) {
   return (
-    <div
+    <motion.div
+      variants={itemVariants}
       onClick={onClick}
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 20,
-        padding: "0 10px 14px 10px",
-        textAlign: "center",
-        position: "relative",
+        ...bevelCard,
         cursor: onClick ? "pointer" : "default",
-        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-        transition: "transform 0.2s ease, box-shadow 0.2s ease",
-        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 6,
+        padding: "16px 8px",
       }}
     >
-      {/* Colored top accent bar */}
-      <div style={{
-        height: 3,
-        background: `linear-gradient(90deg, ${valueColor}, ${valueColor}88)`,
-        marginBottom: 14,
-        marginLeft: -10,
-        marginRight: -10,
-      }} />
-      <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>{label}</p>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-        <p style={{ fontSize: 28, fontWeight: 700, color: valueColor, margin: "0", lineHeight: 1 }}>
-          {value}
-        </p>
-        {trend && (
-          <span style={{
-            fontSize: 12,
-            color: trend === "up" ? "#4ade80" : trend === "down" ? "#e87676" : "var(--muted-foreground)",
-            lineHeight: 1,
-          }}>
-            {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
-          </span>
-        )}
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 500,
+          color: "var(--muted-foreground)",
+          textTransform: "uppercase" as const,
+          letterSpacing: "0.6px",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: 24,
+          fontWeight: 700,
+          color: "var(--foreground)",
+          lineHeight: 1,
+        }}
+      >
+        {value}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <div
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            background: dotColor,
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--muted-foreground)",
+          }}
+        >
+          {statusLabel}
+        </span>
       </div>
-      <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "4px 0 0 0" }}>{sub}</p>
-      {onClick && (
-        <span style={{ color: "var(--muted-foreground)", fontSize: 16, position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>›</span>
-      )}
-    </div>
+    </motion.div>
   );
 }
 
-// ── Sleep Stage Bar ────────────────────────────────────────────────────────
+// ── Health Metric Card ───────────────────────────────────────────────────
 
-function SleepStageBar({
-  deep,
-  rem,
-  light,
-  awake,
-  total,
+function HealthMetricCard({
+  label,
+  value,
+  unit,
+  statusLabel,
+  dotColor,
+  onClick,
+  barPercent,
+  barGradient,
 }: {
-  deep: number;
-  rem: number;
-  light: number;
-  awake: number;
-  total: number;
+  label: string;
+  value: string;
+  unit: string;
+  statusLabel: string;
+  dotColor: string;
+  onClick?: () => void;
+  barPercent?: number;
+  barGradient?: string;
 }) {
-  const safeTotal = total || 1;
-  const pDeep = (deep / safeTotal) * 100;
-  const pRem = (rem / safeTotal) * 100;
-  const pLight = (light / safeTotal) * 100;
-  const pAwake = (awake / safeTotal) * 100;
-
   return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          height: 6,
-          borderRadius: 6,
-          overflow: "hidden",
-          background: "var(--border)",
-          marginBottom: 6,
-        }}
-      >
-        <div style={{ width: `${pDeep}%`, background: "#6366f1" }} />
-        <div style={{ width: `${pLight}%`, background: "#818cf8" }} />
-        <div style={{ width: `${pRem}%`, background: "#c084fc" }} />
-        <div style={{ width: `${pAwake}%`, background: "#374151" }} />
+    <motion.div
+      variants={itemVariants}
+      onClick={onClick}
+      style={{
+        ...bevelCard,
+        cursor: onClick ? "pointer" : "default",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: "var(--muted-foreground)",
+            textTransform: "uppercase" as const,
+            letterSpacing: "0.6px",
+          }}
+        >
+          {label}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: dotColor,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{statusLabel}</span>
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        {[
-          { label: "Deep", color: "#6366f1" },
-          { label: "Light", color: "#818cf8" },
-          { label: "REM", color: "#c084fc" },
-          { label: "Awake", color: "#6b7280" },
-        ].map(({ label, color }) => (
-          <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
-            <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{label}</span>
-          </div>
-        ))}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+        <span
+          style={{
+            fontSize: 24,
+            fontWeight: 700,
+            color: "var(--foreground)",
+            lineHeight: 1,
+          }}
+        >
+          {value}
+        </span>
+        <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{unit}</span>
       </div>
-    </div>
+      {barPercent !== undefined && (
+        <div
+          style={{
+            height: 10,
+            borderRadius: 6,
+            background: "var(--muted)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              width: `${clamp(barPercent, 0, 100)}%`,
+              background: barGradient || "linear-gradient(90deg, #7c3aed, #e879a8)",
+              borderRadius: 6,
+              transition: "width 1s cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          />
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -732,9 +454,10 @@ export default function Today() {
   const aiInsight = useMemo(() => getAIInsight(checkin), [checkin]);
 
   // Derived values
-  const emotion = checkin?.emotion ?? "—";
+  const emotion = checkin?.emotion ?? "---";
   const stressVal = checkin?.stress_index ?? 0;
   const focusVal = checkin?.focus_index ?? 0;
+  const valenceVal = checkin?.valence ?? 0;
   const topProb = checkin?.probabilities
     ? Math.max(...Object.values(checkin.probabilities))
     : 0;
@@ -766,18 +489,6 @@ export default function Today() {
     } catch { /* ignore */ }
   }, [checkin, stressVal, focusVal]);
 
-  // Compute trends
-  function getTrend(current: number, prev: number | undefined, lowerIsBetter = false): "up" | "down" | "same" | undefined {
-    if (prev === undefined) return undefined;
-    const diff = current - prev;
-    if (Math.abs(diff) < 0.05) return "same";
-    if (lowerIsBetter) return diff < 0 ? "up" : "down"; // less stress = improvement
-    return diff > 0 ? "up" : "down";
-  }
-  const stressTrend = getTrend(stressVal, yesterday?.stress_index, true);
-  const focusTrend = getTrend(focusVal, yesterday?.focus_index);
-  const moodTrend = getTrend(checkin?.valence ?? 0, yesterday?.valence);
-
   // Gentle haptic warning when stress is elevated
   useEffect(() => {
     if (stressVal > 0.5) hapticWarning();
@@ -787,17 +498,68 @@ export default function Today() {
   const steps = latestPayload?.steps_today ?? 0;
 
   const sleepTotal = latestPayload?.sleep_total_hours ?? 0;
-  const sleepRem = latestPayload?.sleep_rem_hours ?? 0;
-  const sleepDeep = latestPayload?.sleep_deep_hours ?? 0;
-  const sleepLight = Math.max(0, sleepTotal - sleepRem - sleepDeep - 0.3);
-  const sleepAwake = 0.3;
   const sleepEfficiency = latestPayload?.sleep_efficiency ?? 0;
 
   const calGoal = 2000;
-  const calPct = Math.min(1, todayCalories / calGoal);
+  const calPct = Math.min(100, Math.round((todayCalories / calGoal) * 100));
 
   const stepsGoal = 10000;
   const stepsPct = Math.min(100, Math.round((steps / stepsGoal) * 100));
+
+  // Heart rate status
+  const hrStatus = heartRate
+    ? heartRate < 60
+      ? { label: "Low", color: "#d4a017" }
+      : heartRate < 100
+      ? { label: "Normal", color: "#06b6d4" }
+      : { label: "Elevated", color: "#e879a8" }
+    : { label: "No data", color: "var(--muted-foreground)" };
+
+  // Sleep status
+  const sleepStatus = sleepTotal > 0
+    ? sleepTotal >= 7
+      ? { label: "Good", color: "#06b6d4" }
+      : sleepTotal >= 5
+      ? { label: "Fair", color: "#d4a017" }
+      : { label: "Low", color: "#e879a8" }
+    : { label: "No data", color: "var(--muted-foreground)" };
+
+  // Steps status
+  const stepsStatus = steps > 0
+    ? stepsPct >= 80
+      ? { label: "On Track", color: "#06b6d4" }
+      : stepsPct >= 40
+      ? { label: "Moderate", color: "#d4a017" }
+      : { label: "Low", color: "#e879a8" }
+    : { label: "No data", color: "var(--muted-foreground)" };
+
+  // Nutrition status
+  const nutritionStatus = todayCalories > 0
+    ? calPct >= 80
+      ? { label: "On Track", color: "#06b6d4" }
+      : calPct >= 40
+      ? { label: "Moderate", color: "#d4a017" }
+      : { label: "Low", color: "#e879a8" }
+    : { label: "No data", color: "var(--muted-foreground)" };
+
+  // Mood display
+  const moodDisplay = checkin?.emotion
+    ? checkin.emotion.charAt(0).toUpperCase() + checkin.emotion.slice(1)
+    : "---";
+  const moodDotColor = checkin?.emotion ? getMoodDotColor(valenceVal) : "var(--muted-foreground)";
+  const moodStatusLabel = checkin?.emotion ? getMoodLabel(valenceVal) : "No data";
+
+  // Stress display
+  const stressDisplay = stressVal > 0 ? `${Math.round(stressVal * 100)}%` : "---";
+  const stressDotColor = stressVal > 0 ? getStressColor(stressVal) : "var(--muted-foreground)";
+  const stressStatusLabel = stressVal > 0 ? getStressLabel(stressVal) : "No data";
+
+  // Focus display
+  const focusDisplay = focusVal > 0 ? `${Math.round(focusVal * 100)}%` : "---";
+  const focusDotColor = focusVal > 0
+    ? focusVal >= 0.7 ? "#06b6d4" : focusVal >= 0.45 ? "#d4a017" : "#e879a8"
+    : "var(--muted-foreground)";
+  const focusStatusLabel = focusVal > 0 ? getFocusLabel(focusVal) : "No data";
 
   // Score splash — show once per session when data exists
   const [showSplash, setShowSplash] = useState(() => {
@@ -818,360 +580,333 @@ export default function Today() {
 
   return (
     <>
-    {showSplash && checkin?.emotion && (
-      <ScoreSplash
-        emotion={checkin.emotion}
-        readiness={readiness}
-        stress={stressVal}
-        focus={focusVal}
-        onDismiss={dismissSplash}
-      />
-    )}
-    <motion.main
-      initial={pageTransition.initial}
-      animate={pageTransition.animate}
-      transition={pageTransition.transition}
-      style={{
-        background: "var(--background)",
-        minHeight: "100vh",
-        padding: 16,
-        paddingBottom: 100,
-        fontFamily: "system-ui, -apple-system, sans-serif",
-      }}
-    >
-      {/* ── Header ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 20,
-        }}
-      >
-        <div>
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 2px 0" }}>{formatDate()}</p>
-          <p style={{ fontSize: 18, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
-            {(() => {
-              const h = new Date().getHours();
-              const timeGreet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-              const em = checkin?.emotion;
-              if (em === "happy") return `${timeGreet} 😊`;
-              if (em === "sad") return `Hey, take it easy today 💙`;
-              if (em === "angry") return `${timeGreet} — breathe 🌊`;
-              if (em === "fear") return `You're safe. ${timeGreet} 🤗`;
-              return timeGreet;
-            })()}
-          </p>
-        </div>
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #1db88a, #0d9668)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 15,
-            fontWeight: 700,
-            color: "#0a0e17",
-            flexShrink: 0,
-          }}
-        >
-          S
-        </div>
-      </div>
-
-      {/* ── Readiness Score ── */}
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-        <EmotionHero checkin={checkin} score={readiness} />
-      </div>
-
-      {/* ── Mini Score Cards ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 10,
-          marginBottom: 14,
-        }}
-      >
-        <MiniCard
-          label="Mood"
-          value={emotion === "—" ? "—" : emotion.charAt(0).toUpperCase() + emotion.slice(1)}
-          sub={topProb > 0 ? `${Math.round(topProb * 100)}% confidence` : "No data"}
-          valueColor="#0891b2"
-          onClick={() => navigate("/mood")}
-          trend={moodTrend}
+      {showSplash && checkin?.emotion && (
+        <ScoreSplash
+          emotion={checkin.emotion}
+          readiness={readiness}
+          stress={stressVal}
+          focus={focusVal}
+          onDismiss={dismissSplash}
         />
-        <MiniCard
-          label="Stress"
-          value={stressVal > 0 ? `${Math.round(stressVal * 100)}%` : "—"}
-          sub={stressVal > 0 ? getStressLabel(stressVal) : "No data"}
-          valueColor={stressVal > 0 ? getStressColor(stressVal) : "var(--muted-foreground)"}
-          onClick={() => navigate("/stress")}
-          trend={stressTrend}
-        />
-        <MiniCard
-          label="Focus"
-          value={focusVal > 0 ? `${Math.round(focusVal * 100)}%` : "—"}
-          sub={focusVal > 0 ? getFocusLabel(focusVal) : "No data"}
-          valueColor="#6366f1"
-          onClick={() => navigate("/focus")}
-          trend={focusTrend}
-        />
-      </div>
-
-      {/* ── AI Insight ── */}
-      <div
-        style={{
-          background: "var(--card)",
-          border: "1px solid #1f3a2e",
-          borderRadius: 20,
-          padding: 14,
-          marginBottom: 14,
-          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-          <Sparkles size={13} color="#0891b2" />
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#0891b2" }}>AI Insight</span>
-        </div>
-        <p style={{ fontSize: 13, color: "var(--foreground)", margin: 0, lineHeight: 1.5 }}>
-          {aiInsight}
-        </p>
-      </div>
-
-      {/* ── Stress Warning — appears when stress > 60% ── */}
-      {(checkin?.stress_index ?? 0) > 0.6 && (
-        <div
-          style={{
-            background: "var(--card)",
-            border: "1px solid #3d1f1f",
-            borderRadius: 20,
-            padding: 16,
-            marginBottom: 14,
-            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-            <span style={{ fontSize: 24 }}>&#x26A0;&#xFE0F;</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#e879a8" }}>Your stress levels are elevated</div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.6 }}>
-                Take a moment to breathe. Try the 4-7-8 breathing technique:<br />
-                <span style={{ fontWeight: 500, color: "var(--foreground)" }}>
-                  Inhale 4 seconds &rarr; Hold 7 seconds &rarr; Exhale 8 seconds
-                </span>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => window.open("https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO", "_blank")}
-              style={{
-                flex: 1,
-                background: "linear-gradient(135deg, #1DB954, #158a3e)",
-                color: "white",
-                border: "none",
-                borderRadius: 10,
-                padding: "10px 16px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Listen to Calm Music
-            </button>
-            <button
-              onClick={() => setShowBreathe(true)}
-              style={{
-                flex: 1,
-                background: "linear-gradient(135deg, #0891b2, #0e7490)",
-                color: "white",
-                border: "none",
-                borderRadius: 10,
-                padding: "10px 16px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Breathing Exercise
-            </button>
-          </div>
-        </div>
       )}
-
-      {/* Inline breathing exercise */}
-      {showBreathe && (
-        <InlineBreathe onClose={() => setShowBreathe(false)} />
-      )}
-
-      {/* ── Sleep Card ── */}
-      <div
-        onClick={() => navigate("/sleep-session")}
+      <motion.main
+        initial={pageTransition.initial}
+        animate={pageTransition.animate}
+        transition={pageTransition.transition}
         style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 20,
-          padding: 14,
-          marginBottom: 14,
-          cursor: "pointer",
-          position: "relative",
-          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-          transition: "transform 0.2s ease, box-shadow 0.2s ease",
+          background: "var(--background)",
+          minHeight: "100vh",
+          padding: "16px 16px 100px 16px",
+          fontFamily: "system-ui, -apple-system, sans-serif",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: 12,
-          }}
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          style={{ maxWidth: 480, margin: "0 auto" }}
         >
-          <div>
-            <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 4px 0" }}>Sleep</p>
-            <p style={{ fontSize: 20, fontWeight: 700, color: "#7c3aed", margin: 0 }}>
-              {sleepTotal > 0 ? `${sleepTotal.toFixed(1)}h` : "—"}
-            </p>
-          </div>
-          <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 6 }}>
+          {/* ── 1. Header ── */}
+          <motion.div
+            variants={itemVariants}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 24,
+            }}
+          >
             <div>
-              <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 4px 0" }}>Quality</p>
-              <p style={{ fontSize: 20, fontWeight: 700, color: "#7c3aed", margin: 0 }}>
-                {sleepEfficiency > 0 ? `${Math.round(sleepEfficiency)}%` : "—"}
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "var(--muted-foreground)",
+                  margin: "0 0 4px 0",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                {formatDate()}
+              </p>
+              <p
+                style={{
+                  fontSize: 20,
+                  fontWeight: 600,
+                  color: "var(--foreground)",
+                  margin: 0,
+                  lineHeight: 1.3,
+                }}
+              >
+                {(() => {
+                  const h = new Date().getHours();
+                  const timeGreet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+                  const em = checkin?.emotion;
+                  if (em === "sad") return "Hey, take it easy today";
+                  if (em === "angry") return `${timeGreet} -- breathe`;
+                  if (em === "fear") return `You're safe. ${timeGreet}`;
+                  return timeGreet;
+                })()}
               </p>
             </div>
-            <span style={{ color: "var(--muted-foreground)", fontSize: 18, lineHeight: 1 }}>›</span>
-          </div>
-        </div>
-        <SleepStageBar
-          deep={sleepDeep}
-          rem={sleepRem}
-          light={sleepLight}
-          awake={sleepAwake}
-          total={sleepTotal || 1}
-        />
-      </div>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #7c3aed, #e879a8)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 15,
+                fontWeight: 700,
+                color: "#fff",
+                flexShrink: 0,
+              }}
+            >
+              S
+            </div>
+          </motion.div>
 
-      {/* ── Health Metrics ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 10,
-          marginBottom: 14,
-        }}
-      >
-        {/* Heart Rate */}
-        <div
-          onClick={() => navigate("/health-analytics")}
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-            borderRadius: 20,
-            padding: 14,
-            cursor: "pointer",
-            position: "relative",
-            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-            transition: "transform 0.2s ease, box-shadow 0.2s ease",
-          }}
-        >
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>Heart Rate</p>
-          <p style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
-            {heartRate ? `${Math.round(heartRate)} bpm` : "—"}
-          </p>
-          <p style={{ fontSize: 10, color: "#0891b2", margin: 0 }}>
-            {heartRate
-              ? heartRate < 60
-                ? "Low — rest well"
-                : heartRate < 100
-                ? "Normal"
-                : "Elevated"
-              : "No data"}
-          </p>
-          <span style={{ color: "var(--muted-foreground)", fontSize: 16, position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>›</span>
-        </div>
-
-        {/* Steps */}
-        <div
-          onClick={() => navigate("/health-analytics")}
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-            borderRadius: 20,
-            padding: 14,
-            cursor: "pointer",
-            position: "relative",
-            boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-            transition: "transform 0.2s ease, box-shadow 0.2s ease",
-          }}
-        >
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 6px 0" }}>Steps</p>
-          <p style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0" }}>
-            {steps > 0 ? steps.toLocaleString() : "—"}
-          </p>
-          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>
-            {steps > 0 ? `${stepsPct}% of goal` : "No data"}
-          </p>
-          <span style={{ color: "var(--muted-foreground)", fontSize: 16, position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>›</span>
-        </div>
-      </div>
-
-      {/* ── Nutrition Summary ── */}
-      <div
-        onClick={() => navigate("/nutrition")}
-        style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 20,
-          padding: 14,
-          cursor: "pointer",
-          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-          transition: "transform 0.2s ease, box-shadow 0.2s ease",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 10,
-          }}
-        >
-          <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Today's Nutrition</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 11, color: "#d4a017" }}>
-              {todayCalories > 0
-                ? `${todayCalories.toLocaleString()} / ${calGoal.toLocaleString()} kcal`
-                : `— / ${calGoal.toLocaleString()} kcal`}
-            </span>
-            <span style={{ color: "var(--muted-foreground)", fontSize: 16, lineHeight: 1 }}>›</span>
-          </div>
-        </div>
-        <div
-          style={{
-            height: 6,
-            borderRadius: 6,
-            background: "var(--border)",
-            overflow: "hidden",
-          }}
-        >
-          <div
+          {/* ── 2. Hero Wellness Circle ── */}
+          <motion.div
+            variants={itemVariants}
             style={{
-              height: "100%",
-              width: `${calPct * 100}%`,
-              background: "linear-gradient(90deg, #d4a017, #ea580c)",
-              borderRadius: 6,
-              transition: "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+              display: "flex",
+              justifyContent: "center",
+              marginBottom: 24,
             }}
-          />
-        </div>
-      </div>
+          >
+            <WellnessGauge score={readiness} />
+          </motion.div>
 
-    </motion.main>
+          {/* ── 3. Score Row (Mood / Stress / Focus) ── */}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              gap: 10,
+              marginBottom: 20,
+            }}
+          >
+            <ScoreCard
+              label="Mood"
+              value={moodDisplay}
+              statusLabel={moodStatusLabel}
+              dotColor={moodDotColor}
+              onClick={() => navigate("/mood")}
+            />
+            <ScoreCard
+              label="Stress"
+              value={stressDisplay}
+              statusLabel={stressStatusLabel}
+              dotColor={stressDotColor}
+              onClick={() => navigate("/stress")}
+            />
+            <ScoreCard
+              label="Focus"
+              value={focusDisplay}
+              statusLabel={focusStatusLabel}
+              dotColor={focusDotColor}
+              onClick={() => navigate("/focus")}
+            />
+          </motion.div>
+
+          {/* ── 4. AI Insight ── */}
+          <motion.div
+            variants={itemVariants}
+            style={{
+              ...bevelCard,
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              <Sparkles size={13} color="#7c3aed" />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#7c3aed",
+                  textTransform: "uppercase" as const,
+                  letterSpacing: "0.5px",
+                }}
+              >
+                AI Insight
+              </span>
+            </div>
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--foreground)",
+                margin: 0,
+                lineHeight: 1.6,
+              }}
+            >
+              {aiInsight}
+            </p>
+          </motion.div>
+
+          {/* ── Stress Warning (conditional) ── */}
+          {(checkin?.stress_index ?? 0) > 0.6 && (
+            <motion.div
+              variants={itemVariants}
+              style={{
+                ...bevelCard,
+                border: "1px solid rgba(232, 121, 168, 0.2)",
+                marginBottom: 20,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>&#x26A0;&#xFE0F;</span>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "#e879a8",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Your stress levels are elevated
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--muted-foreground)",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Take a moment to breathe. Try the 4-7-8 breathing technique:
+                    <br />
+                    <span style={{ fontWeight: 500, color: "var(--foreground)" }}>
+                      Inhale 4s &rarr; Hold 7s &rarr; Exhale 8s
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() =>
+                    window.open(
+                      "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO",
+                      "_blank"
+                    )
+                  }
+                  style={{
+                    flex: 1,
+                    background: "linear-gradient(135deg, #1DB954, #158a3e)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 12,
+                    padding: "10px 16px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Listen to Calm Music
+                </button>
+                <button
+                  onClick={() => setShowBreathe(true)}
+                  style={{
+                    flex: 1,
+                    background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 12,
+                    padding: "10px 16px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Breathing Exercise
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Inline breathing exercise */}
+          {showBreathe && <InlineBreathe onClose={() => setShowBreathe(false)} />}
+
+          {/* ── 5. Health Metrics (2x2 grid) ── */}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+            }}
+          >
+            {/* Sleep */}
+            <HealthMetricCard
+              label="Sleep"
+              value={sleepTotal > 0 ? sleepTotal.toFixed(1) : "---"}
+              unit={sleepTotal > 0 ? "hrs" : ""}
+              statusLabel={
+                sleepTotal > 0 && sleepEfficiency > 0
+                  ? `${Math.round(sleepEfficiency)}% quality`
+                  : sleepStatus.label
+              }
+              dotColor={sleepStatus.color}
+              onClick={() => navigate("/sleep-session")}
+              barPercent={sleepTotal > 0 ? Math.min(100, (sleepTotal / 8) * 100) : undefined}
+              barGradient="linear-gradient(90deg, #7c3aed, #a78bfa)"
+            />
+
+            {/* Heart Rate */}
+            <HealthMetricCard
+              label="Heart Rate"
+              value={heartRate ? `${Math.round(heartRate)}` : "---"}
+              unit={heartRate ? "bpm" : ""}
+              statusLabel={hrStatus.label}
+              dotColor={hrStatus.color}
+              onClick={() => navigate("/health-analytics")}
+            />
+
+            {/* Steps */}
+            <HealthMetricCard
+              label="Steps"
+              value={steps > 0 ? steps.toLocaleString() : "---"}
+              unit={steps > 0 ? `${stepsPct}%` : ""}
+              statusLabel={stepsStatus.label}
+              dotColor={stepsStatus.color}
+              onClick={() => navigate("/health-analytics")}
+              barPercent={steps > 0 ? stepsPct : undefined}
+              barGradient="linear-gradient(90deg, #06b6d4, #22d3ee)"
+            />
+
+            {/* Nutrition */}
+            <HealthMetricCard
+              label="Nutrition"
+              value={todayCalories > 0 ? todayCalories.toLocaleString() : "---"}
+              unit={todayCalories > 0 ? "kcal" : ""}
+              statusLabel={nutritionStatus.label}
+              dotColor={nutritionStatus.color}
+              onClick={() => navigate("/nutrition")}
+              barPercent={todayCalories > 0 ? calPct : undefined}
+              barGradient="linear-gradient(90deg, #d4a017, #ea580c)"
+            />
+          </motion.div>
+        </motion.div>
+      </motion.main>
     </>
   );
 }
