@@ -6,7 +6,7 @@ import { pageTransition } from "@/lib/animations";
 import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
-import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle, Smile, Minus, Frown, PenLine, TrendingUp, TrendingDown } from "lucide-react";
+import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle, Smile, Minus, Frown, PenLine, TrendingUp, TrendingDown, Check, Pencil, Clock } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
@@ -30,6 +30,14 @@ interface EmotionCheckin {
 interface FoodLog {
   totalCalories?: number;
   date?: string;
+  loggedAt?: string;
+}
+
+interface MoodLogEntry {
+  id?: string;
+  moodScore?: string | number;
+  energyLevel?: string | number;
+  notes?: string;
   loggedAt?: string;
 }
 
@@ -109,6 +117,21 @@ function getAIInsight(checkin: EmotionCheckin | null): string {
     return "Focus is low right now. Short focused sprints (25-min Pomodoro) may help re-engage your attention.";
   }
   return "Your brain state looks balanced. Stay consistent with your routines today.";
+}
+
+function getMoodLogTone(moodScore: number): { label: string; color: string } {
+  if (moodScore >= 7) return { label: "Positive", color: "#06b6d4" };
+  if (moodScore >= 4) return { label: "Neutral", color: "#94a3b8" };
+  return { label: "Low", color: "#e879a8" };
+}
+
+function formatTime(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
 }
 
 function formatDate(): string {
@@ -672,6 +695,19 @@ export default function Today() {
     staleTime: 5 * 60_000,
   });
 
+  // Fetch mood log history for "Log a Feeling" display
+  const { data: moodLogHistory } = useQuery<MoodLogEntry[]>({
+    queryKey: ["/api/mood", userId],
+    queryFn: async () => {
+      try {
+        const res = await fetch(resolveUrl(`/api/mood/${userId}?days=1`));
+        if (res.ok) return await res.json();
+      } catch { /* API unavailable */ }
+      return [];
+    },
+    staleTime: 30_000,
+  });
+
   // ── Log a feeling state ──
   const [feelingText, setFeelingText] = useState("");
   const [feelingTone, setFeelingTone] = useState<"positive" | "neutral" | "low">("neutral");
@@ -732,6 +768,49 @@ export default function Today() {
       window.removeEventListener("ndw-emotion-update", loadCheckin);
     };
   }, []);
+
+  // Emotion correction state (Task 3: confirm or correct voice-detected emotion)
+  const [emotionFeedback, setEmotionFeedback] = useState<"ask" | "correcting" | "confirmed" | "corrected">("ask");
+  const [correctedEmotion, setCorrectedEmotion] = useState<string | null>(null);
+
+  // Reset feedback state when a new voice analysis arrives
+  useEffect(() => {
+    setEmotionFeedback("ask");
+    setCorrectedEmotion(null);
+  }, [checkinTimestamp]);
+
+  const confirmVoiceEmotion = useCallback(() => {
+    setEmotionFeedback("confirmed");
+    if (checkin?.emotion) {
+      fetch(resolveUrl(`/api/readings/${userId}/correct-latest`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correctedEmotion: checkin.emotion }),
+      }).catch(() => {});
+    }
+  }, [userId, checkin]);
+
+  const submitEmotionCorrection = useCallback((emotion: string) => {
+    setCorrectedEmotion(emotion);
+    setEmotionFeedback("corrected");
+    fetch(resolveUrl(`/api/readings/${userId}/correct-latest`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ correctedEmotion: emotion }),
+    }).catch((err) => console.error("Failed to save emotion correction:", err));
+    // Update local emotion display so the card reflects the correction immediately
+    try {
+      const raw = localStorage.getItem("ndw_last_emotion");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const data = parsed?.result ?? parsed;
+        data.emotion = emotion;
+        if (parsed?.result) parsed.result = data;
+        localStorage.setItem("ndw_last_emotion", JSON.stringify(parsed?.result ? parsed : { result: data, timestamp: Date.now() }));
+        window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
+      }
+    } catch { /* ignore */ }
+  }, [userId]);
 
   // Fetch food logs for today — API with localStorage fallback
   const { data: foodLogs } = useQuery<FoodLog[]>({
@@ -870,11 +949,14 @@ export default function Today() {
     : "var(--muted-foreground)";
   const focusStatusLabel = focusVal > 0 ? getFocusLabel(focusVal) : "No data";
 
-  // Compute deltas vs previous session
+  // Compute deltas vs previous session — use brain history, fall back to localStorage yesterday
   const prevEntry = recentHistory && recentHistory.length >= 2 ? recentHistory[recentHistory.length - 2] : null;
-  const stressDelta = prevEntry?.stress != null ? (stressVal - prevEntry.stress) : null;
-  const focusDelta = prevEntry?.focus != null ? (focusVal - prevEntry.focus) : null;
-  const moodDelta = prevEntry?.valence != null ? ((checkin?.valence ?? 0) - prevEntry.valence) : null;
+  const prevStress = prevEntry?.stress ?? yesterday?.stress_index ?? null;
+  const prevFocus = prevEntry?.focus ?? yesterday?.focus_index ?? null;
+  const prevValence = prevEntry?.valence ?? yesterday?.valence ?? null;
+  const stressDelta = (prevStress != null && stressVal > 0) ? (stressVal - prevStress) : null;
+  const focusDelta = (prevFocus != null && focusVal > 0) ? (focusVal - prevFocus) : null;
+  const moodDelta = (prevValence != null && checkin?.valence != null) ? (checkin.valence - prevValence) : null;
 
   // Score splash — show once per session when data exists
   const [showSplash, setShowSplash] = useState(() => {
@@ -1255,7 +1337,137 @@ export default function Today() {
                 Feeling logged!
               </motion.p>
             )}
+            {/* Feeling history — show today's logged feelings */}
+            {moodLogHistory && moodLogHistory.length > 0 && (
+              <div style={{ marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 8 }}>
+                  <Clock style={{ width: 11, height: 11, color: "var(--muted-foreground)" }} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase" as const, letterSpacing: "0.4px" }}>
+                    Today's Feelings
+                  </span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {moodLogHistory.slice(0, 5).map((entry, i) => {
+                    const score = typeof entry.moodScore === "string" ? parseFloat(entry.moodScore) : (entry.moodScore ?? 5);
+                    const tone = getMoodLogTone(score);
+                    return (
+                      <div key={entry.id ?? i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: tone.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1, lineHeight: 1.3 }}>
+                          {entry.notes || tone.label}
+                        </span>
+                        {entry.loggedAt && (
+                          <span style={{ fontSize: 10, color: "var(--muted-foreground)", flexShrink: 0 }}>
+                            {formatTime(entry.loggedAt)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </motion.div>
+
+          {/* ── 4c. Emotion Correction (after voice analysis) ── */}
+          {checkin?.emotion && checkin.emotion !== "---" && (
+            <motion.div
+              variants={itemVariants}
+              style={{
+                ...bevelCard,
+                marginBottom: 20,
+                borderLeft: "3px solid #7c3aed",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 22 }}>
+                  {checkin.emotion === "happy" ? "😊" : checkin.emotion === "sad" ? "😢" : checkin.emotion === "angry" ? "😠" : checkin.emotion === "fear" ? "😨" : checkin.emotion === "surprise" ? "😲" : checkin.emotion === "anxious" ? "😰" : checkin.emotion === "neutral" ? "😐" : "🧠"}
+                </span>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", textTransform: "capitalize" as const }}>
+                    {correctedEmotion ?? checkin.emotion}
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginLeft: 6 }}>
+                    detected from voice
+                  </span>
+                </div>
+              </div>
+
+              {emotionFeedback === "ask" && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Is this right?</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={confirmVoiceEmotion}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "5px 14px", borderRadius: 16, border: "none",
+                        background: "rgba(124, 58, 237, 0.1)", color: "#7c3aed",
+                        fontSize: 12, fontWeight: 500, cursor: "pointer",
+                      }}
+                    >
+                      <Check style={{ width: 12, height: 12 }} />
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setEmotionFeedback("correcting")}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "5px 14px", borderRadius: 16, border: "none",
+                        background: "var(--muted)", color: "var(--muted-foreground)",
+                        fontSize: 12, fontWeight: 500, cursor: "pointer",
+                      }}
+                    >
+                      <Pencil style={{ width: 12, height: 12 }} />
+                      Correct it
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {emotionFeedback === "correcting" && (
+                <div style={{ paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: 12, color: "var(--muted-foreground)", display: "block", marginBottom: 8 }}>
+                    What were you actually feeling?
+                  </span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {["happy", "sad", "angry", "fearful", "surprised", "neutral", "anxious", "peaceful", "excited", "frustrated"].map((em) => (
+                      <button
+                        key={em}
+                        onClick={() => submitEmotionCorrection(em)}
+                        style={{
+                          padding: "5px 12px", borderRadius: 16, border: "none",
+                          background: em === checkin.emotion ? "var(--muted)" : "rgba(124, 58, 237, 0.1)",
+                          color: em === checkin.emotion ? "var(--muted-foreground)" : "#7c3aed",
+                          fontSize: 11, fontWeight: 500, cursor: "pointer",
+                          textTransform: "capitalize" as const,
+                          opacity: em === checkin.emotion ? 0.5 : 1,
+                        }}
+                      >
+                        {em}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {emotionFeedback === "confirmed" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                  <Check style={{ width: 13, height: 13, color: "#06b6d4" }} />
+                  <span style={{ fontSize: 12, color: "#06b6d4", fontWeight: 500 }}>Confirmed</span>
+                </div>
+              )}
+
+              {emotionFeedback === "corrected" && correctedEmotion && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                  <Check style={{ width: 13, height: 13, color: "#06b6d4" }} />
+                  <span style={{ fontSize: 12, color: "#06b6d4", fontWeight: 500 }}>
+                    Saved as {correctedEmotion}. This helps improve accuracy!
+                  </span>
+                </div>
+              )}
+            </motion.div>
+          )}
 
           {/* ── Stress Warning (conditional) ── */}
           {(checkin?.stress_index ?? 0) > 0.6 && (

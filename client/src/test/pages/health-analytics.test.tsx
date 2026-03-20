@@ -70,12 +70,13 @@ describe("HealthAnalytics page", () => {
     });
   });
 
-  it("shows placeholder dashes when no real data", async () => {
+  it("shows score labels when no real data", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      // When disconnected with no voice data, shows "—" placeholders
-      const dashes = screen.getAllByText("—");
-      expect(dashes.length).toBe(3);
+      // When disconnected with no voice data, composite score labels still render
+      expect(screen.getByText("Brain")).toBeInTheDocument();
+      expect(screen.getByText("Cognitive")).toBeInTheDocument();
+      expect(screen.getByText("Wellbeing")).toBeInTheDocument();
     });
   });
 
@@ -89,10 +90,10 @@ describe("HealthAnalytics page", () => {
     });
   });
 
-  it("shows Trends card", async () => {
+  it("shows Brain Health Trends card", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      expect(screen.getByText("Trends")).toBeInTheDocument();
+      expect(screen.getByText("Brain Health Trends")).toBeInTheDocument();
     });
   });
 
@@ -119,7 +120,7 @@ describe("HealthAnalytics page", () => {
     const weekTab = await screen.findByRole("button", { name: /Week/ });
     fireEvent.click(weekTab);
     await waitFor(() => {
-      expect(screen.getByText("Trends")).toBeInTheDocument();
+      expect(screen.getByText("Brain Health Trends")).toBeInTheDocument();
     });
   });
 
@@ -132,10 +133,95 @@ describe("HealthAnalytics page", () => {
     });
   });
 
-  it("shows Today's Scores section when not streaming", async () => {
+  it("shows Composite Scores section when not streaming", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      expect(screen.getByText("Today's Scores")).toBeInTheDocument();
+      expect(screen.getByText("Composite Scores")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("HealthAnalytics — individual metric panels", () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ([]),
+    }) as unknown as typeof fetch;
+  });
+
+  it("does NOT show individual metric panels when no real data", async () => {
+    // hasRealData = false when not streaming and no voice result
+    renderWithProviders(<HealthAnalytics />);
+    await waitFor(() => {
+      expect(screen.getByText("Brain Health Trends")).toBeInTheDocument();
+    });
+    // Individual metric panels only render when hasRealData is true
+    // With our mock (disconnected, no voice), they should NOT be in the DOM
+    expect(screen.queryByText("Attention and concentration level")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mental stress and tension")).not.toBeInTheDocument();
+    expect(screen.queryByText("Calm and restful state")).not.toBeInTheDocument();
+    expect(screen.queryByText("Deep immersion in activity")).not.toBeInTheDocument();
+  });
+
+  it("shows placeholder '--' values in composite scores when no data", async () => {
+    renderWithProviders(<HealthAnalytics />);
+    await waitFor(() => {
+      // Placeholder circles show '--' when hasRealData is false
+      const dashes = screen.getAllByText("--");
+      expect(dashes.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+});
+
+describe("HealthAnalytics — composite scores section details", () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ([]),
+    }) as unknown as typeof fetch;
+  });
+
+  it("shows all three composite score names", async () => {
+    renderWithProviders(<HealthAnalytics />);
+    await waitFor(() => {
+      expect(screen.getByText("Brain")).toBeInTheDocument();
+      expect(screen.getByText("Cognitive")).toBeInTheDocument();
+      expect(screen.getByText("Wellbeing")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Composite Scores header with uppercase styling", async () => {
+    renderWithProviders(<HealthAnalytics />);
+    await waitFor(() => {
+      const header = screen.getByText("Composite Scores");
+      expect(header).toBeInTheDocument();
+      expect(header.tagName.toLowerCase()).toBe("p");
+    });
+  });
+
+  it("composite scores section has aria-label for accessibility", async () => {
+    renderWithProviders(<HealthAnalytics />);
+    await waitFor(() => {
+      const section = screen.getByLabelText("Today's health scores");
+      expect(section).toBeInTheDocument();
+    });
+  });
+
+  it("shows Voice Analysis link button in empty Today state", async () => {
+    renderWithProviders(<HealthAnalytics />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Voice Analysis/i })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("Voice Analysis link is not shown after switching to Week period", async () => {
+    renderWithProviders(<HealthAnalytics />);
+    const weekTab = await screen.findByRole("button", { name: /Week/ });
+    fireEvent.click(weekTab);
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /Voice Analysis/i })).not.toBeInTheDocument();
     });
   });
 });
