@@ -267,7 +267,200 @@ export default function HealthAnalytics() {
         </div>
       )}
 
-      {/* Score Gauges — horizontal row on mobile */}
+      {/* Brain Health Trends — FULL WIDTH ON TOP */}
+      <div
+        className="rounded-2xl p-4"
+        style={{
+          background: "hsl(222,28%,9%,0.7)",
+          border: "1px solid hsl(220,18%,17%,0.6)",
+          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+        }}
+      >
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <p className="text-[13px] font-semibold">Brain Health Trends</p>
+            {isLiveToday && isStreaming && (
+              <span className="text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+            )}
+          </div>
+          <div className="flex gap-1 overflow-x-auto" role="group" aria-label="Time period">
+            {PERIOD_TABS.map((tab) => (
+              <button
+                key={tab.days}
+                onClick={() => setPeriodDays(tab.days)}
+                aria-label={`Show trends for ${tab.label}`}
+                aria-pressed={periodDays === tab.days}
+                className={`shrink-0 px-2.5 py-1 text-[11px] rounded-full transition-colors ${
+                  periodDays === tab.days
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Live: per-frame band-power chart — changes every 1.5 s */}
+        {isLiveToday && isStreaming ? (
+          liveBands.length < 2 ? (
+            <div className="h-60 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2" aria-live="polite">
+              <Brain className="h-8 w-8 opacity-30" aria-hidden="true" />
+              <p>Collecting live data...</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-[10px] text-muted-foreground mb-2">% of total EEG power per band -- updates every 1.5 s</p>
+              <p className="sr-only" aria-live="polite">
+                Live EEG band power chart: Calm (alpha), Alert (beta), and Creative (theta) percentage over time. Latest values -- Calm: {liveBands[liveBands.length - 1]?.calm ?? 0}%, Alert: {liveBands[liveBands.length - 1]?.alert ?? 0}%, Creative: {liveBands[liveBands.length - 1]?.creative ?? 0}%.
+              </p>
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart data={liveBands} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
+                  <XAxis dataKey="time" tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis domain={[0, 60]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
+                    formatter={(v: number, name: string) => [`${v}%`, name]}
+                  />
+                  <Line type="monotone" dataKey="calm"     name="Calm (alpha)"     stroke="hsl(152,65%,50%)" strokeWidth={2}   dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="alert"    name="Alert (beta)"    stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="creative" name="Creative (theta)" stroke="hsl(270,65%,62%)" strokeWidth={2.5} strokeDasharray="5 3" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">
+                {[
+                  { short: "Calm (alpha)", full: "Calm (alpha)",    color: "hsl(152,65%,50%)" },
+                  { short: "Alert (beta)", full: "Alert (beta)",     color: "hsl(200,70%,55%)" },
+                  { short: "Creative (theta)", full: "Creative (theta)", color: "hsl(270,65%,62%)", dashed: true },
+                ].map((l) => (
+                  <div key={l.short} className="flex items-center gap-1">
+                    <svg width="14" height="8"><line x1="0" y1="4" x2="14" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
+                    <span className="text-[10px] text-muted-foreground">{l.full}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )
+        ) : !hasChartData ? (
+          <div className="h-60 flex flex-col items-center justify-center text-sm text-muted-foreground gap-3">
+            <Brain className="h-8 w-8 opacity-30" aria-hidden="true" />
+            <p className="font-medium text-foreground/70">
+              {isLiveToday ? "Start your first session to see trends" : "No sessions in this period"}
+            </p>
+            {isLiveToday && (
+              <Link href="/emotions">
+                <Button
+                  size="sm"
+                  className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
+                >
+                  <Mic className="h-3.5 w-3.5 mr-1.5" />
+                  Voice Analysis
+                </Button>
+              </Link>
+            )}
+          </div>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={chartData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="focusGradH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(200,70%,55%)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="hsl(200,70%,55%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="stressGradH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(38,85%,58%)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="hsl(38,85%,58%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="relaxGradH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(152,60%,48%)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="hsl(152,60%,48%)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="flowGradH" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(262,45%,65%)" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="hsl(262,45%,65%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
+                <XAxis dataKey={dataKey} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}%`} />
+                <Tooltip
+                  cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
+                  formatter={(v: number) => [`${v}%`]}
+                />
+                <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(200,70%,55%)" fill="url(#focusGradH)" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" fill="url(#stressGradH)" strokeWidth={2.5} strokeDasharray="4 3" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="relaxation" name="Relax" stroke="hsl(152,60%,48%)" fill="url(#relaxGradH)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="flow" name="Flow" stroke="hsl(262,45%,65%)" fill="url(#flowGradH)" strokeWidth={2.5} strokeDasharray="2 2" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">
+              {[
+                { label: "Focus",   color: "hsl(200,70%,55%)" },
+                { label: "Stress",  color: "hsl(38,85%,58%)",  dashed: true },
+                { label: "Relax",   color: "hsl(152,60%,48%)" },
+                { label: "Flow",    color: "hsl(262,45%,65%)", dashed: true },
+              ].map((l) => (
+                <div key={l.label} className="flex items-center gap-1">
+                  <svg width="14" height="8"><line x1="0" y1="4" x2="14" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
+                  <span className="text-[9px] sm:text-[10px] text-muted-foreground">{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Individual Metric Panels — full-width breakdown */}
+      {hasRealData && (
+        <div className="space-y-3">
+          {[
+            { label: "Focus", value: focusScore, color: "hsl(200,70%,55%)", gradId: "focusPanelGrad", desc: "Attention and concentration level" },
+            { label: "Stress", value: stressIndex, color: "hsl(38,85%,58%)", gradId: "stressPanelGrad", desc: "Mental stress and tension" },
+            { label: "Relaxation", value: relaxScore, color: "hsl(152,60%,48%)", gradId: "relaxPanelGrad", desc: "Calm and restful state" },
+            { label: "Flow", value: flowScore, color: "hsl(262,45%,65%)", gradId: "flowPanelGrad", desc: "Deep immersion in activity" },
+          ].map((metric) => (
+            <div
+              key={metric.label}
+              className="rounded-2xl p-4"
+              style={{
+                background: "hsl(222,28%,9%,0.7)",
+                border: "1px solid hsl(220,18%,17%,0.6)",
+                boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-[12px] font-semibold text-foreground">{metric.label}</p>
+                  <p className="text-[10px] text-muted-foreground">{metric.desc}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-bold" style={{ color: metric.color }}>
+                    {metric.value !== null ? metric.value : "--"}
+                  </span>
+                  {metric.value !== null && <span className="text-[10px] text-muted-foreground ml-0.5">%</span>}
+                </div>
+              </div>
+              <div className="w-full h-3 rounded-full bg-muted/20 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700 ease-out"
+                  style={{
+                    width: `${metric.value ?? 0}%`,
+                    background: `linear-gradient(90deg, ${metric.color}33, ${metric.color})`,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Score Gauges — composite scores below the metrics */}
       <div
         className="rounded-2xl p-4"
         aria-live="polite"
@@ -279,7 +472,7 @@ export default function HealthAnalytics() {
         }}
       >
         <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em] mb-4">
-          Today's Scores
+          Composite Scores
         </p>
         <div className="flex items-start justify-around">
           {[
@@ -326,163 +519,13 @@ export default function HealthAnalytics() {
                 />
               ) : (
                 <div className="w-20 h-20 sm:w-[100px] sm:h-[100px] rounded-full border-4 border-muted/30 flex flex-col items-center justify-center">
-                  <span className="text-xl font-bold text-muted-foreground/40" aria-hidden="true">—</span>
+                  <span className="text-xl font-bold text-muted-foreground/40" aria-hidden="true">--</span>
                   <span className="text-[9px] text-muted-foreground/40 mt-0.5" aria-hidden="true">{s.label}</span>
                 </div>
               )}
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Brain Health Trends */}
-      <div
-        className="rounded-2xl p-4"
-        style={{
-          background: "hsl(222,28%,9%,0.7)",
-          border: "1px solid hsl(220,18%,17%,0.6)",
-          boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-        }}
-      >
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            <p className="text-[13px] font-semibold">Trends</p>
-            {isLiveToday && isStreaming && (
-              <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
-            )}
-          </div>
-          <div className="flex gap-1 overflow-x-auto" role="group" aria-label="Time period">
-            {PERIOD_TABS.map((tab) => (
-              <button
-                key={tab.days}
-                onClick={() => setPeriodDays(tab.days)}
-                aria-label={`Show trends for ${tab.label}`}
-                aria-pressed={periodDays === tab.days}
-                className={`shrink-0 px-2.5 py-1 text-[11px] rounded-full transition-colors ${
-                  periodDays === tab.days
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Live: per-frame band-power chart — changes every 1.5 s */}
-        {isLiveToday && isStreaming ? (
-          liveBands.length < 2 ? (
-            <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2" aria-live="polite">
-              <Brain className="h-8 w-8 opacity-30" aria-hidden="true" />
-              <p>Collecting live data…</p>
-            </div>
-          ) : (
-            <>
-              <p className="text-[10px] text-muted-foreground mb-2">% of total EEG power per band — updates every 1.5 s</p>
-              <p className="sr-only" aria-live="polite">
-                Live EEG band power chart: Calm (alpha), Alert (beta), and Creative (theta) percentage over time. Latest values — Calm: {liveBands[liveBands.length - 1]?.calm ?? 0}%, Alert: {liveBands[liveBands.length - 1]?.alert ?? 0}%, Creative: {liveBands[liveBands.length - 1]?.creative ?? 0}%.
-              </p>
-              <ResponsiveContainer width="100%" height={192}>
-                <LineChart data={liveBands} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
-                  <XAxis dataKey="time" tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 60]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={24} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip
-                    cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
-                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
-                    formatter={(v: number, name: string) => [`${v}%`, name]}
-                  />
-                  <Line type="monotone" dataKey="calm"     name="Calm (α)"     stroke="hsl(152,65%,50%)" strokeWidth={2}   dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="alert"    name="Alert (β)"    stroke="hsl(200,70%,55%)" strokeWidth={2}   dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
-                  <Line type="monotone" dataKey="creative" name="Creative (θ)" stroke="hsl(270,65%,62%)" strokeWidth={2.5} strokeDasharray="5 3" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
-              <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">
-                {[
-                  { short: "Calm (α)", full: "Calm (α -- alpha)",    color: "hsl(152,65%,50%)" },
-                  { short: "Alert (β)", full: "Alert (β -- beta)",     color: "hsl(200,70%,55%)" },
-                  { short: "Creative (θ)", full: "Creative (θ -- theta)", color: "hsl(270,65%,62%)", dashed: true },
-                ].map((l) => (
-                  <div key={l.short} className="flex items-center gap-1">
-                    <svg width="14" height="8"><line x1="0" y1="4" x2="14" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
-                    <span className="text-[10px] text-muted-foreground hidden sm:inline">{l.full}</span>
-                    <span className="text-[9px] text-muted-foreground sm:hidden">{l.short}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )
-        ) : !hasChartData ? (
-          <div className="h-48 flex flex-col items-center justify-center text-sm text-muted-foreground gap-3">
-            <Brain className="h-8 w-8 opacity-30" aria-hidden="true" />
-            <p className="font-medium text-foreground/70">
-              {isLiveToday ? "Start your first session to see trends" : "No sessions in this period"}
-            </p>
-            {isLiveToday && (
-              <Link href="/emotions">
-                <Button
-                  size="sm"
-                  className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"
-                >
-                  <Mic className="h-3.5 w-3.5 mr-1.5" />
-                  Voice Analysis
-                </Button>
-              </Link>
-            )}
-          </div>
-        ) : (
-          <>
-            <ResponsiveContainer width="100%" height={192}>
-              <AreaChart data={chartData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="focusGradH" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(200,70%,55%)" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="hsl(200,70%,55%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="stressGradH" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(38,85%,58%)" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="hsl(38,85%,58%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="relaxGradH" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(152,60%,48%)" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="hsl(152,60%,48%)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="flowGradH" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(262,45%,65%)" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="hsl(262,45%,65%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
-                <XAxis dataKey={dataKey} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }} axisLine={false} tickLine={false} width={24} />
-                <Tooltip
-                  cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
-                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
-                  formatter={(v: number) => [`${v}%`]}
-                />
-                <Area type="monotone" dataKey="focus" name="Focus" stroke="hsl(200,70%,55%)" fill="url(#focusGradH)" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
-                <Area type="monotone" dataKey="stress" name="Stress" stroke="hsl(38,85%,58%)" fill="url(#stressGradH)" strokeWidth={2.5} strokeDasharray="4 3" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
-                <Area type="monotone" dataKey="relaxation" name="Relax" stroke="hsl(152,60%,48%)" fill="url(#relaxGradH)" strokeWidth={2.5} dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
-                <Area type="monotone" dataKey="flow" name="Flow" stroke="hsl(262,45%,65%)" fill="url(#flowGradH)" strokeWidth={2.5} strokeDasharray="2 2" dot={false} isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" activeDot={{ r: 4 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-            <div className="flex gap-2 sm:gap-4 mt-2 flex-wrap justify-center">
-              {[
-                { label: "Focus",   color: "hsl(200,70%,55%)" },
-                { label: "Stress",  color: "hsl(38,85%,58%)",  dashed: true },
-                { label: "Relax",   color: "hsl(152,60%,48%)" },
-                { label: "Flow",    color: "hsl(262,45%,65%)", dashed: true },
-              ].map((l) => (
-                <div key={l.label} className="flex items-center gap-1">
-                  <svg width="14" height="8"><line x1="0" y1="4" x2="14" y2="4" stroke={l.color} strokeWidth="2" strokeDasharray={l.dashed ? "4 3" : "0"} /></svg>
-                  <span className="text-[9px] sm:text-[10px] text-muted-foreground">{l.label}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
       </div>
 
       {/* Brain-Health Insights (live only) */}

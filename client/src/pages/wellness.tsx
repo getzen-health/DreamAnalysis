@@ -1310,8 +1310,8 @@ function MoodTab() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
       >
-        <p className="text-sm font-semibold text-foreground">Energy & Mood Log</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">Optional personal tracking — not used for automatic emotion detection</p>
+        <p className="text-sm font-semibold text-foreground">How are you feeling?</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">Track your mood and energy over time</p>
 
         {/* Mood slider with face */}
         <div className="space-y-3">
@@ -1473,26 +1473,54 @@ function MoodTab() {
       {timePattern.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Mood by time of day
+            Average mood by time of day
           </p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="space-y-2.5">
             {["Morning", "Afternoon", "Evening", "Night"].map(label => {
               const bucket = timePattern.find(b => b.label === label);
+              const timeRanges: Record<string, string> = {
+                Morning: "5am - 12pm",
+                Afternoon: "12pm - 5pm",
+                Evening: "5pm - 9pm",
+                Night: "9pm - 5am",
+              };
+              const avg = bucket?.avg ?? 0;
+              const barPct = bucket ? Math.round((avg / 10) * 100) : 0;
+              const barColor = avg >= 7 ? "#0891b2" : avg >= 5 ? "#d4a017" : "#e879a8";
               return (
-                <div key={label} className="text-center">
-                  <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+                <div key={label} className="flex items-center gap-3">
+                  <div className="w-[72px] shrink-0">
+                    <p className="text-[11px] font-medium text-foreground leading-tight">{label}</p>
+                    <p className="text-[9px] text-muted-foreground/60">{timeRanges[label]}</p>
+                  </div>
                   {bucket ? (
-                    <>
-                      <p className="text-lg font-bold">{bucket.avg}</p>
-                      <p className="text-[9px] text-muted-foreground">{bucket.count} logs</p>
-                    </>
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="flex-1 h-5 rounded-full bg-muted/30 overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ backgroundColor: barColor, width: `${barPct}%` }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${barPct}%` }}
+                          transition={{ duration: 0.6, ease: "easeOut" }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold text-foreground w-8 text-right">{avg}</span>
+                      <span className="text-[9px] text-muted-foreground/50 w-12 text-right">{bucket.count} {bucket.count === 1 ? "log" : "logs"}</span>
+                    </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground/40">--</p>
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="flex-1 h-5 rounded-full bg-muted/30" />
+                      <span className="text-[10px] text-muted-foreground/40 w-8 text-right">--</span>
+                      <span className="w-12" />
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
+          <p className="text-[9px] text-muted-foreground/50 mt-2.5 text-center">
+            Based on when you log -- bars show average mood out of 10
+          </p>
         </div>
       )}
 
@@ -1506,18 +1534,32 @@ function MoodTab() {
             {moodLogs.slice(0, 10).map(log => {
               const f = getMoodFace(parseFloat(log.moodScore));
               const Icon = f.icon;
+              const moodVal = parseFloat(log.moodScore);
+              const energyVal = log.energyLevel ? parseFloat(log.energyLevel) : null;
               return (
-                <div key={log.id} className="flex items-center gap-3 py-1.5">
-                  <Icon className="h-4 w-4 text-primary shrink-0" />
+                <div key={log.id} className="flex items-center gap-3 py-2 border-b border-border/30 last:border-0">
+                  <Icon className="h-5 w-5 text-primary shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">
-                        Mood {parseFloat(log.moodScore)}
-                        {log.energyLevel && <span className="text-muted-foreground font-normal"> / Energy {parseFloat(log.energyLevel)}</span>}
-                      </span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-muted-foreground w-10">Mood</span>
+                        <div className="w-16 h-2 rounded-full bg-muted/30 overflow-hidden">
+                          <div className="h-full rounded-full bg-[#0891b2]" style={{ width: `${moodVal * 10}%` }} />
+                        </div>
+                        <span className="text-xs font-bold w-4">{moodVal}</span>
+                      </div>
+                      {energyVal !== null && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground w-10">Energy</span>
+                          <div className="w-16 h-2 rounded-full bg-muted/30 overflow-hidden">
+                            <div className="h-full rounded-full bg-[#d4a017]" style={{ width: `${energyVal * 10}%` }} />
+                          </div>
+                          <span className="text-xs font-bold w-4">{energyVal}</span>
+                        </div>
+                      )}
                     </div>
                     {log.notes && (
-                      <p className="text-[10px] text-muted-foreground truncate">{log.notes}</p>
+                      <p className="text-[10px] text-muted-foreground truncate mt-0.5">{log.notes}</p>
                     )}
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0">
