@@ -434,30 +434,23 @@ export class MuseBleManager {
     // Wait for Muse to reconfigure GATT after preset command
     await new Promise((r) => setTimeout(r, 2000));
 
-    // Auto-detect Muse S vs Muse 2 EEG UUIDs
-    // Try ALL known UUIDs and use whichever ones exist
-    const allPossibleChars = [
-      ...MUSE_EEG_CHARS_MUSE_S,  // 0013, 0014, 0015, 0016
-      ...MUSE_EEG_CHARS_MUSE2,   // 0003, 0004, 0005, 0006
-    ];
+    // Get ALL characteristics from the service at once (avoids repeated pairing prompts)
+    const allChars = await service.getCharacteristics();
 
-    const foundChars: BluetoothRemoteGATTCharacteristic[] = [];
-    for (const uuid of allPossibleChars) {
-      try {
-        const ch = await service.getCharacteristic(uuid);
-        foundChars.push(ch);
-        if (foundChars.length >= 4) break; // found all 4 channels
-      } catch {
-        // This UUID doesn't exist — try next
-      }
-    }
+    // Filter to find EEG data characteristics
+    const eegUuids = new Set([
+      ...MUSE_EEG_CHARS_MUSE_S.map(u => u.toLowerCase()),
+      ...MUSE_EEG_CHARS_MUSE2.map(u => u.toLowerCase()),
+    ]);
+
+    const foundChars = allChars.filter(c => eegUuids.has(c.uuid.toLowerCase()));
 
     if (foundChars.length === 0) {
-      throw new Error("No EEG characteristics found. Muse may need a firmware update.");
+      throw new Error("No EEG characteristics found. Found " + allChars.length + " total characteristics.");
     }
 
     // Subscribe to found channels
-    for (let i = 0; i < foundChars.length; i++) {
+    for (let i = 0; i < Math.min(foundChars.length, N_ACTIVE_CHANNELS); i++) {
       const characteristic = foundChars[i];
       await characteristic.startNotifications();
       const channelIndex = i;
