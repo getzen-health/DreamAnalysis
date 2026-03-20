@@ -313,7 +313,7 @@ const bevelCard: React.CSSProperties = {
   borderRadius: 20,
   border: "1px solid rgba(255,255,255,0.08)",
   background: "var(--card)",
-  padding: 16,
+  padding: "18px 20px",
 };
 
 // ── Hero Wellness Gauge ──────────────────────────────────────────────────
@@ -392,7 +392,7 @@ function WellnessGauge({ score }: { score: number }) {
       </svg>
       <p
         style={{
-          fontSize: 13,
+          fontSize: 14,
           color: score === 0 ? "var(--muted-foreground)" : "#7c3aed",
           margin: 0,
           textAlign: "center",
@@ -432,7 +432,7 @@ function ScoreCard({
         flexDirection: "column",
         alignItems: "center",
         gap: 6,
-        padding: "16px 8px",
+        padding: "18px 20px",
       }}
     >
       <span
@@ -448,7 +448,7 @@ function ScoreCard({
       </span>
       <span
         style={{
-          fontSize: 24,
+          fontSize: 28,
           fontWeight: 700,
           color: "var(--foreground)",
           lineHeight: 1,
@@ -520,7 +520,7 @@ function HealthMetricCard({
         cursor: onClick ? "pointer" : "default",
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 14,
         ...(isEmpty && accentColor
           ? {
               borderLeft: `3px solid ${accentColor}`,
@@ -557,7 +557,7 @@ function HealthMetricCard({
                 flexShrink: 0,
               }}
             />
-            <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{statusLabel}</span>
+            <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{statusLabel}</span>
           </div>
         )}
       </div>
@@ -565,7 +565,7 @@ function HealthMetricCard({
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span
             style={{
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 500,
               color: "var(--muted-foreground)",
               lineHeight: 1.4,
@@ -579,7 +579,7 @@ function HealthMetricCard({
           <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
             <span
               style={{
-                fontSize: 24,
+                fontSize: 28,
                 fontWeight: 700,
                 color: "var(--foreground)",
                 lineHeight: 1,
@@ -587,7 +587,7 @@ function HealthMetricCard({
             >
               {value}
             </span>
-            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{unit}</span>
+            <span style={{ fontSize: 14, color: "var(--muted-foreground)" }}>{unit}</span>
           </div>
           {barPercent !== undefined && (
             <div
@@ -841,7 +841,7 @@ export default function Today() {
             <div>
               <p
                 style={{
-                  fontSize: 12,
+                  fontSize: 11,
                   color: "var(--muted-foreground)",
                   margin: "0 0 4px 0",
                   letterSpacing: "0.3px",
@@ -941,7 +941,7 @@ export default function Today() {
                   border: "1px solid rgba(124, 58, 237, 0.25)",
                   background: "rgba(124, 58, 237, 0.08)",
                   color: "#a78bfa",
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: 600,
                   cursor: "pointer",
                   transition: "all 0.2s ease",
@@ -965,7 +965,7 @@ export default function Today() {
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 10,
+              gap: 14,
               marginBottom: 20,
             }}
           >
@@ -1023,7 +1023,7 @@ export default function Today() {
             </div>
             <p
               style={{
-                fontSize: 13,
+                fontSize: 14,
                 color: "var(--foreground)",
                 margin: 0,
                 lineHeight: 1.6,
@@ -1065,7 +1065,7 @@ export default function Today() {
                   </div>
                   <div
                     style={{
-                      fontSize: 12,
+                      fontSize: 14,
                       color: "var(--muted-foreground)",
                       lineHeight: 1.6,
                     }}
@@ -1093,7 +1093,7 @@ export default function Today() {
                     border: "none",
                     borderRadius: 12,
                     padding: "10px 16px",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
@@ -1109,7 +1109,7 @@ export default function Today() {
                     border: "none",
                     borderRadius: 12,
                     padding: "10px 16px",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
@@ -1131,7 +1131,7 @@ export default function Today() {
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
-              gap: 10,
+              gap: 14,
             }}
           >
             {/* Sleep */}
@@ -1202,7 +1202,7 @@ export default function Today() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.5, ease: "easeOut" }}
-            style={{ marginBottom: 14 }}
+            style={{ marginBottom: 20 }}
           >
             <div style={{
               fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
@@ -1211,7 +1211,7 @@ export default function Today() {
               Quick Listen
             </div>
             <div style={{
-              display: "flex", gap: 10, overflowX: "auto",
+              display: "flex", gap: 14, overflowX: "auto",
               paddingBottom: 4, scrollbarWidth: "none",
               WebkitOverflowScrolling: "touch",
             }}>
