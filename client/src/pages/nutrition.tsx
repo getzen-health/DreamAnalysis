@@ -9,6 +9,15 @@ import { useScores } from "@/hooks/use-scores";
 import { ScoreGauge } from "@/components/score-gauge";
 import { lookupBarcode, type BarcodeProduct } from "@/lib/barcode-api";
 import { cardVariants, listItemVariants } from "@/lib/animations";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1260,13 +1269,14 @@ function GlucoseSection({ userId }: { userId: string }) {
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
 
-type TabId = "log" | "vitamins" | "supplements" | "insights";
+type TabId = "log" | "vitamins" | "supplements" | "insights" | "history";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "log", label: "Log" },
   { id: "vitamins", label: "Vitamins" },
   { id: "supplements", label: "Supplements" },
   { id: "insights", label: "Insights" },
+  { id: "history", label: "History" },
 ];
 
 // ── Tab slide animation variants ─────────────────────────────────────────────
@@ -1368,6 +1378,168 @@ export default function Nutrition() {
     () => generateInsights(todayLogs, logs, totalProtein, totalCarbs, totalCalories),
     [todayLogs, logs, totalProtein, totalCarbs, totalCalories]
   );
+
+  // ── History tab data ────────────────────────────────────────────────────────
+
+  // Fetch food-mood correlation data for history view
+  const { data: moodCorrelation } = useQuery<{
+    entries: Array<{
+      food: {
+        id: number;
+        summary: string | null;
+        mealType: string | null;
+        totalCalories: number | null;
+        dominantMacro: string | null;
+        foodItems: FoodItem[] | null;
+        loggedAt: string;
+      };
+      moodLog: {
+        moodScore: number | null;
+        energyLevel: number | null;
+        notes: string | null;
+        loggedAt: string;
+      } | null;
+      emotionReading: {
+        dominantEmotion: string | null;
+        stress: number | null;
+        happiness: number | null;
+        valence: number | null;
+        arousal: number | null;
+        timestamp: string;
+      } | null;
+    }>;
+    totalFoodLogs: number;
+    matchedWithMood: number;
+    matchedWithEmotion: number;
+  }>({
+    queryKey: ["/api/food/mood-correlation", userId],
+    queryFn: async () => {
+      try {
+        const res = await fetch(resolveUrl(`/api/food/mood-correlation/${userId}?days=7`));
+        if (res.ok) return res.json();
+      } catch { /* API unavailable */ }
+      return { entries: [], totalFoodLogs: 0, matchedWithMood: 0, matchedWithEmotion: 0 };
+    },
+    staleTime: 60_000,
+    enabled: activeTab === "history",
+  });
+
+  // 7-day calorie trend data for AreaChart
+  const calorieTrendData = useMemo(() => {
+    const days: { date: string; label: string; calories: number }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toDateString();
+      const dayLabel = i === 0 ? "Today" : i === 1 ? "Yesterday" : d.toLocaleDateString([], { weekday: "short" });
+      days.push({ date: dateStr, label: dayLabel, calories: 0 });
+    }
+    // Sum calories from all logs (API + local)
+    const allLogs = logs ?? [];
+    for (const log of allLogs) {
+      const logDate = new Date(log.loggedAt).toDateString();
+      const entry = days.find((d) => d.date === logDate);
+      if (entry) {
+        entry.calories += log.totalCalories ?? 0;
+      }
+    }
+    return days;
+  }, [logs]);
+
+  // Group logs by date for the meal timeline (last 7 days)
+  const timelineByDate = useMemo(() => {
+    const allLogs = logs ?? [];
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const recentLogs = allLogs
+      .filter((l) => new Date(l.loggedAt) >= sevenDaysAgo)
+      .sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+
+    const groups: Map<string, FoodLog[]> = new Map();
+    for (const log of recentLogs) {
+      const dateKey = new Date(log.loggedAt).toDateString();
+      if (!groups.has(dateKey)) groups.set(dateKey, []);
+      groups.get(dateKey)!.push(log);
+    }
+    return groups;
+  }, [logs]);
+
+  // Build mood map from correlation data for quick lookup by food log id
+  const moodByFoodId = useMemo(() => {
+    const map = new Map<number, { emotion: string | null; stress: number | null; moodScore: number | null }>();
+    if (!moodCorrelation?.entries) return map;
+    for (const entry of moodCorrelation.entries) {
+      const emotion = entry.emotionReading?.dominantEmotion ?? null;
+      const stress = entry.emotionReading?.stress ?? null;
+      const moodScore = entry.moodLog?.moodScore ?? null;
+      map.set(entry.food.id, { emotion, stress, moodScore });
+    }
+    return map;
+  }, [moodCorrelation]);
+
+  // Food-mood insight
+  const foodMoodInsight = useMemo(() => {
+    if (!moodCorrelation?.entries || moodCorrelation.entries.length < 2) {
+      return null;
+    }
+
+    const entriesWithMood = moodCorrelation.entries.filter(
+      (e) => e.emotionReading !== null || e.moodLog !== null
+    );
+    if (entriesWithMood.length < 2) return null;
+
+    // Split into high-cal days (>2000) and lighter days
+    const dailyCals = new Map<string, { calories: number; stressValues: number[]; moodValues: number[] }>();
+    for (const entry of moodCorrelation.entries) {
+      const dateKey = new Date(entry.food.loggedAt).toDateString();
+      if (!dailyCals.has(dateKey)) dailyCals.set(dateKey, { calories: 0, stressValues: [], moodValues: [] });
+      const day = dailyCals.get(dateKey)!;
+      day.calories += entry.food.totalCalories ?? 0;
+      if (entry.emotionReading?.stress != null) day.stressValues.push(entry.emotionReading.stress);
+      if (entry.moodLog?.moodScore != null) day.moodValues.push(entry.moodLog.moodScore);
+    }
+
+    const daysArr = Array.from(dailyCals.values());
+    const highCalDays = daysArr.filter((d) => d.calories > 2000 && d.stressValues.length > 0);
+    const lightDays = daysArr.filter((d) => d.calories <= 2000 && d.stressValues.length > 0);
+
+    if (highCalDays.length > 0 && lightDays.length > 0) {
+      const avgStressHigh = highCalDays.reduce((s, d) => s + d.stressValues.reduce((a, b) => a + b, 0) / d.stressValues.length, 0) / highCalDays.length;
+      const avgStressLight = lightDays.reduce((s, d) => s + d.stressValues.reduce((a, b) => a + b, 0) / d.stressValues.length, 0) / lightDays.length;
+      return `On days you ate >2000 cal, your avg stress was ${Math.round(avgStressHigh * 100)}% vs ${Math.round(avgStressLight * 100)}% on lighter days.`;
+    }
+
+    // Fallback: check protein vs mood
+    const withProteinAndMood = entriesWithMood.filter((e) => {
+      const items = e.food.foodItems ?? [];
+      const totalP = items.reduce((s, f) => s + (f.protein_g ?? 0), 0);
+      return totalP > 0 && (e.moodLog?.moodScore != null || e.emotionReading?.valence != null);
+    });
+
+    if (withProteinAndMood.length >= 2) {
+      const highProtein = withProteinAndMood.filter((e) => {
+        const items = e.food.foodItems ?? [];
+        return items.reduce((s, f) => s + (f.protein_g ?? 0), 0) > 20;
+      });
+      const lowProtein = withProteinAndMood.filter((e) => {
+        const items = e.food.foodItems ?? [];
+        return items.reduce((s, f) => s + (f.protein_g ?? 0), 0) <= 20;
+      });
+
+      if (highProtein.length > 0 && lowProtein.length > 0) {
+        const avgValHigh = highProtein.reduce((s, e) => s + (e.emotionReading?.valence ?? e.moodLog?.moodScore ?? 0), 0) / highProtein.length;
+        const avgValLow = lowProtein.reduce((s, e) => s + (e.emotionReading?.valence ?? e.moodLog?.moodScore ?? 0), 0) / lowProtein.length;
+        if (avgValHigh > avgValLow) {
+          return "Your mood tends to be more positive after meals with higher protein content.";
+        }
+      }
+    }
+
+    return `You logged ${moodCorrelation.totalFoodLogs} meals in the last 7 days, ${moodCorrelation.matchedWithEmotion} paired with emotion data.`;
+  }, [moodCorrelation]);
 
   // Compute simple nutrition quality indicators from food items
   const qualityIndicators = useMemo(() => {
@@ -2360,6 +2532,272 @@ export default function Nutrition() {
                     : "Start logging meals to build your weekly nutrition profile."}
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {/* ═══════════ HISTORY TAB ═══════════ */}
+          {activeTab === "history" && (
+            <motion.div
+              key="history"
+              custom={tabDirection}
+              variants={tabSlideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {/* ── Calorie Trend Chart (7 days) ────────────────────────────── */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  background: "var(--card)", border: "1px solid var(--border)",
+                  borderRadius: 16, padding: 16, marginBottom: 16,
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                }}
+              >
+                <div style={{
+                  fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                  textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 12,
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <span>Calorie Trend (7 Days)</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#d4a017" }}>
+                    {Math.round(calorieTrendData.reduce((s, d) => s + d.calories, 0) / 7)} avg
+                  </span>
+                </div>
+                <div style={{ width: "100%", height: 180 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={calorieTrendData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="calorieGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#d4a017" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#d4a017" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 10,
+                          fontSize: 12,
+                          color: "var(--foreground)",
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                        }}
+                        labelStyle={{ fontWeight: 600, color: "var(--foreground)" }}
+                        formatter={(value: number) => [`${value} kcal`, "Calories"]}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="calories"
+                        stroke="#d4a017"
+                        strokeWidth={2}
+                        fill="url(#calorieGradient)"
+                        dot={{ fill: "#d4a017", r: 3, strokeWidth: 0 }}
+                        activeDot={{ r: 5, fill: "#d4a017", stroke: "var(--card)", strokeWidth: 2 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Goal reference line label */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8,
+                }}>
+                  <div style={{ width: 12, height: 2, background: "#d4a017", borderRadius: 1 }} />
+                  <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+                    Daily goal: {CAL_GOAL} kcal
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* ── Food-Mood Correlation Card ──────────────────────────────── */}
+              {foodMoodInsight && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  style={{
+                    background: "var(--card)", border: "1px solid var(--border)",
+                    borderRadius: 16, padding: 16, marginBottom: 16,
+                    boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                  }}
+                >
+                  <div style={{
+                    fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                    textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
+                  }}>
+                    Food-Mood Connection
+                  </div>
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: 10,
+                  }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 12, flexShrink: 0,
+                      background: "linear-gradient(135deg, #d4a017, #ea580c)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      boxShadow: "0 4px 12px rgba(212, 160, 23, 0.2)",
+                    }}>
+                      <span style={{ fontSize: 16 }}>&#x1f9e0;</span>
+                    </div>
+                    <p style={{
+                      fontSize: 12, color: "var(--foreground)", lineHeight: 1.6, margin: 0,
+                    }}>
+                      {foodMoodInsight}
+                    </p>
+                  </div>
+                  {moodCorrelation && moodCorrelation.matchedWithEmotion > 0 && (
+                    <div style={{
+                      marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap",
+                    }}>
+                      <span style={{
+                        fontSize: 10, padding: "3px 10px", borderRadius: 10,
+                        background: "rgba(212, 160, 23, 0.1)", color: "#d4a017", fontWeight: 500,
+                      }}>
+                        {moodCorrelation.matchedWithEmotion} meals with emotion data
+                      </span>
+                      {moodCorrelation.matchedWithMood > 0 && (
+                        <span style={{
+                          fontSize: 10, padding: "3px 10px", borderRadius: 10,
+                          background: "rgba(8, 145, 178, 0.1)", color: "#0891b2", fontWeight: 500,
+                        }}>
+                          {moodCorrelation.matchedWithMood} with mood logs
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* ── Meal Timeline (last 7 days) ──────────────────────────── */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <div style={{
+                  fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                  textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
+                }}>
+                  Meal Timeline
+                </div>
+
+                {timelineByDate.size === 0 ? (
+                  <div style={{
+                    background: "var(--card)", border: "1px solid var(--border)",
+                    borderRadius: 16, padding: "24px 16px", textAlign: "center",
+                    boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                  }}>
+                    <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+                      No meals logged in the last 7 days. Start logging to see your timeline.
+                    </div>
+                  </div>
+                ) : (
+                  Array.from(timelineByDate.entries()).map(([dateKey, dayLogs], groupIdx) => {
+                    const d = new Date(dateKey);
+                    const now = new Date();
+                    const isToday_ = d.toDateString() === now.toDateString();
+                    const yesterday = new Date(now);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const isYesterday = d.toDateString() === yesterday.toDateString();
+                    const dateLabel = isToday_ ? "Today" : isYesterday ? "Yesterday" : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+                    const dayCalories = dayLogs.reduce((s, l) => s + (l.totalCalories ?? 0), 0);
+
+                    return (
+                      <motion.div
+                        key={dateKey}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: groupIdx * 0.06, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                        style={{ marginBottom: 14 }}
+                      >
+                        {/* Date header */}
+                        <div style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          marginBottom: 6, padding: "0 2px",
+                        }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
+                            {dateLabel}
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "#d4a017" }}>
+                            {dayCalories} kcal
+                          </span>
+                        </div>
+
+                        {/* Meal cards for this date */}
+                        <div style={{
+                          background: "var(--card)", border: "1px solid var(--border)",
+                          borderRadius: 16, overflow: "hidden",
+                          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                        }}>
+                          {dayLogs.map((log, idx) => {
+                            const moodInfo = moodByFoodId.get(log.id as unknown as number);
+                            const items = log.foodItems ?? [];
+                            const mealP = items.reduce((s, f) => s + (f.protein_g ?? 0), 0);
+
+                            return (
+                              <div
+                                key={log.id}
+                                style={{
+                                  display: "flex", alignItems: "center", padding: "10px 14px",
+                                  borderBottom: idx < dayLogs.length - 1 ? "1px solid var(--border)" : "none",
+                                }}
+                              >
+                                <span style={{ fontSize: 16, marginRight: 10, flexShrink: 0 }}>
+                                  {MEAL_ICONS[log.mealType ?? "snack"] ?? "\uD83C\uDF7D\uFE0F"}
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{
+                                    fontSize: 12, fontWeight: 500, color: "var(--foreground)",
+                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                  }}>
+                                    {log.summary ?? "Meal"}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 8, marginTop: 2, alignItems: "center" }}>
+                                    <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+                                      {formatTime(log.loggedAt)}
+                                    </span>
+                                    {mealP > 0 && (
+                                      <span style={{ fontSize: 10, color: "#e879a8" }}>
+                                        {Math.round(mealP)}g protein
+                                      </span>
+                                    )}
+                                    {moodInfo?.emotion && (
+                                      <span style={{
+                                        fontSize: 9, padding: "1px 6px", borderRadius: 6,
+                                        background: "rgba(212, 160, 23, 0.1)", color: "#d4a017", fontWeight: 500,
+                                      }}>
+                                        {moodInfo.emotion}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {log.totalCalories != null && (
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#e8b94a", flexShrink: 0 }}>
+                                    {log.totalCalories} kcal
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
