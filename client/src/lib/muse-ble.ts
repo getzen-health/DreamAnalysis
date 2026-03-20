@@ -519,65 +519,68 @@ export class MuseBleManager {
       }
     }
 
-    // Discover services explicitly — REQUIRED on Android for Muse S
-    // Without this, characteristics are "not found" even though they exist
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // Write commands + subscribe — retry entire sequence up to 3 times
+    // "Characteristic not found" on Muse S means GATT table isn't ready yet
+    const writeCmd = async (cmd: DataView) => {
       try {
-        await new Promise((r) => setTimeout(r, 1500));
-        const services = await ble.getServices(device.deviceId);
-        // Verify our service exists in the discovered list
-        const found = services.some((s: { uuid: string }) =>
-          s.uuid.toLowerCase() === MUSE_SERVICE.toLowerCase()
-        );
-        if (found) break;
-        console.warn(`Service discovery attempt ${attempt + 1}: Muse service not found, retrying...`);
+        await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+      } catch {
+        await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+      }
+    };
+
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      // Wait progressively longer for GATT table to populate
+      await new Promise((r) => setTimeout(r, attempt * 2000));
+
+      try {
+        // Try to discover services (triggers GATT table refresh on Android)
+        try { await ble.getServices(device.deviceId); } catch { /* ok */ }
+        await new Promise((r) => setTimeout(r, 500));
+
+        // Send control commands
+        await writeCmd(CMD_PRESET_P21);
+        await new Promise((r) => setTimeout(r, 300));
+        await writeCmd(CMD_START);
+        await new Promise((r) => setTimeout(r, 300));
+
+        // Subscribe to EEG channels
+        for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+          await ble.startNotifications(
+            device.deviceId,
+            MUSE_SERVICE,
+            MUSE_EEG_CHARS[ch],
+            (data: DataView) => this.onEegNotification(ch, data)
+          );
+        }
+
+        // All succeeded
+        lastError = null;
+        break;
       } catch (e) {
-        console.warn(`Service discovery attempt ${attempt + 1} failed:`, e);
-        if (attempt === 2) {
-          // Last attempt — continue anyway, writeCmd will surface the real error
-          console.warn("Service discovery failed after 3 attempts, proceeding anyway");
+        lastError = e;
+        console.warn(`Muse setup attempt ${attempt}/3 failed:`, e);
+        if (attempt < 3) {
+          // Disconnect and reconnect to force fresh GATT discovery
+          try {
+            await ble.disconnect(device.deviceId);
+            await new Promise((r) => setTimeout(r, 1000));
+            await ble.connect(device.deviceId, () => {
+              this.stopEmitter();
+              this.setStatus("idle", "Device disconnected");
+            });
+          } catch {
+            // Reconnect failed — next attempt will try anyway
+          }
         }
       }
     }
 
-    // Extra settle time after service discovery
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Start EEG streaming — try writeWithoutResponse, fall back to write
-    try {
-      const writeCmd = async (cmd: DataView) => {
-        try {
-          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
-        } catch {
-          try {
-            await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
-          } catch {
-            // Last resort: try with DataView wrapped in ArrayBuffer
-            const arr = new Uint8Array(cmd.buffer);
-            const fresh = new DataView(new Uint8Array(arr).buffer);
-            await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, fresh);
-          }
-        }
-      };
-
-      await writeCmd(CMD_PRESET_P21);
-      await new Promise((r) => setTimeout(r, 500));
-      await writeCmd(CMD_START);
-    } catch (e) {
-      // Commands failed — but connection might still be alive, try subscribing anyway
-      console.warn("Muse write commands failed, attempting to subscribe anyway:", e);
-    }
-
-    // Subscribe to all 4 EEG channel characteristics
-    for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-      const charUuid = MUSE_EEG_CHARS[ch];
-      const channelIndex = ch;
-      await ble.startNotifications(
-        device.deviceId,
-        MUSE_SERVICE,
-        charUuid,
-        (data: DataView) => this.onEegNotification(channelIndex, data)
-      );
+    if (lastError) {
+      this.setStatus("error", `Muse setup failed: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+      this.deviceId = null;
+      throw lastError;
     }
 
     this.startEmitter();
