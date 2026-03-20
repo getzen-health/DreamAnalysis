@@ -954,7 +954,7 @@ export default function Today() {
               unit={heartRate ? "bpm" : ""}
               statusLabel={hrStatus.label}
               dotColor={hrStatus.color}
-              onClick={() => navigate("/health-analytics")}
+              onClick={() => navigate("/heart-rate")}
               accentColor="#e879a8"
               emptyIcon={Heart}
               emptyCta="Connect Health to track"
@@ -967,7 +967,7 @@ export default function Today() {
               unit={steps > 0 ? `${stepsPct}%` : ""}
               statusLabel={stepsStatus.label}
               dotColor={stepsStatus.color}
-              onClick={() => navigate("/health-analytics")}
+              onClick={() => navigate("/steps")}
               barPercent={steps > 0 ? stepsPct : undefined}
               barGradient="linear-gradient(90deg, #06b6d4, #22d3ee)"
               accentColor="#06b6d4"
