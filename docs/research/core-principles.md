@@ -97,4 +97,12 @@
 
 **Implication:** When adding any model to a prediction ensemble: (1) verify that user corrections reach every model that participates in inference, not just the "primary" one, (2) design the adaptation interface to work with whatever data is available at correction time (cached features, not just raw signals), (3) models should auto-initialize from corrections rather than requiring a separate setup step that most users will skip. The correction loop must be zero-friction -- every barrier between "user taps a correction" and "model updates" will cause the loop to silently break.
 
+### 12. User Corrections Must Flow Through to Every Visualization, Not Just the Database
+
+**Principle:** When users correct a prediction (e.g., "I'm not neutral, I'm anxious"), the corrected label must replace the original prediction everywhere it appears: distribution charts, trend lines, weekly summaries, dot timelines, and any API that returns historical data. If corrections only update the database but APIs continue returning the original prediction, the user sees their feedback being ignored -- the worst possible experience for a learning system.
+
+**Evidence:** The emotion correction flow correctly updated `userCorrectedEmotion` in the `emotionReadings` table and `userCorrected` in the `userReadings` table. But the `/api/brain/history/:userId` endpoint -- which feeds the mood-trends distribution chart, the daily dot timeline, and the weekly summary -- returned `dominantEmotion` (the original AI prediction) without checking `userCorrectedEmotion`. A user who corrected 50 readings from "neutral" to "anxious" would still see "Neutral" as their most frequent emotion in the chart. The correction data existed in the DB but was invisible in every visualization. Compounding this, the mood-trends chart only had colors/labels for 6 basic emotions, so even if nuanced corrections somehow appeared, they would render as unlabeled gray bars.
+
+**Implication:** When building any user correction feature: (1) trace the corrected value through every API that returns historical data -- not just the write path, (2) use a `COALESCE(corrected, original)` pattern so corrected labels always take precedence, (3) ensure the visualization layer has full coverage of every possible label (colors, display names, icons) including all labels available in the correction UI, (4) test the full round-trip: correct a label, reload the visualization, verify the corrected label appears with proper styling.
+
 <!-- Principles will be appended below by the research agent -->

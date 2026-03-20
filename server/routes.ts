@@ -830,7 +830,13 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
       const fromTs = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
       // 1. EEG emotion readings (original source)
-      const eegReadings = await storage.getEmotionReadings(userId, 2000, fromTs);
+      // Prefer userCorrectedEmotion over AI-predicted dominantEmotion when available.
+      // This ensures the distribution chart reflects user-verified labels, not just AI guesses.
+      const rawEegReadings = await storage.getEmotionReadings(userId, 2000, fromTs);
+      const eegReadings = rawEegReadings.map(r => ({
+        ...r,
+        dominantEmotion: r.userCorrectedEmotion || r.dominantEmotion,
+      }));
 
       // 2. Voice/food/health readings from userReadings table
       const voiceReadings = await db
@@ -838,6 +844,7 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
           id: userReadings.id,
           userId: userReadings.userId,
           dominantEmotion: userReadings.emotion,
+          userCorrected: userReadings.userCorrected,
           timestamp: userReadings.createdAt,
           valence: userReadings.valence,
           arousal: userReadings.arousal,
@@ -854,9 +861,10 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
         .limit(2000);
 
       // 3. Normalize voice readings to match emotionReadings shape
+      // Prefer userCorrected label over AI-predicted emotion when available.
       const normalizedVoice = voiceReadings.map(r => ({
         ...r,
-        dominantEmotion: r.dominantEmotion || "neutral",
+        dominantEmotion: r.userCorrected || r.dominantEmotion || "neutral",
         stress: r.stress ?? 0.5,
         happiness: r.valence != null ? Math.max(0, r.valence) : 0.5,
         focus: 0.5, // voice doesn't measure focus — neutral default

@@ -34,6 +34,7 @@ import { TrendingUp, BarChart3, Activity, Calendar } from "lucide-react";
 /* ---------- constants ---------- */
 
 const EMOTION_COLORS: Record<string, string> = {
+  // 6 basic emotions
   happy: "#0891b2",
   sad: "#6366f1",
   angry: "#ea580c",
@@ -41,9 +42,21 @@ const EMOTION_COLORS: Record<string, string> = {
   fearful: "#7c3aed",
   surprise: "#d4a017",
   neutral: "#94a3b8",
+  // 10 nuanced emotions (from voice check-in corrections)
+  anxious: "#f59e0b",
+  nervous: "#fb923c",
+  grateful: "#10b981",
+  proud: "#ec4899",
+  lonely: "#8b5cf6",
+  hopeful: "#22d3ee",
+  overwhelmed: "#ef4444",
+  peaceful: "#34d399",
+  excited: "#f97316",
+  frustrated: "#dc2626",
 };
 
 const EMOTION_LABELS: Record<string, string> = {
+  // 6 basic emotions
   happy: "Happy",
   sad: "Sad",
   angry: "Angry",
@@ -51,6 +64,17 @@ const EMOTION_LABELS: Record<string, string> = {
   fearful: "Fearful",
   surprise: "Surprised",
   neutral: "Neutral",
+  // 10 nuanced emotions
+  anxious: "Anxious",
+  nervous: "Nervous",
+  grateful: "Grateful",
+  proud: "Proud",
+  lonely: "Lonely",
+  hopeful: "Hopeful",
+  overwhelmed: "Overwhelmed",
+  peaceful: "Peaceful",
+  excited: "Excited",
+  frustrated: "Frustrated",
 };
 
 /* ---------- types ---------- */
