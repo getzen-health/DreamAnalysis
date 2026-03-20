@@ -475,20 +475,26 @@ export class MuseBleManager {
 
     let device: { deviceId: string; name?: string };
     try {
-      // Shows the native device picker filtered to Muse's primary service UUID
+      // Try scanning with service UUID filter first
       device = await ble.requestDevice({
         services: [MUSE_SERVICE],
-        optionalServices: [],
-        namePrefix: "Muse",
       });
-    } catch (e) {
-      const msg = String(e);
-      if (msg.includes("cancel")) {
-        this.setStatus("idle", "Device selection cancelled");
-      } else {
-        this.setStatus("error", "No Muse found. Make sure Muse is ON (LED blinking) and NOT paired in system Bluetooth settings.");
+    } catch (firstErr) {
+      // Some Muse firmware doesn't advertise service UUID — try name-based scan
+      try {
+        device = await ble.requestDevice({
+          namePrefix: "Muse",
+          optionalServices: [MUSE_SERVICE],
+        });
+      } catch (e) {
+        const msg = String(e);
+        if (msg.includes("cancel")) {
+          this.setStatus("idle", "Device selection cancelled");
+        } else {
+          this.setStatus("error", "No Muse found. Make sure Muse is powered ON (LED blinking).");
+        }
+        throw e;
       }
-      throw e;
     }
 
     this.setStatus("connecting");
@@ -510,26 +516,38 @@ export class MuseBleManager {
       try {
         // Disconnect first if already connected (handles "already paired" case)
         try { await ble.disconnect(device.deviceId); } catch { /* ignore */ }
-        await new Promise((r) => setTimeout(r, attempt > 1 ? 2000 : 300));
+        await new Promise((r) => setTimeout(r, attempt > 1 ? 3000 : 500));
 
         this.setStatus("connecting");
 
-        // Connect with timeout
+        // Connect with generous timeout — Muse S needs more time than Muse 2
         await Promise.race([
           ble.connect(device.deviceId, () => {
             this.stopEmitter();
             this.setStatus("idle", "Device disconnected");
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 12000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 20000)),
         ]);
 
-        // Wait for GATT services to settle
-        await new Promise((r) => setTimeout(r, 500));
+        // Wait for GATT services to fully settle — critical for Muse S
+        await new Promise((r) => setTimeout(r, 1500));
 
-        // Send preset + start commands
-        await writeCmd(device.deviceId, CMD_PRESET_P21);
-        await new Promise((r) => setTimeout(r, 200));
-        await writeCmd(device.deviceId, CMD_START);
+        // Discover services explicitly (some Android versions need this)
+        try { await ble.getServices(device.deviceId); } catch { /* ok */ }
+        await new Promise((r) => setTimeout(r, 300));
+
+        // Send preset + start commands with retries
+        for (let cmdAttempt = 0; cmdAttempt < 2; cmdAttempt++) {
+          try {
+            await writeCmd(device.deviceId, CMD_PRESET_P21);
+            await new Promise((r) => setTimeout(r, 300));
+            await writeCmd(device.deviceId, CMD_START);
+            break; // commands succeeded
+          } catch (cmdErr) {
+            if (cmdAttempt === 1) throw cmdErr;
+            await new Promise((r) => setTimeout(r, 1000)); // wait and retry commands
+          }
+        }
 
         // Success — break out of retry loop
         break;
