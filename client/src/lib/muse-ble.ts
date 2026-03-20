@@ -789,11 +789,15 @@ export class MuseBleManager {
   // ── Internal ───────────────────────────────────────────────────────────────
 
   private onEegNotification(channel: number, data: DataView): void {
-    if (channel >= N_ACTIVE_CHANNELS || data.byteLength < 20) return;
-    this.lastNotificationTime[channel] = Date.now();
-    const samples = decodeEegPacket(data);
-    for (const s of samples) {
-      this.rings[channel].push(s);
+    try {
+      if (channel >= N_ACTIVE_CHANNELS || data.byteLength < 20) return;
+      this.lastNotificationTime[channel] = Date.now();
+      const samples = decodeEegPacket(data);
+      for (const s of samples) {
+        this.rings[channel].push(s);
+      }
+    } catch {
+      // Malformed packet — skip silently
     }
   }
 
@@ -821,6 +825,7 @@ export class MuseBleManager {
 
   private emitFrame(): void {
     if (!this.onFrame) return;
+    try {
 
     const windowSamples = MUSE_SAMPLE_RATE; // 1-second window for feature computation
     const signals: number[][] = this.rings.map((r) => r.last(windowSamples));
@@ -870,6 +875,10 @@ export class MuseBleManager {
     };
 
     this.onFrame(frame);
+    } catch (e) {
+      // Frame processing error — skip silently, don't crash the app
+      console.warn("emitFrame error:", e);
+    }
   }
 }
 
