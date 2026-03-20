@@ -29,6 +29,8 @@ import {
 } from "recharts";
 import { useDevice } from "@/hooks/use-device";
 import { useVoiceData } from "@/hooks/use-voice-data";
+import { resolveUrl } from "@/lib/queryClient";
+import { getParticipantId } from "@/lib/participant";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,111 +87,207 @@ function topState(probs: Record<string, number>): string {
 }
 
 // ---------------------------------------------------------------------------
-// FoodMoodInsights — pattern detection from localStorage food logs
+// FoodMoodInsights — pattern detection from localStorage + mood logs + emotion readings
 // ---------------------------------------------------------------------------
+
+/** Negative emotions set for food-mood correlation. */
+const NEGATIVE_EMOTIONS = new Set([
+  "sad", "angry", "fear", "fearful", "anxious", "nervous",
+  "lonely", "overwhelmed", "frustrated",
+]);
+const POSITIVE_EMOTIONS = new Set([
+  "happy", "surprise", "surprised", "grateful", "proud",
+  "hopeful", "peaceful", "excited",
+]);
 
 function FoodMoodInsights() {
   const [insights, setInsights] = useState<string[]>([]);
+  const userId = getParticipantId();
 
   useEffect(() => {
     const patterns: string[] = [];
+
+    // 1. Gather localStorage food logs (existing behavior)
+    const localLogs: Array<{
+      emotion?: string;
+      calories?: number;
+      carbs?: number;
+      protein?: number;
+      fat?: number;
+      timestamp: number;
+    }> = [];
 
     try {
       const keys = Object.keys(localStorage).filter(k =>
         k.startsWith("ndw_food_log_")
       );
-      const logs: Array<{
-        emotion?: string;
-        calories?: number;
-        carbs?: number;
-        protein?: number;
-        fat?: number;
-        timestamp: number;
-      }> = [];
-
       keys.forEach(k => {
         try {
           const raw = JSON.parse(localStorage.getItem(k) || "{}");
-          if (raw.timestamp) logs.push(raw);
+          if (raw.timestamp) localLogs.push(raw);
         } catch { /* skip */ }
       });
-
-      if (logs.length < 3) {
-        setInsights([]);
-        return;
-      }
-
-      // Pattern 1: High-calorie meals during stress
-      const stressedMeals = logs.filter(
-        l => l.emotion === "angry" || l.emotion === "fear"
-      );
-      const calmMeals = logs.filter(
-        l => l.emotion === "happy" || l.emotion === "neutral"
-      );
-      if (stressedMeals.length >= 2 && calmMeals.length >= 2) {
-        const avgStressCalories =
-          stressedMeals.reduce((a, b) => a + (b.calories || 0), 0) /
-          stressedMeals.length;
-        const avgCalmCalories =
-          calmMeals.reduce((a, b) => a + (b.calories || 0), 0) /
-          calmMeals.length;
-        if (avgStressCalories > avgCalmCalories * 1.2) {
-          patterns.push(
-            `You eat ~${Math.round(avgStressCalories - avgCalmCalories)} more calories when stressed`
-          );
-        }
-      }
-
-      // Pattern 2: Carb preference during negative emotions
-      const negMeals = logs.filter(
-        l =>
-          l.emotion === "sad" ||
-          l.emotion === "angry" ||
-          l.emotion === "fear"
-      );
-      const posMeals = logs.filter(
-        l => l.emotion === "happy" || l.emotion === "surprise"
-      );
-      if (negMeals.length >= 2 && posMeals.length >= 2) {
-        const avgNegCarbs =
-          negMeals.reduce((a, b) => a + (b.carbs || 0), 0) / negMeals.length;
-        const avgPosCarbs =
-          posMeals.reduce((a, b) => a + (b.carbs || 0), 0) / posMeals.length;
-        if (avgNegCarbs > avgPosCarbs * 1.3) {
-          patterns.push("You tend to eat more carbs when feeling down");
-        }
-      }
-
-      // Pattern 3: Timing
-      const morningLogs = logs.filter(
-        l => new Date(l.timestamp).getHours() < 10
-      );
-      const eveningLogs = logs.filter(
-        l => new Date(l.timestamp).getHours() >= 19
-      );
-      if (
-        eveningLogs.length > morningLogs.length * 2 &&
-        eveningLogs.length >= 3
-      ) {
-        patterns.push("Most of your meals are logged in the evening");
-      }
-
-      // Pattern 4: Protein on focus days
-      const focusMeals = logs.filter(
-        l => l.emotion === "neutral" || l.emotion === "surprise"
-      );
-      if (focusMeals.length >= 2) {
-        const avgProtein =
-          focusMeals.reduce((a, b) => a + (b.protein || 0), 0) /
-          focusMeals.length;
-        if (avgProtein > 20) {
-          patterns.push("Your focused days tend to include more protein");
-        }
-      }
     } catch { /* ignore */ }
 
-    setInsights(patterns);
-  }, []);
+    // 2. Also fetch server-side mood-correlated food data
+    fetch(resolveUrl(`/api/food/mood-correlation/${userId}?days=30`))
+      .then(r => r.ok ? r.json() : null)
+      .then((serverData: {
+        entries?: Array<{
+          food: { totalCalories?: number; dominantMacro?: string; foodItems?: any[]; loggedAt?: string };
+          moodLog?: { moodScore?: string; energyLevel?: string; notes?: string; loggedAt?: string } | null;
+          emotionReading?: { dominantEmotion?: string; userCorrectedEmotion?: string; stress?: number; happiness?: number } | null;
+        }>;
+      } | null) => {
+        // Merge server data into analysis: use emotion from moodLog notes or emotionReading
+        const serverLogs = (serverData?.entries ?? []).map(entry => {
+          const emotion = entry.emotionReading?.userCorrectedEmotion
+            || entry.emotionReading?.dominantEmotion
+            || undefined;
+          const items = entry.food.foodItems as any[] | null;
+          return {
+            emotion,
+            calories: entry.food.totalCalories ?? 0,
+            carbs: items?.reduce((s: number, f: any) => s + (f?.carbs_g ?? 0), 0) ?? 0,
+            protein: items?.reduce((s: number, f: any) => s + (f?.protein_g ?? 0), 0) ?? 0,
+            fat: items?.reduce((s: number, f: any) => s + (f?.fat_g ?? 0), 0) ?? 0,
+            timestamp: entry.food.loggedAt ? new Date(entry.food.loggedAt).getTime() : 0,
+            moodScore: entry.moodLog?.moodScore ? parseFloat(entry.moodLog.moodScore) : undefined,
+            moodNotes: entry.moodLog?.notes ?? undefined,
+          };
+        });
+
+        // Deduplicate by timestamp (local + server may overlap)
+        const seen = new Set(localLogs.map(l => l.timestamp));
+        const combined = [...localLogs];
+        for (const sl of serverLogs) {
+          if (sl.timestamp && !seen.has(sl.timestamp)) {
+            combined.push(sl);
+            seen.add(sl.timestamp);
+          }
+        }
+
+        if (combined.length < 3) {
+          setInsights([]);
+          return;
+        }
+
+        // Pattern 1: High-calorie meals during stress (expanded emotion set)
+        const stressedMeals = combined.filter(
+          l => l.emotion && NEGATIVE_EMOTIONS.has(l.emotion)
+        );
+        const calmMeals = combined.filter(
+          l => l.emotion && POSITIVE_EMOTIONS.has(l.emotion)
+        );
+        if (stressedMeals.length >= 2 && calmMeals.length >= 2) {
+          const avgStressCalories =
+            stressedMeals.reduce((a, b) => a + (b.calories || 0), 0) /
+            stressedMeals.length;
+          const avgCalmCalories =
+            calmMeals.reduce((a, b) => a + (b.calories || 0), 0) /
+            calmMeals.length;
+          if (avgStressCalories > avgCalmCalories * 1.2) {
+            patterns.push(
+              `You eat ~${Math.round(avgStressCalories - avgCalmCalories)} more calories when stressed`
+            );
+          }
+        }
+
+        // Pattern 2: Carb preference during negative emotions
+        if (stressedMeals.length >= 2 && calmMeals.length >= 2) {
+          const avgNegCarbs =
+            stressedMeals.reduce((a, b) => a + (b.carbs || 0), 0) / stressedMeals.length;
+          const avgPosCarbs =
+            calmMeals.reduce((a, b) => a + (b.carbs || 0), 0) / calmMeals.length;
+          if (avgNegCarbs > avgPosCarbs * 1.3) {
+            patterns.push("You tend to eat more carbs when feeling down");
+          }
+        }
+
+        // Pattern 3: Timing
+        const morningLogs = combined.filter(
+          l => new Date(l.timestamp).getHours() < 10
+        );
+        const eveningLogs = combined.filter(
+          l => new Date(l.timestamp).getHours() >= 19
+        );
+        if (
+          eveningLogs.length > morningLogs.length * 2 &&
+          eveningLogs.length >= 3
+        ) {
+          patterns.push("Most of your meals are logged in the evening");
+        }
+
+        // Pattern 4: Protein on focus days
+        const focusMeals = combined.filter(
+          l => l.emotion === "neutral" || l.emotion === "peaceful" || l.emotion === "surprise"
+        );
+        if (focusMeals.length >= 2) {
+          const avgProtein =
+            focusMeals.reduce((a, b) => a + (b.protein || 0), 0) /
+            focusMeals.length;
+          if (avgProtein > 20) {
+            patterns.push("Your focused days tend to include more protein");
+          }
+        }
+
+        // Pattern 5 (NEW): Mood-score correlation from manual mood logs
+        const withMoodScore = serverLogs.filter(
+          l => l.moodScore !== undefined && l.calories
+        );
+        if (withMoodScore.length >= 4) {
+          const lowMoodMeals = withMoodScore.filter(l => (l.moodScore ?? 5) <= 4);
+          const highMoodMeals = withMoodScore.filter(l => (l.moodScore ?? 5) >= 7);
+          if (lowMoodMeals.length >= 2 && highMoodMeals.length >= 2) {
+            const avgLow = lowMoodMeals.reduce((a, b) => a + (b.calories || 0), 0) / lowMoodMeals.length;
+            const avgHigh = highMoodMeals.reduce((a, b) => a + (b.calories || 0), 0) / highMoodMeals.length;
+            if (avgLow > avgHigh * 1.15) {
+              patterns.push("Low mood days correlate with higher calorie meals");
+            }
+          }
+        }
+
+        // Pattern 6 (NEW): Mood log notes mention food-related words
+        const moodNotesWithFood = serverLogs.filter(l => {
+          const notes = (l.moodNotes ?? "").toLowerCase();
+          return notes && /\b(hungry|craving|ate|eating|food|snack|sugar|chocolate|comfort)\b/.test(notes);
+        });
+        if (moodNotesWithFood.length >= 2) {
+          patterns.push(`${moodNotesWithFood.length} mood log entries mention food-related feelings`);
+        }
+
+        setInsights(patterns);
+      })
+      .catch(() => {
+        // Server unavailable — fall back to localStorage-only analysis
+        if (localLogs.length < 3) {
+          setInsights([]);
+          return;
+        }
+
+        // Run basic patterns from localStorage only
+        const stressedMeals = localLogs.filter(
+          l => l.emotion && NEGATIVE_EMOTIONS.has(l.emotion)
+        );
+        const calmMeals = localLogs.filter(
+          l => l.emotion && POSITIVE_EMOTIONS.has(l.emotion)
+        );
+        if (stressedMeals.length >= 2 && calmMeals.length >= 2) {
+          const avgStressCalories =
+            stressedMeals.reduce((a, b) => a + (b.calories || 0), 0) /
+            stressedMeals.length;
+          const avgCalmCalories =
+            calmMeals.reduce((a, b) => a + (b.calories || 0), 0) /
+            calmMeals.length;
+          if (avgStressCalories > avgCalmCalories * 1.2) {
+            patterns.push(
+              `You eat ~${Math.round(avgStressCalories - avgCalmCalories)} more calories when stressed`
+            );
+          }
+        }
+        setInsights(patterns);
+      });
+  }, [userId]);
 
   if (insights.length === 0) return null;
 
@@ -236,6 +334,10 @@ function FoodMoodInsights() {
               ? "🍞"
               : insight.includes("evening")
               ? "🌙"
+              : insight.includes("mood")
+              ? "📊"
+              : insight.includes("mention")
+              ? "📝"
               : "💪"}
           </span>
           {insight}

@@ -152,8 +152,19 @@ const EMOTION_EMOJI: Record<string, string> = {
   sad: "😢",
   angry: "😠",
   fear: "😨",
+  fearful: "😨",
   surprise: "😲",
   neutral: "😐",
+  anxious: "😰",
+  nervous: "😬",
+  grateful: "🙏",
+  proud: "😤",
+  lonely: "🥺",
+  hopeful: "🌱",
+  overwhelmed: "😵",
+  peaceful: "😌",
+  excited: "🤩",
+  frustrated: "😣",
 };
 
 // ─── emotion context ────────────────────────────────────────────────────────
@@ -199,6 +210,46 @@ const EMOTION_CONTEXT: Record<string, EmotionContext> = {
     voicePattern: "Steady pitch, moderate pace, even energy",
     insight: "Your voice sounds calm and balanced. A steady vocal pattern often reflects a settled, present state of mind.",
   },
+  anxious: {
+    voicePattern: "Slightly higher pitch, faster pace, tighter quality",
+    insight: "Anxiety often surfaces as subtle vocal tension and a faster speaking rhythm. Acknowledging it is already a step forward.",
+  },
+  nervous: {
+    voicePattern: "Uneven pace, slight tremor, breathier tone",
+    insight: "Nervousness can show up as hesitation or a slight quiver. It often means something matters to you.",
+  },
+  grateful: {
+    voicePattern: "Warm tone, moderate pace, relaxed resonance",
+    insight: "Gratitude often brings warmth and steadiness to the voice. This is a grounding emotion.",
+  },
+  proud: {
+    voicePattern: "Strong projection, measured pace, confident tone",
+    insight: "Pride carries a sense of accomplishment. Your voice reflects confidence and self-assurance.",
+  },
+  lonely: {
+    voicePattern: "Softer volume, slower pace, lower energy",
+    insight: "Loneliness can make the voice quieter and more withdrawn. Connection is a basic human need.",
+  },
+  hopeful: {
+    voicePattern: "Slightly rising intonation, open quality, gentle energy",
+    insight: "Hope brings a lightness and openness to vocal expression. It signals looking forward.",
+  },
+  overwhelmed: {
+    voicePattern: "Variable pace, higher tension, uneven energy",
+    insight: "Feeling overwhelmed can scatter vocal patterns. It usually means too many things are competing for attention.",
+  },
+  peaceful: {
+    voicePattern: "Steady, slow pace, soft resonance, even breathing",
+    insight: "Peace shows up as vocal ease and regularity. Your nervous system sounds settled.",
+  },
+  excited: {
+    voicePattern: "Higher pitch, faster pace, wide range, more energy",
+    insight: "Excitement lifts the voice and quickens the pace. Positive anticipation is a wonderful state.",
+  },
+  frustrated: {
+    voicePattern: "Tense quality, clipped rhythm, moderate-high energy",
+    insight: "Frustration often sounds like contained tension. It usually signals unmet expectations or blocked goals.",
+  },
 };
 
 function valenceLabel(v: number): { text: string; className: string } {
@@ -243,6 +294,7 @@ export function VoiceCheckinCard({
   const [affirmation, setAffirmation] = useState("");
   const [feedbackState, setFeedbackState] = useState<"ask" | "correcting" | "confirmed" | "corrected">("ask");
   const [correctedEmotion, setCorrectedEmotion] = useState<string | null>(null);
+  const [showNuancedEmotions, setShowNuancedEmotions] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -738,7 +790,7 @@ export function VoiceCheckinCard({
                 <div className="space-y-2 pt-1 border-t border-border/30">
                   <span className="text-xs text-muted-foreground">What were you actually feeling?</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {(["happy", "sad", "angry", "fear", "surprise", "neutral"] as const).map((em) => (
+                    {(["happy", "sad", "angry", "fearful", "surprised", "neutral"] as const).map((em) => (
                       <button
                         key={em}
                         onClick={() => submitCorrection(em)}
@@ -752,6 +804,26 @@ export function VoiceCheckinCard({
                       </button>
                     ))}
                   </div>
+                  {!showNuancedEmotions ? (
+                    <button
+                      onClick={() => setShowNuancedEmotions(true)}
+                      className="text-xs text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
+                    >
+                      More feelings...
+                    </button>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {(["anxious", "nervous", "grateful", "proud", "lonely", "hopeful", "overwhelmed", "peaceful", "excited", "frustrated"] as const).map((em) => (
+                        <button
+                          key={em}
+                          onClick={() => submitCorrection(em)}
+                          className="px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors bg-secondary/50 text-secondary-foreground hover:bg-secondary/80"
+                        >
+                          {em}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

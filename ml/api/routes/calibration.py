@@ -136,7 +136,14 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
     pm = _get_personal_model_for_feedback(request.user_id, n_channels=n_channels)
 
     if pm is not None:
-        label_map = {"happy": 0, "sad": 1, "angry": 2, "fearful": 3, "relaxed": 4, "focused": 5}
+        label_map = {
+            "happy": 0, "sad": 1, "angry": 2, "fearful": 3, "relaxed": 4, "focused": 5,
+            # Nuanced emotions mapped to closest basic category for model retraining
+            "fear": 3, "surprise": 0, "surprised": 0, "neutral": 4,
+            "anxious": 3, "nervous": 3, "grateful": 0, "proud": 0,
+            "lonely": 1, "hopeful": 0, "overwhelmed": 3, "peaceful": 4,
+            "excited": 0, "frustrated": 2,
+        }
         label_idx = label_map.get(request.correct_label, -1)
 
         if label_idx >= 0:

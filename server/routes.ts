@@ -2126,6 +2126,99 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
+  // GET /api/food/mood-correlation/:userId — join food logs with mood logs + emotion readings
+  // Returns food entries paired with the nearest mood log and emotion reading for food-mood analysis.
+  app.get("/api/food/mood-correlation/:userId", async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      const days = Math.min(Math.max(parseInt((req.query.days as string) || "30", 10), 1), 90);
+      const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      // Fetch food logs, mood logs, and emotion readings in parallel
+      const [foods, moods, emotions] = await Promise.all([
+        db.select().from(foodLogs)
+          .where(and(eq(foodLogs.userId, userId), gte(foodLogs.loggedAt, fromDate)))
+          .orderBy(desc(foodLogs.loggedAt)),
+        db.select().from(moodLogs)
+          .where(and(eq(moodLogs.userId, userId), gte(moodLogs.loggedAt, fromDate)))
+          .orderBy(desc(moodLogs.loggedAt)),
+        db.select().from(emotionReadings)
+          .where(and(eq(emotionReadings.userId, userId), gte(emotionReadings.timestamp, fromDate)))
+          .orderBy(desc(emotionReadings.timestamp)),
+      ]);
+
+      // For each food log, find the nearest mood log and emotion reading within 2 hours
+      const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+      const correlatedEntries = foods.map(food => {
+        const foodTime = food.loggedAt?.getTime() ?? 0;
+
+        // Find nearest mood log within 2 hours
+        let nearestMood: typeof moods[number] | null = null;
+        let nearestMoodDist = Infinity;
+        for (const mood of moods) {
+          const moodTime = mood.loggedAt?.getTime() ?? 0;
+          const dist = Math.abs(foodTime - moodTime);
+          if (dist < TWO_HOURS_MS && dist < nearestMoodDist) {
+            nearestMood = mood;
+            nearestMoodDist = dist;
+          }
+        }
+
+        // Find nearest emotion reading within 2 hours
+        let nearestEmotion: typeof emotions[number] | null = null;
+        let nearestEmoDist = Infinity;
+        for (const emo of emotions) {
+          const emoTime = emo.timestamp?.getTime() ?? 0;
+          const dist = Math.abs(foodTime - emoTime);
+          if (dist < TWO_HOURS_MS && dist < nearestEmoDist) {
+            nearestEmotion = emo;
+            nearestEmoDist = dist;
+          }
+        }
+
+        return {
+          food: {
+            id: food.id,
+            summary: food.summary,
+            mealType: food.mealType,
+            totalCalories: food.totalCalories,
+            dominantMacro: food.dominantMacro,
+            glycemicImpact: food.glycemicImpact,
+            foodItems: food.foodItems,
+            loggedAt: food.loggedAt,
+          },
+          moodLog: nearestMood ? {
+            moodScore: nearestMood.moodScore,
+            energyLevel: nearestMood.energyLevel,
+            notes: nearestMood.notes,
+            loggedAt: nearestMood.loggedAt,
+          } : null,
+          emotionReading: nearestEmotion ? {
+            dominantEmotion: nearestEmotion.dominantEmotion,
+            userCorrectedEmotion: nearestEmotion.userCorrectedEmotion,
+            stress: nearestEmotion.stress,
+            happiness: nearestEmotion.happiness,
+            valence: nearestEmotion.valence,
+            arousal: nearestEmotion.arousal,
+            timestamp: nearestEmotion.timestamp,
+          } : null,
+        };
+      });
+
+      res.json({
+        entries: correlatedEntries,
+        totalFoodLogs: foods.length,
+        totalMoodLogs: moods.length,
+        totalEmotionReadings: emotions.length,
+        matchedWithMood: correlatedEntries.filter(e => e.moodLog !== null).length,
+        matchedWithEmotion: correlatedEntries.filter(e => e.emotionReading !== null).length,
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to fetch food-mood correlation");
+      res.status(500).json({ message: "Failed to fetch food-mood correlation data" });
+    }
+  });
+
   // GET /api/meal-history/:userId — meal history shaped for MealHistory component
   app.get("/api/meal-history/:userId", async (req, res) => {
     try {
@@ -4974,7 +5067,11 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
       return res.status(400).json({ error: "userId and correctedEmotion are required" });
     }
 
-    const validEmotions = ["happy", "sad", "angry", "fear", "surprise", "neutral"];
+    const validEmotions = [
+      "happy", "sad", "angry", "fear", "fearful", "surprise", "surprised", "neutral",
+      "anxious", "nervous", "grateful", "proud", "lonely", "hopeful",
+      "overwhelmed", "peaceful", "excited", "frustrated",
+    ];
     if (!validEmotions.includes(correctedEmotion)) {
       return res.status(400).json({ error: "Invalid emotion" });
     }
