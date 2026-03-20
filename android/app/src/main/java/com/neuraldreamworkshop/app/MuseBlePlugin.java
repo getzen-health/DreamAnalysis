@@ -358,20 +358,36 @@ public class MuseBlePlugin extends Plugin {
         subscribedChannels = 0;
         pendingDescriptorWrites = 0;
 
-        // Collect available EEG characteristics
+        // Log ALL characteristics in the service
+        List<BluetoothGattCharacteristic> allChars = svc.getCharacteristics();
+        StringBuilder charList = new StringBuilder();
+        for (BluetoothGattCharacteristic c : allChars) {
+            charList.append(c.getUuid().toString()).append(", ");
+        }
+        Log.d(TAG, "Service has " + allChars.size() + " chars: " + charList);
+
+        // Collect EEG characteristics — try direct lookup first, then manual scan
         List<BluetoothGattCharacteristic> eegChars = new ArrayList<>();
         for (int i = 0; i < EEG_CHARS.length; i++) {
             BluetoothGattCharacteristic ch = svc.getCharacteristic(EEG_CHARS[i]);
             if (ch != null) {
                 eegChars.add(ch);
-                Log.d(TAG, "EEG char " + i + " found: " + ch.getUuid());
-            } else {
-                Log.e(TAG, "EEG char " + i + " NOT found: " + EEG_CHARS[i]);
+            }
+        }
+
+        // If direct lookup fails, scan all characteristics manually
+        if (eegChars.isEmpty()) {
+            for (BluetoothGattCharacteristic c : allChars) {
+                String uuid = c.getUuid().toString().toLowerCase();
+                if (uuid.startsWith("273e0003") || uuid.startsWith("273e0004") ||
+                    uuid.startsWith("273e0005") || uuid.startsWith("273e0006")) {
+                    eegChars.add(c);
+                }
             }
         }
 
         if (eegChars.isEmpty()) {
-            rejectConnect("No EEG characteristics found in Muse service");
+            rejectConnect("No EEG chars in service (" + allChars.size() + " total: " + charList.toString().trim() + ")");
             return;
         }
 
