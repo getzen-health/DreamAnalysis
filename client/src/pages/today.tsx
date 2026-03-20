@@ -11,6 +11,7 @@ import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
+import { syncMoodLogToML } from "@/lib/ml-api";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -686,6 +687,16 @@ export default function Today() {
       setFeelingText("");
       queryClient.invalidateQueries({ queryKey: ["/api/mood"] });
       setTimeout(() => setFeelingSaved(false), 2000);
+
+      // Also sync to Railway ML backend for session history + retraining
+      syncMoodLogToML({
+        user_id: userId,
+        mood_score: moodScore,
+        energy_level: energyLevel,
+        notes: feelingText.trim() || undefined,
+        emotion: checkin?.emotion,
+        valence: checkin?.valence,
+      });
     } catch {
       // best-effort
     } finally {

@@ -1607,3 +1607,40 @@ export async function estimateHealthEmotion(
     body: JSON.stringify(payload),
   });
 }
+
+// ─── User Data Sync (mood + food logs → Railway ML backend) ──────────────────
+
+/** Sync a mood/feeling log to Railway so ML models can retrain. Fire-and-forget. */
+export function syncMoodLogToML(params: {
+  user_id: string;
+  mood_score: number;
+  energy_level?: number;
+  notes?: string;
+  emotion?: string;
+  valence?: number;
+}): void {
+  mlFetch("/user-data/mood-log", {
+    method: "POST",
+    body: JSON.stringify(params),
+  }).catch((err) => console.error("Failed to sync mood log to ML backend:", err));
+}
+
+/** Sync a food/nutrition log to Railway so food-mood correlation can retrain. Fire-and-forget. */
+export function syncFoodLogToML(params: {
+  user_id: string;
+  total_calories: number;
+  total_protein_g?: number;
+  total_carbs_g?: number;
+  total_fat_g?: number;
+  total_fiber_g?: number;
+  dominant_macro?: string;
+  glycemic_impact?: string;
+  meal_type?: string;
+  summary?: string;
+  food_items?: Array<Record<string, unknown>>;
+}): void {
+  mlFetch("/user-data/food-log", {
+    method: "POST",
+    body: JSON.stringify(params),
+  }).catch((err) => console.error("Failed to sync food log to ML backend:", err));
+}

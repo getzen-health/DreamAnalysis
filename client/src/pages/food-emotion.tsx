@@ -31,6 +31,7 @@ import { useDevice } from "@/hooks/use-device";
 import { useVoiceData } from "@/hooks/use-voice-data";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
+import { syncFoodLogToML } from "@/lib/ml-api";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -429,6 +430,7 @@ function MindfulEatingPrompt({ onDismiss }: { onDismiss: () => void }) {
 // ---------------------------------------------------------------------------
 
 export default function FoodEmotion() {
+  const userId = getParticipantId();
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
   const [mealResult, setMealResult] = useState<FoodImageAnalysisResult | null>(null);
@@ -456,6 +458,20 @@ export default function FoodEmotion() {
         })
       );
     } catch { /* ignore */ }
+
+    // Also sync to Railway ML backend for session history + food-mood correlation
+    syncFoodLogToML({
+      user_id: userId,
+      total_calories: result.total_calories || 0,
+      total_protein_g: result.total_protein_g || 0,
+      total_carbs_g: result.total_carbs_g || 0,
+      total_fat_g: result.total_fat_g || 0,
+      total_fiber_g: result.total_fiber_g || 0,
+      dominant_macro: result.dominant_macro,
+      glycemic_impact: result.glycemic_impact,
+      summary: result.summary,
+      food_items: result.food_items as unknown as Array<Record<string, unknown>>,
+    });
   }
 
   // Only call ML API when streaming with real signals — never simulate

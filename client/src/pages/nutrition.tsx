@@ -9,6 +9,7 @@ import { useScores } from "@/hooks/use-scores";
 import { ScoreGauge } from "@/components/score-gauge";
 import { lookupBarcode, type BarcodeProduct } from "@/lib/barcode-api";
 import { cardVariants, listItemVariants } from "@/lib/animations";
+import { syncFoodLogToML } from "@/lib/ml-api";
 import {
   AreaChart,
   Area,
@@ -1312,6 +1313,25 @@ export default function Nutrition() {
   const [activeTab, setActiveTab] = useState<TabId>("log");
   const [tabDirection, setTabDirection] = useState(0);
 
+  // Helper: sync food log to Railway ML backend (fire-and-forget)
+  const syncFoodToRailway = useCallback((data: {
+    totalCalories?: number; summary?: string; foodItems?: FoodItem[];
+    dominantMacro?: string; mealType?: string;
+  }) => {
+    syncFoodLogToML({
+      user_id: userId,
+      total_calories: data.totalCalories ?? 0,
+      total_protein_g: data.foodItems?.reduce((s, i) => s + (i.protein_g ?? 0), 0) ?? 0,
+      total_carbs_g: data.foodItems?.reduce((s, i) => s + (i.carbs_g ?? 0), 0) ?? 0,
+      total_fat_g: data.foodItems?.reduce((s, i) => s + (i.fat_g ?? 0), 0) ?? 0,
+      total_fiber_g: 0,
+      dominant_macro: data.dominantMacro,
+      meal_type: data.mealType,
+      summary: data.summary,
+      food_items: data.foodItems as Array<Record<string, unknown>> | undefined,
+    });
+  }, [userId]);
+
   const { scores } = useScores(userId);
 
   const { data: logs } = useQuery<FoodLog[]>({
@@ -1594,6 +1614,7 @@ export default function Nutrition() {
       hapticSuccess();
       await new Promise((r) => setTimeout(r, 500));
       qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+      syncFoodToRailway({ summary, foodItems: items, mealType: autoMealType() });
     } catch {
       // Fallback: use local estimation when API fails
       try {
@@ -1609,13 +1630,14 @@ export default function Nutrition() {
         hapticSuccess();
         await new Promise((r) => setTimeout(r, 500));
         qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+        syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
       } catch (fallbackErr) {
         setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Re-log failed");
       }
     } finally {
       setIsAnalyzing(false);
     }
-  }, [userId, qc]);
+  }, [userId, qc, syncFoodToRailway]);
 
   // Handle barcode log
   const handleBarcodeLog = useCallback(async (items: FoodItem[], summary: string) => {
@@ -1632,6 +1654,7 @@ export default function Nutrition() {
       hapticSuccess();
       await new Promise((r) => setTimeout(r, 500));
       qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+      syncFoodToRailway({ summary, foodItems: items, mealType: autoMealType() });
     } catch {
       // Fallback: log barcode items directly when API fails
       try {
@@ -1651,6 +1674,7 @@ export default function Nutrition() {
         hapticSuccess();
         await new Promise((r) => setTimeout(r, 500));
         qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+        syncFoodToRailway({ summary, totalCalories: totalCal, dominantMacro: dominant, foodItems: items, mealType: autoMealType() });
       } catch (fallbackErr) {
         setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Barcode log failed");
       }

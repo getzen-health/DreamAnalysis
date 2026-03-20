@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { syncMoodLogToML } from "@/lib/ml-api";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1203,6 +1204,15 @@ function MoodTab() {
       queryClient.invalidateQueries({ queryKey: [`/api/mood/${user?.id}?days=30`] });
       setMoodNotes("");
       toast({ title: "Mood logged" });
+      // Sync to Railway ML backend for session history + retraining
+      if (user?.id) {
+        syncMoodLogToML({
+          user_id: user.id,
+          mood_score: moodScore,
+          energy_level: energyLevel,
+          notes: moodNotes || undefined,
+        });
+      }
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });

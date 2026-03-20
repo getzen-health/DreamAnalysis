@@ -1,7 +1,8 @@
 import { getParticipantId } from "@/lib/participant";
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { resolveUrl } from "@/lib/queryClient";
+import { resolveUrl, apiRequest } from "@/lib/queryClient";
+import { syncFoodLogToML } from "@/lib/ml-api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,6 @@ import {
   X,
   PenLine,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   MealHistory,
@@ -234,6 +234,15 @@ export default function FoodLog() {
       qc.invalidateQueries({ queryKey: ["/api/food/logs", USER_ID] });
       qc.invalidateQueries({ queryKey: ["/api/meal-history", USER_ID] });
       qc.invalidateQueries({ queryKey: ["/api/research/correlation", USER_ID] });
+      // Sync to Railway ML backend for session history + food-mood correlation
+      syncFoodLogToML({
+        user_id: USER_ID,
+        total_calories: data.totalCalories ?? 0,
+        summary: data.summary,
+        dominant_macro: data.dominantMacro,
+        meal_type: mealType,
+        food_items: data.foodItems as unknown as Array<Record<string, unknown>>,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Analysis failed";
       toast({ title: "Could not analyze meal", description: msg, variant: "destructive" });
