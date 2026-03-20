@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -119,9 +119,14 @@ function Bar({ label, value, color }: BarProps) {
         </span>
       </div>
       <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${pct}%`, background: color }}
+        <motion.div
+          className="h-full rounded-full"
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          style={{
+            background: `linear-gradient(90deg, ${color}, ${color}cc)`,
+            boxShadow: pct >= 50 ? `0 0 8px 1px ${color}40` : "none",
+          }}
         />
       </div>
     </div>
@@ -721,25 +726,75 @@ export default function EmotionLab() {
             </div>
           ) : (
             <div className="space-y-5">
-              {/* Emotion display */}
+              {/* Emotion display — pulsing orb */}
               <div className="flex items-center gap-4">
                 <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0"
+                  className="relative w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden"
                   style={{
                     background: `${confColor}18`,
                     border: `2px solid ${confColor}50`,
                   }}
                 >
-                  <span
-                    className="w-6 h-6 rounded-full"
+                  {/* Outer glow ring — pulses slowly */}
+                  <motion.span
+                    className="absolute rounded-full"
+                    animate={{
+                      scale: [1, 1.5, 1],
+                      opacity: [0.35, 0.08, 0.35],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
                     style={{
+                      width: 28,
+                      height: 28,
                       backgroundColor:
                         EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral,
                     }}
                   />
+                  {/* Inner orb — breathes gently, color-transitions on emotion change */}
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={emotion}
+                      className="absolute rounded-full"
+                      initial={{ scale: 0.6, opacity: 0 }}
+                      animate={{ scale: [1, 1.12, 1], opacity: 1 }}
+                      exit={{ scale: 0.4, opacity: 0 }}
+                      transition={{
+                        scale: {
+                          duration: 2.5,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                        },
+                        opacity: { duration: 0.35 },
+                      }}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        backgroundColor:
+                          EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral,
+                        boxShadow: `0 0 14px 4px ${
+                          EMOTION_COLORS[emotion] ?? EMOTION_COLORS.neutral
+                        }80`,
+                      }}
+                    />
+                  </AnimatePresence>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-lg font-semibold leading-tight">{label}</p>
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={label}
+                      className="text-lg font-semibold leading-tight"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      {label}
+                    </motion.p>
+                  </AnimatePresence>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {moodLine(valence)}
                   </p>
@@ -1004,7 +1059,7 @@ export default function EmotionLab() {
             <div className="space-y-1">
               {/* Show persisted readings from DB if available */}
               {recentReadings.length > 0
-                ? recentReadings.map((reading) => {
+                ? recentReadings.map((reading, idx) => {
                     const emo = reading.dominantEmotion;
                     const dotColor =
                       EMOTION_COLORS[emo] ?? EMOTION_COLORS.neutral;
@@ -1018,14 +1073,20 @@ export default function EmotionLab() {
                       day: "numeric",
                     });
                     return (
-                      <div
+                      <motion.div
                         key={reading.id}
                         className="flex items-center gap-3 py-2.5 border-b border-border/15 last:border-0"
+                        initial={{ opacity: 0, x: -12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: idx * 0.05 }}
                       >
                         <span
                           className="w-3 h-3 rounded-full shrink-0"
                           aria-hidden="true"
-                          style={{ backgroundColor: dotColor }}
+                          style={{
+                            backgroundColor: dotColor,
+                            boxShadow: `0 0 6px 1px ${dotColor}50`,
+                          }}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium leading-tight capitalize">
@@ -1052,7 +1113,7 @@ export default function EmotionLab() {
                             </Badge>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })
                 : /* Fall back to session history when no DB readings */
