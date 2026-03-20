@@ -483,123 +483,99 @@ export class MuseBleManager {
       }
     }
 
-    // Scan for Muse — show native device picker
+    // Scan for Muse — use service UUID filter so Android pre-caches the service
     let device: { deviceId: string; name?: string };
     try {
       device = await ble.requestDevice({
-        namePrefix: "Muse",
-        optionalServices: [MUSE_SERVICE],
+        services: [MUSE_SERVICE],
       });
-    } catch (e) {
-      const msg = String(e);
-      if (msg.includes("cancel")) {
-        this.setStatus("idle", "Device selection cancelled");
-      } else {
-        this.setStatus("error", "No Muse found. Make sure it is powered ON.");
+    } catch {
+      // Service filter failed — try name prefix
+      try {
+        device = await ble.requestDevice({
+          namePrefix: "Muse",
+          optionalServices: [MUSE_SERVICE],
+        });
+      } catch (e) {
+        const msg = String(e);
+        if (msg.includes("cancel")) {
+          this.setStatus("idle", "Device selection cancelled");
+        } else {
+          this.setStatus("error", "No Muse found. Make sure it is powered ON.");
+        }
+        throw e;
       }
-      throw e;
     }
 
     this.setStatus("connecting");
     this.deviceId   = device.deviceId;
     this.deviceName = device.name ?? "Muse";
 
-    // Connect — simple, no complex retry. 30s timeout.
-    try {
-      await Promise.race([
-        ble.connect(device.deviceId, () => {
-          this.stopEmitter();
-          this.setStatus("idle", "Device disconnected");
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Connection timed out")), 30000)),
-      ]);
-    } catch (e) {
-      // If connect fails, try disconnecting first and retry once
+    // Connect + discover services — up to 2 attempts
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        await ble.disconnect(device.deviceId);
-        await new Promise((r) => setTimeout(r, 2000));
+        // Clear any stale connection
+        try { await ble.disconnect(device.deviceId); } catch { /* ok */ }
+        await new Promise((r) => setTimeout(r, attempt === 1 ? 500 : 2000));
+
+        // Connect with 30s timeout
         await Promise.race([
           ble.connect(device.deviceId, () => {
             this.stopEmitter();
             this.setStatus("idle", "Device disconnected");
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Connection timed out on retry")), 30000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 30000)),
         ]);
-      } catch (retryErr) {
-        this.setStatus("error", `Connection failed: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`);
-        this.deviceId = null;
-        throw retryErr;
-      }
-    }
 
-    // Wait for GATT service discovery — poll until Muse service is found
-    // Android 16 (Pixel 10 XL): connect() resolves before services are discovered
-    let serviceFound = false;
-    for (let poll = 0; poll < 10; poll++) {
-      await new Promise((r) => setTimeout(r, 1000));
-      try {
-        const services = await ble.getServices(device.deviceId);
-        if (services && services.length > 0) {
-          // Check if any service has our characteristic
-          for (const svc of services) {
-            const svcUuid = (svc.uuid ?? "").toLowerCase();
-            if (svcUuid === MUSE_SERVICE.toLowerCase() || svcUuid === "fe8d") {
-              serviceFound = true;
-              break;
-            }
-          }
-          if (serviceFound) break;
-          // Services found but not ours — keep waiting
+        // Wait for GATT services — Android 16 needs time
+        await new Promise((r) => setTimeout(r, 3000));
+
+        // Force service discovery
+        try { await ble.getServices(device.deviceId); } catch { /* ok */ }
+        await new Promise((r) => setTimeout(r, 1000));
+
+        // Test: try reading the control characteristic to confirm GATT is ready
+        try {
+          await ble.read(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR);
+        } catch {
+          // Read failed — GATT might not be ready, but write might still work
         }
-      } catch {
-        // getServices failed — keep polling
-      }
-    }
 
-    if (!serviceFound) {
-      // Last resort: try anyway — some Android versions don't report services via getServices
-      console.warn("Muse service not found via getServices, attempting write anyway...");
-    }
+        // Write preset + start
+        try {
+          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
+        } catch {
+          await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
+        }
+        await new Promise((r) => setTimeout(r, 500));
+        try {
+          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
+        } catch {
+          await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
+        }
+        await new Promise((r) => setTimeout(r, 500));
 
-    // Write commands
-    const writeCmd = async (cmd: DataView) => {
-      try {
-        await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
-      } catch {
-        await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
-      }
-    };
+        // Subscribe to EEG channels
+        for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+          await ble.startNotifications(
+            device.deviceId,
+            MUSE_SERVICE,
+            MUSE_EEG_CHARS[ch],
+            (data: DataView) => this.onEegNotification(ch, data)
+          );
+        }
 
-    try {
-      await writeCmd(CMD_PRESET_P21);
-      await new Promise((r) => setTimeout(r, 500));
-      await writeCmd(CMD_START);
-    } catch (e) {
-      console.warn("Muse write commands failed:", e);
-      // Don't throw — try subscribing anyway, some Muse versions auto-start
-    }
-
-    // Subscribe to EEG channels — retry each individually
-    await new Promise((r) => setTimeout(r, 500));
-    let subscribedChannels = 0;
-    for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-      try {
-        await ble.startNotifications(
-          device.deviceId,
-          MUSE_SERVICE,
-          MUSE_EEG_CHARS[ch],
-          (data: DataView) => this.onEegNotification(ch, data)
-        );
-        subscribedChannels++;
+        // Success — break out
+        break;
       } catch (e) {
-        console.warn(`Failed to subscribe to EEG channel ${ch}:`, e);
+        if (attempt === 2) {
+          this.setStatus("error", `Muse connection failed: ${e instanceof Error ? e.message : String(e)}`);
+          this.deviceId = null;
+          throw e;
+        }
+        // Retry
+        this.setStatus("connecting");
       }
-    }
-
-    if (subscribedChannels === 0) {
-      this.setStatus("error", "Could not subscribe to any EEG channel. Try turning Muse off, wait 5 seconds, turn back on, then retry.");
-      this.deviceId = null;
-      throw new Error("No EEG channels subscribed");
     }
 
     this.startEmitter();
