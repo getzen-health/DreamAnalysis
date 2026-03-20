@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Brain, Loader2, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Brain className="h-10 w-10 text-primary" />
+            <img src="/logo-antarai.svg" alt="AntarAI" className="h-10 w-10" />
           </div>
           <CardTitle>Reset your password</CardTitle>
           <CardDescription>

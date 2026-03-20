@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Brain, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 function getTokenFromUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -56,7 +56,7 @@ export default function ResetPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Brain className="h-10 w-10 text-primary" />
+            <img src="/logo-antarai.svg" alt="AntarAI" className="h-10 w-10" />
           </div>
           <CardTitle>Set new password</CardTitle>
           <CardDescription>Choose a strong new password for your account.</CardDescription>

@@ -678,7 +678,7 @@ export default function Dashboard() {
           className="rounded-2xl p-6 text-center space-y-4 bg-card/70 border border-border/60 shadow-sm"
         >
           <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center bg-primary/10 border border-primary/20">
-            <Brain className="h-7 w-7 text-primary" />
+            <img src="/logo-antarai.svg" alt="AntarAI" className="h-7 w-7" />
           </div>
           <div className="space-y-1.5">
             <h2 className="text-lg font-bold text-foreground">Welcome to AntarAI</h2>

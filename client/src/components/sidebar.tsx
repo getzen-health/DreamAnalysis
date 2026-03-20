@@ -175,7 +175,7 @@ export function Sidebar() {
           >
             <div className="w-8 h-8 rounded-lg flex items-center justify-center mr-3"
               style={{ background: "linear-gradient(135deg, hsl(152,60%,48%), hsl(38,85%,58%))" }}>
-              <Brain className="h-4 w-4 text-white" />
+              <img src="/logo-antarai.svg" alt="AntarAI" className="h-4 w-4" />
             </div>
             <span className="text-base font-semibold text-gradient">
               AntarAI

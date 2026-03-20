@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Brain } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 export default function IntentSelect() {
@@ -31,7 +31,7 @@ export default function IntentSelect() {
           onClick={() => !loading && choose()}
         >
           <CardContent className="pt-8 pb-8 text-center space-y-4">
-            <Brain className="w-10 h-10 mx-auto text-violet-400" />
+            <img src="/logo-antarai.svg" alt="AntarAI" className="w-10 h-10 mx-auto" />
             <div>
               <p className="font-semibold text-lg">Get Started</p>
               <p className="text-sm text-muted-foreground mt-1">

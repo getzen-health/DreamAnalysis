@@ -100,7 +100,7 @@ export default function Landing() {
             </Link>
             <Link href="/architecture-guide">
               <Button size="lg" variant="outline" className="border-primary/30 text-primary hover:bg-primary/10 px-8 text-lg">
-                <Brain className="mr-2 h-5 w-5" />
+                <img src="/logo-antarai.svg" alt="AntarAI" className="mr-2 h-5 w-5" />
                 Live Demo
               </Button>
             </Link>
@@ -160,7 +160,7 @@ export default function Landing() {
       <section className="relative py-24 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <Card className="glass-card p-12 rounded-2xl hover-glow">
-            <Brain className="h-16 w-16 mx-auto text-primary mb-6" />
+            <img src="/logo-antarai.svg" alt="AntarAI" className="h-16 w-16 mx-auto mb-6" />
             <h2 className="text-3xl font-futuristic font-bold mb-4">
               Start Your <span className="text-gradient">Daily Readiness Flow</span>
             </h2>
@@ -181,7 +181,7 @@ export default function Landing() {
       <footer className="border-t border-border py-8 px-4">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
+            <img src="/logo-antarai.svg" alt="AntarAI" className="h-5 w-5" />
             <span className="font-futuristic text-sm font-bold text-gradient">AntarAI</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-foreground/40">

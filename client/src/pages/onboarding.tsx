@@ -159,7 +159,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
     <div className="space-y-6">
       <div className="text-center space-y-4">
         <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-primary/10 mx-auto">
-          <Brain className="h-10 w-10 text-primary" />
+          <img src="/logo-antarai.svg" alt="AntarAI" className="h-10 w-10" />
         </div>
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold">Welcome to AntarAI</h1>
