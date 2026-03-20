@@ -17,7 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import {
@@ -193,17 +193,31 @@ export default function StressTrends() {
     ? Math.round(currentEmotion.stress * 100)
     : null;
 
-  const { data: historyData = [] } = useQuery<HistoryEntry[]>({
-    queryKey: ["brain-history-stress", userId],
-    queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/brain/history/${userId}?days=7`));
-      if (!res.ok) return [];
-      const json = await res.json();
-      return Array.isArray(json) ? json : json?.entries ?? json?.data ?? [];
-    },
+  // Primary data source: ML session data from Railway
+  const { data: sessions } = useQuery<SessionSummary[]>({
+    queryKey: ["sessions", userId],
+    queryFn: () => listSessions(userId),
+    staleTime: 30_000,
     retry: false,
-    staleTime: 2 * 60 * 1000,
   });
+
+  // Map sessions to HistoryEntry format
+  const historyData = useMemo(() => {
+    if (!sessions || sessions.length === 0) return [];
+    return sessions
+      .filter((s) => s.summary && s.summary.avg_stress != null)
+      .map((s) => ({
+        timestamp: s.start_time
+          ? new Date(s.start_time * 1000).toISOString()
+          : new Date().toISOString(),
+        stress: s.summary.avg_stress ?? 0,
+        dominantEmotion: s.summary.dominant_emotion,
+      }))
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+  }, [sessions]);
 
   const stressTrend = useMemo(() => buildDailyTrend(historyData), [historyData]);
   const dailyPattern = useMemo(() => buildDailyPattern(historyData), [historyData]);

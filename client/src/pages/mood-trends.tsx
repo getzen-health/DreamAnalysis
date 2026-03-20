@@ -17,7 +17,10 @@ import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import {
+  listSessions,
+  type SessionSummary,
+} from "@/lib/ml-api";
 import {
   AreaChart,
   Area,
@@ -200,17 +203,32 @@ export default function MoodTrends() {
   const userId = getParticipantId();
   const { emotion: currentEmotion } = useCurrentEmotion();
 
-  const { data: history } = useQuery<HistoryEntry[]>({
-    queryKey: ["brain-history-mood", userId],
-    queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/brain/history/${userId}?days=7`));
-      if (!res.ok) return [];
-      const json = await res.json();
-      return Array.isArray(json) ? json : json?.entries ?? json?.data ?? [];
-    },
+  // Primary data source: ML session data from Railway
+  const { data: sessions } = useQuery<SessionSummary[]>({
+    queryKey: ["sessions", userId],
+    queryFn: () => listSessions(userId),
+    staleTime: 30_000,
     retry: false,
-    staleTime: 5 * 60 * 1000,
   });
+
+  // Map sessions to HistoryEntry format
+  const history = useMemo(() => {
+    if (!sessions || sessions.length === 0) return [];
+    return sessions
+      .filter((s) => s.summary && s.summary.dominant_emotion)
+      .map((s) => ({
+        dominantEmotion: s.summary.dominant_emotion || "neutral",
+        timestamp: s.start_time
+          ? new Date(s.start_time * 1000).toISOString()
+          : new Date().toISOString(),
+        valence: s.summary.avg_valence ?? 0,
+        arousal: s.summary.avg_arousal ?? 0,
+      }))
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+  }, [sessions]);
 
   const distribution = useMemo(
     () => (history ? buildDistribution(history) : []),
