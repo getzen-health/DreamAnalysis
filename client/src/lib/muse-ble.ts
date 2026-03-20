@@ -458,111 +458,93 @@ export class MuseBleManager {
     const ble = await this.getBleClient();
     this.setStatus("scanning");
 
+    // Initialize BLE — only once, ignore "already initialized" errors
     try {
-      // androidNeverForLocation=false — Android 11 and below require location for BLE scan
-      await ble.initialize({ androidNeverForLocation: false });
+      await ble.initialize();
     } catch (e) {
       const msg = String(e);
-      if (msg.includes("denied") || msg.includes("permission")) {
-        this.setStatus("error", "Bluetooth permission denied. Go to Settings > Apps > AntarAI > Permissions and enable Bluetooth + Location.");
-      } else if (msg.includes("disabled") || msg.includes("off")) {
-        this.setStatus("error", "Bluetooth is turned off. Please enable Bluetooth in your phone settings.");
-      } else {
-        this.setStatus("error", `BLE init failed: ${msg}`);
-      }
-      throw e;
-    }
-
-    let device: { deviceId: string; name?: string };
-    try {
-      // Try scanning with service UUID filter first
-      device = await ble.requestDevice({
-        services: [MUSE_SERVICE],
-      });
-    } catch (firstErr) {
-      // Some Muse firmware doesn't advertise service UUID — try name-based scan
-      try {
-        device = await ble.requestDevice({
-          namePrefix: "Muse",
-          optionalServices: [MUSE_SERVICE],
-        });
-      } catch (e) {
-        const msg = String(e);
-        if (msg.includes("cancel")) {
-          this.setStatus("idle", "Device selection cancelled");
-        } else {
-          this.setStatus("error", "No Muse found. Make sure Muse is powered ON (LED blinking).");
-        }
+      // "already initialized" is fine — skip
+      if (!msg.includes("already")) {
+        this.setStatus("error", `Bluetooth not available: ${msg}`);
         throw e;
       }
+    }
+
+    // Scan for Muse — show native device picker
+    let device: { deviceId: string; name?: string };
+    try {
+      device = await ble.requestDevice({
+        namePrefix: "Muse",
+        optionalServices: [MUSE_SERVICE],
+      });
+    } catch (e) {
+      const msg = String(e);
+      if (msg.includes("cancel")) {
+        this.setStatus("idle", "Device selection cancelled");
+      } else {
+        this.setStatus("error", "No Muse found. Make sure it is powered ON.");
+      }
+      throw e;
     }
 
     this.setStatus("connecting");
     this.deviceId   = device.deviceId;
     this.deviceName = device.name ?? "Muse";
 
-    // Helper: write command with writeWithoutResponse fallback
-    const writeCmd = async (id: string, cmd: DataView) => {
+    // Connect — simple, no complex retry. 30s timeout.
+    try {
+      await Promise.race([
+        ble.connect(device.deviceId, () => {
+          this.stopEmitter();
+          this.setStatus("idle", "Device disconnected");
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Connection timed out")), 30000)),
+      ]);
+    } catch (e) {
+      // If connect fails, try disconnecting first and retry once
       try {
-        await ble.writeWithoutResponse(id, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
-      } catch {
-        await ble.write(id, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
-      }
-    };
-
-    // Auto-retry: attempt connect + start up to 3 times
-    const MAX_RETRIES = 3;
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        // Disconnect first if already connected (handles "already paired" case)
-        try { await ble.disconnect(device.deviceId); } catch { /* ignore */ }
-        await new Promise((r) => setTimeout(r, attempt > 1 ? 3000 : 500));
-
-        this.setStatus("connecting");
-
-        // Connect with generous timeout — Muse S needs more time than Muse 2
+        await ble.disconnect(device.deviceId);
+        await new Promise((r) => setTimeout(r, 2000));
         await Promise.race([
           ble.connect(device.deviceId, () => {
             this.stopEmitter();
             this.setStatus("idle", "Device disconnected");
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 20000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Connection timed out on retry")), 30000)),
         ]);
+      } catch (retryErr) {
+        this.setStatus("error", `Connection failed: ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`);
+        this.deviceId = null;
+        throw retryErr;
+      }
+    }
 
-        // Wait for GATT services to fully settle — critical for Muse S
-        await new Promise((r) => setTimeout(r, 1500));
+    // Wait for GATT to settle
+    await new Promise((r) => setTimeout(r, 2000));
 
-        // Discover services explicitly (some Android versions need this)
-        try { await ble.getServices(device.deviceId); } catch { /* ok */ }
-        await new Promise((r) => setTimeout(r, 300));
-
-        // Send preset + start commands with retries
-        for (let cmdAttempt = 0; cmdAttempt < 2; cmdAttempt++) {
+    // Start EEG streaming — try writeWithoutResponse, fall back to write
+    try {
+      const writeCmd = async (cmd: DataView) => {
+        try {
+          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+        } catch {
           try {
-            await writeCmd(device.deviceId, CMD_PRESET_P21);
-            await new Promise((r) => setTimeout(r, 300));
-            await writeCmd(device.deviceId, CMD_START);
-            break; // commands succeeded
-          } catch (cmdErr) {
-            if (cmdAttempt === 1) throw cmdErr;
-            await new Promise((r) => setTimeout(r, 1000)); // wait and retry commands
+            await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+          } catch {
+            // Last resort: try with DataView wrapped in ArrayBuffer
+            const arr = new Uint8Array(cmd.buffer);
+            const fresh = new DataView(new Uint8Array(arr).buffer);
+            await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, fresh);
           }
         }
+      };
 
-        // Success — break out of retry loop
-        break;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.warn(`Muse connect attempt ${attempt}/${MAX_RETRIES} failed:`, msg);
-
-        if (attempt === MAX_RETRIES) {
-          this.setStatus("error", `Connection failed after ${MAX_RETRIES} attempts: ${msg}`);
-          this.deviceId = null;
-          throw e;
-        }
-        // Retry after brief pause
-        this.setStatus("connecting");
-      }
+      await writeCmd(CMD_PRESET_P21);
+      await new Promise((r) => setTimeout(r, 500));
+      await writeCmd(CMD_START);
+    } catch (e) {
+      // Commands failed — but connection might still be alive, try subscribing anyway
+      console.warn("Muse write commands failed, attempting to subscribe anyway:", e);
     }
 
     // Subscribe to all 4 EEG channel characteristics

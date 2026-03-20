@@ -368,18 +368,19 @@ function useDeviceInternal(): UseDeviceReturn {
 
     // ── BLE path: native Capacitor (iOS/Android) OR Web Bluetooth (Chrome desktop) ──
     if (museBle.isAvailable && (deviceType === "muse_2" || deviceType === "muse_s")) {
-      // Pre-flight: check Bluetooth readiness and surface actionable errors early
-      try {
-        const diag = await museBle.checkBluetoothReady();
-        if (diag.hints.length > 0) {
-          setError(diag.hints.join(" "));
-          setState("disconnected");
-          return;
-        }
-      } catch { /* diagnostic failed — proceed anyway */ }
+      // Pre-flight diagnostic — skip on native (just try connecting directly)
+      if (!museBle.isNative) {
+        try {
+          const diag = await museBle.checkBluetoothReady();
+          if (diag.hints.length > 0) {
+            setError(diag.hints.join(" "));
+            setState("disconnected");
+            return;
+          }
+        } catch { /* diagnostic failed — proceed anyway */ }
+      }
 
-      // Suppress BLE status errors during initial connection — they fire before
-      // the catch block can handle them and fall through to BrainFlow.
+      // Suppress BLE status errors during initial connection
       museBle.onStatus(() => {});
       try {
         museBle.onEegFrame((frame) => {
