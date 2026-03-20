@@ -458,6 +458,19 @@ export class MuseBleManager {
     const ble = await this.getBleClient();
     this.setStatus("scanning");
 
+    // Android 12+ (API 31+): request BLUETOOTH_SCAN + BLUETOOTH_CONNECT at runtime
+    // Without this, BLE operations fail silently on Pixel devices
+    try {
+      await ble.requestPermissions();
+    } catch (e) {
+      const msg = String(e);
+      if (msg.includes("denied") || msg.includes("permission")) {
+        this.setStatus("error", "Bluetooth permission denied. Please allow Bluetooth access when prompted.");
+        throw e;
+      }
+      // Other errors (e.g., method not available on older plugin) — continue
+    }
+
     // Initialize BLE — only once, ignore "already initialized" errors
     try {
       await ble.initialize();
@@ -519,8 +532,36 @@ export class MuseBleManager {
       }
     }
 
-    // Write commands + subscribe — retry entire sequence up to 3 times
-    // "Characteristic not found" on Muse S means GATT table isn't ready yet
+    // Wait for GATT service discovery — poll until Muse service is found
+    // Android 16 (Pixel 10 XL): connect() resolves before services are discovered
+    let serviceFound = false;
+    for (let poll = 0; poll < 10; poll++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        const services = await ble.getServices(device.deviceId);
+        if (services && services.length > 0) {
+          // Check if any service has our characteristic
+          for (const svc of services) {
+            const svcUuid = (svc.uuid ?? "").toLowerCase();
+            if (svcUuid === MUSE_SERVICE.toLowerCase() || svcUuid === "fe8d") {
+              serviceFound = true;
+              break;
+            }
+          }
+          if (serviceFound) break;
+          // Services found but not ours — keep waiting
+        }
+      } catch {
+        // getServices failed — keep polling
+      }
+    }
+
+    if (!serviceFound) {
+      // Last resort: try anyway — some Android versions don't report services via getServices
+      console.warn("Muse service not found via getServices, attempting write anyway...");
+    }
+
+    // Write commands
     const writeCmd = async (cmd: DataView) => {
       try {
         await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
@@ -529,58 +570,36 @@ export class MuseBleManager {
       }
     };
 
-    let lastError: unknown = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      // Wait progressively longer for GATT table to populate
-      await new Promise((r) => setTimeout(r, attempt * 2000));
+    try {
+      await writeCmd(CMD_PRESET_P21);
+      await new Promise((r) => setTimeout(r, 500));
+      await writeCmd(CMD_START);
+    } catch (e) {
+      console.warn("Muse write commands failed:", e);
+      // Don't throw — try subscribing anyway, some Muse versions auto-start
+    }
 
+    // Subscribe to EEG channels — retry each individually
+    await new Promise((r) => setTimeout(r, 500));
+    let subscribedChannels = 0;
+    for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
       try {
-        // Try to discover services (triggers GATT table refresh on Android)
-        try { await ble.getServices(device.deviceId); } catch { /* ok */ }
-        await new Promise((r) => setTimeout(r, 500));
-
-        // Send control commands
-        await writeCmd(CMD_PRESET_P21);
-        await new Promise((r) => setTimeout(r, 300));
-        await writeCmd(CMD_START);
-        await new Promise((r) => setTimeout(r, 300));
-
-        // Subscribe to EEG channels
-        for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-          await ble.startNotifications(
-            device.deviceId,
-            MUSE_SERVICE,
-            MUSE_EEG_CHARS[ch],
-            (data: DataView) => this.onEegNotification(ch, data)
-          );
-        }
-
-        // All succeeded
-        lastError = null;
-        break;
+        await ble.startNotifications(
+          device.deviceId,
+          MUSE_SERVICE,
+          MUSE_EEG_CHARS[ch],
+          (data: DataView) => this.onEegNotification(ch, data)
+        );
+        subscribedChannels++;
       } catch (e) {
-        lastError = e;
-        console.warn(`Muse setup attempt ${attempt}/3 failed:`, e);
-        if (attempt < 3) {
-          // Disconnect and reconnect to force fresh GATT discovery
-          try {
-            await ble.disconnect(device.deviceId);
-            await new Promise((r) => setTimeout(r, 1000));
-            await ble.connect(device.deviceId, () => {
-              this.stopEmitter();
-              this.setStatus("idle", "Device disconnected");
-            });
-          } catch {
-            // Reconnect failed — next attempt will try anyway
-          }
-        }
+        console.warn(`Failed to subscribe to EEG channel ${ch}:`, e);
       }
     }
 
-    if (lastError) {
-      this.setStatus("error", `Muse setup failed: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+    if (subscribedChannels === 0) {
+      this.setStatus("error", "Could not subscribe to any EEG channel. Try turning Muse off, wait 5 seconds, turn back on, then retry.");
       this.deviceId = null;
-      throw lastError;
+      throw new Error("No EEG channels subscribed");
     }
 
     this.startEmitter();
