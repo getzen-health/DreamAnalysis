@@ -6,7 +6,7 @@ import { pageTransition } from "@/lib/animations";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
@@ -323,7 +323,7 @@ function HealthMetricCard({
   barPercent,
   barGradient,
   accentColor,
-  emptyEmoji,
+  emptyIcon: EmptyIcon,
   emptyCta,
 }: {
   label: string;
@@ -336,8 +336,8 @@ function HealthMetricCard({
   barGradient?: string;
   /** Identity color for this metric — used for left border accent in empty state */
   accentColor?: string;
-  /** Emoji shown in empty state to give visual identity */
-  emptyEmoji?: string;
+  /** Lucide icon shown in empty state to give visual identity */
+  emptyIcon?: React.ElementType;
   /** Call-to-action text shown when no data is available */
   emptyCta?: string;
 }) {
@@ -363,8 +363,8 @@ function HealthMetricCard({
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          {isEmpty && emptyEmoji && (
-            <span style={{ fontSize: 14, lineHeight: 1 }}>{emptyEmoji}</span>
+          {isEmpty && EmptyIcon && (
+            <EmptyIcon style={{ width: 14, height: 14, color: accentColor || "var(--muted-foreground)" }} />
           )}
           <span
             style={{
@@ -953,7 +953,7 @@ export default function Today() {
               barPercent={sleepTotal > 0 ? Math.min(100, (sleepTotal / 8) * 100) : undefined}
               barGradient="linear-gradient(90deg, #7c3aed, #a78bfa)"
               accentColor="#7c3aed"
-              emptyEmoji={"\uD83D\uDE34"}
+              emptyIcon={Moon}
               emptyCta="Sync sleep data"
             />
 
@@ -966,7 +966,7 @@ export default function Today() {
               dotColor={hrStatus.color}
               onClick={() => navigate("/health-analytics")}
               accentColor="#e879a8"
-              emptyEmoji={"\u2764\uFE0F"}
+              emptyIcon={Heart}
               emptyCta="Connect Health to track"
             />
 
@@ -981,7 +981,7 @@ export default function Today() {
               barPercent={steps > 0 ? stepsPct : undefined}
               barGradient="linear-gradient(90deg, #06b6d4, #22d3ee)"
               accentColor="#06b6d4"
-              emptyEmoji={"\uD83D\uDC5F"}
+              emptyIcon={Footprints}
               emptyCta="Sync to see steps"
             />
 
@@ -996,7 +996,7 @@ export default function Today() {
               barPercent={todayCalories > 0 ? calPct : undefined}
               barGradient="linear-gradient(90deg, #d4a017, #ea580c)"
               accentColor="#d4a017"
-              emptyEmoji={"\uD83C\uDF4E"}
+              emptyIcon={UtensilsCrossed}
               emptyCta="Log a meal to start"
             />
           </motion.div>
