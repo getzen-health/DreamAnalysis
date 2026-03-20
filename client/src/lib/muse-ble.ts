@@ -665,77 +665,86 @@ export class MuseBleManager {
       console.error(`[MuseBLE] All write methods failed for ${label}`);
     };
 
-    // ── STEP 1: Subscribe to EEG channels FIRST (before commands) ─────
-    // Muse requires active notification subscriptions before it starts
-    // streaming. Subscribe first, then send preset+start.
-    let subscribedCount = 0;
-    let detectedType = "";
+    // ── Discover ALL characteristics in the Muse service ────────────────
+    type BleService = { uuid: string; characteristics: Array<{ uuid: string; properties: Record<string, boolean> }> };
+    let services: BleService[] = [];
+    try { services = await ble.getServices(device.deviceId) as BleService[]; } catch { /* ok */ }
 
-    for (const charSet of [MUSE_EEG_CHARS_MUSE_S, MUSE_EEG_CHARS_MUSE2]) {
-      const typeName = charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2";
-      let setWorked = true;
-      for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-        try {
-          await ble.startNotifications(
-            device.deviceId,
-            MUSE_SERVICE,
-            charSet[ch],
-            (data: DataView) => this.onEegNotification(ch, data)
-          );
-          subscribedCount++;
-          console.log(`[MuseBLE] Subscribed ch${ch} (${typeName})`);
-        } catch {
-          setWorked = false;
-          break; // This UUID set doesn't exist, try other
-        }
-      }
-      if (setWorked && subscribedCount >= N_ACTIVE_CHANNELS) {
-        detectedType = typeName;
-        break;
-      }
-      // Reset for next attempt
-      subscribedCount = 0;
-    }
+    const museSvc = services.find((s) => s.uuid.toLowerCase().includes("fe8d"));
+    const allChars = museSvc?.characteristics ?? [];
+    const charUuids = allChars.map((c) => c.uuid.toLowerCase());
+    console.log(`[MuseBLE] Muse service: ${allChars.length} chars: ${charUuids.join(", ")}`);
 
-    if (subscribedCount === 0) {
-      // Last resort: try subscribing after sending commands
-      console.warn("[MuseBLE] Pre-subscribe failed. Sending commands then retrying...");
-      await writeCmd(CMD_PRESET_P21, "preset");
-      await new Promise((r) => setTimeout(r, 1000));
-      await writeCmd(CMD_START, "start");
-      await new Promise((r) => setTimeout(r, 3000));
-      try { await ble.getServices(device.deviceId); } catch { /* ok */ }
-      await new Promise((r) => setTimeout(r, 1000));
-
-      for (const charSet of [MUSE_EEG_CHARS_MUSE_S, MUSE_EEG_CHARS_MUSE2]) {
-        const typeName = charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2";
-        let ok = true;
-        for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-          try {
-            await ble.startNotifications(device.deviceId, MUSE_SERVICE, charSet[ch],
-              (data: DataView) => this.onEegNotification(ch, data));
-            subscribedCount++;
-          } catch { ok = false; break; }
-        }
-        if (ok && subscribedCount >= N_ACTIVE_CHANNELS) { detectedType = typeName; break; }
-        subscribedCount = 0;
-      }
-
-      if (subscribedCount === 0) {
-        throw new Error("Could not subscribe to any EEG channel after both attempts");
-      }
-    }
-
-    MUSE_EEG_CHARS = detectedType === "Muse S" ? [...MUSE_EEG_CHARS_MUSE_S] : [...MUSE_EEG_CHARS_MUSE2];
-    console.log(`[MuseBLE] ${subscribedCount} channels subscribed (${detectedType})`);
-
-    // ── STEP 2: NOW send preset + start commands ──────────────────────
-    // With subscriptions active, Muse will start streaming to our callbacks
+    // ── Send preset + start FIRST ─────────────────────────────────────
     await writeCmd(CMD_PRESET_P21, "preset");
     await new Promise((r) => setTimeout(r, 1000));
     await writeCmd(CMD_START, "start");
-    console.log("[MuseBLE] Commands sent. Data should start flowing...");
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Re-discover after commands (Muse may expose new characteristics)
+    try { services = await ble.getServices(device.deviceId) as BleService[]; } catch { /* ok */ }
+    const museSvc2 = services.find((s) => s.uuid.toLowerCase().includes("fe8d"));
+    const allChars2 = museSvc2?.characteristics ?? [];
+    const charUuids2 = allChars2.map((c) => c.uuid.toLowerCase());
+    console.log(`[MuseBLE] After commands: ${allChars2.length} chars: ${charUuids2.join(", ")}`);
+
+    // ── Subscribe: try known UUIDs, then fall back to ANY notify chars ─
+    let subscribedCount = 0;
+    let detectedType = "";
+
+    // Try known UUID sets first
+    for (const charSet of [MUSE_EEG_CHARS_MUSE_S, MUSE_EEG_CHARS_MUSE2]) {
+      const typeName = charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2";
+      let ok = true;
+      for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+        try {
+          await ble.startNotifications(device.deviceId, MUSE_SERVICE, charSet[ch],
+            (data: DataView) => this.onEegNotification(ch, data));
+          subscribedCount++;
+        } catch (e) {
+          console.warn(`[MuseBLE] ${typeName} ch${ch} subscribe failed:`, e);
+          ok = false; break;
+        }
+      }
+      if (ok && subscribedCount >= N_ACTIVE_CHANNELS) { detectedType = typeName; break; }
+      subscribedCount = 0;
+    }
+
+    // Fallback: subscribe to ANY characteristics with notify property (excluding control)
+    if (subscribedCount === 0 && allChars2.length > 0) {
+      console.log("[MuseBLE] Known UUIDs failed. Trying ALL notify characteristics...");
+      const notifyChars = allChars2.filter((c) =>
+        c.properties?.notify && c.uuid.toLowerCase() !== MUSE_CONTROL_CHAR.toLowerCase()
+      );
+      console.log(`[MuseBLE] Found ${notifyChars.length} notify chars`);
+
+      let ch = 0;
+      for (const c of notifyChars) {
+        if (ch >= N_ACTIVE_CHANNELS) break;
+        try {
+          await ble.startNotifications(device.deviceId, MUSE_SERVICE, c.uuid,
+            (data: DataView) => this.onEegNotification(ch, data));
+          subscribedCount++;
+          console.log(`[MuseBLE] Subscribed ch${ch} via discovery: ${c.uuid}`);
+          ch++;
+        } catch (e) {
+          console.warn(`[MuseBLE] Subscribe ${c.uuid} failed:`, e);
+        }
+      }
+      if (subscribedCount > 0) detectedType = "auto-discovered";
+    }
+
+    if (subscribedCount === 0) {
+      const available = charUuids2.join(", ") || "none found";
+      throw new Error(`No EEG channels. Available chars: ${available}`);
+    }
+
+    if (detectedType === "Muse S" || detectedType === "auto-discovered") {
+      MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE_S];
+    } else {
+      MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE2];
+    }
+    console.log(`[MuseBLE] ${subscribedCount} channels (${detectedType}). Streaming...`);
 
 
     this.startEmitter();
