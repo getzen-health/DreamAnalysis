@@ -1,7 +1,9 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { SpectrogramChart } from "@/components/charts/spectrogram-chart";
 import { SignalQualityBadge } from "@/components/signal-quality-badge";
+import { SignalQualityIndicator } from "@/components/signal-quality-indicator";
+import { AlphaReactivityTest } from "@/components/alpha-reactivity-test";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
 import { SessionControls } from "@/components/session-controls";
 import { SimulationModeBanner } from "@/components/simulation-mode-banner";
@@ -22,6 +24,7 @@ import {
   type WaveletResult,
   type AnomalyResult,
 } from "@/lib/ml-api";
+import { assessSignalQuality, type SignalQualityResult as SQResult } from "@/lib/signal-quality";
 import { Link } from "wouter";
 import { Music } from "lucide-react";
 
@@ -67,6 +70,49 @@ export default function BrainMonitor() {
   const waveletTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const analysis = latestFrame?.analysis;
+
+  // ── Per-electrode signal quality (spectral flatness + amplitude) ──
+  const isSynthetic = deviceStatus?.device_type === "synthetic" || selectedDevice === "synthetic";
+  const [sqResult, setSqResult] = useState<SQResult | null>(null);
+  const [showAlphaTest, setShowAlphaTest] = useState(false);
+  const sqTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const CHANNEL_NAMES = ["TP9", "AF7", "AF8", "TP10"];
+
+  useEffect(() => {
+    if (!isStreaming || !latestFrame?.signals || isSynthetic) {
+      if (sqTimerRef.current) clearInterval(sqTimerRef.current);
+      setSqResult(null);
+      return;
+    }
+
+    // Run quality assessment every 2 seconds
+    sqTimerRef.current = setInterval(() => {
+      if (latestFrame?.signals && latestFrame.signals.length >= 4) {
+        const channels = latestFrame.signals.map((ch: number[]) => new Float32Array(ch));
+        const result = assessSignalQuality(channels, latestFrame.sample_rate || 256, CHANNEL_NAMES);
+        setSqResult(result);
+      }
+    }, 2000);
+
+    // Run once immediately
+    if (latestFrame.signals.length >= 4) {
+      const channels = latestFrame.signals.map((ch: number[]) => new Float32Array(ch));
+      const result = assessSignalQuality(channels, latestFrame.sample_rate || 256, CHANNEL_NAMES);
+      setSqResult(result);
+    }
+
+    return () => {
+      if (sqTimerRef.current) clearInterval(sqTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming, isSynthetic, latestFrame?.timestamp]);
+
+  /** Provide current EEG data to the alpha reactivity test component. */
+  const getCurrentEegData = useCallback((): Float32Array[] | null => {
+    if (!latestFrame?.signals || latestFrame.signals.length < 4) return null;
+    return latestFrame.signals.map((ch: number[]) => new Float32Array(ch));
+  }, [latestFrame]);
 
   // ── Wavelet analysis every 2s ───────────────────────────────────
   useEffect(() => {
@@ -153,7 +199,6 @@ export default function BrainMonitor() {
   const alertLevel: AlertLevel = anomaly?.alert_level || "normal";
 
   // Electrode grid — suppress quality data for synthetic board (non-physiological signals)
-  const isSynthetic = deviceStatus?.device_type === "synthetic" || selectedDevice === "synthetic";
   const channelQuality = isSynthetic ? [] : (signalQuality?.channel_quality || []);
   const hasRealData = channelQuality.length > 0;
   const activeCount = hasRealData ? channelQuality.filter((q) => q >= 80).length : 0;
@@ -391,6 +436,10 @@ export default function BrainMonitor() {
                   artifactType={artifactType}
                   compact
                 />
+              )}
+              {/* Per-electrode quality dots */}
+              {sqResult && !isSynthetic && (
+                <SignalQualityIndicator channels={sqResult.channels} />
               )}
               {/* Signal source badge */}
               {(() => {
@@ -764,6 +813,65 @@ export default function BrainMonitor() {
           </div>
         )}
       </Card>
+
+      {/* Signal Quality Recommendation + Alpha Reactivity Test */}
+      {isStreaming && !isSynthetic && (
+        <Card className="glass-card p-6 rounded-xl hover-glow">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Signal Quality</h3>
+            {sqResult && (
+              <Badge
+                className={
+                  sqResult.overall === "good"
+                    ? "bg-green-500/20 text-green-400 border-green-500/30"
+                    : sqResult.overall === "fair"
+                      ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                      : "bg-red-500/20 text-red-400 border-red-500/30"
+                }
+              >
+                {sqResult.overall.charAt(0).toUpperCase() + sqResult.overall.slice(1)}
+              </Badge>
+            )}
+          </div>
+
+          {sqResult && (
+            <div className="space-y-3">
+              {/* Per-electrode quality indicator (larger version) */}
+              <div className="flex justify-center">
+                <SignalQualityIndicator channels={sqResult.channels} />
+              </div>
+
+              {/* Recommendation text */}
+              <p className="text-sm text-muted-foreground text-center">
+                {sqResult.recommendation}
+              </p>
+
+              {/* Alpha reactivity test button */}
+              {!showAlphaTest && (
+                <div className="flex justify-center pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAlphaTest(true)}
+                  >
+                    Run Alpha Reactivity Test
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Alpha reactivity test panel */}
+          {showAlphaTest && (
+            <div className="mt-4 flex justify-center">
+              <AlphaReactivityTest
+                getCurrentData={getCurrentEegData}
+                fs={latestFrame?.sample_rate || 256}
+              />
+            </div>
+          )}
+        </Card>
+      )}
     </main>
   );
 }
