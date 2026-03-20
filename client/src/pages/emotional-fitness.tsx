@@ -6,6 +6,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { getEmotionalFitness, type EFSData } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import { EFSHeroScore } from "@/components/efs-hero-score";
@@ -15,6 +16,30 @@ import { EFSHistoryChart } from "@/components/efs-history-chart";
 import { exportEFSCard } from "@/components/efs-share-card";
 import { Shield, Gauge, Eye, Palette, Anchor, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+// ── Animation variants ──────────────────────────────────────────────────────
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.08 },
+  },
+};
+
+const vitalCardVariant = {
+  hidden: { opacity: 0, y: 16, scale: 0.97 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: "spring", stiffness: 300, damping: 24 },
+  },
+};
 
 // ── Vital icon mapping ──────────────────────────────────────────────────────
 
@@ -65,20 +90,31 @@ export default function EmotionalFitness() {
   return (
     <main className="min-h-screen bg-background pb-24 max-w-2xl mx-auto">
       {/* Header */}
-      <div className="px-4 pt-6 pb-4">
+      <motion.div
+        className="px-4 pt-6 pb-4"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+      >
         <h1 className="text-xl font-bold text-foreground tracking-tight">
           Emotional Fitness
         </h1>
         <p className="text-xs text-muted-foreground mt-1">Your emotional health, measured daily</p>
-      </div>
+      </motion.div>
       <div className="px-4">
 
       {isLoading && <EFSSkeleton />}
 
       {!isLoading && data && (
         <div className="space-y-6">
-          {/* Hero score arc */}
-          <div className="flex justify-center">
+          {/* Hero score arc — fade in from above */}
+          <motion.div
+            className="flex justify-center"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
             <EFSHeroScore
               score={data.score}
               color={data.color}
@@ -87,28 +123,60 @@ export default function EmotionalFitness() {
               trend={data.trend}
               progress={data.progress}
             />
-          </div>
+          </motion.div>
 
-          {/* 5 vital cards — 2-column grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {VITAL_ORDER.map((key) => {
+          {/* 5 vital cards — staggered entrance, 5th card spans full width */}
+          <motion.div
+            className="grid grid-cols-2 gap-3"
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+          >
+            {VITAL_ORDER.map((key, index) => {
               const vital = data.vitals[key];
               if (!vital) return null;
               const Icon = VITAL_ICONS[key] ?? Shield;
+              const isLast = index === VITAL_ORDER.length - 1 && VITAL_ORDER.length % 2 !== 0;
               return (
-                <EFSVitalCard key={key} name={key} icon={Icon} vital={vital} />
+                <motion.div
+                  key={key}
+                  variants={vitalCardVariant}
+                  className={isLast ? "col-span-2" : undefined}
+                >
+                  <EFSVitalCard name={key} icon={Icon} vital={vital} />
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
 
-          {/* Daily insight banner */}
-          <EFSInsightBanner insight={data.dailyInsight} />
+          {/* Daily insight banner — fade up */}
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={{ duration: 0.4, delay: 0.5, ease: "easeOut" }}
+          >
+            <EFSInsightBanner insight={data.dailyInsight} />
+          </motion.div>
 
-          {/* History chart */}
-          <EFSHistoryChart userId={userId} />
+          {/* History chart — fade up */}
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={{ duration: 0.4, delay: 0.65, ease: "easeOut" }}
+          >
+            <EFSHistoryChart userId={userId} />
+          </motion.div>
 
-          {/* Share button — PNG export */}
-          <div className="flex justify-center pt-2">
+          {/* Share button — fade up */}
+          <motion.div
+            className="flex justify-center pt-2"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={{ duration: 0.3, delay: 0.8, ease: "easeOut" }}
+          >
             <Button
               variant="outline"
               size="sm"
@@ -118,7 +186,7 @@ export default function EmotionalFitness() {
               <Download className="h-4 w-4" />
               Share as image
             </Button>
-          </div>
+          </motion.div>
         </div>
       )}
 
