@@ -383,16 +383,34 @@ public class MuseBlePlugin extends Plugin {
 
     private void enqueueWrite(BluetoothGatt gatt, BluetoothGattCharacteristic ch, byte[] value, String label) {
         writeQueue.add(() -> {
-            Log.d(TAG, "Writing " + label + " (" + value.length + " bytes)...");
+            // Check if characteristic supports write-with-response or only write-without-response
+            int props = ch.getProperties();
+            boolean supportsWriteWithResponse = (props & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0;
+            boolean supportsWriteNoResponse = (props & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0;
+            int writeType = supportsWriteWithResponse
+                ? BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                : BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
+
+            Log.d(TAG, "Writing " + label + " (" + value.length + " bytes) writeType=" +
+                (supportsWriteWithResponse ? "WITH_RESPONSE" : "NO_RESPONSE") +
+                " props=0x" + Integer.toHexString(props));
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    gatt.writeCharacteristic(ch, value, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                    gatt.writeCharacteristic(ch, value, writeType);
                 } else {
-                    ch.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                    ch.setWriteType(writeType);
                     ch.setValue(value);
                     gatt.writeCharacteristic(ch);
                 }
-                writePending = true;
+
+                if (supportsWriteWithResponse) {
+                    // onCharacteristicWrite callback will call processWriteQueue
+                    writePending = true;
+                } else {
+                    // No callback for write-without-response — proceed after delay
+                    writePending = false;
+                    handler.postDelayed(this::processWriteQueue, 500);
+                }
             } catch (SecurityException e) {
                 Log.e(TAG, "Write " + label + " denied: " + e.getMessage());
                 writePending = false;
