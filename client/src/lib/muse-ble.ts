@@ -653,7 +653,7 @@ export class MuseBleManager {
     try { await ble.getServices(device.deviceId); } catch { /* ok */ }
     await new Promise((r) => setTimeout(r, 1000));
 
-    // ── Send preset + start commands ──────────────────────────────────
+    // Helper: write command trying both methods
     const writeCmd = async (cmd: DataView, label: string) => {
       for (const method of ["write", "writeWithoutResponse"] as const) {
         try {
@@ -664,52 +664,78 @@ export class MuseBleManager {
       }
       console.error(`[MuseBLE] All write methods failed for ${label}`);
     };
-    await writeCmd(CMD_PRESET_P21, "preset");
-    await new Promise((r) => setTimeout(r, 1000));
-    await writeCmd(CMD_START, "start");
-    console.log("[MuseBLE] Commands sent. Waiting 4s for Muse to reconfigure...");
-    await new Promise((r) => setTimeout(r, 4000));
 
-    // Re-discover services (GATT table may have changed after commands)
-    try { await ble.getServices(device.deviceId); } catch { /* ok */ }
-    await new Promise((r) => setTimeout(r, 1000));
-
-    // ── Subscribe to EEG channels ─────────────────────────────────────
-    // Try every known EEG UUID individually. Don't give up on first failure.
+    // ── STEP 1: Subscribe to EEG channels FIRST (before commands) ─────
+    // Muse requires active notification subscriptions before it starts
+    // streaming. Subscribe first, then send preset+start.
     let subscribedCount = 0;
-    const allEegUuids = [
-      ...MUSE_EEG_CHARS_MUSE_S.map((u, i) => ({ uuid: u, ch: i, type: "Muse S" })),
-      ...MUSE_EEG_CHARS_MUSE2.map((u, i) => ({ uuid: u, ch: i, type: "Muse 2" })),
-    ];
     let detectedType = "";
 
-    for (const { uuid, ch, type } of allEegUuids) {
-      // If we already subscribed 4 channels, stop
-      if (subscribedCount >= N_ACTIVE_CHANNELS) break;
-      // If we detected a type, skip the other type's UUIDs
-      if (detectedType && detectedType !== type) continue;
-
-      try {
-        await ble.startNotifications(
-          device.deviceId,
-          MUSE_SERVICE,
-          uuid,
-          (data: DataView) => this.onEegNotification(ch, data)
-        );
-        subscribedCount++;
-        detectedType = type;
-        console.log(`[MuseBLE] Subscribed ch${ch} (${type}): ${uuid}`);
-      } catch {
-        // This UUID doesn't exist on this device — try next
+    for (const charSet of [MUSE_EEG_CHARS_MUSE_S, MUSE_EEG_CHARS_MUSE2]) {
+      const typeName = charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2";
+      let setWorked = true;
+      for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+        try {
+          await ble.startNotifications(
+            device.deviceId,
+            MUSE_SERVICE,
+            charSet[ch],
+            (data: DataView) => this.onEegNotification(ch, data)
+          );
+          subscribedCount++;
+          console.log(`[MuseBLE] Subscribed ch${ch} (${typeName})`);
+        } catch {
+          setWorked = false;
+          break; // This UUID set doesn't exist, try other
+        }
       }
+      if (setWorked && subscribedCount >= N_ACTIVE_CHANNELS) {
+        detectedType = typeName;
+        break;
+      }
+      // Reset for next attempt
+      subscribedCount = 0;
     }
 
     if (subscribedCount === 0) {
-      throw new Error("Could not subscribe to any EEG channel. Is the Muse turned on and in range?");
+      // Last resort: try subscribing after sending commands
+      console.warn("[MuseBLE] Pre-subscribe failed. Sending commands then retrying...");
+      await writeCmd(CMD_PRESET_P21, "preset");
+      await new Promise((r) => setTimeout(r, 1000));
+      await writeCmd(CMD_START, "start");
+      await new Promise((r) => setTimeout(r, 3000));
+      try { await ble.getServices(device.deviceId); } catch { /* ok */ }
+      await new Promise((r) => setTimeout(r, 1000));
+
+      for (const charSet of [MUSE_EEG_CHARS_MUSE_S, MUSE_EEG_CHARS_MUSE2]) {
+        const typeName = charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2";
+        let ok = true;
+        for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+          try {
+            await ble.startNotifications(device.deviceId, MUSE_SERVICE, charSet[ch],
+              (data: DataView) => this.onEegNotification(ch, data));
+            subscribedCount++;
+          } catch { ok = false; break; }
+        }
+        if (ok && subscribedCount >= N_ACTIVE_CHANNELS) { detectedType = typeName; break; }
+        subscribedCount = 0;
+      }
+
+      if (subscribedCount === 0) {
+        throw new Error("Could not subscribe to any EEG channel after both attempts");
+      }
     }
 
     MUSE_EEG_CHARS = detectedType === "Muse S" ? [...MUSE_EEG_CHARS_MUSE_S] : [...MUSE_EEG_CHARS_MUSE2];
     console.log(`[MuseBLE] ${subscribedCount} channels subscribed (${detectedType})`);
+
+    // ── STEP 2: NOW send preset + start commands ──────────────────────
+    // With subscriptions active, Muse will start streaming to our callbacks
+    await writeCmd(CMD_PRESET_P21, "preset");
+    await new Promise((r) => setTimeout(r, 1000));
+    await writeCmd(CMD_START, "start");
+    console.log("[MuseBLE] Commands sent. Data should start flowing...");
+    await new Promise((r) => setTimeout(r, 1000));
 
 
     this.startEmitter();
