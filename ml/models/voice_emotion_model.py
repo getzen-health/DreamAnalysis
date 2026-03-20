@@ -85,6 +85,77 @@ _WINDOW_DURATION_S = 3.0      # each analysis window in seconds
 _WINDOW_HOP_S = 1.5           # hop between windows (50% overlap)
 _MIN_WINDOWS = 1              # minimum windows needed to aggregate
 
+# ── SNR estimation thresholds ─────────────────────────────────────────────────
+_SNR_REJECT_DB = 5.0          # below this, reject the sample entirely
+_SNR_PENALIZE_DB = 15.0       # below this, penalize confidence proportionally
+_SILENCE_THRESHOLD = 1e-4     # RMS below this = silence / no signal
+
+
+def _estimate_snr_db(audio: np.ndarray, sr: int, frame_len: int = 2048) -> float:
+    """Estimate signal-to-noise ratio in dB using a simple energy-based method.
+
+    Splits audio into frames, computes RMS energy per frame, then estimates
+    signal power from the top-quartile frames and noise power from the
+    bottom-quartile frames (assumed to be non-speech / noise-only).
+
+    Returns estimated SNR in dB.  Returns 0.0 if audio is too short or silent.
+    """
+    if len(audio) < frame_len:
+        return 0.0
+
+    # Compute per-frame RMS energy
+    hop = frame_len // 2
+    n_frames = max(1, (len(audio) - frame_len) // hop + 1)
+    energies = np.empty(n_frames, dtype=np.float64)
+    for i in range(n_frames):
+        start = i * hop
+        frame = audio[start: start + frame_len]
+        energies[i] = float(np.sqrt(np.mean(frame.astype(np.float64) ** 2) + 1e-20))
+
+    if len(energies) < 4:
+        # Not enough frames for quartile split
+        mean_e = float(np.mean(energies))
+        return 20.0 if mean_e > _SILENCE_THRESHOLD else 0.0
+
+    sorted_e = np.sort(energies)
+    q1 = max(1, len(sorted_e) // 4)
+
+    noise_power = float(np.mean(sorted_e[:q1] ** 2)) + 1e-20
+    signal_power = float(np.mean(sorted_e[-q1:] ** 2)) + 1e-20
+
+    snr = 10.0 * np.log10(signal_power / noise_power)
+    return float(np.clip(snr, 0.0, 60.0))
+
+
+def _entropy_confidence(probs: Dict[str, float]) -> float:
+    """Compute confidence from the entropy of the probability distribution.
+
+    Confidence = 1 - H(p) / H_max, where H_max = log(n_classes).
+
+    A uniform distribution (maximum uncertainty) yields confidence ~0.
+    A peaked distribution (one class dominates) yields confidence ~1.
+
+    This is strictly more informative than using max(probs) as confidence,
+    because it accounts for how probability mass is spread across ALL classes,
+    not just the winner.
+    """
+    p = np.array(list(probs.values()), dtype=np.float64)
+    p = np.maximum(p, 1e-10)  # avoid log(0)
+    p = p / p.sum()  # re-normalize
+
+    n_classes = len(p)
+    if n_classes <= 1:
+        return 1.0
+
+    entropy = -float(np.sum(p * np.log(p)))
+    max_entropy = float(np.log(n_classes))
+
+    if max_entropy < 1e-10:
+        return 1.0
+
+    # 1 - normalized entropy: 0 = uniform (uncertain), 1 = peaked (confident)
+    return float(np.clip(1.0 - entropy / max_entropy, 0.0, 1.0))
+
 
 def detect_compound_emotion(
     probs: Dict[str, float],
@@ -597,6 +668,15 @@ class VoiceEmotionModel:
         if audio is None or len(audio) < _MIN_SAMPLES:
             return None
 
+        # ── SNR estimation: reject or penalize low-quality audio ──────────
+        snr_db = _estimate_snr_db(audio, sample_rate)
+        if snr_db < _SNR_REJECT_DB:
+            log.debug(
+                "Voice sample rejected — SNR %.1f dB below threshold %.1f dB",
+                snr_db, _SNR_REJECT_DB,
+            )
+            return None
+
         # Resolve effective confidence threshold
         effective_threshold = (
             float(np.clip(user_threshold, 0.45, 0.80))
@@ -609,6 +689,11 @@ class VoiceEmotionModel:
         if kwargs.get("real_time", False) and self._sensevoice.available:
             result = self._sensevoice.predict(audio, fs=sample_rate)
             if result is not None:
+                # Replace hardcoded 0.75 with entropy-based confidence
+                result["confidence"] = round(
+                    _entropy_confidence(result.get("probabilities", {})), 4
+                )
+                result["snr_db"] = round(snr_db, 1)
                 return result
 
         # Multi-window analysis for longer audio clips
@@ -616,6 +701,17 @@ class VoiceEmotionModel:
         result = self._predict_multi_window(audio, sample_rate)
         if result is None:
             return None
+
+        # Attach SNR to result for downstream consumers
+        result["snr_db"] = round(snr_db, 1)
+
+        # Apply SNR-based confidence penalty for moderately noisy audio
+        if snr_db < _SNR_PENALIZE_DB:
+            snr_penalty = (snr_db - _SNR_REJECT_DB) / (_SNR_PENALIZE_DB - _SNR_REJECT_DB)
+            # snr_penalty in [0, 1]: 0 at reject threshold, 1 at penalize threshold
+            result["confidence"] = round(
+                result["confidence"] * float(np.clip(snr_penalty, 0.3, 1.0)), 4
+            )
 
         if apply_gate and result["confidence"] < effective_threshold:
             log.debug(
@@ -742,7 +838,24 @@ class VoiceEmotionModel:
         agg_probs = {k: round(v / total, 4) for k, v in agg_probs.items()}
 
         emotion = max(agg_probs, key=agg_probs.__getitem__)
-        confidence = agg_probs[emotion]
+
+        # Entropy-based confidence: captures how peaked the distribution is,
+        # not just the max probability.  A uniform distribution gives ~0,
+        # a single dominant class gives ~1.
+        confidence = _entropy_confidence(agg_probs)
+
+        # Also factor in cross-window agreement: if windows disagree, lower
+        # confidence.  Measured by the std of per-window max probability.
+        if n > 1:
+            per_window_max = np.array([
+                max(r.get("probabilities", {}).values()) for r in window_results
+            ])
+            # High std = windows disagree about certainty -> lower confidence
+            agreement_factor = float(np.clip(
+                1.0 - np.std(per_window_max) * 2.0, 0.5, 1.0
+            ))
+            confidence *= agreement_factor
+
         valence, arousal = _valence_arousal(agg_probs)
 
         # Use model_type from last window (all windows use same model chain)
@@ -856,7 +969,7 @@ class VoiceEmotionModel:
             probs_6 = {k: v / total for k, v in probs_6.items()}
 
             emotion = max(probs_6, key=probs_6.__getitem__)
-            confidence = probs_6[emotion]
+            confidence = _entropy_confidence(probs_6)
             valence, arousal = _valence_arousal(probs_6)
             return {
                 "emotion": emotion,
@@ -908,7 +1021,7 @@ class VoiceEmotionModel:
             probs_6 = {k: v / total for k, v in probs_6.items()}
 
             emotion = max(probs_6, key=probs_6.__getitem__)
-            confidence = probs_6[emotion]
+            confidence = _entropy_confidence(probs_6)
             valence, arousal = _valence_arousal(probs_6)
             return {
                 "emotion": emotion,
@@ -982,7 +1095,7 @@ class VoiceEmotionModel:
             probs_6 = {k: v / total for k, v in probs_6.items()}
 
             emotion = max(probs_6, key=probs_6.__getitem__)
-            confidence = probs_6[emotion]
+            confidence = _entropy_confidence(probs_6)
             valence, arousal = _valence_arousal(probs_6)
             return {
                 "emotion": emotion,
@@ -1077,7 +1190,6 @@ class VoiceEmotionModel:
             probs_6 = {k: round(v / t2, 4) for k, v in probs_6.items()}
 
             emotion = max(probs_6, key=probs_6.__getitem__)
-            confidence = probs_6[emotion]
 
             # ── Prosodic features: jitter/shimmer/GFCC/pause ──────────────
             prosodic = _extract_prosodic_features(y, _SR)
@@ -1096,7 +1208,8 @@ class VoiceEmotionModel:
                 # Re-round
                 probs_6 = {k: round(v, 4) for k, v in probs_6.items()}
                 emotion = max(probs_6, key=probs_6.__getitem__)
-                confidence = probs_6[emotion]
+
+            confidence = _entropy_confidence(probs_6)
 
             return {
                 "emotion": emotion,

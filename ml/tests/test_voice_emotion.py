@@ -33,9 +33,22 @@ SR = 22050
 
 
 def _make_audio(seconds: float = 3.0, sr: int = SR) -> np.ndarray:
-    """Return white-noise audio of given duration."""
+    """Return speech-like test audio with amplitude modulation.
+
+    Uses an amplitude-modulated tone + noise to simulate speech dynamics.
+    This produces a realistic SNR estimate (~20 dB) with clear speech-vs-silence
+    contrast, so the SNR quality gate in predict() does not reject it.
+    """
     rng = np.random.default_rng(42)
-    return rng.uniform(-0.3, 0.3, int(sr * seconds)).astype(np.float32)
+    n = int(sr * seconds)
+    t = np.linspace(0, seconds, n, dtype=np.float32)
+    # Carrier tone at ~200 Hz modulated by a slow envelope (~2 Hz)
+    # The envelope creates alternating loud/quiet segments (speech-like)
+    envelope = np.clip(np.sin(2 * np.pi * 2.0 * t), 0.0, 1.0) ** 0.5
+    tone = np.sin(2 * np.pi * 200 * t) * envelope * 0.4
+    # Very light noise floor for realism
+    noise = rng.uniform(-0.005, 0.005, n).astype(np.float32)
+    return (tone + noise).astype(np.float32)
 
 
 def _make_silent(seconds: float = 3.0, sr: int = SR) -> np.ndarray:
