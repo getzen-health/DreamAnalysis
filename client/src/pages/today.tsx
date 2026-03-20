@@ -405,16 +405,6 @@ function HealthMetricCard({
           >
             {emptyCta || "No data yet"}
           </span>
-          <span
-            style={{
-              fontSize: 10,
-              color: accentColor || "var(--muted-foreground)",
-              opacity: 0.8,
-              fontWeight: 500,
-            }}
-          >
-            Tap to view →
-          </span>
         </div>
       ) : (
         <>
