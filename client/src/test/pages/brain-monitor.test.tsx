@@ -100,11 +100,14 @@ describe("BrainMonitor page", () => {
     });
   });
 
-  it("shows Alpha Waves and Beta Waves display", async () => {
+  it("shows all five brain wave bands", async () => {
     renderWithProviders(<BrainMonitor />);
     await waitFor(() => {
-      expect(screen.getByText("Alpha Waves")).toBeInTheDocument();
-      expect(screen.getByText("Beta Waves")).toBeInTheDocument();
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+      expect(screen.getByText("Beta")).toBeInTheDocument();
+      expect(screen.getByText("Delta")).toBeInTheDocument();
+      expect(screen.getByText("Theta")).toBeInTheDocument();
+      expect(screen.getByText("Gamma")).toBeInTheDocument();
     });
   });
 

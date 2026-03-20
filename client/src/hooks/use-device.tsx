@@ -384,11 +384,25 @@ function useDeviceInternal(): UseDeviceReturn {
       museBle.onStatus(() => {});
       try {
         museBle.onEegFrame((frame) => {
-          const eegFrame = museFrameToEegStreamFrame(frame);
-          window.dispatchEvent(
-            new CustomEvent("eeg-signals", { detail: eegFrame.signals })
-          );
-          setLatestFrame(eegFrame as EEGStreamFrame);
+          try {
+            const eegFrame = museFrameToEegStreamFrame(frame);
+            window.dispatchEvent(
+              new CustomEvent("eeg-signals", { detail: eegFrame.signals })
+            );
+            setLatestFrame(eegFrame as EEGStreamFrame);
+          } catch (frameErr) {
+            console.error("EEG frame conversion failed:", frameErr);
+            // Still set raw signals so waveform renders
+            setLatestFrame({
+              signals: frame.signals,
+              analysis: { band_powers: frame.bandPowers || {}, features: {} },
+              quality: { sqi: frame.signalQuality ?? 0, artifacts_detected: [], clean_ratio: 1, channel_quality: [] },
+              timestamp: Date.now() / 1000,
+              n_channels: frame.signals?.length ?? 4,
+              sample_rate: 256,
+            } as EEGStreamFrame);
+            setError(`EEG processing: ${frameErr instanceof Error ? frameErr.message : String(frameErr)}`);
+          }
         });
         await museBle.connect();
         // BLE succeeded — NOW register the status callback for disconnect handling

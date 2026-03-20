@@ -109,12 +109,15 @@ export default function BrainMonitor() {
         ? "text-warning border-warning/30 bg-warning/10"
         : "text-destructive border-destructive/30 bg-destructive/10";
 
-  const alphaHz = analysis?.band_powers?.alpha
-    ? `${(analysis.band_powers.alpha * 12).toFixed(1)} Hz`
-    : "—";
-  const betaHz = analysis?.band_powers?.beta
-    ? `${(analysis.band_powers.beta * 30).toFixed(1)} Hz`
-    : "—";
+  const bp = analysis?.band_powers;
+  const alphaVal = bp?.alpha != null ? bp.alpha : null;
+  const betaVal = bp?.beta != null ? bp.beta : null;
+  const thetaVal = bp?.theta != null ? bp.theta : null;
+  const deltaVal = bp?.delta != null ? bp.delta : null;
+  const gammaVal = bp?.gamma != null ? bp.gamma : null;
+  // Show relative power as percentage (band / total)
+  const totalPower = (alphaVal ?? 0) + (betaVal ?? 0) + (thetaVal ?? 0) + (deltaVal ?? 0) + (gammaVal ?? 0);
+  const pct = (v: number | null) => v != null && totalPower > 0 ? `${Math.round((v / totalPower) * 100)}%` : "—";
 
   const sourceLabel = isStreaming ? "LIVE" : "OFFLINE";
   const sourceColor = isStreaming ? "text-primary" : "text-muted-foreground";
@@ -393,18 +396,31 @@ export default function BrainMonitor() {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-5 gap-2 mb-6">
             <div className="text-center">
-              <p className="text-sm text-primary font-mono">Alpha Waves</p>
-              <p className="text-2xl font-bold text-primary" data-testid="alpha-waves">
-                {alphaHz}
-              </p>
+              <p className="text-[10px] font-mono" style={{ color: "#e879a8" }}>Delta</p>
+              <p className="text-lg font-bold" style={{ color: "#e879a8" }}>{pct(deltaVal)}</p>
+              <p className="text-[9px] text-muted-foreground">0.5-4 Hz</p>
             </div>
             <div className="text-center">
-              <p className="text-sm text-secondary font-mono">Beta Waves</p>
-              <p className="text-2xl font-bold text-secondary" data-testid="beta-waves">
-                {betaHz}
-              </p>
+              <p className="text-[10px] font-mono" style={{ color: "#d4a017" }}>Theta</p>
+              <p className="text-lg font-bold" style={{ color: "#d4a017" }}>{pct(thetaVal)}</p>
+              <p className="text-[9px] text-muted-foreground">4-8 Hz</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] font-mono text-primary">Alpha</p>
+              <p className="text-lg font-bold text-primary" data-testid="alpha-waves">{pct(alphaVal)}</p>
+              <p className="text-[9px] text-muted-foreground">8-12 Hz</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] font-mono" style={{ color: "#6366f1" }}>Beta</p>
+              <p className="text-lg font-bold" style={{ color: "#6366f1" }} data-testid="beta-waves">{pct(betaVal)}</p>
+              <p className="text-[9px] text-muted-foreground">12-30 Hz</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] font-mono" style={{ color: "#7c3aed" }}>Gamma</p>
+              <p className="text-lg font-bold" style={{ color: "#7c3aed" }}>{pct(gammaVal)}</p>
+              <p className="text-[9px] text-muted-foreground">30-50 Hz</p>
             </div>
           </div>
           {isStreaming ? (
