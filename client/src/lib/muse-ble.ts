@@ -635,93 +635,117 @@ export class MuseBleManager {
     this.deviceId   = device.deviceId;
     this.deviceName = device.name ?? "Muse";
 
-    // Connect + discover services — up to 2 attempts
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    // ── Phase 1: Connect, send commands ──────────────────────────────────
+    try { await ble.disconnect(device.deviceId); } catch { /* ok */ }
+    await new Promise((r) => setTimeout(r, 500));
+
+    await Promise.race([
+      ble.connect(device.deviceId, () => {
+        this.stopEmitter();
+        this.setStatus("idle", "Device disconnected");
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("BLE connect timeout")), 30000)),
+    ]);
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // Discover services + send preset and start commands
+    let services: Array<{ uuid: string; characteristics: Array<{ uuid: string; properties: { notify?: boolean } }> }> = [];
+    try { services = await ble.getServices(device.deviceId) as typeof services; } catch { /* ok */ }
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Log discovered characteristics for debugging
+    const museService = services.find((s) => s.uuid.toLowerCase() === MUSE_SERVICE.toLowerCase());
+    console.log("[MuseBLE] Services:", services.length, "Muse service chars:", museService?.characteristics?.length ?? 0);
+    if (museService?.characteristics) {
+      for (const c of museService.characteristics) {
+        console.log("[MuseBLE]   char:", c.uuid, "notify:", c.properties?.notify);
+      }
+    }
+
+    // Send preset + start commands
+    const writeCmd = async (cmd: DataView, label: string) => {
       try {
-        // Clear any stale connection + GATT cache
-        try { await ble.disconnect(device.deviceId); } catch { /* ok */ }
-        await new Promise((r) => setTimeout(r, attempt === 1 ? 500 : 3000));
-
-        // On retry: try bonding to force GATT cache refresh (Android 16 fix)
-        if (attempt === 2) {
-          try { await ble.createBond(device.deviceId); } catch { /* bonding optional */ }
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-
-        // Connect with 30s timeout
-        await Promise.race([
-          ble.connect(device.deviceId, () => {
-            this.stopEmitter();
-            this.setStatus("idle", "Device disconnected");
-          }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 30000)),
-        ]);
-
-        // Wait for GATT services — Android 16 needs time
-        await new Promise((r) => setTimeout(r, 3000));
-
-        // Force service discovery
-        try { await ble.getServices(device.deviceId); } catch { /* ok */ }
-        await new Promise((r) => setTimeout(r, 1000));
-
-        // Test: try reading the control characteristic to confirm GATT is ready
+        await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+        console.log("[MuseBLE] write-with-response OK:", label);
+      } catch {
         try {
-          await ble.read(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR);
-        } catch {
-          // Read failed — GATT might not be ready, but write might still work
+          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+          console.log("[MuseBLE] write-without-response OK:", label);
+        } catch (e) {
+          console.error("[MuseBLE] write FAILED:", label, e);
         }
+      }
+    };
+    await writeCmd(CMD_PRESET_P21, "preset");
+    await new Promise((r) => setTimeout(r, 1000));
+    await writeCmd(CMD_START, "start");
 
-        // Write preset + start — try write-with-response first (Muse S needs ACK)
-        try {
-          await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
-        } catch {
-          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
-        }
-        await new Promise((r) => setTimeout(r, 1000));
-        try {
-          await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
-        } catch {
-          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
-        }
-        await new Promise((r) => setTimeout(r, 2000));
+    // ── Phase 2: Disconnect + reconnect for fresh GATT ────────────────
+    // Android caches GATT tables aggressively. After Muse reconfigures
+    // its service table (preset command), the only reliable way to see
+    // the new EEG characteristics is to disconnect and reconnect.
+    console.log("[MuseBLE] Disconnecting to force GATT refresh...");
+    await new Promise((r) => setTimeout(r, 1500));
+    try { await ble.disconnect(device.deviceId); } catch { /* ok */ }
+    await new Promise((r) => setTimeout(r, 2000));
 
-        // Re-discover services after commands — Muse S adds EEG chars after preset/start
-        try { await ble.getServices(device.deviceId); } catch { /* ok */ }
-        await new Promise((r) => setTimeout(r, 1000));
+    console.log("[MuseBLE] Reconnecting...");
+    this.setStatus("connecting");
+    await Promise.race([
+      ble.connect(device.deviceId, () => {
+        this.stopEmitter();
+        this.setStatus("idle", "Device disconnected");
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("BLE reconnect timeout")), 30000)),
+    ]);
+    await new Promise((r) => setTimeout(r, 2000));
 
-        // Subscribe to EEG channels — try Muse 2 UUIDs first, fall back to Muse S
-        let subscribed = false;
-        for (const charSet of [MUSE_EEG_CHARS_MUSE2, MUSE_EEG_CHARS_MUSE_S]) {
-          try {
-            for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-              await ble.startNotifications(
-                device.deviceId,
-                MUSE_SERVICE,
-                charSet[ch],
-                (data: DataView) => this.onEegNotification(ch, data)
-              );
-            }
-            MUSE_EEG_CHARS = [...charSet];
-            console.log("Subscribed to EEG using", charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2", "UUIDs");
-            subscribed = true;
-            break;
-          } catch {
-            // This UUID set didn't work — try the other
-            console.warn("EEG subscribe failed with", charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2", "UUIDs, trying other set...");
-          }
-        }
-        if (!subscribed) throw new Error("Could not subscribe to any EEG characteristics");
+    // Fresh service discovery — should now include EEG characteristics
+    let freshServices: typeof services = [];
+    try { freshServices = await ble.getServices(device.deviceId) as typeof services; } catch { /* ok */ }
+    await new Promise((r) => setTimeout(r, 500));
 
-        // Success — break out
-        break;
-      } catch (e) {
-        if (attempt === 2) {
-          this.setStatus("error", `Muse connection failed: ${e instanceof Error ? e.message : String(e)}`);
-          this.deviceId = null;
-          throw e;
-        }
-        // Retry
-        this.setStatus("connecting");
+    const freshMuse = freshServices.find((s) => s.uuid.toLowerCase() === MUSE_SERVICE.toLowerCase());
+    console.log("[MuseBLE] After reconnect: services:", freshServices.length, "Muse chars:", freshMuse?.characteristics?.length ?? 0);
+    if (freshMuse?.characteristics) {
+      for (const c of freshMuse.characteristics) {
+        console.log("[MuseBLE]   char:", c.uuid, "notify:", c.properties?.notify);
+      }
+    }
+
+    // ── Phase 3: Subscribe to EEG channels ────────────────────────────
+    // Use the fresh service tree to find which EEG UUIDs actually exist
+    const availableUuids = new Set(
+      (freshMuse?.characteristics ?? []).map((c) => c.uuid.toLowerCase())
+    );
+
+    // Determine which UUID set matches
+    const museS_present = MUSE_EEG_CHARS_MUSE_S.some((u) => availableUuids.has(u.toLowerCase()));
+    const muse2_present = MUSE_EEG_CHARS_MUSE2.some((u) => availableUuids.has(u.toLowerCase()));
+    const charSet = museS_present ? MUSE_EEG_CHARS_MUSE_S
+                  : muse2_present ? MUSE_EEG_CHARS_MUSE2
+                  : null;
+
+    if (!charSet) {
+      const allUuids = Array.from(availableUuids).join(", ");
+      throw new Error(`No EEG characteristics found. Available: ${allUuids || "none"}`);
+    }
+
+    console.log("[MuseBLE] Using", charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2", "UUIDs");
+    MUSE_EEG_CHARS = [...charSet];
+
+    for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+      try {
+        await ble.startNotifications(
+          device.deviceId,
+          MUSE_SERVICE,
+          charSet[ch],
+          (data: DataView) => this.onEegNotification(ch, data)
+        );
+        console.log("[MuseBLE] Subscribed ch", ch, charSet[ch]);
+      } catch (subErr) {
+        console.error("[MuseBLE] Subscribe ch", ch, "failed:", subErr);
+        // Continue — partial channels still useful
       }
     }
 
