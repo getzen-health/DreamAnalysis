@@ -840,6 +840,7 @@ export class MuseBleManager {
     }
   }
 
+  private _emitCount = 0;
   private emitFrame(): void {
     if (!this.onFrame) return;
     try {
@@ -847,7 +848,15 @@ export class MuseBleManager {
     const windowSamples = MUSE_SAMPLE_RATE; // 1-second window for feature computation
     const signals: number[][] = this.rings.map((r) => r.last(windowSamples));
 
-    // Need at least 256 samples before emitting a meaningful frame
+    // Log ring buffer sizes periodically
+    this._emitCount++;
+    if (this._emitCount <= 5 || this._emitCount % 40 === 0) {
+      const sizes = signals.map((s) => s.length);
+      const maxAbs = signals.map((s) => s.length > 0 ? Math.max(...s.map(Math.abs)) : 0);
+      console.log(`[MuseBLE] emitFrame #${this._emitCount}: sizes=[${sizes}] maxAbs=[${maxAbs.map(v => v.toFixed(1))}] notifCount=${this._notifCount}`);
+    }
+
+    // Need at least 64 samples (0.25s) before emitting
     if (signals[0].length < windowSamples / 4) return;
 
     // Average band powers across all 4 channels
