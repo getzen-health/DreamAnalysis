@@ -853,7 +853,24 @@ class HealthSyncManager {
   /** Pull latest health data and push to ML backend + Supabase. */
   async syncNow(): Promise<void> {
     const os = getOS();
-    if (os === "web" || this.state.status === "unavailable" || this.state.status === "unauthorized") {
+    if (os === "web") {
+      // On web, still try loading cached data
+      if (!this.state.latestPayload) {
+        try {
+          const saved = localStorage.getItem("ndw_health_payload");
+          if (saved) this.set({ status: "ok", latestPayload: JSON.parse(saved), error: null });
+        } catch { /* ok */ }
+      }
+      return;
+    }
+    if (this.state.status === "unavailable" || this.state.status === "unauthorized") {
+      // Health Connect unavailable — still load cached data so UI isn't empty
+      if (!this.state.latestPayload) {
+        try {
+          const saved = localStorage.getItem("ndw_health_payload");
+          if (saved) this.set({ status: "ok", latestPayload: JSON.parse(saved), error: null });
+        } catch { /* ok */ }
+      }
       return;
     }
 

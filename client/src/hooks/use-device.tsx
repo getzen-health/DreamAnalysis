@@ -335,8 +335,8 @@ function useDeviceInternal(): UseDeviceReturn {
     { type: "gtec_unicorn", name: "g.tec Unicorn", channels: 8, sample_rate: 250, available: true },
     // Enobio
     { type: "enobio", name: "Enobio", channels: 8, sample_rate: 500, available: true },
-    // Synthetic (demo)
-    { type: "synthetic", name: "Synthetic (Demo)", channels: 16, sample_rate: 256, available: true },
+    // Synthetic (demo) — only on desktop, not on native APK
+    ...(!museBle.isNative ? [{ type: "synthetic", name: "Synthetic (Demo)", channels: 16, sample_rate: 256, available: true }] : []),
   ];
 
   const refreshDevices = useCallback(async () => {
