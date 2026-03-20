@@ -32,8 +32,8 @@ import {
 interface EnrollmentData {
   enrolledAt: string;       // ISO-8601
   baselineSleepHours: number;
-  prescribedBedtime: string;    // "HH:MM"
-  prescribedWakeTime: string;   // "HH:MM"
+  recommendedBedtime: string;    // "HH:MM"
+  recommendedWakeTime: string;   // "HH:MM"
   windowHours: number;
   currentWeek: number;
 }
@@ -56,8 +56,8 @@ interface WeeklyProgressEntry {
 const MOCK_ENROLLMENT: EnrollmentData = {
   enrolledAt: new Date(Date.now() - 22 * 24 * 60 * 60 * 1000).toISOString(),
   baselineSleepHours: 5.8,
-  prescribedBedtime: "23:30",
-  prescribedWakeTime: "06:30",
+  recommendedBedtime: "23:30",
+  recommendedWakeTime: "06:30",
   windowHours: 5.8,
   currentWeek: 4,
 };
@@ -213,7 +213,7 @@ export default function CbtiModule() {
           <CardContent className="space-y-4 text-sm text-zinc-300">
             <p>
               <strong>Sleep Restriction Therapy (SRT)</strong> is the most effective
-              behavioral treatment for chronic insomnia. It works by temporarily
+              behavioral wellness approach for sleep improvement. It works by temporarily
               limiting time in bed to match your actual sleep time, consolidating
               sleep and rebuilding the drive to sleep deeply.
             </p>
@@ -233,7 +233,7 @@ export default function CbtiModule() {
 
             <p className="text-xs text-zinc-500">
               Your initial sleep window will be calculated from your Apple Health
-              sleep data. You'll receive a prescribed bedtime and wake time to follow
+              sleep data. You'll receive a recommended bedtime and wake time to follow
               strictly throughout the program.
             </p>
 
@@ -268,13 +268,13 @@ export default function CbtiModule() {
             Your bedtime tonight
           </p>
           <p className="text-2xl font-bold tabular-nums text-foreground">
-            {fmtTime(enr.prescribedBedtime)}
+            {fmtTime(enr.recommendedBedtime)}
           </p>
         </div>
         <div className="ml-auto text-right">
           <p className="text-[11px] uppercase tracking-wider text-zinc-500">Wake up</p>
           <p className="text-lg font-semibold tabular-nums text-zinc-300">
-            {fmtTime(enr.prescribedWakeTime)}
+            {fmtTime(enr.recommendedWakeTime)}
           </p>
         </div>
       </div>
@@ -342,7 +342,7 @@ export default function CbtiModule() {
         </CardHeader>
         <CardContent className="space-y-2">
           <CheckinRow
-            label="Did you go to bed at your prescribed time?"
+            label="Did you go to bed at your recommended time?"
             value={checkin.bedtimeAdherence}
             onChange={(v) => setCheckin((c) => ({ ...c, bedtimeAdherence: v }))}
           />

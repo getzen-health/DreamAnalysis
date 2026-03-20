@@ -52,9 +52,10 @@ _MAX_HISTORY = 500
 
 # Disclaimer attached to every screening result
 _DISCLAIMER = (
-    "This is a screening indicator based on EEG biomarkers, not a clinical "
-    "diagnostic tool.  Alexithymia can only be diagnosed by a qualified mental "
-    "health professional using validated instruments (e.g., TAS-20)."
+    "This is a wellness indicator based on EEG biomarkers, not a medical "
+    "device or clinical assessment tool. Professional evaluation using "
+    "validated instruments (e.g., TAS-20) is required for any clinical "
+    "assessment."
 )
 
 

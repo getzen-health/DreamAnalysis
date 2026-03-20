@@ -29,9 +29,10 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 _DISCLAIMER = (
-    "This is a screening tool only and does NOT constitute a medical diagnosis. "
-    "Elevated risk scores should be discussed with a healthcare professional. "
-    "Many factors (fatigue, medication, environment) can affect voice patterns."
+    "This is a wellness indicator only, not a medical device. It does NOT "
+    "constitute a clinical assessment. Elevated scores may suggest speaking "
+    "with a healthcare professional. Many factors (fatigue, medication, "
+    "environment) can affect voice patterns."
 )
 
 # Population norms for cognitive speech markers (approximate, from literature)
@@ -343,9 +344,9 @@ class VoiceCognitiveScreener:
             },
             "not_validated": True,
             "scale_context": (
-                "Scores are research-grade estimates from consumer EEG hardware. "
-                "They have not been validated against clinical diagnostic instruments "
-                "and must not be used for clinical diagnosis."
+                "Scores are research-grade wellness estimates from consumer hardware. "
+                "This is not a medical device. Results are for personal wellness "
+                "awareness only, not validated clinical assessments."
             ),
         }
 
@@ -544,9 +545,9 @@ class ElderlyEmotionMonitor:
             "is_elderly_adjusted": is_elderly,
             "not_validated": True,
             "scale_context": (
-                "Scores are research-grade estimates from consumer EEG hardware. "
-                "They have not been validated against clinical diagnostic instruments "
-                "and must not be used for clinical diagnosis."
+                "Scores are research-grade wellness estimates from consumer hardware. "
+                "This is not a medical device. Results are for personal wellness "
+                "awareness only, not validated clinical assessments."
             ),
         }
 

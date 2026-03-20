@@ -33,7 +33,7 @@ Built on peer-reviewed neuroscience research including Davidson's frontal alpha 
 All EEG processing happens on your device and our secure ML backend. No raw brainwave data is stored long-term. You can export or delete your data at any time.
 
 **Medical disclaimer:**
-Neural Dream is NOT a medical device. It is designed for wellness monitoring, personal research, and educational purposes only. Do not use it to diagnose, treat, or prevent any medical condition. Always consult a qualified healthcare professional for medical advice.
+Neural Dream is NOT a medical device. It is designed for general wellness monitoring, personal research, and educational purposes only. It does not claim to detect, manage, or prevent any disease or medical condition. Always consult a qualified healthcare professional for medical advice.
 
 ## Category
 Health & Fitness

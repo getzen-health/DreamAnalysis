@@ -63,10 +63,10 @@ _W_MEMORY = 0.20
 _W_SOCIAL = 0.20
 
 _CLINICAL_DISCLAIMER = (
-    "This is a screening tool for research and wellness purposes only. "
-    "It does NOT constitute a clinical diagnosis of MCI, dementia, or any "
-    "neurological condition. Always consult a qualified healthcare professional "
-    "for clinical evaluation."
+    "This is a wellness indicator only, not a medical device. It does NOT "
+    "constitute a clinical assessment of any neurological condition. Results "
+    "are for personal wellness awareness only. Always consult a qualified "
+    "healthcare professional for clinical evaluation."
 )
 
 
@@ -598,9 +598,9 @@ def compute_mci_risk_score(
         "disclaimer": _CLINICAL_DISCLAIMER,
         "not_validated": True,
         "scale_context": (
-            "Scores are research-grade estimates from consumer EEG hardware. "
-            "They have not been validated against clinical diagnostic instruments "
-            "and must not be used for clinical diagnosis."
+            "Scores are research-grade wellness estimates from consumer EEG "
+            "hardware. This is not a medical device. Results are for personal "
+            "wellness awareness only, not validated clinical assessments."
         ),
     }
 

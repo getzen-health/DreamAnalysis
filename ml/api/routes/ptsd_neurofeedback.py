@@ -110,7 +110,7 @@ async def start_nf_session(user_id: str, protocol: str = "alpha_up"):
         "started_at": _sessions[user_id].start_time,
         "instructions": (
             "Relax and focus on the feedback tone. "
-            "The tone rises when your brain activity meets the therapeutic target. "
+            "The tone rises when your brain activity meets the wellness target. "
             "Session typically runs 20-40 minutes."
         ),
     }

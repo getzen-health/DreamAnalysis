@@ -44,7 +44,7 @@ PROTOCOLS = {
     },
     "theta_beta_ratio": {
         "name": "Theta/Beta Ratio",
-        "description": "Decrease theta/beta ratio for attention (ADHD protocol)",
+        "description": "Decrease theta/beta ratio for attention and focus training",
         "target_band": "theta_beta",
         "direction": "decrease",
         "default_threshold": 2.5,

@@ -1,7 +1,7 @@
 """Voice biomarker and mental health screening endpoints.
 
 POST /voice/biomarkers           -- raw biomarker extraction from audio
-POST /voice/mental-health-screen -- depression + anxiety + stress risk scores
+POST /voice/mental-health-screen -- mood + anxiety + stress wellness scores
 GET  /voice/biomarkers/status    -- availability check
 """
 from __future__ import annotations
@@ -69,7 +69,8 @@ class MentalHealthScreenResponse(BaseModel):
     anxiety: ScreeningResult = ScreeningResult()
     stress: ScreeningResult = ScreeningResult()
     disclaimer: str = (
-        "These scores are research-grade estimates, not clinical diagnoses. "
+        "These scores are research-grade wellness estimates derived from acoustic "
+        "patterns, not validated clinical assessments. This is not a medical device. "
         "Consult a qualified mental health professional for any concerns."
     )
 
@@ -139,9 +140,9 @@ def extract_biomarkers(req: AudioRequest) -> Dict[str, Any]:
 
 @router.post("/mental-health-screen", response_model=MentalHealthScreenResponse)
 def mental_health_screen(req: AudioRequest) -> Dict[str, Any]:
-    """Screen for depression, anxiety, and stress from voice.
+    """Estimate mood, anxiety, and stress wellness indicators from voice.
 
-    Extracts biomarkers and runs three screening models.  Returns
+    Extracts biomarkers and runs three wellness models.  Returns
     risk scores (0-1), severity labels, and contributing indicators.
 
     Minimum 2 seconds of audio; 10+ seconds recommended for reliability.
@@ -173,7 +174,8 @@ def mental_health_screen(req: AudioRequest) -> Dict[str, Any]:
         "anxiety": anxiety,
         "stress": stress,
         "disclaimer": (
-            "These scores are research-grade estimates, not clinical diagnoses. "
+            "These scores are research-grade wellness estimates derived from acoustic "
+            "patterns, not validated clinical assessments. This is not a medical device. "
             "Consult a qualified mental health professional for any concerns."
         ),
     }
@@ -181,7 +183,7 @@ def mental_health_screen(req: AudioRequest) -> Dict[str, Any]:
 
 @router.post("/mental-health-screen-whisper")
 def mental_health_screen_whisper(req: AudioRequest) -> Dict[str, Any]:
-    """Screen for depression, anxiety, insomnia, and fatigue from speech.
+    """Estimate mood, anxiety, insomnia, and fatigue wellness indicators from speech.
 
     Uses Whisper encoder embeddings + LightGBM classifiers when available,
     falling back to prosodic heuristics otherwise.
@@ -238,4 +240,9 @@ def biomarkers_status() -> Dict[str, Any]:
             "gfcc_mean", "gfcc_std",
         ],
         "screening_models": ["depression", "anxiety", "stress"],
+        "not_validated": True,
+        "wellness_disclaimer": (
+            "This is not a medical device. Results are for wellness purposes only, "
+            "not validated clinical assessments."
+        ),
     }

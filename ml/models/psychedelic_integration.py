@@ -56,11 +56,12 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _CLINICAL_DISCLAIMER = (
-    "Clinical disclaimer: This psychedelic integration companion is a research "
-    "and educational tool only. It is NOT a substitute for professional "
-    "therapeutic guidance. Psychedelic therapy should only be conducted under "
-    "qualified clinical supervision. For any mental health crisis, contact a "
-    "licensed professional or call the 988 Suicide & Crisis Lifeline."
+    "Wellness disclaimer: This psychedelic integration companion is a research "
+    "and educational wellness tool only, not a medical device. It is NOT a "
+    "substitute for professional guidance. Psychedelic-assisted experiences "
+    "should only be conducted under qualified supervision. For any mental "
+    "health crisis, contact a licensed professional or call the 988 Suicide "
+    "& Crisis Lifeline."
 )
 
 _SAFETY_RESOURCES = (
@@ -458,7 +459,7 @@ def assess_readiness(
     else:
         concerns.append("unclear_intention")
         recommendations.append(
-            "Having a clear therapeutic intention improves outcomes. "
+            "Having a clear personal intention improves outcomes. "
             "Spend a few minutes journaling about what you hope to explore."
         )
 

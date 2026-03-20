@@ -22,7 +22,7 @@ biomarkers:
 Severity levels are heuristic thresholds — this is NOT a clinical diagnostic
 tool.
 
-MEDICAL DISCLAIMER: This is not a medical diagnosis.
+DISCLAIMER: This is a wellness indicator only, not a medical device.
 Consult an audiologist for clinical assessment.
 """
 
@@ -34,7 +34,7 @@ from typing import Dict, Optional
 _trapezoid = getattr(np, "trapezoid", None) or getattr(np, "trapz", None)
 
 MEDICAL_DISCLAIMER = (
-    "This is not a medical diagnosis. "
+    "This is a wellness indicator only, not a medical device. "
     "Consult an audiologist for clinical assessment."
 )
 

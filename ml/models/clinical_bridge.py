@@ -424,9 +424,10 @@ def map_mood_to_fhir(
         "item": items,
         "disclaimer": (
             "EEG-derived mood scores from NeuralDreamWorkshop are research-grade "
-            "estimates based on consumer EEG hardware. They are NOT equivalent to "
-            "clinician-administered PHQ-9/GAD-7 validated instruments and must not "
-            "be used for clinical diagnosis."
+            "wellness estimates based on consumer EEG hardware. This is not a "
+            "medical device. Scores are NOT equivalent to clinician-administered "
+            "PHQ-9/GAD-7 validated instruments and are for wellness awareness "
+            "only, not validated clinical assessments."
         ),
     }
 
@@ -731,9 +732,10 @@ def generate_session_prep(
 
     summary["disclaimer"] = (
         "EEG-derived mood scores from NeuralDreamWorkshop are research-grade "
-        "estimates based on consumer EEG hardware. They are NOT equivalent to "
-        "clinician-administered PHQ-9/GAD-7 validated instruments and must not "
-        "be used for clinical diagnosis."
+        "wellness estimates based on consumer EEG hardware. This is not a "
+        "medical device. Scores are NOT equivalent to clinician-administered "
+        "PHQ-9/GAD-7 validated instruments and are for wellness awareness "
+        "only, not validated clinical assessments."
     )
 
     return summary

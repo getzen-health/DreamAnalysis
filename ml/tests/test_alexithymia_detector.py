@@ -184,7 +184,7 @@ class TestScreen:
         result = detector.screen(eeg_4ch)
         assert result["disclaimer"] == _DISCLAIMER
         assert "not" in result["disclaimer"].lower()
-        assert "diagnostic" in result["disclaimer"].lower()
+        assert "wellness" in result["disclaimer"].lower()
 
     def test_has_baseline_false_without_baseline(self, detector, eeg_4ch):
         result = detector.screen(eeg_4ch)

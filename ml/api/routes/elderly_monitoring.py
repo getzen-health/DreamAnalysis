@@ -206,7 +206,7 @@ async def assess_mci_risk(req: AssessRequest) -> Dict[str, Any]:
     Accepts any combination of sub-domain readings. Missing domains
     contribute 0.0 to the composite risk score.
 
-    This is a screening tool -- NOT a clinical diagnosis.
+    Wellness indicator only -- not a medical device or clinical assessment.
     """
     ps = compute_processing_speed(_to_ps_readings(req.processing_speed_readings))
     fl = detect_emotional_flattening(_to_er_readings(req.emotion_range_readings))

@@ -266,7 +266,7 @@ class TestGenerateNarrativeSegment:
     def test_disclaimer_present(self, engine):
         segment = engine.generate_narrative_segment()
         d = NarrativeEngine.narrative_to_dict(segment)
-        assert "research and educational tool" in d["disclaimer"]
+        assert "research and educational" in d["disclaimer"]
 
 
 # ---------------------------------------------------------------------------

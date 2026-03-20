@@ -92,7 +92,7 @@ class PainDetector:
                 'high_beta_score': high_beta_score,
             },
             'model_type': 'pain_biomarker',
-            'disclaimer': 'Screening indicator only — not a medical diagnosis'
+            'disclaimer': 'Wellness indicator only — not a medical device or clinical assessment'
         }
 
     def _no_multichannel_result(self) -> Dict:

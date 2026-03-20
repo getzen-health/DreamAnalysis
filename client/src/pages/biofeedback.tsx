@@ -173,7 +173,7 @@ const PLAYLISTS: Playlist[] = [
     id: "nature-rain",
     title: "Rain & Nature Sounds",
     description: "Pink noise + natural ambience",
-    detail: "Pink noise reduces cortisol and masks sudden sounds that spike stress. Used in clinical anxiety and insomnia research.",
+    detail: "Pink noise may help reduce cortisol and masks sudden sounds that spike stress. Studied in anxiety and insomnia wellness research.",
     spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DWN1Y7lu9lY4v",
     youtubeUrl: "https://www.youtube.com/results?search_query=rain+sounds+deep+sleep+calm+10+hours",
     mood: "calm",

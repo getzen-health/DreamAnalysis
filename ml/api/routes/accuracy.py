@@ -234,9 +234,9 @@ async def get_feedback_stats(user_id: str):
         "total_entries": stats["total_entries"],
         "models": accuracy_cards,
         "disclaimer": (
-            "Accuracy reflects how often the model matched YOUR corrections, "
-            "not clinical diagnostic accuracy. Based on "
-            f"{stats['total_entries']} feedback entries."
+            "Accuracy reflects how often the model matched YOUR corrections "
+            "(user-perceived accuracy), not validated assessment accuracy. "
+            f"Based on {stats['total_entries']} feedback entries."
         ),
     }
 

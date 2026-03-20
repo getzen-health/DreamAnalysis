@@ -1,6 +1,6 @@
-"""Voice biomarker depression/anxiety screening endpoints (#402).
+"""Voice biomarker mood/anxiety wellness estimation endpoints (#402).
 
-POST /voice-screening/screen  -- full depression + anxiety screening from audio
+POST /voice-screening/screen  -- voice-derived mood + anxiety wellness indicators
 GET  /voice-screening/status  -- availability check
 """
 from __future__ import annotations
@@ -55,11 +55,11 @@ class VoiceScreeningResponse(BaseModel):
     biomarkers: Optional[Dict[str, Any]] = None
     processed_at: float = 0.0
     disclaimer: str = (
-        "IMPORTANT: These voice-derived risk scores are NOT validated PHQ-9 or "
-        "GAD-7 questionnaire results. They are experimental estimates mapped onto "
-        "clinical scales for readability only and must not be used for diagnosis "
-        "or treatment decisions. Consult a qualified mental health professional "
-        "for any concerns."
+        "IMPORTANT: This is not a medical device. These voice-derived wellness "
+        "scores are NOT validated PHQ-9 or GAD-7 questionnaire results. They are "
+        "experimental estimates for wellness awareness only, not validated clinical "
+        "assessments. Do not use for self-assessment or to inform health decisions. "
+        "Consult a qualified mental health professional for any concerns."
     )
 
 
@@ -67,14 +67,15 @@ class VoiceScreeningResponse(BaseModel):
 
 @router.post("/screen", response_model=VoiceScreeningResponse)
 async def screen_voice(req: VoiceScreeningInput):
-    """Screen for depression and anxiety risk from voice audio.
+    """Estimate mood and anxiety wellness indicators from voice audio.
 
     Extracts vocal biomarkers (pitch variability, pause frequency, jitter,
     shimmer, formant stability, energy contour) and produces voice-derived
-    risk scores. Scores are mapped onto PHQ-9 (0-27) and GAD-7 (0-21)
+    wellness scores. Scores are mapped onto PHQ-9 (0-27) and GAD-7 (0-21)
     scales for readability but are NOT validated PHQ-9/GAD-7 results.
+    These are wellness estimates only, not validated clinical assessments.
 
-    Do not use for clinical diagnosis or treatment decisions.
+    This is not a medical device. Do not use to inform health decisions.
     Minimum 2 seconds of audio; 10+ seconds recommended.
     """
     from models.voice_depression_screener import (
@@ -118,7 +119,7 @@ async def screen_voice(req: VoiceScreeningInput):
 
 @router.get("/status")
 async def voice_screening_status() -> Dict[str, Any]:
-    """Check availability of voice depression/anxiety screening."""
+    """Check availability of voice mood/anxiety wellness estimation."""
     numpy_ok = True
     try:
         import numpy  # noqa: F401
@@ -130,11 +131,11 @@ async def voice_screening_status() -> Dict[str, Any]:
         "numpy_available": numpy_ok,
         "screening_models": ["depression_voice_risk", "anxiety_voice_risk"],
         "not_validated": True,
-        "clinical_warning": (
-            "These models produce voice-derived risk estimates mapped onto "
-            "PHQ-9/GAD-7 scales for readability. They are NOT validated "
-            "PHQ-9 or GAD-7 questionnaire instruments and must not be used "
-            "for clinical diagnosis or treatment decisions."
+        "wellness_notice": (
+            "This is not a medical device. These models produce voice-derived "
+            "wellness estimates mapped onto PHQ-9/GAD-7 scales for readability. "
+            "They are NOT validated PHQ-9 or GAD-7 questionnaire instruments "
+            "and are for wellness awareness only, not validated clinical assessments."
         ),
         "features": [
             "pitch_variability", "f0_mean", "f0_std", "f0_range",

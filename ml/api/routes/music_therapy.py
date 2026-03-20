@@ -1,7 +1,7 @@
-"""Adaptive Music Therapy — ISO Principle Controller (#284).
+"""Adaptive Music Wellness — ISO Principle Controller (#284).
 
 Endpoints:
-  POST /music-therapy/prescribe   — full ISO session prescription from emotion state
+  POST /music-therapy/prescribe   — full ISO session recommendation from emotion state
   GET  /music-therapy/parameters  — music parameters for a given valence/arousal
 
 References:
@@ -18,9 +18,10 @@ from pydantic import BaseModel, Field
 router = APIRouter(prefix="/music-therapy", tags=["music-therapy"])
 
 _WELLNESS_DISCLAIMER = (
-    "Wellness tool only — not medical advice. Music therapy suggestions are based "
-    "on published research (ISO Principle) but are not a substitute for licensed "
-    "music therapy or professional mental health treatment."
+    "This is not a medical device. Music wellness suggestions are based on "
+    "published research (ISO Principle) and are for personal wellness only, "
+    "not a substitute for licensed music wellness practice or professional "
+    "mental health support."
 )
 
 
@@ -39,10 +40,11 @@ class ParametersRequest(BaseModel):
 
 @router.post("/prescribe")
 def prescribe_music_session(req: PrescribeRequest) -> Dict[str, Any]:
-    """Recommend an ISO-principle music session from current emotion state.
+    """Recommend an ISO-principle music wellness session from current emotion state.
 
-    Note: 'prescribe' is used in the API path for backward compatibility.
-    This is a wellness recommendation, not a medical prescription.
+    Note: 'prescribe' is retained in the API path for backward compatibility.
+    This is a wellness recommendation, not a medical prescription. This is not
+    a medical device.
     """
     from models.music_mood_engine import get_iso_controller
     controller = get_iso_controller()

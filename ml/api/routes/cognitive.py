@@ -451,9 +451,9 @@ def _get_screener(user_id: str) -> AttentionScreener:
 
 @router.post("/attention-screening")
 async def screen_attention(data: EEGInput):
-    """Screen for attention patterns using aperiodic EEG + TBR.
+    """Track attention patterns using aperiodic EEG + TBR.
 
-    Returns attention_risk_index (0-1). NOT a medical diagnosis — wellness indicator only.
+    Returns attention_risk_index (0-1). Wellness indicator only — not a medical device.
     """
     signals = np.array(data.signals)
     screener = _get_screener(data.user_id)
@@ -463,7 +463,7 @@ async def screen_attention(data: EEGInput):
 
 @router.post("/attention-screening/rest-baseline")
 async def record_attention_rest(data: EEGInput):
-    """Record resting-state baseline for dynamic ADHD response test."""
+    """Record resting-state baseline for dynamic attention response test."""
     signals = np.array(data.signals)
     screener = _get_screener(data.user_id)
     return screener.record_rest_baseline(signals, data.fs)

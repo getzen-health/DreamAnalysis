@@ -28,8 +28,8 @@ References:
     White & Epston (1990) - Narrative means to therapeutic ends
     Utay & Miller (2006) - Guided imagery as therapeutic recreation
 
-CLINICAL DISCLAIMER: This is a research/educational tool only.
-It is NOT a substitute for professional clinical diagnosis or treatment.
+WELLNESS DISCLAIMER: This is a research/educational wellness tool only,
+not a medical device. It is NOT a substitute for professional support.
 Always work with a licensed mental health professional.
 """
 
@@ -46,10 +46,10 @@ from typing import Dict, List, Optional
 # Clinical disclaimer included in every response
 # ---------------------------------------------------------------------------
 _CLINICAL_DISCLAIMER = (
-    "Clinical disclaimer: This narrative engine is a research and educational "
-    "tool only. It is NOT a substitute for professional therapy or clinical "
-    "treatment. Do not use this as a standalone intervention. Always work with "
-    "a licensed mental health professional."
+    "Wellness disclaimer: This narrative engine is a research and educational "
+    "wellness tool only, not a medical device. It is NOT a substitute for "
+    "professional support. Do not use this as a standalone intervention. "
+    "Always work with a licensed mental health professional."
 )
 
 

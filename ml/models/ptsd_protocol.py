@@ -25,10 +25,9 @@ References:
     Ros et al. (2017) — Neurofeedback augmentation of psychotherapy
     Lanius et al. (2010) — Dissociation and the default mode network
 
-CLINICAL DISCLAIMER: This is a research/educational tool only.
-It is NOT a substitute for professional clinical diagnosis or
-treatment of PTSD. Always work with a licensed mental health
-professional for PTSD treatment.
+WELLNESS DISCLAIMER: This is a research/educational wellness tool only,
+not a medical device. It is NOT a substitute for professional
+support. Always work with a licensed mental health professional.
 """
 from typing import Dict, List, Optional
 
@@ -45,11 +44,11 @@ _HYPERAROUSAL_RATIO_THRESHOLD = 1.5
 
 # Clinical disclaimer included in every response
 _CLINICAL_DISCLAIMER = (
-    "Clinical disclaimer: This neurofeedback protocol is a research "
-    "and educational tool only. It is NOT a substitute for professional "
-    "clinical diagnosis or treatment of PTSD. Do not use this as a "
+    "Wellness disclaimer: This neurofeedback protocol is a research "
+    "and educational wellness tool only, not a medical device. It is "
+    "NOT a substitute for professional support. Do not use this as a "
     "standalone intervention. Always work with a licensed mental health "
-    "professional for PTSD assessment and treatment."
+    "professional for evaluation and support."
 )
 
 

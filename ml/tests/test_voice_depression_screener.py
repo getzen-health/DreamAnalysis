@@ -212,7 +212,7 @@ def test_api_status(client):
     assert "depression_voice_risk" in data["screening_models"]
     assert "anxiety_voice_risk" in data["screening_models"]
     assert data["not_validated"] is True
-    assert "clinical_warning" in data
+    assert "wellness_notice" in data
 
 
 def test_api_disclaimer_present(client):

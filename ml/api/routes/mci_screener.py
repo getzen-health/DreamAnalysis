@@ -208,8 +208,9 @@ def _score_cognitive_risk(features: dict, age: Optional[int]) -> dict:
     - Energy variability < 0.15: monotone speech pattern
 
     Age adjustment: threshold relaxed by 10% for each decade over 70.
-    This is a screening tool — NOT a diagnostic. Results should always
-    prompt professional clinical evaluation at 'evaluate' level.
+    This is a wellness indicator only — NOT a medical device or clinical
+    assessment. Results at 'evaluate' level suggest speaking with a
+    healthcare professional.
     """
     age_factor = 1.0
     if age is not None and age > 70:
@@ -262,9 +263,9 @@ def _score_cognitive_risk(features: dict, age: Optional[int]) -> dict:
 
     if score >= 0.65:
         risk_level = "evaluate"
-        note = ("Several vocal markers suggest possible cognitive decline. "
-                "Professional clinical evaluation is strongly recommended. "
-                "This is a screening tool — NOT a diagnosis.")
+        note = ("Several vocal markers suggest possible changes worth monitoring. "
+                "Consider speaking with a healthcare professional. "
+                "This is a wellness indicator only — not a medical device.")
     elif score >= 0.40:
         risk_level = "monitor"
         note = ("Some vocal patterns are outside typical range. "
@@ -293,8 +294,8 @@ async def voice_mci_screen(req: VoiceMCIRequest):
     - 1-min recordings preferred; minimum 10s accepted
     - Age-adjusted thresholds applied when age is provided
 
-    IMPORTANT: This is a SCREENING tool, not a diagnostic. 'evaluate' level
-    always requires professional clinical assessment.
+    IMPORTANT: This is a wellness indicator only, not a medical device.
+    'evaluate' level suggests speaking with a healthcare professional.
     """
     import base64, io as _io
 

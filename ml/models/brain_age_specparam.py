@@ -12,7 +12,7 @@ Scientific basis:
   - Klimesch (1999): alpha peak frequency decreases with age (~0.03 Hz/year)
   - Banville et al. (2024, MIT Press): brain age from 4-channel consumer EEG
 
-DISCLAIMER: Wellness indicator only — not a medical diagnostic tool.
+DISCLAIMER: Wellness indicator only — not a medical device.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Tuple
 
 DISCLAIMER = (
     "SpecParam brain age is a research-grade wellness indicator derived from "
-    "spectral EEG features. It is NOT a medical diagnosis. Individual variation "
+    "spectral EEG features. This is not a medical device. Individual variation "
     "is high (~8-year population SD). Consult a healthcare professional for "
     "medical concerns."
 )

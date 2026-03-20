@@ -1,7 +1,8 @@
 """Attention pattern screener using aperiodic EEG features and theta/beta ratio.
 
-DISCLAIMER: This is a wellness indicator only. It is NOT a medical diagnosis for ADHD
-or any other condition. Clinical diagnosis requires professional evaluation.
+DISCLAIMER: This is a wellness indicator only, not a medical device. It tracks
+attention and focus patterns for personal awareness. Professional evaluation
+is required for any clinical assessment.
 
 Scientific basis:
 - Frontiers in Psychiatry (2025): XGBoost + aperiodic exponent for attention screening
@@ -17,9 +18,9 @@ from typing import Dict, Optional
 
 
 DISCLAIMER = (
-    "This attention risk index is a wellness indicator only. "
-    "It is NOT a medical diagnosis for ADHD or any attention disorder. "
-    "Clinical diagnosis requires evaluation by a qualified healthcare professional."
+    "This attention risk index is a wellness indicator only, not a medical "
+    "device. It tracks attention and focus patterns for personal awareness. "
+    "Professional evaluation is required for any clinical assessment."
 )
 
 
@@ -63,7 +64,7 @@ class AttentionScreener:
     """Attention pattern screener using aperiodic EEG features and TBR.
 
     Output: attention_risk_index (0-1) where higher = more atypical pattern.
-    This is a wellness indicator, not a clinical diagnostic tool.
+    This is a wellness indicator only, not a medical device.
     """
 
     # Population norms (approximate, from literature)
@@ -182,9 +183,9 @@ class AttentionScreener:
             "model_type": "aperiodic_tbr_heuristic",
             "not_validated": True,
             "scale_context": (
-                "Scores are research-grade estimates from consumer EEG hardware. "
-                "They have not been validated against clinical diagnostic instruments "
-                "and must not be used for clinical diagnosis."
+                "Scores are research-grade wellness estimates from consumer EEG "
+                "hardware. This is not a medical device. Results are for personal "
+                "wellness awareness only, not validated clinical assessments."
             ),
         }
 

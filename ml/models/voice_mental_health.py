@@ -244,7 +244,8 @@ class VoiceMentalHealthScreener:
                 " Consider consulting a mental health professional."
             )
         recommendations.append(
-            "This screening is indicative only and not a clinical diagnosis."
+            "This is a wellness indicator only, not a clinical assessment. "
+            "This is not a medical device."
         )
 
         return {
@@ -256,8 +257,8 @@ class VoiceMentalHealthScreener:
             "recommendations": recommendations,
             "method": method,
             "disclaimer": (
-                "Not a clinical diagnosis. Consult a healthcare professional"
-                " for assessment."
+                "Wellness indicator only, not a medical device or clinical "
+                "assessment. Consult a healthcare professional for evaluation."
             ),
         }
 
@@ -270,7 +271,7 @@ class VoiceMentalHealthScreener:
             "overall_risk": "unknown",
             "recommendations": [reason],
             "method": "none",
-            "disclaimer": "Not a clinical diagnosis.",
+            "disclaimer": "Wellness indicator only, not a medical device.",
         }
 
 

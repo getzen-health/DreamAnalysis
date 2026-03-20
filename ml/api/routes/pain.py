@@ -32,7 +32,7 @@ async def detect_pain_biomarkers(data: EEGInput):
     Returns pain_biomarker_score (0-1), pain_level classification, and
     component scores.
 
-    **Disclaimer**: Screening indicator only — not a medical diagnosis.
+    **Disclaimer**: Wellness indicator only — not a medical device or clinical assessment.
     Requires multichannel EEG (AF7 + AF8 at minimum).
     """
     signals = np.array(data.signals)

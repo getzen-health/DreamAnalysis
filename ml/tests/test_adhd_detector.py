@@ -98,7 +98,7 @@ class TestAssess:
         eeg = _make_eeg()
         result = detector.assess(eeg, FS)
         assert result["disclaimer"] == DISCLAIMER
-        assert "screening tool only" in result["disclaimer"].lower()
+        assert "wellness indicator only" in result["disclaimer"].lower()
 
 
 # ── TestTBR ───────────────────────────────────────────────

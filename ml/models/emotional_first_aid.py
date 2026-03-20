@@ -494,8 +494,8 @@ def _crisis_result(
         )
     elif crisis_type != CrisisType.NONE:
         safety_note = (
-            "Remember: these protocols are supportive tools, not clinical "
-            "treatment. If episodes are frequent or intensifying, please "
+            "Remember: these protocols are wellness tools, not a medical "
+            "device. If episodes are frequent or intensifying, please "
             "consult a mental health professional."
         )
 

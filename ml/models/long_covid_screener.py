@@ -69,7 +69,7 @@ class LongCOVIDScreener:
             "beta_deficit": round(beta_deficit, 4),
             "peak_alpha_freq_hz": round(paf, 2),
             "delta_burden": round(delta_burden, 4),
-            "note": "Screening only — not a clinical diagnosis",
+            "note": "Wellness indicator only — not a medical device or clinical assessment",
             "model_used": "feature_based_spectral_slowing",
         }
 

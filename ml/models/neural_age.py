@@ -17,7 +17,7 @@ Scientific basis:
 - Cole & Franke (2017): Brain Age Gap as a biomarker for neurodegeneration
 - Liem et al. (2017): Lifestyle factors predict Brain Age Gap
 
-DISCLAIMER: This is a wellness indicator, not a medical diagnosis.
+DISCLAIMER: This is a wellness indicator only, not a medical device.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ import numpy as np
 
 DISCLAIMER = (
     "Neural age estimation is a research-grade wellness indicator based on "
-    "EEG spectral features. It is NOT a medical diagnosis. Individual "
+    "EEG spectral features. This is not a medical device. Individual "
     "variation is high. Consult a healthcare professional for medical concerns."
 )
 

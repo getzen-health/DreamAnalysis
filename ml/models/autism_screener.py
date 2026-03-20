@@ -61,13 +61,13 @@ class AutismScreener:
             "mu_suppression_index": round(1.0 - mu_ratio, 4),
             "inter_hemispheric_coherence": round(coherence_proxy, 4),
             "eeg_complexity": round(complexity, 4),
-            "note": "Screening only — not a clinical diagnosis",
+            "note": "Wellness indicator only — not a clinical assessment",
             "model_used": "feature_based_connectivity",
             "not_validated": True,
             "scale_context": (
-                "Scores are research-grade estimates from consumer EEG hardware. "
-                "They have not been validated against clinical diagnostic instruments "
-                "and must not be used for clinical diagnosis."
+                "Scores are research-grade wellness estimates from consumer EEG "
+                "hardware. This is not a medical device. Results are for personal "
+                "wellness awareness only, not validated clinical assessments."
             ),
         }
 

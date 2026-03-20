@@ -81,13 +81,13 @@ class IEDDetector:
             "max_amplitude_uv": round(max_amplitude, 2),
             "signal_kurtosis": round(k, 4),
             "spikes": spikes_detected[:10],  # cap at 10 for response size
-            "note": "Screening only — clinical diagnosis requires full 10-20 EEG",
+            "note": "Wellness indicator only — full clinical evaluation requires 10-20 EEG",
             "model_used": "threshold_spike_detector",
             "not_validated": True,
             "scale_context": (
-                "Scores are research-grade estimates from consumer EEG hardware. "
-                "They have not been validated against clinical diagnostic instruments "
-                "and must not be used for clinical diagnosis."
+                "Scores are research-grade wellness estimates from consumer EEG "
+                "hardware. This is not a medical device. Results are for personal "
+                "wellness awareness only, not validated clinical assessments."
             ),
         }
 

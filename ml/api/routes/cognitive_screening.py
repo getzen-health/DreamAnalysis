@@ -102,7 +102,7 @@ async def cognitive_screen(req: CognitiveScreenRequest):
     """Run cognitive screening from voice audio.
 
     Returns risk score, risk level, feature flags, and extracted features.
-    IMPORTANT: This is a screening tool only, NOT diagnostic.
+    IMPORTANT: Wellness indicator only — not a medical device.
     """
     try:
         audio = _decode_audio(req.audio_b64, req.sample_rate)
@@ -184,7 +184,8 @@ async def wellbeing_summary(user_id: str):
             "n_assessments": trajectory["n_assessments"],
         },
         "disclaimer": (
-            "This is a screening tool only and does NOT constitute a medical "
-            "diagnosis. Consult a healthcare professional for clinical evaluation."
+            "This is a wellness indicator only, not a medical device. Results "
+            "are for personal wellness awareness only, not validated clinical "
+            "assessments. Consult a healthcare professional for evaluation."
         ),
     }

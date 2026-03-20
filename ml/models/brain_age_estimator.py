@@ -9,7 +9,7 @@ Scientific basis:
 - Aperiodic exponent (1/f slope) decreases with age — measurable with 4 channels
 - Brain Age Gap: positive = accelerated neural aging, negative = younger-than-expected
 
-DISCLAIMER: This is a wellness indicator. Not a medical diagnosis.
+DISCLAIMER: This is a wellness indicator only, not a medical device.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from typing import Dict, Optional
 
 DISCLAIMER = (
     "Brain age estimation is a research-grade wellness indicator based on spectral EEG features. "
-    "It is NOT a medical diagnosis. Individual variation is high. "
+    "This is not a medical device. Individual variation is high. "
     "Consult a healthcare professional for medical concerns."
 )
 

@@ -1,9 +1,10 @@
-"""Voice biomarker depression/anxiety risk estimation.
+"""Voice biomarker mood/anxiety wellness estimation.
 
-Extracts vocal biomarkers correlated with depression and anxiety, producing
-voice-derived risk scores mapped onto PHQ-9 (0-27) and GAD-7 (0-21) scales
-for readability. These are NOT validated PHQ-9/GAD-7 questionnaire results
-and must not be used for clinical diagnosis or treatment decisions.
+Extracts vocal biomarkers correlated with low mood and anxiety, producing
+voice-derived wellness scores mapped onto PHQ-9 (0-27) and GAD-7 (0-21)
+scales for readability. These are NOT validated PHQ-9/GAD-7 questionnaire
+results and are for wellness awareness only, not validated clinical
+assessments. This is not a medical device.
 
 Based on:
     Sonde Health (2024): vocal biomarkers detect depression with >80% sensitivity
@@ -123,11 +124,12 @@ def extract_vocal_biomarkers(audio: np.ndarray, sr: int = 16000) -> Dict:
 
 
 def score_depression_risk(biomarkers: Dict) -> Dict:
-    """Compute voice-derived depression risk score mapped to PHQ-9 scale.
+    """Compute voice-derived mood wellness score mapped to PHQ-9 scale.
 
     WARNING: This is NOT a validated PHQ-9 questionnaire result. It maps voice
     biomarkers onto the 0-27 PHQ-9 scale for readability only. The mapping has
-    not been clinically validated. Do not use for diagnosis or treatment decisions.
+    not been clinically validated. This is a wellness estimate only, not a
+    clinical assessment. Do not use to inform health decisions.
 
     Args:
         biomarkers: Output of extract_vocal_biomarkers().
@@ -218,11 +220,12 @@ def score_depression_risk(biomarkers: Dict) -> Dict:
 
 
 def score_anxiety_risk(biomarkers: Dict) -> Dict:
-    """Compute voice-derived anxiety risk score mapped to GAD-7 scale.
+    """Compute voice-derived anxiety wellness score mapped to GAD-7 scale.
 
     WARNING: This is NOT a validated GAD-7 questionnaire result. It maps voice
     biomarkers onto the 0-21 GAD-7 scale for readability only. The mapping has
-    not been clinically validated. Do not use for diagnosis or treatment decisions.
+    not been clinically validated. This is a wellness estimate only, not a
+    clinical assessment. Do not use to inform health decisions.
 
     Args:
         biomarkers: Output of extract_vocal_biomarkers().
@@ -314,7 +317,7 @@ def track_vocal_trend(history: List[Dict], window: int = 7) -> Dict:
     """Track longitudinal vocal biomarker trends.
 
     Determines whether vocal biomarkers are trending toward or away from
-    clinical thresholds over time.
+    elevated thresholds over time.
 
     Args:
         history: List of past screening results (each containing phq9_score
@@ -420,11 +423,12 @@ def profile_to_dict(profile: Dict) -> Dict:
 # -- internal helpers ---------------------------------------------------------
 
 _DISCLAIMER = (
-    "IMPORTANT: These voice-derived risk scores are NOT validated PHQ-9 or GAD-7 "
-    "questionnaire results. They are experimental estimates mapped onto clinical "
-    "scales for readability only. They have not been clinically validated and must "
-    "not be used for diagnosis, treatment decisions, or self-assessment. "
-    "Consult a qualified mental health professional for any concerns."
+    "IMPORTANT: This is not a medical device. These voice-derived wellness scores "
+    "are NOT validated PHQ-9 or GAD-7 questionnaire results. They are experimental "
+    "estimates for wellness awareness only, not validated clinical assessments. "
+    "They have not been clinically validated and must not be used to inform health "
+    "decisions or self-assessment. Consult a qualified mental health professional "
+    "for any concerns."
 )
 
 

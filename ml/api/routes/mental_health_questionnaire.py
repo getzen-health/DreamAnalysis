@@ -84,9 +84,14 @@ class PHQ9Result(BaseModel):
     total_score: int
     severity: str
     item_scores: List[int]
-    clinical_action: str
+    suggested_action: str
     submitted_at: float
     eeg_session_id: Optional[str]
+    not_validated: bool = True
+    disclaimer: str = (
+        "These scores are estimates for wellness awareness only, not validated "
+        "clinical assessments. This is not a medical device."
+    )
 
 
 class GAD7Result(BaseModel):
@@ -94,9 +99,14 @@ class GAD7Result(BaseModel):
     total_score: int
     severity: str
     item_scores: List[int]
-    clinical_action: str
+    suggested_action: str
     submitted_at: float
     eeg_session_id: Optional[str]
+    not_validated: bool = True
+    disclaimer: str = (
+        "These scores are estimates for wellness awareness only, not validated "
+        "clinical assessments. This is not a medical device."
+    )
 
 
 class TrendReport(BaseModel):
@@ -117,26 +127,26 @@ class TrendReport(BaseModel):
 
 def _phq9_severity(score: int) -> tuple:
     if score < 5:
-        return "Minimal or none", "Monitor"
+        return "Minimal or none", "Continue self-monitoring"
     elif score < 10:
-        return "Mild", "Watchful waiting, repeat PHQ-9 at follow-up"
+        return "Mild", "Continue self-monitoring, repeat questionnaire at follow-up"
     elif score < 15:
-        return "Moderate", "Treatment plan, counseling, follow-up"
+        return "Moderate", "Consider speaking with a mental health professional"
     elif score < 20:
-        return "Moderately severe", "Active treatment — medication and/or psychotherapy"
+        return "Moderately severe", "Suggest consulting a mental health professional"
     else:
-        return "Severe", "Immediate referral for psychiatric evaluation"
+        return "Severe", "Strongly suggest speaking with a mental health professional"
 
 
 def _gad7_severity(score: int) -> tuple:
     if score < 5:
-        return "Minimal", "Monitor"
+        return "Minimal", "Continue self-monitoring"
     elif score < 10:
-        return "Mild", "Monitor, stress management guidance"
+        return "Mild", "Continue self-monitoring, explore stress management"
     elif score < 15:
-        return "Moderate", "Consider therapy referral"
+        return "Moderate", "Consider speaking with a mental health professional"
     else:
-        return "Severe", "Active treatment — consider medication and psychotherapy"
+        return "Severe", "Strongly suggest speaking with a mental health professional"
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +195,7 @@ async def submit_phq9(req: PHQ9Submission):
         total_score=total,
         severity=severity,
         item_scores=req.responses,
-        clinical_action=action,
+        suggested_action=action,
         submitted_at=time.time(),
         eeg_session_id=req.eeg_session_id,
     )
@@ -204,7 +214,7 @@ async def submit_gad7(req: GAD7Submission):
         total_score=total,
         severity=severity,
         item_scores=req.responses,
-        clinical_action=action,
+        suggested_action=action,
         submitted_at=time.time(),
         eeg_session_id=req.eeg_session_id,
     )

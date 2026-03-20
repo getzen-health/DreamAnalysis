@@ -113,7 +113,7 @@ class TestScreening:
         audio = _make_speech_audio(5.0)
         screener = VoiceCognitiveScreener()
         result = screener.screen(audio, FS)
-        assert "screening tool only" in result["disclaimer"].lower()
+        assert "wellness indicator only" in result["disclaimer"].lower()
         assert "NOT" in result["disclaimer"]
 
     def test_component_scores_present(self):

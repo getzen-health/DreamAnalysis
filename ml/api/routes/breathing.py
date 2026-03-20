@@ -3,7 +3,7 @@ Breathing + HRV Biofeedback API routes.
 
 Endpoints:
   GET  /breathing/patterns              — list evidence-based breathing patterns
-  POST /breathing/prescribe             — prescribe pattern from stress/time
+  POST /breathing/prescribe             — recommend pattern from stress/time
   POST /breathing/session/complete      — score a completed session
   POST /breathing/stress/pre            — record pre-session voice stress
   POST /breathing/stress/post           — record post-session voice stress + compute delta
@@ -85,8 +85,9 @@ def list_patterns() -> List[Dict[str, Any]]:
 def prescribe(req: PrescribeRequest) -> Dict[str, Any]:
     """Recommend a breathing pattern based on stress level and time of day.
 
-    Note: 'prescribe' is used in the API path for backward compatibility.
-    This is a wellness recommendation, not a medical prescription.
+    Note: 'prescribe' is retained in the API path for backward compatibility.
+    This is a wellness recommendation, not a medical prescription. This is not
+    a medical device.
     """
     pattern_id = prescribe_pattern(req.stress_index, req.hour)
     pattern = PATTERNS[pattern_id]

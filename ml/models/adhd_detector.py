@@ -1,14 +1,14 @@
-"""ADHD attention profile detector using validated EEG biomarkers.
+"""Attention profile detector using EEG biomarkers.
 
-Screens for ADHD-like attention patterns using theta/beta ratio (TBR),
+Tracks attention-related patterns using theta/beta ratio (TBR),
 theta power excess, beta deficit, alpha peak frequency variability,
 and frontal beta inhibition proxy. Supports multi-user tracking,
 baseline calibration, session statistics, and assessment history.
 
-DISCLAIMER: This is a screening tool only, NOT a clinical diagnostic
-instrument. Clinical ADHD diagnosis requires evaluation by a qualified
-healthcare professional using standardized assessment instruments
-(DSM-5 criteria, behavioral rating scales, neuropsychological testing).
+DISCLAIMER: This is a wellness indicator only, NOT a medical device
+or clinical diagnostic instrument. It tracks attention and focus
+patterns for personal wellness awareness. Professional evaluation
+is required for any clinical assessment.
 
 Scientific references:
     Arns et al. (2013) — Meta-analysis of EEG theta/beta ratio in ADHD
@@ -25,8 +25,10 @@ from scipy.signal import welch
 
 
 DISCLAIMER = (
-    "This is a screening tool only, not a clinical diagnostic instrument. "
-    "ADHD diagnosis requires evaluation by a qualified healthcare professional."
+    "This is a wellness indicator only, not a medical device or clinical "
+    "diagnostic instrument. It tracks attention and focus patterns for "
+    "personal awareness. Professional evaluation is required for any "
+    "clinical assessment."
 )
 
 # Normative TBR ranges by age group (from Arns et al., 2013; Monastra et al., 2001)
@@ -228,8 +230,9 @@ class ADHDDetector:
             "disclaimer": DISCLAIMER,
             "not_validated": True,
             "scale_context": (
-                "EEG pattern scores are research-grade estimates from consumer hardware. "
-                "They have not been validated against clinical diagnostic instruments."
+                "EEG pattern scores are research-grade wellness estimates from consumer "
+                "hardware. This is not a medical device. Results are for personal "
+                "wellness awareness only, not validated clinical assessments."
             ),
         }
 

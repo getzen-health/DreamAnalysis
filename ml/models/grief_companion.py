@@ -55,11 +55,12 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _CLINICAL_DISCLAIMER = (
-    "Clinical disclaimer: This grief companion is a research and educational "
-    "tool only. It is NOT a substitute for professional grief counseling or "
-    "therapy. For any genuine mental health crisis, contact a licensed mental "
-    "health professional or call the 988 Suicide & Crisis Lifeline (call or "
-    "text 988 in the US), or your local equivalent."
+    "Wellness disclaimer: This grief companion is a research and educational "
+    "wellness tool only, not a medical device. It is NOT a substitute for "
+    "professional grief counseling or support. For any genuine mental health "
+    "crisis, contact a licensed mental health professional or call the 988 "
+    "Suicide & Crisis Lifeline (call or text 988 in the US), or your local "
+    "equivalent."
 )
 
 _CRISIS_RESOURCES = (

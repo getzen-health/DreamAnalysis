@@ -56,13 +56,13 @@ class ParkinsonsScreener:
             "beta_burden": round(beta_burden, 4),
             "tremor_oscillation_index": round(tremor_idx, 4),
             "peak_alpha_freq_hz": round(paf, 2),
-            "note": "Screening only — not a clinical diagnosis",
+            "note": "Wellness indicator only — not a clinical assessment",
             "model_used": "feature_based_beta_tremor",
             "not_validated": True,
             "scale_context": (
-                "Scores are research-grade estimates from consumer EEG hardware. "
-                "They have not been validated against clinical diagnostic instruments "
-                "and must not be used for clinical diagnosis."
+                "Scores are research-grade wellness estimates from consumer EEG "
+                "hardware. This is not a medical device. Results are for personal "
+                "wellness awareness only, not validated clinical assessments."
             ),
         }
 

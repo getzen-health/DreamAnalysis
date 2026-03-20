@@ -73,7 +73,7 @@ def test_paf_range():
 def test_note_field():
     from models.parkinsons_screener import get_model
     result = get_model().predict(np.random.randn(512))
-    assert "Screening only" in result["note"]
+    assert "Wellness indicator only" in result["note"]
 
 
 def test_model_used_field():
@@ -99,7 +99,7 @@ def test_api_analyze(client):
 
 def test_api_note_field(client):
     resp = client.post("/parkinsons-screen/analyze", json={"signals": [make_signal()], "user_id": "test-user"})
-    assert "Screening only" in resp.json()["note"]
+    assert "Wellness indicator only" in resp.json()["note"]
 
 
 def test_api_history_empty(client):
