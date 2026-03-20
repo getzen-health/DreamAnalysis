@@ -301,7 +301,7 @@ public class MuseBlePlugin extends Plugin {
                 bluetoothGatt = null;
             }
         };
-        handler.postDelayed(timeoutRunnable, 45000);
+        handler.postDelayed(timeoutRunnable, 90000); // 90s — autoConnect can take 30s+ before GATT starts
     }
 
     @PluginMethod
