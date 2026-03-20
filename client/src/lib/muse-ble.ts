@@ -554,9 +554,14 @@ export class MuseBleManager {
       );
     }
 
-    // On Android native: use our custom MuseBle native plugin (bypasses Capacitor BLE GATT issues)
+    // On Android native: try native plugin first, fall back to Capacitor BLE if it fails
     if (this.isNative && Capacitor.getPlatform() === "android") {
-      return this._connectNativeMusePlugin();
+      try {
+        return await this._connectNativeMusePlugin();
+      } catch (nativeErr) {
+        console.warn("Native MuseBle plugin failed, falling back to Capacitor BLE:", nativeErr);
+        // Fall through to Capacitor BLE path below
+      }
     }
 
     // Web Bluetooth path (Chrome desktop/Android browser)
@@ -672,29 +677,42 @@ export class MuseBleManager {
           // Read failed — GATT might not be ready, but write might still work
         }
 
-        // Write preset + start
+        // Write preset + start — try write-with-response first (Muse S needs ACK)
         try {
-          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
-        } catch {
           await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
-        }
-        await new Promise((r) => setTimeout(r, 500));
-        try {
-          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
         } catch {
+          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+        try {
           await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
+        } catch {
+          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
         }
-        await new Promise((r) => setTimeout(r, 500));
+        await new Promise((r) => setTimeout(r, 2000));
 
-        // Subscribe to EEG channels
-        for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-          await ble.startNotifications(
-            device.deviceId,
-            MUSE_SERVICE,
-            MUSE_EEG_CHARS[ch],
-            (data: DataView) => this.onEegNotification(ch, data)
-          );
+        // Subscribe to EEG channels — try Muse 2 UUIDs first, fall back to Muse S
+        let subscribed = false;
+        for (const charSet of [MUSE_EEG_CHARS_MUSE2, MUSE_EEG_CHARS_MUSE_S]) {
+          try {
+            for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+              await ble.startNotifications(
+                device.deviceId,
+                MUSE_SERVICE,
+                charSet[ch],
+                (data: DataView) => this.onEegNotification(ch, data)
+              );
+            }
+            MUSE_EEG_CHARS = [...charSet];
+            console.log("Subscribed to EEG using", charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2", "UUIDs");
+            subscribed = true;
+            break;
+          } catch {
+            // This UUID set didn't work — try the other
+            console.warn("EEG subscribe failed with", charSet === MUSE_EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2", "UUIDs, trying other set...");
+          }
         }
+        if (!subscribed) throw new Error("Could not subscribe to any EEG characteristics");
 
         // Success — break out
         break;
