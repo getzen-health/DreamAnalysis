@@ -636,11 +636,13 @@ export class MuseBleManager {
     this.deviceName = device.name ?? "Muse";
 
     // ── Phase 1: Connect, send commands ──────────────────────────────────
+    let intentionalDisconnect = false;
     try { await ble.disconnect(device.deviceId); } catch { /* ok */ }
     await new Promise((r) => setTimeout(r, 500));
 
     await Promise.race([
       ble.connect(device.deviceId, () => {
+        if (intentionalDisconnect) return; // suppress during reconnect flow
         this.stopEmitter();
         this.setStatus("idle", "Device disconnected");
       }),
@@ -685,11 +687,13 @@ export class MuseBleManager {
     // its service table (preset command), the only reliable way to see
     // the new EEG characteristics is to disconnect and reconnect.
     console.log("[MuseBLE] Disconnecting to force GATT refresh...");
+    intentionalDisconnect = true;
     await new Promise((r) => setTimeout(r, 1500));
     try { await ble.disconnect(device.deviceId); } catch { /* ok */ }
     await new Promise((r) => setTimeout(r, 2000));
 
     console.log("[MuseBLE] Reconnecting...");
+    intentionalDisconnect = false;
     this.setStatus("connecting");
     await Promise.race([
       ble.connect(device.deviceId, () => {
