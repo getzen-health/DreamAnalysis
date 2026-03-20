@@ -6,7 +6,7 @@ import { pageTransition } from "@/lib/animations";
 import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
-import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle, Smile, Minus, Frown, PenLine } from "lucide-react";
+import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle, Smile, Minus, Frown, PenLine, TrendingUp, TrendingDown } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
@@ -414,12 +414,14 @@ function ScoreCard({
   statusLabel,
   dotColor,
   onClick,
+  delta,
 }: {
   label: string;
   value: string;
   statusLabel: string;
   dotColor: string;
   onClick?: () => void;
+  delta?: number | null;
 }) {
   return (
     <motion.div
@@ -475,6 +477,18 @@ function ScoreCard({
           {statusLabel}
         </span>
       </div>
+      {delta != null && Math.abs(delta) > 0.02 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
+          {delta > 0 ? (
+            <TrendingUp style={{ width: 12, height: 12, color: label === "Stress" ? "#e879a8" : "#06b6d4" }} />
+          ) : (
+            <TrendingDown style={{ width: 12, height: 12, color: label === "Stress" ? "#06b6d4" : "#e879a8" }} />
+          )}
+          <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+            {Math.abs(Math.round(delta * 100))}% vs last
+          </span>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -624,6 +638,12 @@ export default function Today() {
   const voiceData = useVoiceData();
   const queryClient = useQueryClient();
   const [showBreathe, setShowBreathe] = useState(false);
+
+  // Fetch recent brain history for trend comparison
+  const { data: recentHistory } = useQuery<any[]>({
+    queryKey: [`/api/brain/history/${userId}?days=7`],
+    staleTime: 5 * 60_000,
+  });
 
   // ── Log a feeling state ──
   const [feelingText, setFeelingText] = useState("");
@@ -807,6 +827,12 @@ export default function Today() {
     ? focusVal >= 0.7 ? "#06b6d4" : focusVal >= 0.45 ? "#d4a017" : "#e879a8"
     : "var(--muted-foreground)";
   const focusStatusLabel = focusVal > 0 ? getFocusLabel(focusVal) : "No data";
+
+  // Compute deltas vs previous session
+  const prevEntry = recentHistory && recentHistory.length >= 2 ? recentHistory[recentHistory.length - 2] : null;
+  const stressDelta = prevEntry?.stress != null ? (stressVal - prevEntry.stress) : null;
+  const focusDelta = prevEntry?.focus != null ? (focusVal - prevEntry.focus) : null;
+  const moodDelta = prevEntry?.valence != null ? ((checkin?.valence ?? 0) - prevEntry.valence) : null;
 
   // Score splash — show once per session when data exists
   const [showSplash, setShowSplash] = useState(() => {
@@ -1000,6 +1026,7 @@ export default function Today() {
               statusLabel={moodStatusLabel}
               dotColor={moodDotColor}
               onClick={() => navigate("/mood")}
+              delta={moodDelta}
             />
             <ScoreCard
               label="Stress"
@@ -1007,6 +1034,7 @@ export default function Today() {
               statusLabel={stressStatusLabel}
               dotColor={stressDotColor}
               onClick={() => navigate("/stress")}
+              delta={stressDelta}
             />
             <ScoreCard
               label="Focus"
@@ -1014,6 +1042,7 @@ export default function Today() {
               statusLabel={focusStatusLabel}
               dotColor={focusDotColor}
               onClick={() => navigate("/focus")}
+              delta={focusDelta}
             />
           </motion.div>
 
