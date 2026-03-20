@@ -189,6 +189,100 @@ export function useDevice(): UseDeviceReturn {
 
 /* ── Internal implementation ──────────────────────────────────────── */
 
+/* ── Client-side synthetic EEG frame generator ──────────────────────── */
+// Used as fallback when ML backend is unreachable and user picks "Synthetic".
+// Produces plausible-looking EEG data with band powers, emotions, etc.
+
+function generateSyntheticFrame(): EEGStreamFrame {
+  const t = Date.now() / 1000;
+  const fs = 256;
+  const nChannels = 4;
+  const nSamples = 256; // 1 second of data
+
+  // Generate 4 channels of synthetic signals (mix of sine waves at EEG band frequencies)
+  const signals: number[][] = [];
+  for (let ch = 0; ch < nChannels; ch++) {
+    const channel: number[] = [];
+    const phase = ch * 0.7; // offset per channel
+    for (let i = 0; i < nSamples; i++) {
+      const time = t + i / fs;
+      // Mix of delta(2Hz), theta(6Hz), alpha(10Hz), beta(20Hz), gamma(40Hz) + noise
+      const sample =
+        15 * Math.sin(2 * Math.PI * 2 * time + phase) +    // delta
+        8 * Math.sin(2 * Math.PI * 6 * time + phase) +     // theta
+        12 * Math.sin(2 * Math.PI * 10 * time + phase) +   // alpha
+        5 * Math.sin(2 * Math.PI * 20 * time + phase) +    // beta
+        2 * Math.sin(2 * Math.PI * 40 * time + phase) +    // gamma
+        3 * (Math.random() - 0.5);                          // noise
+      channel.push(sample);
+    }
+    signals.push(channel);
+  }
+
+  // Varying band powers (oscillate slowly for visual interest)
+  const slowOsc = (freq: number, offset: number) =>
+    0.5 + 0.3 * Math.sin(2 * Math.PI * freq * t + offset);
+
+  const delta = slowOsc(0.02, 0) * 0.25;
+  const theta = slowOsc(0.03, 1) * 0.15;
+  const alpha = slowOsc(0.015, 2) * 0.30;
+  const beta = slowOsc(0.025, 3) * 0.20;
+  const gamma = slowOsc(0.04, 4) * 0.10;
+  const total = delta + theta + alpha + beta + gamma;
+
+  const emotions = ["happy", "neutral", "calm", "focused", "relaxed"];
+  const emotion = emotions[Math.floor(t / 10) % emotions.length];
+
+  const stressVal = 0.3 + 0.2 * Math.sin(t * 0.05);
+  const focusVal = 0.5 + 0.3 * Math.sin(t * 0.03 + 1);
+  const relaxVal = 1 - stressVal;
+
+  return {
+    signals,
+    analysis: {
+      band_powers: {
+        delta: delta / total,
+        theta: theta / total,
+        alpha: alpha / total,
+        beta: beta / total,
+        gamma: gamma / total,
+      },
+      features: {},
+      sleep_staging: { stage: "Wake", stage_index: 0, confidence: 0.95, probabilities: { wake: 0.95, n1: 0.03, n2: 0.01, n3: 0.005, rem: 0.005 } },
+      emotions: {
+        emotion,
+        confidence: 0.75,
+        valence: 0.3 + 0.2 * Math.sin(t * 0.04),
+        arousal: 0.4 + 0.2 * Math.sin(t * 0.06),
+        stress_index: stressVal,
+        focus_index: focusVal,
+        relaxation_index: relaxVal,
+        ready: true,
+        buffered_sec: 30,
+        window_sec: 30,
+      },
+      epoch_ready: true,
+      flow_state: { in_flow: focusVal > 0.7, flow_score: focusVal * 0.8, confidence: 0.6 },
+      creativity: { creativity_score: 0.4 + 0.1 * Math.sin(t * 0.02), state: "normal", confidence: 0.5 },
+      drowsiness: { state: "alert", drowsiness_index: 0.1, confidence: 0.8 },
+      cognitive_load: { level: "medium", load_index: 0.5, confidence: 0.6 },
+      attention: { state: "focused", attention_score: focusVal, confidence: 0.65 },
+      stress: { level: stressVal > 0.5 ? "moderate" : "relaxed", stress_index: stressVal, confidence: 0.7 },
+      meditation: { depth: "light", meditation_score: relaxVal * 0.6, confidence: 0.5 },
+      memory_encoding: { encoding_active: false, encoding_score: 0.3, state: "normal", confidence: 0.4 },
+      dream_detection: { is_dreaming: false, probability: 0.05, rem_likelihood: 0.02, dream_intensity: 0.1, lucidity_estimate: 0.0 },
+      lucid_dream: { state: "awake", lucidity_score: 0.0, confidence: 0.9 },
+    },
+    quality: { sqi: 85, artifacts_detected: [], clean_ratio: 0.95, channel_quality: [90, 88, 87, 91] },
+    signal_quality_score: 85,
+    artifact_detected: false,
+    artifact_type: "clean",
+    timestamp: t,
+    n_channels: nChannels,
+    sample_rate: fs,
+  };
+}
+
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 8_000;   // cap at 8 s — 30 s was too long
 const STALE_FRAME_TIMEOUT_MS = 15_000;  // reconnect WS if no frame arrives for 15 s
@@ -475,6 +569,39 @@ function useDeviceInternal(): UseDeviceReturn {
       openWebSocket();
       startSession("general", userIdRef.current).catch(() => {});
     } catch (e) {
+      // ── Synthetic fallback: generate client-side fake EEG when ML backend is unreachable ──
+      if (deviceType === "synthetic") {
+        setSelectedDevice("synthetic");
+        setDeviceStatus({
+          connected: true,
+          streaming: true,
+          device_type: "synthetic",
+          n_channels: 4,
+          sample_rate: 256,
+          brainflow_available: false,
+        });
+        setState("streaming");
+        isStreamingRef.current = true;
+        setError(null);
+
+        // Start a local interval that generates synthetic EEG frames
+        const syntheticInterval = setInterval(() => {
+          if (!isStreamingRef.current) {
+            clearInterval(syntheticInterval);
+            return;
+          }
+          const frame = generateSyntheticFrame();
+          window.dispatchEvent(
+            new CustomEvent("eeg-signals", { detail: frame.signals })
+          );
+          setLatestFrame(frame as EEGStreamFrame);
+        }, 1500);
+
+        // Store interval ID so disconnect can clear it
+        (window as Record<string, unknown>).__ndw_synthetic_interval = syntheticInterval;
+        return;
+      }
+
       const msg = e instanceof Error ? e.message : "Connection failed";
       if (IS_REMOTE_BACKEND && deviceType !== "synthetic") {
         setError("Could not connect to device. Make sure your Muse is turned on and Bluetooth is enabled.");

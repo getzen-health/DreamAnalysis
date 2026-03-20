@@ -414,21 +414,26 @@ export class MuseBleManager {
     const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
     this._controlChar = controlChar;
 
-    // Muse control char supports Write Without Response.
-    // Try writeValueWithoutResponse first, fall back to writeValueWithResponse.
+    // Write command: try writeValueWithResponse first (Muse S requires ACK),
+    // fall back to writeValueWithoutResponse (Muse 2 supports both).
     const writeCommand = async (dv: DataView) => {
+      if (typeof controlChar.writeValueWithResponse === "function") {
+        try {
+          await controlChar.writeValueWithResponse(dv);
+          return;
+        } catch {
+          // writeWithResponse failed — try without response
+        }
+      }
       try {
         await controlChar.writeValueWithoutResponse(dv);
       } catch {
-        if (typeof controlChar.writeValueWithResponse === "function") {
-          await controlChar.writeValueWithResponse(dv);
-        } else {
-          await (controlChar as BluetoothRemoteGATTCharacteristic & { writeValue: (v: DataView) => Promise<void> }).writeValue(dv);
-        }
+        // Legacy fallback
+        await (controlChar as BluetoothRemoteGATTCharacteristic & { writeValue: (v: DataView) => Promise<void> }).writeValue(dv);
       }
     };
     await writeCommand(CMD_PRESET_P21);
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 1000));
     await writeCommand(CMD_START);
 
     // Wait for Muse to reconfigure GATT after preset command
