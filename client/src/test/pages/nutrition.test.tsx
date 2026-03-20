@@ -398,4 +398,219 @@ describe("Nutrition page", () => {
       expect(screen.getByText("Scan Barcode")).toBeInTheDocument();
     });
   });
+
+  // ── Food log persistence ────────────────────────────────────────────────────
+
+  describe("Food log persistence", () => {
+    it("persists food logs to localStorage when API analyze succeeds", async () => {
+      // Mock fetch: GET /api/food/logs returns empty; POST /api/food/analyze returns a log
+      const analyzeResponse = {
+        id: 42,
+        loggedAt: new Date().toISOString(),
+        mealType: "lunch",
+        summary: "Chicken and rice",
+        totalCalories: 450,
+        dominantMacro: "protein",
+        foodItems: [
+          { name: "Chicken breast", portion: "1 serving", calories: 230, protein_g: 30, carbs_g: 0, fat_g: 10 },
+          { name: "Rice", portion: "1 serving", calories: 210, protein_g: 4, carbs_g: 45, fat_g: 1 },
+        ],
+        vitamins: null,
+      };
+
+      global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+        if (opts?.method === "POST" || (typeof url === "string" && url.includes("/api/food/analyze"))) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => analyzeResponse,
+          });
+        }
+        // GET for food logs
+        return Promise.resolve({
+          ok: true,
+          json: async () => [],
+        });
+      }) as unknown as typeof fetch;
+
+      renderWithProviders(<Nutrition />);
+
+      // Open text description mode
+      fireEvent.click(screen.getByText("Describe Meal"));
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/rice bowl/i)).toBeInTheDocument();
+      });
+
+      // Type a meal description
+      const textarea = screen.getByPlaceholderText(/rice bowl/i);
+      fireEvent.change(textarea, { target: { value: "chicken and rice" } });
+
+      // Click Log Meal
+      fireEvent.click(screen.getByText("Log Meal"));
+
+      // Wait for the async operation to complete
+      await waitFor(() => {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        expect(stored).not.toBeNull();
+        const logs = JSON.parse(stored!);
+        expect(logs.length).toBeGreaterThanOrEqual(1);
+        const savedLog = logs.find((l: any) => String(l.id) === "42");
+        expect(savedLog).toBeDefined();
+        expect(savedLog.totalCalories).toBe(450);
+        expect(savedLog.summary).toBe("Chicken and rice");
+      });
+    });
+
+    it("persists food logs to localStorage when API fails (fallback path)", async () => {
+      // Mock fetch: all POST calls fail, GET returns empty
+      global.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
+        if (opts?.method === "POST") {
+          return Promise.resolve({
+            ok: false,
+            status: 503,
+            json: async () => ({ message: "OpenAI not configured" }),
+            text: async () => "OpenAI not configured",
+            statusText: "Service Unavailable",
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => [],
+        });
+      }) as unknown as typeof fetch;
+
+      renderWithProviders(<Nutrition />);
+
+      // Open text description mode
+      fireEvent.click(screen.getByText("Describe Meal"));
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/rice bowl/i)).toBeInTheDocument();
+      });
+
+      // Type a meal description
+      const textarea = screen.getByPlaceholderText(/rice bowl/i);
+      fireEvent.change(textarea, { target: { value: "chicken and rice" } });
+
+      // Click Log Meal
+      fireEvent.click(screen.getByText("Log Meal"));
+
+      // Wait for the fallback to persist to localStorage
+      await waitFor(() => {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        expect(stored).not.toBeNull();
+        const logs = JSON.parse(stored!);
+        expect(logs.length).toBeGreaterThanOrEqual(1);
+        // Fallback uses local estimation — should have a local_ prefix id
+        expect(logs[0].id).toMatch(/^local_/);
+        expect(logs[0].totalCalories).toBeGreaterThan(0);
+        expect(logs[0].summary).toBeDefined();
+      });
+    });
+
+    it("does not create duplicate entries in localStorage", async () => {
+      // Pre-populate with an existing log
+      const existingLog = makeFoodLog({ id: "42" });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([existingLog]));
+
+      const analyzeResponse = {
+        id: 42,
+        loggedAt: new Date().toISOString(),
+        mealType: "lunch",
+        summary: "Same meal",
+        totalCalories: 450,
+        dominantMacro: "protein",
+        foodItems: [],
+        vitamins: null,
+      };
+
+      global.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
+        if (opts?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            json: async () => analyzeResponse,
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => [existingLog],
+        });
+      }) as unknown as typeof fetch;
+
+      renderWithProviders(<Nutrition />);
+
+      // Open text description mode
+      fireEvent.click(screen.getByText("Describe Meal"));
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/rice bowl/i)).toBeInTheDocument();
+      });
+
+      const textarea = screen.getByPlaceholderText(/rice bowl/i);
+      fireEvent.change(textarea, { target: { value: "same meal again" } });
+      fireEvent.click(screen.getByText("Log Meal"));
+
+      await waitFor(() => {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        const logs = JSON.parse(stored!);
+        // Should not have duplicates with same id
+        const id42Count = logs.filter((l: any) => String(l.id) === "42").length;
+        expect(id42Count).toBe(1);
+      });
+    });
+
+    it("loads and displays meals from localStorage when API is unavailable", async () => {
+      // Pre-populate localStorage with meals
+      const log = makeFoodLog({ id: "offline_1", summary: "Offline pasta", totalCalories: 350 });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([log]));
+
+      // API returns error
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ message: "Server error" }),
+        text: async () => "Server error",
+        statusText: "Internal Server Error",
+      }) as unknown as typeof fetch;
+
+      renderWithProviders(<Nutrition />);
+
+      await waitFor(() => {
+        // Should still display the localStorage meal
+        const pastaElements = screen.getAllByText("Offline pasta");
+        expect(pastaElements.length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("350 kcal").length).toBeGreaterThanOrEqual(1);
+      });
+    });
+
+    it("shows 0 calories and empty state message when nothing is logged", () => {
+      renderWithProviders(<Nutrition />);
+      expect(screen.getByText("0 calories")).toBeInTheDocument();
+      expect(screen.getByText("No meals logged today")).toBeInTheDocument();
+    });
+
+    it("merges API logs with localStorage logs without duplicates", async () => {
+      // localStorage has one log
+      const localLog = makeFoodLog({ id: "local_111", summary: "Local meal", totalCalories: 200 });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([localLog]));
+
+      // API returns a different log
+      const apiLog = makeFoodLog({ id: "api_222", summary: "API meal", totalCalories: 300 });
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [apiLog],
+      }) as unknown as typeof fetch;
+
+      renderWithProviders(<Nutrition />);
+
+      await waitFor(() => {
+        // Both meals should appear
+        const localElements = screen.getAllByText("Local meal");
+        expect(localElements.length).toBeGreaterThanOrEqual(1);
+        const apiElements = screen.getAllByText("API meal");
+        expect(apiElements.length).toBeGreaterThanOrEqual(1);
+      });
+    });
+  });
 });

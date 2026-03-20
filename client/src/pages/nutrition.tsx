@@ -145,6 +145,23 @@ function isFavorite(logId: string, favs: FavoriteMeal[]): boolean {
   return favs.some((f) => f.id === logId);
 }
 
+// ── Food log localStorage persistence helper ──────────────────────────────────
+// Ensures every food log is persisted locally as the primary store,
+// regardless of whether the API call succeeds or fails.
+
+function persistFoodLogLocally(userId: string, entry: FoodLog): void {
+  try {
+    const key = `ndw_food_logs_${userId}`;
+    const existing: FoodLog[] = JSON.parse(localStorage.getItem(key) || "[]");
+    // Deduplicate: don't add if same id already exists
+    if (existing.some((l) => l.id === entry.id)) return;
+    existing.unshift(entry);
+    // Keep max 200 entries to avoid localStorage quota issues
+    if (existing.length > 200) existing.length = 200;
+    localStorage.setItem(key, JSON.stringify(existing));
+  } catch { /* localStorage full or unavailable */ }
+}
+
 // ── Nutrition insights generator ──────────────────────────────────────────────
 
 function generateInsights(
@@ -2057,30 +2074,41 @@ export default function Nutrition() {
         mealType: autoMealType(),
         textDescription: summary,
       });
-      await res.json();
-      hapticSuccess();
-      await new Promise((r) => setTimeout(r, 500));
-      qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-      syncFoodToRailway({ summary, foodItems: items, mealType: autoMealType() });
-    } catch {
-      // Fallback: use local estimation when API fails
-      try {
-        const local = estimateNutritionLocally(summary);
-        await apiRequest("POST", "/api/food/log", {
-          userId,
-          mealType: autoMealType(),
-          summary: local.summary,
-          totalCalories: local.total_calories,
-          dominantMacro: local.dominant_macro,
-          foodItems: local.food_items,
+      const data = await res.json();
+      // Persist API result to localStorage
+      if (data?.id) {
+        persistFoodLogLocally(userId, {
+          id: String(data.id),
+          loggedAt: data.loggedAt ?? new Date().toISOString(),
+          mealType: data.mealType ?? autoMealType(),
+          summary: data.summary ?? null,
+          totalCalories: data.totalCalories ?? null,
+          dominantMacro: data.dominantMacro ?? null,
+          foodItems: data.foodItems ?? null,
+          vitamins: data.vitamins ?? null,
         });
-        hapticSuccess();
-        await new Promise((r) => setTimeout(r, 500));
-        qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-        syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
-      } catch (fallbackErr) {
-        setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Re-log failed");
       }
+      hapticSuccess();
+      qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+      syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
+    } catch {
+      // Fallback: use local estimation when API fails — always persist to localStorage
+      const local = estimateNutritionLocally(summary);
+      const entry: FoodLog = {
+        id: `local_${Date.now()}`,
+        loggedAt: new Date().toISOString(),
+        mealType: autoMealType(),
+        summary: local.summary,
+        totalCalories: local.total_calories,
+        dominantMacro: local.dominant_macro,
+        foodItems: local.food_items,
+        vitamins: null,
+      };
+      persistFoodLogLocally(userId, entry);
+      try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
+      hapticSuccess();
+      qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+      syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
     } finally {
       setIsAnalyzing(false);
     }
@@ -2097,38 +2125,49 @@ export default function Nutrition() {
         mealType: autoMealType(),
         textDescription: `${summary} - ${items.map((i) => `${i.name} (${i.calories} kcal, ${i.protein_g}g protein, ${i.carbs_g}g carbs, ${i.fat_g}g fat)`).join(", ")}`,
       });
-      await res.json();
-      hapticSuccess();
-      await new Promise((r) => setTimeout(r, 500));
-      qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-      syncFoodToRailway({ summary, foodItems: items, mealType: autoMealType() });
-    } catch {
-      // Fallback: log barcode items directly when API fails
-      try {
-        const totalCal = items.reduce((s, i) => s + i.calories, 0);
-        const totalP = items.reduce((s, i) => s + i.protein_g, 0);
-        const totalC = items.reduce((s, i) => s + i.carbs_g, 0);
-        const totalF = items.reduce((s, i) => s + i.fat_g, 0);
-        const dominant = totalP >= totalC && totalP >= totalF ? "protein" : totalC >= totalF ? "carbs" : "fat";
-        await apiRequest("POST", "/api/food/log", {
-          userId,
-          mealType: autoMealType(),
-          summary,
-          totalCalories: totalCal,
-          dominantMacro: dominant,
-          foodItems: items,
+      const data = await res.json();
+      // Persist API result to localStorage
+      if (data?.id) {
+        persistFoodLogLocally(userId, {
+          id: String(data.id),
+          loggedAt: data.loggedAt ?? new Date().toISOString(),
+          mealType: data.mealType ?? autoMealType(),
+          summary: data.summary ?? null,
+          totalCalories: data.totalCalories ?? null,
+          dominantMacro: data.dominantMacro ?? null,
+          foodItems: data.foodItems ?? null,
+          vitamins: data.vitamins ?? null,
         });
-        hapticSuccess();
-        await new Promise((r) => setTimeout(r, 500));
-        qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-        syncFoodToRailway({ summary, totalCalories: totalCal, dominantMacro: dominant, foodItems: items, mealType: autoMealType() });
-      } catch (fallbackErr) {
-        setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Barcode log failed");
       }
+      hapticSuccess();
+      qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+      syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
+    } catch {
+      // Fallback: log barcode items directly — always persist to localStorage
+      const totalCal = items.reduce((s, i) => s + i.calories, 0);
+      const totalP = items.reduce((s, i) => s + i.protein_g, 0);
+      const totalC = items.reduce((s, i) => s + i.carbs_g, 0);
+      const totalF = items.reduce((s, i) => s + i.fat_g, 0);
+      const dominant = totalP >= totalC && totalP >= totalF ? "protein" : totalC >= totalF ? "carbs" : "fat";
+      const entry: FoodLog = {
+        id: `local_${Date.now()}`,
+        loggedAt: new Date().toISOString(),
+        mealType: autoMealType(),
+        summary,
+        totalCalories: totalCal,
+        dominantMacro: dominant,
+        foodItems: items,
+        vitamins: null,
+      };
+      persistFoodLogLocally(userId, entry);
+      try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
+      hapticSuccess();
+      qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+      syncFoodToRailway({ summary, totalCalories: totalCal, dominantMacro: dominant, foodItems: items, mealType: autoMealType() });
     } finally {
       setIsAnalyzing(false);
     }
-  }, [userId, qc]);
+  }, [userId, qc, syncFoodToRailway]);
 
   // Tab switching with direction tracking
   const handleTabChange = useCallback((newTab: TabId) => {
@@ -2276,10 +2315,22 @@ export default function Nutrition() {
                 setTimeout(() => reject(new Error("Analysis timed out")), 30000)
               );
               const res = await Promise.race([apiPromise, timeoutPromise]);
-              await res.json();
+              const data = await res.json();
+              // Persist API result to localStorage
+              if (data?.id) {
+                persistFoodLogLocally(userId, {
+                  id: String(data.id),
+                  loggedAt: data.loggedAt ?? new Date().toISOString(),
+                  mealType: data.mealType ?? autoMealType(),
+                  summary: data.summary ?? null,
+                  totalCalories: data.totalCalories ?? null,
+                  dominantMacro: data.dominantMacro ?? null,
+                  foodItems: data.foodItems ?? null,
+                  vitamins: data.vitamins ?? null,
+                });
+              }
               hapticSuccess();
-              try { localStorage.setItem("ndw_meal_logged", "true"); } catch {}
-              await new Promise(r => setTimeout(r, 500));
+              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
               setCaptureMode("none");
             } catch {
@@ -2287,7 +2338,7 @@ export default function Nutrition() {
               try {
                 const fallbackDesc = file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ") || "mixed meal";
                 const local = estimateNutritionLocally(fallbackDesc);
-                const entry = {
+                const entry: FoodLog = {
                   id: `local_${Date.now()}`,
                   loggedAt: new Date().toISOString(),
                   mealType: autoMealType(),
@@ -2297,13 +2348,10 @@ export default function Nutrition() {
                   foodItems: local.food_items,
                   vitamins: null,
                 };
-                const key = `ndw_food_logs_${userId}`;
-                const existing = JSON.parse(localStorage.getItem(key) || "[]");
-                existing.unshift(entry);
-                if (existing.length > 50) existing.length = 50;
-                localStorage.setItem(key, JSON.stringify(existing));
+                persistFoodLogLocally(userId, entry);
                 try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                 hapticSuccess();
+                syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
                 qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                 setCaptureMode("none");
               } catch (fallbackErr) {
@@ -2346,9 +2394,22 @@ export default function Nutrition() {
                 setTimeout(() => reject(new Error("Analysis timed out")), 30000)
               );
               const res = await Promise.race([apiPromise, timeoutPromise]);
-              await res.json();
+              const data = await res.json();
+              // Persist API result to localStorage
+              if (data?.id) {
+                persistFoodLogLocally(userId, {
+                  id: String(data.id),
+                  loggedAt: data.loggedAt ?? new Date().toISOString(),
+                  mealType: data.mealType ?? autoMealType(),
+                  summary: data.summary ?? null,
+                  totalCalories: data.totalCalories ?? null,
+                  dominantMacro: data.dominantMacro ?? null,
+                  foodItems: data.foodItems ?? null,
+                  vitamins: data.vitamins ?? null,
+                });
+              }
               hapticSuccess();
-              await new Promise(r => setTimeout(r, 500));
+              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
               setCaptureMode("none");
             } catch {
@@ -2356,7 +2417,7 @@ export default function Nutrition() {
               try {
                 const fallbackDesc = file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ") || "mixed meal";
                 const local = estimateNutritionLocally(fallbackDesc);
-                const entry = {
+                const entry: FoodLog = {
                   id: `local_${Date.now()}`,
                   loggedAt: new Date().toISOString(),
                   mealType: autoMealType(),
@@ -2366,13 +2427,10 @@ export default function Nutrition() {
                   foodItems: local.food_items,
                   vitamins: null,
                 };
-                const key = `ndw_food_logs_${userId}`;
-                const existing = JSON.parse(localStorage.getItem(key) || "[]");
-                existing.unshift(entry);
-                if (existing.length > 50) existing.length = 50;
-                localStorage.setItem(key, JSON.stringify(existing));
+                persistFoodLogLocally(userId, entry);
                 try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                 hapticSuccess();
+                syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
                 qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                 setCaptureMode("none");
               } catch (fallbackErr) {
@@ -2444,14 +2502,28 @@ export default function Nutrition() {
                                 mealType: autoMealType(),
                                 imageBase64: photo.base64String,
                               });
-                              await res.json();
+                              const data = await res.json();
+                              // Persist API result to localStorage for offline access
+                              if (data?.id) {
+                                persistFoodLogLocally(userId, {
+                                  id: String(data.id),
+                                  loggedAt: data.loggedAt ?? new Date().toISOString(),
+                                  mealType: data.mealType ?? autoMealType(),
+                                  summary: data.summary ?? null,
+                                  totalCalories: data.totalCalories ?? null,
+                                  dominantMacro: data.dominantMacro ?? null,
+                                  foodItems: data.foodItems ?? null,
+                                  vitamins: data.vitamins ?? null,
+                                });
+                              }
                               hapticSuccess();
+                              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
                               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                               setCaptureMode("none");
                             } catch {
                               // Fallback: save generic meal
                               const local = estimateNutritionLocally("photo meal");
-                              const entry = {
+                              const entry: FoodLog = {
                                 id: `local_${Date.now()}`,
                                 loggedAt: new Date().toISOString(),
                                 mealType: autoMealType(),
@@ -2461,12 +2533,10 @@ export default function Nutrition() {
                                 foodItems: local.food_items,
                                 vitamins: null,
                               };
-                              const key = `ndw_food_logs_${userId}`;
-                              const existing = JSON.parse(localStorage.getItem(key) || "[]");
-                              existing.unshift(entry);
-                              if (existing.length > 50) existing.length = 50;
-                              localStorage.setItem(key, JSON.stringify(existing));
+                              persistFoodLogLocally(userId, entry);
+                              try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                               hapticSuccess();
+                              syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
                               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                               setCaptureMode("none");
                             } finally {
@@ -2603,17 +2673,30 @@ export default function Nutrition() {
                             setTimeout(() => reject(new Error("Analysis timed out")), 30000)
                           );
                           const res = await Promise.race([apiPromise, timeoutPromise]);
-                          await res.json();
+                          const data = await res.json();
+                          // Persist API result to localStorage
+                          if (data?.id) {
+                            persistFoodLogLocally(userId, {
+                              id: String(data.id),
+                              loggedAt: data.loggedAt ?? new Date().toISOString(),
+                              mealType: data.mealType ?? autoMealType(),
+                              summary: data.summary ?? null,
+                              totalCalories: data.totalCalories ?? null,
+                              dominantMacro: data.dominantMacro ?? null,
+                              foodItems: data.foodItems ?? null,
+                              vitamins: data.vitamins ?? null,
+                            });
+                          }
                           hapticSuccess();
+                          syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
                           setMealText("");
-                          await new Promise(r => setTimeout(r, 500));
                           qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                           setCaptureMode("none");
                         } catch {
                           // Fallback: local estimation + localStorage
                           try {
                             const local = estimateNutritionLocally(mealText.trim());
-                            const entry = {
+                            const entry: FoodLog = {
                               id: `local_${Date.now()}`,
                               loggedAt: new Date().toISOString(),
                               mealType: autoMealType(),
@@ -2623,13 +2706,10 @@ export default function Nutrition() {
                               foodItems: local.food_items,
                               vitamins: null,
                             };
-                            const key = `ndw_food_logs_${userId}`;
-                            const existing = JSON.parse(localStorage.getItem(key) || "[]");
-                            existing.unshift(entry);
-                            if (existing.length > 50) existing.length = 50;
-                            localStorage.setItem(key, JSON.stringify(existing));
+                            persistFoodLogLocally(userId, entry);
                             try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                             hapticSuccess();
+                            syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
                             setMealText("");
                             qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                             setCaptureMode("none");
