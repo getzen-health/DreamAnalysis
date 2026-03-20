@@ -159,13 +159,14 @@ function EmotionTimeline({ userId }: { userId: string }) {
 
   return (
     <div style={{
-      background: "var(--card)", border: "1px solid var(--border)",
+      background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
+      border: "1px solid rgba(255,255,255,0.08)",
       borderRadius: 20, padding: "14px 16px", marginBottom: 14,
-      boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+      boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)",
     }}>
       <div style={{
-        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 10,
+        fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
+        textTransform: "uppercase" as const, letterSpacing: "0.8px", marginBottom: 10,
       }}>
         Your week in emotions
       </div>
@@ -313,8 +314,8 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{
-        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 8,
+        fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
+        textTransform: "uppercase" as const, letterSpacing: "0.8px", marginBottom: 8,
       }}>
         Recommended for you
       </div>
@@ -324,10 +325,11 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
             key={rec.route}
             onClick={() => { trackFeatureUsage(rec.route); navigate(rec.route); }}
             style={{
-              background: "var(--card)", border: "1px solid var(--border)",
+              background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
+              border: "1px solid rgba(255,255,255,0.08)",
               borderRadius: 20, padding: "12px 14px", minWidth: 150, flexShrink: 0,
               textAlign: "left" as const, cursor: "pointer",
-              boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+              boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)",
               transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
@@ -376,8 +378,8 @@ function MoodInsightsCard({ userId }: { userId: string }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{
-        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-        textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 8,
+        fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
+        textTransform: "uppercase" as const, letterSpacing: "0.8px", marginBottom: 8,
       }}>
         Mood insights
       </div>
@@ -536,9 +538,12 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
     <button
       onClick={() => navigate("/mood")}
       style={{
-        width: "100%", background: "var(--card)", border: "1px solid var(--border)",
+        width: "100%",
+        background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
+        border: "1px solid rgba(255,255,255,0.08)",
         borderRadius: 20, padding: 16, marginBottom: 14, cursor: "pointer",
-        textAlign: "left" as const, boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+        textAlign: "left" as const,
+        boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)",
         transition: "transform 0.2s ease, box-shadow 0.2s ease",
       }}
     >
@@ -699,11 +704,14 @@ export default function Discover() {
       }}
     >
       {/* ── Header ── */}
-      <div style={{ marginBottom: 16 }}>
-        <p style={{ fontSize: 18, fontWeight: 600, color: "var(--foreground)", margin: "0 0 3px 0" }}>
+      <div style={{ marginBottom: 18 }}>
+        <p style={{
+          fontSize: 20, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0",
+          letterSpacing: "-0.3px",
+        }}>
           Discover
         </p>
-        <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: 0 }}>
+        <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: 0, letterSpacing: "0.1px" }}>
           Your scores at a glance
         </p>
       </div>
@@ -722,8 +730,8 @@ export default function Discover() {
 
       {/* ── Section label ── */}
       <div style={{
-        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase" as const,
-        letterSpacing: "0.5px", marginBottom: 10,
+        fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)", textTransform: "uppercase" as const,
+        letterSpacing: "0.8px", marginBottom: 12,
       }}>
         Explore
       </div>
@@ -746,8 +754,8 @@ export default function Discover() {
             animate="visible"
             onClick={() => navigate(card.route)}
             style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
+              background: `linear-gradient(135deg, var(--card) 0%, ${card.accentColor}06 100%)`,
+              border: "1px solid rgba(255,255,255,0.08)",
               borderLeft: `3px solid ${card.accentColor}`,
               borderRadius: 20,
               padding: 16,
@@ -755,22 +763,23 @@ export default function Discover() {
               cursor: "pointer",
               width: "100%",
               WebkitTapHighlightColor: "transparent",
-              boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+              boxShadow: `0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)`,
               transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
             <card.icon style={{ width: 28, height: 28, marginBottom: 8, color: card.accentColor }} />
             <p
               style={{
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: 14,
+                fontWeight: 700,
                 color: "var(--foreground)",
-                margin: "0 0 3px 0",
+                margin: "0 0 4px 0",
+                letterSpacing: "-0.2px",
               }}
             >
               {card.title}
             </p>
-            <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0 }}>
+            <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.4 }}>
               {card.subtitle}
             </p>
           </motion.button>

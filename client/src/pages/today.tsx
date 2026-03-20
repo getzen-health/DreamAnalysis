@@ -340,31 +340,37 @@ const containerVariants = {
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.06,
+      staggerChildren: 0.07,
+      delayChildren: 0.05,
     },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 14, scale: 0.98 },
   visible: {
     opacity: 1,
     y: 0,
+    scale: 1,
     transition: {
-      duration: 0.4,
+      duration: 0.45,
       ease: [0.22, 1, 0.36, 1],
     },
   },
 };
 
-// ── Bevel card style ─────────────────────────────────────────────────────
+// ── Premium card style ───────────────────────────────────────────────────
 
-const bevelCard: React.CSSProperties = {
+const premiumCard: React.CSSProperties = {
   borderRadius: 20,
   border: "1px solid rgba(255,255,255,0.08)",
-  background: "var(--card)",
+  background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
   padding: "18px 20px",
+  boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)",
 };
+
+/** @deprecated alias kept for backward compatibility */
+const bevelCard = premiumCard;
 
 // ── Hero Wellness Gauge ──────────────────────────────────────────────────
 
