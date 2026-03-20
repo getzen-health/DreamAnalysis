@@ -17,6 +17,11 @@ PROTOCOLS = {
         "target_band": "alpha",
         "direction": "increase",
         "default_threshold": 0.5,
+        "evidence_grade": "A",
+        "evidence_references": [
+            "Gruzelier JH (2014). EEG-neurofeedback for optimising performance. Neurosci Biobehav Rev, 44, 279-304.",
+            "Zoefel B et al. (2011). Neurofeedback training of the upper alpha frequency band in EEG improves cognitive performance. Clin Neurophysiol, 122(11), 2220-2227.",
+        ],
     },
     "smr_up": {
         "name": "SMR Training",
@@ -24,6 +29,11 @@ PROTOCOLS = {
         "target_band": "smr",
         "direction": "increase",
         "default_threshold": 0.3,
+        "evidence_grade": "A",
+        "evidence_references": [
+            "Arns M et al. (2009). Efficacy of neurofeedback treatment in ADHD. Clin EEG Neurosci, 40(3), 180-189.",
+            "Enriquez-Geppert S et al. (2019). Neurofeedback as a treatment intervention in ADHD. Curr Psychiatry Rep, 21(6), 46.",
+        ],
     },
     "theta_beta_ratio": {
         "name": "Theta/Beta Ratio",
@@ -31,6 +41,11 @@ PROTOCOLS = {
         "target_band": "theta_beta",
         "direction": "decrease",
         "default_threshold": 2.5,
+        "evidence_grade": "A",
+        "evidence_references": [
+            "Arns M et al. (2009). Efficacy of neurofeedback treatment in ADHD. Clin EEG Neurosci, 40(3), 180-189.",
+            "Lubar JF (1995). Neurofeedback for the management of attention-deficit/hyperactivity disorders. Biofeedback Self Regul, 20(2), 111-127.",
+        ],
     },
     "alpha_asymmetry": {
         "name": "Alpha Asymmetry",
@@ -38,6 +53,11 @@ PROTOCOLS = {
         "target_band": "alpha",
         "direction": "balance",
         "default_threshold": 0.1,
+        "evidence_grade": "B",
+        "evidence_references": [
+            "Baehr E et al. (2001). Clinical use of an alpha asymmetry neurofeedback protocol in the treatment of mood disorders. J Neurother, 4(4), 11-18.",
+            "Peeters F et al. (2014). Oxytocin and neurofeedback for depression-related frontal alpha asymmetry. Psychiatry Res, 223(2), 180-184.",
+        ],
     },
     "custom": {
         "name": "Custom Protocol",
@@ -45,6 +65,8 @@ PROTOCOLS = {
         "target_band": "alpha",
         "direction": "increase",
         "default_threshold": 0.5,
+        "evidence_grade": "N/A",
+        "evidence_references": [],
     },
 }
 

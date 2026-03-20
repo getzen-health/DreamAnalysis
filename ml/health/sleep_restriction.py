@@ -24,7 +24,7 @@ from typing import Optional
 class SleepRestrictionProtocol:
     """Evidence-based Sleep Restriction Therapy (SRT) engine.
 
-    Calculates and adjusts a user's prescribed sleep window each week
+    Calculates and adjusts a user's recommended sleep window each week
     based on their rolling sleep efficiency. The core rule:
 
     - Week 1: time-in-bed = average total sleep time (minimum 5.5 h)
@@ -65,7 +65,7 @@ class SleepRestrictionProtocol:
         return sum(valid) / len(valid) if valid else 0.0
 
     def get_current_window(self, enrollment_data: dict) -> dict:
-        """Return the prescribed sleep window for the current program week.
+        """Return the recommended sleep window for the current program week.
 
         Args:
             enrollment_data: Dict with:
@@ -161,7 +161,7 @@ class SleepRestrictionProtocol:
         return [
             {
                 "id": "bedtime_adherence",
-                "prompt": "Did you go to bed at your prescribed time?",
+                "prompt": "Did you go to bed at your recommended time?",
                 "weight": 0.40,
             },
             {
@@ -202,7 +202,7 @@ class SleepRestrictionProtocol:
                 - ``week``               (int)
                 - ``sleep_data``         (list[dict]) — raw nightly records
                 - ``compliance_scores``  (list[float]) — daily 0–1 scores
-                - ``window_hours``       (float) — prescribed window that week
+                - ``window_hours``       (float) — recommended window that week
 
         Returns:
             Dict with:

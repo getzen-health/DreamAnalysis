@@ -413,6 +413,12 @@ def map_mood_to_fhir(
         "subject": _fhir_reference("Patient", patient_id),
         "authored": datetime.now(timezone.utc).isoformat(),
         "item": items,
+        "disclaimer": (
+            "EEG-derived mood scores from NeuralDreamWorkshop are research-grade "
+            "estimates based on consumer EEG hardware. They are NOT equivalent to "
+            "clinician-administered PHQ-9/GAD-7 validated instruments and must not "
+            "be used for clinical diagnosis."
+        ),
     }
 
 
@@ -713,6 +719,13 @@ def generate_session_prep(
             "No biometric data available since last session. "
             "Consider encouraging regular check-ins."
         )
+
+    summary["disclaimer"] = (
+        "EEG-derived mood scores from NeuralDreamWorkshop are research-grade "
+        "estimates based on consumer EEG hardware. They are NOT equivalent to "
+        "clinician-administered PHQ-9/GAD-7 validated instruments and must not "
+        "be used for clinical diagnosis."
+    )
 
     return summary
 

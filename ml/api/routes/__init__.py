@@ -104,6 +104,7 @@ from .contrastive_transfer import router as _contrastive_transfer
 from .emotion2vec import router as _emotion2vec
 from .lsteeg import router as _lsteeg
 from .health_summary import router as _health_summary
+from .wellness_score import router as _wellness_score
 from .mental_health_questionnaire import router as _mental_health_questionnaire
 from .femba import router as _femba
 from .tmnet import router as _tmnet
@@ -296,6 +297,7 @@ router.include_router(_contrastive_transfer)
 router.include_router(_emotion2vec)
 router.include_router(_lsteeg)
 router.include_router(_health_summary)
+router.include_router(_wellness_score)
 router.include_router(_mental_health_questionnaire)
 router.include_router(_femba)
 router.include_router(_tmnet)
