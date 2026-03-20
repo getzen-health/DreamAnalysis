@@ -73,4 +73,12 @@
 
 **Implication:** When presenting any emotion classification: (1) include a brief plain-language description of the signals (vocal patterns, brain wave patterns, or self-report) that contributed, (2) phrase insights as observations ("your voice sounds...") not assertions ("you are feeling..."), (3) always include a non-clinical disclaimer, (4) for voice-based detection, cite the acoustic features (pitch, rate, energy, spectral tilt). For EEG, cite the neural markers (FAA, alpha/beta ratio). Never show a bare emotion label without context.
 
+### 9. Share Mechanics Must Live on the Primary Retention Surface
+
+**Principle:** The page users visit most frequently (the daily score / home screen) must contain the primary share action. Placing share only on secondary pages means the viral loop activates at the moment of lowest intent -- after the user has navigated away from their daily check-in habit. The share target should be the same artifact that drives retention (the daily score), not a derivative product on a deeper page.
+
+**Evidence:** The Today page's Wellness Gauge (0-100 score) is the single most-viewed element in the app -- it is the "Oura Readiness" equivalent. The EFS share card existed but was only accessible from the Emotional Fitness page, which requires navigating away from the home screen. Oura and Whoop both surface share actions directly on the home screen next to the daily score. Behavioral research on viral loops shows share intent peaks at the moment of score reveal ("I got 92!") and decays rapidly with each additional navigation step. The app had zero referral mechanics -- no "invite a friend" anywhere. Push notifications were well-implemented (3 daily windows, personalized, quiet hours) but served retention, not growth.
+
+**Implication:** When building any daily-check feature: (1) place the share button within 1 tap of the score reveal, (2) generate a visually polished image card that includes the score, branding, and a brief insight -- text-only shares have 3-5x lower engagement than image shares on social platforms, (3) use `navigator.share` with file support for native share sheets on mobile (higher completion rate than clipboard copy), (4) only show the share button when there is meaningful data (score > 0) -- sharing an empty state degrades brand perception.
+
 <!-- Principles will be appended below by the research agent -->

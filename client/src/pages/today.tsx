@@ -6,7 +6,7 @@ import { pageTransition } from "@/lib/animations";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
-import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed } from "lucide-react";
+import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
@@ -113,6 +113,174 @@ function formatDate(): string {
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   return `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+}
+
+// ── Share Wellness Score ─────────────────────────────────────────────────
+
+async function shareWellnessScore(score: number, emotion: string, insight: string): Promise<void> {
+  const W = 1080;
+  const H = 1080;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  // Background gradient
+  const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+  bgGrad.addColorStop(0, "#1a0533");
+  bgGrad.addColorStop(0.5, "#0f172a");
+  bgGrad.addColorStop(1, "#0a1a2a");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Radial glow behind score
+  const glowHue = score >= 70 ? "#0891b2" : score >= 40 ? "#fbbf24" : "#f472b6";
+  const glow = ctx.createRadialGradient(W / 2, 400, 0, W / 2, 400, 360);
+  glow.addColorStop(0, glowHue + "30");
+  glow.addColorStop(0.5, glowHue + "10");
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  // Date
+  ctx.fillStyle = "#64748b";
+  ctx.font = "400 28px system-ui, -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  const dateStr = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  ctx.fillText(dateStr, W / 2, 120);
+
+  // "WELLNESS SCORE" label
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "600 26px system-ui, -apple-system, sans-serif";
+  ctx.letterSpacing = "6px";
+  ctx.fillText("WELLNESS SCORE", W / 2, 200);
+  ctx.letterSpacing = "0px";
+
+  // Score arc (270-degree gauge)
+  const cx = W / 2;
+  const cy = 440;
+  const r = 160;
+  const strokeW = 14;
+  const startAngle = (135 * Math.PI) / 180;
+  const totalArc = (270 * Math.PI) / 180;
+  const filledArc = (score / 100) * totalArc;
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startAngle, startAngle + totalArc);
+  ctx.strokeStyle = "#1e293b";
+  ctx.lineWidth = strokeW;
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  // Filled arc with gradient
+  if (score > 0) {
+    const arcGrad = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
+    arcGrad.addColorStop(0, "#7c3aed");
+    arcGrad.addColorStop(1, "#e879a8");
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, startAngle + filledArc);
+    ctx.strokeStyle = arcGrad;
+    ctx.lineWidth = strokeW;
+    ctx.lineCap = "round";
+    ctx.stroke();
+  }
+
+  // Score number
+  const scoreColor = score >= 70 ? "#22d3ee" : score >= 40 ? "#fde68a" : "#fda4af";
+  ctx.fillStyle = scoreColor;
+  ctx.font = "700 96px system-ui, -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(score), cx, cy - 10);
+
+  // "Wellness" label below number
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "400 24px system-ui, -apple-system, sans-serif";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("Wellness", cx, cy + 46);
+
+  // Emotion chip
+  if (emotion && emotion !== "---") {
+    const chipLabel = `Mood: ${emotion.charAt(0).toUpperCase() + emotion.slice(1)}`;
+    ctx.fillStyle = "#1e293b";
+    const chipW = 260;
+    const chipH = 48;
+    const chipX = cx - chipW / 2;
+    const chipY = 660;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(chipX, chipY, chipW, chipH, 24);
+    } else {
+      ctx.moveTo(chipX + 24, chipY);
+      ctx.lineTo(chipX + chipW - 24, chipY);
+      ctx.quadraticCurveTo(chipX + chipW, chipY, chipX + chipW, chipY + 24);
+      ctx.quadraticCurveTo(chipX + chipW, chipY + chipH, chipX + chipW - 24, chipY + chipH);
+      ctx.lineTo(chipX + 24, chipY + chipH);
+      ctx.quadraticCurveTo(chipX, chipY + chipH, chipX, chipY + 24);
+      ctx.quadraticCurveTo(chipX, chipY, chipX + 24, chipY);
+      ctx.closePath();
+    }
+    ctx.fill();
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "500 22px system-ui, -apple-system, sans-serif";
+    ctx.fillText(chipLabel, cx, chipY + 30);
+  }
+
+  // AI insight text (word-wrapped)
+  if (insight) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "400 24px system-ui, -apple-system, sans-serif";
+    const maxW = W - 160;
+    const words = insight.split(" ");
+    let line = "";
+    let y = 760;
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width > maxW) {
+        ctx.fillText(line, cx, y);
+        line = word;
+        y += 34;
+      } else {
+        line = test;
+      }
+    }
+    if (line) ctx.fillText(line, cx, y);
+  }
+
+  // Branding
+  ctx.fillStyle = "#475569";
+  ctx.font = "500 22px system-ui, -apple-system, sans-serif";
+  ctx.fillText("NeuralDreamWorkshop", cx, H - 60);
+
+  // Export as blob and share
+  canvas.toBlob(async (blob) => {
+    if (!blob) return;
+
+    const file = new File([blob], "wellness-score.png", { type: "image/png" });
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: `My Wellness Score: ${score}`,
+          text: `My wellness score today is ${score}/100. ${insight}`,
+          files: [file],
+        });
+        return;
+      } catch {
+        // User cancelled or share failed — fall through to download
+      }
+    }
+
+    // Fallback: download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "wellness-score.png";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, "image/png");
 }
 
 // ── Animation variants ──────────────────────────────────────────────────
@@ -751,6 +919,44 @@ export default function Today() {
             <WellnessGauge score={readiness} />
           </motion.div>
 
+          {/* ── 2b. Share Wellness Score ── */}
+          {readiness > 0 && (
+            <motion.div
+              variants={itemVariants}
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: 20,
+                marginTop: -12,
+              }}
+            >
+              <button
+                onClick={() => shareWellnessScore(readiness, emotion, aiInsight)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 18px",
+                  borderRadius: 20,
+                  border: "1px solid rgba(124, 58, 237, 0.25)",
+                  background: "rgba(124, 58, 237, 0.08)",
+                  color: "#a78bfa",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  letterSpacing: "0.3px",
+                }}
+                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
+                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                <Share2 size={13} />
+                Share Score
+              </button>
+            </motion.div>
+          )}
+
           {/* ── 3. Score Row (Mood / Stress / Focus) ── */}
           <motion.div
             variants={containerVariants}
@@ -845,7 +1051,7 @@ export default function Today() {
                   marginBottom: 12,
                 }}
               >
-                <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>&#x26A0;&#xFE0F;</span>
+                <AlertTriangle style={{ width: 22, height: 22, color: "#e879a8", flexShrink: 0 }} />
                 <div>
                   <div
                     style={{
@@ -1009,13 +1215,15 @@ export default function Today() {
               paddingBottom: 4, scrollbarWidth: "none",
               WebkitOverflowScrolling: "touch",
             }}>
-              {[
-                { emoji: "\uD83C\uDFB5", title: "Focus", url: "https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ" },
-                { emoji: "\uD83E\uDDD8", title: "Calm", url: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO" },
-                { emoji: "\uD83C\uDF19", title: "Sleep", url: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp" },
-                { emoji: "\uD83C\uDFC3", title: "Workout", url: "https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" },
-                { emoji: "\uD83C\uDF3F", title: "Energize", url: "https://open.spotify.com/playlist/37i9dQZF1DX3rxVfibe1L0" },
-              ].map((card) => (
+              {([
+                { icon: Music, color: "#6366f1", title: "Focus", url: "https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ" },
+                { icon: Wind, color: "#0891b2", title: "Calm", url: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO" },
+                { icon: CloudMoon, color: "#7c3aed", title: "Sleep", url: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp" },
+                { icon: Dumbbell, color: "#ea580c", title: "Workout", url: "https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" },
+                { icon: TreePine, color: "#4ade80", title: "Energize", url: "https://open.spotify.com/playlist/37i9dQZF1DX3rxVfibe1L0" },
+              ] as const).map((card) => {
+                const IconComp = card.icon;
+                return (
                 <button
                   key={card.title}
                   onClick={() => window.open(card.url, "_blank")}
@@ -1035,10 +1243,13 @@ export default function Today() {
                   onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
                   onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
                 >
-                  <div style={{ fontSize: 24, marginBottom: 4 }}>{card.emoji}</div>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+                    <IconComp style={{ width: 24, height: 24, color: card.color }} />
+                  </div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)" }}>{card.title}</div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </motion.div>
 
