@@ -629,9 +629,12 @@ export default function Today() {
               </p>
               <p
                 style={{
-                  fontSize: 20,
-                  fontWeight: 600,
-                  color: "var(--foreground)",
+                  fontSize: 22,
+                  fontWeight: 700,
+                  background: "linear-gradient(135deg, #c4b5fd, #e879a8, #7c3aed)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
                   margin: 0,
                   lineHeight: 1.3,
                 }}
@@ -673,8 +676,24 @@ export default function Today() {
               display: "flex",
               justifyContent: "center",
               marginBottom: 24,
+              position: "relative",
             }}
           >
+            {/* Ambient glow behind gauge */}
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: 200,
+                height: 200,
+                borderRadius: "50%",
+                background: "radial-gradient(circle, rgba(124,58,237,0.15) 0%, rgba(232,121,168,0.08) 50%, transparent 70%)",
+                filter: "blur(30px)",
+                pointerEvents: "none",
+              }}
+            />
             <WellnessGauge score={readiness} />
           </motion.div>
 
