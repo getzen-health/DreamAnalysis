@@ -1307,9 +1307,17 @@ export default function Nutrition() {
   const { data: logs } = useQuery<FoodLog[]>({
     queryKey: ["/api/food/logs", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) return data;
+        }
+      } catch { /* API unavailable */ }
+      // Fallback: read from localStorage
+      try {
+        return JSON.parse(localStorage.getItem(`ndw_food_logs_${userId}`) || "[]");
+      } catch { return []; }
     },
   });
 
@@ -1633,24 +1641,31 @@ export default function Nutrition() {
               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
               setCaptureMode("none");
             } catch {
-              // Fallback: use local estimation from filename or generic meal
+              // Fallback: local estimation + localStorage
               try {
                 const fallbackDesc = file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ") || "mixed meal";
                 const local = estimateNutritionLocally(fallbackDesc);
-                await apiRequest("POST", "/api/food/log", {
-                  userId,
+                const entry = {
+                  id: `local_${Date.now()}`,
+                  loggedAt: new Date().toISOString(),
                   mealType: autoMealType(),
                   summary: local.summary,
                   totalCalories: local.total_calories,
                   dominantMacro: local.dominant_macro,
                   foodItems: local.food_items,
-                });
+                  vitamins: null,
+                };
+                const key = `ndw_food_logs_${userId}`;
+                const existing = JSON.parse(localStorage.getItem(key) || "[]");
+                existing.unshift(entry);
+                if (existing.length > 50) existing.length = 50;
+                localStorage.setItem(key, JSON.stringify(existing));
+                try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                 hapticSuccess();
-                await new Promise(r => setTimeout(r, 500));
                 qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                 setCaptureMode("none");
               } catch (fallbackErr) {
-                setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
+                setAnalysisError("Could not analyze meal. Try describing it instead.");
                 setCaptureMode("none");
               }
             } finally {
@@ -1695,24 +1710,31 @@ export default function Nutrition() {
               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
               setCaptureMode("none");
             } catch {
-              // Fallback: use local estimation from filename or generic meal
+              // Fallback: local estimation + localStorage
               try {
                 const fallbackDesc = file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ") || "mixed meal";
                 const local = estimateNutritionLocally(fallbackDesc);
-                await apiRequest("POST", "/api/food/log", {
-                  userId,
+                const entry = {
+                  id: `local_${Date.now()}`,
+                  loggedAt: new Date().toISOString(),
                   mealType: autoMealType(),
                   summary: local.summary,
                   totalCalories: local.total_calories,
                   dominantMacro: local.dominant_macro,
                   foodItems: local.food_items,
-                });
+                  vitamins: null,
+                };
+                const key = `ndw_food_logs_${userId}`;
+                const existing = JSON.parse(localStorage.getItem(key) || "[]");
+                existing.unshift(entry);
+                if (existing.length > 50) existing.length = 50;
+                localStorage.setItem(key, JSON.stringify(existing));
+                try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                 hapticSuccess();
-                await new Promise(r => setTimeout(r, 500));
                 qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                 setCaptureMode("none");
               } catch (fallbackErr) {
-                setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
+                setAnalysisError("Could not analyze meal. Try describing it instead.");
                 setCaptureMode("none");
               }
             } finally {
@@ -1890,29 +1912,31 @@ export default function Nutrition() {
                           qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                           setCaptureMode("none");
                         } catch {
+                          // Fallback: local estimation + localStorage
                           try {
                             const local = estimateNutritionLocally(mealText.trim());
-                            const fallbackTimeout = new Promise<never>((_, reject) =>
-                              setTimeout(() => reject(new Error("Fallback timed out")), 10000)
-                            );
-                            await Promise.race([
-                              apiRequest("POST", "/api/food/log", {
-                                userId,
-                                mealType: autoMealType(),
-                                summary: local.summary,
-                                totalCalories: local.total_calories,
-                                dominantMacro: local.dominant_macro,
-                                foodItems: local.food_items,
-                              }),
-                              fallbackTimeout,
-                            ]);
+                            const entry = {
+                              id: `local_${Date.now()}`,
+                              loggedAt: new Date().toISOString(),
+                              mealType: autoMealType(),
+                              summary: local.summary,
+                              totalCalories: local.total_calories,
+                              dominantMacro: local.dominant_macro,
+                              foodItems: local.food_items,
+                              vitamins: null,
+                            };
+                            const key = `ndw_food_logs_${userId}`;
+                            const existing = JSON.parse(localStorage.getItem(key) || "[]");
+                            existing.unshift(entry);
+                            if (existing.length > 50) existing.length = 50;
+                            localStorage.setItem(key, JSON.stringify(existing));
+                            try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                             hapticSuccess();
                             setMealText("");
-                            await new Promise(r => setTimeout(r, 500));
                             qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                             setCaptureMode("none");
-                          } catch (fallbackErr) {
-                            setAnalysisError(fallbackErr instanceof Error ? fallbackErr.message : "Analysis failed");
+                          } catch {
+                            setAnalysisError("Could not log meal. Please try again.");
                             setCaptureMode("none");
                           }
                         } finally {
