@@ -413,7 +413,7 @@ function HealthMetricCard({
               fontWeight: 500,
             }}
           >
-            Tap to get started
+            Tap to view →
           </span>
         </div>
       ) : (
