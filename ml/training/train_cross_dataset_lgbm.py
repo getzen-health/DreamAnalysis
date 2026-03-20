@@ -533,7 +533,17 @@ def augment_gamma_dropout(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.
 # ──────────────────────────────────────────────────────────────────────────────
 
 def train(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> tuple:
-    """Train LightGBM with 5-fold CV. Returns (model, scaler, cv_accuracy, cv_f1)."""
+    """Train LightGBM with 5-fold CV + early stopping. Returns (model, scaler, cv_accuracy, cv_f1).
+
+    Improvements over v1:
+      - Scaler fit INSIDE each CV fold to prevent data leakage (validation data
+        no longer leaks into the StandardScaler mean/std during CV evaluation).
+      - LightGBM early stopping: trains up to 2000 iterations but stops if
+        validation logloss does not improve for 100 rounds. Prevents overfitting
+        and auto-selects optimal tree count per fold.
+      - Final model uses the mean best_iteration from CV folds (with 10% headroom)
+        instead of an arbitrary fixed n_estimators.
+    """
     # Gamma dropout: double the dataset with gamma-zeroed copies.
     # Enables device-aware inference without retraining.
     log("\n[AUG] Applying gamma dropout — doubling dataset with gamma-zeroed copies")
@@ -542,20 +552,22 @@ def train(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> tuple:
 
     log(f"\n[TRAINING] {len(X)} samples, {X.shape[1]} features, {len(np.unique(y))} classes")
 
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    cv_accs, cv_f1s = [], []
+    cv_accs, cv_f1s, best_iters = [], [], []
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
-    for fold, (tr_idx, va_idx) in enumerate(skf.split(X_scaled, y), 1):
-        X_tr, X_va = X_scaled[tr_idx], X_scaled[va_idx]
+    for fold, (tr_idx, va_idx) in enumerate(skf.split(X, y), 1):
+        X_tr_raw, X_va_raw = X[tr_idx], X[va_idx]
         y_tr, y_va = y[tr_idx], y[va_idx]
         w_tr = compute_sample_weight("balanced", y_tr)
 
+        # Fit scaler on TRAINING fold only — prevents data leakage
+        fold_scaler = StandardScaler()
+        X_tr = fold_scaler.fit_transform(X_tr_raw)
+        X_va = fold_scaler.transform(X_va_raw)
+
         if HAS_LGBM:
             clf = lgb.LGBMClassifier(
-                n_estimators=1000,
+                n_estimators=2000,    # higher ceiling — early stopping finds optimal
                 learning_rate=0.03,
                 max_depth=6,          # shallower → better cross-subject generalization
                 num_leaves=40,
@@ -569,28 +581,51 @@ def train(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> tuple:
                 random_state=42,
                 verbosity=-1,
             )
+            # Early stopping: stop if val logloss doesn't improve for 100 rounds
+            clf.fit(
+                X_tr, y_tr,
+                sample_weight=w_tr,
+                eval_set=[(X_va, y_va)],
+                callbacks=[
+                    lgb.early_stopping(stopping_rounds=100, verbose=False),
+                    lgb.log_evaluation(period=0),  # suppress per-iteration logs
+                ],
+            )
+            best_iter = clf.best_iteration_ if hasattr(clf, "best_iteration_") else 2000
+            best_iters.append(best_iter)
         else:
             from sklearn.ensemble import GradientBoostingClassifier
             clf = GradientBoostingClassifier(n_estimators=300, max_depth=5, random_state=42)
+            clf.fit(X_tr, y_tr, sample_weight=w_tr)
+            best_iter = 300
+            best_iters.append(best_iter)
 
-        clf.fit(X_tr, y_tr, sample_weight=w_tr)
         preds = clf.predict(X_va)
         acc = accuracy_score(y_va, preds)
         f1  = f1_score(y_va, preds, average="macro", zero_division=0)
         cv_accs.append(acc)
         cv_f1s.append(f1)
-        log(f"  Fold {fold}/{n_splits} — acc={acc:.4f}  f1={f1:.4f}")
+        log(f"  Fold {fold}/{n_splits} — acc={acc:.4f}  f1={f1:.4f}  best_iter={best_iter}")
 
     cv_acc = float(np.mean(cv_accs))
     cv_f1  = float(np.mean(cv_f1s))
-    log(f"\n[CV RESULT] acc={cv_acc:.4f} ± {np.std(cv_accs):.4f}  f1={cv_f1:.4f}")
+    mean_best_iter = int(np.mean(best_iters))
+    log(f"\n[CV RESULT] acc={cv_acc:.4f} +/- {np.std(cv_accs):.4f}  f1={cv_f1:.4f}")
+    log(f"[CV RESULT] mean best_iteration={mean_best_iter}  (per-fold: {best_iters})")
 
-    # Retrain on all data
+    # Retrain on all data with the scaler fit on everything (deployment scaler)
     log("\n[FINAL MODEL] Training on full dataset...")
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
     w_all = compute_sample_weight("balanced", y)
+
+    # Use mean best iteration + 10% headroom for the final model
+    final_n_est = int(mean_best_iter * 1.1) if HAS_LGBM else 300
+    log(f"[FINAL MODEL] n_estimators={final_n_est} (from CV mean {mean_best_iter} + 10%)")
+
     if HAS_LGBM:
         final_model = lgb.LGBMClassifier(
-            n_estimators=1500,
+            n_estimators=final_n_est,
             learning_rate=0.03,
             max_depth=6,
             num_leaves=40,
