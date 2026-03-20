@@ -685,6 +685,10 @@ export class MuseBleManager {
         }
         await new Promise((r) => setTimeout(r, 2000));
 
+        // Re-discover services after commands — Muse S adds EEG chars after preset/start
+        try { await ble.getServices(device.deviceId); } catch { /* ok */ }
+        await new Promise((r) => setTimeout(r, 1000));
+
         // Subscribe to EEG channels — try Muse 2 UUIDs first, fall back to Muse S
         let subscribed = false;
         for (const charSet of [MUSE_EEG_CHARS_MUSE2, MUSE_EEG_CHARS_MUSE_S]) {
