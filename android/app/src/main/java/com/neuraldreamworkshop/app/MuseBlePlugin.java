@@ -63,7 +63,8 @@ public class MuseBlePlugin extends Plugin {
     private boolean isStreaming = false;
     private int subscribedChannels = 0;
     private int pendingDescriptorWrites = 0;
-    private boolean commandsSent = false; // true after preset+start sent
+    private boolean commandsSent = false;
+    private Runnable timeoutRunnable = null; // cancel previous timeouts
 
     @PluginMethod
     public void scan(PluginCall call) {
@@ -131,6 +132,12 @@ public class MuseBlePlugin extends Plugin {
         BluetoothAdapter adapter = getAdapter();
         if (adapter == null) { call.reject("Bluetooth not available"); return; }
 
+        // Cancel any pending timeout from previous attempt
+        if (timeoutRunnable != null) {
+            handler.removeCallbacks(timeoutRunnable);
+            timeoutRunnable = null;
+        }
+
         // Cleanup existing connection
         if (bluetoothGatt != null) {
             try { bluetoothGatt.disconnect(); } catch (Exception ignored) {}
@@ -140,6 +147,7 @@ public class MuseBlePlugin extends Plugin {
         isStreaming = false;
         subscribedChannels = 0;
         commandsSent = false;
+        connectCall = null; // clear any stale call
 
         BluetoothDevice device;
         try {
@@ -280,7 +288,15 @@ public class MuseBlePlugin extends Plugin {
             return;
         }
 
-        handler.postDelayed(() -> rejectConnect("Connection timed out"), 30000);
+        timeoutRunnable = () -> {
+            rejectConnect("Connection timed out. Turn Muse off/on and try again.");
+            if (bluetoothGatt != null) {
+                try { bluetoothGatt.disconnect(); } catch (Exception ignored) {}
+                try { bluetoothGatt.close(); } catch (Exception ignored) {}
+                bluetoothGatt = null;
+            }
+        };
+        handler.postDelayed(timeoutRunnable, 45000);
     }
 
     @PluginMethod
@@ -463,6 +479,10 @@ public class MuseBlePlugin extends Plugin {
     }
 
     private synchronized void resolveConnect(JSObject result) {
+        if (timeoutRunnable != null) {
+            handler.removeCallbacks(timeoutRunnable);
+            timeoutRunnable = null;
+        }
         if (connectCall != null) {
             connectCall.resolve(result);
             connectCall = null;
