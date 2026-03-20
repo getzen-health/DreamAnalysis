@@ -180,12 +180,15 @@ class TestStrategies:
         assert "positive" in strategies
         assert len(strategies["positive"]) >= 1
 
-    def test_strategies_are_strings(self, trainer):
+    def test_strategies_are_typed_dicts(self, trainer):
         strategies = trainer.get_strategies()
+        valid_types = {"cognitive_reappraisal", "acceptance", "distraction", "physiological"}
         for state, items in strategies.items():
             for s in items:
-                assert isinstance(s, str)
-                assert len(s) > 0
+                assert isinstance(s, dict), f"strategy should be a dict, got {type(s)}"
+                assert "type" in s and "text" in s
+                assert s["type"] in valid_types, f"unknown strategy type: {s['type']}"
+                assert len(s["text"]) > 0
 
     def test_strategy_varies_by_faa_state(self, trainer):
         # Positive FAA should give positive strategy

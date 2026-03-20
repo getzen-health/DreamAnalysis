@@ -29,27 +29,37 @@ except ImportError:
     _SCIPY_AVAILABLE = False
 
 
-# Cognitive reappraisal strategies keyed by current emotional state
-_STRATEGIES = {
+# Evidence-based emotion regulation strategies keyed by emotional state.
+# Each strategy is typed per Gross (2015) process model of emotion regulation:
+#   - cognitive_reappraisal: reinterpret the meaning of a situation
+#   - acceptance: observe without judgment (ACT/mindfulness-based)
+#   - distraction: redirect attention away from the stimulus
+#   - physiological: breathing, progressive muscle relaxation
+# Under high arousal, distraction and acceptance outperform reappraisal
+# because reappraisal requires cognitive resources depleted by stress
+# (Sheppes et al., 2011; Webb et al., 2012).
+_STRATEGIES: Dict[str, List[Dict[str, str]]] = {
     "negative_high_arousal": [
-        "Try slow diaphragmatic breathing: inhale 4 sec, hold 4, exhale 6.",
-        "Reframe the situation: what would you advise a friend feeling this?",
-        "Notice physical tension and consciously release your jaw and shoulders.",
+        {"type": "distraction", "text": "Shift attention: count backward from 100 by 7s, or name 5 things you can see."},
+        {"type": "acceptance", "text": "Observe the feeling without reacting: name it ('I notice anxiety') and let it pass."},
+        {"type": "physiological", "text": "Try slow diaphragmatic breathing: inhale 4 sec, hold 4, exhale 6."},
+        {"type": "cognitive_reappraisal", "text": "Reframe the situation: what would you advise a friend feeling this?"},
     ],
     "negative_low_arousal": [
-        "Focus on a specific positive memory and hold it in vivid detail.",
-        "Practice gratitude reflection: name three things you appreciate right now.",
-        "Engage body scan relaxation: move attention slowly from feet to head.",
+        {"type": "cognitive_reappraisal", "text": "Focus on a specific positive memory and hold it in vivid detail."},
+        {"type": "cognitive_reappraisal", "text": "Practice gratitude reflection: name three things you appreciate right now."},
+        {"type": "acceptance", "text": "Acknowledge the sadness without fighting it -- emotions are temporary visitors."},
+        {"type": "physiological", "text": "Engage body scan relaxation: move attention slowly from feet to head."},
     ],
     "neutral": [
-        "Maintain gentle awareness of your breath without changing it.",
-        "Visualize a calm place you have been -- notice colors, sounds, temperature.",
-        "Softly smile and notice any shift in how you feel.",
+        {"type": "acceptance", "text": "Maintain gentle awareness of your breath without changing it."},
+        {"type": "distraction", "text": "Visualize a calm place you have been -- notice colors, sounds, temperature."},
+        {"type": "physiological", "text": "Softly smile and notice any shift in how you feel."},
     ],
     "positive": [
-        "You are doing well. Stay with this feeling and deepen it.",
-        "Notice what thoughts or images accompany this positive state.",
-        "Savor this moment -- let the feeling expand through your body.",
+        {"type": "acceptance", "text": "You are doing well. Stay with this feeling and deepen it."},
+        {"type": "cognitive_reappraisal", "text": "Notice what thoughts or images accompany this positive state."},
+        {"type": "acceptance", "text": "Savor this moment -- let the feeling expand through your body."},
     ],
 }
 
@@ -246,8 +256,8 @@ class EmotionRegulationTrainer:
             "has_baseline": user_id in self._baselines,
         }
 
-    def get_strategies(self, state: Optional[str] = None) -> Dict[str, List[str]]:
-        """Get cognitive reappraisal strategies.
+    def get_strategies(self, state: Optional[str] = None) -> Dict[str, List[Dict[str, str]]]:
+        """Get evidence-based emotion regulation strategies.
 
         Args:
             state: If provided, return strategies for this state only.
@@ -255,7 +265,9 @@ class EmotionRegulationTrainer:
                 'neutral', 'positive'.
 
         Returns:
-            Dict mapping state names to lists of strategy strings.
+            Dict mapping state names to lists of strategy dicts with
+            'type' (cognitive_reappraisal|acceptance|distraction|physiological)
+            and 'text' keys.
         """
         if state is not None and state in _STRATEGIES:
             return {state: _STRATEGIES[state]}
@@ -431,7 +443,12 @@ class EmotionRegulationTrainer:
     def _get_strategy(
         self, current_faa: float, faa_shift: float
     ) -> str:
-        """Select cognitive reappraisal strategy based on current FAA state."""
+        """Select evidence-based regulation strategy for current FAA state.
+
+        Under high arousal, prefers distraction/acceptance over reappraisal
+        per Sheppes et al. (2011) -- reappraisal requires cognitive resources
+        that are depleted by stress.
+        """
         if current_faa > 0.1:
             state = "positive"
         elif current_faa > -0.1:
@@ -446,7 +463,7 @@ class EmotionRegulationTrainer:
         # Rotate through strategies based on history length
         # Use a simple hash of the faa values to pick varied suggestions
         idx = int(abs(current_faa * 1000 + faa_shift * 1000)) % len(strategies)
-        return strategies[idx]
+        return strategies[idx]["text"]
 
     def _compute_trend(self, scores: List[float]) -> str:
         """Compute score trend over session."""
