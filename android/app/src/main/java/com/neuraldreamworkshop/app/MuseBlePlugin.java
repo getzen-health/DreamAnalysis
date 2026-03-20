@@ -277,10 +277,16 @@ public class MuseBlePlugin extends Plugin {
         };
 
         try {
+            // Try direct connect first (autoConnect=false), then autoConnect=true as fallback
+            // PHY_OPTION_NO_PREFERRED lets Android pick the best PHY
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                bluetoothGatt = device.connectGatt(getContext(), false, gattCb, BluetoothDevice.TRANSPORT_LE, BluetoothDevice.PHY_LE_1M);
+                bluetoothGatt = device.connectGatt(
+                    getContext(), true, gattCb,
+                    BluetoothDevice.TRANSPORT_LE,
+                    BluetoothDevice.PHY_LE_1M | BluetoothDevice.PHY_LE_2M
+                );
             } else {
-                bluetoothGatt = device.connectGatt(getContext(), false, gattCb, BluetoothDevice.TRANSPORT_LE);
+                bluetoothGatt = device.connectGatt(getContext(), true, gattCb, BluetoothDevice.TRANSPORT_LE);
             }
         } catch (SecurityException e) {
             call.reject("Connect permission denied");
