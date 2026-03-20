@@ -18,10 +18,11 @@ import { resolveUrl } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, X, Check, Pencil } from "lucide-react";
+import { Mic, MicOff, X, Check, Pencil, ChevronDown, ChevronUp } from "lucide-react";
 import { getMLApiUrl, submitVoiceWatch } from "@/lib/ml-api";
 import type { VoiceWatchCheckinResult } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
+import { runVoiceEmotionONNX } from "@/lib/voice-onnx";
 
 // ─── positive affirmations shown during recording ───────────────────────────
 
@@ -252,6 +253,56 @@ const EMOTION_CONTEXT: Record<string, EmotionContext> = {
   },
 };
 
+// ─── explainability helpers (XAI) ────────────────────────────────────────────
+// Plain-language explanations of why a particular emotion was detected, based on
+// which acoustic features drove the prediction. Uses hedging language per XAI
+// best practices ("suggests", "may indicate").
+
+export const EMOTION_EXPLANATIONS: Record<string, string> = {
+  happy: "Your voice had higher energy and faster pace, which typically indicates positive mood.",
+  sad: "Your voice had lower energy and slower pace, often associated with lower mood.",
+  angry: "Your voice had high energy with rapid pace, which can indicate frustration or intensity.",
+  neutral: "Your voice showed balanced energy and pace, suggesting a calm state.",
+  calm: "Your voice had gentle energy with steady rhythm, suggesting relaxation.",
+  peaceful: "Your voice had gentle energy with steady rhythm, suggesting relaxation.",
+  fear: "Your voice showed tension patterns with higher pitch variation, which can suggest unease or alertness.",
+  fearful: "Your voice showed tension patterns with higher pitch variation, which can suggest unease or alertness.",
+  surprise: "Your voice had sudden energy shifts and pitch variation, which may suggest alertness.",
+  anxious: "Your voice showed subtle tension and a slightly faster pace, which may reflect unease.",
+  nervous: "Your voice had uneven pacing with slight breathiness, which can suggest apprehension.",
+  grateful: "Your voice had warm, steady tones with relaxed pacing, often reflecting contentment.",
+  proud: "Your voice carried strong projection and measured pace, suggesting confidence.",
+  lonely: "Your voice was softer with lower energy, which can reflect a withdrawn state.",
+  hopeful: "Your voice had a gentle lift in energy and openness, suggesting forward-looking mood.",
+  overwhelmed: "Your voice showed variable pacing and higher tension, which may reflect mental load.",
+  excited: "Your voice had higher energy and faster pace with wide variation, suggesting enthusiasm.",
+  frustrated: "Your voice carried contained tension with clipped rhythm, which can indicate blocked goals.",
+};
+
+/** Compute percentage values for the four feature-contribution bars. */
+export function computeFeatureBars(result: {
+  arousal: number;
+  stress_index: number;
+  valence: number;
+  confidence: number;
+}): { label: string; value: number; color: string }[] {
+  // Energy level: derived from arousal (0-1 scale)
+  const energy = Math.round(Math.max(0, Math.min(1, result.arousal)) * 100);
+  // Voice pace: inverse of stress — lower stress suggests more natural pace
+  const pace = Math.round(Math.max(0, Math.min(1, 1 - result.stress_index)) * 100);
+  // Positivity: valence mapped from [-1,1] to [0,100]
+  const positivity = Math.round(Math.max(0, Math.min(1, (result.valence + 1) / 2)) * 100);
+  // Confidence: model confidence (0-1 scale)
+  const confidence = Math.round(Math.max(0, Math.min(1, result.confidence)) * 100);
+
+  return [
+    { label: "Energy level", value: energy, color: "bg-violet-500" },
+    { label: "Voice pace", value: pace, color: "bg-cyan-500" },
+    { label: "Positivity", value: positivity, color: positivity >= 50 ? "bg-violet-500" : "bg-rose-500" },
+    { label: "Confidence", value: confidence, color: "bg-cyan-500" },
+  ];
+}
+
 function valenceLabel(v: number): { text: string; className: string } {
   if (v >= 0.4) return { text: "Positive", className: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" };
   if (v <= -0.4) return { text: "Negative", className: "bg-rose-500/20 text-rose-400 border-rose-500/30" };
@@ -295,6 +346,7 @@ export function VoiceCheckinCard({
   const [feedbackState, setFeedbackState] = useState<"ask" | "correcting" | "confirmed" | "corrected">("ask");
   const [correctedEmotion, setCorrectedEmotion] = useState<string | null>(null);
   const [showNuancedEmotions, setShowNuancedEmotions] = useState(false);
+  const [showExplainability, setShowExplainability] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -545,35 +597,56 @@ export function VoiceCheckinCard({
           wavBuffer = pcmToWav(pcmSamples, pcmSr);
         }
 
-        // Step 2: Try ML backend, fall back to on-device heuristics
+        // Step 2: Try on-device ONNX first, then ML backend, then heuristics
         let checkinResult: VoiceWatchCheckinResult;
         try {
-          const bytes = new Uint8Array(wavBuffer);
-          let binary = "";
-          for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-          }
-          const audio_b64 = btoa(binary);
-
-          const raw = await submitVoiceWatch(audio_b64, resolvedUserId);
-          const stressIndex = raw.stress_index ?? raw.stress_from_watch ?? 0.5;
-          const focusIndex = raw.focus_index ?? Math.max(0.2, Math.min(0.85, raw.confidence ?? 0.5));
+          // Priority 1: On-device ONNX voice emotion (no network needed)
+          const onnxResult = await runVoiceEmotionONNX(pcmSamples, pcmSr);
           checkinResult = {
             checkin_id:     `${Date.now()}`,
             checkin_type:   period ?? "morning",
-            emotion:        raw.emotion ?? "neutral",
-            valence:        raw.valence ?? 0,
-            arousal:        raw.arousal ?? 0.5,
-            confidence:     raw.confidence ?? 0.5,
-            stress_index:   stressIndex,
-            focus_index:    focusIndex,
-            model_type:     raw.model_type ?? "voice",
+            emotion:        onnxResult.emotion,
+            valence:        onnxResult.valence,
+            arousal:        onnxResult.arousal,
+            confidence:     onnxResult.confidence,
+            stress_index:   onnxResult.stress_index,
+            focus_index:    onnxResult.focus_index,
+            model_type:     onnxResult.model_type,
             timestamp:      Date.now() / 1000,
-            biomarkers:     raw.biomarkers,
+            biomarkers:     onnxResult.probabilities,
           };
-        } catch (mlErr) {
-          console.warn("ML backend unavailable — using on-device analysis:", mlErr);
-          checkinResult = analyzeFromPcm(pcmSamples, pcmSr);
+        } catch (onnxErr) {
+          console.warn("On-device ONNX failed — trying ML backend:", onnxErr);
+          try {
+            // Priority 2: ML backend (requires network)
+            const bytes = new Uint8Array(wavBuffer);
+            let binary = "";
+            for (let i = 0; i < bytes.byteLength; i++) {
+              binary += String.fromCharCode(bytes[i]);
+            }
+            const audio_b64 = btoa(binary);
+
+            const raw = await submitVoiceWatch(audio_b64, resolvedUserId);
+            const stressIndex = raw.stress_index ?? raw.stress_from_watch ?? 0.5;
+            const focusIndex = raw.focus_index ?? Math.max(0.2, Math.min(0.85, raw.confidence ?? 0.5));
+            checkinResult = {
+              checkin_id:     `${Date.now()}`,
+              checkin_type:   period ?? "morning",
+              emotion:        raw.emotion ?? "neutral",
+              valence:        raw.valence ?? 0,
+              arousal:        raw.arousal ?? 0.5,
+              confidence:     raw.confidence ?? 0.5,
+              stress_index:   stressIndex,
+              focus_index:    focusIndex,
+              model_type:     raw.model_type ?? "voice",
+              timestamp:      Date.now() / 1000,
+              biomarkers:     raw.biomarkers,
+            };
+          } catch (mlErr) {
+            // Priority 3: On-device heuristics (always available)
+            console.warn("ML backend also unavailable — using on-device heuristics:", mlErr);
+            checkinResult = analyzeFromPcm(pcmSamples, pcmSr);
+          }
         }
 
         // ── Persist result ─────────────────────────────────────────────────
@@ -837,6 +910,58 @@ export function VoiceCheckinCard({
                   </p>
                 </div>
               )}
+
+              {/* "Why this emotion?" explainability card */}
+              {(() => {
+                const explanation = EMOTION_EXPLANATIONS[result.emotion];
+                const bars = computeFeatureBars(result);
+                return (
+                  <div className="rounded-lg border border-border/30 overflow-hidden">
+                    <button
+                      onClick={() => setShowExplainability((s) => !s)}
+                      className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                      aria-expanded={showExplainability}
+                    >
+                      <span>Why this emotion?</span>
+                      {showExplainability
+                        ? <ChevronUp className="h-3.5 w-3.5" />
+                        : <ChevronDown className="h-3.5 w-3.5" />}
+                    </button>
+                    {showExplainability && (
+                      <div className="px-3 pb-3 space-y-3 border-t border-border/20">
+                        {/* Plain-language explanation */}
+                        {explanation && (
+                          <p className="text-xs text-foreground/80 leading-relaxed pt-2">
+                            {explanation}
+                          </p>
+                        )}
+                        {/* Feature contribution bars */}
+                        <div className="space-y-2">
+                          {bars.map((bar) => (
+                            <div key={bar.label} className="space-y-0.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-muted-foreground">{bar.label}</span>
+                                <span className="text-[10px] font-mono text-foreground/70">{bar.value}%</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${bar.color} transition-all duration-500`}
+                                  style={{ width: `${bar.value}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Wellness disclaimer */}
+                        <p className="text-[10px] text-muted-foreground/50 italic leading-relaxed" data-testid="explainability-disclaimer">
+                          Voice analysis is for wellness awareness only. It reflects acoustic patterns, not clinical assessment.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Stress: <span className="font-mono text-foreground/80">{Math.round(result.stress_index * 100)}%</span></span>
                 <span>Focus: <span className="font-mono text-foreground/80">{Math.round(result.focus_index * 100)}%</span></span>
