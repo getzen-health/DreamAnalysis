@@ -110,7 +110,7 @@ class TestGetPersonalizedBands:
 
         for iaf in [8.0, 9.0, 10.0, 11.0, 12.0]:
             bands = get_personalized_bands(iaf)
-            assert bands["gamma"] == (30.0, 100.0)
+            assert bands["gamma"] == (30.0, 50.0)
 
     def test_high_beta_unchanged(self):
         """High beta (20-30 Hz) should be fixed."""

@@ -22,6 +22,9 @@ _trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 # EEG frequency band definitions (Hz)
 # low_beta (12-20 Hz): active cognition, focus, motor planning
 # high_beta (20-30 Hz): anxiety, stress, fear — strongest marker for fearful/anxious states
+# gamma upper bound: capped at 50 Hz to match the preprocessing bandpass filter (1-50 Hz).
+# The old 100 Hz upper bound included a dead zone (50-100 Hz) where power is zero after
+# filtering, artificially diluting the gamma power estimate during Welch PSD integration.
 BANDS = {
     "delta": (0.5, 4.0),
     "theta": (4.0, 8.0),
@@ -29,7 +32,7 @@ BANDS = {
     "beta": (12.0, 30.0),
     "low_beta": (12.0, 20.0),
     "high_beta": (20.0, 30.0),
-    "gamma": (30.0, 100.0),
+    "gamma": (30.0, 50.0),
 }
 
 
@@ -293,7 +296,7 @@ def get_personalized_bands(iaf: float) -> Dict[str, tuple]:
         "beta": (iaf + 2.0, 30.0),
         "low_beta": (iaf + 2.0, 20.0),
         "high_beta": (20.0, 30.0),
-        "gamma": (30.0, 100.0),
+        "gamma": (30.0, 50.0),
     }
 
 

@@ -54,7 +54,7 @@ _BANDS = {
     "theta": (4.0, 8.0),
     "alpha": (8.0, 12.0),
     "beta": (12.0, 30.0),
-    "gamma": (30.0, 100.0),
+    "gamma": (30.0, 50.0),
 }
 
 # Gamma burst detection: narrow band around 40 Hz
