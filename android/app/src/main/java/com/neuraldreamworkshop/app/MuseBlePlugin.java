@@ -66,6 +66,9 @@ public class MuseBlePlugin extends Plugin {
     private boolean commandsSent = false;
     private Runnable timeoutRunnable = null; // cancel previous timeouts
 
+    // Store the actual BluetoothDevice from scan result (preserves address type)
+    private BluetoothDevice scannedMuseDevice = null;
+
     @PluginMethod
     public void scan(PluginCall call) {
         BluetoothAdapter adapter = getAdapter();
@@ -75,6 +78,7 @@ public class MuseBlePlugin extends Plugin {
         BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
         if (scanner == null) { call.reject("BLE scanner not available"); return; }
 
+        scannedMuseDevice = null;
         List<JSONObject> devices = new ArrayList<>();
 
         ScanCallback scanCb = new ScanCallback() {
@@ -85,6 +89,11 @@ public class MuseBlePlugin extends Plugin {
                     if (name == null && result.getScanRecord() != null) name = result.getScanRecord().getDeviceName();
                     if (name == null) name = "Unknown";
                     if (!name.toLowerCase().contains("muse")) return;
+
+                    // Store the ACTUAL device object — critical for Android 16
+                    if (scannedMuseDevice == null) {
+                        scannedMuseDevice = result.getDevice();
+                    }
 
                     String addr = result.getDevice().getAddress();
                     for (JSONObject d : devices) {
@@ -103,7 +112,6 @@ public class MuseBlePlugin extends Plugin {
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build();
 
-        // Scan WITHOUT service filter — Muse S may not always advertise service UUID
         try {
             scanner.startScan(null, settings, scanCb);
         } catch (SecurityException e) {
@@ -111,7 +119,6 @@ public class MuseBlePlugin extends Plugin {
             return;
         }
 
-        // Scan for 12 seconds (longer to catch Muse S advertising cycle)
         handler.postDelayed(() -> {
             try { scanner.stopScan(scanCb); } catch (Exception ignored) {}
             JSObject result = new JSObject();
@@ -148,12 +155,20 @@ public class MuseBlePlugin extends Plugin {
         commandsSent = false;
         connectCall = null; // clear any stale call
 
+        // Use the ACTUAL device from scan result (preserves BLE address type)
+        // getRemoteDevice() loses address type info on Android 16 → GATT_CONN_TIMEOUT
         BluetoothDevice device;
-        try {
-            device = adapter.getRemoteDevice(deviceId);
-        } catch (Exception e) {
-            call.reject("Invalid device: " + deviceId);
-            return;
+        if (scannedMuseDevice != null && scannedMuseDevice.getAddress().equals(deviceId)) {
+            device = scannedMuseDevice;
+            Log.d(TAG, "Using scanned device object (address type preserved)");
+        } else {
+            try {
+                device = adapter.getRemoteDevice(deviceId);
+                Log.d(TAG, "Using getRemoteDevice (scan device not available)");
+            } catch (Exception e) {
+                call.reject("Invalid device: " + deviceId);
+                return;
+            }
         }
 
         connectCall = call;
