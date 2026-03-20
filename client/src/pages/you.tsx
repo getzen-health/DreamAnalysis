@@ -11,7 +11,7 @@ import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { AchievementBadges } from "@/components/achievements";
 import {
   Flame, Calendar, Trophy, BarChart3, Heart, Brain, Palette,
-  Bell, Share, Lock, HelpCircle, type LucideIcon,
+  Bell, Download, Lock, HelpCircle, Watch, type LucideIcon,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -226,8 +226,7 @@ export default function You() {
   }
 
   function handleExportData() {
-    // Navigate to export page if it exists, otherwise show a toast-style alert
-    setLocation("/sessions");
+    setLocation("/export");
   }
 
   return (
@@ -346,42 +345,28 @@ export default function You() {
         />
       </GroupedList>
 
-      {/* Connected Section */}
-      <SectionLabel>Connected</SectionLabel>
+      {/* Connected Assets */}
+      <SectionLabel>Connected Assets</SectionLabel>
       <GroupedList>
-        {platform === "android" && (
-          <ListItem
-            icon={Heart}
-            iconColor="#e879a8"
-            title="Google Health Connect"
-            rightBadge={<StatusBadge connected={healthConnected} />}
-            onClick={() => setLocation("/settings")}
-          />
-        )}
-        {platform === "ios" && (
-          <ListItem
-            icon={Heart}
-            iconColor="#e879a8"
-            title="Apple Health"
-            rightBadge={<StatusBadge connected={healthConnected} />}
-            onClick={() => setLocation("/settings")}
-          />
-        )}
-        {platform === "web" && (
-          <ListItem
-            icon={Heart}
-            iconColor="#e879a8"
-            title="Health Connect"
-            rightBadge={<StatusBadge connected={healthConnected} />}
-            onClick={() => setLocation("/settings")}
-          />
-        )}
+        <ListItem
+          icon={Heart}
+          iconColor="#e879a8"
+          title={platform === "android" ? "Google Health Connect" : platform === "ios" ? "Apple HealthKit" : "Health Connect"}
+          rightBadge={<StatusBadge connected={healthConnected} />}
+          onClick={() => setLocation("/connected-assets")}
+        />
         <ListItem
           icon={Brain}
           iconColor="#6366f1"
-          title="Muse 2 EEG"
+          title="BCI / EEG"
           rightBadge={<StatusBadge connected={museConnected} />}
-          onClick={() => setLocation("/device-setup")}
+          onClick={() => setLocation("/connected-assets")}
+        />
+        <ListItem
+          icon={Watch}
+          iconColor="#d4a017"
+          title="Wearables"
+          onClick={() => setLocation("/connected-assets")}
           isLast
         />
       </GroupedList>
@@ -407,7 +392,7 @@ export default function You() {
           onClick={() => setLocation("/settings")}
         />
         <ListItem
-          icon={Share}
+          icon={Download}
           iconColor="#0891b2"
           title="Export Data"
           onClick={handleExportData}
@@ -422,7 +407,7 @@ export default function You() {
           icon={HelpCircle}
           iconColor="#94a3b8"
           title="Help & Feedback"
-          onClick={() => setLocation("/settings")}
+          onClick={() => setLocation("/help")}
           isLast
         />
       </GroupedList>

@@ -7,8 +7,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Clock,
-  Download,
-  Trash2,
   Brain,
   Activity,
   Sparkles,
@@ -16,8 +14,6 @@ import {
   Heart,
   BarChart2,
   TrendingUp,
-  Trophy,
-  Flame,
 } from "lucide-react";
 import {
   AreaChart,
@@ -33,8 +29,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   listSessions,
-  deleteSession,
-  exportSession,
   getEmotionHistory,
   type SessionSummary,
   type StoredEmotionReading,
@@ -119,10 +113,8 @@ function avg(arr: number[]) {
 export default function DataHub() {
   const [periodDays, setPeriodDays] = useState(1); // default: today
   const [tab, setTab] = useState<Tab>("sessions");
-  const [selectedSession, setSelectedSession] = useState<string | null>(null);
-
   /* — Data fetches — */
-  const { data: allSessions = [], isLoading: sessionsLoading, refetch: refetchSessions } =
+  const { data: allSessions = [], isLoading: sessionsLoading } =
     useQuery<SessionSummary[]>({
       queryKey: ["sessions", CURRENT_USER],
       queryFn: () => listSessions(CURRENT_USER),
@@ -174,22 +166,6 @@ export default function DataHub() {
   const avgStress = periodSessions.reduce((s, x) => s + (x.summary?.avg_stress ?? 0), 0) / n;
   const avgFlow = periodSessions.reduce((s, x) => s + (x.summary?.avg_flow ?? 0), 0) / n;
 
-  /* — All-time personal records (across all sessions, not just filtered period) — */
-  const datafulSessions = allSessions.filter((s) => (s.summary?.n_frames ?? 0) > 0);
-  const allTimePeakFocus = datafulSessions.reduce(
-    (m, s) => Math.max(m, Math.round((s.summary?.avg_focus ?? 0) * 100)), 0);
-  const allTimePeakFlow = datafulSessions.reduce(
-    (m, s) => Math.max(m, Math.round((s.summary?.avg_flow ?? 0) * 100)), 0);
-  const allTimeLongest = datafulSessions.reduce(
-    (m, s) => Math.max(m, Math.round((s.summary?.duration_sec ?? 0) / 60)), 0);
-  const allTimeLowStress = datafulSessions.reduce(
-    (m, s) => Math.min(m, Math.round((s.summary?.avg_stress ?? 1) * 100)), 100);
-
-  /* — Current period vs all-time comparison — */
-  const periodPeakFocus = periodSessions.reduce(
-    (m, s) => Math.max(m, Math.round((s.summary?.avg_focus ?? 0) * 100)), 0);
-  const isNewFocusRecord = periodPeakFocus > 0 && periodPeakFocus >= allTimePeakFocus;
-
   /* — Emotion chart data — */
   const emotionChartData = emotions
     .filter((_, i, arr) => {
@@ -224,30 +200,6 @@ export default function DataHub() {
         stress: Math.round(avg(data.stress)),
       }));
   })();
-
-  /* — Handlers — */
-  const handleDelete = async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await deleteSession(sessionId);
-      refetchSessions();
-      if (selectedSession === sessionId) setSelectedSession(null);
-    } catch { /* ignore */ }
-  };
-
-  const handleExport = async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const data = await exportSession(sessionId);
-      const blob = new Blob([data], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `session_${sessionId}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch { /* ignore */ }
-  };
 
   /* — Day-grouped sessions — */
   const dayGroups: Record<string, SessionSummary[]> = {};
@@ -374,21 +326,15 @@ export default function DataHub() {
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
                 <Card key={i} className="glass-card p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="space-y-1.5">
-                        <Skeleton className="h-3 w-12" />
-                        <Skeleton className="h-4 w-16" />
-                      </div>
-                      <div className="flex gap-1">
-                        <Skeleton className="h-5 w-14 rounded-full" />
-                        <Skeleton className="h-5 w-14 rounded-full" />
-                        <Skeleton className="h-5 w-14 rounded-full" />
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-4 w-16" />
                     </div>
                     <div className="flex gap-1">
-                      <Skeleton className="h-7 w-7 rounded-md" />
-                      <Skeleton className="h-7 w-7 rounded-md" />
+                      <Skeleton className="h-5 w-14 rounded-full" />
+                      <Skeleton className="h-5 w-14 rounded-full" />
+                      <Skeleton className="h-5 w-14 rounded-full" />
                     </div>
                   </div>
                 </Card>
@@ -409,38 +355,6 @@ export default function DataHub() {
                   Start Voice Analysis
                 </Button>
               </Link>
-            </Card>
-          )}
-
-          {/* Personal Records banner */}
-          {datafulSessions.length >= 2 && (
-            <Card className="glass-card p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Trophy className="h-4 w-4 text-amber-400" />
-                <h3 className="text-sm font-semibold">Personal Records</h3>
-                {isNewFocusRecord && (
-                  <span className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400">
-                    <Flame className="h-3 w-3" />
-                    New record this period!
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: "Peak Focus", value: `${allTimePeakFocus}%`, color: "text-primary", bg: "bg-primary/10" },
-                  { label: "Best Flow", value: `${allTimePeakFlow}%`, color: "text-success", bg: "bg-success/10" },
-                  { label: "Longest", value: `${allTimeLongest}m`, color: "text-secondary", bg: "bg-secondary/10" },
-                  { label: "Calmest", value: `${allTimeLowStress}% stress`, color: "text-cyan-400", bg: "bg-cyan-500/10" },
-                ].map(({ label, value, color, bg }) => (
-                  <div key={label} className={`rounded-xl p-3 ${bg} text-center`}>
-                    <p className={`text-lg font-bold font-mono ${color}`}>{value}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[10px] text-muted-foreground text-center mt-2">
-                All-time bests across {datafulSessions.length} sessions
-              </p>
             </Card>
           )}
 
@@ -550,53 +464,36 @@ export default function DataHub() {
                 {dayGroups[day].map((session) => (
                   <Card
                     key={session.session_id}
-                    className={`glass-card p-4 cursor-pointer hover-glow transition-all ${
-                      selectedSession === session.session_id ? "border-primary/40" : ""
-                    }`}
-                    onClick={() => setSelectedSession(
-                      selectedSession === session.session_id ? null : session.session_id
-                    )}
+                    className="glass-card p-4"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="shrink-0">
-                          <p className="text-xs text-muted-foreground">{fmtTime(session.start_time ?? 0)}</p>
-                          {session.summary?.duration_sec && (
-                            <p className="text-sm font-medium">{fmt(session.summary.duration_sec)}</p>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {session.summary?.avg_focus != null && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary">
-                              F {Math.round(session.summary.avg_focus * 100)}%
-                            </span>
-                          )}
-                          {session.summary?.avg_stress != null && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-warning/10 text-warning">
-                              S {Math.round(session.summary.avg_stress * 100)}%
-                            </span>
-                          )}
-                          {session.summary?.avg_flow != null && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-success/10 text-success">
-                              Fl {Math.round(session.summary.avg_flow * 100)}%
-                            </span>
-                          )}
-                          {session.summary?.dominant_emotion && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground capitalize">
-                              {session.summary.dominant_emotion}
-                            </span>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <div className="shrink-0">
+                        <p className="text-xs text-muted-foreground">{fmtTime(session.start_time ?? 0)}</p>
+                        {session.summary?.duration_sec && (
+                          <p className="text-sm font-medium">{fmt(session.summary.duration_sec)}</p>
+                        )}
                       </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                          onClick={(e) => handleExport(session.session_id, e)} title="Export CSV">
-                          <Download className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive"
-                          onClick={(e) => handleDelete(session.session_id, e)} title="Delete">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                      <div className="flex flex-wrap gap-1">
+                        {session.summary?.avg_focus != null && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary">
+                            F {Math.round(session.summary.avg_focus * 100)}%
+                          </span>
+                        )}
+                        {session.summary?.avg_stress != null && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-warning/10 text-warning">
+                            S {Math.round(session.summary.avg_stress * 100)}%
+                          </span>
+                        )}
+                        {session.summary?.avg_flow != null && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-success/10 text-success">
+                            Fl {Math.round(session.summary.avg_flow * 100)}%
+                          </span>
+                        )}
+                        {session.summary?.dominant_emotion && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-muted text-muted-foreground capitalize">
+                            {session.summary.dominant_emotion}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </Card>

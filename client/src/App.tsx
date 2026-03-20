@@ -91,6 +91,9 @@ const WorkoutPage            = lazy(() => import("@/pages/workout"));
 const HabitsPage             = lazy(() => import("@/pages/habits"));
 const WellnessPage           = lazy(() => import("@/pages/wellness"));
 const ScoresDashboard        = lazy(() => import("@/pages/scores-dashboard"));
+const ExportPage             = lazy(() => import("@/pages/export"));
+const HelpPage               = lazy(() => import("@/pages/help"));
+const ConnectedAssets        = lazy(() => import("@/pages/connected-assets"));
 
 // ── Error Boundary — prevents a single page crash from taking down the whole app ──
 class ErrorBoundary extends Component<
@@ -423,6 +426,27 @@ function AppRoutes() {
         <ProtectedRoute>
           <Suspense fallback={<PageLoader />}>
             <AppLayout><ScoresDashboard /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/export">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><ExportPage /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/help">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><HelpPage /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/connected-assets">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><ConnectedAssets /></AppLayout>
           </Suspense>
         </ProtectedRoute>
       </Route>
