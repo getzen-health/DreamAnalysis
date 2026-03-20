@@ -554,15 +554,9 @@ export class MuseBleManager {
       );
     }
 
-    // On Android native: try native plugin first, fall back to Capacitor BLE if it fails
-    if (this.isNative && Capacitor.getPlatform() === "android") {
-      try {
-        return await this._connectNativeMusePlugin();
-      } catch (nativeErr) {
-        console.warn("Native MuseBle plugin failed, falling back to Capacitor BLE:", nativeErr);
-        // Fall through to Capacitor BLE path below
-      }
-    }
+    // On Android native: skip custom native plugin (has Muse S compatibility issues)
+    // and go straight to Capacitor BLE plugin which handles both Muse 2 and Muse S.
+    // The native plugin is kept in the codebase for future optimization.
 
     // Web Bluetooth path (Chrome desktop/Android browser)
     if (this.isWebBluetooth) {
