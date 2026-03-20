@@ -166,7 +166,7 @@ export function InterventionSummary({
         : null;
 
     const lines: string[] = [
-      `Neural Dream Workshop — ${type}`,
+      `AntarAI — ${type}`,
       `Duration: ${formatDuration(duration)}`,
       ``,
       `Stress:  ${Math.round(beforeMetrics.stress * 100)} → ${Math.round(afterMetrics.stress * 100)}  (${stressPct > 0 ? "+" : ""}${stressPct}%)`,

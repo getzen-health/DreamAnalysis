@@ -467,7 +467,7 @@ export default function Insights() {
                 onClick={async () => {
                   const items = isStreaming ? liveInsights : voiceInsightItems;
                   const summary = items.map((i) => `${i.title}: ${i.description}`).join("\n");
-                  const text = `My insights from Neural Dream Workshop:\n${summary}`;
+                  const text = `My insights from AntarAI:\n${summary}`;
                   if (navigator.share) {
                     try { await navigator.share({ text }); } catch { /* cancelled */ }
                   } else {

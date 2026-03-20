@@ -681,7 +681,7 @@ export default function Dashboard() {
             <Brain className="h-7 w-7 text-primary" />
           </div>
           <div className="space-y-1.5">
-            <h2 className="text-lg font-bold text-foreground">Welcome to Neural Dream Workshop</h2>
+            <h2 className="text-lg font-bold text-foreground">Welcome to AntarAI</h2>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
               Record a brief voice note to analyze your emotional state, or connect your EEG headset to begin tracking your brain health.
             </p>

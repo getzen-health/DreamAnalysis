@@ -398,7 +398,7 @@ export function exportEFSCard(data: EFSData): void {
   ctx.font = "500 24px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "center";
   ctx.letterSpacing = "3px";
-  ctx.fillText("NEURALDREAMWORKSHOP", W / 2, H - 90);
+  ctx.fillText("ANTARAI", W / 2, H - 90);
   ctx.letterSpacing = "0px";
 
   // Confidence label

@@ -642,7 +642,7 @@ export default function EmotionLab() {
                   onClick={async () => {
                     const r = voiceEmotion.lastResult!;
                     const label = EMOTION_LABELS[r.emotion] ?? r.emotion;
-                    const text = `My current state: ${label} (${Math.round(r.confidence * 100)}% confidence) — Neural Dream Workshop`;
+                    const text = `My current state: ${label} (${Math.round(r.confidence * 100)}% confidence) — AntarAI`;
                     if (navigator.share) {
                       try { await navigator.share({ text }); } catch { /* cancelled */ }
                     } else {

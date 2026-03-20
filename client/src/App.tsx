@@ -203,7 +203,7 @@ function PageLoader() {
         <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
       </div>
       {/* App name */}
-      <p className="text-lg font-semibold text-primary tracking-tight">Neural Dream Workshop</p>
+      <p className="text-lg font-semibold text-primary tracking-tight">AntarAI</p>
       {/* Subtle spinner */}
       <div className="h-5 w-5 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
     </div>

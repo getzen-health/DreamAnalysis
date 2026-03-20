@@ -162,7 +162,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           <Brain className="h-10 w-10 text-primary" />
         </div>
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold">Welcome to Neural Dream Workshop</h1>
+          <h1 className="text-3xl font-semibold">Welcome to AntarAI</h1>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
             Your personal brain-computer interface for real-time emotion reading,
             dream journaling, neurofeedback, and wellness insights.

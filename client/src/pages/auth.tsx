@@ -144,7 +144,7 @@ export default function AuthPage() {
       });
       toast({
         title: 'Account Created',
-        description: 'Welcome to Neural Dream Workshop!',
+        description: 'Welcome to AntarAI! Your emotional health journey starts now.',
       });
       // New users see welcome intro; returning users go through intent flow
       const seen = localStorage.getItem("onboarding_complete");
@@ -193,11 +193,11 @@ export default function AuthPage() {
             </div>
           </div>
           <h1 className="text-5xl font-futuristic font-bold text-gradient leading-tight">
-            Neural Dream Workshop
+            AntarAI
           </h1>
           <p className="text-xl text-foreground/70 leading-relaxed">
-            Unlock the secrets of your mind through advanced neural monitoring,
-            AI-powered dream analysis, and real-time brain-computer interface technology.
+            Your emotional health companion. Track mood, stress, and focus
+            through voice analysis, EEG, and real-time biometrics.
           </p>
           <div className="grid grid-cols-3 gap-6 pt-6">
             <div className="glass-card rounded-xl p-4 border border-primary/20">
@@ -222,23 +222,23 @@ export default function AuthPage() {
           <CardHeader className="text-center pb-2">
             <div className="flex items-center justify-center space-x-2 mb-4 lg:hidden">
               <Brain className="h-8 w-8 text-primary" />
-              <span className="text-xl font-futuristic font-bold text-gradient">Neural Dream Workshop</span>
+              <span className="text-xl font-futuristic font-bold text-gradient">AntarAI</span>
             </div>
             <CardTitle className="text-2xl font-futuristic text-gradient">
               Access Portal
             </CardTitle>
             <CardDescription className="text-foreground/60">
-              Enter your neural workspace
+              Sign in to continue
             </CardDescription>
           </CardHeader>
 
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 border border-primary/10" style={{ backgroundColor: '#161a22' }}>
+              <TabsList className="grid w-full grid-cols-2 border border-primary/10" style={{ backgroundColor: 'var(--muted)' }}>
                 <TabsTrigger
                   value="login"
                   className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
-                  style={{ color: '#b0a898' }}
+                  style={{ color: 'var(--muted-foreground)' }}
                 >
                   <LogIn className="h-4 w-4 mr-2" />
                   Login
@@ -246,7 +246,7 @@ export default function AuthPage() {
                 <TabsTrigger
                   value="register"
                   className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium"
-                  style={{ color: '#b0a898' }}
+                  style={{ color: 'var(--muted-foreground)' }}
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
                   Register
@@ -267,7 +267,7 @@ export default function AuthPage() {
                       value={loginUsername}
                       onChange={(e) => setLoginUsername(e.target.value)}
                       className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
-                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
+                      style={{ color: 'var(--foreground)', backgroundColor: 'var(--input)' }}
                       autoComplete="username"
                     />
                   </div>
@@ -282,7 +282,7 @@ export default function AuthPage() {
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
-                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
+                      style={{ color: 'var(--foreground)', backgroundColor: 'var(--input)' }}
                       autoComplete="current-password"
                     />
                   </div>
@@ -328,7 +328,7 @@ export default function AuthPage() {
                       value={registerUsername}
                       onChange={(e) => setRegisterUsername(e.target.value)}
                       className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
-                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
+                      style={{ color: 'var(--foreground)', backgroundColor: 'var(--input)' }}
                       autoComplete="username"
                     />
                     {usernameError && (
@@ -346,7 +346,7 @@ export default function AuthPage() {
                       value={registerEmail}
                       onChange={(e) => setRegisterEmail(e.target.value)}
                       className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
-                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
+                      style={{ color: 'var(--foreground)', backgroundColor: 'var(--input)' }}
                       autoComplete="email"
                     />
                   </div>
@@ -361,7 +361,7 @@ export default function AuthPage() {
                       value={registerPassword}
                       onChange={(e) => setRegisterPassword(e.target.value)}
                       className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
-                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
+                      style={{ color: 'var(--foreground)', backgroundColor: 'var(--input)' }}
                       autoComplete="new-password"
                     />
                     {registerPassword.length > 0 && (
@@ -407,7 +407,7 @@ export default function AuthPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
-                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
+                      style={{ color: 'var(--foreground)', backgroundColor: 'var(--input)' }}
                       autoComplete="new-password"
                     />
                     {confirmTouched && (
@@ -433,7 +433,7 @@ export default function AuthPage() {
                         value={registerAge}
                         onChange={(e) => setRegisterAge(e.target.value)}
                         className="border-primary/20 focus:border-primary/50 focus:ring-primary/20"
-                      style={{ color: '#e8e0d4', backgroundColor: '#161a22' }}
+                      style={{ color: 'var(--foreground)', backgroundColor: 'var(--input)' }}
                       />
                     </div>
                   </div>
