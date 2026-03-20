@@ -27,6 +27,12 @@ from models.hrv_biofeedback import PATTERNS, prescribe_pattern, score_session
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/breathing", tags=["breathing"])
 
+_WELLNESS_DISCLAIMER = (
+    "Wellness tool only — not medical advice. Breathing pattern suggestions are based "
+    "on published research but are not a substitute for professional medical guidance. "
+    "If you have a respiratory or cardiovascular condition, consult your physician."
+)
+
 # In-memory store for pre-session stress snapshots (keyed by user_id)
 _pre_stress: Dict[str, Dict[str, Any]] = {}
 
@@ -77,7 +83,11 @@ def list_patterns() -> List[Dict[str, Any]]:
 
 @router.post("/prescribe")
 def prescribe(req: PrescribeRequest) -> Dict[str, Any]:
-    """Prescribe optimal breathing pattern from stress level and time of day."""
+    """Recommend a breathing pattern based on stress level and time of day.
+
+    Note: 'prescribe' is used in the API path for backward compatibility.
+    This is a wellness recommendation, not a medical prescription.
+    """
     pattern_id = prescribe_pattern(req.stress_index, req.hour)
     pattern = PATTERNS[pattern_id]
     reason = (
@@ -92,6 +102,7 @@ def prescribe(req: PrescribeRequest) -> Dict[str, Any]:
         "reason": reason,
         "breaths_per_min": round(pattern.breaths_per_min, 2),
         "evidence_grade": pattern.evidence_grade,
+        "disclaimer": _WELLNESS_DISCLAIMER,
     }
 
 

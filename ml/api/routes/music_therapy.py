@@ -17,6 +17,12 @@ from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/music-therapy", tags=["music-therapy"])
 
+_WELLNESS_DISCLAIMER = (
+    "Wellness tool only — not medical advice. Music therapy suggestions are based "
+    "on published research (ISO Principle) but are not a substitute for licensed "
+    "music therapy or professional mental health treatment."
+)
+
 
 class PrescribeRequest(BaseModel):
     valence: float = Field(0.0, ge=-1.0, le=1.0, description="Current emotional valence -1 to 1")
@@ -33,16 +39,22 @@ class ParametersRequest(BaseModel):
 
 @router.post("/prescribe")
 def prescribe_music_session(req: PrescribeRequest) -> Dict[str, Any]:
-    """Generate ISO principle music therapy session from current emotion state."""
+    """Recommend an ISO-principle music session from current emotion state.
+
+    Note: 'prescribe' is used in the API path for backward compatibility.
+    This is a wellness recommendation, not a medical prescription.
+    """
     from models.music_mood_engine import get_iso_controller
     controller = get_iso_controller()
-    return controller.prescribe(
+    result = controller.prescribe(
         current_valence=req.valence,
         current_arousal=req.arousal,
         target_valence=req.target_valence,
         target_arousal=req.target_arousal,
         session_min=req.session_min,
     )
+    result["disclaimer"] = _WELLNESS_DISCLAIMER
+    return result
 
 
 @router.post("/parameters")
