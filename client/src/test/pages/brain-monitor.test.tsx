@@ -14,6 +14,11 @@ beforeAll(() => {
 
 vi.mock("@/lib/participant", () => ({ getParticipantId: () => "test-user-123" }));
 
+vi.mock("wouter", () => ({
+  useLocation: () => ["/brain-monitor", vi.fn()],
+  Link: (props: any) => <a href={props.href} className={props.className}>{props.children}</a>,
+}));
+
 // Default: disconnected. Individual tests override via vi.mocked.
 const mockUseDevice = vi.fn().mockReturnValue({
   state: "disconnected",
@@ -286,6 +291,196 @@ describe("BrainMonitor page", () => {
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
         expect(screen.getByTestId("eeg-waveform-canvas")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Task #21: ML model cards link to history pages", () => {
+    it("renders Emotion model card as a link to /emotions", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Emotion").closest("a");
+        expect(link).toHaveAttribute("href", "/emotions");
+      });
+    });
+
+    it("renders Stress model card as a link to /stress", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Stress").closest("a");
+        expect(link).toHaveAttribute("href", "/stress");
+      });
+    });
+
+    it("renders Focus model card as a link to /focus", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Focus").closest("a");
+        expect(link).toHaveAttribute("href", "/focus");
+      });
+    });
+
+    it("renders Sleep model card as a link to /sleep", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Sleep").closest("a");
+        expect(link).toHaveAttribute("href", "/sleep");
+      });
+    });
+
+    it("renders Dream model card as a link to /dreams", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Dream").closest("a");
+        expect(link).toHaveAttribute("href", "/dreams");
+      });
+    });
+
+    it("renders Meditation model card as a link to /biofeedback", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Meditation").closest("a");
+        expect(link).toHaveAttribute("href", "/biofeedback");
+      });
+    });
+
+    it("renders Attention model card as a link to /neurofeedback", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Attention").closest("a");
+        expect(link).toHaveAttribute("href", "/neurofeedback");
+      });
+    });
+
+    it("renders Flow model card as a link to /biofeedback", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Flow").closest("a");
+        expect(link).toHaveAttribute("href", "/biofeedback");
+      });
+    });
+
+    it("renders Creativity model card as a link to /biofeedback", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Creativity").closest("a");
+        expect(link).toHaveAttribute("href", "/biofeedback");
+      });
+    });
+
+    it("renders Drowsiness model card as a link to /sleep", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Drowsiness").closest("a");
+        expect(link).toHaveAttribute("href", "/sleep");
+      });
+    });
+
+    it("renders Cog. Load model card as a link to /focus", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Cog. Load").closest("a");
+        expect(link).toHaveAttribute("href", "/focus");
+      });
+    });
+
+    it("renders Lucid model card as a link to /dreams", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Lucid").closest("a");
+        expect(link).toHaveAttribute("href", "/dreams");
+      });
+    });
+
+    it("renders Memory model card as a link to /insights", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const link = screen.getByTestId("model-link-Memory").closest("a");
+        expect(link).toHaveAttribute("href", "/insights");
+      });
+    });
+
+    it("renders Artifact card without a link (technical model)", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const card = screen.getByTestId("model-card-Artifact");
+        expect(card.closest("a")).toBeNull();
+      });
+    });
+
+    it("renders Denoising card without a link (technical model)", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const card = screen.getByTestId("model-card-Denoising");
+        expect(card.closest("a")).toBeNull();
+      });
+    });
+
+    it("renders Online Lrn card without a link (technical model)", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const card = screen.getByTestId("model-card-Online Lrn");
+        expect(card.closest("a")).toBeNull();
+      });
+    });
+
+    it("linked model cards have hover styling classes", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const card = screen.getByTestId("model-link-Emotion");
+        expect(card.className).toContain("hover:border-primary/50");
+        expect(card.className).toContain("cursor-pointer");
+      });
+    });
+  });
+
+  describe("Task #22: Try Synthetic Device button", () => {
+    it("shows Try Synthetic Device button when not streaming", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        expect(screen.getByText("Try Synthetic Device")).toBeInTheDocument();
+      });
+    });
+
+    it("Try Synthetic Device button calls device.connect('synthetic')", async () => {
+      const connectFn = vi.fn();
+      mockUseDevice.mockReturnValue({
+        state: "disconnected",
+        latestFrame: null,
+        connect: connectFn,
+        disconnect: vi.fn(),
+        deviceStatus: null,
+        selectedDevice: null,
+        reconnectCount: 0,
+        epochReady: false,
+      });
+      renderWithProviders(<BrainMonitor />);
+      const btn = await screen.findByText("Try Synthetic Device");
+      btn.closest("button")?.click();
+      expect(connectFn).toHaveBeenCalledWith("synthetic");
+    });
+
+    it("does not show Try Synthetic Device button when streaming", async () => {
+      mockUseDevice.mockReturnValue({
+        state: "streaming",
+        latestFrame: {
+          signals: [[1, 2], [3, 4], [5, 6], [7, 8]],
+          analysis: { band_powers: {}, features: {} },
+          quality: {},
+          timestamp: Date.now() / 1000,
+          n_channels: 4,
+          sample_rate: 256,
+        },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        deviceStatus: { connected: true, streaming: true, device_type: "synthetic", n_channels: 4, sample_rate: 256, brainflow_available: false },
+        selectedDevice: "synthetic",
+        reconnectCount: 0,
+        epochReady: false,
+      });
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        expect(screen.queryByText("Try Synthetic Device")).not.toBeInTheDocument();
       });
     });
   });

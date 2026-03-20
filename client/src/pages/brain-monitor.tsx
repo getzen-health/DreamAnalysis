@@ -25,6 +25,26 @@ import {
 import { Link } from "wouter";
 import { Music } from "lucide-react";
 
+// Route targets for each ML model card — null means no linked page
+const MODEL_ROUTES: Record<string, string | null> = {
+  "Emotion": "/emotions",
+  "Stress": "/stress",
+  "Focus": "/focus",
+  "Sleep": "/sleep",
+  "Creativity": "/biofeedback",
+  "Flow": "/biofeedback",
+  "Drowsiness": "/sleep",
+  "Cog. Load": "/focus",
+  "Attention": "/neurofeedback",
+  "Dream": "/dreams",
+  "Lucid": "/dreams",
+  "Meditation": "/biofeedback",
+  "Memory": "/insights",
+  "Artifact": null,
+  "Denoising": null,
+  "Online Lrn": null,
+};
+
 // All 5 standard EEG frequency bands with labels and ranges
 const ALL_BANDS = [
   { key: "delta", label: "Delta", range: "0.5-4 Hz" },
@@ -632,12 +652,32 @@ export default function BrainMonitor() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-4 gap-2">
-            {modelOutputs.map(({ name, value }) => (
-              <div key={name} className="rounded border border-border/30 p-2 text-center">
-                <p className="text-xs text-muted-foreground truncate">{name}</p>
-                <p className="text-sm font-mono font-semibold mt-0.5 truncate">{value}</p>
-              </div>
-            ))}
+            {modelOutputs.map(({ name, value }) => {
+              const href = MODEL_ROUTES[name] ?? null;
+              const inner = (
+                <>
+                  <p className="text-xs text-muted-foreground truncate">{name}</p>
+                  <p className="text-sm font-mono font-semibold mt-0.5 truncate">{value}</p>
+                </>
+              );
+              if (href) {
+                return (
+                  <Link key={name} href={href} className="block">
+                    <div
+                      className="rounded border border-border/30 p-2 text-center transition-colors hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
+                      data-testid={`model-link-${name}`}
+                    >
+                      {inner}
+                    </div>
+                  </Link>
+                );
+              }
+              return (
+                <div key={name} className="rounded border border-border/30 p-2 text-center" data-testid={`model-card-${name}`}>
+                  {inner}
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
