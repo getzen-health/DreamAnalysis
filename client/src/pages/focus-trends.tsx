@@ -29,7 +29,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { Target, Zap, TrendingUp, Lightbulb, Clock, Sun, Sunset, Moon } from "lucide-react";
+import { Target, Zap, TrendingUp, TrendingDown, Lightbulb, Clock, Sun, Sunset, Moon } from "lucide-react";
 
 /* ---------- constants ---------- */
 
@@ -288,6 +288,25 @@ export default function FocusTrends() {
             <p className="text-xs text-muted-foreground mt-1 text-center max-w-[240px]">
               {classification.description}
             </p>
+            {(() => {
+              const entries = (history ?? []).filter((e) => e.focus_index != null);
+              const prevFocus = entries.length >= 2 ? entries[entries.length - 2]?.focus_index : null;
+              const curFocus = entries.length >= 1 ? entries[entries.length - 1]?.focus_index : null;
+              const focusDelta = prevFocus != null && curFocus != null ? (curFocus - prevFocus) * 100 : null;
+              if (focusDelta == null || Math.abs(focusDelta) <= 2) return null;
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6 }}>
+                  {focusDelta > 0 ? (
+                    <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
+                  ) : (
+                    <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {Math.abs(Math.round(focusDelta))}% {focusDelta > 0 ? "higher" : "lower"} vs last session
+                  </span>
+                </div>
+              );
+            })()}
           </>
         ) : (
           <div className="text-center py-4">

@@ -33,6 +33,7 @@ import {
 } from "recharts";
 import {
   Activity,
+  TrendingUp,
   TrendingDown,
   Heart,
   Shield,
@@ -284,6 +285,25 @@ export default function StressTrends() {
             >
               {stressLabel} Stress
             </div>
+            {(() => {
+              const entries = historyData.filter((e) => e.stress != null);
+              const prevStress = entries.length >= 2 ? entries[entries.length - 2]?.stress : null;
+              const curStress = entries.length >= 1 ? entries[entries.length - 1]?.stress : null;
+              const stressDelta = prevStress != null && curStress != null ? (curStress - prevStress) * 100 : null;
+              if (stressDelta == null || Math.abs(stressDelta) <= 2) return null;
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                  {stressDelta > 0 ? (
+                    <TrendingUp className="h-3.5 w-3.5 text-rose-400" />
+                  ) : (
+                    <TrendingDown className="h-3.5 w-3.5 text-cyan-400" />
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {Math.abs(Math.round(stressDelta))}% {stressDelta > 0 ? "higher" : "lower"} vs last session
+                  </span>
+                </div>
+              );
+            })()}
           </>
         ) : (
           <div className="text-center py-4">

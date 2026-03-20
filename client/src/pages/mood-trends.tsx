@@ -29,7 +29,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { TrendingUp, BarChart3, Activity, Calendar } from "lucide-react";
+import { TrendingUp, TrendingDown, BarChart3, Activity, Calendar } from "lucide-react";
 
 /* ---------- constants ---------- */
 
@@ -280,6 +280,24 @@ export default function MoodTrends() {
                     ? `${Math.round(currentEmotion.confidence * 100)}% confidence`
                     : "Detected from latest analysis"}
                 </p>
+                {(() => {
+                  const prevValence = history && history.length >= 2 ? history[history.length - 2]?.valence : null;
+                  const curValence = history && history.length >= 1 ? history[history.length - 1]?.valence : null;
+                  const valenceDelta = prevValence != null && curValence != null ? curValence - prevValence : null;
+                  if (valenceDelta == null || Math.abs(valenceDelta) <= 0.02) return null;
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                      {valenceDelta > 0 ? (
+                        <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
+                      ) : (
+                        <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {Math.abs(Math.round(valenceDelta * 100))}% {valenceDelta > 0 ? "more positive" : "less positive"} vs last session
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
