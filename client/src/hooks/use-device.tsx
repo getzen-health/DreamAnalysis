@@ -623,6 +623,12 @@ function useDeviceInternal(): UseDeviceReturn {
       wsRef.current.close();
       wsRef.current = null;
     }
+    // Clear client-side synthetic data interval if active
+    const synInterval = (window as Record<string, unknown>).__ndw_synthetic_interval;
+    if (synInterval) {
+      clearInterval(synInterval as ReturnType<typeof setInterval>);
+      (window as Record<string, unknown>).__ndw_synthetic_interval = undefined;
+    }
     stopSession(userIdRef.current).catch(() => {}); // save recording if one was active
 
     // Disconnect BLE if active (mobile path)

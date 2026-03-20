@@ -35,21 +35,84 @@ const EMOTION_COLOR: Record<string, string> = {
   surprise: "#d4a017", neutral: "#94a3b8",
 };
 
+// ── localStorage emotion history ────────────────────────────────────────
+// Accumulates emotion readings locally so the EmotionsOverview chart can
+// display data even when the server API returns empty (e.g. new user,
+// offline, no DB connection). Capped at 200 entries, 7 days max.
+
+const EMOTION_HISTORY_KEY = "ndw_emotion_history";
+const EMOTION_HISTORY_MAX = 200;
+const EMOTION_HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface LocalEmotionEntry {
+  stress: number;
+  happiness: number;
+  focus: number;
+  dominantEmotion: string;
+  timestamp: string;
+}
+
+function appendToEmotionHistory(checkin: CheckinData): void {
+  if (!checkin?.emotion) return;
+  try {
+    const raw = localStorage.getItem(EMOTION_HISTORY_KEY);
+    const history: LocalEmotionEntry[] = raw ? JSON.parse(raw) : [];
+    const now = new Date();
+    const cutoff = now.getTime() - EMOTION_HISTORY_MAX_AGE_MS;
+
+    // Deduplicate: skip if last entry was within 30 seconds
+    if (history.length > 0) {
+      const last = new Date(history[history.length - 1].timestamp).getTime();
+      if (now.getTime() - last < 30_000) return;
+    }
+
+    history.push({
+      stress: checkin.stress_index ?? 0,
+      happiness: checkin.valence != null ? Math.max(0, checkin.valence) : 0.5,
+      focus: checkin.focus_index ?? 0.5,
+      dominantEmotion: checkin.emotion ?? "neutral",
+      timestamp: now.toISOString(),
+    });
+
+    // Prune old entries and cap size
+    const pruned = history
+      .filter(e => new Date(e.timestamp).getTime() > cutoff)
+      .slice(-EMOTION_HISTORY_MAX);
+
+    localStorage.setItem(EMOTION_HISTORY_KEY, JSON.stringify(pruned));
+  } catch { /* storage quota or parse error */ }
+}
+
+function getLocalEmotionHistory(): LocalEmotionEntry[] {
+  try {
+    const raw = localStorage.getItem(EMOTION_HISTORY_KEY);
+    if (!raw) return [];
+    const history: LocalEmotionEntry[] = JSON.parse(raw);
+    const cutoff = Date.now() - EMOTION_HISTORY_MAX_AGE_MS;
+    return history.filter(e => new Date(e.timestamp).getTime() > cutoff);
+  } catch {
+    return [];
+  }
+}
+
 function useCheckinData(): CheckinData | null {
   const [data, setData] = useState<CheckinData | null>(null);
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("ndw_last_emotion");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setData(parsed?.result ?? parsed);
-      }
-    } catch { /* ignore */ }
-    const handler = () => {
+    const read = (): CheckinData | null => {
       try {
         const raw = localStorage.getItem("ndw_last_emotion");
-        if (raw) setData(JSON.parse(raw)?.result ?? JSON.parse(raw));
+        if (raw) return JSON.parse(raw)?.result ?? JSON.parse(raw);
       } catch { /* ignore */ }
+      return null;
+    };
+    const initial = read();
+    setData(initial);
+    if (initial) appendToEmotionHistory(initial);
+
+    const handler = () => {
+      const updated = read();
+      setData(updated);
+      if (updated) appendToEmotionHistory(updated);
     };
     window.addEventListener("ndw-voice-updated", handler);
     window.addEventListener("ndw-emotion-update", handler);
@@ -433,10 +496,17 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
   }, [sessions]);
 
   const chartData = useMemo(() => {
-    if (!data || !Array.isArray(data) || data.length === 0) return [];
+    // Use API data if available, otherwise fall back to localStorage history
+    const rows: HistoryRow[] =
+      data && Array.isArray(data) && data.length > 0
+        ? data
+        : getLocalEmotionHistory();
+
+    if (rows.length === 0) return [];
+
     // Group by day, average values
     const dayMap = new Map<string, { stress: number[]; focus: number[]; mood: number[] }>();
-    for (const r of data) {
+    for (const r of rows) {
       const day = new Date(r.timestamp).toLocaleDateString(undefined, { weekday: "short" });
       if (!dayMap.has(day)) dayMap.set(day, { stress: [], focus: [], mood: [] });
       const d = dayMap.get(day)!;

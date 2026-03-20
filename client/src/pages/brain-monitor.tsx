@@ -25,6 +25,15 @@ import {
 import { Link } from "wouter";
 import { Music } from "lucide-react";
 
+// All 5 standard EEG frequency bands with labels and ranges
+const ALL_BANDS = [
+  { key: "delta", label: "Delta", range: "0.5-4 Hz" },
+  { key: "theta", label: "Theta", range: "4-8 Hz" },
+  { key: "alpha", label: "Alpha", range: "8-12 Hz" },
+  { key: "beta",  label: "Beta",  range: "12-30 Hz" },
+  { key: "gamma", label: "Gamma", range: "30-100 Hz" },
+] as const;
+
 export default function BrainMonitor() {
   const { isLocal, latencyMs, isReady } = useInference();
   const device = useDevice();
@@ -581,28 +590,34 @@ export default function BrainMonitor() {
       </div>
 
 
-      {/* Band Powers Bar */}
+      {/* Band Powers Bar — always show all 5 standard EEG bands */}
       {isStreaming && analysis?.band_powers && (
         <Card className="glass-card p-6 rounded-xl hover-glow">
           <h3 className="text-lg font-semibold mb-4">Band Powers</h3>
           <div className="space-y-3">
-            {Object.entries(analysis.band_powers).map(([band, value]) => (
-              <div key={band} className="flex items-center gap-3">
-                <span className="text-xs font-mono w-16 text-muted-foreground capitalize">{band}</span>
-                <div className="flex-1">
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "hsl(220,22%,12%)" }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-300"
-                      style={{
-                        width: `${Math.min(100, (value as number) * 100)}%`,
-                        background: bandColor(band),
-                      }}
-                    />
+            {ALL_BANDS.map(({ key, label, range }) => {
+              const value = (analysis.band_powers as Record<string, number>)[key] ?? 0;
+              return (
+                <div key={key} className="flex items-center gap-3" data-testid={`band-${key}`}>
+                  <div className="w-20">
+                    <span className="text-xs font-mono text-muted-foreground" style={{ color: bandColor(key) }}>{label}</span>
+                    <span className="text-[9px] text-muted-foreground block">{range}</span>
                   </div>
+                  <div className="flex-1">
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "hsl(220,22%,12%)" }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, value * 100)}%`,
+                          background: bandColor(key),
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono w-12 text-right">{(value * 100).toFixed(0)}%</span>
                 </div>
-                <span className="text-xs font-mono w-12 text-right">{((value as number) * 100).toFixed(0)}%</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       )}
