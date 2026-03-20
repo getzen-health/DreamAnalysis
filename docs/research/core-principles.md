@@ -57,4 +57,12 @@
 
 **Implication:** When any model produces risk scores: (1) use a custom scale (e.g., 0-100 "risk index") rather than mapping onto a clinical instrument's scale, OR (2) if using a clinical scale for readability, include `not_validated: true`, a `scale_context` field, and a disclaimer that explicitly names the instrument and says "this is NOT a validated [instrument] result." (3) Never label output categories with DSM/ICD diagnostic subtypes — use descriptive terms like "theta-dominant pattern" instead of "inattentive ADHD profile."
 
+### 7. Sanitize NaN at the Pipeline Entry Point, Not at Each Consumer
+
+**Principle:** In a real-time sensor pipeline, NaN/inf values must be intercepted and repaired at the earliest possible point (before filtering), not individually guarded in every downstream consumer. A single NaN in the input to `filtfilt` poisons the entire output array, and once NaN enters an EMA accumulator it stays NaN forever -- one bad sample can corrupt the rest of the session.
+
+**Evidence:** `preprocess()` in `eeg_processor.py` had zero NaN handling. BrainFlow Bluetooth packet drops inject NaN samples at a 1-5% rate on native BT connections. `scipy.signal.filtfilt` propagates NaN across the entire output, making every band power, FAA, emotion probability, and index NaN. The LGBM paths had partial `np.isfinite` guards but the feature-based heuristic path (the actual live Muse 2 path) had none. The EMA smoothing in `_predict_features()` has no NaN check, so a single corrupted epoch permanently poisons `_ema_probs`, `_ema_valence`, `_ema_stress`, etc.
+
+**Implication:** When building any real-time sensor pipeline: (1) add NaN/inf sanitization at the very first processing step before any filter or transform, (2) use linear interpolation for short gaps (standard in EEG for BT drops), zeros for total disconnection, (3) never assume upstream data is clean -- Bluetooth, USB, and WiFi all produce sporadic NaN/dropout, (4) add `np.isfinite` guards on EMA accumulators as a defense-in-depth measure even after input sanitization.
+
 <!-- Principles will be appended below by the research agent -->

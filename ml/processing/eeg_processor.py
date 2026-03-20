@@ -91,6 +91,34 @@ def rereference_to_mastoid(
     return signals - mastoid_ref[np.newaxis, :]
 
 
+def _sanitize_nan(signal: np.ndarray) -> np.ndarray:
+    """Replace NaN/inf values with linear interpolation (or zeros if all-NaN).
+
+    BrainFlow Bluetooth packet drops inject NaN samples into the EEG stream.
+    scipy.signal.filtfilt propagates NaN across the entire output, so these
+    must be repaired BEFORE any filtering.  Linear interpolation is the
+    standard EEG approach for short gaps (a few samples).
+
+    Args:
+        signal: 1D EEG array that may contain NaN or inf values.
+
+    Returns:
+        Signal with NaN/inf replaced.  Returns zeros if all values are bad.
+    """
+    bad = ~np.isfinite(signal)
+    if not np.any(bad):
+        return signal                       # fast path: nothing to fix
+    signal = signal.copy()                  # don't mutate caller's array
+    if np.all(bad):
+        signal[:] = 0.0                     # entire signal is bad
+        return signal
+    good_idx = np.where(~bad)[0]
+    signal[bad] = np.interp(
+        np.where(bad)[0], good_idx, signal[good_idx]
+    )
+    return signal
+
+
 def preprocess(
     raw_eeg: np.ndarray,
     fs: float = 256.0,
@@ -112,6 +140,7 @@ def preprocess(
     Returns:
         Filtered (and optionally artifact-cleaned) signal.
     """
+    raw_eeg = _sanitize_nan(raw_eeg)
     filtered = bandpass_filter(raw_eeg, 1.0, 50.0, fs)
     filtered = notch_filter(filtered, 50.0, fs)
     filtered = notch_filter(filtered, 60.0, fs)
