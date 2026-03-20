@@ -63,7 +63,7 @@ public class MuseBlePlugin extends Plugin {
     private boolean isStreaming = false;
     private int subscribedChannels = 0;
     private int pendingDescriptorWrites = 0;
-    private boolean commandsSent = false;
+    private boolean connectRetried = false;
     private Runnable timeoutRunnable = null; // cancel previous timeouts
 
     // Store the actual BluetoothDevice from scan result (preserves address type)
@@ -152,7 +152,7 @@ public class MuseBlePlugin extends Plugin {
         }
         isStreaming = false;
         subscribedChannels = 0;
-        commandsSent = false;
+        connectRetried = false;
         connectCall = null; // clear any stale call
 
         // Use the ACTUAL device from scan result (preserves BLE address type)
@@ -197,9 +197,10 @@ public class MuseBlePlugin extends Plugin {
                     }, 2000);
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     isStreaming = false;
-                    if (status == 8 && !commandsSent) {
-                        // GATT_CONN_TIMEOUT on first attempt — retry with direct connect
-                        Log.w(TAG, "GATT timeout, retrying direct connect...");
+                    if (status == 8 && !connectRetried) {
+                        // GATT_CONN_TIMEOUT on first attempt — retry once
+                        connectRetried = true;
+                        Log.w(TAG, "GATT timeout (status 8), retrying direct connect...");
                         try { gatt.close(); } catch (Exception ignored) {}
                         handler.postDelayed(() -> {
                             try {
@@ -220,9 +221,9 @@ public class MuseBlePlugin extends Plugin {
 
             @Override
             public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-                Log.d(TAG, "Services discovered: " + status + " count: " + gatt.getServices().size() + " commandsSent: " + commandsSent);
+                Log.d(TAG, "Services discovered: " + status + " count: " + gatt.getServices().size());
                 if (status != BluetoothGatt.GATT_SUCCESS) {
-                    rejectConnect("Service discovery failed");
+                    rejectConnect("Service discovery failed (status " + status + ")");
                     return;
                 }
 
@@ -236,35 +237,33 @@ public class MuseBlePlugin extends Plugin {
                     return;
                 }
 
-                // Log all characteristics in the service
                 Log.d(TAG, "Muse service has " + svc.getCharacteristics().size() + " characteristics:");
                 for (BluetoothGattCharacteristic c : svc.getCharacteristics()) {
                     Log.d(TAG, "  Char: " + c.getUuid() + " props: " + c.getProperties());
                 }
 
-                if (!commandsSent) {
-                    // FIRST discovery: send preset + start commands, then re-discover
-                    commandsSent = true;
-                    handler.postDelayed(() -> {
-                        BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CONTROL_CHAR);
-                        if (ctrl == null) {
-                            rejectConnect("Control characteristic not found");
-                            return;
-                        }
-                        writeChar(gatt, ctrl, CMD_PRESET);
-                        handler.postDelayed(() -> {
-                            writeChar(gatt, ctrl, CMD_START);
-                            // Re-discover after Muse reconfigures its GATT table
-                            handler.postDelayed(() -> {
-                                Log.d(TAG, "Re-discovering services after preset+start...");
-                                try { gatt.discoverServices(); } catch (SecurityException ignored) {}
-                            }, 2000);
-                        }, 500);
-                    }, 500);
-                } else {
-                    // SECOND discovery: subscribe to EEG channels
-                    handler.postDelayed(() -> subscribeEeg(gatt, svc), 500);
+                // Single-phase approach (matches Web Bluetooth):
+                // 1. Send preset + start commands
+                // 2. Wait for Muse to reconfigure
+                // 3. Subscribe to EEG — NO second discoverServices()
+                BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CONTROL_CHAR);
+                if (ctrl == null) {
+                    rejectConnect("Control characteristic not found");
+                    return;
                 }
+
+                // Use WRITE_TYPE_DEFAULT (with response) — Muse S needs ACK before next cmd
+                Log.d(TAG, "Sending preset command...");
+                writeCharWithResponse(gatt, ctrl, CMD_PRESET);
+                handler.postDelayed(() -> {
+                    Log.d(TAG, "Sending start command...");
+                    writeCharWithResponse(gatt, ctrl, CMD_START);
+                    // Wait 2.5s for Muse to reconfigure GATT, then subscribe
+                    handler.postDelayed(() -> {
+                        Log.d(TAG, "Subscribing to EEG channels...");
+                        subscribeEeg(gatt, svc);
+                    }, 2500);
+                }, 1000);
             }
 
             @Override
@@ -419,6 +418,21 @@ public class MuseBlePlugin extends Plugin {
             }
         } catch (SecurityException e) {
             Log.e(TAG, "Write denied: " + e.getMessage());
+        }
+    }
+
+    /** Write with response (ACK) — Muse S requires this for control commands. */
+    private void writeCharWithResponse(BluetoothGatt gatt, BluetoothGattCharacteristic ch, byte[] value) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                gatt.writeCharacteristic(ch, value, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+            } else {
+                ch.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                ch.setValue(value);
+                gatt.writeCharacteristic(ch);
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "WriteWithResponse denied: " + e.getMessage());
         }
     }
 
