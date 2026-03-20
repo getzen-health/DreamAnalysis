@@ -796,16 +796,25 @@ export class MuseBleManager {
 
   // ── Internal ───────────────────────────────────────────────────────────────
 
+  private _notifCount = 0;
   private onEegNotification(channel: number, data: DataView): void {
     try {
-      if (channel >= N_ACTIVE_CHANNELS || data.byteLength < 20) return;
+      if (channel >= N_ACTIVE_CHANNELS) return;
+      if (data.byteLength < 20) {
+        if (this._notifCount < 5) console.warn(`[MuseBLE] ch${channel} packet too short: ${data.byteLength} bytes`);
+        return;
+      }
       this.lastNotificationTime[channel] = Date.now();
       const samples = decodeEegPacket(data);
       for (const s of samples) {
         this.rings[channel].push(s);
       }
-    } catch {
-      // Malformed packet — skip silently
+      this._notifCount++;
+      if (this._notifCount === 1 || this._notifCount === 10 || this._notifCount === 100) {
+        console.log(`[MuseBLE] ${this._notifCount} packets received. ch${channel}, ${samples.length} samples, first=${samples[0]?.toFixed(1)}`);
+      }
+    } catch (e) {
+      if (this._notifCount < 5) console.error("[MuseBLE] packet decode error:", e);
     }
   }
 

@@ -459,7 +459,7 @@ export default function BrainMonitor() {
                 windowSec={5}
                 height={280}
               />
-              {/* Channel legend */}
+              {/* Channel legend + data diagnostic */}
               <div className="flex items-center gap-4 mt-3">
                 {[
                   { label: "TP9",  color: "hsl(200, 70%, 55%)" },
@@ -475,6 +475,12 @@ export default function BrainMonitor() {
                     <span className="text-[10px] font-mono text-muted-foreground">{ch.label}</span>
                   </div>
                 ))}
+                <span className="ml-auto text-[9px] font-mono text-muted-foreground/50">
+                  {latestFrame?.signals
+                    ? `${latestFrame.signals.length}ch × ${latestFrame.signals[0]?.length ?? 0} samples`
+                    : "no data"}
+                  {latestFrame?.analysis?.band_powers ? ` | bp:${Object.keys(latestFrame.analysis.band_powers).length}` : ""}
+                </span>
               </div>
             </>
           ) : (
