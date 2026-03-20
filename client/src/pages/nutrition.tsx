@@ -321,6 +321,155 @@ interface SupplementDailyLog {
   [supplementId: string]: boolean;
 }
 
+// ── GLP-1 Injection Tracking ──────────────────────────────────────────────────
+
+interface Glp1Injection {
+  id: string;
+  medication: string;
+  dose: string;
+  date: string; // ISO date string
+  site?: string;
+}
+
+const GLP1_MEDICATIONS = [
+  { name: "Ozempic", defaultDose: "0.5 mg", halfLifeDays: 7, cadenceDays: 7 },
+  { name: "Wegovy", defaultDose: "1.7 mg", halfLifeDays: 7, cadenceDays: 7 },
+  { name: "Mounjaro", defaultDose: "5 mg", halfLifeDays: 5, cadenceDays: 7 },
+  { name: "Zepbound", defaultDose: "5 mg", halfLifeDays: 5, cadenceDays: 7 },
+  { name: "Saxenda", defaultDose: "1.8 mg", halfLifeDays: 0.54, cadenceDays: 1 },
+];
+
+const GLP1_INJECTIONS_KEY = "ndw_glp1_injections";
+
+function loadGlp1Injections(): Glp1Injection[] {
+  try {
+    const raw = localStorage.getItem(GLP1_INJECTIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveGlp1Injections(injections: Glp1Injection[]) {
+  try { localStorage.setItem(GLP1_INJECTIONS_KEY, JSON.stringify(injections)); } catch {}
+}
+
+function getNextInjectionDate(injections: Glp1Injection[], medication: string): Date | null {
+  const med = GLP1_MEDICATIONS.find(m => m.name === medication);
+  if (!med) return null;
+  const medInjections = injections
+    .filter(i => i.medication === medication)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  if (medInjections.length === 0) return null;
+  const lastDate = new Date(medInjections[0].date);
+  const next = new Date(lastDate);
+  next.setDate(next.getDate() + med.cadenceDays);
+  return next;
+}
+
+function computeDecayLevel(injections: Glp1Injection[], medication: string): number {
+  const med = GLP1_MEDICATIONS.find(m => m.name === medication);
+  if (!med || med.halfLifeDays <= 0) return 0;
+  const medInjections = injections.filter(i => i.medication === medication);
+  if (medInjections.length === 0) return 0;
+  const last = medInjections.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  const daysSince = (Date.now() - new Date(last.date).getTime()) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.pow(0.5, daysSince / med.halfLifeDays));
+}
+
+// ── Supplement Micronutrient Mapping ──────────────────────────────────────────
+
+function getSupplementVitamins(supplement: Supplement): VitaminData {
+  const v: VitaminData = {
+    vitamin_d_mcg: 0, vitamin_b12_mcg: 0, vitamin_c_mg: 0,
+    iron_mg: 0, magnesium_mg: 0, zinc_mg: 0, omega3_g: 0,
+  };
+  const n = supplement.name.toLowerCase();
+  const dosageNum = parseFloat(supplement.dosage) || 0;
+
+  if (/vitamin d/i.test(n)) v.vitamin_d_mcg = dosageNum > 0 ? (dosageNum <= 100 ? dosageNum : dosageNum * 0.025) : 50; // 2000 IU = 50 mcg
+  if (/b12|vitamin b12/i.test(n)) v.vitamin_b12_mcg = dosageNum > 0 ? dosageNum : 1000;
+  if (/vitamin c/i.test(n)) v.vitamin_c_mg = dosageNum > 0 ? dosageNum : 500;
+  if (/^iron/i.test(n)) v.iron_mg = dosageNum > 0 ? dosageNum : 18;
+  if (/magnesium/i.test(n)) v.magnesium_mg = dosageNum > 0 ? dosageNum : 400;
+  if (/^zinc/i.test(n)) v.zinc_mg = dosageNum > 0 ? dosageNum : 15;
+  if (/omega.?3|fish oil/i.test(n)) v.omega3_g = dosageNum > 0 ? dosageNum / 1000 : 1;
+  if (/calcium/i.test(n)) { /* calcium not in our VitaminData yet */ }
+  if (/multivitamin/i.test(n)) {
+    v.vitamin_d_mcg += 10; v.vitamin_b12_mcg += 2.4; v.vitamin_c_mg += 60;
+    v.iron_mg += 8; v.magnesium_mg += 50; v.zinc_mg += 5; v.omega3_g += 0;
+  }
+
+  return v;
+}
+
+// ── Food Quality Score Calculation ─────────────────────────────────────────────
+
+const FOOD_QUALITY_KEY = "ndw_food_quality_score";
+
+function calculateFoodQualityScore(
+  todayLogs: FoodLog[],
+  totalProtein: number,
+  totalCarbs: number,
+  totalFat: number,
+  totalCalories: number,
+): number {
+  if (todayLogs.length === 0) return 0;
+
+  let score = 50; // base score
+
+  const allItems = todayLogs.flatMap(l => l.foodItems ?? []);
+
+  // Protein adequacy (+15 max)
+  if (totalProtein >= 50) score += 15;
+  else if (totalProtein >= 30) score += 10;
+  else if (totalProtein >= 15) score += 5;
+
+  // Vegetable presence (+10)
+  const hasVeg = allItems.some(fi =>
+    /vegetable|salad|broccoli|spinach|carrot|kale|lettuce|greens|zucchini|pepper|asparagus|cauliflower/i.test(fi.name)
+  );
+  if (hasVeg) score += 10;
+
+  // Fruit presence (+5)
+  const hasFruit = allItems.some(fi =>
+    /fruit|apple|banana|orange|berry|berries|mango|grape|kiwi|pear/i.test(fi.name)
+  );
+  if (hasFruit) score += 5;
+
+  // Whole grains (+5)
+  const hasWholeGrain = allItems.some(fi =>
+    /whole grain|oat|quinoa|brown rice|whole wheat/i.test(fi.name)
+  );
+  if (hasWholeGrain) score += 5;
+
+  // Meal regularity (+5 for 3+ meals)
+  if (todayLogs.length >= 3) score += 5;
+
+  // Balanced macros (+10 if no single macro dominates >60%)
+  if (totalCalories > 0) {
+    const proteinPct = (totalProtein * 4) / totalCalories;
+    const carbPct = (totalCarbs * 4) / totalCalories;
+    const fatPct = (totalFat * 9) / totalCalories;
+    if (proteinPct <= 0.6 && carbPct <= 0.6 && fatPct <= 0.6) score += 10;
+  }
+
+  // Penalties
+  const hasProcessed = allItems.some(fi =>
+    /chips|fries|candy|soda|pizza|burger|hot dog|donut|cookie/i.test(fi.name)
+  );
+  if (hasProcessed) score -= 10;
+
+  // Calorie overshoot penalty
+  if (totalCalories > CAL_GOAL * 1.3) score -= 10;
+
+  // Clamp 0-100
+  score = Math.max(0, Math.min(100, score));
+
+  // Persist to localStorage
+  try { localStorage.setItem(FOOD_QUALITY_KEY, JSON.stringify({ score, date: new Date().toISOString().slice(0, 10) })); } catch {}
+
+  return score;
+}
+
 const SUPPLEMENT_PRESETS = [
   { name: "Vitamin D", dosage: "2000 IU", type: "vitamin" as const },
   { name: "Vitamin B12", dosage: "1000 mcg", type: "vitamin" as const },
@@ -365,7 +514,7 @@ function saveTodayLog(log: SupplementDailyLog) {
   try { localStorage.setItem(getTodayLogKey(), JSON.stringify(log)); } catch {}
 }
 
-function SupplementTracker() {
+function SupplementTracker({ onSupplementsChange }: { onSupplementsChange?: (supplements: Supplement[], dailyLog: SupplementDailyLog) => void }) {
   const [supplements, setSupplements] = useState<Supplement[]>(loadSupplements);
   const [dailyLog, setDailyLog] = useState<SupplementDailyLog>(loadTodayLog);
   const [showAdd, setShowAdd] = useState(false);
@@ -376,6 +525,7 @@ function SupplementTracker() {
     const updated = { ...dailyLog, [id]: !dailyLog[id] };
     setDailyLog(updated);
     saveTodayLog(updated);
+    onSupplementsChange?.(supplements, updated);
   };
 
   const addSupplement = (name: string, dosage: string, type: Supplement["type"]) => {
@@ -389,12 +539,14 @@ function SupplementTracker() {
     setCustomName("");
     setCustomDosage("");
     setShowAdd(false);
+    onSupplementsChange?.(updated, dailyLog);
   };
 
   const removeSupplement = (id: string) => {
     const updated = supplements.filter(s => s.id !== id);
     setSupplements(updated);
     saveSupplements(updated);
+    onSupplementsChange?.(updated, dailyLog);
   };
 
   const takenCount = supplements.filter(s => dailyLog[s.id]).length;
@@ -696,12 +848,13 @@ function VitaminBar({ value, goal, color }: { value: number; goal: number; color
   );
 }
 
-function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
+function VitaminTracker({ todayLogs, supplementVitamins }: { todayLogs: FoodLog[]; supplementVitamins?: VitaminData | null }) {
   const vitaminTotals = useMemo(() => {
     const totals: VitaminData = {
       vitamin_d_mcg: 0, vitamin_b12_mcg: 0, vitamin_c_mg: 0,
       iron_mg: 0, magnesium_mg: 0, zinc_mg: 0, omega3_g: 0,
     };
+    // Add food-sourced vitamins
     for (const log of todayLogs) {
       if (log.vitamins) {
         for (const k of Object.keys(totals) as (keyof VitaminData)[]) {
@@ -714,8 +867,17 @@ function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
         }
       }
     }
+    // Add supplement-sourced vitamins
+    if (supplementVitamins) {
+      for (const k of Object.keys(totals) as (keyof VitaminData)[]) {
+        totals[k] += supplementVitamins[k] ?? 0;
+      }
+    }
     return totals;
-  }, [todayLogs]);
+  }, [todayLogs, supplementVitamins]);
+
+  const hasFoodSources = todayLogs.length > 0;
+  const hasSupplementSources = supplementVitamins != null && Object.values(supplementVitamins).some(v => v > 0);
 
   return (
     <div>
@@ -724,6 +886,25 @@ function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
         textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
       }}>
         Micronutrients
+      </div>
+      {/* Source indicators */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <span style={{
+          fontSize: 9, padding: "2px 8px", borderRadius: 8,
+          background: hasFoodSources ? "rgba(6, 182, 212, 0.12)" : "rgba(148, 163, 184, 0.1)",
+          color: hasFoodSources ? "#06b6d4" : "var(--muted-foreground)",
+          fontWeight: 600,
+        }}>
+          Food {hasFoodSources ? `(${todayLogs.length} meals)` : "(none)"}
+        </span>
+        <span style={{
+          fontSize: 9, padding: "2px 8px", borderRadius: 8,
+          background: hasSupplementSources ? "rgba(124, 58, 237, 0.12)" : "rgba(148, 163, 184, 0.1)",
+          color: hasSupplementSources ? "#7c3aed" : "var(--muted-foreground)",
+          fontWeight: 600,
+        }}>
+          Supplements {hasSupplementSources ? "(active)" : "(none taken)"}
+        </span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {VITAMIN_TARGETS.map((vt) => {
@@ -743,9 +924,14 @@ function VitaminTracker({ todayLogs }: { todayLogs: FoodLog[] }) {
           );
         })}
       </div>
-      {todayLogs.length === 0 && (
+      {!hasFoodSources && !hasSupplementSources && (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8 }}>
-          Log meals to track micronutrients
+          Log meals or take supplements to track micronutrients
+        </div>
+      )}
+      {!hasSupplementSources && hasFoodSources && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8 }}>
+          No supplements taken today -- check the Supplements tab to log yours
         </div>
       )}
     </div>
@@ -882,6 +1068,212 @@ function Glp1Tracker({
       ) : (
         <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
           Log meals rich in protein, fiber, and healthy fats to boost GLP-1 support
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── GLP-1 Injection Tracker Component ───────────────────────────────────────
+
+function Glp1InjectionTracker() {
+  const [injections, setInjections] = useState<Glp1Injection[]>(loadGlp1Injections);
+  const [showAdd, setShowAdd] = useState(false);
+  const [selectedMed, setSelectedMed] = useState(GLP1_MEDICATIONS[0].name);
+  const [customDose, setCustomDose] = useState("");
+
+  const addInjection = () => {
+    const med = GLP1_MEDICATIONS.find(m => m.name === selectedMed);
+    const newInj: Glp1Injection = {
+      id: `glp1_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      medication: selectedMed,
+      dose: customDose.trim() || med?.defaultDose || "0.5 mg",
+      date: new Date().toISOString(),
+    };
+    const updated = [newInj, ...injections];
+    setInjections(updated);
+    saveGlp1Injections(updated);
+    setShowAdd(false);
+    setCustomDose("");
+  };
+
+  const removeInjection = (id: string) => {
+    const updated = injections.filter(i => i.id !== id);
+    setInjections(updated);
+    saveGlp1Injections(updated);
+  };
+
+  // Get unique medications used
+  const activeMeds = [...new Set(injections.map(i => i.medication))];
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+        textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <span>GLP-1 Injection Tracker</span>
+        <span style={{ fontSize: 10, color: "#7c3aed", fontWeight: 700 }}>
+          {injections.length} logged
+        </span>
+      </div>
+
+      {/* Active medication decay + next injection */}
+      {activeMeds.map(medName => {
+        const med = GLP1_MEDICATIONS.find(m => m.name === medName);
+        if (!med) return null;
+        const decay = computeDecayLevel(injections, medName);
+        const nextDate = getNextInjectionDate(injections, medName);
+        const isOverdue = nextDate ? nextDate.getTime() < Date.now() : false;
+        const daysUntil = nextDate ? Math.ceil((nextDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+        const decayPct = Math.round(decay * 100);
+        const decayColor = decayPct >= 50 ? "#06b6d4" : decayPct >= 25 ? "#d4a017" : "#e879a8";
+
+        return (
+          <div key={medName} style={{
+            background: "var(--muted)", borderRadius: 12, padding: 12, marginBottom: 8,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{medName}</span>
+                <span style={{ fontSize: 9, color: "#7c3aed", marginLeft: 6, fontWeight: 600 }}>GLP-1</span>
+              </div>
+              <span style={{ fontSize: 18, fontWeight: 700, color: decayColor }}>{decayPct}%</span>
+            </div>
+
+            {/* Decay visualization */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 9, color: "var(--muted-foreground)", marginBottom: 4 }}>
+                Estimated active level (half-life ~{med.halfLifeDays}d)
+              </div>
+              <div style={{ height: 8, background: "var(--border)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{
+                  width: `${decayPct}%`, height: "100%",
+                  background: `linear-gradient(90deg, ${decayColor}, ${decayColor}88)`,
+                  borderRadius: 4, transition: "width 0.5s ease",
+                }} />
+              </div>
+            </div>
+
+            {/* Next injection reminder */}
+            {nextDate && (
+              <div style={{
+                fontSize: 11, fontWeight: 500,
+                color: isOverdue ? "#e879a8" : daysUntil != null && daysUntil <= 1 ? "#d4a017" : "var(--muted-foreground)",
+                padding: "6px 8px", borderRadius: 8,
+                background: isOverdue ? "rgba(232, 121, 168, 0.08)" : "transparent",
+              }}>
+                {isOverdue
+                  ? `Overdue -- was due ${nextDate.toLocaleDateString()}`
+                  : daysUntil === 0
+                    ? "Due today"
+                    : daysUntil === 1
+                      ? "Due tomorrow"
+                      : `Next injection: ${nextDate.toLocaleDateString()} (${daysUntil} days)`}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Recent injections */}
+      {injections.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", fontWeight: 600, marginBottom: 6 }}>
+            Recent injections
+          </div>
+          {injections.slice(0, 5).map(inj => (
+            <div key={inj.id} style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "4px 0",
+              borderBottom: "1px solid var(--border)",
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--foreground)", flex: 1 }}>
+                {inj.medication} -- {inj.dose}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+                {new Date(inj.date).toLocaleDateString()}
+              </span>
+              <button
+                onClick={() => removeInjection(inj.id)}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--muted-foreground)", fontSize: 12, padding: 2,
+                }}
+              >
+                x
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add injection */}
+      {showAdd ? (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <select
+              value={selectedMed}
+              onChange={e => setSelectedMed(e.target.value)}
+              style={{
+                flex: 2, background: "var(--background)", color: "var(--foreground)",
+                border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px",
+                fontSize: 12, outline: "none",
+              }}
+            >
+              {GLP1_MEDICATIONS.map(m => (
+                <option key={m.name} value={m.name}>{m.name}</option>
+              ))}
+            </select>
+            <input
+              value={customDose}
+              onChange={e => setCustomDose(e.target.value)}
+              placeholder={GLP1_MEDICATIONS.find(m => m.name === selectedMed)?.defaultDose || "Dose"}
+              style={{
+                flex: 1, background: "var(--background)", color: "var(--foreground)",
+                border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px",
+                fontSize: 12, outline: "none",
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={() => setShowAdd(false)}
+              style={{
+                flex: 1, background: "transparent", color: "var(--muted-foreground)",
+                borderRadius: 8, padding: "8px 12px", fontSize: 11, border: "1px solid var(--border)", cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={addInjection}
+              style={{
+                flex: 1, background: "#7c3aed", color: "white",
+                borderRadius: 8, padding: "8px 12px", fontSize: 11, fontWeight: 600,
+                border: "none", cursor: "pointer",
+              }}
+            >
+              Log Injection
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowAdd(true)}
+          style={{
+            width: "100%", background: "rgba(124, 58, 237, 0.08)", color: "#7c3aed",
+            borderRadius: 10, padding: 8, fontSize: 12, fontWeight: 500,
+            border: "1px solid rgba(124, 58, 237, 0.2)", cursor: "pointer",
+          }}
+        >
+          + Log GLP-1 Injection
+        </button>
+      )}
+
+      {injections.length === 0 && (
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 8 }}>
+          Track GLP-1 injections (Ozempic, Wegovy, Mounjaro) with dose and schedule reminders
         </div>
       )}
     </div>
@@ -1313,6 +1705,46 @@ export default function Nutrition() {
   const [activeTab, setActiveTab] = useState<TabId>("log");
   const [tabDirection, setTabDirection] = useState(0);
 
+  // Supplement vitamin tracking (Tasks 2/5: combine food + supplement sources)
+  const [supplementVitamins, setSupplementVitamins] = useState<VitaminData | null>(() => {
+    // Initialize from stored supplements
+    const supps = loadSupplements();
+    const log = loadTodayLog();
+    const totals: VitaminData = {
+      vitamin_d_mcg: 0, vitamin_b12_mcg: 0, vitamin_c_mg: 0,
+      iron_mg: 0, magnesium_mg: 0, zinc_mg: 0, omega3_g: 0,
+    };
+    let hasAny = false;
+    for (const supp of supps) {
+      if (log[supp.id]) {
+        hasAny = true;
+        const sv = getSupplementVitamins(supp);
+        for (const k of Object.keys(totals) as (keyof VitaminData)[]) {
+          totals[k] += sv[k];
+        }
+      }
+    }
+    return hasAny ? totals : null;
+  });
+
+  const handleSupplementsChange = useCallback((supps: Supplement[], log: SupplementDailyLog) => {
+    const totals: VitaminData = {
+      vitamin_d_mcg: 0, vitamin_b12_mcg: 0, vitamin_c_mg: 0,
+      iron_mg: 0, magnesium_mg: 0, zinc_mg: 0, omega3_g: 0,
+    };
+    let hasAny = false;
+    for (const supp of supps) {
+      if (log[supp.id]) {
+        hasAny = true;
+        const sv = getSupplementVitamins(supp);
+        for (const k of Object.keys(totals) as (keyof VitaminData)[]) {
+          totals[k] += sv[k];
+        }
+      }
+    }
+    setSupplementVitamins(hasAny ? totals : null);
+  }, []);
+
   // Helper: sync food log to Railway ML backend (fire-and-forget)
   const syncFoodToRailway = useCallback((data: {
     totalCalories?: number; summary?: string; foodItems?: FoodItem[];
@@ -1601,6 +2033,12 @@ export default function Nutrition() {
 
     return { positives, negatives };
   }, [todayLogs, totalProtein, totalCarbs]);
+
+  // Auto-calculated food quality score (Task 3)
+  const foodQualityScore = useMemo(
+    () => calculateFoodQualityScore(todayLogs, totalProtein, totalCarbs, totalFat, totalCalories),
+    [todayLogs, totalProtein, totalCarbs, totalFat, totalCalories]
+  );
 
   // Handle favorite toggle
   const handleToggleFavorite = useCallback((log: FoodLog) => {
@@ -2228,8 +2666,9 @@ export default function Nutrition() {
                   overflow: "hidden", boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
                 }}>
                   {todayLogs.length === 0 ? (
-                    <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: "var(--muted-foreground)" }}>
-                      Log your first meal to start tracking
+                    <div style={{ padding: "24px 16px", textAlign: "center" }}>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "var(--muted-foreground)", marginBottom: 4 }}>0 calories</div>
+                      <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>No meals logged today</div>
                     </div>
                   ) : (
                     todayLogs.map((log, idx) => (
@@ -2244,6 +2683,68 @@ export default function Nutrition() {
                   )}
                 </div>
               </div>
+
+              {/* Daily Running Totals + Food Quality Score (Tasks 1 & 3) */}
+              {todayLogs.length > 0 && (
+                <div style={{
+                  background: "var(--card)", border: "1px solid var(--border)",
+                  borderRadius: 16, padding: 14, marginBottom: 16,
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10,
+                  }}>
+                    <div style={{
+                      fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                      textTransform: "uppercase", letterSpacing: "0.5px",
+                    }}>
+                      Daily Totals
+                    </div>
+                    {/* Food Quality Score badge */}
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "3px 10px", borderRadius: 10,
+                      background: foodQualityScore >= 70 ? "rgba(6, 182, 212, 0.12)"
+                        : foodQualityScore >= 40 ? "rgba(212, 160, 23, 0.12)"
+                        : "rgba(232, 121, 168, 0.12)",
+                    }}>
+                      <span style={{
+                        fontSize: 16, fontWeight: 700,
+                        color: foodQualityScore >= 70 ? "#06b6d4" : foodQualityScore >= 40 ? "#d4a017" : "#e879a8",
+                      }}>
+                        {foodQualityScore}
+                      </span>
+                      <span style={{
+                        fontSize: 9, fontWeight: 600,
+                        color: foodQualityScore >= 70 ? "#06b6d4" : foodQualityScore >= 40 ? "#d4a017" : "#e879a8",
+                      }}>
+                        Quality
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, textAlign: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#e8b94a" }}>{totalCalories}</div>
+                      <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>kcal</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#e879a8" }}>{Math.round(totalProtein)}g</div>
+                      <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>protein</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#0891b2" }}>{Math.round(totalCarbs)}g</div>
+                      <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>carbs</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#7c3aed" }}>{Math.round(totalFat)}g</div>
+                      <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>fat</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 8, textAlign: "center" }}>
+                    {todayLogs.length} meal{todayLogs.length !== 1 ? "s" : ""} logged today
+                  </div>
+                </div>
+              )}
 
               {/* Favorites + Recent Meals */}
               {captureMode === "none" && (recentMeals.length > 0 || favorites.length > 0) && (
@@ -2334,7 +2835,7 @@ export default function Nutrition() {
                 borderRadius: 16, padding: 16, marginBottom: 16,
                 boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
-                <VitaminTracker todayLogs={todayLogs} />
+                <VitaminTracker todayLogs={todayLogs} supplementVitamins={supplementVitamins} />
               </div>
 
               <div style={{
@@ -2366,7 +2867,16 @@ export default function Nutrition() {
                 borderRadius: 16, padding: 16,
                 boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
-                <SupplementTracker />
+                <SupplementTracker onSupplementsChange={handleSupplementsChange} />
+              </div>
+
+              {/* GLP-1 Injection Tracker (Task 4) */}
+              <div style={{
+                background: "var(--card)", border: "1px solid var(--border)",
+                borderRadius: 16, padding: 16, marginTop: 16,
+                boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+              }}>
+                <Glp1InjectionTracker />
               </div>
             </motion.div>
           )}
@@ -2391,7 +2901,7 @@ export default function Nutrition() {
               }}>
                 <div style={{ flexShrink: 0 }}>
                   <ScoreGauge
-                    value={scores?.nutritionScore ?? null}
+                    value={todayLogs.length > 0 ? foodQualityScore : (scores?.nutritionScore ?? null)}
                     label="Food Quality"
                     color="nutrition"
                     size="sm"
