@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Slider } from "@/components/ui/slider";
+
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -436,17 +436,15 @@ function CycleSetupPrompt({ onComplete }: { onComplete: (data: LocalCycleData) =
           <Label htmlFor="cycleLength" className="text-xs font-medium">
             Average cycle length (days)
           </Label>
-          <div className="flex items-center gap-3 mt-1">
-            <Slider
-              value={[cycleLength]}
-              onValueChange={([v]) => setCycleLength(v)}
-              min={20}
-              max={45}
-              step={1}
-              className="flex-1"
-            />
-            <span className="text-sm font-bold w-8 text-right">{cycleLength}</span>
-          </div>
+          <Input
+            id="cycleLength"
+            type="number"
+            min={20}
+            max={45}
+            value={cycleLength}
+            onChange={e => setCycleLength(Math.max(20, Math.min(45, parseInt(e.target.value) || 28)))}
+            className="mt-1"
+          />
           <p className="text-[10px] text-muted-foreground mt-1">Most cycles are 24-35 days. Default: 28.</p>
         </div>
 
@@ -454,17 +452,15 @@ function CycleSetupPrompt({ onComplete }: { onComplete: (data: LocalCycleData) =
           <Label htmlFor="periodLength" className="text-xs font-medium">
             Average period length (days)
           </Label>
-          <div className="flex items-center gap-3 mt-1">
-            <Slider
-              value={[periodLength]}
-              onValueChange={([v]) => setPeriodLength(v)}
-              min={2}
-              max={10}
-              step={1}
-              className="flex-1"
-            />
-            <span className="text-sm font-bold w-8 text-right">{periodLength}</span>
-          </div>
+          <Input
+            id="periodLength"
+            type="number"
+            min={2}
+            max={10}
+            value={periodLength}
+            onChange={e => setPeriodLength(Math.max(2, Math.min(10, parseInt(e.target.value) || 5)))}
+            className="mt-1"
+          />
           <p className="text-[10px] text-muted-foreground mt-1">Average period lasts 3-7 days. Default: 5.</p>
         </div>
 
@@ -1150,23 +1146,55 @@ function MoodTab() {
   const [energyLevel, setEnergyLevel] = useState(5);
   const [moodNotes, setMoodNotes] = useState("");
 
-  // Fetch mood logs
+  // Fetch mood logs — API with localStorage fallback
   const { data: moodLogs = [] } = useQuery<MoodLog[]>({
     queryKey: [`/api/mood/${user?.id}?days=30`],
     enabled: !!user?.id,
     retry: false,
     staleTime: 30_000,
+    queryFn: async () => {
+      try {
+        const res = await fetch(`/api/mood/${user?.id}?days=30`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) return data;
+        }
+      } catch { /* fall through */ }
+      // Fallback: read from localStorage
+      try {
+        return JSON.parse(localStorage.getItem("ndw_mood_logs") || "[]");
+      } catch { return []; }
+    },
   });
 
-  // Log mood mutation
+  // Log mood mutation — tries API first, falls back to localStorage
   const logMoodMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/mood", {
-        moodScore,
-        energyLevel,
-        notes: moodNotes || null,
-      });
-      return res.json();
+      try {
+        const res = await apiRequest("POST", "/api/mood", {
+          moodScore,
+          energyLevel,
+          notes: moodNotes || null,
+        });
+        if (!res.ok) throw new Error("API error");
+        return res.json();
+      } catch {
+        // Fallback: save to localStorage
+        const key = "ndw_mood_logs";
+        const existing = JSON.parse(localStorage.getItem(key) || "[]");
+        const entry = {
+          id: `local_${Date.now()}`,
+          userId: user?.id,
+          moodScore: String(moodScore),
+          energyLevel: String(energyLevel),
+          notes: moodNotes || null,
+          loggedAt: new Date().toISOString(),
+        };
+        existing.unshift(entry);
+        if (existing.length > 100) existing.length = 100;
+        localStorage.setItem(key, JSON.stringify(existing));
+        return entry;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/mood/${user?.id}?days=30`] });
@@ -1261,13 +1289,14 @@ function MoodTab() {
               <span className="text-[10px] text-muted-foreground ml-1">({face.label})</span>
             </div>
           </div>
-          <Slider
-            value={[moodScore]}
-            onValueChange={([v]) => setMoodScore(v)}
+          <input
+            type="range"
+            value={moodScore}
+            onChange={e => setMoodScore(parseInt(e.target.value))}
             min={1}
             max={10}
             step={1}
-            className="py-2"
+            className="w-full py-2 accent-primary"
           />
           <div className="flex justify-between text-[9px] text-muted-foreground/60">
             <span>Awful</span>
@@ -1281,13 +1310,14 @@ function MoodTab() {
             <Label className="text-xs text-muted-foreground">Energy</Label>
             <span className="text-sm font-bold">{energyLevel}<span className="text-xs text-muted-foreground font-normal"> / 10</span></span>
           </div>
-          <Slider
-            value={[energyLevel]}
-            onValueChange={([v]) => setEnergyLevel(v)}
+          <input
+            type="range"
+            value={energyLevel}
+            onChange={e => setEnergyLevel(parseInt(e.target.value))}
             min={1}
             max={10}
             step={1}
-            className="py-2"
+            className="w-full py-2 accent-primary"
           />
           <div className="flex justify-between text-[9px] text-muted-foreground/60">
             <span>Exhausted</span>
