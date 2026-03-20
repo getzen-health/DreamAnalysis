@@ -162,20 +162,44 @@ public class MuseBlePlugin extends Plugin {
             @Override
             public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                 Log.d(TAG, "State: " + newState + " status: " + status);
-                if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    // CRITICAL: refresh GATT cache to fix Android 16 "characteristic not found"
+                if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
+                    Log.d(TAG, "Connected! Refreshing GATT cache...");
                     refreshGattCache(gatt);
                     handler.postDelayed(() -> {
                         try {
+                            Log.d(TAG, "Discovering services...");
                             gatt.discoverServices();
                         } catch (SecurityException e) {
                             rejectConnect("Permission denied: " + e.getMessage());
                         }
                     }, 1500);
+                } else if (newState == BluetoothProfile.STATE_CONNECTED && status != BluetoothGatt.GATT_SUCCESS) {
+                    // Connected but with error status — try discovery anyway
+                    Log.w(TAG, "Connected with non-zero status " + status + ", trying discovery...");
+                    refreshGattCache(gatt);
+                    handler.postDelayed(() -> {
+                        try { gatt.discoverServices(); } catch (SecurityException ignored) {}
+                    }, 2000);
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     isStreaming = false;
-                    notifyListeners("museDisconnected", new JSObject());
-                    rejectConnect("Disconnected (status: " + status + ")");
+                    if (status == 8 && !commandsSent) {
+                        // GATT_CONN_TIMEOUT on first attempt — retry with direct connect
+                        Log.w(TAG, "GATT timeout, retrying direct connect...");
+                        try { gatt.close(); } catch (Exception ignored) {}
+                        handler.postDelayed(() -> {
+                            try {
+                                bluetoothGatt = device.connectGatt(
+                                    getContext(), false, this,
+                                    BluetoothDevice.TRANSPORT_LE
+                                );
+                            } catch (SecurityException ignored) {
+                                rejectConnect("Retry connect permission denied");
+                            }
+                        }, 2000);
+                    } else {
+                        notifyListeners("museDisconnected", new JSObject());
+                        rejectConnect("Disconnected (status: " + status + ")");
+                    }
                 }
             }
 
@@ -277,16 +301,14 @@ public class MuseBlePlugin extends Plugin {
         };
 
         try {
-            // Try direct connect first (autoConnect=false), then autoConnect=true as fallback
-            // PHY_OPTION_NO_PREFERRED lets Android pick the best PHY
+            // Direct connect (autoConnect=false). If status 8 timeout, retry in callback.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 bluetoothGatt = device.connectGatt(
-                    getContext(), true, gattCb,
-                    BluetoothDevice.TRANSPORT_LE,
-                    BluetoothDevice.PHY_LE_1M | BluetoothDevice.PHY_LE_2M
+                    getContext(), false, gattCb,
+                    BluetoothDevice.TRANSPORT_LE
                 );
             } else {
-                bluetoothGatt = device.connectGatt(getContext(), true, gattCb, BluetoothDevice.TRANSPORT_LE);
+                bluetoothGatt = device.connectGatt(getContext(), false, gattCb, BluetoothDevice.TRANSPORT_LE);
             }
         } catch (SecurityException e) {
             call.reject("Connect permission denied");
@@ -301,7 +323,7 @@ public class MuseBlePlugin extends Plugin {
                 bluetoothGatt = null;
             }
         };
-        handler.postDelayed(timeoutRunnable, 90000); // 90s — autoConnect can take 30s+ before GATT starts
+        handler.postDelayed(timeoutRunnable, 60000); // 60s total (includes scan + connect + retry + discovery)
     }
 
     @PluginMethod
