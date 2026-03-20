@@ -519,8 +519,29 @@ export class MuseBleManager {
       }
     }
 
-    // Wait for GATT to settle
-    await new Promise((r) => setTimeout(r, 2000));
+    // Discover services explicitly — REQUIRED on Android for Muse S
+    // Without this, characteristics are "not found" even though they exist
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        const services = await ble.getServices(device.deviceId);
+        // Verify our service exists in the discovered list
+        const found = services.some((s: { uuid: string }) =>
+          s.uuid.toLowerCase() === MUSE_SERVICE.toLowerCase()
+        );
+        if (found) break;
+        console.warn(`Service discovery attempt ${attempt + 1}: Muse service not found, retrying...`);
+      } catch (e) {
+        console.warn(`Service discovery attempt ${attempt + 1} failed:`, e);
+        if (attempt === 2) {
+          // Last attempt — continue anyway, writeCmd will surface the real error
+          console.warn("Service discovery failed after 3 attempts, proceeding anyway");
+        }
+      }
+    }
+
+    // Extra settle time after service discovery
+    await new Promise((r) => setTimeout(r, 500));
 
     // Start EEG streaming — try writeWithoutResponse, fall back to write
     try {
