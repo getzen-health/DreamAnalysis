@@ -299,31 +299,97 @@ export function VoiceCheckinCard({
         audioCtx.close();
         const wavBuffer = audioBufferToWav(audioBuffer);
 
-        const bytes = new Uint8Array(wavBuffer);
-        let binary = "";
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const audio_b64 = btoa(binary);
+        // Try ML backend first, fall back to on-device analysis
+        let checkinResult: VoiceWatchCheckinResult;
+        try {
+          const bytes = new Uint8Array(wavBuffer);
+          let binary = "";
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const audio_b64 = btoa(binary);
 
-        const raw = await submitVoiceWatch(audio_b64, resolvedUserId);
-        // Map voice-watch/analyze response to VoiceWatchCheckinResult shape
-        // stress_from_watch and stress_index are both 0-1 scale
-        const stressIndex = raw.stress_index ?? raw.stress_from_watch ?? 0.5;
-        const focusIndex = raw.focus_index ?? Math.max(0.2, Math.min(0.85, raw.confidence ?? 0.5));
-        const checkinResult: VoiceWatchCheckinResult = {
-          checkin_id:     `${Date.now()}`,
-          checkin_type:   period ?? "morning",
-          emotion:        raw.emotion ?? "neutral",
-          valence:        raw.valence ?? 0,
-          arousal:        raw.arousal ?? 0.5,
-          confidence:     raw.confidence ?? 0.5,
-          stress_index:   stressIndex,
-          focus_index:    focusIndex,
-          model_type:     raw.model_type ?? "voice",
-          timestamp:      Date.now() / 1000,
-          biomarkers:     raw.biomarkers,
-        };
+          const raw = await submitVoiceWatch(audio_b64, resolvedUserId);
+          const stressIndex = raw.stress_index ?? raw.stress_from_watch ?? 0.5;
+          const focusIndex = raw.focus_index ?? Math.max(0.2, Math.min(0.85, raw.confidence ?? 0.5));
+          checkinResult = {
+            checkin_id:     `${Date.now()}`,
+            checkin_type:   period ?? "morning",
+            emotion:        raw.emotion ?? "neutral",
+            valence:        raw.valence ?? 0,
+            arousal:        raw.arousal ?? 0.5,
+            confidence:     raw.confidence ?? 0.5,
+            stress_index:   stressIndex,
+            focus_index:    focusIndex,
+            model_type:     raw.model_type ?? "voice",
+            timestamp:      Date.now() / 1000,
+            biomarkers:     raw.biomarkers,
+          };
+        } catch {
+          // ML backend unavailable — analyze on-device from audio features
+          const samples = audioBuffer.getChannelData(0);
+          const n = samples.length;
+
+          // RMS energy (loudness proxy)
+          let sumSq = 0;
+          for (let i = 0; i < n; i++) sumSq += samples[i] * samples[i];
+          const rms = Math.sqrt(sumSq / n);
+
+          // Zero-crossing rate (pitch/stress proxy)
+          let zcr = 0;
+          for (let i = 1; i < n; i++) {
+            if ((samples[i] >= 0) !== (samples[i - 1] >= 0)) zcr++;
+          }
+          const zcrRate = zcr / n;
+
+          // Speaking rate proxy: count energy bursts (syllables)
+          const frameSize = Math.floor(audioBuffer.sampleRate * 0.025);
+          let syllables = 0;
+          let wasSilent = true;
+          for (let i = 0; i < n; i += frameSize) {
+            let frameEnergy = 0;
+            const end = Math.min(i + frameSize, n);
+            for (let j = i; j < end; j++) frameEnergy += samples[j] * samples[j];
+            frameEnergy /= (end - i);
+            const isSpeech = frameEnergy > 0.001;
+            if (isSpeech && wasSilent) syllables++;
+            wasSilent = !isSpeech;
+          }
+          const speakingRate = syllables / (n / audioBuffer.sampleRate);
+
+          // Map features to emotion estimates
+          const energy = Math.min(1, rms * 15); // normalize RMS to 0-1
+          const stress = Math.min(1, Math.max(0, zcrRate * 8 + energy * 0.3));
+          const arousal = Math.min(1, energy * 0.6 + speakingRate * 0.08);
+          const valence = Math.max(-1, Math.min(1,
+            energy > 0.5 && stress < 0.4 ? 0.3 + energy * 0.3 :
+            stress > 0.6 ? -0.2 - stress * 0.3 :
+            0.1 - stress * 0.2
+          ));
+
+          // Classify emotion from features
+          let emotion = "neutral";
+          if (valence > 0.3 && arousal > 0.4) emotion = "happy";
+          else if (valence < -0.3 && arousal < 0.4) emotion = "sad";
+          else if (valence < -0.2 && arousal > 0.6) emotion = "angry";
+          else if (stress > 0.6) emotion = "fear";
+          else if (energy < 0.15) emotion = "neutral";
+          else if (valence > 0.1) emotion = "happy";
+
+          checkinResult = {
+            checkin_id:     `${Date.now()}`,
+            checkin_type:   period ?? "morning",
+            emotion,
+            valence,
+            arousal,
+            confidence:     0.45, // lower confidence for on-device
+            stress_index:   stress,
+            focus_index:    Math.max(0.2, Math.min(0.8, 1 - stress * 0.5)),
+            model_type:     "on-device" as any,
+            timestamp:      Date.now() / 1000,
+            biomarkers:     undefined,
+          };
+        }
         setResult(checkinResult);
         if (period) markCheckinDone(period, checkinResult);
         setCardState("done");

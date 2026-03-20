@@ -5,8 +5,17 @@ export default function AICompanionPage() {
   const userId = getParticipantId();
 
   return (
-    <main className="h-[calc(100vh-56px)] overflow-hidden">
+    <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 56, // leave space for bottom tab bar
+      zIndex: 30,
+      background: "var(--background)",
+      overflow: "hidden",
+    }}>
       <AICompanion userId={userId} />
-    </main>
+    </div>
   );
 }
