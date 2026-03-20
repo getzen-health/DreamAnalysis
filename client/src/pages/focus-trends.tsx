@@ -238,7 +238,7 @@ export default function FocusTrends() {
   const tips = getFocusTips(focusPercent);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-24">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-4">
       {/* Header */}
       <motion.div
         initial={pageTransition.initial}

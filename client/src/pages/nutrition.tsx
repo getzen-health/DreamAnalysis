@@ -1678,7 +1678,6 @@ export default function Nutrition() {
     <main
       style={{
         background: "var(--background)",
-        minHeight: "100vh",
         color: "var(--foreground)",
         fontFamily: "Inter, system-ui, sans-serif",
         display: "flex",
@@ -1773,7 +1772,7 @@ export default function Nutrition() {
       </div>
 
       {/* ── Tab Content ──────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, padding: "16px 16px 100px", overflowY: "auto", overflowX: "hidden" }}>
+      <div style={{ flex: 1, padding: "16px 16px 16px", overflowX: "hidden" }}>
         {/* Hidden file inputs — always rendered */}
         <input
           ref={cameraInputRef}

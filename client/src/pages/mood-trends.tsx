@@ -249,7 +249,7 @@ export default function MoodTrends() {
   const emotionDisplayName = EMOTION_LABELS[emotionLabel] ?? emotionLabel;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-24">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-4">
       {/* Page header */}
       <motion.div
         initial={pageTransition.initial}

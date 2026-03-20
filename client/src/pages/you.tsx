@@ -237,9 +237,8 @@ export default function You() {
       transition={pageTransition.transition}
       style={{
         background: "var(--background)",
-        minHeight: "100vh",
         padding: 16,
-        paddingBottom: 100,
+        paddingBottom: 16,
         color: "var(--foreground)",
         fontFamily: "Inter, system-ui, sans-serif",
       }}

@@ -892,8 +892,7 @@ export default function Today() {
         transition={pageTransition.transition}
         style={{
           background: "var(--background)",
-          minHeight: "100vh",
-          padding: "16px 16px 100px 16px",
+          padding: "16px 16px 16px 16px",
           fontFamily: "system-ui, -apple-system, sans-serif",
         }}
       >

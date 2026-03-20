@@ -623,9 +623,8 @@ export default function Discover() {
       transition={pageTransition.transition}
       style={{
         background: "var(--background)",
-        minHeight: "100vh",
         padding: 16,
-        paddingBottom: 100,
+        paddingBottom: 16,
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
