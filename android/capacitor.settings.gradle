@@ -17,5 +17,8 @@ project(':capacitor-haptics').projectDir = new File('../node_modules/@capacitor/
 include ':capacitor-push-notifications'
 project(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')
 
+include ':capgo-capacitor-health'
+project(':capgo-capacitor-health').projectDir = new File('../node_modules/@capgo/capacitor-health/android')
+
 include ':capacitor-health'
 project(':capacitor-health').projectDir = new File('../node_modules/capacitor-health/android')

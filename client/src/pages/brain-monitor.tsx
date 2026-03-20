@@ -477,9 +477,9 @@ export default function BrainMonitor() {
                 ))}
                 <span className="ml-auto text-[9px] font-mono text-muted-foreground/50">
                   {latestFrame?.signals
-                    ? `${latestFrame.signals.length}ch × ${latestFrame.signals[0]?.length ?? 0} samples`
-                    : "no data"}
-                  {latestFrame?.analysis?.band_powers ? ` | bp:${Object.keys(latestFrame.analysis.band_powers).length}` : ""}
+                    ? `${latestFrame.signals.length}ch × ${latestFrame.signals[0]?.length ?? 0}smp`
+                    : "no signals"}
+                  {bp ? ` | a:${(alphaVal ?? 0).toFixed(3)} b:${(betaVal ?? 0).toFixed(3)}` : " | no bp"}
                 </span>
               </div>
             </>

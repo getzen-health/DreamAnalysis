@@ -205,6 +205,17 @@ export function ReadinessScore({ userId }: ReadinessScoreProps) {
     retry: 1,
   });
 
+  // Compute trend BEFORE early returns (React hooks must be unconditional)
+  const readinessTrend = useMemo(() => {
+    if (!data?.history || data.history.length < 2) return null;
+    const validHistory = data.history.filter((h) => h.score != null);
+    if (validHistory.length < 2) return null;
+    const prevScore = validHistory[validHistory.length - 2].score!;
+    const delta = data.score - prevScore;
+    if (Math.abs(delta) <= 2) return null;
+    return { delta, direction: delta > 0 ? "up" as const : "down" as const };
+  }, [data]);
+
   if (isLoading) {
     return (
       <Card className="bg-card rounded-xl border border-border/50 shadow-sm">
@@ -224,16 +235,6 @@ export function ReadinessScore({ userId }: ReadinessScoreProps) {
   // Filter history to points with actual scores for the sparkline
   const sparkData = history.map((h) => ({ date: h.date, score: h.score ?? 0 }));
   const lineColor = scoreColor(color);
-
-  // Compute trend from history: compare today vs previous day
-  const readinessTrend = useMemo(() => {
-    const validHistory = history.filter((h) => h.score != null);
-    if (validHistory.length < 2) return null;
-    const prevScore = validHistory[validHistory.length - 2].score!;
-    const delta = score - prevScore;
-    if (Math.abs(delta) <= 2) return null;
-    return { delta, direction: delta > 0 ? "up" as const : "down" as const };
-  }, [history, score]);
 
   return (
     <Card className="bg-card rounded-xl border border-border/50 shadow-sm">
