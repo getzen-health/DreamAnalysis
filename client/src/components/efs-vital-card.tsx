@@ -10,8 +10,8 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Lock, ChevronDown, ChevronUp } from "lucide-react";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   ResponsiveContainer,
 } from "recharts";
 import type { EFSVitalData } from "@/lib/ml-api";
@@ -114,20 +114,27 @@ export function EFSVitalCard({ name, icon: Icon, vital }: EFSVitalCardProps) {
                 {score}
               </span>
             </div>
-            {/* Mini sparkline */}
+            {/* Mini sparkline with gradient fill */}
             {sparkData.length > 1 && (
               <div className="h-6 w-full mt-1">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={sparkData}>
-                    <Line
+                  <AreaChart data={sparkData}>
+                    <defs>
+                      <linearGradient id={`spark-${name}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={lineColor} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={lineColor} stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <Area
                       type="monotone"
                       dataKey="score"
                       stroke={lineColor}
                       strokeWidth={1.5}
+                      fill={`url(#spark-${name})`}
                       dot={false}
                       isAnimationActive={false}
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             )}
