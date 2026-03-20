@@ -165,7 +165,7 @@ export default function Steps() {
 
   // Build weekly chart data grouped by day
   const weeklyChartData = useMemo(() => {
-    if (!stepsHistory || stepsHistory.length === 0) return [];
+    if (!stepsHistory || !Array.isArray(stepsHistory) || stepsHistory.length === 0) return [];
     const dayMap = new Map<string, number>();
     for (const s of stepsHistory) {
       const day = new Date(s.recorded_at).toLocaleDateString(undefined, {

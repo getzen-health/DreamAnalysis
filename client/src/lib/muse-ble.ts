@@ -517,11 +517,21 @@ export class MuseBleManager {
     }
 
     try {
+      // Muse control characteristic requires Write Without Response.
+      // Try writeWithoutResponse first, fall back to write (with response) if unavailable.
+      const writeCmd = async (cmd: DataView) => {
+        try {
+          await ble.writeWithoutResponse(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+        } catch {
+          await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
+        }
+      };
       // Set standard preset (4-channel EEG) then start data
-      await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
-      await ble.write(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
+      await writeCmd(CMD_PRESET_P21);
+      await new Promise((r) => setTimeout(r, 100)); // brief pause between commands
+      await writeCmd(CMD_START);
     } catch (e) {
-      this.setStatus("error", `Failed to start EEG stream: ${String(e)}`);
+      this.setStatus("error", `Failed to start EEG stream: ${String(e)}. Try: turn Muse off (hold 5s), turn back on, then retry.`);
       throw e;
     }
 
@@ -566,8 +576,13 @@ export class MuseBleManager {
     }
 
     try {
-      await ble.write(this.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_PRESET_P21);
-      await ble.write(this.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_START);
+      const writeReconnect = async (cmd: DataView) => {
+        try { await ble.writeWithoutResponse(this.deviceId!, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd); }
+        catch { await ble.write(this.deviceId!, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd); }
+      };
+      await writeReconnect(CMD_PRESET_P21);
+      await new Promise((r) => setTimeout(r, 100));
+      await writeReconnect(CMD_START);
     } catch (e) {
       this.setStatus("error", `Failed to restart EEG stream: ${String(e)}`);
       throw e;
@@ -601,7 +616,9 @@ export class MuseBleManager {
     try {
       const ble = await this.getBleClient();
       // Send stop command before disconnecting so the headset goes to idle
-      await ble.write(this.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_STOP).catch(() => {});
+      await ble.writeWithoutResponse(this.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_STOP).catch(() =>
+        ble.write(this.deviceId!, MUSE_SERVICE, MUSE_CONTROL_CHAR, CMD_STOP).catch(() => {})
+      );
       await ble.disconnect(this.deviceId);
     } catch {
       // ignore errors during teardown

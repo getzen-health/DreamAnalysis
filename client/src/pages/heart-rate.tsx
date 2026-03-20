@@ -146,7 +146,7 @@ export default function HeartRate() {
 
   // Transform history for the chart
   const chartData = useMemo(() => {
-    if (!hrHistory || hrHistory.length === 0) return [];
+    if (!hrHistory || !Array.isArray(hrHistory) || hrHistory.length === 0) return [];
     return hrHistory.map((s) => ({
       time: new Date(s.recorded_at).toLocaleDateString(undefined, {
         weekday: "short",

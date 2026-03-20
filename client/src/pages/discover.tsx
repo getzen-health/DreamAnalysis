@@ -328,9 +328,7 @@ interface NavCard {
 
 const NAV_CARDS: NavCard[] = [
   { emoji: "😊", title: "Emotions",     subtitle: "Mood trends, emotion history",       route: "/mood",           accentColor: "#0891b2" },
-  { emoji: "🍎", title: "Nutrition",    subtitle: "Food, vitamins, supplements",         route: "/nutrition",      accentColor: "#d4a017" },
   { emoji: "🧠", title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor",  accentColor: "#6366f1" },
-  { emoji: "😴", title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#7c3aed" },
   { emoji: "💪", title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health",         accentColor: "#e879a8" },
   { emoji: "✨", title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#4ade80" },
   { emoji: "🧘", title: "Wellness",     subtitle: "Habits, menstrual cycle tracking",    route: "/wellness",       accentColor: "#ea580c" },
