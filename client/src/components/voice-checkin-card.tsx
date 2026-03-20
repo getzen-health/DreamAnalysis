@@ -18,7 +18,7 @@ import { resolveUrl } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, X } from "lucide-react";
+import { Mic, MicOff, X, Check, Pencil } from "lucide-react";
 import { getMLApiUrl, submitVoiceWatch } from "@/lib/ml-api";
 import type { VoiceWatchCheckinResult } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
@@ -241,6 +241,8 @@ export function VoiceCheckinCard({
   const [result, setResult] = useState<VoiceWatchCheckinResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [affirmation, setAffirmation] = useState("");
+  const [feedbackState, setFeedbackState] = useState<"ask" | "correcting" | "confirmed" | "corrected">("ask");
+  const [correctedEmotion, setCorrectedEmotion] = useState<string | null>(null);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -262,6 +264,29 @@ export function VoiceCheckinCard({
   }, []);
 
   const dismiss = useCallback(() => setCardState("dismissed"), []);
+
+  const submitCorrection = useCallback(async (emotion: string) => {
+    setCorrectedEmotion(emotion);
+    setFeedbackState("corrected");
+    // Fire-and-forget: save correction to backend
+    fetch(resolveUrl(`/api/readings/${resolvedUserId}/correct-latest`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ correctedEmotion: emotion }),
+    }).catch(() => {});
+  }, [resolvedUserId]);
+
+  const confirmEmotion = useCallback(async () => {
+    setFeedbackState("confirmed");
+    // Confirm = correct with the same emotion that was predicted
+    if (result?.emotion) {
+      fetch(resolveUrl(`/api/readings/${resolvedUserId}/correct-latest`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ correctedEmotion: result.emotion }),
+      }).catch(() => {});
+    }
+  }, [resolvedUserId, result]);
 
   const startRecording = useCallback(async () => {
     if (cardState !== "idle") return;
@@ -685,6 +710,67 @@ export function VoiceCheckinCard({
               <p className="text-[10px] text-muted-foreground/60 italic">
                 Voice analysis reflects acoustic patterns, not a clinical assessment.
               </p>
+
+              {/* ── "Was this right?" feedback row ── */}
+              {feedbackState === "ask" && (
+                <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                  <span className="text-xs text-muted-foreground">Was this right?</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={confirmEmotion}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      <Check className="h-3 w-3" />
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setFeedbackState("correcting")}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Correct it
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {feedbackState === "correcting" && (
+                <div className="space-y-2 pt-1 border-t border-border/30">
+                  <span className="text-xs text-muted-foreground">What were you actually feeling?</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["happy", "sad", "angry", "fear", "surprise", "neutral"] as const).map((em) => (
+                      <button
+                        key={em}
+                        onClick={() => submitCorrection(em)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${
+                          em === result.emotion
+                            ? "bg-muted/30 text-muted-foreground/60"
+                            : "bg-primary/10 text-primary hover:bg-primary/20"
+                        }`}
+                      >
+                        {em}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {feedbackState === "confirmed" && (
+                <div className="flex items-center gap-2 pt-1 border-t border-border/30">
+                  <Check className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs text-primary font-medium">Thanks!</span>
+                </div>
+              )}
+
+              {feedbackState === "corrected" && correctedEmotion && (
+                <div className="flex items-center gap-2 pt-1 border-t border-border/30">
+                  <Check className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs text-primary font-medium">
+                    Saved as {correctedEmotion}. Thanks for helping improve accuracy!
+                  </span>
+                </div>
+              )}
+
               <p className="text-xs text-muted-foreground">
                 Next analysis at {nextWindowLabel(period)}
               </p>

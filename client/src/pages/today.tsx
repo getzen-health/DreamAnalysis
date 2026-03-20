@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { pageTransition } from "@/lib/animations";
-import { resolveUrl } from "@/lib/queryClient";
+import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
-import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle } from "lucide-react";
+import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle, Smile, Minus, Frown, PenLine } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
@@ -622,7 +622,32 @@ export default function Today() {
   const userId = useMemo(() => getParticipantId(), []);
   const [, navigate] = useLocation();
   const voiceData = useVoiceData();
+  const queryClient = useQueryClient();
   const [showBreathe, setShowBreathe] = useState(false);
+
+  // ── Log a feeling state ──
+  const [feelingText, setFeelingText] = useState("");
+  const [feelingTone, setFeelingTone] = useState<"positive" | "neutral" | "low">("neutral");
+  const [feelingSaving, setFeelingSaving] = useState(false);
+  const [feelingSaved, setFeelingSaved] = useState(false);
+
+  const submitFeeling = useCallback(async () => {
+    if (!feelingText.trim() || feelingSaving) return;
+    setFeelingSaving(true);
+    const moodScore = feelingTone === "positive" ? 8 : feelingTone === "low" ? 3 : 5;
+    const energyLevel = feelingTone === "positive" ? 7 : feelingTone === "low" ? 3 : 5;
+    try {
+      await apiRequest("POST", "/api/mood", { moodScore, energyLevel, notes: feelingText.trim() });
+      setFeelingSaved(true);
+      setFeelingText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/mood"] });
+      setTimeout(() => setFeelingSaved(false), 2000);
+    } catch {
+      // best-effort
+    } finally {
+      setFeelingSaving(false);
+    }
+  }, [feelingText, feelingTone, feelingSaving, queryClient]);
 
   // Load last emotion check-in from localStorage — re-read on voice update
   const [checkin, setCheckin] = useState<EmotionCheckin | null>(null);
@@ -1031,6 +1056,120 @@ export default function Today() {
             >
               {aiInsight}
             </p>
+          </motion.div>
+
+          {/* ── 4b. Log a Feeling ── */}
+          <motion.div
+            variants={itemVariants}
+            style={{
+              ...bevelCard,
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 10,
+              }}
+            >
+              <PenLine size={13} color="#7c3aed" />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#7c3aed",
+                  textTransform: "uppercase" as const,
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Log a Feeling
+              </span>
+            </div>
+            <input
+              type="text"
+              value={feelingText}
+              onChange={(e) => setFeelingText(e.target.value)}
+              placeholder="What are you feeling? (e.g. proud of myself, grateful...)"
+              onKeyDown={(e) => { if (e.key === "Enter") submitFeeling(); }}
+              style={{
+                width: "100%",
+                background: "var(--muted)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                padding: "10px 14px",
+                fontSize: 14,
+                color: "var(--foreground)",
+                outline: "none",
+                marginBottom: 10,
+                boxSizing: "border-box",
+              }}
+            />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {([
+                  { key: "positive" as const, Icon: Smile, label: "Positive", color: "#06b6d4" },
+                  { key: "neutral" as const, Icon: Minus, label: "Neutral", color: "#94a3b8" },
+                  { key: "low" as const, Icon: Frown, label: "Low", color: "#e879a8" },
+                ] as const).map(({ key, Icon, label, color }) => (
+                  <button
+                    key={key}
+                    onClick={() => setFeelingTone(key)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "6px 10px",
+                      borderRadius: 16,
+                      border: feelingTone === key ? `1.5px solid ${color}` : "1px solid var(--border)",
+                      background: feelingTone === key ? `${color}15` : "transparent",
+                      color: feelingTone === key ? color : "var(--muted-foreground)",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <Icon style={{ width: 13, height: 13 }} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={submitFeeling}
+                disabled={!feelingText.trim() || feelingSaving}
+                style={{
+                  padding: "6px 16px",
+                  borderRadius: 16,
+                  border: "none",
+                  background: feelingText.trim() ? "linear-gradient(135deg, #7c3aed, #e879a8)" : "var(--muted)",
+                  color: feelingText.trim() ? "#fff" : "var(--muted-foreground)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: feelingText.trim() ? "pointer" : "default",
+                  transition: "all 0.15s ease",
+                  opacity: feelingSaving ? 0.6 : 1,
+                }}
+              >
+                {feelingSaving ? "Saving..." : "Save"}
+              </button>
+            </div>
+            {feelingSaved && (
+              <motion.p
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  fontSize: 12,
+                  color: "#06b6d4",
+                  fontWeight: 500,
+                  marginTop: 8,
+                  textAlign: "center",
+                }}
+              >
+                Feeling logged!
+              </motion.p>
+            )}
           </motion.div>
 
           {/* ── Stress Warning (conditional) ── */}

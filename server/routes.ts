@@ -4959,6 +4959,82 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
     }
   });
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // VOICE READING CORRECTION
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // PATCH /api/readings/:userId/correct-latest
+  // Called by voice-checkin-card.tsx "Was this right?" UI — updates the most
+  // recent userReadings row for this user and the most recent emotionReadings row.
+  app.patch("/api/readings/:userId/correct-latest", async (req, res) => {
+    const { userId } = req.params;
+    const { correctedEmotion } = req.body as { correctedEmotion: string };
+
+    if (!userId || !correctedEmotion) {
+      return res.status(400).json({ error: "userId and correctedEmotion are required" });
+    }
+
+    const validEmotions = ["happy", "sad", "angry", "fear", "surprise", "neutral"];
+    if (!validEmotions.includes(correctedEmotion)) {
+      return res.status(400).json({ error: "Invalid emotion" });
+    }
+
+    try {
+      // 1. Update the most recent userReadings row
+      const [latestReading] = await db
+        .select({ id: userReadings.id })
+        .from(userReadings)
+        .where(eq(userReadings.userId, userId))
+        .orderBy(desc(userReadings.createdAt))
+        .limit(1);
+
+      if (latestReading) {
+        await db
+          .update(userReadings)
+          .set({ userCorrected: correctedEmotion })
+          .where(eq(userReadings.id, latestReading.id));
+      }
+
+      // 2. Also update the most recent emotionReadings row
+      const [latestEmotion] = await db
+        .select({ id: emotionReadings.id })
+        .from(emotionReadings)
+        .where(eq(emotionReadings.userId, userId))
+        .orderBy(desc(emotionReadings.timestamp))
+        .limit(1);
+
+      if (latestEmotion) {
+        await db
+          .update(emotionReadings)
+          .set({
+            userCorrectedEmotion: correctedEmotion,
+            userCorrectedAt: new Date(),
+          })
+          .where(eq(emotionReadings.id, latestEmotion.id));
+      }
+
+      // 3. Forward to ML backend for online learning (fire-and-forget)
+      try {
+        const mlBase = process.env.ML_BACKEND_URL ?? "http://localhost:8000";
+        fetch(`${mlBase}/api/feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userId,
+            predicted_label: "unknown",
+            correct_label: correctedEmotion,
+          }),
+          signal: AbortSignal.timeout(3000),
+        }).catch(() => {});
+      } catch { /* best-effort */ }
+
+      res.json({ ok: true });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to save reading correction");
+      res.status(500).json({ error: "Failed to save correction" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
