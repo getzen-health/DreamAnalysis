@@ -34,12 +34,22 @@ public class MuseBlePlugin extends Plugin {
     // Muse GATT UUIDs
     private static final UUID MUSE_SERVICE = UUID.fromString("0000fe8d-0000-1000-8000-00805f9b34fb");
     private static final UUID CONTROL_CHAR = UUID.fromString("273e0001-4c4d-454d-96be-f03bac821358");
-    private static final UUID[] EEG_CHARS = {
+    // Muse 2 EEG characteristic UUIDs
+    private static final UUID[] EEG_CHARS_MUSE2 = {
         UUID.fromString("273e0003-4c4d-454d-96be-f03bac821358"),
         UUID.fromString("273e0004-4c4d-454d-96be-f03bac821358"),
         UUID.fromString("273e0005-4c4d-454d-96be-f03bac821358"),
         UUID.fromString("273e0006-4c4d-454d-96be-f03bac821358"),
     };
+    // Muse S EEG characteristic UUIDs (offset by 0x10)
+    private static final UUID[] EEG_CHARS_MUSE_S = {
+        UUID.fromString("273e0013-4c4d-454d-96be-f03bac821358"),
+        UUID.fromString("273e0014-4c4d-454d-96be-f03bac821358"),
+        UUID.fromString("273e0015-4c4d-454d-96be-f03bac821358"),
+        UUID.fromString("273e0016-4c4d-454d-96be-f03bac821358"),
+    };
+    // Active set — determined during service discovery
+    private UUID[] EEG_CHARS = EEG_CHARS_MUSE2;
     private static final UUID CCC_DESCRIPTOR = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
     // Muse commands
@@ -358,36 +368,39 @@ public class MuseBlePlugin extends Plugin {
         subscribedChannels = 0;
         pendingDescriptorWrites = 0;
 
-        // Log ALL characteristics in the service
+        // Auto-detect Muse 2 vs Muse S based on characteristic UUIDs
         List<BluetoothGattCharacteristic> allChars = svc.getCharacteristics();
-        StringBuilder charList = new StringBuilder();
-        for (BluetoothGattCharacteristic c : allChars) {
-            charList.append(c.getUuid().toString()).append(", ");
-        }
-        Log.d(TAG, "Service has " + allChars.size() + " chars: " + charList);
+        Log.d(TAG, "Service has " + allChars.size() + " characteristics");
 
-        // Collect EEG characteristics — try direct lookup first, then manual scan
+        // Try Muse S UUIDs first (273e0013-0016)
         List<BluetoothGattCharacteristic> eegChars = new ArrayList<>();
-        for (int i = 0; i < EEG_CHARS.length; i++) {
-            BluetoothGattCharacteristic ch = svc.getCharacteristic(EEG_CHARS[i]);
-            if (ch != null) {
-                eegChars.add(ch);
+        for (UUID u : EEG_CHARS_MUSE_S) {
+            BluetoothGattCharacteristic ch = svc.getCharacteristic(u);
+            if (ch != null) eegChars.add(ch);
+        }
+        if (!eegChars.isEmpty()) {
+            EEG_CHARS = EEG_CHARS_MUSE_S;
+            Log.d(TAG, "Detected Muse S EEG UUIDs (0013-0016), found " + eegChars.size() + " channels");
+        }
+
+        // Try Muse 2 UUIDs (273e0003-0006)
+        if (eegChars.isEmpty()) {
+            for (UUID u : EEG_CHARS_MUSE2) {
+                BluetoothGattCharacteristic ch = svc.getCharacteristic(u);
+                if (ch != null) eegChars.add(ch);
+            }
+            if (!eegChars.isEmpty()) {
+                EEG_CHARS = EEG_CHARS_MUSE2;
+                Log.d(TAG, "Detected Muse 2 EEG UUIDs (0003-0006), found " + eegChars.size() + " channels");
             }
         }
 
-        // If direct lookup fails, scan all characteristics manually
         if (eegChars.isEmpty()) {
+            StringBuilder charList = new StringBuilder();
             for (BluetoothGattCharacteristic c : allChars) {
-                String uuid = c.getUuid().toString().toLowerCase();
-                if (uuid.startsWith("273e0003") || uuid.startsWith("273e0004") ||
-                    uuid.startsWith("273e0005") || uuid.startsWith("273e0006")) {
-                    eegChars.add(c);
-                }
+                charList.append(c.getUuid().toString()).append(", ");
             }
-        }
-
-        if (eegChars.isEmpty()) {
-            rejectConnect("No EEG chars in service (" + allChars.size() + " total: " + charList.toString().trim() + ")");
+            rejectConnect("No EEG chars found (" + allChars.size() + " total: " + charList + ")");
             return;
         }
 

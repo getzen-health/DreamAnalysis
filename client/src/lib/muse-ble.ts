@@ -29,13 +29,23 @@ export const MUSE_CONTROL_CHAR    = "273e0001-4c4d-454d-96be-f03bac821358";
 export const MUSE_TELEMETRY_CHAR  = "273e0002-4c4d-454d-96be-f03bac821358";
 
 // One characteristic per EEG channel (TP9, AF7, AF8, TP10, AUX)
-export const MUSE_EEG_CHARS = [
-  "273e0003-4c4d-454d-96be-f03bac821358", // ch0 — TP9  (left temporal)
-  "273e0004-4c4d-454d-96be-f03bac821358", // ch1 — AF7  (left frontal)  ← FAA left
-  "273e0005-4c4d-454d-96be-f03bac821358", // ch2 — AF8  (right frontal) ← FAA right
-  "273e0006-4c4d-454d-96be-f03bac821358", // ch3 — TP10 (right temporal)
-  "273e0007-4c4d-454d-96be-f03bac821358", // ch4 — AUX  (right ear/5th channel, optional)
+// Muse 2 uses 0003-0007, Muse S uses 0013-0017 (offset by 0x10)
+export const MUSE_EEG_CHARS_MUSE2 = [
+  "273e0003-4c4d-454d-96be-f03bac821358", // ch0 — TP9
+  "273e0004-4c4d-454d-96be-f03bac821358", // ch1 — AF7
+  "273e0005-4c4d-454d-96be-f03bac821358", // ch2 — AF8
+  "273e0006-4c4d-454d-96be-f03bac821358", // ch3 — TP10
 ] as const;
+
+export const MUSE_EEG_CHARS_MUSE_S = [
+  "273e0013-4c4d-454d-96be-f03bac821358", // ch0 — TP9
+  "273e0014-4c4d-454d-96be-f03bac821358", // ch1 — AF7
+  "273e0015-4c4d-454d-96be-f03bac821358", // ch2 — AF8
+  "273e0016-4c4d-454d-96be-f03bac821358", // ch3 — TP10
+] as const;
+
+// Default to Muse 2 — auto-detected at connection time
+export let MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE2] as string[];
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
