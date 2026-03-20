@@ -6,6 +6,7 @@ and JSON for metadata/analysis timelines.
 """
 
 import json
+import re
 import uuid
 import time
 import logging
@@ -13,6 +14,8 @@ import os
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional
+
+_SAFE_ID_RE = re.compile(r'^[a-zA-Z0-9_-]{1,128}$')
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +91,8 @@ class SessionRecorder:
         Returns:
             session_id: Unique identifier for this session.
         """
+        if not _SAFE_ID_RE.match(user_id):
+            raise ValueError(f"Invalid user_id: {user_id!r}")
         session_id = str(uuid.uuid4())[:8]
         self.active_session = session_id
         self.start_time = time.time()

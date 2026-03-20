@@ -14,6 +14,8 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from api.routes._shared import sanitize_id
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -43,6 +45,10 @@ async def save_eeg(data: SaveEEGRequest):
     Stores each epoch as a compressed .npz file under
     user_data/{user_id}/sessions/{session_id}/epoch_{timestamp}.npz
     """
+    sanitize_id(data.user_id, "user_id")
+    if data.session_id is not None:
+        sanitize_id(data.session_id, "session_id")
+
     signals = np.array(data.signals, dtype=np.float32)
 
     if signals.ndim != 2 or signals.shape[0] < 1:
@@ -57,6 +63,11 @@ async def save_eeg(data: SaveEEGRequest):
     # Create directory structure
     session_dir = USER_DATA_DIR / data.user_id / "sessions" / session_id
     session_dir.mkdir(parents=True, exist_ok=True)
+
+    # Path containment check — guard against symlink or other traversal bypasses
+    resolved = session_dir.resolve()
+    if not str(resolved).startswith(str(USER_DATA_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid path")
 
     filename = f"epoch_{ts}.npz"
     filepath = session_dir / filename
@@ -115,6 +126,8 @@ async def save_eeg(data: SaveEEGRequest):
 @router.get("/sessions/training-data/stats")
 async def training_data_stats(user_id: str):
     """Get statistics on stored EEG training data."""
+    sanitize_id(user_id, "user_id")
+
     if not USER_DATA_DIR.exists():
         return {"total_epochs": 0, "users": {}, "ready_to_train": False}
 

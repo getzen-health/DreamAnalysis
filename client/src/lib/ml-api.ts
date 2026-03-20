@@ -18,6 +18,9 @@ if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
 /** Reads the ML backend URL, handling web, native, and user overrides. */
 export function getMLApiUrl(): string {
   // 1. User override from Settings (always wins)
+  // NOTE: ml_backend_url in localStorage is intentional for local dev/debug override.
+  // In production builds, consider removing this fallback to avoid exposing
+  // internal service URLs to client-side scripts.
   try {
     const stored = localStorage.getItem("ml_backend_url");
     if (stored?.trim()) return stored.trim().replace(/\/$/, "");

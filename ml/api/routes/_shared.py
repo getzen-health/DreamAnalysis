@@ -1,10 +1,30 @@
 """Shared utilities, model singletons, and Pydantic schemas for all route modules."""
 
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
+from fastapi import HTTPException
 from pydantic import BaseModel, Field
+
+# ─── ID sanitization ─────────────────────────────────────────────────────────
+_SAFE_ID_RE = re.compile(r'^[a-zA-Z0-9_-]{1,128}$')
+
+
+def sanitize_id(value: str, field_name: str = "id") -> str:
+    """Validate that an ID is safe for use in file paths.
+
+    Rejects values containing path traversal characters (/, \\, ..)
+    or any non-alphanumeric characters except - and _.
+    """
+    if not _SAFE_ID_RE.match(value):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid {field_name}: must be 1-128 alphanumeric characters, hyphens, or underscores",
+        )
+    return value
+
 
 # ─── ML Model imports ────────────────────────────────────────────────────────
 from models.sleep_staging import SleepStagingModel

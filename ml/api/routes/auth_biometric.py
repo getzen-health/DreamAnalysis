@@ -29,6 +29,16 @@ class BiometricEEGRequest(BaseModel):
     user_id: str = Field(..., min_length=1, description="User identifier")
 
 
+class BiometricEnrollRequest(BiometricEEGRequest):
+    consent_given: bool = Field(
+        ...,
+        description=(
+            "Must be true. Confirms the user understands that EEG spectral "
+            "templates will be stored for identity verification."
+        ),
+    )
+
+
 class DeleteTemplateRequest(BaseModel):
     user_id: str = Field(..., description="User ID whose template to delete")
 
@@ -36,13 +46,25 @@ class DeleteTemplateRequest(BaseModel):
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.post("/auth/eeg-enroll")
-async def eeg_enroll(request: BiometricEEGRequest):
+async def eeg_enroll(request: BiometricEnrollRequest):
     """Add an EEG enrollment segment for a user.
 
     Call ≥3 times with resting-state EEG (eyes closed, 10+ seconds each).
     After 3 segments the template is finalized and verification is available.
     Only frequency-domain templates are stored — raw EEG is never persisted.
+
+    Requires `consent_given: true` — explicit acknowledgement that EEG spectral
+    templates will be stored for identity verification.
     """
+    if not request.consent_given:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Explicit consent is required for EEG biometric enrollment. "
+                "Set consent_given=true to confirm you understand that EEG spectral "
+                "templates will be stored for identity verification."
+            ),
+        )
     try:
         from models.eeg_authenticator import get_eeg_authenticator
         eeg = np.array(request.eeg, dtype=np.float32)
@@ -106,3 +128,18 @@ async def eeg_auth_status():
         return get_eeg_authenticator().get_status()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/auth/eeg-audit")
+async def get_biometric_audit(user_id: Optional[str] = None, limit: int = 100):
+    """Return biometric system audit log.
+
+    Pass `user_id` to filter to a specific user.
+    `limit` caps how many of the most-recent events are returned (default 100).
+    """
+    from models.eeg_authenticator import _biometric_audit_log
+
+    log = _biometric_audit_log
+    if user_id:
+        log = [e for e in log if e["user_id"] == user_id]
+    return {"events": log[-limit:], "total": len(log)}

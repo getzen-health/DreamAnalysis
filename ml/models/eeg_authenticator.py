@@ -22,7 +22,8 @@ References:
 
 import logging
 import threading
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -36,6 +37,25 @@ VERIFY_THRESHOLD = 0.75       # cosine similarity threshold for match
 PSD_FREQ_LO = 0.5             # Hz — lowest frequency in PSD fingerprint
 PSD_FREQ_HI = 45.0            # Hz — highest frequency
 PSD_RESOLUTION = 0.5          # Hz per bin → 89 bins per channel (0.5-45 Hz)
+
+
+# ── Audit log ─────────────────────────────────────────────────────────────────
+
+_biometric_audit_log: List[Dict[str, Any]] = []
+
+
+def _log_biometric_event(event_type: str, user_id: str, success: bool, details: str = "") -> None:
+    """Record a biometric system event for audit trail."""
+    _biometric_audit_log.append({
+        "event": event_type,  # "enroll", "verify", "identify", "delete"
+        "user_id": user_id,
+        "success": success,
+        "details": details,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    # Keep last 10000 events
+    if len(_biometric_audit_log) > 10000:
+        _biometric_audit_log[:] = _biometric_audit_log[-10000:]
 
 
 # ── EEGAuthenticator ──────────────────────────────────────────────────────────
@@ -85,6 +105,7 @@ class EEGAuthenticator:
         """
         psd = self._extract_psd_vector(eeg, fs)
         if psd is None:
+            _log_biometric_event("enroll", user_id, False, "Signal too short for reliable PSD")
             return {
                 "enrolled_segments": self._segment_count(user_id),
                 "template_ready": self._is_ready(user_id),
@@ -109,9 +130,14 @@ class EEGAuthenticator:
                     n_segs,
                 )
 
+        template_ready = n_segs >= ENROLL_MIN_SEGMENTS
+        _log_biometric_event(
+            "enroll", user_id, True,
+            f"segment={n_segs} template_ready={template_ready}",
+        )
         return {
             "enrolled_segments": n_segs,
-            "template_ready": n_segs >= ENROLL_MIN_SEGMENTS,
+            "template_ready": template_ready,
             "user_id": user_id,
         }
 
@@ -138,6 +164,7 @@ class EEGAuthenticator:
             }
         """
         if not self._is_ready(user_id):
+            _log_biometric_event("verify", user_id, False, "no_template")
             return {
                 "match": False,
                 "similarity": 0.0,
@@ -149,6 +176,7 @@ class EEGAuthenticator:
 
         psd = self._extract_psd_vector(eeg, fs)
         if psd is None:
+            _log_biometric_event("verify", user_id, False, "signal_too_short")
             return {
                 "match": False,
                 "similarity": 0.0,
@@ -163,6 +191,10 @@ class EEGAuthenticator:
 
         similarity = float(_cosine_similarity(psd, template))
         match = similarity >= VERIFY_THRESHOLD
+        _log_biometric_event(
+            "verify", user_id, match,
+            f"similarity={round(similarity, 4)} threshold={VERIFY_THRESHOLD}",
+        )
 
         return {
             "match": match,
@@ -189,6 +221,7 @@ class EEGAuthenticator:
         """
         psd = self._extract_psd_vector(eeg, fs)
         if psd is None:
+            _log_biometric_event("identify", "_unknown_", False, "signal_too_short")
             return {
                 "identified_user": None,
                 "similarity": 0.0,
@@ -199,6 +232,7 @@ class EEGAuthenticator:
 
         with self._lock:
             if not self._mean_templates:
+                _log_biometric_event("identify", "_unknown_", False, "no_enrolled_users")
                 return {
                     "identified_user": None,
                     "similarity": 0.0,
@@ -214,6 +248,12 @@ class EEGAuthenticator:
         scores.sort(key=lambda x: x["similarity"], reverse=True)
         best = scores[0]
         identified = best["user_id"] if best["similarity"] >= VERIFY_THRESHOLD else None
+        _log_biometric_event(
+            "identify",
+            identified if identified else "_unknown_",
+            identified is not None,
+            f"best_similarity={best['similarity']} candidates={len(scores)}",
+        )
 
         return {
             "identified_user": identified,
@@ -228,6 +268,7 @@ class EEGAuthenticator:
             removed = user_id in self._templates
             self._templates.pop(user_id, None)
             self._mean_templates.pop(user_id, None)
+        _log_biometric_event("delete", user_id, removed, f"template_existed={removed}")
         return {"user_id": user_id, "deleted": removed}
 
     def get_status(self) -> Dict:

@@ -1,4 +1,5 @@
 import { lazy, Suspense, Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
+import { cleanExpiredLocalStorage } from "@/lib/storage-cleanup";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -446,6 +447,10 @@ function AppShell() {
   const [location] = useLocation();
   const { user, isLoading } = useAuth();
   const isPublicRoute = PUBLIC_ROUTES.has(location);
+
+  useEffect(() => {
+    cleanExpiredLocalStorage();
+  }, []);
 
   // Only show warmup screen for authenticated users on non-public routes
   const showWarmup = !warmupDismissed && !isPublicRoute && !isLoading && !!user;

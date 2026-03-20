@@ -23,6 +23,7 @@ warnings.filterwarnings(
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from api.auth import APIKeyMiddleware
 
 # NOTE: api.routes and api.websocket are intentionally NOT imported here.
 # They trigger synchronous loading of all 16 ML models (~60-90 s), which
@@ -71,6 +72,8 @@ else:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+app.add_middleware(APIKeyMiddleware)
 
 @app.get("/health")
 async def health_check():

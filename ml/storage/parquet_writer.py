@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -117,6 +118,10 @@ class ParquetWriter:
     """Per-user writer that batches EEG frames and flushes to Parquet."""
 
     def __init__(self, user_id: str = "default", session_id: Optional[str] = None):
+        if not re.match(r'^[a-zA-Z0-9_-]{1,128}$', user_id):
+            raise ValueError(f"Invalid user_id: {user_id!r}")
+        if session_id is not None and not re.match(r'^[a-zA-Z0-9_-]{1,128}$', session_id):
+            raise ValueError(f"Invalid session_id: {session_id!r}")
         self._user_id = user_id
         self._session_id = session_id or f"s{int(time.time())}"
         self._rows: List[Dict[str, Any]] = []
