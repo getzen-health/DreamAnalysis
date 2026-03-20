@@ -47,14 +47,15 @@ const models = [
     name: "Dream Detector",
     file: "dream_detector.py",
     algo: "Gradient Boosting",
-    liveAccuracy: "97.20%",
-    benchmarkAccuracy: "97.20%",
-    crossSubject: "~88%",
+    liveAccuracy: "97.20% (synthetic)",
+    benchmarkAccuracy: "97.20% (synthetic) — real cross-subject TBD (expected 82-88%)",
+    crossSubject: "~82-88% (estimated, real data not yet validated)",
+    trainingData: "synthetic",
     classes: 2,
     classLabels: ["not-dreaming", "dreaming"],
     primarySignals: ["REM identification", "Theta oscillations", "REMs (micro-saccade artifacts)", "Alpha suppression"],
     novelty:
-      "Chained with Sleep Staging output — only activates during REM epochs. Feeds directly into the Dream Journal for automated session stamping.",
+      "Chained with Sleep Staging output — only activates during REM epochs. Feeds directly into the Dream Journal for automated session stamping. WARNING: 97.20% accuracy is from synthetic data (eeg_simulator.py). Real Sleep-EDF cross-subject accuracy is expected to drop 10-15 points. Sleep-EDF uses 2 EEG channels (Fpz-Cz, Pz-Oz) vs Muse 2's 4 channels at different scalp positions — additional domain gap expected.",
     status: "active",
     category: "Sleep",
     color: "indigo",
@@ -64,32 +65,32 @@ const models = [
     name: "Flow State Detector",
     file: "flow_state_detector.py",
     algo: "Neural Network (MLP)",
-    liveAccuracy: "62.86%",
-    benchmarkAccuracy: "62.86%",
+    liveAccuracy: "62.86% (binary ~70-75%)",
+    benchmarkAccuracy: "62.86% CV (4-class) — binary flow/no-flow recommended",
     crossSubject: "~57%",
-    classes: 1,
-    classLabels: ["flow-score 0–1"],
+    classes: 2,
+    classLabels: ["no-flow", "flow"],
     primarySignals: ["Alpha/Theta coherence", "Mid-beta (not anxious)", "Frontal theta decrease", "Alpha increase"],
     novelty:
-      "First integration of Csikszentmihalyi's flow theory into a consumer-EEG real-time pipeline. Combines coherence, power, and arousal estimates into single continuous 0–1 score.",
+      "First integration of Csikszentmihalyi's flow theory into a consumer-EEG real-time pipeline. Binary mode (flow/no-flow) recommended over 4-state for reliability. Requires calibration with 30-60s resting EEG. Minimum 30-second epoch windows enforced per flow state research (Katahira 2018, Ulrich 2014).",
     status: "active",
     category: "Cognition",
     color: "emerald",
   },
   {
     id: 5,
-    name: "Creativity Detector",
+    name: "Creativity Detector (EXPERIMENTAL)",
     file: "creativity_detector.py",
-    algo: "SVM + Random Forest",
-    liveAccuracy: "~72%",
-    benchmarkAccuracy: "99.18% (⚠ overfit — 850 samples)",
+    algo: "Feature-based heuristics (experimental)",
+    liveAccuracy: "~60% estimated (experimental)",
+    benchmarkAccuracy: "99.18% is OVERFIT (850 samples) — not real accuracy",
     crossSubject: "~60%",
     classes: 2,
     classLabels: ["non-creative", "creative"],
     primarySignals: ["Alpha increase (right hemisphere)", "Theta (incubation phase)", "Alpha/Theta ratio", "Alpha/Beta ratio"],
     novelty:
-      "Based on Kounios & Beeman (2014) — 'aha moment' research. Detects divergent thinking phases. Shares file with Memory Encoding model — both measure alpha/theta but in different task contexts.",
-    status: "active",
+      "EXPERIMENTAL: Based on Kounios & Beeman (2014) — 'aha moment' research. The 99.18% benchmark accuracy is an overfit artifact from only 850 training samples (~212 per class). Real cross-subject accuracy is estimated at ~60%. Needs 2000+ samples and retraining for reliable generalization.",
+    status: "experimental",
     category: "Cognition",
     color: "amber",
   },
@@ -794,6 +795,7 @@ const statusBadge = (s: string) => {
   if (s === "restricted") return "bg-orange-500/20 text-orange-200 border-orange-400/30";
   if (s === "partial") return "bg-indigo-500/20 text-indigo-200 border-indigo-400/30";
   if (s === "todo") return "bg-rose-500/20 text-rose-200 border-rose-400/30";
+  if (s === "experimental") return "bg-yellow-500/20 text-yellow-200 border-yellow-400/30";
   return "bg-cyan-500/20 text-cyan-200 border-cyan-400/30";
 };
 
@@ -909,6 +911,18 @@ export default function FormalBenchmarksDashboard() {
                     <p className="mt-1 text-sm font-semibold">{m.crossSubject}</p>
                   </div>
                 </div>
+
+                {/* Training data provenance badge */}
+                {m.trainingData && (
+                  <div className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide ${
+                    m.trainingData === "synthetic"
+                      ? "border border-amber-400/30 bg-amber-400/10 text-amber-300"
+                      : "border border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                  }`}>
+                    <span>{m.trainingData === "synthetic" ? "!" : ""}</span>
+                    <span>Training data: {m.trainingData}</span>
+                  </div>
+                )}
 
                 {/* Classes */}
                 <div className="mt-3 flex flex-wrap gap-1">

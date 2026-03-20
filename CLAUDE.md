@@ -416,9 +416,9 @@ else:
 | Muse-native LGBM | `models/saved/emotion_lgbm_muse_live.pkl` | **69.25% CV** | Second fallback — no PCA, Muse-native features |
 | TSception | `models/saved/tsception_emotion.pt` | ~69% CV | Requires ≥ 4 sec epoch, last model before heuristics |
 | Sleep Staging | `models/saved/sleep_staging_model.pkl` | 92.98% | Active, now with spindle detection + Markov transitions |
-| Dream Detector | `models/saved/dream_detector_model.pkl` | 97.20% | Active, reliable |
-| Flow State | `models/saved/flow_state_model.pkl` | 62.86% | Active, marginal |
-| Creativity | `models/saved/creativity_model.pkl` | 99.18% | Likely overfit (850 samples) |
+| Dream Detector | `models/saved/dream_detector_model.pkl` | 97.20% (synthetic only) | **Needs real-data validation.** 97.20% is from synthetic EEG (eeg_simulator.py). Expected cross-subject accuracy on real Sleep-EDF data: 82-88%. Sleep-EDF uses 2 EEG channels vs Muse 2's 4 channels at different positions -- additional domain gap. See issue #472. |
+| Flow State | `models/saved/flow_state_model.pkl` | 62.86% | Marginal 4-class accuracy. Binary flow/no-flow mode recommended (~70-75%). Requires calibration (30-60s resting EEG) and minimum 30-second epochs. 62.86% surfaced to users. See issue #473. |
+| Creativity | `models/saved/creativity_model.pkl` | 99.18% | **EXPERIMENTAL — OVERFIT ARTIFACT.** 850 samples (~212/class) is far below the 2000+ minimum for generalization. Do NOT display 99.18% as model accuracy. Real cross-subject accuracy estimated ~60%. All API output includes `experimental: true` and `confidence_note`. See issue #473. |
 
 **Why emotion accuracy is low on Muse 2**:
 - **Domain gap**: DEAP dataset uses 32-channel gel electrodes. Muse 2 has 4-channel dry electrodes. ~30 point accuracy penalty.
@@ -493,7 +493,7 @@ else:
 **Dream Detector** (`dream_detector.py`)
 - Binary: dreaming / not-dreaming
 - Primary signals: REM sleep + theta oscillations + REMs detected via EOG-like artifact
-- Accuracy: 97.20%
+- Accuracy: 97.20% (synthetic data only -- needs real-data validation, expected 82-88% cross-subject on Sleep-EDF)
 
 **Flow State Detector** (`flow_state_detector.py`)
 - Measures "in the zone" state (0-1 score)

@@ -26,5 +26,51 @@
     "n_features": 8,
     "n_samples": 1500,
     "note": "accuracy_mean = live reward rate (flow-zone target 40–75%). f1_macro_mean = protocol mastery rate across 3 protocols (500 ep each). n_samples = total training episodes."
+  },
+  {
+    "name": "Dream Detector (Sleep-EDF REM detection)",
+    "training_data": "synthetic",
+    "within_subject_accuracy": 0.972,
+    "cross_subject_accuracy": null,
+    "cross_subject_accuracy_std": null,
+    "accuracy_mean": 0.972,
+    "accuracy_std": 0.0,
+    "f1_macro_mean": 0.96,
+    "f1_macro_std": 0.0,
+    "n_features": 17,
+    "n_samples": 600,
+    "note": "97.20% accuracy is from SYNTHETIC data only (simulated EEG via eeg_simulator.py). No cross-subject evaluation was performed. Real Sleep-EDF cross-subject REM detection accuracy is expected to be 82-88% based on published literature. The 2-channel Sleep-EDF (Fpz-Cz, Pz-Oz) to 4-channel Muse 2 (TP9, AF7, AF8, TP10) domain gap adds further uncertainty.",
+    "caveat": "Synthetic-only training. Needs real-data validation."
+  },
+  {
+    "name": "Creativity Detector",
+    "training_data": "synthetic",
+    "within_subject_accuracy": 0.9918,
+    "cross_subject_accuracy": null,
+    "cross_subject_accuracy_std": null,
+    "accuracy_mean": 0.9918,
+    "accuracy_std": 0.0,
+    "f1_macro_mean": null,
+    "f1_macro_std": null,
+    "n_features": 17,
+    "n_samples": 850,
+    "experimental": true,
+    "note": "99.18% accuracy is an OVERFIT ARTIFACT. Only 850 training samples (~212 per class) — far below the 2000+ minimum needed for reliable generalization. Do not display as 'model accuracy'. Feature-based heuristics are the active live path. Real-world accuracy estimated at ~60% cross-subject.",
+    "caveat": "Experimental — insufficient training data for reliable generalization."
+  },
+  {
+    "name": "Flow State Detector",
+    "training_data": "synthetic",
+    "within_subject_accuracy": null,
+    "cross_subject_accuracy": 0.57,
+    "cross_subject_accuracy_std": null,
+    "accuracy_mean": 0.6286,
+    "accuracy_std": 0.0,
+    "f1_macro_mean": null,
+    "f1_macro_std": null,
+    "n_features": 17,
+    "n_samples": null,
+    "note": "62.86% CV accuracy for 4-class detection (no_flow/shallow/moderate/deep). Binary flow/no-flow mode is recommended for higher reliability (~70-75%). Calibration with 30-60 seconds of resting EEG is required. Flow state research uses 30-60 second analysis windows; epochs under 30 seconds have insufficient spectral resolution.",
+    "caveat": "Marginal 4-class accuracy. Binary mode + calibration recommended."
   }
 ]

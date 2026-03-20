@@ -122,6 +122,98 @@ def load_sleep_edf(
     return np.array(X_all), np.array(y_all)
 
 
+def load_sleep_edf_with_subjects(
+    n_subjects: int = 20, epoch_sec: float = 30.0, target_fs: float = 256.0
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Load Sleep-EDF dataset, returning subject IDs alongside data.
+
+    Same as load_sleep_edf but returns a third array of subject IDs
+    so callers can perform cross-subject train/test splits.
+
+    Returns:
+        (X, y, subject_ids) where subject_ids[i] is the subject index
+        for epoch i.
+    """
+    import mne
+
+    mne.set_log_level("WARNING")
+
+    subjects = list(range(min(n_subjects, 20)))
+    recording = [1]
+
+    X_all, y_all, subj_ids = [], [], []
+
+    for subj in subjects:
+        try:
+            files = mne.datasets.sleep_physionet.age.fetch_data(
+                subjects=[subj], recording=recording
+            )
+        except Exception as e:
+            print(f"  Skipping subject {subj}: {e}")
+            continue
+
+        for raw_fname, annot_fname in files:
+            raw = mne.io.read_raw_edf(raw_fname, preload=True, verbose=False)
+            annots = mne.read_annotations(annot_fname)
+            raw.set_annotations(annots)
+
+            channel = "EEG Fpz-Cz"
+            if channel not in raw.ch_names:
+                channel = raw.ch_names[0]
+            raw.pick([channel])
+
+            if raw.info["sfreq"] != target_fs:
+                raw.resample(target_fs)
+
+            events, event_id = mne.events_from_annotations(
+                raw, chunk_duration=epoch_sec, verbose=False
+            )
+
+            for description, eid in event_id.items():
+                if description not in _SLEEP_EDF_STAGE_MAP:
+                    continue
+                stage_label = _SLEEP_EDF_STAGE_MAP[description]
+                stage_events = events[events[:, 2] == eid]
+
+                for event in stage_events:
+                    start_sample = event[0]
+                    n_samples = int(epoch_sec * target_fs)
+                    end_sample = start_sample + n_samples
+
+                    if end_sample > raw.n_times:
+                        continue
+
+                    epoch_data = raw.get_data(
+                        start=start_sample, stop=end_sample
+                    )[0]
+
+                    if len(epoch_data) == n_samples:
+                        X_all.append(epoch_data)
+                        y_all.append(stage_label)
+                        subj_ids.append(subj)
+
+        print(f"  Subject {subj}: {len(y_all)} epochs total so far")
+
+    if len(X_all) == 0:
+        raise RuntimeError("No epochs loaded from Sleep-EDF. Check MNE data download.")
+
+    return np.array(X_all), np.array(y_all), np.array(subj_ids)
+
+
+def load_rem_detection_with_subjects(
+    n_subjects: int = 20, epoch_sec: float = 30.0, target_fs: float = 256.0
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Load Sleep-EDF data with binary REM labels and subject IDs.
+
+    Returns:
+        (X, y, subject_ids) where y is binary (1=REM, 0=non-REM) and
+        subject_ids[i] is the subject index for epoch i.
+    """
+    X, y, subject_ids = load_sleep_edf_with_subjects(n_subjects, epoch_sec, target_fs)
+    y_binary = (y == 4).astype(int)
+    return X, y_binary, subject_ids
+
+
 def load_dens(
     data_dir: str = "data/dens",
     target_fs: float = 256.0,
