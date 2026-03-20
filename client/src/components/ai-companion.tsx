@@ -393,7 +393,7 @@ export function AICompanion({ userId }: AICompanionProps) {
   const valenceVal = ((emotions?.valence as number) ?? 0) * 100;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)] lg:h-[calc(100vh-10rem)] relative">
+    <div className="flex flex-col h-full overflow-hidden relative">
       {/* ---- Sticky header ---- */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-background/80 backdrop-blur-sm shrink-0 z-10">
         <div className="flex items-center gap-2.5">
