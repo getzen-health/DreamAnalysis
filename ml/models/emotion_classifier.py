@@ -269,6 +269,20 @@ class EmotionClassifier:
         #                         than 0.30 while still suppressing rapid noise bursts
         self._history = deque(maxlen=10)  # recent band power snapshots
 
+        # EMA smoothing for continuous output indices (valence, arousal, mental-state indices).
+        # With 2-second epoch hops, alpha=0.4 gives effective time constant
+        # tau = -2/ln(0.6) ≈ 3.9 seconds — within the recommended 3-5 sec range.
+        # Reduces frame-to-frame jitter on dashboard readings while preserving
+        # responsiveness to genuine emotional state changes.
+        self._ema_indices_alpha = 0.4
+        self._ema_valence: Optional[float] = None
+        self._ema_arousal: Optional[float] = None
+        self._ema_stress: Optional[float] = None
+        self._ema_focus: Optional[float] = None
+        self._ema_relaxation: Optional[float] = None
+        self._ema_anger: Optional[float] = None
+        self._ema_fear: Optional[float] = None
+
         # SHAP explainers — lazily initialised on first use (one per LGBM model)
         self._shap_explainer_mega: Optional[object] = None
         self._shap_explainer_muse: Optional[object] = None
@@ -320,6 +334,24 @@ class EmotionClassifier:
 
         if model_path and self.model_type == "feature-based":
             self._load_model(model_path)
+
+    # ── EMA helpers for continuous indices ──────────────────────────────────────
+
+    def _smooth_index(self, attr: str, raw: float) -> float:
+        """Apply EMA smoothing to a continuous output index.
+
+        On first call (stored value is None), seeds with the raw value.
+        On subsequent calls, blends raw into the running average using
+        ``_ema_indices_alpha``.
+        """
+        prev = getattr(self, attr)
+        if prev is None:
+            smoothed = raw
+        else:
+            a = self._ema_indices_alpha
+            smoothed = a * raw + (1.0 - a) * prev
+        setattr(self, attr, smoothed)
+        return smoothed
 
     # ── Device-aware gamma masking ─────────────────────────────────────────────
 
@@ -1298,17 +1330,24 @@ class EmotionClassifier:
             top_conf = float(smoothed[emotion_idx])
             emotion_label = EMOTIONS[emotion_idx] if top_conf >= 0.25 else "neutral"
             result = {e: float(smoothed[i]) for i, e in enumerate(EMOTIONS)}
-            # Return frozen EMA state — do not update with artifact epoch
+            # Return frozen EMA state — do not update with artifact epoch.
+            # Use last smoothed continuous indices if available, else neutral defaults.
+            _fv = self._ema_valence if self._ema_valence is not None else 0.0
+            _fa = self._ema_arousal if self._ema_arousal is not None else 0.5
             _frozen_dominance = 0.5
-            _frozen_granular = map_vad_to_granular_emotions(0.0, 0.5, _frozen_dominance)
+            _frozen_granular = map_vad_to_granular_emotions(_fv, _fa, _frozen_dominance)
             return {
                 "emotion": emotion_label, "emotion_index": emotion_idx,
                 "confidence": top_conf, "probabilities": result,
-                "valence": 0.0, "arousal": 0.5,
+                "valence": _fv,
+                "arousal": _fa,
                 "dominance": _frozen_dominance,
                 "granular_emotions": _frozen_granular,
-                "stress_index": 0.5, "focus_index": 0.5,
-                "relaxation_index": 0.5, "anger_index": 0.0, "fear_index": 0.0,
+                "stress_index": self._ema_stress if self._ema_stress is not None else 0.5,
+                "focus_index": self._ema_focus if self._ema_focus is not None else 0.5,
+                "relaxation_index": self._ema_relaxation if self._ema_relaxation is not None else 0.5,
+                "anger_index": self._ema_anger if self._ema_anger is not None else 0.0,
+                "fear_index": self._ema_fear if self._ema_fear is not None else 0.0,
                 "band_powers": {}, "differential_entropy": {},
                 "dasm_rasm": {}, "frontal_midline_theta": {}, "artifact_detected": True,
                 "explanation": [],
@@ -1619,6 +1658,20 @@ class EmotionClassifier:
         _CONFIDENCE_THRESHOLD = 0.25
         top_conf = float(smoothed[emotion_idx])
         emotion_label = EMOTIONS[emotion_idx] if top_conf >= _CONFIDENCE_THRESHOLD else "neutral"
+
+        # ── EMA smoothing on continuous indices ─────────────────
+        # Reduces frame-to-frame jitter on dashboard readings.
+        # tau ≈ 3.9 sec with alpha=0.4 and 2-sec hops — within the
+        # recommended 3-5 sec decay range from EEG literature.
+        # Raw values are still used in the probability formulas above
+        # (probabilities have their own EMA via _ema_probs).
+        valence          = self._smooth_index("_ema_valence", valence)
+        arousal          = self._smooth_index("_ema_arousal", arousal)
+        stress_index     = self._smooth_index("_ema_stress", stress_index)
+        focus_index      = self._smooth_index("_ema_focus", focus_index)
+        relaxation_index = self._smooth_index("_ema_relaxation", relaxation_index)
+        anger_index      = self._smooth_index("_ema_anger", anger_index)
+        fear_index       = self._smooth_index("_ema_fear", fear_index)
 
         # ── Heuristic explanation ─────────────────────────────────
         # Collect the key feature contributions that drove valence, arousal,
