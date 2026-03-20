@@ -9,7 +9,7 @@
 
 import { lazy, Suspense, useState } from "react";
 import { motion } from "framer-motion";
-import { pageTransition } from "@/lib/animations";
+import { pageTransition, cardVariants } from "@/lib/animations";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { Moon, PenLine, Music } from "lucide-react";
@@ -53,7 +53,13 @@ function SleepDataTab() {
   return (
     <div className="space-y-4">
       {/* Sleep Duration hero */}
-      <div className="rounded-2xl p-6 border border-border bg-card text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+      <motion.div
+        className="rounded-2xl p-6 border border-border bg-card text-center"
+        style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      >
         <Moon className="h-8 w-8 mx-auto text-indigo-400 mb-3" />
         <div className="text-3xl font-bold text-foreground">
           {sleepLabel ?? "\u2014"}
@@ -66,25 +72,36 @@ function SleepDataTab() {
             {Math.round(sleepEfficiency)}% efficiency
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Sleep Stages */}
       {totalMins > 0 && (
-        <div className="rounded-2xl p-4 border border-border bg-card" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+        <motion.div
+          className="rounded-2xl p-4 border border-border bg-card"
+          style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
+          custom={1}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
             Sleep Stages
           </div>
-          {/* Stacked bar */}
+          {/* Stacked bar — animated segments */}
           <div className="flex rounded-full overflow-hidden h-3 mb-3">
             {stages.map(
-              (s) =>
+              (s, i) =>
                 s.mins != null &&
                 s.mins > 0 && (
-                  <div
+                  <motion.div
                     key={s.label}
-                    style={{
-                      width: `${(s.mins / totalMins) * 100}%`,
-                      background: s.color,
+                    style={{ background: s.color }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(s.mins / totalMins) * 100}%` }}
+                    transition={{
+                      delay: 0.3 + i * 0.12,
+                      duration: 0.8,
+                      ease: [0.22, 1, 0.36, 1],
                     }}
                   />
                 )
@@ -106,17 +123,24 @@ function SleepDataTab() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Empty state */}
       {sleepHours == null && (
-        <div className="rounded-2xl p-8 border border-border bg-card text-center" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+        <motion.div
+          className="rounded-2xl p-8 border border-border bg-card text-center"
+          style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
+          custom={1}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
           <Moon className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">
             Connect Apple Health or Google Fit to see your sleep data
           </p>
-        </div>
+        </motion.div>
       )}
     </div>
   );
