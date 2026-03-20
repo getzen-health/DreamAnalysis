@@ -1601,7 +1601,7 @@ export default function Nutrition() {
       </div>
 
       {/* ── Tab Content ──────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, padding: "16px 16px 100px", overflow: "hidden" }}>
+      <div style={{ flex: 1, padding: "16px 16px 100px", overflowY: "auto", overflowX: "hidden" }}>
         {/* Hidden file inputs — always rendered */}
         <input
           ref={cameraInputRef}
@@ -1780,7 +1780,63 @@ export default function Nutrition() {
               {captureMode === "none" && (
                 <div style={{ marginBottom: 14 }}>
                   <button
-                    onClick={() => cameraInputRef.current?.click()}
+                    onClick={async () => {
+                      // On native: use Capacitor Camera plugin
+                      try {
+                        const { Capacitor } = await import("@capacitor/core");
+                        if (Capacitor.isNativePlatform()) {
+                          const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+                          const photo = await Camera.getPhoto({
+                            quality: 80,
+                            allowEditing: false,
+                            resultType: CameraResultType.Base64,
+                            source: CameraSource.Camera,
+                          });
+                          if (photo.base64String) {
+                            setIsAnalyzing(true);
+                            setAnalysisError(null);
+                            setCaptureMode("camera");
+                            try {
+                              const res = await apiRequest("POST", "/api/food/analyze", {
+                                userId,
+                                mealType: autoMealType(),
+                                imageBase64: photo.base64String,
+                              });
+                              await res.json();
+                              hapticSuccess();
+                              qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+                              setCaptureMode("none");
+                            } catch {
+                              // Fallback: save generic meal
+                              const local = estimateNutritionLocally("photo meal");
+                              const entry = {
+                                id: `local_${Date.now()}`,
+                                loggedAt: new Date().toISOString(),
+                                mealType: autoMealType(),
+                                summary: local.summary,
+                                totalCalories: local.total_calories,
+                                dominantMacro: local.dominant_macro,
+                                foodItems: local.food_items,
+                                vitamins: null,
+                              };
+                              const key = `ndw_food_logs_${userId}`;
+                              const existing = JSON.parse(localStorage.getItem(key) || "[]");
+                              existing.unshift(entry);
+                              if (existing.length > 50) existing.length = 50;
+                              localStorage.setItem(key, JSON.stringify(existing));
+                              hapticSuccess();
+                              qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
+                              setCaptureMode("none");
+                            } finally {
+                              setIsAnalyzing(false);
+                            }
+                          }
+                          return;
+                        }
+                      } catch { /* not native or Camera plugin unavailable */ }
+                      // On web: use file input
+                      cameraInputRef.current?.click();
+                    }}
                     style={{
                       width: "100%", background: "var(--primary)",
                       color: "white", borderRadius: 20, padding: 14, fontSize: 14, fontWeight: 700,
