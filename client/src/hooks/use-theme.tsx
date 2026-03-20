@@ -22,8 +22,8 @@ function resolveAutoTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeSetting, setThemeSetting] = useState<ThemeSetting>("dark");
-  const [theme, setResolvedTheme] = useState<Theme>("dark");
+  const [themeSetting, setThemeSetting] = useState<ThemeSetting>("light");
+  const [theme, setResolvedTheme] = useState<Theme>("light");
 
   // Load saved setting
   useEffect(() => {
