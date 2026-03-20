@@ -431,9 +431,19 @@ export class MuseBleManager {
     await new Promise((r) => setTimeout(r, 50));
     await writeCommand(CMD_START);
 
+    // Auto-detect Muse 2 vs Muse S EEG UUIDs
+    let activeEegChars = MUSE_EEG_CHARS_MUSE_S; // try Muse S first
+    try {
+      await service.getCharacteristic(MUSE_EEG_CHARS_MUSE_S[0]);
+      MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE_S];
+    } catch {
+      activeEegChars = MUSE_EEG_CHARS_MUSE2; // fall back to Muse 2
+      MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE2];
+    }
+
     // Subscribe to EEG channels
     for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
-      const charUuid = MUSE_EEG_CHARS[ch];
+      const charUuid = activeEegChars[ch];
       const characteristic = await service.getCharacteristic(charUuid);
       await characteristic.startNotifications();
       const channelIndex = ch;
