@@ -24,6 +24,8 @@ import type { VoiceWatchCheckinResult } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import { runVoiceEmotionONNX } from "@/lib/voice-onnx";
 import { writeEmotionToHealth } from "@/lib/health-connect";
+import { extractVoiceBiomarkers } from "@/lib/voice-biomarkers";
+import type { VoiceBiomarkers } from "@/lib/voice-biomarkers";
 
 // ─── positive affirmations shown during recording ───────────────────────────
 
@@ -348,6 +350,8 @@ export function VoiceCheckinCard({
   const [correctedEmotion, setCorrectedEmotion] = useState<string | null>(null);
   const [showNuancedEmotions, setShowNuancedEmotions] = useState(false);
   const [showExplainability, setShowExplainability] = useState(false);
+  const [biomarkers, setBiomarkers] = useState<VoiceBiomarkers | null>(null);
+  const [showVoiceHealth, setShowVoiceHealth] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -596,6 +600,22 @@ export function VoiceCheckinCard({
           pcmSamples = concatPcm(capturedPcm);
           pcmSr = capturedSr;
           wavBuffer = pcmToWav(pcmSamples, pcmSr);
+        }
+
+        // Step 1.5: Extract voice biomarkers from PCM (runs synchronously, no network)
+        try {
+          const vb = extractVoiceBiomarkers(pcmSamples, pcmSr);
+          setBiomarkers(vb);
+          // Persist to localStorage as an array with timestamp
+          try {
+            const stored = JSON.parse(localStorage.getItem("ndw_voice_biomarkers") || "[]") as VoiceBiomarkers[];
+            stored.push(vb);
+            // Keep last 100 entries to avoid unbounded growth
+            if (stored.length > 100) stored.splice(0, stored.length - 100);
+            localStorage.setItem("ndw_voice_biomarkers", JSON.stringify(stored));
+          } catch { /* storage quota */ }
+        } catch (bioErr) {
+          console.warn("Voice biomarker extraction failed:", bioErr);
         }
 
         // Step 2: Try on-device ONNX first, then ML backend, then heuristics
@@ -965,6 +985,58 @@ export function VoiceCheckinCard({
                   </div>
                 );
               })()}
+
+              {/* ── Collapsible Voice Health section ── */}
+              {biomarkers && (
+                <div className="rounded-lg border border-border/30 overflow-hidden">
+                  <button
+                    onClick={() => setShowVoiceHealth((s) => !s)}
+                    className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                    aria-expanded={showVoiceHealth}
+                  >
+                    <span>Voice Health</span>
+                    {showVoiceHealth
+                      ? <ChevronUp className="h-3.5 w-3.5" />
+                      : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                  {showVoiceHealth && (
+                    <div className="px-3 pb-3 space-y-2.5 border-t border-border/20 pt-2">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Vocal Energy</span>
+                          <span className="font-mono text-foreground/80 capitalize">{biomarkers.vocalEnergyLevel}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Variability</span>
+                          <span className="font-mono text-foreground/80 capitalize">{biomarkers.vocalVariability}</span>
+                        </div>
+                      </div>
+                      {/* Wellness score bar */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Wellness Score</span>
+                          <span className="font-mono text-foreground/80">{biomarkers.wellnessScore}/100</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              biomarkers.wellnessScore >= 70
+                                ? "bg-emerald-500"
+                                : biomarkers.wellnessScore >= 40
+                                  ? "bg-amber-500"
+                                  : "bg-rose-500"
+                            }`}
+                            style={{ width: `${biomarkers.wellnessScore}%` }}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/50 italic leading-relaxed">
+                        {biomarkers.disclaimer}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Stress: <span className="font-mono text-foreground/80">{Math.round(result.stress_index * 100)}%</span></span>
