@@ -89,4 +89,12 @@
 
 **Implication:** When building any user-feedback-driven accuracy metric: (1) clearly separate entries that measure accuracy (corrections, binary up/down) from entries that contribute training data (self-reports), (2) always include a disclaimer explaining that accuracy reflects user agreement rate, not clinical validation, (3) expose the metric via a dedicated GET endpoint so the frontend can build a "Your Model Accuracy" card, (4) never present user-reported accuracy alongside clinical benchmark numbers without clearly distinguishing them.
 
+### 11. Every Model in the Prediction Ensemble Must Be Wired to the Correction Loop
+
+**Principle:** If a model participates in the inference ensemble (i.e., its output can affect what the user sees), then every correction the user submits must feed back into that model's update mechanism. A model that reads but never learns from corrections is wasted capacity that degrades rather than improves over time, because the ensemble gives it voting weight on predictions it has no basis to improve upon.
+
+**Evidence:** The `PersonalModelAdapter` (SGDClassifier) was consulted during `predict_emotion()` -- overriding the emotion label when confidence exceeded 0.6 -- but its `adapt()` method was never called from any route. User corrections flowed to the k-NN PersonalizedPipeline and the EEGNet PersonalModel, but the SGD model was frozen at whatever state it was initialized in (usually empty). The `adapt()` method additionally required raw EEG signals (unavailable for label-only corrections) and a prior `calibrate()` call (which most users never performed). Three separate barriers prevented the correction loop from closing: (1) no route called `adapt()`, (2) the method required raw signals, (3) it required prior calibration.
+
+**Implication:** When adding any model to a prediction ensemble: (1) verify that user corrections reach every model that participates in inference, not just the "primary" one, (2) design the adaptation interface to work with whatever data is available at correction time (cached features, not just raw signals), (3) models should auto-initialize from corrections rather than requiring a separate setup step that most users will skip. The correction loop must be zero-friction -- every barrier between "user taps a correction" and "model updates" will cause the loop to silently break.
+
 <!-- Principles will be appended below by the research agent -->

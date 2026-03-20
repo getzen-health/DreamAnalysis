@@ -93,6 +93,10 @@ class PersonalModelAdapter:
             "personal_accuracy": self.personal_accuracy,
         }
 
+    # Default emotion classes used when auto-initializing from corrections
+    # (matches the 6-class labels from the emotion classifier).
+    _DEFAULT_CLASSES = ["happy", "sad", "angry", "fearful", "relaxed", "focused"]
+
     def adapt(
         self, signal: np.ndarray, predicted_label: str, user_feedback: str, fs: float = 256.0
     ) -> Dict:
@@ -107,18 +111,55 @@ class PersonalModelAdapter:
         Returns:
             Dict with update result.
         """
-        if self.personal_model is None or self.classes is None:
-            return {"updated": False, "reason": "No personal model calibrated"}
-
-        if user_feedback not in self.classes:
-            return {"updated": False, "reason": f"Unknown label: {user_feedback}"}
-
         if signal.ndim > 1:
             signal = signal[0]
 
         processed = preprocess(signal, fs)
         feats = extract_features(processed, fs)
-        X = np.array([[feats[k] for k in self.feature_names]])
+        return self.adapt_from_features(feats, predicted_label, user_feedback)
+
+    def adapt_from_features(
+        self, features: Dict[str, float], predicted_label: str, user_feedback: str
+    ) -> Dict:
+        """Incrementally update personal model from a pre-extracted feature dict.
+
+        This is the primary adaptation entry point for the correction pipeline.
+        Unlike adapt(), it does not require raw EEG — it works with cached features
+        so label-only corrections (no raw signal) can still improve the model.
+
+        If the SGDClassifier has not been initialized yet (user never ran the
+        3-step calibration), it is auto-created on the first correction using
+        partial_fit with the default 6 emotion classes.
+
+        Args:
+            features: Dict of EEG feature name → value (from extract_features).
+            predicted_label: What the model predicted.
+            user_feedback: What the user says the correct label is.
+
+        Returns:
+            Dict with update result.
+        """
+        from sklearn.linear_model import SGDClassifier
+
+        # Auto-initialize on first correction if not yet calibrated
+        if self.personal_model is None:
+            self.classes = list(self._DEFAULT_CLASSES)
+            self.feature_names = list(features.keys())
+            self.personal_model = SGDClassifier(
+                loss="log_loss",
+                warm_start=True,
+                max_iter=100,
+                random_state=42,
+            )
+
+        if user_feedback not in self.classes:
+            return {"updated": False, "reason": f"Unknown label: {user_feedback}"}
+
+        # Ensure feature_names is set (possible if loaded from old save without it)
+        if self.feature_names is None:
+            self.feature_names = list(features.keys())
+
+        X = np.array([[features.get(k, 0.0) for k in self.feature_names]])
         y = np.array([self.classes.index(user_feedback)])
 
         # Incremental update via partial_fit

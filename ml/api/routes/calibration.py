@@ -128,6 +128,42 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
 
     labeled = False
     fine_tune_triggered = False
+    online_learner_updated = False
+
+    # ── Update the OnlineLearner (SGDClassifier) incrementally ────────────────
+    # The SGD model is consulted during predict_emotion() but was never updated
+    # by corrections — only by the 3-step calibration flow. This closes the loop:
+    # every correction now feeds partial_fit so the SGD model improves over time.
+    # Uses cached features so even label-only corrections (no raw EEG) work.
+    try:
+        pma = _get_personal_model(request.user_id)
+        if pma is not None and cached_features is not None:
+            from processing.eeg_processor import extract_features, preprocess
+            # cached_features is a numpy array; we need the feature dict.
+            # Re-extract from the _last_features cache is an array — use the
+            # feature names from the adapter or build from extract_features keys.
+            # The simplest approach: if the adapter already has feature_names, map
+            # the cached array back to a dict. Otherwise, extract_features gives
+            # us the canonical key order.
+            if pma.feature_names is not None:
+                feat_dict = {k: float(v) for k, v in zip(pma.feature_names, cached_features)}
+            else:
+                # First time — we need canonical feature names. Extract from a
+                # dummy call (adapter will capture them on first adapt_from_features).
+                feat_dict = {f"f{i}": float(v) for i, v in enumerate(cached_features)}
+                # Better: get canonical names from extract_features with a zero signal
+                try:
+                    _canonical = extract_features(np.zeros(256), 256.0)
+                    if len(_canonical) == len(cached_features):
+                        feat_dict = {k: float(v) for k, v in zip(_canonical.keys(), cached_features)}
+                except Exception:
+                    pass
+            ol_result = pma.adapt_from_features(
+                feat_dict, request.predicted_label, request.correct_label,
+            )
+            online_learner_updated = ol_result.get("updated", False)
+    except Exception:
+        pass  # OnlineLearner update failure never blocks the main feedback flow
 
     # Always get the PersonalModel so we can count this correction as a session.
     # Use n_channels from signals when present, else default to 4.
@@ -166,6 +202,7 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
         "recorded": True,
         "labeled_epoch_added": labeled,
         "fine_tune_triggered": fine_tune_triggered,
+        "online_learner_updated": online_learner_updated,
         "total_sessions": pm.total_sessions if pm is not None else 0,
         "user_id": request.user_id,
         "predicted": request.predicted_label,
