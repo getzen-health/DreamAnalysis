@@ -23,6 +23,8 @@ interface EmotionCheckin {
   stress_index?: number;
   focus_index?: number;
   relaxation_index?: number;
+  model_type?: string;
+  timestamp?: number;
 }
 
 interface FoodLog {
@@ -706,13 +708,18 @@ export default function Today() {
 
   // Load last emotion check-in from localStorage — re-read on voice update
   const [checkin, setCheckin] = useState<EmotionCheckin | null>(null);
+  const [checkinTimestamp, setCheckinTimestamp] = useState<number | null>(null);
   useEffect(() => {
     function loadCheckin() {
       try {
         const raw = localStorage.getItem("ndw_last_emotion");
         if (raw) {
           const parsed = JSON.parse(raw);
-          setCheckin(parsed?.result ?? parsed);
+          const data = parsed?.result ?? parsed;
+          setCheckin(data);
+          // Timestamp: wrapper timestamp (ms) or result timestamp (seconds)
+          const ts = parsed?.timestamp ?? (data?.timestamp ? data.timestamp * 1000 : null);
+          setCheckinTimestamp(ts && ts > 1e12 ? ts : ts ? ts * 1000 : null);
         }
       } catch { /* ignore */ }
     }
@@ -1079,6 +1086,21 @@ export default function Today() {
               delta={focusDelta}
             />
           </motion.div>
+
+          {/* ── Last analysis timestamp ── */}
+          {checkinTimestamp && (
+            <p style={{ fontSize: 11, color: "var(--muted-foreground)", textAlign: "center", marginTop: -12, marginBottom: 14, opacity: 0.7 }}>
+              Voice analyzed {(() => {
+                const diff = Date.now() - checkinTimestamp;
+                if (diff < 60_000) return "just now";
+                if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+                if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+                return new Date(checkinTimestamp).toLocaleDateString();
+              })()}
+              {checkin?.model_type === "fallback" && " (no audio data)"}
+              {checkin?.model_type === "on-device" && " (on-device)"}
+            </p>
+          )}
 
           {/* ── 4. AI Insight ── */}
           <motion.div

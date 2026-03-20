@@ -303,6 +303,11 @@ export function VoiceCheckinCard({
   const amplitudeRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const affirmationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  // PCM capture: ScriptProcessorNode grabs raw samples during recording so we
+  // don't depend on AudioContext.decodeAudioData() (fails on some Android WebViews).
+  const pcmChunksRef = useRef<Float32Array[]>([]);
+  const recordingCtxRef = useRef<AudioContext | null>(null);
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -312,6 +317,8 @@ export function VoiceCheckinCard({
       if (amplitudeRef.current) clearInterval(amplitudeRef.current);
       if (affirmationTimerRef.current) clearInterval(affirmationTimerRef.current);
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      if (scriptProcessorRef.current) { scriptProcessorRef.current.disconnect(); scriptProcessorRef.current = null; }
+      if (recordingCtxRef.current) { recordingCtxRef.current.close().catch(() => {}); recordingCtxRef.current = null; }
     };
   }, []);
 
@@ -370,14 +377,30 @@ export function VoiceCheckinCard({
       return;
     }
 
-    // Set up Web Audio analyser for amplitude bars
+    // Set up Web Audio analyser for amplitude bars + PCM capture
+    pcmChunksRef.current = [];
     try {
       const audioCtx = new AudioContext();
+      recordingCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 32;
       source.connect(analyser);
       analyserRef.current = analyser;
+
+      // Capture raw PCM via ScriptProcessorNode so we don't depend on
+      // decodeAudioData (which fails on some Android WebViews for webm/opus).
+      try {
+        const sp = audioCtx.createScriptProcessor(4096, 1, 1);
+        sp.onaudioprocess = (e: AudioProcessingEvent) => {
+          pcmChunksRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        };
+        source.connect(sp);
+        sp.connect(audioCtx.destination);
+        scriptProcessorRef.current = sp;
+      } catch {
+        // ScriptProcessor not available — will rely on decodeAudioData path
+      }
 
       amplitudeRef.current = setInterval(() => {
         const data = new Uint8Array(analyser.fftSize);
@@ -389,7 +412,7 @@ export function VoiceCheckinCard({
         setAmplitude(bars);
       }, 80);
     } catch {
-      // Amplitude visualization is best-effort; ignore errors
+      // Audio processing is best-effort; recording still works via MediaRecorder
     }
 
     chunksRef.current = [];
@@ -410,18 +433,119 @@ export function VoiceCheckinCard({
       stream.getTracks().forEach((t) => t.stop());
       if (amplitudeRef.current) clearInterval(amplitudeRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
+      if (scriptProcessorRef.current) { scriptProcessorRef.current.disconnect(); scriptProcessorRef.current = null; }
       setAmplitude(Array(12).fill(0.15));
       setCardState("analyzing");
 
-      try {
-        const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
-        const arrayBuffer = await blob.arrayBuffer();
-        const audioCtx = new AudioContext();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        audioCtx.close();
-        const wavBuffer = audioBufferToWav(audioBuffer);
+      // Grab captured PCM + sample rate before closing the recording context
+      const capturedPcm = pcmChunksRef.current;
+      const capturedSr = recordingCtxRef.current?.sampleRate ?? 44100;
+      if (recordingCtxRef.current) { recordingCtxRef.current.close().catch(() => {}); recordingCtxRef.current = null; }
 
-        // Try ML backend first, fall back to on-device analysis
+      // ── Helpers ──────────────────────────────────────────────────────────
+
+      /** Concatenate captured PCM chunks into a single buffer. */
+      function concatPcm(chunks: Float32Array[]): Float32Array {
+        const total = chunks.reduce((s, c) => s + c.length, 0);
+        const out = new Float32Array(total);
+        let off = 0;
+        for (const c of chunks) { out.set(c, off); off += c.length; }
+        return out;
+      }
+
+      /** Encode mono Float32Array as 16-bit PCM WAV. */
+      function pcmToWav(samples: Float32Array, sr: number): ArrayBuffer {
+        const n = samples.length;
+        const bps = 2;
+        const dataLen = n * bps;
+        const buf = new ArrayBuffer(44 + dataLen);
+        const v = new DataView(buf);
+        const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+        ws(0, "RIFF"); v.setUint32(4, 36 + dataLen, true);
+        ws(8, "WAVE"); ws(12, "fmt ");
+        v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, sr, true); v.setUint32(28, sr * bps, true);
+        v.setUint16(32, bps, true); v.setUint16(34, 16, true);
+        ws(36, "data"); v.setUint32(40, dataLen, true);
+        let o = 44;
+        for (let i = 0; i < n; i++) {
+          const s = Math.max(-1, Math.min(1, samples[i]));
+          v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true); o += 2;
+        }
+        return buf;
+      }
+
+      /** On-device emotion heuristics from raw PCM. */
+      function analyzeFromPcm(samples: Float32Array, sr: number): VoiceWatchCheckinResult {
+        const n = samples.length;
+        let sumSq = 0;
+        for (let i = 0; i < n; i++) sumSq += samples[i] * samples[i];
+        const rms = Math.sqrt(sumSq / n);
+        let zcr = 0;
+        for (let i = 1; i < n; i++) { if ((samples[i] >= 0) !== (samples[i - 1] >= 0)) zcr++; }
+        const zcrRate = zcr / n;
+        const frameSize = Math.floor(sr * 0.025);
+        let syllables = 0; let wasSilent = true;
+        for (let i = 0; i < n; i += frameSize) {
+          let fe = 0; const end = Math.min(i + frameSize, n);
+          for (let j = i; j < end; j++) fe += samples[j] * samples[j];
+          fe /= (end - i);
+          if (fe > 0.001 && wasSilent) syllables++;
+          wasSilent = fe <= 0.001;
+        }
+        const speakingRate = syllables / (n / sr);
+        const energy = Math.min(1, rms * 15);
+        const stress = Math.min(1, Math.max(0, zcrRate * 8 + energy * 0.3));
+        const arousal = Math.min(1, energy * 0.6 + speakingRate * 0.08);
+        const valence = Math.max(-1, Math.min(1,
+          energy > 0.5 && stress < 0.4 ? 0.3 + energy * 0.3 :
+          stress > 0.6 ? -0.2 - stress * 0.3 :
+          0.1 - stress * 0.2));
+        let emotion = "neutral";
+        if (valence > 0.3 && arousal > 0.4) emotion = "happy";
+        else if (valence < -0.3 && arousal < 0.4) emotion = "sad";
+        else if (valence < -0.2 && arousal > 0.6) emotion = "angry";
+        else if (stress > 0.6) emotion = "fear";
+        else if (energy < 0.15) emotion = "neutral";
+        else if (valence > 0.1) emotion = "happy";
+        return {
+          checkin_id: `${Date.now()}`, checkin_type: period ?? "morning",
+          emotion, valence, arousal, confidence: 0.45,
+          stress_index: stress, focus_index: Math.max(0.2, Math.min(0.8, 1 - stress * 0.5)),
+          model_type: "on-device" as any, timestamp: Date.now() / 1000, biomarkers: undefined,
+        };
+      }
+
+      // ── Main analysis pipeline ──────────────────────────────────────────
+
+      try {
+        // Step 1: Obtain WAV + PCM.
+        // Try decodeAudioData first (works on desktop browsers).
+        // If it fails (Android WebView can't decode webm/opus), fall back to
+        // PCM captured in real-time via ScriptProcessorNode.
+        let wavBuffer: ArrayBuffer;
+        let pcmSamples: Float32Array;
+        let pcmSr: number;
+
+        try {
+          const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
+          const ab = await blob.arrayBuffer();
+          const ctx = new AudioContext();
+          const decoded = await ctx.decodeAudioData(ab);
+          ctx.close();
+          wavBuffer = audioBufferToWav(decoded);
+          pcmSamples = decoded.getChannelData(0);
+          pcmSr = decoded.sampleRate;
+        } catch (decodeErr) {
+          // decodeAudioData failed — use PCM captured during recording
+          console.warn("decodeAudioData failed — using captured PCM:", decodeErr);
+          if (capturedPcm.length === 0) throw new Error("No audio data: decodeAudioData failed and no PCM was captured");
+          pcmSamples = concatPcm(capturedPcm);
+          pcmSr = capturedSr;
+          wavBuffer = pcmToWav(pcmSamples, pcmSr);
+        }
+
+        // Step 2: Try ML backend, fall back to on-device heuristics
         let checkinResult: VoiceWatchCheckinResult;
         try {
           const bytes = new Uint8Array(wavBuffer);
@@ -447,71 +571,12 @@ export function VoiceCheckinCard({
             timestamp:      Date.now() / 1000,
             biomarkers:     raw.biomarkers,
           };
-        } catch {
-          // ML backend unavailable — analyze on-device from audio features
-          const samples = audioBuffer.getChannelData(0);
-          const n = samples.length;
-
-          // RMS energy (loudness proxy)
-          let sumSq = 0;
-          for (let i = 0; i < n; i++) sumSq += samples[i] * samples[i];
-          const rms = Math.sqrt(sumSq / n);
-
-          // Zero-crossing rate (pitch/stress proxy)
-          let zcr = 0;
-          for (let i = 1; i < n; i++) {
-            if ((samples[i] >= 0) !== (samples[i - 1] >= 0)) zcr++;
-          }
-          const zcrRate = zcr / n;
-
-          // Speaking rate proxy: count energy bursts (syllables)
-          const frameSize = Math.floor(audioBuffer.sampleRate * 0.025);
-          let syllables = 0;
-          let wasSilent = true;
-          for (let i = 0; i < n; i += frameSize) {
-            let frameEnergy = 0;
-            const end = Math.min(i + frameSize, n);
-            for (let j = i; j < end; j++) frameEnergy += samples[j] * samples[j];
-            frameEnergy /= (end - i);
-            const isSpeech = frameEnergy > 0.001;
-            if (isSpeech && wasSilent) syllables++;
-            wasSilent = !isSpeech;
-          }
-          const speakingRate = syllables / (n / audioBuffer.sampleRate);
-
-          // Map features to emotion estimates
-          const energy = Math.min(1, rms * 15); // normalize RMS to 0-1
-          const stress = Math.min(1, Math.max(0, zcrRate * 8 + energy * 0.3));
-          const arousal = Math.min(1, energy * 0.6 + speakingRate * 0.08);
-          const valence = Math.max(-1, Math.min(1,
-            energy > 0.5 && stress < 0.4 ? 0.3 + energy * 0.3 :
-            stress > 0.6 ? -0.2 - stress * 0.3 :
-            0.1 - stress * 0.2
-          ));
-
-          // Classify emotion from features
-          let emotion = "neutral";
-          if (valence > 0.3 && arousal > 0.4) emotion = "happy";
-          else if (valence < -0.3 && arousal < 0.4) emotion = "sad";
-          else if (valence < -0.2 && arousal > 0.6) emotion = "angry";
-          else if (stress > 0.6) emotion = "fear";
-          else if (energy < 0.15) emotion = "neutral";
-          else if (valence > 0.1) emotion = "happy";
-
-          checkinResult = {
-            checkin_id:     `${Date.now()}`,
-            checkin_type:   period ?? "morning",
-            emotion,
-            valence,
-            arousal,
-            confidence:     0.45, // lower confidence for on-device
-            stress_index:   stress,
-            focus_index:    Math.max(0.2, Math.min(0.8, 1 - stress * 0.5)),
-            model_type:     "on-device" as any,
-            timestamp:      Date.now() / 1000,
-            biomarkers:     undefined,
-          };
+        } catch (mlErr) {
+          console.warn("ML backend unavailable — using on-device analysis:", mlErr);
+          checkinResult = analyzeFromPcm(pcmSamples, pcmSr);
         }
+
+        // ── Persist result ─────────────────────────────────────────────────
         setResult(checkinResult);
         if (period) markCheckinDone(period, checkinResult);
         setCardState("done");
