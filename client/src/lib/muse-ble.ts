@@ -552,9 +552,11 @@ export class MuseBleManager {
       );
     }
 
-    // On Android native: skip custom native plugin (has Muse S compatibility issues)
-    // and go straight to Capacitor BLE plugin which handles both Muse 2 and Muse S.
-    // The native plugin is kept in the codebase for future optimization.
+    // On Android native: use native plugin (handles fresh GATT re-discovery after commands)
+    // Capacitor BLE plugin can't refresh GATT cache, so EEG chars stay invisible.
+    if (this.isNative && Capacitor.getPlatform() === "android") {
+      return this._connectNativeMusePlugin();
+    }
 
     // Web Bluetooth path (Chrome desktop/Android browser)
     if (this.isWebBluetooth) {

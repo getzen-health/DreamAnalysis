@@ -56,9 +56,12 @@ public class MuseBlePlugin extends Plugin {
     private UUID[] EEG_CHARS = EEG_CHARS_MUSE2;
     private static final UUID CCC_DESCRIPTOR = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
-    private static final byte[] CMD_PRESET = {0x04, 0x70, 0x32, 0x31, 0x0a};
-    private static final byte[] CMD_START  = {0x02, 0x64, 0x0a};
-    private static final byte[] CMD_STOP   = {0x02, 0x68, 0x0a};
+    // Commands matching muse-js protocol: halt → preset → stream → resume
+    private static final byte[] CMD_HALT    = {0x02, 0x68, 0x0a};           // "h\n"
+    private static final byte[] CMD_PRESET  = {0x04, 0x70, 0x32, 0x31, 0x0a}; // "p21\n"
+    private static final byte[] CMD_STREAM  = {0x02, 0x73, 0x0a};           // "s\n"
+    private static final byte[] CMD_RESUME  = {0x02, 0x64, 0x0a};           // "d\n"
+    private static final byte[] CMD_STOP    = CMD_HALT;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private BluetoothGatt bluetoothGatt;
@@ -245,7 +248,8 @@ public class MuseBlePlugin extends Plugin {
                 }
 
                 if (connectPhase == 0) {
-                    // Phase 0: First discovery. Send preset + start commands.
+                    // Phase 0: First discovery.
+                    // Step 1: Subscribe to control char (Muse requires this before processing commands)
                     connectPhase = 1;
                     BluetoothGattCharacteristic ctrl = svc.getCharacteristic(CONTROL_CHAR);
                     if (ctrl == null) {
@@ -253,19 +257,30 @@ public class MuseBlePlugin extends Plugin {
                         return;
                     }
 
-                    Log.d(TAG, "Phase 1: Queuing preset + start commands...");
-                    // Queue writes — executed sequentially via onCharacteristicWrite
-                    enqueueWrite(gatt, ctrl, CMD_PRESET, "preset");
-                    enqueueWrite(gatt, ctrl, CMD_START, "start");
-                    // After both writes complete, wait then try subscribe
-                    writeQueue.add(() -> {
-                        Log.d(TAG, "Commands sent. Waiting 3s for Muse to reconfigure...");
-                        handler.postDelayed(() -> trySubscribeOrRediscover(gatt), 3000);
-                    });
-                    processWriteQueue();
+                    Log.d(TAG, "Phase 1: Subscribe control char, then send commands...");
+                    // Enable control char notifications
+                    try {
+                        gatt.setCharacteristicNotification(ctrl, true);
+                        BluetoothGattDescriptor desc = ctrl.getDescriptor(CCC_DESCRIPTOR);
+                        if (desc != null) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                gatt.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                            } else {
+                                desc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                                gatt.writeDescriptor(desc);
+                            }
+                            Log.d(TAG, "Control char notification descriptor written");
+                            // onDescriptorWrite will continue the flow
+                            return;
+                        }
+                    } catch (SecurityException e) {
+                        Log.w(TAG, "Control char subscribe failed: " + e.getMessage());
+                    }
+                    // No descriptor or subscribe failed — continue with commands anyway
+                    sendMuseCommands(gatt, ctrl);
                 } else {
-                    // Phase 2: Re-discovery completed. Try subscribing again.
-                    Log.d(TAG, "Phase 2: Re-discovery done. Subscribing...");
+                    // Phase 2: Re-discovery completed. Subscribe to EEG.
+                    Log.d(TAG, "Phase 2: Re-discovery done (" + svc.getCharacteristics().size() + " chars). Subscribing...");
                     subscribeEeg(gatt, svc);
                 }
             }
@@ -290,9 +305,26 @@ public class MuseBlePlugin extends Plugin {
 
             @Override
             public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor desc, int status) {
+                UUID charUuid = desc.getCharacteristic().getUuid();
+                Log.d(TAG, "onDescriptorWrite: char=" + charUuid + " status=" + status + " phase=" + connectPhase);
+
+                // Phase 1: control char descriptor written → now send commands
+                if (connectPhase == 1 && charUuid.equals(CONTROL_CHAR)) {
+                    Log.d(TAG, "Control char subscribed. Sending muse-js command sequence...");
+                    BluetoothGattService svc = gatt.getService(MUSE_SERVICE);
+                    BluetoothGattCharacteristic ctrl = svc != null ? svc.getCharacteristic(CONTROL_CHAR) : null;
+                    if (ctrl != null) {
+                        sendMuseCommands(gatt, ctrl);
+                    } else {
+                        rejectConnect("Control char lost after subscribe");
+                    }
+                    return;
+                }
+
+                // Phase 2: EEG channel descriptor written
                 if (status == BluetoothGatt.GATT_SUCCESS) {
                     subscribedChannels++;
-                    Log.d(TAG, "Subscribed channel " + subscribedChannels);
+                    Log.d(TAG, "EEG channel " + subscribedChannels + " subscribed");
                 } else {
                     Log.e(TAG, "Descriptor write failed: status=" + status);
                 }
@@ -328,6 +360,25 @@ public class MuseBlePlugin extends Plugin {
             }
         };
         handler.postDelayed(timeoutRunnable, 60000);
+    }
+
+    // ── Send muse-js command sequence: halt → preset → stream → resume ────
+
+    private void sendMuseCommands(BluetoothGatt gatt, BluetoothGattCharacteristic ctrl) {
+        writeQueue.clear();
+        writePending = false;
+
+        enqueueWrite(gatt, ctrl, CMD_HALT, "halt");
+        enqueueWrite(gatt, ctrl, CMD_PRESET, "preset");
+        enqueueWrite(gatt, ctrl, CMD_STREAM, "stream");
+        enqueueWrite(gatt, ctrl, CMD_RESUME, "resume");
+
+        // After all commands sent, wait 3s then try to subscribe/re-discover
+        writeQueue.add(() -> {
+            Log.d(TAG, "All commands sent. Waiting 3s for Muse to reconfigure...");
+            handler.postDelayed(() -> trySubscribeOrRediscover(gatt), 3000);
+        });
+        processWriteQueue();
     }
 
     // ── Core: try subscribe, fall back to re-discovery ──────────────────────
