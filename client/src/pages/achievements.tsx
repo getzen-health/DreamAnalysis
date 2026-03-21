@@ -1,7 +1,8 @@
 /**
- * Achievements — standalone gallery page for badges and milestones.
+ * Achievements — standalone premium gallery page for badges and milestones.
  *
- * Moved out of the You page so achievements get their own dedicated space.
+ * Full-page achievements gallery with hero section, category filters,
+ * gradient cards per tier, shimmer animations, and locked badge section.
  */
 
 import { motion } from "framer-motion";

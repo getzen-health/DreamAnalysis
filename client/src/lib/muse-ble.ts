@@ -367,15 +367,22 @@ export class MuseBleManager {
   // ── Web Bluetooth internals ─────────────────────────────────────────────────
   private _webGattServer: BluetoothRemoteGATTServer | null = null;
 
+  private _museClient: any = null; // muse-js MuseClient instance
+
   private async _connectWebBluetooth(): Promise<void> {
-    const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
+    const { MuseClient } = await import("muse-js");
     this.setStatus("scanning");
 
+    const client = new MuseClient();
+    this._museClient = client;
+
+    // Request device via Web Bluetooth
+    const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
     let device: BluetoothDevice;
     try {
       device = await bt.requestDevice({
-        filters: [{ services: [MUSE_SERVICE] }],
-        optionalServices: [MUSE_SERVICE],
+        filters: [{ services: [0xfe8d] }],
+        optionalServices: [0xfe8d],
       });
     } catch (e) {
       this.setStatus("idle", "Device selection cancelled");
@@ -391,77 +398,32 @@ export class MuseBleManager {
       this.setStatus("idle", "Device disconnected");
     });
 
-    // GATT connect with one retry after 2s delay
-    let server: BluetoothRemoteGATTServer;
-    try {
-      server = await device.gatt!.connect();
-    } catch (firstErr) {
-      console.warn("GATT first connect attempt failed, retrying in 2s:", firstErr);
-      try { device.gatt!.disconnect(); } catch { /* ignore */ }
-      await new Promise((r) => setTimeout(r, 2000));
-      try {
-        server = await device.gatt!.connect();
-      } catch (retryErr) {
-        const isAndroid = /Android/i.test(navigator.userAgent);
-        const hint = isAndroid
-          ? "Turn off Bluetooth, wait 3s, turn back on. Unpair Muse in Settings > Bluetooth. Make sure Location is ON."
-          : "In System Settings > Bluetooth, forget the Muse device. Turn Muse off (hold 5s), turn back on, then retry.";
-        this.setStatus("error", `GATT connection failed. ${hint}`);
-        throw retryErr;
-      }
-    }
+    // Connect GATT
+    const server = await device.gatt!.connect();
     this._webGattServer = server;
 
-    const service = await server.getPrimaryService(MUSE_SERVICE);
-    const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
-    this._controlChar = controlChar;
+    // Let muse-js handle everything: subscribe control, discover chars, etc.
+    await client.connect(server);
+    console.log("[MuseBLE] muse-js connected:", client.deviceName);
 
-    const writeCommand = async (dv: DataView) => {
-      if (typeof controlChar.writeValueWithResponse === "function") {
-        try { await controlChar.writeValueWithResponse(dv); return; } catch { /* try next */ }
+    // Subscribe to EEG readings from muse-js
+    client.eegReadings.subscribe((reading: { electrode: number; samples: number[] }) => {
+      const ch = reading.electrode;
+      if (ch < N_ACTIVE_CHANNELS) {
+        for (const sample of reading.samples) {
+          this.rings[ch].push(sample);
+        }
+        this.lastNotificationTime[ch] = Date.now();
+        this._notifCount++;
+        if (this._notifCount === 1 || this._notifCount === 50 || this._notifCount === 500) {
+          console.log(`[MuseBLE] muse-js: ${this._notifCount} EEG readings, ch${ch}, ${reading.samples.length} samples`);
+        }
       }
-      try { await controlChar.writeValueWithoutResponse(dv); } catch {
-        await (controlChar as BluetoothRemoteGATTCharacteristic & { writeValue: (v: DataView) => Promise<void> }).writeValue(dv);
-      }
-    };
+    });
 
-    // ── Step 1: Subscribe to CONTROL characteristic (muse-js requirement) ──
-    // Muse won't process commands unless control char has notifications enabled
-    controlChar.addEventListener("characteristicvaluechanged", () => {});
-    await controlChar.startNotifications();
-    console.log("[MuseBLE-Web] Control char notifications enabled");
-
-    // ── Step 2: Get ALL characteristics and subscribe to EEG channels ──
-    const allChars = await service.getCharacteristics();
-    const eegUuids = new Set([
-      ...MUSE_EEG_CHARS_MUSE_S.map(u => u.toLowerCase()),
-      ...MUSE_EEG_CHARS_MUSE2.map(u => u.toLowerCase()),
-    ]);
-    const foundChars = allChars.filter(c => eegUuids.has(c.uuid.toLowerCase()));
-    if (foundChars.length === 0) {
-      throw new Error("No EEG characteristics found. Found " + allChars.length + " total characteristics.");
-    }
-    for (let i = 0; i < Math.min(foundChars.length, N_ACTIVE_CHANNELS); i++) {
-      const characteristic = foundChars[i];
-      await characteristic.startNotifications();
-      const channelIndex = i;
-      characteristic.addEventListener("characteristicvaluechanged", (ev: Event) => {
-        const target = ev.target as BluetoothRemoteGATTCharacteristic;
-        if (target.value) this.onEegNotification(channelIndex, target.value);
-      });
-    }
-    console.log(`[MuseBLE-Web] ${foundChars.length} EEG channels subscribed`);
-
-    // ── Step 3: Send commands (halt → preset → stream → resume) ──
-    // This exact sequence is from muse-js
-    await writeCommand(CMD_HALT);
-    await new Promise((r) => setTimeout(r, 100));
-    await writeCommand(CMD_PRESET_P21);
-    await new Promise((r) => setTimeout(r, 100));
-    await writeCommand(CMD_STREAM);
-    await new Promise((r) => setTimeout(r, 100));
-    await writeCommand(CMD_RESUME);
-    console.log("[MuseBLE-Web] Commands sent: halt → preset → stream → resume");
+    // Start streaming
+    await client.start();
+    console.log("[MuseBLE] muse-js streaming started");
 
     this.startEmitter();
     this.setStatus("streaming");
