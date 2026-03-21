@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { SpectrogramChart } from "@/components/charts/spectrogram-chart";
-import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { SignalQualityIndicator } from "@/components/signal-quality-indicator";
 import { AlphaReactivityTest } from "@/components/alpha-reactivity-test";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
@@ -174,10 +173,16 @@ export default function BrainMonitor() {
   // Badge label and color based on 0-100 quality score
   const sqLabel =
     sqScore > 70
-      ? "Good signal"
+      ? "Good Signal"
       : sqScore >= 40
-        ? "Fair signal — reduce movement"
-        : "Poor signal — check headset & minimize jaw tension";
+        ? "Fair Signal"
+        : "Poor Signal";
+  const sqDotColor =
+    sqScore > 70
+      ? "bg-success"
+      : sqScore >= 40
+        ? "bg-warning"
+        : "bg-destructive";
   const sqBadgeColor =
     sqScore > 70
       ? "text-success border-success/30 bg-success/10"
@@ -187,13 +192,6 @@ export default function BrainMonitor() {
 
   const bp = analysis?.band_powers;
   const alphaVal = bp?.alpha != null ? bp.alpha : null;
-  const betaVal = bp?.beta != null ? bp.beta : null;
-  const thetaVal = bp?.theta != null ? bp.theta : null;
-  const deltaVal = bp?.delta != null ? bp.delta : null;
-  const gammaVal = bp?.gamma != null ? bp.gamma : null;
-  // Show relative power as percentage (band / total)
-  const totalPower = (alphaVal ?? 0) + (betaVal ?? 0) + (thetaVal ?? 0) + (deltaVal ?? 0) + (gammaVal ?? 0);
-  const pct = (v: number | null) => v != null && totalPower > 0 ? `${Math.round((v / totalPower) * 100)}%` : "—";
 
   const sourceLabel = isStreaming ? "LIVE" : "OFFLINE";
   const sourceColor = isStreaming ? "text-primary" : "text-muted-foreground";
@@ -414,29 +412,33 @@ export default function BrainMonitor() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* EEG Brain Waves */}
-        <div className="xl:col-span-2 glass-card p-6 rounded-xl hover-glow">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold">
-              EEG Brain Wave Activity
-            </h3>
-            <div className="flex items-center space-x-3">
+        <div className="xl:col-span-2 glass-card p-4 sm:p-6 rounded-xl hover-glow overflow-hidden">
+          <div className="flex flex-col gap-3 mb-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">
+                EEG Brain Wave Activity
+              </h3>
+              <div className="flex items-center gap-2">
+                {isStreaming && (
+                  <Radio className="h-4 w-4 text-primary animate-pulse" />
+                )}
+                <span className={`text-sm font-mono ${sourceColor}`} aria-live="polite">
+                  {sourceLabel}
+                </span>
+              </div>
+            </div>
+            {/* Signal status bar — wraps on mobile */}
+            <div className="flex items-center gap-2 flex-wrap">
               {isStreaming && <SessionControls onRecordingChange={setIsRecording} />}
               {isStreaming && (
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${sqBadgeColor}`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${sqBadgeColor}`}
+                  data-testid="signal-quality-status"
                   title={artifactDetected ? artifactType : sqLabel}
                 >
+                  <span className={`h-2 w-2 rounded-full ${sqDotColor} shrink-0`} />
                   {sqLabel}
                 </span>
-              )}
-              {signalQuality && (
-                <SignalQualityBadge
-                  sqi={signalQuality.sqi}
-                  artifacts={signalQuality.artifacts_detected}
-                  artifactDetected={artifactDetected}
-                  artifactType={artifactType}
-                  compact
-                />
               )}
               {/* Per-electrode quality dots */}
               {sqResult && !isSynthetic && (
@@ -462,44 +464,11 @@ export default function BrainMonitor() {
                   </Badge>
                 );
               })()}
-              {isStreaming && (
-                <Radio className="h-4 w-4 text-primary animate-pulse" />
-              )}
-              <span className={`text-sm font-mono ${sourceColor}`} aria-live="polite">
-                {sourceLabel}
-              </span>
               {isReady && isStreaming && (
                 <span className="text-xs font-mono text-foreground/40" title={`Inference: ${isLocal ? "local" : "server"} (${latencyMs.toFixed(0)}ms)`}>
                   {isLocal ? "LOCAL" : "SERVER"}
                 </span>
               )}
-            </div>
-          </div>
-          <div className="grid grid-cols-5 gap-2 mb-6">
-            <div className="text-center">
-              <p className="text-[10px] font-mono" style={{ color: "#e879a8" }}>Delta</p>
-              <p className="text-lg font-bold" style={{ color: "#e879a8" }}>{pct(deltaVal)}</p>
-              <p className="text-[9px] text-muted-foreground">0.5-4 Hz</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[10px] font-mono" style={{ color: "#d4a017" }}>Theta</p>
-              <p className="text-lg font-bold" style={{ color: "#d4a017" }}>{pct(thetaVal)}</p>
-              <p className="text-[9px] text-muted-foreground">4-8 Hz</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[10px] font-mono text-primary">Alpha</p>
-              <p className="text-lg font-bold text-primary" data-testid="alpha-waves">{pct(alphaVal)}</p>
-              <p className="text-[9px] text-muted-foreground">8-12 Hz</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[10px] font-mono" style={{ color: "#6366f1" }}>Beta</p>
-              <p className="text-lg font-bold" style={{ color: "#6366f1" }} data-testid="beta-waves">{pct(betaVal)}</p>
-              <p className="text-[9px] text-muted-foreground">12-30 Hz</p>
-            </div>
-            <div className="text-center">
-              <p className="text-[10px] font-mono" style={{ color: "#7c3aed" }}>Gamma</p>
-              <p className="text-lg font-bold" style={{ color: "#7c3aed" }}>{pct(gammaVal)}</p>
-              <p className="text-[9px] text-muted-foreground">30-50 Hz</p>
             </div>
           </div>
           {isStreaming ? (
@@ -510,7 +479,7 @@ export default function BrainMonitor() {
                 height={280}
               />
               {/* Channel legend + data diagnostic */}
-              <div className="flex items-center gap-4 mt-3">
+              <div className="flex items-center gap-2 sm:gap-4 mt-3 flex-wrap">
                 {[
                   { label: "TP9",  color: "hsl(200, 70%, 55%)" },
                   { label: "AF7",  color: "hsl(152, 60%, 48%)" },

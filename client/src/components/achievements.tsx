@@ -1,14 +1,23 @@
 /**
- * Achievements — premium badge/milestone system for the You page.
+ * Achievements — premium badge/milestone gallery.
  *
  * Badges are computed from localStorage + API data, not stored server-side.
  * This keeps it lightweight and privacy-first.
  *
  * Visual tiers: bronze (easy), silver (medium), gold (hard).
  * Categories: Sessions, Streaks, Milestones, Wellness, Brain.
+ *
+ * Premium gallery design with:
+ * - Hero section (total earned, completion %, motivational tagline)
+ * - Gradient cards per tier with shimmer/glow animations
+ * - Locked section with lock overlay and progress bars
+ * - Horizontal scrollable category filter pills
+ * - Framer-motion stagger animations
  */
 
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { cardVariants } from "@/lib/animations";
 import {
   Mic, Flame, Star, Sparkles, Trophy, Sunrise, Moon, Heart,
   UtensilsCrossed, GraduationCap, Palette, Brain, Lock, Zap,
@@ -18,7 +27,9 @@ import {
 // ── Visual tier system ──────────────────────────────────────────────────
 
 export type AchievementTier = "bronze" | "silver" | "gold";
-export type AchievementCategory = "Sessions" | "Streaks" | "Milestones" | "Wellness" | "Brain";
+export type AchievementCategory = "All" | "Sessions" | "Streaks" | "Milestones" | "Wellness" | "Brain";
+
+const BADGE_CATEGORIES: AchievementCategory[] = ["All", "Sessions", "Streaks", "Milestones", "Wellness", "Brain"];
 
 const TIER_GRADIENTS: Record<AchievementTier, string> = {
   bronze: "linear-gradient(135deg, #92400e 0%, #b45309 50%, #d97706 100%)",
@@ -26,16 +37,22 @@ const TIER_GRADIENTS: Record<AchievementTier, string> = {
   gold:   "linear-gradient(135deg, #92400e 0%, #d4a017 40%, #fde68a 70%, #d4a017 100%)",
 };
 
+const TIER_CARD_BG: Record<AchievementTier, string> = {
+  bronze: "linear-gradient(135deg, rgba(146,64,14,0.15) 0%, rgba(217,119,6,0.08) 100%)",
+  silver: "linear-gradient(135deg, rgba(107,114,128,0.15) 0%, rgba(209,213,219,0.08) 100%)",
+  gold:   "linear-gradient(135deg, rgba(212,160,23,0.18) 0%, rgba(253,230,138,0.06) 100%)",
+};
+
 const TIER_BORDER: Record<AchievementTier, string> = {
-  bronze: "rgba(217, 119, 6, 0.3)",
-  silver: "rgba(156, 163, 175, 0.3)",
-  gold:   "rgba(212, 160, 23, 0.4)",
+  bronze: "rgba(217, 119, 6, 0.35)",
+  silver: "rgba(156, 163, 175, 0.35)",
+  gold:   "rgba(212, 160, 23, 0.45)",
 };
 
 const TIER_GLOW: Record<AchievementTier, string> = {
-  bronze: "0 0 12px rgba(217, 119, 6, 0.15)",
-  silver: "0 0 14px rgba(156, 163, 175, 0.15)",
-  gold:   "0 0 18px rgba(212, 160, 23, 0.2)",
+  bronze: "0 4px 20px rgba(217, 119, 6, 0.15), 0 0 12px rgba(217, 119, 6, 0.08)",
+  silver: "0 4px 20px rgba(156, 163, 175, 0.15), 0 0 14px rgba(156, 163, 175, 0.08)",
+  gold:   "0 4px 24px rgba(212, 160, 23, 0.2), 0 0 18px rgba(212, 160, 23, 0.12)",
 };
 
 // ── Shimmer keyframes injected once ─────────────────────────────────────
@@ -49,6 +66,10 @@ function injectShimmer() {
     @keyframes ndw-achievement-shimmer {
       0%   { background-position: -200% 0; }
       100% { background-position: 200% 0; }
+    }
+    @keyframes ndw-achievement-glow {
+      0%, 100% { opacity: 0.6; }
+      50%      { opacity: 1; }
     }
   `;
   document.head.appendChild(style);
@@ -64,15 +85,20 @@ export interface Badge {
   description: string;
   earned: boolean;
   tier: AchievementTier;
-  category: AchievementCategory;
+  category: Exclude<AchievementCategory, "All">;
   /** Progress toward earning (0-1). Shown as bar for locked badges. */
   progress?: number;
+  /** ISO date when earned. */
+  earnedDate?: string;
+  /** Human-readable progress label (e.g., "2/3 days"). */
+  progressLabel?: string;
 }
 
 // ── Badge definitions ───────────────────────────────────────────────────
 
 export function checkBadges(): Badge[] {
   const badges: Badge[] = [];
+  const now = new Date();
 
   // ── Sessions category ──
 
@@ -86,6 +112,7 @@ export function checkBadges(): Badge[] {
     earned: hasCheckin,
     tier: "bronze",
     category: "Sessions",
+    earnedDate: hasCheckin ? now.toISOString() : undefined,
   });
 
   // Early Bird / Night Owl
@@ -104,6 +131,7 @@ export function checkBadges(): Badge[] {
           earned: hour < 8,
           tier: "silver",
           category: "Sessions",
+          earnedDate: hour < 8 ? new Date(ts).toISOString() : undefined,
         });
         badges.push({
           id: "night-owl",
@@ -114,6 +142,7 @@ export function checkBadges(): Badge[] {
           earned: hour >= 22,
           tier: "silver",
           category: "Sessions",
+          earnedDate: hour >= 22 ? new Date(ts).toISOString() : undefined,
         });
       }
     }
@@ -133,6 +162,8 @@ export function checkBadges(): Badge[] {
     tier: "bronze",
     category: "Streaks",
     progress: Math.min(1, streak / 3),
+    progressLabel: `${Math.min(streak, 3)}/3 days`,
+    earnedDate: streak >= 3 ? now.toISOString() : undefined,
   });
   badges.push({
     id: "streak-7",
@@ -144,6 +175,8 @@ export function checkBadges(): Badge[] {
     tier: "silver",
     category: "Streaks",
     progress: Math.min(1, streak / 7),
+    progressLabel: `${Math.min(streak, 7)}/7 days`,
+    earnedDate: streak >= 7 ? now.toISOString() : undefined,
   });
   badges.push({
     id: "streak-14",
@@ -155,6 +188,8 @@ export function checkBadges(): Badge[] {
     tier: "silver",
     category: "Streaks",
     progress: Math.min(1, streak / 14),
+    progressLabel: `${Math.min(streak, 14)}/14 days`,
+    earnedDate: streak >= 14 ? now.toISOString() : undefined,
   });
   badges.push({
     id: "streak-30",
@@ -166,6 +201,8 @@ export function checkBadges(): Badge[] {
     tier: "gold",
     category: "Streaks",
     progress: Math.min(1, streak / 30),
+    progressLabel: `${Math.min(streak, 30)}/30 days`,
+    earnedDate: streak >= 30 ? now.toISOString() : undefined,
   });
 
   // ── Milestones category ──
@@ -180,6 +217,7 @@ export function checkBadges(): Badge[] {
     earned: onboarded,
     tier: "bronze",
     category: "Milestones",
+    earnedDate: onboarded ? now.toISOString() : undefined,
   });
 
   // Emotion Explorer — logged all 6 emotions
@@ -187,6 +225,7 @@ export function checkBadges(): Badge[] {
   try {
     const seen = JSON.parse(localStorage.getItem("ndw_emotions_seen") || "[]") as string[];
     const allSeen = ALL_EMOTIONS.every(e => seen.includes(e));
+    const matchCount = seen.filter(e => ALL_EMOTIONS.includes(e)).length;
     badges.push({
       id: "emotion-explorer",
       icon: Palette,
@@ -196,7 +235,9 @@ export function checkBadges(): Badge[] {
       earned: allSeen,
       tier: "gold",
       category: "Milestones",
-      progress: Math.min(1, seen.filter(e => ALL_EMOTIONS.includes(e)).length / ALL_EMOTIONS.length),
+      progress: Math.min(1, matchCount / ALL_EMOTIONS.length),
+      progressLabel: `${matchCount}/${ALL_EMOTIONS.length} emotions`,
+      earnedDate: allSeen ? now.toISOString() : undefined,
     });
   } catch {
     badges.push({
@@ -209,6 +250,7 @@ export function checkBadges(): Badge[] {
       tier: "gold",
       category: "Milestones",
       progress: 0,
+      progressLabel: "0/6 emotions",
     });
   }
 
@@ -225,6 +267,7 @@ export function checkBadges(): Badge[] {
     earned: healthConnected,
     tier: "silver",
     category: "Wellness",
+    earnedDate: healthConnected ? now.toISOString() : undefined,
   });
 
   const mealLogged = !!localStorage.getItem("ndw_meal_logged");
@@ -237,6 +280,7 @@ export function checkBadges(): Badge[] {
     earned: mealLogged,
     tier: "bronze",
     category: "Wellness",
+    earnedDate: mealLogged ? now.toISOString() : undefined,
   });
 
   // ── Brain category ──
@@ -251,14 +295,28 @@ export function checkBadges(): Badge[] {
     earned: museConnected,
     tier: "gold",
     category: "Brain",
+    earnedDate: museConnected ? now.toISOString() : undefined,
   });
 
   return badges;
 }
 
-// ── Category label chip ─────────────────────────────────────────────────
+// ── Motivational taglines ───────────────────────────────────────────────
 
-const CATEGORY_COLORS: Record<AchievementCategory, string> = {
+function getTagline(earnedCount: number, totalCount: number): string {
+  const pct = totalCount > 0 ? earnedCount / totalCount : 0;
+  if (pct === 0) return "Your journey begins here";
+  if (pct < 0.25) return "Every achievement starts with a single step";
+  if (pct < 0.5) return "Building momentum, keep going";
+  if (pct < 0.75) return "You are on a remarkable path";
+  if (pct < 1) return "Almost there, the summit is in sight";
+  return "You have unlocked every achievement";
+}
+
+// ── Category filter pill colors ─────────────────────────────────────────
+
+const CATEGORY_PILL_COLORS: Record<AchievementCategory, string> = {
+  All: "#94a3b8",
   Sessions: "#0891b2",
   Streaks: "#ea580c",
   Milestones: "#d4a017",
@@ -266,38 +324,76 @@ const CATEGORY_COLORS: Record<AchievementCategory, string> = {
   Brain: "#6366f1",
 };
 
-function CategoryChip({ category }: { category: AchievementCategory }) {
-  const color = CATEGORY_COLORS[category];
+// ── Category filter pills ───────────────────────────────────────────────
+
+function CategoryFilterPills({
+  active,
+  onChange,
+  categories,
+}: {
+  active: AchievementCategory;
+  onChange: (cat: AchievementCategory) => void;
+  categories: AchievementCategory[];
+}) {
   return (
-    <span
-      data-testid={`category-${category.toLowerCase()}`}
+    <div
+      data-testid="category-filters"
       style={{
-        fontSize: 8,
-        fontWeight: 700,
-        color,
-        textTransform: "uppercase" as const,
-        letterSpacing: "0.8px",
-        background: `${color}15`,
-        padding: "2px 6px",
-        borderRadius: 4,
+        display: "flex",
+        gap: 8,
+        overflowX: "auto",
+        paddingBottom: 4,
+        marginBottom: 20,
+        WebkitOverflowScrolling: "touch",
+        scrollbarWidth: "none",
+        msOverflowStyle: "none",
       }}
     >
-      {category}
-    </span>
+      {categories.map((cat) => {
+        const isActive = cat === active;
+        const color = CATEGORY_PILL_COLORS[cat];
+        return (
+          <button
+            key={cat}
+            data-testid={`filter-${cat.toLowerCase()}`}
+            onClick={() => onChange(cat)}
+            style={{
+              flexShrink: 0,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "6px 14px",
+              borderRadius: 20,
+              border: `1px solid ${isActive ? color : "var(--border)"}`,
+              background: isActive ? `${color}18` : "transparent",
+              color: isActive ? color : "var(--muted-foreground)",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              letterSpacing: "0.2px",
+            }}
+          >
+            {cat}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
 // ── Tier badge label ────────────────────────────────────────────────────
 
-function TierLabel({ tier }: { tier: AchievementTier }) {
+function TierBadge({ tier }: { tier: AchievementTier }) {
   const label = tier.charAt(0).toUpperCase() + tier.slice(1);
   return (
     <span
       data-testid={`tier-${tier}`}
       style={{
-        fontSize: 8,
+        position: "absolute",
+        top: 10,
+        right: 10,
+        fontSize: 9,
         fontWeight: 700,
-        letterSpacing: "0.5px",
+        letterSpacing: "0.6px",
+        textTransform: "uppercase",
         background: TIER_GRADIENTS[tier],
         WebkitBackgroundClip: "text",
         WebkitTextFillColor: "transparent",
@@ -311,14 +407,14 @@ function TierLabel({ tier }: { tier: AchievementTier }) {
 
 // ── Progress bar ────────────────────────────────────────────────────────
 
-function ProgressBar({ progress, tier }: { progress: number; tier: AchievementTier }) {
+function ProgressBar({ progress, tier, label }: { progress: number; tier: AchievementTier; label?: string }) {
   const percent = Math.round(progress * 100);
   return (
-    <div style={{ width: "100%", marginTop: 6 }}>
+    <div style={{ width: "100%", marginTop: 8 }}>
       <div
         style={{
-          height: 4,
-          borderRadius: 2,
+          height: 5,
+          borderRadius: 3,
           background: "rgba(255,255,255,0.06)",
           overflow: "hidden",
         }}
@@ -329,127 +425,301 @@ function ProgressBar({ progress, tier }: { progress: number; tier: AchievementTi
             height: "100%",
             width: `${percent}%`,
             background: TIER_GRADIENTS[tier],
-            borderRadius: 2,
+            borderRadius: 3,
             transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         />
       </div>
-      <div style={{ fontSize: 8, color: "var(--muted-foreground)", marginTop: 3, textAlign: "right" as const }}>
-        {percent}%
+      <div style={{
+        fontSize: 10,
+        color: "var(--muted-foreground)",
+        marginTop: 4,
+        textAlign: "center",
+      }}>
+        {label ?? `${percent}%`}
       </div>
     </div>
   );
 }
 
-// ── Earned badge card — with shimmer glow ───────────────────────────────
+// ── Earned badge card — large card with gradient bg, shimmer, glow ──────
 
-function EarnedBadgeCard({ badge }: { badge: Badge }) {
+function EarnedBadgeCard({ badge, index }: { badge: Badge; index: number }) {
   injectShimmer();
   const IconComp = badge.icon;
   return (
-    <div
+    <motion.div
+      custom={index}
+      initial="hidden"
+      animate="visible"
+      variants={cardVariants}
       data-testid={`badge-${badge.id}`}
       style={{
-        position: "relative" as const,
-        background: "var(--card)",
+        position: "relative",
+        background: TIER_CARD_BG[badge.tier],
         border: `1px solid ${TIER_BORDER[badge.tier]}`,
-        borderRadius: 16,
-        padding: "12px 14px",
+        borderRadius: 20,
+        padding: "20px 16px 16px",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
-        gap: 10,
+        textAlign: "center",
         boxShadow: TIER_GLOW[badge.tier],
-        overflow: "hidden" as const,
+        overflow: "hidden",
         transition: "transform 0.2s ease, box-shadow 0.2s ease",
+        minHeight: 160,
       }}
     >
       {/* Shimmer overlay */}
       <div
         aria-hidden="true"
         style={{
-          position: "absolute" as const,
+          position: "absolute",
           inset: 0,
-          background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 40%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 60%, transparent 100%)`,
+          background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 40%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.04) 60%, transparent 100%)",
           backgroundSize: "200% 100%",
           animation: "ndw-achievement-shimmer 3s ease-in-out infinite",
-          pointerEvents: "none" as const,
+          pointerEvents: "none",
         }}
       />
-      {/* Icon with gradient background circle */}
+
+      {/* Tier badge in corner */}
+      <TierBadge tier={badge.tier} />
+
+      {/* Large centered icon */}
       <div
         style={{
-          width: 36,
-          height: 36,
+          width: 52,
+          height: 52,
           borderRadius: "50%",
-          background: `${badge.iconColor}18`,
+          background: `${badge.iconColor}20`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          flexShrink: 0,
+          marginBottom: 10,
+          animation: "ndw-achievement-glow 3s ease-in-out infinite",
         }}
       >
-        <IconComp style={{ width: 18, height: 18, color: badge.iconColor }} />
+        <IconComp style={{ width: 26, height: 26, color: badge.iconColor }} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{badge.name}</span>
-          <TierLabel tier={badge.tier} />
-        </div>
-        <div style={{ fontSize: 9, color: "var(--muted-foreground)", lineHeight: 1.3 }}>{badge.description}</div>
-        <div style={{ marginTop: 4 }}>
-          <CategoryChip category={badge.category} />
-        </div>
+
+      {/* Name */}
+      <div style={{
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--foreground)",
+        marginBottom: 4,
+        lineHeight: 1.2,
+      }}>
+        {badge.name}
       </div>
-      {/* Earned indicator */}
-      <Zap style={{ width: 14, height: 14, color: badge.iconColor, flexShrink: 0, opacity: 0.7 }} />
-    </div>
+
+      {/* Description */}
+      <div style={{
+        fontSize: 10,
+        color: "var(--muted-foreground)",
+        lineHeight: 1.4,
+        marginBottom: 6,
+      }}>
+        {badge.description}
+      </div>
+
+      {/* Earned date */}
+      {badge.earnedDate && (
+        <div style={{ fontSize: 9, color: "var(--muted-foreground)", opacity: 0.6 }}>
+          {new Date(badge.earnedDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+        </div>
+      )}
+    </motion.div>
   );
 }
 
-// ── Locked badge card — greyed, with progress ───────────────────────────
+// ── Locked badge card — greyed, with lock overlay and progress ──────────
 
-function LockedBadgeCard({ badge }: { badge: Badge }) {
+function LockedBadgeCard({ badge, index }: { badge: Badge; index: number }) {
+  const IconComp = badge.icon;
   return (
-    <div
+    <motion.div
+      custom={index}
+      initial="hidden"
+      animate="visible"
+      variants={cardVariants}
       data-testid={`badge-${badge.id}`}
       style={{
+        position: "relative",
         background: "var(--card)",
         border: "1px solid var(--border)",
-        borderRadius: 16,
-        padding: "12px 14px",
+        borderRadius: 20,
+        padding: "20px 16px 16px",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
-        gap: 10,
-        opacity: 0.55,
-        filter: "saturate(0.3)",
+        textAlign: "center",
+        overflow: "hidden",
+        minHeight: 160,
       }}
     >
+      {/* Lock overlay */}
+      <div
+        aria-hidden="true"
+        data-testid="lock-overlay"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "rgba(0,0,0,0.35)",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "flex-end",
+          padding: 10,
+          pointerEvents: "none",
+          zIndex: 1,
+        }}
+      >
+        <Lock style={{ width: 14, height: 14, color: "rgba(255,255,255,0.5)" }} />
+      </div>
+
+      {/* Tier badge in corner */}
+      <div style={{ position: "relative", zIndex: 0 }}>
+        <TierBadge tier={badge.tier} />
+      </div>
+
+      {/* Icon — dimmed */}
       <div
         style={{
-          width: 36,
-          height: 36,
+          width: 52,
+          height: 52,
           borderRadius: "50%",
           background: "rgba(255,255,255,0.04)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          flexShrink: 0,
+          marginBottom: 10,
+          opacity: 0.4,
+          filter: "grayscale(0.8)",
         }}
       >
-        <Lock style={{ width: 16, height: 16, color: "var(--muted-foreground)" }} />
+        <IconComp style={{ width: 26, height: 26, color: badge.iconColor }} />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{badge.name}</span>
-          <TierLabel tier={badge.tier} />
+
+      {/* Name */}
+      <div style={{
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--foreground)",
+        marginBottom: 4,
+        lineHeight: 1.2,
+        opacity: 0.5,
+      }}>
+        {badge.name}
+      </div>
+
+      {/* Description */}
+      <div style={{
+        fontSize: 10,
+        color: "var(--muted-foreground)",
+        lineHeight: 1.4,
+        marginBottom: 4,
+        opacity: 0.5,
+      }}>
+        {badge.description}
+      </div>
+
+      {/* Progress bar if partially complete */}
+      {badge.progress != null && badge.progress > 0 && badge.progress < 1 && (
+        <div style={{ width: "100%", position: "relative", zIndex: 2 }}>
+          <ProgressBar progress={badge.progress} tier={badge.tier} label={badge.progressLabel} />
         </div>
-        <div style={{ fontSize: 9, color: "var(--muted-foreground)", lineHeight: 1.3 }}>{badge.description}</div>
-        <div style={{ marginTop: 4 }}>
-          <CategoryChip category={badge.category} />
+      )}
+    </motion.div>
+  );
+}
+
+// ── Hero Section ────────────────────────────────────────────────────────
+
+function HeroSection({ earned, total }: { earned: number; total: number }) {
+  const pct = total > 0 ? Math.round((earned / total) * 100) : 0;
+  const tagline = getTagline(earned, total);
+
+  return (
+    <div
+      data-testid="achievements-hero"
+      style={{
+        background: "linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(212,160,23,0.08) 100%)",
+        border: "1px solid rgba(99,102,241,0.15)",
+        borderRadius: 20,
+        padding: "22px 20px",
+        marginBottom: 20,
+        textAlign: "center",
+      }}
+    >
+      {/* Stats row */}
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        gap: 32,
+        marginBottom: 12,
+      }}>
+        <div>
+          <div data-testid="hero-earned-count" style={{
+            fontSize: 32,
+            fontWeight: 800,
+            color: "#d4a017",
+            lineHeight: 1,
+          }}>
+            {earned}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+            Earned
+          </div>
         </div>
-        {badge.progress != null && badge.progress > 0 && badge.progress < 1 && (
-          <ProgressBar progress={badge.progress} tier={badge.tier} />
-        )}
+        <div style={{
+          width: 1,
+          background: "var(--border)",
+          alignSelf: "stretch",
+        }} />
+        <div>
+          <div data-testid="hero-completion-pct" style={{
+            fontSize: 32,
+            fontWeight: 800,
+            color: "#6366f1",
+            lineHeight: 1,
+          }}>
+            {pct}%
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+            Complete
+          </div>
+        </div>
+      </div>
+
+      {/* Overall progress bar */}
+      <div style={{
+        height: 6,
+        borderRadius: 3,
+        background: "rgba(255,255,255,0.06)",
+        overflow: "hidden",
+        marginBottom: 12,
+      }}>
+        <div
+          data-testid="overall-progress"
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: "linear-gradient(90deg, #6366f1, #d4a017, #e879a8)",
+            borderRadius: 3,
+            transition: "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        />
+      </div>
+
+      {/* Tagline */}
+      <div data-testid="hero-tagline" style={{
+        fontSize: 13,
+        color: "var(--muted-foreground)",
+        fontStyle: "italic",
+        letterSpacing: "0.1px",
+      }}>
+        {tagline}
       </div>
     </div>
   );
@@ -459,6 +729,7 @@ function LockedBadgeCard({ badge }: { badge: Badge }) {
 
 export function AchievementBadges() {
   const [badges, setBadges] = useState<Badge[]>([]);
+  const [activeCategory, setActiveCategory] = useState<AchievementCategory>("All");
 
   useEffect(() => {
     setBadges(checkBadges());
@@ -471,74 +742,76 @@ export function AchievementBadges() {
     };
   }, []);
 
-  const earned = badges.filter(b => b.earned);
-  const locked = badges.filter(b => !b.earned);
+  const filteredBadges = activeCategory === "All"
+    ? badges
+    : badges.filter(b => b.category === activeCategory);
+
+  const earned = filteredBadges.filter(b => b.earned);
+  const locked = filteredBadges.filter(b => !b.earned);
+  const totalEarned = badges.filter(b => b.earned).length;
 
   if (badges.length === 0) return null;
 
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* Header */}
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-        marginBottom: 10,
-      }}>
-        <div style={{
-          fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-          textTransform: "uppercase" as const, letterSpacing: "0.5px",
-        }}>
-          Achievements
-        </div>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-          {earned.length}/{badges.length} earned
-        </div>
-      </div>
+      {/* Hero section — always shows totals regardless of filter */}
+      <HeroSection earned={totalEarned} total={badges.length} />
 
-      {/* Overall progress bar */}
-      <div style={{
-        height: 4,
-        borderRadius: 2,
-        background: "rgba(255,255,255,0.06)",
-        overflow: "hidden",
-        marginBottom: 12,
-      }}>
-        <div
-          data-testid="overall-progress"
-          style={{
-            height: "100%",
-            width: badges.length > 0 ? `${Math.round((earned.length / badges.length) * 100)}%` : "0%",
-            background: "linear-gradient(90deg, #7c3aed, #e879a8)",
-            borderRadius: 2,
-            transition: "width 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
-          }}
-        />
-      </div>
+      {/* Category filter pills */}
+      <CategoryFilterPills
+        active={activeCategory}
+        onChange={setActiveCategory}
+        categories={BADGE_CATEGORIES}
+      />
 
-      {/* Earned badges */}
+      {/* Earned badges — large card grid */}
       {earned.length > 0 && (
-        <div style={{
-          display: "flex", flexDirection: "column" as const, gap: 8,
-          marginBottom: locked.length > 0 ? 12 : 0,
-        }}>
-          {earned.map(b => <EarnedBadgeCard key={b.id} badge={b} />)}
-        </div>
+        <>
+          <div style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--muted-foreground)",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            marginBottom: 10,
+          }}>
+            Earned
+          </div>
+          <div
+            data-testid="earned-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+              marginBottom: locked.length > 0 ? 20 : 0,
+            }}
+          >
+            {earned.map((b, i) => <EarnedBadgeCard key={b.id} badge={b} index={i} />)}
+          </div>
+        </>
       )}
 
       {/* Locked badges */}
       {locked.length > 0 && (
         <>
           <div style={{
-            fontSize: 10, fontWeight: 500, color: "var(--muted-foreground)",
-            marginBottom: 8, opacity: 0.7,
+            fontSize: 11,
+            fontWeight: 500,
+            color: "var(--muted-foreground)",
+            marginBottom: 10,
+            opacity: 0.7,
           }}>
             Locked
           </div>
-          <div style={{
-            display: "flex", flexDirection: "column" as const, gap: 8,
-          }}>
-            {locked.map(b => <LockedBadgeCard key={b.id} badge={b} />)}
+          <div
+            data-testid="locked-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+            }}
+          >
+            {locked.map((b, i) => <LockedBadgeCard key={b.id} badge={b} index={i} />)}
           </div>
         </>
       )}

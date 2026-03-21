@@ -10,7 +10,7 @@ import { resolveUrl } from "@/lib/queryClient";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import {
   Flame, Calendar, Trophy, BarChart3, Heart, Brain, Palette,
-  Bell, Download, Lock, HelpCircle, Watch, Sun, ChevronRight, type LucideIcon,
+  Bell, Download, Lock, HelpCircle, Watch, Sun, ChevronRight, Link2, type LucideIcon,
 } from "lucide-react";
 import { ChronotypeQuiz } from "@/components/chronotype-quiz";
 import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
@@ -64,6 +64,25 @@ function getMemberSince(createdAt?: string): string {
   if (!createdAt) return "Mar 2026";
   const d = new Date(createdAt);
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+/** Total number of device slots on the connected-assets page. */
+const TOTAL_DEVICE_SLOTS = 7;
+
+/** Count how many devices are currently connected (from localStorage). */
+function getConnectedDeviceCount(): number {
+  let count = 0;
+  try {
+    if (localStorage.getItem("ndw_health_connect_granted") === "true"
+        || localStorage.getItem("ndw_apple_health_granted") === "true") count++;
+    if (localStorage.getItem("ndw_muse_connected") === "true") count++;
+    // Wearables: oura, whoop, garmin, fitbit, samsung
+    for (const key of ["ndw_oura_connected", "ndw_whoop_connected", "ndw_garmin_connected",
+                        "ndw_fitbit_connected", "ndw_samsung_connected"]) {
+      if (localStorage.getItem(key) === "true") count++;
+    }
+  } catch { /* ignore */ }
+  return count;
 }
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
@@ -179,6 +198,7 @@ export default function You() {
   const [platform] = useState(() => getPlatform());
   const [healthConnected] = useState(() => getHealthConnectStatus());
   const [museConnected] = useState(() => getMuseStatus());
+  const [connectedDeviceCount] = useState(() => getConnectedDeviceCount());
   const [showChronotypeQuiz, setShowChronotypeQuiz] = useState(false);
   const [showNotificationPrefs, setShowNotificationPrefs] = useState(false);
 
@@ -454,23 +474,10 @@ export default function You() {
       <SectionLabel>Connected Assets</SectionLabel>
       <GroupedList>
         <ListItem
-          icon={Heart}
-          iconColor="#e879a8"
-          title={platform === "android" ? "Google Health Connect" : platform === "ios" ? "Apple HealthKit" : "Health Connect"}
-          rightBadge={<StatusBadge connected={healthConnected} />}
-          onClick={() => setLocation("/connected-assets")}
-        />
-        <ListItem
-          icon={Brain}
-          iconColor="#6366f1"
-          title="BCI / EEG"
-          rightBadge={<StatusBadge connected={museConnected} />}
-          onClick={() => setLocation("/connected-assets")}
-        />
-        <ListItem
-          icon={Watch}
-          iconColor="#d4a017"
-          title="Wearables"
+          icon={Link2}
+          iconColor="#0891b2"
+          title="Connected Devices"
+          rightText={`${connectedDeviceCount} of ${TOTAL_DEVICE_SLOTS} connected`}
           onClick={() => setLocation("/connected-assets")}
           isLast
         />

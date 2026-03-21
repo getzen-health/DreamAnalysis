@@ -121,35 +121,12 @@ describe("BrainMonitor page", () => {
     });
   });
 
-  it("shows all five brain wave bands in the percentage grid", async () => {
+  it("does not show duplicate band labels when not streaming (removed top grid)", async () => {
     renderWithProviders(<BrainMonitor />);
     await waitFor(() => {
-      expect(screen.getByText("Delta")).toBeInTheDocument();
-      expect(screen.getByText("Theta")).toBeInTheDocument();
-      expect(screen.getByText("Alpha")).toBeInTheDocument();
-      expect(screen.getByText("Beta")).toBeInTheDocument();
-      expect(screen.getByText("Gamma")).toBeInTheDocument();
-    });
-  });
-
-  it("shows frequency ranges for all five bands", async () => {
-    renderWithProviders(<BrainMonitor />);
-    await waitFor(() => {
-      expect(screen.getByText("0.5-4 Hz")).toBeInTheDocument();
-      expect(screen.getByText("4-8 Hz")).toBeInTheDocument();
-      expect(screen.getByText("8-12 Hz")).toBeInTheDocument();
-      expect(screen.getByText("12-30 Hz")).toBeInTheDocument();
-      // Gamma shows 30-50 Hz in the grid (different from band definition)
-      expect(screen.getByText("30-50 Hz")).toBeInTheDocument();
-    });
-  });
-
-  it("shows dashes for all band values when not streaming", async () => {
-    renderWithProviders(<BrainMonitor />);
-    await waitFor(() => {
-      const dashes = screen.getAllByText("—");
-      // 5 band values + other fields should show dashes
-      expect(dashes.length).toBeGreaterThanOrEqual(5);
+      // Band Powers section only renders when streaming with data — so offline
+      // should not show Delta/Theta/Alpha/Beta/Gamma labels at all in the EEG section
+      expect(screen.queryByText("Band Powers")).not.toBeInTheDocument();
     });
   });
 
@@ -291,6 +268,35 @@ describe("BrainMonitor page", () => {
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
         expect(screen.getByTestId("eeg-waveform-canvas")).toBeInTheDocument();
+      });
+    });
+
+    it("shows compact signal quality status with colored dot when streaming", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const badge = screen.getByTestId("signal-quality-status");
+        expect(badge).toBeInTheDocument();
+        // Should show "Good Signal" (score is 100 by default)
+        expect(badge).toHaveTextContent("Good Signal");
+      });
+    });
+
+    it("does not render SignalQualityBadge component (removed for cleaner mobile)", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        // SignalQualityBadge mock renders with data-testid="signal-quality-badge"
+        expect(screen.queryByTestId("signal-quality-badge")).not.toBeInTheDocument();
+      });
+    });
+
+    it("band labels appear only in Band Powers section (no duplicate top grid)", async () => {
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        // Delta should appear exactly once — inside the Band Powers bar chart
+        const deltas = screen.getAllByText("Delta");
+        expect(deltas).toHaveLength(1);
+        // And it should be inside the band-delta test id element
+        expect(screen.getByTestId("band-delta")).toHaveTextContent("Delta");
       });
     });
   });
@@ -481,6 +487,66 @@ describe("BrainMonitor page", () => {
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
         expect(screen.queryByText("Try Synthetic Device")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Task #39: Signal quality status labels", () => {
+    function makeStreamingDevice(overrides: Record<string, unknown> = {}) {
+      return {
+        state: "streaming",
+        latestFrame: {
+          signals: [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]],
+          analysis: { band_powers: { delta: 0.2, theta: 0.2, alpha: 0.2, beta: 0.2, gamma: 0.2 }, features: {} },
+          quality: {},
+          timestamp: Date.now() / 1000,
+          n_channels: 4,
+          sample_rate: 256,
+          ...overrides,
+        },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        deviceStatus: { connected: true, streaming: true, device_type: "muse2", n_channels: 4, sample_rate: 256, brainflow_available: true },
+        selectedDevice: "muse2",
+        reconnectCount: 0,
+        epochReady: true,
+      };
+    }
+
+    it("shows 'Good Signal' for high quality score (>70)", async () => {
+      mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 85 }));
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const badge = screen.getByTestId("signal-quality-status");
+        expect(badge).toHaveTextContent("Good Signal");
+      });
+    });
+
+    it("shows 'Fair Signal' for medium quality score (40-70)", async () => {
+      mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 55 }));
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const badge = screen.getByTestId("signal-quality-status");
+        expect(badge).toHaveTextContent("Fair Signal");
+      });
+    });
+
+    it("shows 'Poor Signal' for low quality score (<40)", async () => {
+      mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 20 }));
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const badge = screen.getByTestId("signal-quality-status");
+        expect(badge).toHaveTextContent("Poor Signal");
+      });
+    });
+
+    it("signal status badge has a colored dot element", async () => {
+      mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 85 }));
+      renderWithProviders(<BrainMonitor />);
+      await waitFor(() => {
+        const badge = screen.getByTestId("signal-quality-status");
+        const dot = badge.querySelector("span.rounded-full");
+        expect(dot).toBeTruthy();
       });
     });
   });

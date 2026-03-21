@@ -104,9 +104,34 @@ describe("You page", () => {
     expect(screen.queryByTestId("overall-progress")).not.toBeInTheDocument();
   });
 
-  it("shows Connected Assets section", () => {
+  it("shows Connected Assets section with single consolidated item", () => {
     renderWithProviders(<You />);
     expect(screen.getByText("Connected Assets")).toBeInTheDocument();
+    // Should show the single "Connected Devices" item
+    expect(screen.getByText("Connected Devices")).toBeInTheDocument();
+  });
+
+  it("does NOT show separate Health Connect, BCI, or Wearables items", () => {
+    renderWithProviders(<You />);
+    // These 3 separate items should no longer exist
+    expect(screen.queryByText("Health Connect")).not.toBeInTheDocument();
+    expect(screen.queryByText("Google Health Connect")).not.toBeInTheDocument();
+    expect(screen.queryByText("Apple HealthKit")).not.toBeInTheDocument();
+    expect(screen.queryByText("BCI / EEG")).not.toBeInTheDocument();
+    expect(screen.queryByText("Wearables")).not.toBeInTheDocument();
+  });
+
+  it("shows connected device count in the subtitle", () => {
+    renderWithProviders(<You />);
+    // Default state: 0 devices connected out of 7
+    expect(screen.getByText("0 of 7 connected")).toBeInTheDocument();
+  });
+
+  it("shows correct device count when devices are connected", () => {
+    localStorage.setItem("ndw_health_connect_granted", "true");
+    localStorage.setItem("ndw_muse_connected", "true");
+    renderWithProviders(<You />);
+    expect(screen.getByText("2 of 7 connected")).toBeInTheDocument();
   });
 
   it("shows Settings section", () => {
