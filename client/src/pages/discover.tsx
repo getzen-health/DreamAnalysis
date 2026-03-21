@@ -6,8 +6,8 @@ import { pageTransition, cardVariants } from "@/lib/animations";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
+import { useFusedState } from "@/hooks/use-fused-state";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
-import { EegMusicCard } from "@/components/eeg-music-card";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -506,25 +506,50 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
         ? data
         : getLocalEmotionHistory();
 
-    if (rows.length === 0) return [];
-
     // Group by day, average values
-    const dayMap = new Map<string, { stress: number[]; focus: number[]; mood: number[] }>();
+    const dayMap = new Map<string, { stress: number[]; focus: number[]; mood: number[]; ts: number }>();
+
+    // Add rows from API / localStorage
     for (const r of rows) {
-      const day = new Date(r.timestamp).toLocaleDateString(undefined, { weekday: "short" });
-      if (!dayMap.has(day)) dayMap.set(day, { stress: [], focus: [], mood: [] });
-      const d = dayMap.get(day)!;
-      d.stress.push((r.stress ?? 0) * 100);
-      d.focus.push((r.focus ?? 0) * 100);
-      d.mood.push((r.happiness ?? 0.5) * 100);
+      const d = new Date(r.timestamp);
+      const day = d.toLocaleDateString(undefined, { weekday: "short" });
+      const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      if (!dayMap.has(day)) dayMap.set(day, { stress: [], focus: [], mood: [], ts });
+      const bucket = dayMap.get(day)!;
+      bucket.stress.push((r.stress ?? 0) * 100);
+      bucket.focus.push((r.focus ?? 0) * 100);
+      bucket.mood.push((r.happiness ?? 0.5) * 100);
     }
-    return Array.from(dayMap.entries()).map(([day, v]) => ({
-      day,
-      stress: Math.round(v.stress.reduce((a, b) => a + b, 0) / v.stress.length),
-      focus: Math.round(v.focus.reduce((a, b) => a + b, 0) / v.focus.length),
-      mood: Math.round(v.mood.reduce((a, b) => a + b, 0) / v.mood.length),
-    }));
-  }, [data]);
+
+    // Also incorporate session history data (listSessions) when available
+    if (sessions && sessions.length > 0) {
+      const weekAgo = Date.now() / 1000 - 7 * 86400;
+      for (const s of sessions) {
+        if (!s.summary || s.summary.avg_focus == null) continue;
+        if ((s.start_time ?? 0) < weekAgo) continue;
+        const d = new Date((s.start_time ?? 0) * 1000);
+        const day = d.toLocaleDateString(undefined, { weekday: "short" });
+        const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        if (!dayMap.has(day)) dayMap.set(day, { stress: [], focus: [], mood: [], ts });
+        const bucket = dayMap.get(day)!;
+        bucket.stress.push((s.summary.avg_stress ?? 0) * 100);
+        bucket.focus.push((s.summary.avg_focus ?? 0) * 100);
+        // Use relaxation as a mood proxy (higher relaxation = more positive mood)
+        bucket.mood.push((s.summary.avg_relaxation ?? 0.5) * 100);
+      }
+    }
+
+    if (dayMap.size === 0) return [];
+
+    return Array.from(dayMap.entries())
+      .sort(([, a], [, b]) => a.ts - b.ts)
+      .map(([day, v]) => ({
+        day,
+        stress: Math.round(v.stress.reduce((a, b) => a + b, 0) / v.stress.length),
+        focus: Math.round(v.focus.reduce((a, b) => a + b, 0) / v.focus.length),
+        mood: Math.round(v.mood.reduce((a, b) => a + b, 0) / v.mood.length),
+      }));
+  }, [data, sessions]);
 
   // Current values from checkin data (reactive via useCheckinData hook)
   const current = useMemo(() => {
@@ -655,6 +680,7 @@ export default function Discover() {
   const [, navigate] = useLocation();
   const checkin = useCheckinData();
   const { latestPayload } = useHealthSync();
+  const { fusedState } = useFusedState(); // Data fusion bus: auto-updates from EEG/voice/health
   const userId = getParticipantId();
 
   // Fetch today's food logs for calorie sum
@@ -663,13 +689,14 @@ export default function Discover() {
     retry: false,
   });
 
-  const emotion = checkin?.emotion ?? "—";
+  // Use fused state when available, fall back to checkin data
+  const emotion = fusedState?.emotion ?? checkin?.emotion ?? "—";
   const emoColor = EMOTION_COLOR[emotion] ?? "var(--muted-foreground)";
-  const stress = checkin?.stress_index ?? 0;
-  const focus = checkin?.focus_index ?? 0;
+  const stress = fusedState?.stress ?? checkin?.stress_index ?? 0;
+  const focus = fusedState?.focus ?? checkin?.focus_index ?? 0;
   const relaxation = checkin?.relaxation_index ?? (1 - stress);
-  const valence = checkin?.valence ?? 0;
-  const hasData = !!checkin?.emotion;
+  const valence = fusedState?.valence ?? checkin?.valence ?? 0;
+  const hasData = !!fusedState || !!checkin?.emotion;
 
   // ── Health metric derived values ─────────────────────────────────────────
   const heartRate = latestPayload?.current_heart_rate ?? latestPayload?.resting_heart_rate ?? null;
@@ -727,9 +754,6 @@ export default function Discover() {
 
       {/* ── Mood Insights — pattern detection from emotion history ── */}
       <MoodInsightsCard userId={userId} />
-
-      {/* ── EEG-Adaptive Music — or static Quick Listen fallback ── */}
-      <EegMusicCard />
 
       {/* ── Section label ── */}
       <div style={{

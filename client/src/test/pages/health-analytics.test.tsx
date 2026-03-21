@@ -149,18 +149,15 @@ describe("HealthAnalytics — individual metric panels", () => {
     }) as unknown as typeof fetch;
   });
 
-  it("does NOT show individual metric panels when no real data", async () => {
-    // hasRealData = false when not streaming and no voice result
+  it("shows individual metric panels even when no real data (with empty state)", async () => {
+    // MetricPanels always render now — show "No sessions yet" when no data
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
       expect(screen.getByText("Brain Health Trends")).toBeInTheDocument();
     });
-    // Individual metric panels only render when hasRealData is true
-    // With our mock (disconnected, no voice), they should NOT be in the DOM
-    expect(screen.queryByText("Attention and concentration level")).not.toBeInTheDocument();
-    expect(screen.queryByText("Mental stress and tension")).not.toBeInTheDocument();
-    expect(screen.queryByText("Calm and restful state")).not.toBeInTheDocument();
-    expect(screen.queryByText("Deep immersion in activity")).not.toBeInTheDocument();
+    // Metric panels are always visible with labels
+    expect(screen.getByText("Attention and concentration level")).toBeInTheDocument();
+    expect(screen.getByText("Mental stress and tension")).toBeInTheDocument();
   });
 
   it("shows placeholder '--' values in composite scores when no data", async () => {
@@ -235,14 +232,17 @@ describe("HealthAnalytics — metric panel structure", () => {
     }) as unknown as typeof fetch;
   });
 
-  it("does not show metric panels when disconnected with no voice data", async () => {
+  it("shows metric panels with empty state when disconnected with no voice data", async () => {
     renderWithProviders(<HealthAnalytics />);
     await waitFor(() => {
-      // Valence and Arousal panels should NOT be in the DOM when hasRealData is false
-      expect(screen.queryByText("Valence")).not.toBeInTheDocument();
-      expect(screen.queryByText("Arousal")).not.toBeInTheDocument();
-      expect(screen.queryByText("Positive/negative feeling")).not.toBeInTheDocument();
-      expect(screen.queryByText("Energy level")).not.toBeInTheDocument();
+      // Metric panels always render now — Valence and Arousal should be visible
+      expect(screen.getByText("Valence")).toBeInTheDocument();
+      expect(screen.getByText("Arousal")).toBeInTheDocument();
+      expect(screen.getByText("Positive/negative feeling")).toBeInTheDocument();
+      expect(screen.getByText("Energy level")).toBeInTheDocument();
+      // Empty state message should appear since there's no data
+      const noSessions = screen.getAllByText("No sessions yet");
+      expect(noSessions.length).toBeGreaterThanOrEqual(1);
     });
   });
 

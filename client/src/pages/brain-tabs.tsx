@@ -13,6 +13,7 @@ import { pageTransition } from "@/lib/animations";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Activity, Radio, Network, Brain } from "lucide-react";
 import { BrainAgeCard } from "@/components/brain-age-card";
+import { EegMusicCard } from "@/components/eeg-music-card";
 import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 
 // Lazy-load tab contents from existing pages
@@ -80,6 +81,11 @@ export default function BrainTabs() {
             </div>
           )}
         />
+      </div>
+
+      {/* EEG-Adaptive Music */}
+      <div className="mb-4">
+        <EegMusicCard />
       </div>
 
       <Tabs defaultValue="eeg" className="w-full">

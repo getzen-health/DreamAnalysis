@@ -234,17 +234,31 @@ interface MetricPanelProps {
 
 function MetricPanels({ focusScore, stressIndex, relaxScore, flowScore, voiceResult, allSessions, periodDays }: MetricPanelProps) {
   const metrics = useMemo(() => {
-    // Build history from sessions or localStorage
-    const hasSessionData = allSessions.some(s => s.summary?.avg_focus != null);
+    // Build history from sessions AND localStorage — merge both sources
+    const sessionStress = buildMetricHistory(allSessions, "stress", periodDays);
+    const sessionFocus = buildMetricHistory(allSessions, "focus", periodDays);
+    const sessionRelax = buildMetricHistory(allSessions, "relaxation", periodDays);
+    const sessionFlow = buildMetricHistory(allSessions, "flow", periodDays);
+
+    const localValence = buildLocalMetricHistory("valence");
+    const localArousal = buildLocalMetricHistory("arousal");
+    const localStress = buildLocalMetricHistory("stress");
+    const localFocus = buildLocalMetricHistory("focus");
+
+    // Use session data if available, fall back to localStorage
+    const valenceHistory = localValence.length > 0 ? localValence : [];
+    const arousalHistory = localArousal.length > 0 ? localArousal : [];
+    const stressHistory = sessionStress.length > 0 ? sessionStress : localStress;
+    const focusHistory = sessionFocus.length > 0 ? sessionFocus : localFocus;
 
     return [
       {
         label: "Valence",
         desc: "Positive/negative feeling",
         value: voiceResult ? Math.round(((voiceResult.valence + 1) / 2) * 100) : null,
-        color: "hsl(152,60%,48%)",
+        color: "hsl(270,60%,60%)",
         gradId: "valencePanelGrad",
-        history: hasSessionData ? [] : buildLocalMetricHistory("valence"),
+        history: valenceHistory,
       },
       {
         label: "Arousal",
@@ -252,7 +266,7 @@ function MetricPanels({ focusScore, stressIndex, relaxScore, flowScore, voiceRes
         value: voiceResult ? Math.round(voiceResult.arousal * 100) : null,
         color: "hsl(38,85%,58%)",
         gradId: "arousalPanelGrad",
-        history: hasSessionData ? [] : buildLocalMetricHistory("arousal"),
+        history: arousalHistory,
       },
       {
         label: "Stress",
@@ -260,9 +274,7 @@ function MetricPanels({ focusScore, stressIndex, relaxScore, flowScore, voiceRes
         value: stressIndex,
         color: "hsl(0,72%,60%)",
         gradId: "stressPanelGrad",
-        history: hasSessionData
-          ? buildMetricHistory(allSessions, "stress", periodDays)
-          : buildLocalMetricHistory("stress"),
+        history: stressHistory,
       },
       {
         label: "Focus",
@@ -270,9 +282,7 @@ function MetricPanels({ focusScore, stressIndex, relaxScore, flowScore, voiceRes
         value: focusScore,
         color: "hsl(200,70%,55%)",
         gradId: "focusPanelGrad",
-        history: hasSessionData
-          ? buildMetricHistory(allSessions, "focus", periodDays)
-          : buildLocalMetricHistory("focus"),
+        history: focusHistory,
       },
     ];
   }, [focusScore, stressIndex, voiceResult, allSessions, periodDays]);
@@ -302,7 +312,7 @@ function MetricPanels({ focusScore, stressIndex, relaxScore, flowScore, voiceRes
             </div>
           </div>
 
-          {/* Full-width history chart */}
+          {/* Full-width history chart — always 240px+ */}
           {metric.history.length >= 2 ? (
             <div style={{ height: 240, marginTop: 8 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -351,15 +361,16 @@ function MetricPanels({ focusScore, stressIndex, relaxScore, flowScore, voiceRes
               </ResponsiveContainer>
             </div>
           ) : (
-            /* Fallback: progress bar when not enough history */
-            <div className="w-full h-3 rounded-full bg-muted/20 overflow-hidden mt-2">
-              <div
-                className="h-full rounded-full transition-all duration-700 ease-out"
-                style={{
-                  width: `${metric.value ?? 0}%`,
-                  background: `linear-gradient(90deg, ${metric.color}33, ${metric.color})`,
-                }}
-              />
+            /* Empty state — clear message, not just a bar */
+            <div
+              className="flex items-center justify-center rounded-xl mt-2"
+              style={{
+                height: 240,
+                background: "hsl(220,22%,8%)",
+                border: "1px solid hsl(220,18%,13%)",
+              }}
+            >
+              <p className="text-[12px] text-muted-foreground">No sessions yet</p>
             </div>
           )}
         </div>
@@ -668,18 +679,16 @@ export default function HealthAnalytics() {
         )}
       </div>
 
-      {/* Individual Metric Panels — full-width charts with history */}
-      {hasRealData && (
-        <MetricPanels
-          focusScore={focusScore}
-          stressIndex={stressIndex}
-          relaxScore={relaxScore}
-          flowScore={flowScore}
-          voiceResult={voiceResult}
-          allSessions={allSessions}
-          periodDays={periodDays}
-        />
-      )}
+      {/* Individual Metric Panels — 4 full-width charts, ALWAYS visible */}
+      <MetricPanels
+        focusScore={focusScore}
+        stressIndex={stressIndex}
+        relaxScore={relaxScore}
+        flowScore={flowScore}
+        voiceResult={voiceResult}
+        allSessions={allSessions}
+        periodDays={periodDays}
+      />
 
       {/* Score Gauges — composite scores below the metrics */}
       <div

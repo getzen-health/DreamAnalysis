@@ -14,8 +14,8 @@ import { InlineBreathe } from "@/components/inline-breathe";
 import { syncMoodLogToML } from "@/lib/ml-api";
 import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
 import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
+import { useFusedState } from "@/hooks/use-fused-state";
 import { BrainAgeCard } from "@/components/brain-age-card";
-import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -697,6 +697,7 @@ export default function Today() {
   const [, navigate] = useLocation();
   const voiceData = useVoiceData();
   const { emotion: fusedEmotion, correctEmotion: correctFusedEmotion } = useMultimodalEmotion();
+  const { fusedState } = useFusedState(); // Data fusion bus: auto-updates from EEG/voice/health
   const queryClient = useQueryClient();
   const [showBreathe, setShowBreathe] = useState(false);
 
@@ -1256,61 +1257,6 @@ export default function Today() {
           {/* ── 3b. Brain Age ── */}
           <motion.div variants={itemVariants} style={{ marginBottom: 14 }}>
             <BrainAgeCard />
-          </motion.div>
-
-          {/* ── 3c. Recent Voice Analyses ── */}
-          <motion.div variants={itemVariants} style={{ ...bevelCard, marginBottom: 20 }}>
-            <RecentReadings
-              storageKey="ndw_voice_history"
-              title="Recent Voice Analyses"
-              maxEntries={5}
-              listenEvents={["ndw-voice-updated", "ndw-emotion-update"]}
-              emptyMessage="Record a voice note to see your analysis history"
-              renderEntry={(entry: any) => (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Mic style={{ width: 12, height: 12, color: "#7c3aed", flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1, textTransform: "capitalize" as const }}>
-                    {entry.emotion ?? entry.result?.emotion ?? "---"}
-                    {(entry.result?.stress_index != null || entry.stress_index != null) && (
-                      <span style={{ color: "var(--muted-foreground)", textTransform: "none" as const }}>
-                        {" "} -- stress {Math.round((entry.result?.stress_index ?? entry.stress_index ?? 0) * 100)}%
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ fontSize: 10, color: "var(--muted-foreground)", flexShrink: 0 }}>
-                    {formatTimeAgo(entry.timestamp ?? entry.loggedAt)}
-                  </span>
-                </div>
-              )}
-            />
-          </motion.div>
-
-          {/* ── 3d. Recent Mood Logs ── */}
-          <motion.div variants={itemVariants} style={{ ...bevelCard, marginBottom: 20 }}>
-            <RecentReadings
-              storageKey="ndw_mood_logs"
-              title="Recent Mood Logs"
-              maxEntries={5}
-              emptyMessage="Log a mood on the Wellness page to see history here"
-              renderEntry={(entry: any) => {
-                const score = typeof entry.moodScore === "string" ? parseFloat(entry.moodScore) : (entry.moodScore ?? 5);
-                const tone = score >= 7 ? { label: "Positive", color: "#06b6d4" } : score >= 4 ? { label: "Neutral", color: "#94a3b8" } : { label: "Low", color: "#e879a8" };
-                return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: tone.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1, lineHeight: 1.3 }}>
-                      {entry.notes || `Mood ${score}/10`}
-                      {entry.energyLevel && (
-                        <span style={{ color: "var(--muted-foreground)" }}> -- energy {entry.energyLevel}/10</span>
-                      )}
-                    </span>
-                    <span style={{ fontSize: 10, color: "var(--muted-foreground)", flexShrink: 0 }}>
-                      {formatTimeAgo(entry.loggedAt)}
-                    </span>
-                  </div>
-                );
-              }}
-            />
           </motion.div>
 
           {/* ── 4. AI Insight ── */}
