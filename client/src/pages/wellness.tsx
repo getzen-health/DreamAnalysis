@@ -808,6 +808,26 @@ function CycleTab() {
   }, [cycleData]);
 
   const monthDays = getMonthDays(viewDate.year, viewDate.month);
+
+  // Compute predicted period date set for next 3 months (for calendar highlighting)
+  const predictedPeriodDates = useMemo(() => {
+    const dates = new Set<string>();
+    if (!localCycleData) return dates;
+    const { lastPeriodStart, cycleLength, periodLength } = localCycleData;
+    const start = new Date(lastPeriodStart + "T12:00:00");
+    // Generate predicted periods for up to 6 cycles ahead (covers ~6 months)
+    for (let cycle = 0; cycle <= 6; cycle++) {
+      const periodStart = new Date(start);
+      periodStart.setDate(periodStart.getDate() + cycle * cycleLength);
+      for (let d = 0; d < periodLength; d++) {
+        const periodDay = new Date(periodStart);
+        periodDay.setDate(periodDay.getDate() + d);
+        dates.add(periodDay.toISOString().slice(0, 10));
+      }
+    }
+    return dates;
+  }, [localCycleData]);
+
   const monthLabel = new Date(viewDate.year, viewDate.month).toLocaleDateString(undefined, {
     year: "numeric",
     month: "long",
@@ -1131,11 +1151,13 @@ function CycleTab() {
             const entry = cycleByDate.get(date);
             const flow = entry?.flowLevel;
             const isToday = date === today;
+            const isPredictedPeriod = !flow && predictedPeriodDates.has(date);
 
             let bgColor = "";
             if (flow === "heavy") bgColor = "bg-rose-600/80";
             else if (flow === "medium") bgColor = "bg-pink-500/70";
             else if (flow === "light") bgColor = "bg-pink-300/60";
+            else if (isPredictedPeriod) bgColor = "bg-pink-200/40";
 
             return (
               <button
@@ -1145,7 +1167,8 @@ function CycleTab() {
                   ${!inMonth ? "opacity-30" : ""}
                   ${bgColor || "hover:bg-muted/50"}
                   ${isToday && !bgColor ? "ring-1 ring-primary" : ""}
-                  ${flow && flow !== "none" ? "text-white" : "text-foreground"}
+                  ${isPredictedPeriod ? "ring-1 ring-pink-300/50 ring-dashed text-pink-400" : ""}
+                  ${flow && flow !== "none" ? "text-white" : isPredictedPeriod ? "" : "text-foreground"}
                 `}
               >
                 {day}
@@ -1155,13 +1178,19 @@ function CycleTab() {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-3 mt-3 justify-center">
+        <div className="flex items-center gap-3 mt-3 justify-center flex-wrap">
           {FLOW_LEVELS.filter(f => f.value !== "none").map(f => (
             <div key={f.value} className="flex items-center gap-1">
               <div className={`w-2.5 h-2.5 rounded-full ${f.color}`} />
               <span className="text-[9px] text-muted-foreground">{f.label}</span>
             </div>
           ))}
+          {predictedPeriodDates.size > 0 && (
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-pink-200/40 ring-1 ring-pink-300/50" />
+              <span className="text-[9px] text-muted-foreground">Predicted</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1294,8 +1323,22 @@ function MoodTab() {
   const [energyLevel, setEnergyLevel] = useState(5);
   const [moodNotes, setMoodNotes] = useState("");
 
-  // Fetch mood logs — API with localStorage fallback
-  const { data: moodLogs = [] } = useQuery<MoodLog[]>({
+  // Always load mood history from localStorage (works without auth)
+  const [localMoodLogs, setLocalMoodLogs] = useState<MoodLog[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ndw_mood_logs") || "[]");
+    } catch { return []; }
+  });
+
+  // Re-read localStorage on mount and after mutations
+  const refreshLocalLogs = useCallback(() => {
+    try {
+      setLocalMoodLogs(JSON.parse(localStorage.getItem("ndw_mood_logs") || "[]"));
+    } catch { setLocalMoodLogs([]); }
+  }, []);
+
+  // Fetch mood logs from API when authenticated
+  const { data: apiMoodLogs = [] } = useQuery<MoodLog[]>({
     queryKey: [`/api/mood/${user?.id}?days=30`],
     enabled: !!user?.id,
     retry: false,
@@ -1308,12 +1351,15 @@ function MoodTab() {
           if (Array.isArray(data)) return data;
         }
       } catch { /* fall through */ }
-      // Fallback: read from localStorage
-      try {
-        return JSON.parse(localStorage.getItem("ndw_mood_logs") || "[]");
-      } catch { return []; }
+      return [];
     },
   });
+
+  // Merge: prefer API data when available, fall back to localStorage
+  const moodLogs = useMemo(() => {
+    if (apiMoodLogs.length > 0) return apiMoodLogs;
+    return localMoodLogs;
+  }, [apiMoodLogs, localMoodLogs]);
 
   // Log mood mutation — tries API first, falls back to localStorage
   const logMoodMutation = useMutation({
@@ -1365,6 +1411,7 @@ function MoodTab() {
           localStorage.setItem(key, JSON.stringify(existing));
         }
       } catch { /* storage quota */ }
+      refreshLocalLogs(); // Update local mood history display
       setMoodNotes("");
       toast({ title: "Mood logged" });
       // Sync to Railway ML backend for session history + retraining

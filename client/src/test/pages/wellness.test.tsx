@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import Wellness from "@/pages/wellness";
@@ -369,6 +369,121 @@ describe("Wellness page — CycleTab setup", () => {
       expect(dayHeaders.length).toBeGreaterThanOrEqual(2); // Sunday + Saturday
       // Log Today button
       expect(screen.getByRole("button", { name: /Log Today/ })).toBeInTheDocument();
+    });
+  });
+
+  it("shows predicted period dates in the calendar legend", async () => {
+    localStorage.setItem("ndw_cycle_data", JSON.stringify({
+      lastPeriodStart: "2026-03-01",
+      cycleLength: 28,
+      periodLength: 5,
+    }));
+
+    renderWithProviders(<Wellness />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Predicted")).toBeInTheDocument();
+    });
+  });
+});
+
+/* ========== Task #46: Mood history always visible ========== */
+
+describe("Wellness page — Mood history from localStorage", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => [],
+    }) as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  async function renderAndSwitchToMood() {
+    renderWithProviders(<Wellness />);
+    const moodTab = screen.getByRole("tab", { name: /mood/i });
+    await act(async () => {
+      fireEvent.mouseDown(moodTab);
+      fireEvent.mouseUp(moodTab);
+      fireEvent.click(moodTab);
+    });
+  }
+
+  it("shows past mood entries from localStorage without logging a new entry", async () => {
+    // Pre-populate mood logs in localStorage
+    localStorage.setItem("ndw_mood_logs", JSON.stringify([
+      {
+        id: "local_1",
+        userId: null,
+        moodScore: "7",
+        energyLevel: "6",
+        notes: "feeling good",
+        loggedAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+      },
+      {
+        id: "local_2",
+        userId: null,
+        moodScore: "4",
+        energyLevel: "3",
+        notes: "tired day",
+        loggedAt: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+      },
+    ]));
+
+    await renderAndSwitchToMood();
+
+    await waitFor(() => {
+      expect(screen.getByText("Recent entries")).toBeInTheDocument();
+      expect(screen.getByText("feeling good")).toBeInTheDocument();
+      expect(screen.getByText("tired day")).toBeInTheDocument();
+    });
+  });
+
+  it("shows mood chart when 3+ entries exist in localStorage", async () => {
+    const entries = [];
+    for (let i = 0; i < 5; i++) {
+      entries.push({
+        id: `local_${i}`,
+        userId: null,
+        moodScore: String(5 + i),
+        energyLevel: String(4 + i),
+        notes: null,
+        loggedAt: new Date(Date.now() - i * 86400000).toISOString(),
+      });
+    }
+    localStorage.setItem("ndw_mood_logs", JSON.stringify(entries));
+
+    await renderAndSwitchToMood();
+
+    await waitFor(() => {
+      expect(screen.getByText("Mood over time")).toBeInTheDocument();
+    });
+  });
+
+  it("shows mood history even without authenticated user", async () => {
+    // Mock useAuth to return no user
+    vi.mocked(vi.fn()).mockReturnValue({ user: null });
+
+    localStorage.setItem("ndw_mood_logs", JSON.stringify([
+      {
+        id: "local_1",
+        userId: null,
+        moodScore: "8",
+        energyLevel: "7",
+        notes: "great morning",
+        loggedAt: new Date().toISOString(),
+      },
+    ]));
+
+    await renderAndSwitchToMood();
+
+    await waitFor(() => {
+      expect(screen.getByText("Recent entries")).toBeInTheDocument();
+      expect(screen.getByText("great morning")).toBeInTheDocument();
     });
   });
 });
