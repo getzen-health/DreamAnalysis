@@ -66,9 +66,11 @@ function makeCommand(cmd: string): DataView {
   return new DataView(bytes.buffer);
 }
 
+const CMD_VERSION    = makeCommand("v1");  // request firmware version (muse-js sends this first)
 const CMD_START      = makeCommand("d");   // start data streaming
 const CMD_STOP       = makeCommand("h");   // halt streaming
 const CMD_PRESET_P21 = makeCommand("p21"); // standard 4-channel EEG preset
+const CMD_RESUME     = makeCommand("d");   // alias for resume after subscribe
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -675,7 +677,9 @@ export class MuseBleManager {
     const charUuids = allChars.map((c) => c.uuid.toLowerCase());
     console.log(`[MuseBLE] Muse service: ${allChars.length} chars: ${charUuids.join(", ")}`);
 
-    // ── Send preset + start FIRST ─────────────────────────────────────
+    // ── Send full command sequence (matches muse-js) ─────────────────
+    await writeCmd(CMD_VERSION, "version");
+    await new Promise((r) => setTimeout(r, 500));
     await writeCmd(CMD_PRESET_P21, "preset");
     await new Promise((r) => setTimeout(r, 1000));
     await writeCmd(CMD_START, "start");
@@ -744,7 +748,12 @@ export class MuseBleManager {
     } else {
       MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE2];
     }
+    this._subscribeInfo = `${subscribedCount}ch ${detectedType} | ${allChars2.length} total chars`;
     console.log(`[MuseBLE] ${subscribedCount} channels (${detectedType}). Streaming...`);
+
+    // Send start command AGAIN after subscribe — some Muse firmware needs this
+    await new Promise((r) => setTimeout(r, 500));
+    await writeCmd(CMD_START, "start-after-subscribe");
 
 
     this.startEmitter();
@@ -832,6 +841,9 @@ export class MuseBleManager {
   // ── Internal ───────────────────────────────────────────────────────────────
 
   private _notifCount = 0;
+  public _subscribeInfo = "";
+  /** Number of BLE notification packets received (for UI diagnostics) */
+  get packetCount(): number { return this._notifCount; }
   private onEegNotification(channel: number, data: DataView): void {
     try {
       if (channel >= N_ACTIVE_CHANNELS) return;

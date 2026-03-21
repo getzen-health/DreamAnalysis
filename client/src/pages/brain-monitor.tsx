@@ -27,6 +27,7 @@ import {
 import { assessSignalQuality, type SignalQualityResult as SQResult } from "@/lib/signal-quality";
 import { Link } from "wouter";
 import { Music } from "lucide-react";
+import { museBle } from "@/lib/muse-ble";
 
 // Route targets for each ML model card — null means no linked page
 const MODEL_ROUTES: Record<string, string | null> = {
@@ -525,10 +526,12 @@ export default function BrainMonitor() {
                   </div>
                 ))}
                 <span className="ml-auto text-[9px] font-mono text-muted-foreground/50">
+                  pkts:{museBle.packetCount}
                   {latestFrame?.signals
-                    ? `${latestFrame.signals.length}ch × ${latestFrame.signals[0]?.length ?? 0}smp`
-                    : "no signals"}
-                  {bp ? ` | a:${(alphaVal ?? 0).toFixed(3)} b:${(betaVal ?? 0).toFixed(3)}` : " | no bp"}
+                    ? ` | ${latestFrame.signals.length}ch×${latestFrame.signals[0]?.length ?? 0}`
+                    : " | no signals"}
+                  {bp ? ` | a:${(alphaVal ?? 0).toFixed(3)}` : " | no bp"}
+                  {museBle._subscribeInfo ? ` | ${museBle._subscribeInfo}` : ""}
                 </span>
               </div>
             </>
