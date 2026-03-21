@@ -8,6 +8,7 @@ const SENSITIVE_KEYS_WITH_TTL = [
   "ndw_today_emotion",
   "ndw_yesterday_emotion",
   "ndw_emotions_seen",
+  "ndw_voice_history",
 ] as const;
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days

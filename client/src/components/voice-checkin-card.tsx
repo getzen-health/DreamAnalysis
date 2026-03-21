@@ -682,6 +682,17 @@ export function VoiceCheckinCard({
             timestamp: Date.now(),
           }));
         } catch { /* storage quota */ }
+        // Append to voice history for "Recent Voice Analyses" display
+        try {
+          const historyKey = "ndw_voice_history";
+          const existing = JSON.parse(localStorage.getItem(historyKey) || "[]") as any[];
+          existing.unshift({
+            ...checkinResult,
+            timestamp: Date.now(),
+          });
+          if (existing.length > 50) existing.length = 50;
+          localStorage.setItem(historyKey, JSON.stringify(existing));
+        } catch { /* storage quota */ }
         // Track unique emotions for Emotion Explorer badge
         try {
           const emotion = checkinResult.emotion;
@@ -784,6 +795,14 @@ export function VoiceCheckinCard({
             result: fallbackResult,
             timestamp: Date.now(),
           }));
+        } catch { /* ok */ }
+        // Append to voice history
+        try {
+          const historyKey = "ndw_voice_history";
+          const existing = JSON.parse(localStorage.getItem(historyKey) || "[]") as any[];
+          existing.unshift({ ...fallbackResult, timestamp: Date.now() });
+          if (existing.length > 50) existing.length = 50;
+          localStorage.setItem(historyKey, JSON.stringify(existing));
         } catch { /* ok */ }
         window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
         onComplete?.(fallbackResult);

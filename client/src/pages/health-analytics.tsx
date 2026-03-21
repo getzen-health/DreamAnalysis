@@ -20,12 +20,14 @@ import {
   TrendingUp,
   Radio,
   Mic,
+  Activity,
 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { useVoiceCache } from "@/hooks/use-voice-cache";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -794,6 +796,34 @@ export default function HealthAnalytics() {
           </div>
         </div>
       )}
+
+      {/* Last 5 Session Summaries */}
+      <div className="rounded-xl border border-border bg-card p-4 mt-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+        <RecentReadings
+          storageKey="ndw_voice_history"
+          title="Recent Session Summaries"
+          maxEntries={5}
+          listenEvents={["ndw-voice-updated", "ndw-emotion-update"]}
+          emptyMessage="Complete a voice check-in or EEG session to see history"
+          renderEntry={(entry: any) => (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Activity style={{ width: 12, height: 12, color: "#7c3aed", flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1 }}>
+                <span style={{ textTransform: "capitalize" as any }}>{entry.emotion ?? entry.result?.emotion ?? "---"}</span>
+                {(entry.stress_index != null || entry.result?.stress_index != null) && (
+                  <span style={{ color: "var(--muted-foreground)" }}>
+                    {" "} -- S:{Math.round((entry.stress_index ?? entry.result?.stress_index ?? 0) * 100)}%
+                    {" "} F:{Math.round((entry.focus_index ?? entry.result?.focus_index ?? 0) * 100)}%
+                  </span>
+                )}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--muted-foreground)", flexShrink: 0 }}>
+                {formatTimeAgo(entry.timestamp ?? entry.loggedAt)}
+              </span>
+            </div>
+          )}
+        />
+      </div>
     </main>
   );
 }

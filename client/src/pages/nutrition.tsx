@@ -10,6 +10,8 @@ import { ScoreGauge } from "@/components/score-gauge";
 import { lookupBarcode, type BarcodeProduct } from "@/lib/barcode-api";
 import { cardVariants, listItemVariants } from "@/lib/animations";
 import { syncFoodLogToML } from "@/lib/ml-api";
+import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
+import { UtensilsCrossed } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -3423,6 +3425,39 @@ export default function Nutrition() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ── Last 5 Meals Logged ── */}
+        <div style={{
+          background: "var(--card)",
+          borderRadius: 20,
+          border: "1px solid var(--border)",
+          padding: "16px 20px",
+          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+          marginTop: 16,
+        }}>
+          <RecentReadings
+            storageKey={`ndw_food_logs_${userId}`}
+            title="Last 5 Meals"
+            maxEntries={5}
+            emptyMessage="Log a meal to see your history here"
+            renderEntry={(entry: any) => (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <UtensilsCrossed style={{ width: 12, height: 12, color: "#d4a017", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1, lineHeight: 1.3 }}>
+                  {entry.summary ?? "Meal"}
+                </span>
+                {entry.totalCalories != null && (
+                  <span style={{ fontSize: 11, color: "#e8b94a", fontWeight: 600, flexShrink: 0 }}>
+                    {entry.totalCalories} kcal
+                  </span>
+                )}
+                <span style={{ fontSize: 10, color: "var(--muted-foreground)", flexShrink: 0 }}>
+                  {formatTimeAgo(entry.loggedAt)}
+                </span>
+              </div>
+            )}
+          />
+        </div>
       </div>
     </main>
   );

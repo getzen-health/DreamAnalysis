@@ -11,7 +11,9 @@ import { lazy, Suspense } from "react";
 import { motion } from "framer-motion";
 import { pageTransition } from "@/lib/animations";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Activity, Radio, Network } from "lucide-react";
+import { Activity, Radio, Network, Brain } from "lucide-react";
+import { BrainAgeCard } from "@/components/brain-age-card";
+import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 
 // Lazy-load tab contents from existing pages
 const BrainMonitor = lazy(() => import("@/pages/brain-monitor"));
@@ -47,6 +49,38 @@ export default function BrainTabs() {
           EEG monitor, neurofeedback, and connectivity
         </p>
       </motion.div>
+
+      {/* Brain Age Card */}
+      <div className="mb-4">
+        <BrainAgeCard />
+      </div>
+
+      {/* Last 5 EEG Sessions (from brain age history) */}
+      <div className="rounded-xl border border-border bg-card p-4 mb-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+        <RecentReadings
+          storageKey="ndw_brain_age"
+          title="Last Brain Age Reading"
+          maxEntries={1}
+          singleObject
+          emptyMessage="Complete an EEG session to see brain age data"
+          renderEntry={(entry: any) => (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Brain style={{ width: 14, height: 14, color: "#6366f1", flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1 }}>
+                Brain Age: {entry.estimatedAge ?? "---"}
+                {entry.brainAgeGap != null && (
+                  <span style={{ color: entry.brainAgeGap <= -3 ? "#22c55e" : entry.brainAgeGap <= 2 ? "#d4a017" : "#f43f5e" }}>
+                    {" "}({entry.brainAgeGap > 0 ? "+" : ""}{entry.brainAgeGap} years)
+                  </span>
+                )}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--muted-foreground)", flexShrink: 0 }}>
+                {formatTimeAgo(entry.timestamp)}
+              </span>
+            </div>
+          )}
+        />
+      </div>
 
       <Tabs defaultValue="eeg" className="w-full">
         <TabsList className="w-full">

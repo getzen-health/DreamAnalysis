@@ -1346,6 +1346,25 @@ function MoodTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/mood/${user?.id}?days=30`] });
+      // Always persist to localStorage too (so Today page and other offline readers see it)
+      try {
+        const key = "ndw_mood_logs";
+        const existing = JSON.parse(localStorage.getItem(key) || "[]");
+        const entry = {
+          id: `local_${Date.now()}`,
+          userId: user?.id,
+          moodScore: String(moodScore),
+          energyLevel: String(energyLevel),
+          notes: moodNotes || null,
+          loggedAt: new Date().toISOString(),
+        };
+        // Avoid duplicate if mutation already fell back to localStorage
+        if (!existing.some((e: any) => e.id === entry.id)) {
+          existing.unshift(entry);
+          if (existing.length > 100) existing.length = 100;
+          localStorage.setItem(key, JSON.stringify(existing));
+        }
+      } catch { /* storage quota */ }
       setMoodNotes("");
       toast({ title: "Mood logged" });
       // Sync to Railway ML backend for session history + retraining
@@ -1679,7 +1698,9 @@ function MoodTab() {
                   </div>
                   <span className="text-[10px] text-muted-foreground shrink-0">
                     {log.loggedAt
-                      ? new Date(log.loggedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+                      ? new Date(log.loggedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+                        " " +
+                        new Date(log.loggedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
                       : ""}
                   </span>
                 </div>

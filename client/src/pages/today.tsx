@@ -6,13 +6,16 @@ import { pageTransition } from "@/lib/animations";
 import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
-import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle, Smile, Minus, Frown, PenLine, TrendingUp, TrendingDown, Check, Pencil, Clock } from "lucide-react";
+import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle, Smile, Minus, Frown, PenLine, TrendingUp, TrendingDown, Check, Pencil, Clock, Brain, Mic, Activity } from "lucide-react";
 import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
 import { syncMoodLogToML } from "@/lib/ml-api";
 import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
+import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
+import { BrainAgeCard } from "@/components/brain-age-card";
+import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -693,6 +696,7 @@ export default function Today() {
   const userId = useMemo(() => getParticipantId(), []);
   const [, navigate] = useLocation();
   const voiceData = useVoiceData();
+  const { emotion: fusedEmotion, correctEmotion: correctFusedEmotion } = useMultimodalEmotion();
   const queryClient = useQueryClient();
   const [showBreathe, setShowBreathe] = useState(false);
 
@@ -805,6 +809,8 @@ export default function Today() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ correctedEmotion: emotion }),
     }).catch((err) => console.error("Failed to save emotion correction:", err));
+    // Record fusion feedback — adapts per-modality weights for this user
+    correctFusedEmotion(emotion);
     // Update local emotion display so the card reflects the correction immediately
     try {
       const raw = localStorage.getItem("ndw_last_emotion");
@@ -817,7 +823,7 @@ export default function Today() {
         window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
       }
     } catch { /* ignore */ }
-  }, [userId]);
+  }, [userId, correctFusedEmotion]);
 
   // Fetch food logs for today — API with localStorage fallback
   const { data: foodLogs } = useQuery<FoodLog[]>({
@@ -1247,6 +1253,66 @@ export default function Today() {
             </p>
           )}
 
+          {/* ── 3b. Brain Age ── */}
+          <motion.div variants={itemVariants} style={{ marginBottom: 14 }}>
+            <BrainAgeCard />
+          </motion.div>
+
+          {/* ── 3c. Recent Voice Analyses ── */}
+          <motion.div variants={itemVariants} style={{ ...bevelCard, marginBottom: 20 }}>
+            <RecentReadings
+              storageKey="ndw_voice_history"
+              title="Recent Voice Analyses"
+              maxEntries={5}
+              listenEvents={["ndw-voice-updated", "ndw-emotion-update"]}
+              emptyMessage="Record a voice note to see your analysis history"
+              renderEntry={(entry: any) => (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Mic style={{ width: 12, height: 12, color: "#7c3aed", flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1, textTransform: "capitalize" as const }}>
+                    {entry.emotion ?? entry.result?.emotion ?? "---"}
+                    {(entry.result?.stress_index != null || entry.stress_index != null) && (
+                      <span style={{ color: "var(--muted-foreground)", textTransform: "none" as const }}>
+                        {" "} -- stress {Math.round((entry.result?.stress_index ?? entry.stress_index ?? 0) * 100)}%
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ fontSize: 10, color: "var(--muted-foreground)", flexShrink: 0 }}>
+                    {formatTimeAgo(entry.timestamp ?? entry.loggedAt)}
+                  </span>
+                </div>
+              )}
+            />
+          </motion.div>
+
+          {/* ── 3d. Recent Mood Logs ── */}
+          <motion.div variants={itemVariants} style={{ ...bevelCard, marginBottom: 20 }}>
+            <RecentReadings
+              storageKey="ndw_mood_logs"
+              title="Recent Mood Logs"
+              maxEntries={5}
+              emptyMessage="Log a mood on the Wellness page to see history here"
+              renderEntry={(entry: any) => {
+                const score = typeof entry.moodScore === "string" ? parseFloat(entry.moodScore) : (entry.moodScore ?? 5);
+                const tone = score >= 7 ? { label: "Positive", color: "#06b6d4" } : score >= 4 ? { label: "Neutral", color: "#94a3b8" } : { label: "Low", color: "#e879a8" };
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: tone.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: "var(--foreground)", flex: 1, lineHeight: 1.3 }}>
+                      {entry.notes || `Mood ${score}/10`}
+                      {entry.energyLevel && (
+                        <span style={{ color: "var(--muted-foreground)" }}> -- energy {entry.energyLevel}/10</span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: 10, color: "var(--muted-foreground)", flexShrink: 0 }}>
+                      {formatTimeAgo(entry.loggedAt)}
+                    </span>
+                  </div>
+                );
+              }}
+            />
+          </motion.div>
+
           {/* ── 4. AI Insight ── */}
           <motion.div
             variants={itemVariants}
@@ -1448,11 +1514,28 @@ export default function Today() {
                 </span>
                 <div>
                   <span style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", textTransform: "capitalize" as const }}>
-                    {correctedEmotion ?? checkin.emotion}
+                    {correctedEmotion ?? (fusedEmotion?.emotion ?? checkin.emotion)}
                   </span>
-                  <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginLeft: 6 }}>
-                    detected from voice
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                    {fusedEmotion && fusedEmotion.sources.length > 1 ? (
+                      <>
+                        <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>fused from</span>
+                        {fusedEmotion.sources.includes("eeg") && (
+                          <span title="EEG"><Brain style={{ width: 12, height: 12, color: "#7c3aed" }} /></span>
+                        )}
+                        {fusedEmotion.sources.includes("voice") && (
+                          <span title="Voice"><Mic style={{ width: 12, height: 12, color: "#06b6d4" }} /></span>
+                        )}
+                        {fusedEmotion.sources.includes("health") && (
+                          <span title="Health"><Activity style={{ width: 12, height: 12, color: "#e879a8" }} /></span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                        detected from {fusedEmotion?.sources[0] ?? "voice"}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
