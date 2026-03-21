@@ -8,7 +8,7 @@
  * - Workouts (workout from workout.tsx)
  */
 
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { pageTransition } from "@/lib/animations";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -16,6 +16,8 @@ import { Scale, Heart as HeartIcon, Footprints, Dumbbell } from "lucide-react";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
+import { HealthSyncStatusBar } from "@/components/health-sync-status-bar";
+import { Capacitor } from "@capacitor/core";
 import {
   AreaChart,
   Area,
@@ -361,6 +363,18 @@ function ActivityTab() {
 /* ---------- Main component ---------- */
 
 export default function Health() {
+  const { status, lastSyncAt, latestPayload, syncNow } = useHealthSync();
+  const [platform, setPlatform] = useState<"ios" | "android" | "web">("web");
+
+  useEffect(() => {
+    try {
+      const p = Capacitor.getPlatform();
+      setPlatform(p === "ios" ? "ios" : p === "android" ? "android" : "web");
+    } catch {
+      // Capacitor not available
+    }
+  }, []);
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
       {/* Header */}
@@ -377,6 +391,17 @@ export default function Health() {
           Body composition, heart, activity, and workouts
         </p>
       </motion.div>
+
+      {/* Sync status bar */}
+      <div className="mb-4">
+        <HealthSyncStatusBar
+          status={status}
+          lastSyncAt={lastSyncAt}
+          latestPayload={latestPayload}
+          onSyncNow={syncNow}
+          platform={platform}
+        />
+      </div>
 
       <Tabs defaultValue="body" className="w-full">
         <TabsList className="w-full">

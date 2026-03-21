@@ -1040,3 +1040,98 @@ class HealthSyncManager {
 // ── Singleton ────────────────────────────────────────────────────────────────
 
 export const healthSync = new HealthSyncManager();
+
+// ── Sync Summary Utilities ──────────────────────────────────────────────────
+
+export interface SyncSummary {
+  heartRateReadings: number;
+  restingHr: number | null;
+  steps: number;
+  sleepHours: number | null;
+  activeCalories: number;
+  hasData: boolean;
+}
+
+/**
+ * Build a human-readable summary of what data is present in a BiometricPayload.
+ * Used by the Health page to show "Last synced: X steps, Y bpm resting HR" etc.
+ */
+export function buildSyncSummary(payload: BiometricPayload | null): SyncSummary {
+  if (!payload) {
+    return {
+      heartRateReadings: 0,
+      restingHr: null,
+      steps: 0,
+      sleepHours: null,
+      activeCalories: 0,
+      hasData: false,
+    };
+  }
+
+  const hr = payload.current_heart_rate;
+  const rhr = payload.resting_heart_rate;
+  const steps = payload.steps_today ?? 0;
+  const sleep = payload.sleep_total_hours ?? null;
+  const cal = payload.active_energy_kcal ?? 0;
+
+  const heartRateReadings = (hr != null && hr > 0) ? 1 : 0;
+  const restingHr = (rhr != null && rhr > 0) ? rhr : null;
+
+  const hasData =
+    heartRateReadings > 0 ||
+    restingHr !== null ||
+    steps > 0 ||
+    sleep !== null ||
+    cal > 0;
+
+  return {
+    heartRateReadings,
+    restingHr: restingHr !== null ? Math.round(restingHr) : null,
+    steps,
+    sleepHours: sleep,
+    activeCalories: Math.round(cal),
+    hasData,
+  };
+}
+
+/**
+ * Format a SyncSummary into a single-line human-readable string.
+ * e.g. "5,234 steps, 62 bpm resting HR, 7.5h sleep"
+ */
+export function formatSyncSummary(summary: SyncSummary): string {
+  if (!summary.hasData) return "No data synced";
+
+  const parts: string[] = [];
+
+  if (summary.steps > 0) {
+    parts.push(`${summary.steps.toLocaleString()} steps`);
+  }
+  if (summary.restingHr !== null) {
+    parts.push(`${summary.restingHr} bpm resting HR`);
+  }
+  if (summary.heartRateReadings > 0 && summary.restingHr === null) {
+    parts.push("HR reading");
+  }
+  if (summary.sleepHours !== null) {
+    parts.push(`${summary.sleepHours.toFixed(1)}h sleep`);
+  }
+  if (summary.activeCalories > 0) {
+    parts.push(`${summary.activeCalories} kcal`);
+  }
+
+  return parts.join(", ");
+}
+
+/**
+ * Return guidance text for users when health data is empty.
+ * Platform-specific instructions for connecting health data sources.
+ */
+export function getEmptyDataGuidance(platform: "ios" | "android" | "web"): string {
+  if (platform === "android") {
+    return "No data from Health Connect \u2014 open the Withings app and enable Health Connect sync in the Share tab. Then return here and tap Sync Now.";
+  }
+  if (platform === "ios") {
+    return "No data from Apple Health \u2014 open the Health app, go to Sharing, and ensure AntarAI has permission to read your health data.";
+  }
+  return "Health sync is only available on mobile. Open this app on your phone to sync health data.";
+}
