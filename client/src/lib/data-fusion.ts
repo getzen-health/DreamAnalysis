@@ -12,6 +12,8 @@
  * When multiple sources are present, confidence-weighted fusion is applied.
  */
 
+import { saveEmotionHistory as sbSaveEmotionHistory } from "./supabase-store";
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type FusionSource = "eeg" | "voice" | "health" | "fused";
@@ -263,6 +265,15 @@ class DataFusionBus {
 
     const newState = fuse(sources);
     this.currentState = newState;
+
+    // Persist fused emotion reading to Supabase (fire-and-forget, throttled)
+    sbSaveEmotionHistory("local", {
+      stress: newState.stress,
+      focus: newState.focus,
+      mood: newState.mood,
+      source: newState.source,
+      dominantEmotion: newState.emotion,
+    }).catch(() => {});
 
     this.listeners.forEach((listener) => {
       try {

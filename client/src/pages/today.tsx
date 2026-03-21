@@ -16,6 +16,7 @@ import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
 import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
 import { useFusedState } from "@/hooks/use-fused-state";
 import { BrainAgeCard } from "@/components/brain-age-card";
+import { getFoodLogs as sbGetFoodLogs } from "@/lib/supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -837,9 +838,12 @@ export default function Today() {
           if (Array.isArray(data)) return data;
         }
       } catch { /* API unavailable */ }
+      // Fallback: try supabase-store (Supabase -> localStorage)
       try {
-        return JSON.parse(localStorage.getItem(`ndw_food_logs_${userId}`) || "[]");
-      } catch { return []; }
+        return await sbGetFoodLogs(userId);
+      } catch {
+        return [];
+      }
     },
     retry: false,
   });

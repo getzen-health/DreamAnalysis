@@ -13,6 +13,12 @@ import {
   Trash2,
   BellOff,
 } from "lucide-react";
+import {
+  getNotifications as sbGetNotifications,
+  markNotificationRead as sbMarkNotificationRead,
+  markAllNotificationsRead as sbMarkAllNotificationsRead,
+  clearAllNotifications as sbClearAllNotifications,
+} from "@/lib/supabase-store";
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -70,6 +76,20 @@ export function addNotification(n: Omit<AppNotification, "id" | "timestamp" | "r
   all.unshift(entry);
   if (all.length > 100) all.length = 100;
   saveNotifications(all);
+  // Also persist to Supabase (fire-and-forget, skip localStorage since saveNotifications handles it)
+  import("@/lib/supabase-browser").then(({ getSupabase }) =>
+    getSupabase().then((sb) => {
+      if (!sb) return;
+      sb.from("notifications").insert({
+        user_id: "local",
+        type: n.type,
+        title: n.title,
+        body: n.body ?? null,
+        read: false,
+        created_at: new Date().toISOString(),
+      });
+    })
+  ).catch(() => {});
 }
 
 export function clearNotifications(): void {
@@ -188,7 +208,11 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   useEffect(() => {
+    // Load from localStorage first (instant), then try Supabase
     setNotifications(loadNotifications());
+    sbGetNotifications("local").then((remote) => {
+      if (remote.length > 0) setNotifications(remote as AppNotification[]);
+    }).catch(() => {});
   }, []);
 
   function handleMarkRead(id: string) {
@@ -199,6 +223,7 @@ export default function NotificationsPage() {
       saveNotifications(updated);
       return updated;
     });
+    sbMarkNotificationRead("local", id).catch(() => {});
   }
 
   function handleMarkAllRead() {
@@ -207,11 +232,13 @@ export default function NotificationsPage() {
       saveNotifications(updated);
       return updated;
     });
+    sbMarkAllNotificationsRead("local").catch(() => {});
   }
 
   function handleClearAll() {
     clearNotifications();
     setNotifications([]);
+    sbClearAllNotifications("local").catch(() => {});
   }
 
   const unreadCount = notifications.filter((n) => !n.read).length;

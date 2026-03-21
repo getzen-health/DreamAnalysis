@@ -26,6 +26,7 @@ import { runVoiceEmotionONNX } from "@/lib/voice-onnx";
 import { writeEmotionToHealth } from "@/lib/health-connect";
 import { extractVoiceBiomarkers } from "@/lib/voice-biomarkers";
 import type { VoiceBiomarkers } from "@/lib/voice-biomarkers";
+import { saveVoiceHistory as sbSaveVoiceHistory } from "@/lib/supabase-store";
 
 // ─── positive affirmations shown during recording ───────────────────────────
 
@@ -693,6 +694,14 @@ export function VoiceCheckinCard({
           if (existing.length > 50) existing.length = 50;
           localStorage.setItem(historyKey, JSON.stringify(existing));
         } catch { /* storage quota */ }
+        // Also persist to Supabase (fire-and-forget)
+        sbSaveVoiceHistory(resolvedUserId, {
+          emotion: checkinResult.emotion,
+          stress: checkinResult.stress_index,
+          focus: checkinResult.focus_index,
+          valence: checkinResult.valence,
+          arousal: checkinResult.arousal,
+        }).catch(() => {});
         // Track unique emotions for Emotion Explorer badge
         try {
           const emotion = checkinResult.emotion;
@@ -804,6 +813,14 @@ export function VoiceCheckinCard({
           if (existing.length > 50) existing.length = 50;
           localStorage.setItem(historyKey, JSON.stringify(existing));
         } catch { /* ok */ }
+        // Also persist to Supabase (fire-and-forget)
+        sbSaveVoiceHistory(resolvedUserId, {
+          emotion: fallbackResult.emotion,
+          stress: fallbackResult.stress_index,
+          focus: fallbackResult.focus_index,
+          valence: fallbackResult.valence,
+          arousal: fallbackResult.arousal,
+        }).catch(() => {});
         window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
         onComplete?.(fallbackResult);
       }

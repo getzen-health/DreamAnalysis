@@ -3,6 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { syncMoodLogToML } from "@/lib/ml-api";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  saveMoodLog as sbSaveMoodLog,
+  getMoodLogs as sbGetMoodLogs,
+  saveCycleData as sbSaveCycleData,
+  getCycleData as sbGetCycleData,
+} from "@/lib/supabase-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -173,6 +179,12 @@ function getLocalCycleData(): LocalCycleData | null {
 
 function setLocalCycleData(data: LocalCycleData): void {
   localStorage.setItem(CYCLE_STORAGE_KEY, JSON.stringify(data));
+  // Also persist to Supabase (fire-and-forget)
+  sbSaveCycleData("local", {
+    last_period_start: data.lastPeriodStart,
+    cycle_length: data.cycleLength,
+    period_length: data.periodLength,
+  }).catch(() => {});
 }
 
 /* ---------- cycle phase computation ---------- */
@@ -1330,12 +1342,16 @@ function MoodTab() {
     } catch { return []; }
   });
 
-  // Re-read localStorage on mount and after mutations
+  // Re-read localStorage on mount and after mutations; also try Supabase
   const refreshLocalLogs = useCallback(() => {
     try {
       setLocalMoodLogs(JSON.parse(localStorage.getItem("ndw_mood_logs") || "[]"));
     } catch { setLocalMoodLogs([]); }
-  }, []);
+    // Also fetch from Supabase in background (updates localStorage cache)
+    sbGetMoodLogs(user?.id ?? "local", 30).then((logs) => {
+      if (logs.length > 0) setLocalMoodLogs(logs);
+    }).catch(() => {});
+  }, [user?.id]);
 
   // Fetch mood logs from API when authenticated
   const { data: apiMoodLogs = [] } = useQuery<MoodLog[]>({
@@ -1392,25 +1408,12 @@ function MoodTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/mood/${user?.id}?days=30`] });
-      // Always persist to localStorage too (so Today page and other offline readers see it)
-      try {
-        const key = "ndw_mood_logs";
-        const existing = JSON.parse(localStorage.getItem(key) || "[]");
-        const entry = {
-          id: `local_${Date.now()}`,
-          userId: user?.id,
-          moodScore: String(moodScore),
-          energyLevel: String(energyLevel),
-          notes: moodNotes || null,
-          loggedAt: new Date().toISOString(),
-        };
-        // Avoid duplicate if mutation already fell back to localStorage
-        if (!existing.some((e: any) => e.id === entry.id)) {
-          existing.unshift(entry);
-          if (existing.length > 100) existing.length = 100;
-          localStorage.setItem(key, JSON.stringify(existing));
-        }
-      } catch { /* storage quota */ }
+      // Persist to Supabase + localStorage via supabase-store
+      sbSaveMoodLog(user?.id ?? "local", {
+        mood: moodScore,
+        energy: energyLevel,
+        notes: moodNotes || undefined,
+      }).catch(() => {});
       refreshLocalLogs(); // Update local mood history display
       setMoodNotes("");
       toast({ title: "Mood logged" });

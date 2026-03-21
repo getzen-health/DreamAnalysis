@@ -10,6 +10,10 @@ import { useFusedState } from "@/hooks/use-fused-state";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import {
+  saveEmotionHistory as sbSaveEmotionHistory,
+  getEmotionHistory as sbGetEmotionHistory,
+} from "@/lib/supabase-store";
+import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
@@ -67,13 +71,15 @@ function appendToEmotionHistory(checkin: CheckinData): void {
       if (now.getTime() - last < 30_000) return;
     }
 
-    history.push({
+    const entry = {
       stress: checkin.stress_index ?? 0,
       happiness: checkin.valence != null ? Math.max(0, checkin.valence) : 0.5,
       focus: checkin.focus_index ?? 0.5,
       dominantEmotion: checkin.emotion ?? "neutral",
       timestamp: now.toISOString(),
-    });
+    };
+
+    history.push(entry);
 
     // Prune old entries and cap size
     const pruned = history
@@ -81,6 +87,16 @@ function appendToEmotionHistory(checkin: CheckinData): void {
       .slice(-EMOTION_HISTORY_MAX);
 
     localStorage.setItem(EMOTION_HISTORY_KEY, JSON.stringify(pruned));
+
+    // Also persist to Supabase (fire-and-forget)
+    sbSaveEmotionHistory("local", {
+      stress: entry.stress,
+      focus: entry.focus,
+      mood: entry.happiness,
+      source: "voice",
+      dominantEmotion: entry.dominantEmotion,
+      created_at: entry.timestamp,
+    }).catch(() => {});
   } catch { /* storage quota or parse error */ }
 }
 

@@ -12,6 +12,8 @@ import { cardVariants, listItemVariants } from "@/lib/animations";
 import { syncFoodLogToML } from "@/lib/ml-api";
 import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 import { UtensilsCrossed } from "lucide-react";
+// Supabase writes are done via dynamic import("@/lib/supabase-browser") to avoid
+// double-writing localStorage (this file manages its own localStorage entries).
 import {
   AreaChart,
   Area,
@@ -162,6 +164,22 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
     if (existing.length > 200) existing.length = 200;
     localStorage.setItem(key, JSON.stringify(existing));
   } catch { /* localStorage full or unavailable */ }
+  // Also persist to Supabase (fire-and-forget, skip localStorage since we handle it above)
+  import("@/lib/supabase-browser").then(({ getSupabase }) =>
+    getSupabase().then((sb) => {
+      if (!sb) return;
+      sb.from("food_logs").insert({
+        user_id: userId,
+        summary: entry.summary ?? (entry.foodItems ?? []).map((fi: any) => fi.name).join(", "),
+        calories: entry.totalCalories ?? entry.calories ?? null,
+        protein: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.protein_g ?? 0), 0) || null,
+        carbs: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.carbs_g ?? 0), 0) || null,
+        fat: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.fat_g ?? 0), 0) || null,
+        food_quality_score: null,
+        created_at: entry.loggedAt ?? new Date().toISOString(),
+      });
+    })
+  ).catch(() => {});
 }
 
 // ── Nutrition insights generator ──────────────────────────────────────────────
@@ -1112,6 +1130,18 @@ function Glp1InjectionTracker() {
     const updated = [newInj, ...injections];
     setInjections(updated);
     saveGlp1Injections(updated);
+    // Also persist to Supabase (fire-and-forget, skip localStorage since saveGlp1Injections handles it)
+    import("@/lib/supabase-browser").then(({ getSupabase }) =>
+      getSupabase().then((sb) => {
+        if (!sb) return;
+        sb.from("glp1_injections").insert({
+          user_id: "local",
+          medication: newInj.medication,
+          dose: parseFloat(newInj.dose) || null,
+          injected_at: newInj.date,
+        });
+      })
+    ).catch(() => {});
     setShowAdd(false);
     setCustomDose("");
   };
