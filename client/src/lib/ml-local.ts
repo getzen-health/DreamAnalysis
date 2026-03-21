@@ -14,6 +14,12 @@ import {
   validateEEGNetInput,
   type EEGNetEmotionResult,
 } from "./eegnet-utils";
+import {
+  loadPersonalAdapter,
+  savePersonalAdapter,
+  applyAdapter,
+  updateAfterSession,
+} from "./personal-adapter";
 
 // onnxruntime-web is loaded dynamically to avoid hard failures if not installed
 let ort: typeof import("onnxruntime-web") | null = null;
@@ -257,9 +263,28 @@ class LocalMLEngine {
       const outputName = this.eegnetSession.outputNames[0];
       const logits = Array.from(results[outputName].data as Float32Array);
 
-      // Softmax → probabilities → structured result
-      const probs = softmax(logits);
-      const result: EEGNetEmotionResult = eegnetEmotionFromProbabilities(probs);
+      // Softmax → probabilities → personal adaptation → structured result
+      const rawProbs = softmax(logits);
+
+      // Apply personal adapter to adjust probabilities per user
+      let adapter = loadPersonalAdapter();
+      const adaptedProbs = applyAdapter(rawProbs, adapter);
+
+      const result: EEGNetEmotionResult = eegnetEmotionFromProbabilities(adaptedProbs);
+
+      // Find predicted class index for session tracking
+      let predictedClass = 0;
+      let maxProb = adaptedProbs[0];
+      for (let i = 1; i < adaptedProbs.length; i++) {
+        if (adaptedProbs[i] > maxProb) {
+          maxProb = adaptedProbs[i];
+          predictedClass = i;
+        }
+      }
+
+      // Update session stats (unsupervised anti-collapse)
+      adapter = updateAfterSession(adapter, predictedClass);
+      savePersonalAdapter(adapter);
 
       return {
         emotion: result.emotion,

@@ -15,6 +15,7 @@ import {
 import { ChronotypeQuiz } from "@/components/chronotype-quiz";
 import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
 import { BrainAgeCard } from "@/components/brain-age-card";
+import { loadPersonalAdapter, resetPersonalAdapter, getPersonalizationStats } from "@/lib/personal-adapter";
 import { NotificationPrefsSheet } from "@/components/notification-prefs-sheet";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -180,6 +181,17 @@ export default function You() {
   const [museConnected] = useState(() => getMuseStatus());
   const [showChronotypeQuiz, setShowChronotypeQuiz] = useState(false);
   const [showNotificationPrefs, setShowNotificationPrefs] = useState(false);
+
+  // Personal adapter stats
+  const [adapterStats, setAdapterStats] = useState(() => {
+    const adapter = loadPersonalAdapter();
+    return getPersonalizationStats(adapter);
+  });
+  const handleResetAdapter = () => {
+    resetPersonalAdapter();
+    const adapter = loadPersonalAdapter();
+    setAdapterStats(getPersonalizationStats(adapter));
+  };
   const [chronotype, setChronotype] = useState<ChronotypeCategory | null>(
     () => getStoredChronotype()?.category ?? null,
   );
@@ -371,6 +383,48 @@ export default function You() {
       {/* Brain Health Section */}
       <SectionLabel>Brain Health</SectionLabel>
       <BrainAgeCard />
+
+      {/* EEG Personalization Status */}
+      <div style={{
+        padding: "10px 16px",
+        background: "var(--card)",
+        borderRadius: 12,
+        marginBottom: 8,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
+            Personalization: {adapterStats.confidenceLevel === "learning"
+              ? `Learning (${adapterStats.sessionsProcessed} sessions)`
+              : adapterStats.confidenceLevel === "calibrating"
+                ? `Calibrating (${adapterStats.sessionsProcessed} sessions)`
+                : `Personalized (${adapterStats.sessionsProcessed} sessions)`}
+          </div>
+          {adapterStats.correctionsApplied > 0 && (
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+              {adapterStats.correctionsApplied} correction{adapterStats.correctionsApplied !== 1 ? "s" : ""} applied
+            </div>
+          )}
+        </div>
+        {adapterStats.sessionsProcessed > 0 && (
+          <button
+            onClick={handleResetAdapter}
+            style={{
+              fontSize: 11,
+              color: "var(--muted-foreground)",
+              background: "none",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              padding: "4px 8px",
+              cursor: "pointer",
+            }}
+          >
+            Reset
+          </button>
+        )}
+      </div>
 
       {/* Activity Section */}
       <SectionLabel>Activity</SectionLabel>

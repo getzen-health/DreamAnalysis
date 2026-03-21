@@ -98,6 +98,19 @@ export function useInference(): InferenceResult {
             setLatencyMs(elapsed);
             setIsLocal(true);
 
+            // Cache EEG emotion for multimodal fusion
+            try {
+              localStorage.setItem("ndw_last_eeg_emotion", JSON.stringify({
+                emotion: emotion.emotion,
+                confidence: emotion.confidence,
+                valence: eegnetValence,
+                arousal: eegnetArousal,
+                stress_index: 0,
+                timestamp: Date.now(),
+              }));
+              window.dispatchEvent(new CustomEvent("ndw-eeg-updated"));
+            } catch { /* localStorage full — non-critical */ }
+
             // Compute and cache brain age from extracted band powers
             const { extractBandPowers } = await import("@/lib/eeg-features");
             const bandPowers = extractBandPowers(signal, fs);
