@@ -39,13 +39,16 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/connected-assets", vi.fn()],
 }));
 
-describe("ConnectedAssets page", () => {
+vi.mock("@/lib/health-connect", () => ({
+  requestHealthWritePermissions: vi.fn().mockResolvedValue(undefined),
+}));
+
+describe("ConnectedAssets page — flat device list", () => {
   beforeEach(() => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ devices: [] }),
     }) as unknown as typeof fetch;
-    // Clear localStorage mocks
     localStorage.removeItem("ndw_health_connect_granted");
     localStorage.removeItem("ndw_apple_health_granted");
   });
@@ -69,120 +72,59 @@ describe("ConnectedAssets page", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Manage your health, brain, and wearable connections"
-        )
+          "Manage your health, brain, and wearable connections",
+        ),
       ).toBeInTheDocument();
     });
   });
 
-  it("shows Connect Health section", async () => {
+  it("shows all devices in a flat list", async () => {
     renderWithProviders(<ConnectedAssets />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Health")).toBeInTheDocument();
-    });
-  });
-
-  it("shows BCI / EEG section", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
-      expect(screen.getByText("BCI / EEG")).toBeInTheDocument();
-    });
-  });
-
-  it("shows Connect Wearable section", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
-      expect(screen.getByText("Connect Wearable")).toBeInTheDocument();
-    });
-  });
-
-  it("shows health section subtitle", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
-      // On web platform, shows combined subtitle
-      expect(
-        screen.getByText(
-          "Google Health Connect (Android) / Apple HealthKit (iOS)"
-        )
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows BCI subtitle", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
-      expect(
-        screen.getByText("Brain-computer interface headbands")
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows wearable subtitle", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
-      expect(screen.getByText("Oura, WHOOP, Garmin")).toBeInTheDocument();
-    });
-  });
-
-  it("shows supported BCI devices", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
+      // Health
+      expect(screen.getByText("Health Connect")).toBeInTheDocument();
+      // EEG devices
       expect(screen.getByText("Muse 2")).toBeInTheDocument();
       expect(screen.getByText("Muse S")).toBeInTheDocument();
-      expect(screen.getByText("Synthetic (Demo)")).toBeInTheDocument();
-    });
-  });
-
-  it("shows all three wearable providers", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
+      expect(screen.getByText("Synthetic Demo")).toBeInTheDocument();
+      // Wearables
       expect(screen.getByText("Oura Ring")).toBeInTheDocument();
       expect(screen.getByText("WHOOP")).toBeInTheDocument();
       expect(screen.getByText("Garmin")).toBeInTheDocument();
     });
   });
 
-  it("shows wearable descriptions", async () => {
+  it("shows device descriptions", async () => {
     renderWithProviders(<ConnectedAssets />);
     await waitFor(() => {
       expect(
-        screen.getByText("Readiness, sleep, activity, heart rate")
+        screen.getByText("Heart rate, sleep, steps, workouts, mindfulness"),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Recovery, strain, sleep, HRV")
+        screen.getByText("EEG brain wave monitoring at 256 Hz"),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Steps, stress, body battery, workouts")
+        screen.getByText("Readiness, sleep, activity, heart rate"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Recovery, strain, sleep, HRV"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Steps, stress, body battery, workouts"),
       ).toBeInTheDocument();
     });
   });
 
-  it("shows EEG device state as disconnected", async () => {
+  it("shows device test ids for each row", async () => {
     renderWithProviders(<ConnectedAssets />);
     await waitFor(() => {
-      expect(
-        screen.getByText("No device connected")
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows Setup button when device is disconnected", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Setup/i })
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows health data sync description", async () => {
-    renderWithProviders(<ConnectedAssets />);
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Syncs heart rate, sleep stages, steps, workouts, and mindfulness data."
-        )
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("device-health")).toBeInTheDocument();
+      expect(screen.getByTestId("device-muse2")).toBeInTheDocument();
+      expect(screen.getByTestId("device-muse-s")).toBeInTheDocument();
+      expect(screen.getByTestId("device-synthetic")).toBeInTheDocument();
+      expect(screen.getByTestId("device-oura")).toBeInTheDocument();
+      expect(screen.getByTestId("device-whoop")).toBeInTheDocument();
+      expect(screen.getByTestId("device-garmin")).toBeInTheDocument();
     });
   });
 
@@ -190,19 +132,28 @@ describe("ConnectedAssets page", () => {
     renderWithProviders(<ConnectedAssets />);
     await waitFor(() => {
       expect(
-        screen.getByText("Use the mobile app to connect")
+        screen.getByText("Use the mobile app to connect"),
       ).toBeInTheDocument();
+    });
+  });
+
+  it("does NOT have separate section headers", async () => {
+    renderWithProviders(<ConnectedAssets />);
+    await waitFor(() => {
+      // Old page had "Connect Health", "BCI / EEG", "Connect Wearable" headers
+      expect(screen.queryByText("Connect Health")).not.toBeInTheDocument();
+      expect(screen.queryByText("BCI / EEG")).not.toBeInTheDocument();
+      expect(screen.queryByText("Connect Wearable")).not.toBeInTheDocument();
     });
   });
 
   it("shows Connect buttons for wearable providers", async () => {
     renderWithProviders(<ConnectedAssets />);
     await waitFor(() => {
-      // Each wearable has a Connect button
       const connectButtons = screen.getAllByRole("button", {
         name: /Connect/i,
       });
-      // Health Connect button + 3 wearable Connect buttons = 4 total
+      // Health Connect (disabled on web) + 3 wearables = 4
       expect(connectButtons.length).toBeGreaterThanOrEqual(3);
     });
   });

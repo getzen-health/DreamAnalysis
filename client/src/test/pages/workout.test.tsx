@@ -81,4 +81,10 @@ describe("Workout page", () => {
     expect(screen.queryByText("Start Workout")).not.toBeInTheDocument();
     expect(screen.queryByText("Workout Name (optional)")).not.toBeInTheDocument();
   });
+
+  it("does not show duplicate weekly activity chart", () => {
+    renderWithProviders(<WorkoutPage />);
+    // The Weekly Activity chart was removed (duplicated from health page)
+    expect(screen.queryByText("Weekly Activity")).not.toBeInTheDocument();
+  });
 });

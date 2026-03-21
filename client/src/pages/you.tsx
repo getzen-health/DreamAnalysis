@@ -8,10 +8,9 @@ import { getParticipantId } from "@/lib/participant";
 import { useQuery } from "@tanstack/react-query";
 import { resolveUrl } from "@/lib/queryClient";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
-import { AchievementBadges } from "@/components/achievements";
 import {
   Flame, Calendar, Trophy, BarChart3, Heart, Brain, Palette,
-  Bell, Download, Lock, HelpCircle, Watch, Sun, type LucideIcon,
+  Bell, Download, Lock, HelpCircle, Watch, Sun, ChevronRight, type LucideIcon,
 } from "lucide-react";
 import { ChronotypeQuiz } from "@/components/chronotype-quiz";
 import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
@@ -327,8 +326,47 @@ export default function You() {
         </div>
       </div>
 
-      {/* Achievements */}
-      <AchievementBadges />
+      {/* Achievements Link */}
+      <div
+        onClick={() => setLocation("/achievements")}
+        style={{
+          background: "linear-gradient(135deg, var(--card) 0%, rgba(212,160,23,0.05) 100%)",
+          border: "1px solid rgba(212,160,23,0.2)",
+          borderRadius: 20,
+          padding: "14px 16px",
+          marginBottom: 16,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: "rgba(212,160,23,0.12)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <Trophy style={{ width: 18, height: 18, color: "#d4a017" }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
+            Achievements
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+            View your badges and milestones
+          </div>
+        </div>
+        <ChevronRight style={{ width: 18, height: 18, color: "var(--muted-foreground)", flexShrink: 0 }} />
+      </div>
 
       {/* Brain Health Section */}
       <SectionLabel>Brain Health</SectionLabel>

@@ -7,7 +7,6 @@ import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
-import { CommunityMood } from "@/components/community-mood";
 import { EegMusicCard } from "@/components/eeg-music-card";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import {
@@ -594,39 +593,40 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
       </div>
 
       {chartData.length > 1 ? (
-        <div style={{ height: 140 }}>
+        <div style={{ height: 220 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
+            <AreaChart data={chartData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
               <defs>
                 <linearGradient id="discStressG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#e879a8" stopOpacity={0.25} />
+                  <stop offset="0%" stopColor="#e879a8" stopOpacity={0.3} />
                   <stop offset="100%" stopColor="#e879a8" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="discFocusG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.25} />
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
                   <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="discMoodG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0891b2" stopOpacity={0.25} />
+                  <stop offset="0%" stopColor="#0891b2" stopOpacity={0.3} />
                   <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
               <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 100]} hide />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}`} />
               <Tooltip
                 contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 11 }}
                 labelStyle={{ color: "var(--muted-foreground)" }}
+                formatter={(v: number, name: string) => [`${v}%`, name]}
               />
-              <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2.5} dot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-              <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2.5} dot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-              <Area type="monotone" dataKey="mood" stroke="#0891b2" fill="url(#discMoodG)" strokeWidth={2.5} dot={false} name="Mood" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2.5} dot={{ r: 3, fill: "#e879a8" }} activeDot={{ r: 5 }} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1" }} activeDot={{ r: 5 }} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="mood" stroke="#0891b2" fill="url(#discMoodG)" strokeWidth={2.5} dot={{ r: 3, fill: "#0891b2" }} activeDot={{ r: 5 }} name="Mood" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       ) : (
         <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Do a voice analysis to see emotion trends</p>
+          <p style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Complete a voice analysis to see trends</p>
         </div>
       )}
 
@@ -727,9 +727,6 @@ export default function Discover() {
 
       {/* ── Mood Insights — pattern detection from emotion history ── */}
       <MoodInsightsCard userId={userId} />
-
-      {/* ── Community Mood — anonymous peer support ── */}
-      <CommunityMood />
 
       {/* ── EEG-Adaptive Music — or static Quick Listen fallback ── */}
       <EegMusicCard />

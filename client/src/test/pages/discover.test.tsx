@@ -31,10 +31,6 @@ vi.mock("@/lib/mood-patterns", () => ({
   detectMoodPatterns: () => [],
 }));
 
-vi.mock("@/components/community-mood", () => ({
-  CommunityMood: () => <div data-testid="community-mood" />,
-}));
-
 vi.mock("@/lib/ml-api", () => ({
   listSessions: vi.fn().mockResolvedValue([]),
 }));
@@ -77,7 +73,7 @@ describe("Discover page", () => {
   it("shows empty state when no emotion data", async () => {
     renderWithProviders(<Discover />);
     await waitFor(() => {
-      expect(screen.getByText("Do a voice analysis to see emotion trends")).toBeInTheDocument();
+      expect(screen.getByText("Complete a voice analysis to see trends")).toBeInTheDocument();
     });
   });
 
@@ -93,7 +89,7 @@ describe("Discover page", () => {
     renderWithProviders(<Discover />);
     await waitFor(() => {
       // Chart should be visible (the empty state message should NOT appear)
-      expect(screen.queryByText("Do a voice analysis to see emotion trends")).not.toBeInTheDocument();
+      expect(screen.queryByText("Complete a voice analysis to see trends")).not.toBeInTheDocument();
     });
   });
 
@@ -139,6 +135,29 @@ describe("Discover page", () => {
       expect(screen.getByText("Health")).toBeInTheDocument();
       expect(screen.getByText("Inner Energy")).toBeInTheDocument();
       expect(screen.getByText("Wellness")).toBeInTheDocument();
+    });
+  });
+
+  it("shows legend labels for Stress, Focus, and Mood when chart data exists", async () => {
+    const history = [
+      { stress: 0.3, happiness: 0.7, focus: 0.5, dominantEmotion: "happy", timestamp: new Date(Date.now() - 2 * 86400000).toISOString() },
+      { stress: 0.5, happiness: 0.5, focus: 0.6, dominantEmotion: "neutral", timestamp: new Date().toISOString() },
+    ];
+    localStorage.setItem("ndw_emotion_history", JSON.stringify(history));
+
+    renderWithProviders(<Discover />);
+    await waitFor(() => {
+      // Legend items — use getAllByText since "Focus" may appear in recommendation cards too
+      expect(screen.getAllByText("Stress").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Focus").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Mood").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("shows 7-day trend subtitle on emotions card", async () => {
+    renderWithProviders(<Discover />);
+    await waitFor(() => {
+      expect(screen.getByText("Stress, Focus, Mood — 7 day trends")).toBeInTheDocument();
     });
   });
 });

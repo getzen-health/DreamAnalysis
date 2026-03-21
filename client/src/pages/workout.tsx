@@ -15,15 +15,6 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { EmotionStrip } from "@/components/emotion-strip";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 /* ---------- types ---------- */
 
@@ -241,31 +232,6 @@ export default function WorkoutPage() {
     return { totalMin, totalCal, count };
   }, [thisWeekWorkouts]);
 
-  // Weekly exercise minutes chart (last 4 weeks)
-  const weeklyChart = useMemo(() => {
-    const now = new Date();
-    const weeks: { label: string; minutes: number }[] = [];
-    for (let i = 3; i >= 0; i--) {
-      const weekEnd = new Date(now);
-      weekEnd.setDate(now.getDate() - i * 7);
-      const weekStart = new Date(weekEnd);
-      weekStart.setDate(weekEnd.getDate() - 7);
-      const mins = workoutHistory
-        .filter((w) => {
-          const d = new Date(w.startedAt);
-          return d >= weekStart && d < weekEnd;
-        })
-        .reduce((sum, w) => sum + (w.durationMin ? parseFloat(w.durationMin) : 0), 0);
-      weeks.push({
-        label: weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        minutes: Math.round(mins),
-      });
-    }
-    return weeks;
-  }, [workoutHistory]);
-
-  const hasChartData = weeklyChart.some((w) => w.minutes > 0);
-
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4 pb-24">
       {/* Header */}
@@ -353,66 +319,6 @@ export default function WorkoutPage() {
               <p className="text-[10px] text-muted-foreground">Calories</p>
             </div>
           </div>
-        </motion.div>
-      )}
-
-      {/* Exercise Minutes Chart (4 weeks) */}
-      {hasChartData && (
-        <motion.div
-          className="rounded-2xl p-4 bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
-          {...fadeInUp}
-          transition={{ ...fadeInUp.transition, delay: 0.15 }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            <p className="text-[13px] font-semibold text-foreground">Weekly Activity</p>
-            <span className="text-[10px] text-muted-foreground ml-auto">Last 4 weeks</span>
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={weeklyChart} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
-              <defs>
-                <linearGradient id="workoutGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0891b2" stopOpacity={0.3} />
-                  <stop offset="50%" stopColor="#0891b2" stopOpacity={0.12} />
-                  <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
-                axisLine={false}
-                tickLine={false}
-                width={28}
-                tickFormatter={(v) => `${v}m`}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "var(--popover)",
-                  border: "1px solid var(--border)",
-        boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-                  borderRadius: 10,
-                  fontSize: 11,
-                  color: "var(--foreground)",
-                }}
-                formatter={(v: number) => [`${v} min`, "Exercise"]}
-              />
-              <Area
-                type="monotone"
-                dataKey="minutes"
-                stroke="#0891b2"
-                strokeWidth={2}
-                fill="url(#workoutGrad)"
-                dot={{ r: 3, fill: "#0891b2" }}
-                activeDot={{ r: 5 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
         </motion.div>
       )}
 

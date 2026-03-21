@@ -96,6 +96,7 @@ const HelpPage               = lazy(() => import("@/pages/help"));
 const ConnectedAssets        = lazy(() => import("@/pages/connected-assets"));
 const NotificationsPage      = lazy(() => import("@/pages/notifications"));
 const CouplesMeditation      = lazy(() => import("@/pages/couples-meditation"));
+const AchievementsPage       = lazy(() => import("@/pages/achievements"));
 
 // ── Error Boundary — prevents a single page crash from taking down the whole app ──
 class ErrorBoundary extends Component<
@@ -463,6 +464,13 @@ function AppRoutes() {
         <ProtectedRoute>
           <Suspense fallback={<PageLoader />}>
             <AppLayout><CouplesMeditation /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/achievements">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><AchievementsPage /></AppLayout>
           </Suspense>
         </ProtectedRoute>
       </Route>
