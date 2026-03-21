@@ -66,11 +66,11 @@ function makeCommand(cmd: string): DataView {
   return new DataView(bytes.buffer);
 }
 
-const CMD_VERSION    = makeCommand("v1");  // request firmware version (muse-js sends this first)
-const CMD_START      = makeCommand("d");   // start data streaming
-const CMD_STOP       = makeCommand("h");   // halt streaming
+const CMD_HALT       = makeCommand("h");   // halt streaming (must send before preset)
 const CMD_PRESET_P21 = makeCommand("p21"); // standard 4-channel EEG preset
-const CMD_RESUME     = makeCommand("d");   // alias for resume after subscribe
+const CMD_STREAM     = makeCommand("s");   // start streaming (muse-js sends this)
+const CMD_RESUME     = makeCommand("d");   // resume/start data flow
+const CMD_STOP       = CMD_HALT;           // alias
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -416,47 +416,31 @@ export class MuseBleManager {
     const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
     this._controlChar = controlChar;
 
-    // Write command: try writeValueWithResponse first (Muse S requires ACK),
-    // fall back to writeValueWithoutResponse (Muse 2 supports both).
     const writeCommand = async (dv: DataView) => {
       if (typeof controlChar.writeValueWithResponse === "function") {
-        try {
-          await controlChar.writeValueWithResponse(dv);
-          return;
-        } catch {
-          // writeWithResponse failed — try without response
-        }
+        try { await controlChar.writeValueWithResponse(dv); return; } catch { /* try next */ }
       }
-      try {
-        await controlChar.writeValueWithoutResponse(dv);
-      } catch {
-        // Legacy fallback
+      try { await controlChar.writeValueWithoutResponse(dv); } catch {
         await (controlChar as BluetoothRemoteGATTCharacteristic & { writeValue: (v: DataView) => Promise<void> }).writeValue(dv);
       }
     };
-    await writeCommand(CMD_PRESET_P21);
-    await new Promise((r) => setTimeout(r, 1000));
-    await writeCommand(CMD_START);
 
-    // Wait for Muse to reconfigure GATT after preset command
-    await new Promise((r) => setTimeout(r, 2000));
+    // ── Step 1: Subscribe to CONTROL characteristic (muse-js requirement) ──
+    // Muse won't process commands unless control char has notifications enabled
+    controlChar.addEventListener("characteristicvaluechanged", () => {});
+    await controlChar.startNotifications();
+    console.log("[MuseBLE-Web] Control char notifications enabled");
 
-    // Get ALL characteristics from the service at once (avoids repeated pairing prompts)
+    // ── Step 2: Get ALL characteristics and subscribe to EEG channels ──
     const allChars = await service.getCharacteristics();
-
-    // Filter to find EEG data characteristics
     const eegUuids = new Set([
       ...MUSE_EEG_CHARS_MUSE_S.map(u => u.toLowerCase()),
       ...MUSE_EEG_CHARS_MUSE2.map(u => u.toLowerCase()),
     ]);
-
     const foundChars = allChars.filter(c => eegUuids.has(c.uuid.toLowerCase()));
-
     if (foundChars.length === 0) {
       throw new Error("No EEG characteristics found. Found " + allChars.length + " total characteristics.");
     }
-
-    // Subscribe to found channels
     for (let i = 0; i < Math.min(foundChars.length, N_ACTIVE_CHANNELS); i++) {
       const characteristic = foundChars[i];
       await characteristic.startNotifications();
@@ -466,6 +450,18 @@ export class MuseBleManager {
         if (target.value) this.onEegNotification(channelIndex, target.value);
       });
     }
+    console.log(`[MuseBLE-Web] ${foundChars.length} EEG channels subscribed`);
+
+    // ── Step 3: Send commands (halt → preset → stream → resume) ──
+    // This exact sequence is from muse-js
+    await writeCommand(CMD_HALT);
+    await new Promise((r) => setTimeout(r, 100));
+    await writeCommand(CMD_PRESET_P21);
+    await new Promise((r) => setTimeout(r, 100));
+    await writeCommand(CMD_STREAM);
+    await new Promise((r) => setTimeout(r, 100));
+    await writeCommand(CMD_RESUME);
+    console.log("[MuseBLE-Web] Commands sent: halt → preset → stream → resume");
 
     this.startEmitter();
     this.setStatus("streaming");
@@ -677,12 +673,25 @@ export class MuseBleManager {
     const charUuids = allChars.map((c) => c.uuid.toLowerCase());
     console.log(`[MuseBLE] Muse service: ${allChars.length} chars: ${charUuids.join(", ")}`);
 
-    // ── Send full command sequence (matches muse-js) ─────────────────
-    await writeCmd(CMD_VERSION, "version");
+    // ── Subscribe to CONTROL characteristic (required by Muse protocol) ──
+    // Muse won't process commands unless control char has notifications enabled
+    try {
+      await ble.startNotifications(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR,
+        () => {} /* discard control responses */);
+      console.log("[MuseBLE] Control char notifications enabled");
+    } catch (e) {
+      console.warn("[MuseBLE] Control char subscribe failed (continuing):", e);
+    }
     await new Promise((r) => setTimeout(r, 500));
+
+    // ── Send command sequence (matches muse-js: halt → preset → stream → resume) ──
+    await writeCmd(CMD_HALT, "halt");
+    await new Promise((r) => setTimeout(r, 100));
     await writeCmd(CMD_PRESET_P21, "preset");
-    await new Promise((r) => setTimeout(r, 1000));
-    await writeCmd(CMD_START, "start");
+    await new Promise((r) => setTimeout(r, 100));
+    await writeCmd(CMD_STREAM, "stream");
+    await new Promise((r) => setTimeout(r, 100));
+    await writeCmd(CMD_RESUME, "resume");
     await new Promise((r) => setTimeout(r, 2000));
 
     // Re-discover after commands (Muse may expose new characteristics)
@@ -751,9 +760,7 @@ export class MuseBleManager {
     this._subscribeInfo = `${subscribedCount}ch ${detectedType} | ${allChars2.length} total chars`;
     console.log(`[MuseBLE] ${subscribedCount} channels (${detectedType}). Streaming...`);
 
-    // Send start command AGAIN after subscribe — some Muse firmware needs this
-    await new Promise((r) => setTimeout(r, 500));
-    await writeCmd(CMD_START, "start-after-subscribe");
+    console.log(`[MuseBLE] Connection complete. ${subscribedCount} EEG channels active.`);
 
 
     this.startEmitter();
@@ -791,7 +798,7 @@ export class MuseBleManager {
       };
       await writeReconnect(CMD_PRESET_P21);
       await new Promise((r) => setTimeout(r, 100));
-      await writeReconnect(CMD_START);
+      await writeReconnect(CMD_RESUME);
     } catch (e) {
       this.setStatus("error", `Failed to restart EEG stream: ${String(e)}`);
       throw e;
@@ -870,7 +877,7 @@ export class MuseBleManager {
     if (this.isWebBluetooth && this._controlChar) {
       this.keepaliveTimer = setInterval(async () => {
         if (this.state === "streaming" && this._controlChar) {
-          try { await this._controlChar.writeValueWithResponse(CMD_START); } catch {}
+          try { await this._controlChar.writeValueWithResponse(CMD_RESUME); } catch {}
         }
       }, 15_000);
     }
