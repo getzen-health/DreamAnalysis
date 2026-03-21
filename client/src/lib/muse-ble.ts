@@ -367,22 +367,15 @@ export class MuseBleManager {
   // ── Web Bluetooth internals ─────────────────────────────────────────────────
   private _webGattServer: BluetoothRemoteGATTServer | null = null;
 
-  private _museClient: any = null; // muse-js MuseClient instance
-
   private async _connectWebBluetooth(): Promise<void> {
-    const { MuseClient } = await import("muse-js");
+    const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
     this.setStatus("scanning");
 
-    const client = new MuseClient();
-    this._museClient = client;
-
-    // Request device via Web Bluetooth
-    const bt = (navigator as Navigator & { bluetooth: Bluetooth }).bluetooth;
     let device: BluetoothDevice;
     try {
       device = await bt.requestDevice({
-        filters: [{ services: [0xfe8d] }],
-        optionalServices: [0xfe8d],
+        filters: [{ services: [MUSE_SERVICE] }],
+        optionalServices: [MUSE_SERVICE],
       });
     } catch (e) {
       this.setStatus("idle", "Device selection cancelled");
@@ -398,32 +391,56 @@ export class MuseBleManager {
       this.setStatus("idle", "Device disconnected");
     });
 
-    // Connect GATT
     const server = await device.gatt!.connect();
     this._webGattServer = server;
 
-    // Let muse-js handle everything: subscribe control, discover chars, etc.
-    await client.connect(server);
-    console.log("[MuseBLE] muse-js connected:", client.deviceName);
+    const service = await server.getPrimaryService(MUSE_SERVICE);
+    const controlChar = await service.getCharacteristic(MUSE_CONTROL_CHAR);
+    this._controlChar = controlChar;
 
-    // Subscribe to EEG readings from muse-js
-    client.eegReadings.subscribe((reading: { electrode: number; samples: number[] }) => {
-      const ch = reading.electrode;
-      if (ch < N_ACTIVE_CHANNELS) {
-        for (const sample of reading.samples) {
-          this.rings[ch].push(sample);
-        }
-        this.lastNotificationTime[ch] = Date.now();
-        this._notifCount++;
-        if (this._notifCount === 1 || this._notifCount === 50 || this._notifCount === 500) {
-          console.log(`[MuseBLE] muse-js: ${this._notifCount} EEG readings, ch${ch}, ${reading.samples.length} samples`);
+    const writeCmd = async (dv: DataView) => {
+      try { await controlChar.writeValueWithoutResponse(dv); } catch {
+        try { await controlChar.writeValueWithResponse(dv); } catch {
+          await (controlChar as any).writeValue(dv);
         }
       }
-    });
+    };
 
-    // Start streaming
-    await client.start();
-    console.log("[MuseBLE] muse-js streaming started");
+    // 1. Subscribe to CONTROL char (Muse requires this before processing commands)
+    controlChar.addEventListener("characteristicvaluechanged", () => {});
+    await controlChar.startNotifications();
+
+    // 2. Discover ALL characteristics and subscribe to EEG channels
+    const allChars = await service.getCharacteristics();
+    const eegUuids = new Set([
+      ...MUSE_EEG_CHARS_MUSE_S.map(u => u.toLowerCase()),
+      ...MUSE_EEG_CHARS_MUSE2.map(u => u.toLowerCase()),
+    ]);
+    const foundChars = allChars.filter(c => eegUuids.has(c.uuid.toLowerCase()));
+
+    if (foundChars.length === 0) {
+      // List what IS available for debugging
+      const available = allChars.map(c => c.uuid).join(", ");
+      throw new Error(`No EEG chars found. ${allChars.length} chars available: ${available}`);
+    }
+
+    for (let i = 0; i < Math.min(foundChars.length, N_ACTIVE_CHANNELS); i++) {
+      await foundChars[i].startNotifications();
+      const ch = i;
+      foundChars[i].addEventListener("characteristicvaluechanged", (ev: Event) => {
+        const target = ev.target as BluetoothRemoteGATTCharacteristic;
+        if (target.value) this.onEegNotification(ch, target.value);
+      });
+    }
+
+    // 3. Send muse-js command sequence: halt → preset → stream → resume
+    await writeCmd(CMD_HALT);
+    await new Promise((r) => setTimeout(r, 100));
+    await writeCmd(CMD_PRESET_P21);
+    await new Promise((r) => setTimeout(r, 100));
+    await writeCmd(CMD_STREAM);
+    await new Promise((r) => setTimeout(r, 100));
+    await writeCmd(CMD_RESUME);
 
     this.startEmitter();
     this.setStatus("streaming");
