@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { syncMoodLogToML } from "@/lib/ml-api";
@@ -374,10 +374,10 @@ function CycleWheel({ cycleInfo }: { cycleInfo: ComputedCycleInfo }) {
 
 /* ---------- Cycle Setup Prompt ---------- */
 
-function CycleSetupPrompt({ onComplete }: { onComplete: (data: LocalCycleData) => void }) {
-  const [lastPeriodDate, setLastPeriodDate] = useState("");
-  const [cycleLength, setCycleLength] = useState(28);
-  const [periodLength, setPeriodLength] = useState(5);
+function CycleSetupPrompt({ onComplete, initialData }: { onComplete: (data: LocalCycleData) => void; initialData?: LocalCycleData | null }) {
+  const [lastPeriodDate, setLastPeriodDate] = useState(initialData?.lastPeriodStart ?? "");
+  const [cycleLengthStr, setCycleLengthStr] = useState(String(initialData?.cycleLength ?? 28));
+  const [periodLengthStr, setPeriodLengthStr] = useState(String(initialData?.periodLength ?? 5));
   const { toast } = useToast();
 
   function handleSubmit(e: React.FormEvent) {
@@ -386,12 +386,14 @@ function CycleSetupPrompt({ onComplete }: { onComplete: (data: LocalCycleData) =
       toast({ title: "Please enter your last period start date", variant: "destructive" });
       return;
     }
+    const cycleLength = parseInt(cycleLengthStr) || 28;
+    const periodLength = parseInt(periodLengthStr) || 5;
     if (cycleLength < 20 || cycleLength > 45) {
       toast({ title: "Cycle length should be between 20 and 45 days", variant: "destructive" });
       return;
     }
-    if (periodLength < 2 || periodLength > 10) {
-      toast({ title: "Period length should be between 2 and 10 days", variant: "destructive" });
+    if (periodLength < 1 || periodLength > 10) {
+      toast({ title: "Period length should be between 1 and 10 days", variant: "destructive" });
       return;
     }
     const data: LocalCycleData = {
@@ -437,15 +439,46 @@ function CycleSetupPrompt({ onComplete }: { onComplete: (data: LocalCycleData) =
           <Label htmlFor="cycleLength" className="text-xs font-medium">
             Average cycle length (days)
           </Label>
-          <Input
-            id="cycleLength"
-            type="number"
-            min={20}
-            max={45}
-            value={cycleLength}
-            onChange={e => setCycleLength(Math.max(20, Math.min(45, parseInt(e.target.value) || 28)))}
-            className="mt-1"
-          />
+          <div className="flex items-center gap-2 mt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 w-9 p-0 shrink-0"
+              onClick={() => {
+                const v = Math.max(20, (parseInt(cycleLengthStr) || 28) - 1);
+                setCycleLengthStr(String(v));
+              }}
+            >
+              -
+            </Button>
+            <Input
+              id="cycleLength"
+              type="number"
+              min={20}
+              max={45}
+              value={cycleLengthStr}
+              onChange={e => setCycleLengthStr(e.target.value)}
+              onBlur={() => {
+                const v = parseInt(cycleLengthStr);
+                if (isNaN(v)) setCycleLengthStr("28");
+                else setCycleLengthStr(String(Math.max(20, Math.min(45, v))));
+              }}
+              className="text-center"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 w-9 p-0 shrink-0"
+              onClick={() => {
+                const v = Math.min(45, (parseInt(cycleLengthStr) || 28) + 1);
+                setCycleLengthStr(String(v));
+              }}
+            >
+              +
+            </Button>
+          </div>
           <p className="text-[10px] text-muted-foreground mt-1">Most cycles are 24-35 days. Default: 28.</p>
         </div>
 
@@ -453,20 +486,51 @@ function CycleSetupPrompt({ onComplete }: { onComplete: (data: LocalCycleData) =
           <Label htmlFor="periodLength" className="text-xs font-medium">
             Average period length (days)
           </Label>
-          <Input
-            id="periodLength"
-            type="number"
-            min={2}
-            max={10}
-            value={periodLength}
-            onChange={e => setPeriodLength(Math.max(2, Math.min(10, parseInt(e.target.value) || 5)))}
-            className="mt-1"
-          />
-          <p className="text-[10px] text-muted-foreground mt-1">Average period lasts 3-7 days. Default: 5.</p>
+          <div className="flex items-center gap-2 mt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 w-9 p-0 shrink-0"
+              onClick={() => {
+                const v = Math.max(1, (parseInt(periodLengthStr) || 5) - 1);
+                setPeriodLengthStr(String(v));
+              }}
+            >
+              -
+            </Button>
+            <Input
+              id="periodLength"
+              type="number"
+              min={1}
+              max={10}
+              value={periodLengthStr}
+              onChange={e => setPeriodLengthStr(e.target.value)}
+              onBlur={() => {
+                const v = parseInt(periodLengthStr);
+                if (isNaN(v)) setPeriodLengthStr("5");
+                else setPeriodLengthStr(String(Math.max(1, Math.min(10, v))));
+              }}
+              className="text-center"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 w-9 p-0 shrink-0"
+              onClick={() => {
+                const v = Math.min(10, (parseInt(periodLengthStr) || 5) + 1);
+                setPeriodLengthStr(String(v));
+              }}
+            >
+              +
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1">Average period lasts 3-7 days. Min: 1, Max: 10.</p>
         </div>
 
         <Button type="submit" className="w-full">
-          Start Tracking
+          {initialData ? "Update Settings" : "Start Tracking"}
         </Button>
       </form>
     </motion.div>
@@ -597,6 +661,57 @@ function CycleTab() {
   }, [cycleData]);
 
   // Log cycle mutation — API first, localStorage fallback when auth unavailable
+  // Auto-detect last period start from logged cycle data and update localStorage
+  // This runs whenever cycleData changes so calendar-logged period days update the phase
+  useEffect(() => {
+    if (cycleData.length === 0) return;
+    // Find the most recent date with flow (not "none")
+    const periodDates = cycleData
+      .filter(e => e.flowLevel && e.flowLevel !== "none")
+      .map(e => e.date)
+      .sort(); // ascending ISO dates
+    if (periodDates.length === 0) return;
+
+    // Find consecutive period groups — the last group's start is the last period start
+    const groups: string[][] = [];
+    let currentGroup: string[] = [periodDates[0]];
+    for (let i = 1; i < periodDates.length; i++) {
+      const prevDate = new Date(periodDates[i - 1] + "T12:00:00");
+      const currDate = new Date(periodDates[i] + "T12:00:00");
+      const diffDays = Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 2) {
+        currentGroup.push(periodDates[i]);
+      } else {
+        groups.push(currentGroup);
+        currentGroup = [periodDates[i]];
+      }
+    }
+    groups.push(currentGroup);
+
+    const lastGroup = groups[groups.length - 1];
+    const detectedStart = lastGroup[0];
+
+    // Update localStorage cycle data if the detected start is different
+    const existing = getLocalCycleData();
+    if (existing && existing.lastPeriodStart !== detectedStart) {
+      const updated: LocalCycleData = {
+        ...existing,
+        lastPeriodStart: detectedStart,
+      };
+      setLocalCycleData(updated);
+      setLocalCycleData_(updated);
+    } else if (!existing && detectedStart) {
+      // No setup done yet but user logged period days — create initial data
+      const newData: LocalCycleData = {
+        lastPeriodStart: detectedStart,
+        cycleLength: 28,
+        periodLength: lastGroup.length,
+      };
+      setLocalCycleData(newData);
+      setLocalCycleData_(newData);
+    }
+  }, [cycleData]);
+
   const logCycleMutation = useMutation({
     mutationFn: async () => {
       const entry = {
@@ -619,7 +734,7 @@ function CycleTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/cycle/${user?.id}?days=365`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cycle/${user?.id ?? "local"}?days=365`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cycle/${user?.id}/phase`] });
       setLogDialogOpen(false);
       toast({ title: "Cycle data logged" });
@@ -727,7 +842,7 @@ function CycleTab() {
     <div className="space-y-5">
       {/* Setup prompt — show when no cycle data exists anywhere */}
       {!effectiveCycleInfo && !showSettings && (
-        <CycleSetupPrompt onComplete={handleCycleSetup} />
+        <CycleSetupPrompt onComplete={handleCycleSetup} initialData={localCycleData} />
       )}
 
       {/* Settings edit dialog — re-enter cycle data */}
@@ -739,7 +854,7 @@ function CycleTab() {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <CycleSetupPrompt onComplete={handleCycleSetup} />
+            <CycleSetupPrompt onComplete={handleCycleSetup} initialData={localCycleData} />
           </motion.div>
         )}
       </AnimatePresence>

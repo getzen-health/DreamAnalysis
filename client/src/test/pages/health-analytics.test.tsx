@@ -225,3 +225,36 @@ describe("HealthAnalytics — composite scores section details", () => {
     });
   });
 });
+
+describe("HealthAnalytics — metric panel structure", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ([]),
+    }) as unknown as typeof fetch;
+  });
+
+  it("does not show metric panels when disconnected with no voice data", async () => {
+    renderWithProviders(<HealthAnalytics />);
+    await waitFor(() => {
+      // Valence and Arousal panels should NOT be in the DOM when hasRealData is false
+      expect(screen.queryByText("Valence")).not.toBeInTheDocument();
+      expect(screen.queryByText("Arousal")).not.toBeInTheDocument();
+      expect(screen.queryByText("Positive/negative feeling")).not.toBeInTheDocument();
+      expect(screen.queryByText("Energy level")).not.toBeInTheDocument();
+    });
+  });
+
+  it("trend chart section renders at full width with all period tabs", async () => {
+    renderWithProviders(<HealthAnalytics />);
+    await waitFor(() => {
+      expect(screen.getByText("Brain Health Trends")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Today/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Week/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /\bMonth\b/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /3 Months/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Year/ })).toBeInTheDocument();
+    });
+  });
+});

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +114,256 @@ function buildHealthChartData(sessions: SessionSummary[], days: number): Session
       relaxation: avgNums(data.relaxation),
       flow: avgNums(data.flow),
     }));
+}
+
+/* ---------- localStorage emotion history for metric charts ---------- */
+
+const EMOTION_HISTORY_KEY = "ndw_emotion_history";
+const EMOTION_HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface LocalEmotionEntry {
+  stress: number;
+  happiness: number;
+  focus: number;
+  dominantEmotion: string;
+  timestamp: string;
+}
+
+function getLocalEmotionHistory(): LocalEmotionEntry[] {
+  try {
+    const raw = localStorage.getItem(EMOTION_HISTORY_KEY);
+    if (!raw) return [];
+    const history: LocalEmotionEntry[] = JSON.parse(raw);
+    const cutoff = Date.now() - EMOTION_HISTORY_MAX_AGE_MS;
+    return history.filter(e => new Date(e.timestamp).getTime() > cutoff);
+  } catch {
+    return [];
+  }
+}
+
+interface MetricChartPoint {
+  label: string;
+  value: number;
+}
+
+function buildMetricHistory(
+  sessions: SessionSummary[],
+  metricKey: "stress" | "focus" | "relaxation" | "flow",
+  days: number,
+): MetricChartPoint[] {
+  const cutoff = Date.now() / 1000 - days * 86400;
+  const filtered = sessions.filter(s => (s.start_time ?? 0) >= cutoff);
+
+  const map: Record<string, { values: number[]; ts: number }> = {};
+  for (const s of filtered) {
+    if (s.summary?.avg_focus == null) continue;
+    const d = new Date((s.start_time ?? 0) * 1000);
+    let key: string;
+    let ts: number;
+    if (days <= 1) {
+      key = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      ts = d.getTime();
+    } else if (days <= 7) {
+      key = d.toLocaleDateString("en-US", { weekday: "short" });
+      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    } else {
+      key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    }
+    if (!map[key]) map[key] = { values: [], ts };
+    const val = metricKey === "stress" ? s.summary.avg_stress
+      : metricKey === "focus" ? s.summary.avg_focus
+      : metricKey === "relaxation" ? s.summary.avg_relaxation
+      : s.summary.avg_flow;
+    if (val != null) map[key].values.push(val * 100);
+  }
+
+  return Object.entries(map)
+    .sort(([, a], [, b]) => a.ts - b.ts)
+    .map(([label, data]) => ({
+      label,
+      value: Math.round(data.values.reduce((a, b) => a + b, 0) / data.values.length),
+    }));
+}
+
+function buildLocalMetricHistory(metricKey: "stress" | "focus" | "valence" | "arousal"): MetricChartPoint[] {
+  const history = getLocalEmotionHistory();
+  if (history.length === 0) return [];
+
+  const dayMap = new Map<string, { values: number[]; ts: number }>();
+  for (const entry of history) {
+    const d = new Date(entry.timestamp);
+    const key = d.toLocaleDateString(undefined, { weekday: "short" });
+    const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    if (!dayMap.has(key)) dayMap.set(key, { values: [], ts });
+    const group = dayMap.get(key)!;
+    if (metricKey === "stress") {
+      group.values.push((entry.stress ?? 0) * 100);
+    } else if (metricKey === "focus") {
+      group.values.push((entry.focus ?? 0) * 100);
+    } else if (metricKey === "valence") {
+      // Map happiness (0-1) to a -100 to 100 scale for display, then remap to 0-100
+      group.values.push((entry.happiness ?? 0.5) * 100);
+    } else {
+      // arousal: derive from stress + focus as a rough estimate
+      group.values.push(Math.min(100, ((entry.stress ?? 0) * 0.5 + (entry.focus ?? 0) * 0.5) * 100));
+    }
+  }
+
+  return Array.from(dayMap.entries())
+    .sort(([, a], [, b]) => a.ts - b.ts)
+    .map(([label, data]) => ({
+      label,
+      value: Math.round(data.values.reduce((a, b) => a + b, 0) / data.values.length),
+    }));
+}
+
+/* ---------- MetricPanels — full-width charts per metric ---------- */
+
+interface MetricPanelProps {
+  focusScore: number | null;
+  stressIndex: number | null;
+  relaxScore: number | null;
+  flowScore: number;
+  voiceResult: any;
+  allSessions: SessionSummary[];
+  periodDays: number;
+}
+
+function MetricPanels({ focusScore, stressIndex, relaxScore, flowScore, voiceResult, allSessions, periodDays }: MetricPanelProps) {
+  const metrics = useMemo(() => {
+    // Build history from sessions or localStorage
+    const hasSessionData = allSessions.some(s => s.summary?.avg_focus != null);
+
+    return [
+      {
+        label: "Valence",
+        desc: "Positive/negative feeling",
+        value: voiceResult ? Math.round(((voiceResult.valence + 1) / 2) * 100) : null,
+        color: "hsl(152,60%,48%)",
+        gradId: "valencePanelGrad",
+        history: hasSessionData ? [] : buildLocalMetricHistory("valence"),
+      },
+      {
+        label: "Arousal",
+        desc: "Energy level",
+        value: voiceResult ? Math.round(voiceResult.arousal * 100) : null,
+        color: "hsl(38,85%,58%)",
+        gradId: "arousalPanelGrad",
+        history: hasSessionData ? [] : buildLocalMetricHistory("arousal"),
+      },
+      {
+        label: "Stress",
+        desc: "Mental stress and tension",
+        value: stressIndex,
+        color: "hsl(0,72%,60%)",
+        gradId: "stressPanelGrad",
+        history: hasSessionData
+          ? buildMetricHistory(allSessions, "stress", periodDays)
+          : buildLocalMetricHistory("stress"),
+      },
+      {
+        label: "Focus",
+        desc: "Attention and concentration level",
+        value: focusScore,
+        color: "hsl(200,70%,55%)",
+        gradId: "focusPanelGrad",
+        history: hasSessionData
+          ? buildMetricHistory(allSessions, "focus", periodDays)
+          : buildLocalMetricHistory("focus"),
+      },
+    ];
+  }, [focusScore, stressIndex, voiceResult, allSessions, periodDays]);
+
+  return (
+    <div className="space-y-3">
+      {metrics.map((metric) => (
+        <div
+          key={metric.label}
+          className="rounded-2xl p-4"
+          style={{
+            background: "hsl(222,28%,9%,0.7)",
+            border: "1px solid hsl(220,18%,17%,0.6)",
+            boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
+          }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-[12px] font-semibold text-foreground">{metric.label}</p>
+              <p className="text-[10px] text-muted-foreground">{metric.desc}</p>
+            </div>
+            <div className="text-right">
+              <span className="text-2xl font-bold" style={{ color: metric.color }}>
+                {metric.value !== null ? metric.value : "--"}
+              </span>
+              {metric.value !== null && <span className="text-[10px] text-muted-foreground ml-0.5">%</span>}
+            </div>
+          </div>
+
+          {/* Full-width history chart */}
+          {metric.history.length >= 2 ? (
+            <div style={{ height: 240, marginTop: 8 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={metric.history} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id={metric.gradId} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={metric.color} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={metric.color} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,18%,14%)" opacity={0.5} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={28}
+                    tickFormatter={(v) => `${v}%`}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: "hsl(220,14%,55%)", strokeWidth: 1, strokeDasharray: "4 3" }}
+                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 11 }}
+                    formatter={(v: number) => [`${v}%`, metric.label]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    name={metric.label}
+                    stroke={metric.color}
+                    fill={`url(#${metric.gradId})`}
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: metric.color }}
+                    activeDot={{ r: 5 }}
+                    isAnimationActive={true}
+                    animationDuration={1200}
+                    animationEasing="ease-out"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            /* Fallback: progress bar when not enough history */
+            <div className="w-full h-3 rounded-full bg-muted/20 overflow-hidden mt-2">
+              <div
+                className="h-full rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${metric.value ?? 0}%`,
+                  background: `linear-gradient(90deg, ${metric.color}33, ${metric.color})`,
+                }}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /* ========== Component ========== */
@@ -416,48 +666,17 @@ export default function HealthAnalytics() {
         )}
       </div>
 
-      {/* Individual Metric Panels — full-width breakdown */}
+      {/* Individual Metric Panels — full-width charts with history */}
       {hasRealData && (
-        <div className="space-y-3">
-          {[
-            { label: "Focus", value: focusScore, color: "hsl(200,70%,55%)", gradId: "focusPanelGrad", desc: "Attention and concentration level" },
-            { label: "Stress", value: stressIndex, color: "hsl(38,85%,58%)", gradId: "stressPanelGrad", desc: "Mental stress and tension" },
-            { label: "Relaxation", value: relaxScore, color: "hsl(152,60%,48%)", gradId: "relaxPanelGrad", desc: "Calm and restful state" },
-            { label: "Flow", value: flowScore, color: "hsl(262,45%,65%)", gradId: "flowPanelGrad", desc: "Deep immersion in activity" },
-          ].map((metric) => (
-            <div
-              key={metric.label}
-              className="rounded-2xl p-4"
-              style={{
-                background: "hsl(222,28%,9%,0.7)",
-                border: "1px solid hsl(220,18%,17%,0.6)",
-                boxShadow: "0 1px 3px hsl(222,30%,3%,0.4)",
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <p className="text-[12px] font-semibold text-foreground">{metric.label}</p>
-                  <p className="text-[10px] text-muted-foreground">{metric.desc}</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-2xl font-bold" style={{ color: metric.color }}>
-                    {metric.value !== null ? metric.value : "--"}
-                  </span>
-                  {metric.value !== null && <span className="text-[10px] text-muted-foreground ml-0.5">%</span>}
-                </div>
-              </div>
-              <div className="w-full h-3 rounded-full bg-muted/20 overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-700 ease-out"
-                  style={{
-                    width: `${metric.value ?? 0}%`,
-                    background: `linear-gradient(90deg, ${metric.color}33, ${metric.color})`,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+        <MetricPanels
+          focusScore={focusScore}
+          stressIndex={stressIndex}
+          relaxScore={relaxScore}
+          flowScore={flowScore}
+          voiceResult={voiceResult}
+          allSessions={allSessions}
+          periodDays={periodDays}
+        />
       )}
 
       {/* Score Gauges — composite scores below the metrics */}
