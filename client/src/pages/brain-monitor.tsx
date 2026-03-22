@@ -503,6 +503,14 @@ export default function BrainMonitor() {
                   {museBle._subscribeInfo ? ` | ${museBle._subscribeInfo}` : ""}
                 </span>
               </div>
+              {/* BLE diagnostic log — shows connection steps */}
+              {museBle.diagLog.length > 0 && (
+                <div className="mt-3 p-2 rounded bg-black/30 max-h-40 overflow-y-auto">
+                  {museBle.diagLog.map((line, i) => (
+                    <p key={i} className="text-[9px] font-mono text-green-400/80 leading-tight">{line}</p>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <div className="h-64 flex flex-col items-center justify-center gap-3 border border-dashed border-border/30 rounded-lg p-4">

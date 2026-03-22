@@ -611,6 +611,8 @@ export class MuseBleManager {
     this.deviceName = device.name ?? "Muse";
 
     // ── Connect ────────────────────────────────────────────────────────
+    this.diagLog = [];
+    this.diag("Connecting BLE...");
     try { await ble.disconnect(device.deviceId); } catch { /* ok */ }
     await new Promise((r) => setTimeout(r, 500));
 
@@ -621,47 +623,50 @@ export class MuseBleManager {
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error("BLE connect timeout")), 30000)),
     ]);
-    console.log("[MuseBLE] Connected. Waiting for GATT...");
+    this.diag("Connected. Waiting for GATT...");
     await new Promise((r) => setTimeout(r, 3000));
 
     // Discover services
-    try { await ble.getServices(device.deviceId); } catch { /* ok */ }
-    await new Promise((r) => setTimeout(r, 1000));
+    this.diag("Discovering services...");
+    type BleService = { uuid: string; characteristics: Array<{ uuid: string; properties: Record<string, boolean> }> };
+    let services: BleService[] = [];
+    try { services = await ble.getServices(device.deviceId) as BleService[]; } catch { /* ok */ }
+    await new Promise((r) => setTimeout(r, 500));
+
+    const museSvc = services.find((s) => s.uuid.toLowerCase().includes("fe8d"));
+    const allChars = museSvc?.characteristics ?? [];
+    this.diag(`Found ${services.length} services, Muse has ${allChars.length} chars`);
+    for (const c of allChars) {
+      const props = Object.entries(c.properties || {}).filter(([,v]) => v).map(([k]) => k).join(",");
+      this.diag(`  ${c.uuid.substring(4,8)} [${props}]`);
+    }
 
     // Helper: write command trying both methods
     const writeCmd = async (cmd: DataView, label: string) => {
       for (const method of ["write", "writeWithoutResponse"] as const) {
         try {
           await ble[method](device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR, cmd);
-          console.log(`[MuseBLE] ${method} OK: ${label}`);
+          this.diag(`${method} OK: ${label}`);
           return;
-        } catch { /* try next method */ }
+        } catch (e) {
+          this.diag(`${method} FAIL ${label}: ${e}`);
+        }
       }
-      console.error(`[MuseBLE] All write methods failed for ${label}`);
     };
 
-    // ── Discover ALL characteristics in the Muse service ────────────────
-    type BleService = { uuid: string; characteristics: Array<{ uuid: string; properties: Record<string, boolean> }> };
-    let services: BleService[] = [];
-    try { services = await ble.getServices(device.deviceId) as BleService[]; } catch { /* ok */ }
-
-    const museSvc = services.find((s) => s.uuid.toLowerCase().includes("fe8d"));
-    const allChars = museSvc?.characteristics ?? [];
-    const charUuids = allChars.map((c) => c.uuid.toLowerCase());
-    console.log(`[MuseBLE] Muse service: ${allChars.length} chars: ${charUuids.join(", ")}`);
-
     // ── Subscribe to CONTROL characteristic (required by Muse protocol) ──
-    // Muse won't process commands unless control char has notifications enabled
+    this.diag("Subscribing to control char...");
     try {
       await ble.startNotifications(device.deviceId, MUSE_SERVICE, MUSE_CONTROL_CHAR,
         () => {} /* discard control responses */);
-      console.log("[MuseBLE] Control char notifications enabled");
+      this.diag("Control char subscribed OK");
     } catch (e) {
-      console.warn("[MuseBLE] Control char subscribe failed (continuing):", e);
+      this.diag(`Control char subscribe FAILED: ${e}`);
     }
     await new Promise((r) => setTimeout(r, 500));
 
     // ── Send command sequence (matches muse-js: halt → preset → stream → resume) ──
+    this.diag("Sending commands: halt→preset→stream→resume");
     await writeCmd(CMD_HALT, "halt");
     await new Promise((r) => setTimeout(r, 100));
     await writeCmd(CMD_PRESET_P21, "preset");
@@ -669,14 +674,19 @@ export class MuseBleManager {
     await writeCmd(CMD_STREAM, "stream");
     await new Promise((r) => setTimeout(r, 100));
     await writeCmd(CMD_RESUME, "resume");
-    await new Promise((r) => setTimeout(r, 2000));
+    this.diag("Commands sent. Waiting 3s...");
+    await new Promise((r) => setTimeout(r, 3000));
 
     // Re-discover after commands (Muse may expose new characteristics)
+    this.diag("Re-discovering services...");
     try { services = await ble.getServices(device.deviceId) as BleService[]; } catch { /* ok */ }
     const museSvc2 = services.find((s) => s.uuid.toLowerCase().includes("fe8d"));
     const allChars2 = museSvc2?.characteristics ?? [];
-    const charUuids2 = allChars2.map((c) => c.uuid.toLowerCase());
-    console.log(`[MuseBLE] After commands: ${allChars2.length} chars: ${charUuids2.join(", ")}`);
+    this.diag(`After commands: ${allChars2.length} chars`);
+    for (const c of allChars2) {
+      const props = Object.entries(c.properties || {}).filter(([,v]) => v).map(([k]) => k).join(",");
+      this.diag(`  ${c.uuid.substring(4,8)} [${props}]`);
+    }
 
     // ── Subscribe: try known UUIDs, then fall back to ANY notify chars ─
     let subscribedCount = 0;
@@ -826,6 +836,9 @@ export class MuseBleManager {
 
   private _notifCount = 0;
   public _subscribeInfo = "";
+  /** Visible diagnostic log — displayed on brain monitor page */
+  public diagLog: string[] = [];
+  private diag(msg: string) { this.diagLog.push(msg); console.log("[MuseBLE]", msg); }
   /** Number of BLE notification packets received (for UI diagnostics) */
   get packetCount(): number { return this._notifCount; }
   private onEegNotification(channel: number, data: DataView): void {
