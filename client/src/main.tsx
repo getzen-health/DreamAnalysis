@@ -1,6 +1,10 @@
 import { createRoot } from "react-dom/client";
+import { initSentry } from "./lib/sentry";
 import App from "./App";
 import "./index.css";
+
+// Sentry crash analytics — only activates when VITE_SENTRY_DSN is set
+initSentry();
 
 // Datadog Browser RUM + Logs — only activates when both VITE_DD_APPLICATION_ID
 // and VITE_DD_CLIENT_TOKEN are set at build time

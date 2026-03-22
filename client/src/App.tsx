@@ -1,4 +1,5 @@
-import { lazy, Suspense, Component, useEffect, useState, type ReactNode, type ErrorInfo } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import * as Sentry from "@sentry/react";
 import { cleanExpiredLocalStorage } from "@/lib/storage-cleanup";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
@@ -98,24 +99,11 @@ const NotificationsPage      = lazy(() => import("@/pages/notifications"));
 const CouplesMeditation      = lazy(() => import("@/pages/couples-meditation"));
 const AchievementsPage       = lazy(() => import("@/pages/achievements"));
 
-// ── Error Boundary — prevents a single page crash from taking down the whole app ──
-class ErrorBoundary extends Component<
-  { children: ReactNode; fallback?: ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: ReactNode; fallback?: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("[ErrorBoundary]", error, info.componentStack);
-  }
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback ?? (
+// ── Error Boundary — Sentry-wrapped; reports crashes + shows branded fallback ──
+function SentryErrorBoundary({ children }: { children: ReactNode }) {
+  return (
+    <Sentry.ErrorBoundary
+      fallback={({ resetError }) => (
         <div className="min-h-[60vh] flex flex-col items-center justify-center gap-6 bg-background text-foreground p-8">
           {/* AntarAI logo for brand consistency */}
           <div className="relative">
@@ -124,23 +112,19 @@ class ErrorBoundary extends Component<
 
           <div className="text-center space-y-2 max-w-md">
             <h2 className="text-lg font-semibold text-foreground">Something went wrong</h2>
-            {this.state.error?.message && (
-              <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2 font-mono break-words">
-                {this.state.error.message}
-              </p>
-            )}
+            <p className="text-sm text-muted-foreground">The app encountered an error. Your data is safe.</p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-              onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+              onClick={() => { resetError(); window.location.reload(); }}
             >
               Reload Page
             </button>
             <button
               className="px-4 py-2 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
-              onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = "/"; }}
+              onClick={() => { resetError(); window.location.href = "/"; }}
             >
               Go Home
             </button>
@@ -152,10 +136,11 @@ class ErrorBoundary extends Component<
             </button>
           </div>
         </div>
-      );
-    }
-    return this.props.children;
-  }
+      )}
+    >
+      {children}
+    </Sentry.ErrorBoundary>
+  );
 }
 
 // Branded splash screen shown while a lazy chunk loads
@@ -205,7 +190,7 @@ function RedirectTo({ to }: { to: string }) {
 function AppRoutes() {
   const [location] = useLocation();
   return (
-    <ErrorBoundary key={location}>
+    <SentryErrorBoundary key={location}>
     <Suspense fallback={<PageLoader />}>
     <Switch>
       <Route path="/welcome" component={Landing} />
@@ -483,7 +468,7 @@ function AppRoutes() {
       <Route component={NotFound} />
     </Switch>
     </Suspense>
-    </ErrorBoundary>
+    </SentryErrorBoundary>
   );
 }
 
