@@ -531,11 +531,7 @@ export class MuseBleManager {
       );
     }
 
-    // On Android native: use native plugin (handles fresh GATT re-discovery after commands)
-    // Capacitor BLE plugin can't refresh GATT cache, so EEG chars stay invisible.
-    if (this.isNative && Capacitor.getPlatform() === "android") {
-      return this._connectNativeMusePlugin();
-    }
+    // Skip native plugin — use Capacitor BLE for all devices (faster connection)
 
     // Web Bluetooth path (Chrome desktop/Android browser)
     if (this.isWebBluetooth) {
