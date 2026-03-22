@@ -434,39 +434,23 @@ public class MuseBlePlugin extends Plugin {
 
     private void enqueueWrite(BluetoothGatt gatt, BluetoothGattCharacteristic ch, byte[] value, String label) {
         writeQueue.add(() -> {
-            // Check if characteristic supports write-with-response or only write-without-response
-            int props = ch.getProperties();
-            boolean supportsWriteWithResponse = (props & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0;
-            boolean supportsWriteNoResponse = (props & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0;
-            int writeType = supportsWriteWithResponse
-                ? BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                : BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
-
-            Log.d(TAG, "Writing " + label + " (" + value.length + " bytes) writeType=" +
-                (supportsWriteWithResponse ? "WITH_RESPONSE" : "NO_RESPONSE") +
-                " props=0x" + Integer.toHexString(props));
+            // Muse S control char only supports writeWithoutResponse.
+            // Always use NO_RESPONSE and proceed with delay (no callback expected).
+            Log.d(TAG, "Writing " + label + " (" + value.length + " bytes) NO_RESPONSE");
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    gatt.writeCharacteristic(ch, value, writeType);
+                    gatt.writeCharacteristic(ch, value, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
                 } else {
-                    ch.setWriteType(writeType);
+                    ch.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
                     ch.setValue(value);
                     gatt.writeCharacteristic(ch);
                 }
-
-                if (supportsWriteWithResponse) {
-                    // onCharacteristicWrite callback will call processWriteQueue
-                    writePending = true;
-                } else {
-                    // No callback for write-without-response — proceed after delay
-                    writePending = false;
-                    handler.postDelayed(this::processWriteQueue, 500);
-                }
             } catch (SecurityException e) {
                 Log.e(TAG, "Write " + label + " denied: " + e.getMessage());
-                writePending = false;
-                processWriteQueue();
             }
+            // No callback for NO_RESPONSE — proceed after 200ms
+            writePending = false;
+            handler.postDelayed(this::processWriteQueue, 200);
         });
     }
 

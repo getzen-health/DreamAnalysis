@@ -531,7 +531,10 @@ export class MuseBleManager {
       );
     }
 
-    // Skip native plugin — use Capacitor BLE for all devices (faster connection)
+    // On Android native: use native plugin (can do fresh discoverServices after commands)
+    if (this.isNative && Capacitor.getPlatform() === "android") {
+      return this._connectNativeMusePlugin();
+    }
 
     // Web Bluetooth path (Chrome desktop/Android browser)
     if (this.isWebBluetooth) {
