@@ -23,6 +23,9 @@ import {
   Trash2,
   Target,
   X,
+  Phone,
+  Clock,
+  Pause,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDevice } from "@/hooks/use-device";
@@ -35,6 +38,11 @@ import {
   type CoachMemory,
 } from "@/lib/coach-memory";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  getCompanionUsage,
+  recordCompanionSession,
+  getUsageNudge,
+} from "@/lib/companion-safeguards";
 
 interface AICompanionProps {
   userId: string;
@@ -237,6 +245,58 @@ export function AICompanion({ userId }: AICompanionProps) {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
+  // ── Companion usage safeguards ─────────────────────────────────────────
+  const sessionStartRef = useRef<number>(Date.now());
+  const [nudgeMessage, setNudgeMessage] = useState<string | null>(null);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+
+  // Check usage on mount and every 5 minutes
+  useEffect(() => {
+    const checkUsage = () => {
+      const stats = getCompanionUsage();
+      // Also account for the ongoing session elapsed minutes
+      const elapsedMin = (Date.now() - sessionStartRef.current) / 60_000;
+      const effectiveStats = { ...stats, todayMinutes: stats.todayMinutes + elapsedMin };
+      const nudge = getUsageNudge(effectiveStats);
+      if (nudge && !nudgeDismissed) {
+        setNudgeMessage(nudge);
+      }
+    };
+
+    // Check immediately on mount
+    checkUsage();
+
+    // Check every 5 minutes
+    const interval = setInterval(checkUsage, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [nudgeDismissed]);
+
+  // Record session duration when the component unmounts
+  useEffect(() => {
+    const start = sessionStartRef.current;
+    return () => {
+      const durationMin = (Date.now() - start) / 60_000;
+      if (durationMin >= 0.5) {
+        // Only record if the session was at least 30 seconds
+        recordCompanionSession(Math.round(durationMin));
+      }
+    };
+  }, []);
+
+  const handleDismissNudge = () => {
+    setNudgeDismissed(true);
+    setNudgeMessage(null);
+  };
+
+  const handleTakeBreak = () => {
+    // Record the current session and navigate home
+    const durationMin = (Date.now() - sessionStartRef.current) / 60_000;
+    if (durationMin >= 0.5) {
+      recordCompanionSession(Math.round(durationMin));
+    }
+    navigate("/");
+  };
+
   const device = useDevice();
   const { latestFrame, state: deviceState } = device;
   const isStreaming = deviceState === "streaming";
@@ -429,6 +489,61 @@ export function AICompanion({ userId }: AICompanionProps) {
           </button>
         </div>
       </div>
+
+      {/* ---- Nudge card (companion safeguard) ---- */}
+      <AnimatePresence>
+        {nudgeMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mx-4 mt-3"
+          >
+            <Card className="border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <Clock className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-sm leading-relaxed text-foreground">{nudgeMessage}</p>
+              </div>
+
+              {/* Alternative suggestions */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleTakeBreak}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+                >
+                  <Pause className="h-3.5 w-3.5" />
+                  Take a break
+                </button>
+                <button
+                  onClick={() => {
+                    // Attempt to open phone dialer; fallback to just dismissing
+                    try { window.open("tel:", "_self"); } catch { /* no-op */ }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium hover:bg-emerald-500/20 transition-colors"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  Call a friend
+                </button>
+                <button
+                  onClick={() => navigate("/biofeedback")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-xs font-medium hover:bg-cyan-500/20 transition-colors"
+                >
+                  <Wind className="h-3.5 w-3.5" />
+                  Breathing exercise
+                </button>
+              </div>
+
+              {/* Continue anyway — always available, never blocks */}
+              <button
+                onClick={handleDismissNudge}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+              >
+                Continue anyway
+              </button>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ---- Messages area ---- */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
