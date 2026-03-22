@@ -132,12 +132,13 @@ public class MuseBlePlugin extends Plugin {
 
         handler.postDelayed(() -> {
             try { scanner.stopScan(scanCb); } catch (Exception ignored) {}
+            sendDiag("Scan done: " + devices.size() + " Muse device(s)");
             JSObject result = new JSObject();
             JSONArray arr = new JSONArray();
             for (JSONObject d : devices) arr.put(d);
             result.put("devices", arr);
             call.resolve(result);
-        }, 12000);
+        }, 5000);
     }
 
     // ── Connect ──────────────────────────────────────────────────────────────

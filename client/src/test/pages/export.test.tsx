@@ -43,7 +43,7 @@ describe("Export page", () => {
   it("shows the page heading", async () => {
     renderWithProviders(<ExportPage />);
     await waitFor(() => {
-      expect(screen.getByText("Export Data")).toBeInTheDocument();
+      expect(screen.getByText("Export My Data")).toBeInTheDocument();
     });
   });
 
@@ -51,7 +51,7 @@ describe("Export page", () => {
     renderWithProviders(<ExportPage />);
     await waitFor(() => {
       expect(
-        screen.getByText("Download your data in CSV format")
+        screen.getByText("Download your data in EDF+, CSV, or JSON format")
       ).toBeInTheDocument();
     });
   });
@@ -59,7 +59,7 @@ describe("Export page", () => {
   it("shows Bulk Downloads section", async () => {
     renderWithProviders(<ExportPage />);
     await waitFor(() => {
-      expect(screen.getByText("Bulk Downloads")).toBeInTheDocument();
+      expect(screen.getByText("Raw Data Downloads")).toBeInTheDocument();
     });
   });
 
@@ -73,7 +73,7 @@ describe("Export page", () => {
   it("shows Download All Sessions button", async () => {
     renderWithProviders(<ExportPage />);
     await waitFor(() => {
-      expect(screen.getByText("Download All Sessions")).toBeInTheDocument();
+      expect(screen.getByText("Download All Sessions (Raw CSV)")).toBeInTheDocument();
     });
   });
 
@@ -114,7 +114,7 @@ describe("Export page", () => {
   it("Download All Sessions button is disabled when no sessions", async () => {
     renderWithProviders(<ExportPage />);
     await waitFor(() => {
-      const btn = screen.getByText("Download All Sessions").closest("button");
+      const btn = screen.getByText("Download All Sessions (Raw CSV)").closest("button");
       expect(btn).toBeDisabled();
     });
   });

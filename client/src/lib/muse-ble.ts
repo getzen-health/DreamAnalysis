@@ -538,9 +538,17 @@ export class MuseBleManager {
       );
     }
 
-    // On Android native: use native plugin (can do fresh discoverServices after commands)
+    // On Android native: try native plugin (15s timeout), fall back to Capacitor BLE
     if (this.isNative && Capacitor.getPlatform() === "android") {
-      return this._connectNativeMusePlugin();
+      try {
+        await Promise.race([
+          this._connectNativeMusePlugin(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error("native timeout")), 15000)),
+        ]);
+        return;
+      } catch (e) {
+        this.diag(`Native plugin failed: ${e}. Trying Capacitor BLE...`);
+      }
     }
 
     // Web Bluetooth path (Chrome desktop/Android browser)
