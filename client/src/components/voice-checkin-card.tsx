@@ -29,6 +29,7 @@ import type { VoiceBiomarkers } from "@/lib/voice-biomarkers";
 import { saveVoiceHistory as sbSaveVoiceHistory } from "@/lib/supabase-store";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
+import { InterventionCard } from "@/components/intervention-card";
 
 // ─── positive affirmations shown during recording ───────────────────────────
 
@@ -1092,6 +1093,13 @@ export function VoiceCheckinCard({
                   )}
                 </div>
               )}
+
+              {/* ── Intervention Card — always pair mood data with action (#524) ── */}
+              <InterventionCard
+                emotion={result.emotion}
+                stress={result.stress_index}
+                compact
+              />
 
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Stress: <span className="font-mono text-foreground/80">{Math.round(result.stress_index * 100)}%</span></span>

@@ -31,6 +31,8 @@ import { ConfidenceMeter } from "@/components/confidence-meter";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { emgDetector, type EMGDetectionResult } from "@/lib/emg-detector";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
+import { computeBlinkStats, type BlinkStats } from "@/lib/blink-detector";
+import { Eye } from "lucide-react";
 
 // Route targets for each ML model card — null means no linked page
 const MODEL_ROUTES: Record<string, string | null> = {
@@ -94,6 +96,27 @@ export default function BrainMonitor() {
       latestFrame.sample_rate || 256,
     );
     setEmgResult(result);
+  }, [isStreaming, isSynthetic, latestFrame?.timestamp]);
+
+  // ── Blink-rate detection (AF7 channel) ────────────────────────────────
+  const [blinkStats, setBlinkStats] = useState<BlinkStats | null>(null);
+
+  useEffect(() => {
+    if (!isStreaming || !latestFrame?.signals || isSynthetic) {
+      setBlinkStats(null);
+      return;
+    }
+    // AF7 is channel index 1 (BrainFlow Muse 2 order: TP9, AF7, AF8, TP10)
+    const signals = latestFrame.signals as number[][];
+    if (signals.length < 2) return;
+    const af7 = new Float32Array(signals[1]);
+    const fs = latestFrame.sample_rate || 256;
+    // Use alpha power from analysis if available, otherwise default to 0.2
+    const analysisAny = latestFrame.analysis as Record<string, unknown> | undefined;
+    const bp = analysisAny?.band_powers as Record<string, number> | undefined;
+    const alphaPower = bp?.alpha ?? 0.2;
+    const stats = computeBlinkStats(af7, fs, alphaPower);
+    setBlinkStats(stats);
   }, [isStreaming, isSynthetic, latestFrame?.timestamp]);
 
   const CHANNEL_NAMES = ["TP9", "AF7", "AF8", "TP10"];
@@ -398,6 +421,47 @@ export default function BrainMonitor() {
               <p className="text-[10px] text-amber-400/70 mt-1 font-mono">
                 {Math.round(emgResult.artifactPercent * 100)}% of recent frames flagged
               </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Blink Rate & Alertness Indicator */}
+      {isStreaming && blinkStats && (
+        <div
+          className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${
+            blinkStats.shouldSuggestBreak
+              ? "border-amber-500/30 bg-amber-500/5"
+              : "border-border/50 bg-card/50"
+          }`}
+          data-testid="blink-rate-indicator"
+        >
+          <Eye className={`h-5 w-5 shrink-0 ${
+            blinkStats.alertnessState === "focused" ? "text-emerald-400" :
+            blinkStats.alertnessState === "normal" ? "text-blue-400" :
+            blinkStats.alertnessState === "fatigued" ? "text-amber-400" :
+            "text-red-400"
+          }`} />
+          <div className="flex items-center gap-4 flex-wrap flex-1">
+            <div>
+              <span className="text-sm font-medium">{Math.round(blinkStats.blinksPerMinute)} blinks/min</span>
+              <span className="text-xs text-muted-foreground ml-2">
+                avg {Math.round(blinkStats.avgBlinkDuration)}ms
+              </span>
+            </div>
+            <Badge
+              variant="outline"
+              className={`text-[10px] capitalize ${
+                blinkStats.alertnessState === "focused" ? "text-emerald-400 border-emerald-400/30" :
+                blinkStats.alertnessState === "normal" ? "text-blue-400 border-blue-400/30" :
+                blinkStats.alertnessState === "fatigued" ? "text-amber-400 border-amber-400/30" :
+                "text-red-400 border-red-400/30"
+              }`}
+            >
+              {blinkStats.alertnessState}
+            </Badge>
+            {blinkStats.shouldSuggestBreak && (
+              <span className="text-xs text-amber-400">Take a break</span>
             )}
           </div>
         </div>

@@ -43,6 +43,7 @@ import {
   Sunset,
   Moon,
 } from "lucide-react";
+import { InterventionCard } from "@/components/intervention-card";
 
 /* ---------- constants ---------- */
 
@@ -329,6 +330,21 @@ export default function StressTrends() {
           </div>
         )}
       </motion.div>
+
+      {/* ── Intervention Card — actionable suggestions when stress is elevated (#524) ── */}
+      {stressPercent !== null && stressPercent >= 40 && (
+        <motion.div
+          custom={0.5}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
+          <InterventionCard
+            emotion={currentEmotion?.emotion}
+            stress={stressPercent / 100}
+          />
+        </motion.div>
+      )}
 
       {/* HRV card */}
       <motion.div

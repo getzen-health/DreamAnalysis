@@ -19,6 +19,7 @@ import { BrainAgeCard } from "@/components/brain-age-card";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
+import { InterventionCard } from "@/components/intervention-card";
 import { getFoodLogs as sbGetFoodLogs } from "@/lib/supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -1601,6 +1602,17 @@ export default function Today() {
                 emotion={correctedEmotion ?? checkin.emotion}
                 stressIndex={stressVal}
                 valence={valenceVal}
+                compact
+              />
+            </motion.div>
+          )}
+
+          {/* ── Intervention Card — multi-tier actionable suggestions (#524) ── */}
+          {checkin?.emotion && checkin.emotion !== "---" && (
+            <motion.div variants={itemVariants} style={{ marginBottom: 20 }}>
+              <InterventionCard
+                emotion={correctedEmotion ?? checkin.emotion}
+                stress={stressVal}
                 compact
               />
             </motion.div>

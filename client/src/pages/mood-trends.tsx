@@ -34,6 +34,7 @@ import {
   Cell,
 } from "recharts";
 import { TrendingUp, TrendingDown, BarChart3, Activity, Calendar } from "lucide-react";
+import { InterventionCard } from "@/components/intervention-card";
 
 /* ---------- constants ---------- */
 
@@ -263,6 +264,20 @@ export default function MoodTrends() {
           Your emotional patterns over time
         </p>
       </motion.div>
+
+      {/* ── Intervention Card — always pair mood data with action (#524) ── */}
+      {currentEmotion && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <InterventionCard
+            emotion={currentEmotion.emotion}
+            stress={currentEmotion.stress}
+          />
+        </motion.div>
+      )}
 
       {/* Current Emotion -- hero card */}
       <motion.div
