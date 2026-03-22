@@ -16,6 +16,9 @@ import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
 import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
 import { useFusedState } from "@/hooks/use-fused-state";
 import { BrainAgeCard } from "@/components/brain-age-card";
+import { ConfidenceMeter } from "@/components/confidence-meter";
+import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
+import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { getFoodLogs as sbGetFoodLogs } from "@/lib/supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -868,6 +871,15 @@ export default function Today() {
     ? Math.max(...Object.values(checkin.probabilities))
     : 0;
 
+  // Holistic confidence for the current emotion reading
+  const emotionConfidence = useMemo(() => {
+    if (!checkin) return null;
+    return calculateEmotionConfidence({
+      modelConfidence: topProb > 0 ? topProb : 0.5,
+      agreementScore: fusedEmotion?.agreement,
+    });
+  }, [checkin, topProb, fusedEmotion]);
+
   // Chronotype-aware baseline adjustment (display-level only)
   const chronotypeAdj = useMemo(() => {
     const ct = getStoredChronotype();
@@ -1489,6 +1501,23 @@ export default function Today() {
                 </div>
               </div>
 
+              {/* Confidence meter for emotion reading */}
+              {emotionConfidence && (
+                <div style={{ marginTop: 8, marginBottom: 4 }}>
+                  {emotionConfidence.showEmotion ? (
+                    <ConfidenceMeter
+                      confidence={emotionConfidence.confidence}
+                      size="sm"
+                      showLabel
+                    />
+                  ) : (
+                    <p style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.4 }}>
+                      Not enough data to determine your emotional state. Try a voice check-in or connect your Muse headband.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {emotionFeedback === "ask" && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
                   <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Is this right?</span>
@@ -1562,6 +1591,18 @@ export default function Today() {
                   </span>
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* ── Intervention Suggestion — always pair mood data with action ── */}
+          {checkin?.emotion && checkin.emotion !== "---" && (
+            <motion.div variants={itemVariants} style={{ marginBottom: 20 }}>
+              <InterventionSuggestion
+                emotion={correctedEmotion ?? checkin.emotion}
+                stressIndex={stressVal}
+                valence={valenceVal}
+                compact
+              />
             </motion.div>
           )}
 

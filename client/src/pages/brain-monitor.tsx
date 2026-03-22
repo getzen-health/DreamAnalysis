@@ -27,6 +27,10 @@ import { assessSignalQuality, type SignalQualityResult as SQResult } from "@/lib
 import { Link } from "wouter";
 import { Music } from "lucide-react";
 import { museBle } from "@/lib/muse-ble";
+import { ConfidenceMeter } from "@/components/confidence-meter";
+import { InterventionSuggestion } from "@/components/intervention-suggestion";
+import { emgDetector, type EMGDetectionResult } from "@/lib/emg-detector";
+import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 
 // Route targets for each ML model card — null means no linked page
 const MODEL_ROUTES: Record<string, string | null> = {
@@ -76,6 +80,21 @@ export default function BrainMonitor() {
   const [sqResult, setSqResult] = useState<SQResult | null>(null);
   const [showAlphaTest, setShowAlphaTest] = useState(false);
   const sqTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── EMG artifact detection ──────────────────────────────────────────
+  const [emgResult, setEmgResult] = useState<EMGDetectionResult | null>(null);
+
+  useEffect(() => {
+    if (!isStreaming || !latestFrame?.signals || isSynthetic) {
+      setEmgResult(null);
+      return;
+    }
+    const result = emgDetector.detect(
+      latestFrame.signals as number[][],
+      latestFrame.sample_rate || 256,
+    );
+    setEmgResult(result);
+  }, [isStreaming, isSynthetic, latestFrame?.timestamp]);
 
   const CHANNEL_NAMES = ["TP9", "AF7", "AF8", "TP10"];
 
@@ -362,6 +381,28 @@ export default function BrainMonitor() {
         spikesDetected={anomaly?.spikes_detected}
       />
 
+      {/* EMG Artifact Warning Banner */}
+      {isStreaming && emgResult?.emgDetected && (
+        <div
+          className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-start gap-3"
+          data-testid="emg-warning-banner"
+        >
+          <Zap className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-400">Signal too noisy — try relaxing your forehead</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Muscle artifact detected in the EEG. Jaw clenching, forehead tensing, or eye movement can contaminate readings.
+              Emotion data is unreliable until the signal improves.
+            </p>
+            {emgResult.artifactPercent > 0.3 && (
+              <p className="text-[10px] text-amber-400/70 mt-1 font-mono">
+                {Math.round(emgResult.artifactPercent * 100)}% of recent frames flagged
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Emotion Shift Alert */}
       {latestFrame?.emotion_shift?.shift_detected && (
         <div className="shift-alert p-4 rounded-xl flex items-start gap-3">
@@ -561,6 +602,25 @@ export default function BrainMonitor() {
                     </div>
                   ))}
                 </div>
+                {/* Emotion confidence meter */}
+                {epochReady && stableAnalysis.emotions && (() => {
+                  const probs = stableAnalysis.emotions.probabilities as Record<string, number> | undefined;
+                  const topProb = probs ? Math.max(...Object.values(probs)) : 0.5;
+                  const sqNorm = sqScore != null ? sqScore / 100 : undefined;
+                  const conf = calculateEmotionConfidence({
+                    modelConfidence: topProb,
+                    signalQuality: sqNorm,
+                  });
+                  return conf.showEmotion ? (
+                    <div className="pt-1">
+                      <ConfidenceMeter confidence={conf.confidence} size="sm" showLabel />
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground/70 leading-relaxed pt-1">
+                      Not enough data to determine your emotional state. Try adjusting the headband.
+                    </p>
+                  );
+                })()}
                 {/* Rest of models — compact 3-col grid */}
                 <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-[11px]">
                   {[
@@ -644,6 +704,29 @@ export default function BrainMonitor() {
         </div>
       </div>
 
+      {/* Intervention Suggestion — pair emotion data with actionable intervention */}
+      {(() => {
+        const emo = isStreaming && epochReady
+          ? (stableAnalysis?.emotions?.emotion ?? null)
+          : (voiceResult?.emotion ?? null);
+        const stressIdx = isStreaming && stableAnalysis?.stress
+          ? stableAnalysis.stress.stress_index
+          : undefined;
+        const val = isStreaming && stableAnalysis?.emotions
+          ? stableAnalysis.emotions.valence
+          : (voiceResult?.valence ?? undefined);
+        if (!emo) return null;
+        // When EMG is detected, override emotion display
+        if (emgResult?.emgDetected) return null;
+        return (
+          <InterventionSuggestion
+            emotion={emo}
+            stressIndex={stressIdx}
+            valence={val}
+            compact
+          />
+        );
+      })()}
 
       {/* Band Powers Bar — always show all 5 standard EEG bands */}
       {isStreaming && analysis?.band_powers && (

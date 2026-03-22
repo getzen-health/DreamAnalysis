@@ -27,6 +27,8 @@ import { writeEmotionToHealth } from "@/lib/health-connect";
 import { extractVoiceBiomarkers } from "@/lib/voice-biomarkers";
 import type { VoiceBiomarkers } from "@/lib/voice-biomarkers";
 import { saveVoiceHistory as sbSaveVoiceHistory } from "@/lib/supabase-store";
+import { ConfidenceMeter } from "@/components/confidence-meter";
+import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 
 // ─── positive affirmations shown during recording ───────────────────────────
 
@@ -959,6 +961,23 @@ export function VoiceCheckinCard({
                   {vl.text}
                 </Badge>
               </div>
+              {/* Confidence meter */}
+              {(() => {
+                const conf = calculateEmotionConfidence({
+                  modelConfidence: result.confidence,
+                });
+                return conf.showEmotion ? (
+                  <ConfidenceMeter
+                    confidence={conf.confidence}
+                    size="sm"
+                    showLabel
+                  />
+                ) : (
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Not enough data to determine your emotional state. Try a voice check-in or connect your Muse headband.
+                  </p>
+                );
+              })()}
               {/* Emotion context — explain what was detected and why */}
               {ctx && (
                 <div className="rounded-lg bg-muted/30 border border-border/30 p-2.5 space-y-1">
