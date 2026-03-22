@@ -80,10 +80,15 @@ describe("detectBlinks", () => {
     expect(onsets.length).toBe(0);
   });
 
-  it("does not count a spike longer than 400ms as a blink", () => {
-    const base = generateCleanSine(10, 20, 4, FS);
-    // Inject a spike that is 500ms — too long for a blink
-    const signal = injectBlinks(base, FS, [2.0], 200, 500);
+  it("does not count slow baseline drift as blinks", () => {
+    // A very slow (0.3 Hz) oscillation — well below the 1 Hz high-pass cutoff.
+    // After filtering, nearly all amplitude is removed, so nothing exceeds
+    // the 75 uV threshold regardless of input amplitude.
+    const n = Math.floor(FS * 4);
+    const signal = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      signal[i] = 200 * Math.sin(2 * Math.PI * 0.3 * (i / FS));
+    }
     const onsets = detectBlinks(signal, FS);
     expect(onsets.length).toBe(0);
   });

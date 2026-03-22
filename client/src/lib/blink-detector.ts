@@ -72,13 +72,14 @@ function highPassFilter(signal: Float32Array, fs: number, cutoffHz: number = 1):
 // ── Blink detection ─────────────────────────────────────────────────────────
 
 /**
- * Measure the width of an artifact at half-maximum amplitude around a peak.
- * Returns the duration in samples. This is more robust than threshold-crossing
- * because the high-pass filter attenuates slow Gaussian shapes differently
- * than sharp transients.
+ * Measure the width of an artifact at one-third of peak amplitude.
+ * Returns the duration in samples. Uses 1/3 rather than 1/2 of peak because
+ * the high-pass filter narrows blink morphology in the time domain —
+ * measuring at a lower fraction captures the true artifact extent more
+ * accurately after filtering.
  */
 function measureBlinkWidth(abs: Float32Array, peakIdx: number): number {
-  const halfMax = abs[peakIdx] / 2;
+  const halfMax = abs[peakIdx] / 3;
 
   // Search left for half-max crossing
   let left = peakIdx;
