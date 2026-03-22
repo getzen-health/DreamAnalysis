@@ -167,9 +167,11 @@ describe("generateMorningBrief", () => {
     }
   });
 
-  it("includes last emotion when provided", () => {
+  it("references insights without naming the emotion (HIPAA)", () => {
     const content = generateMorningBrief({ lastEmotion: "happy" });
-    expect(content.body.toLowerCase()).toContain("happy");
+    // HIPAA: emotion label must NOT appear in push notification text
+    expect(content.body.toLowerCase()).not.toContain("happy");
+    expect(content.body.toLowerCase()).toContain("insights");
   });
 
   it("includes streak count when provided and > 0", () => {

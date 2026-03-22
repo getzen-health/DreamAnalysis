@@ -15,6 +15,7 @@ from ._shared import (
     NeurofeedbackProtocol, PROTOCOLS,
     NeurofeedbackStartRequest, NeurofeedbackEvalRequest,
     _get_nf_protocol, _set_nf_protocol,
+    sanitize_id,
 )
 from neurofeedback.progress_tracker import NeurofeedbackProgressTracker
 
@@ -199,6 +200,7 @@ async def evaluate_neurofeedback(request: NeurofeedbackEvalRequest):
 @router.post("/neurofeedback/stop")
 async def stop_neurofeedback(user_id: str):
     """Stop the current neurofeedback session and return stats."""
+    sanitize_id(user_id, "user_id")
     protocol = _get_nf_protocol(user_id)
     if protocol is None:
         raise HTTPException(status_code=400, detail="No active neurofeedback session")
@@ -252,6 +254,7 @@ async def stop_neurofeedback(user_id: str):
 @router.get("/neurofeedback/rl/status")
 async def rl_status(user_id: str):
     """Return RL agent status and current threshold."""
+    sanitize_id(user_id, "user_id")
     global_trained = _rl_agent is not None and _rl_agent.is_trained
     user_agent = _get_user_rl_agent(user_id)
     user_trained = user_agent is not None and user_agent is not _rl_agent and user_agent.is_trained
@@ -360,6 +363,7 @@ async def rl_fine_tune(request: RLFineTuneRequest):
     and runs PPO update. Saves the fine-tuned agent as a per-user model.
     Requires at least 5 trajectory files (sessions).
     """
+    sanitize_id(request.user_id, "user_id")
     traj_dir = _USER_DATA_DIR / request.user_id / "trajectories"
     if not traj_dir.exists():
         raise HTTPException(status_code=400, detail="No trajectory data found for this user")

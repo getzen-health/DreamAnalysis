@@ -15,6 +15,7 @@ dependencies {
     implementation project(':capacitor-haptics')
     implementation project(':capacitor-push-notifications')
     implementation project(':capgo-capacitor-health')
+    implementation project(':sentry-capacitor')
     implementation project(':capacitor-health')
 
 }

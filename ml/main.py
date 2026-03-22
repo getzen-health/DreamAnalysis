@@ -21,9 +21,12 @@ warnings.filterwarnings(
     module="sklearn",
 )
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 from api.auth import APIKeyMiddleware
+from api.cors import get_allowed_origins, ORIGIN_REGEX
+from api.rate_limit import RateLimiter
 
 # NOTE: api.routes and api.websocket are intentionally NOT imported here.
 # They trigger synchronous loading of all 16 ML models (~60-90 s), which
@@ -47,31 +50,38 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS — allow all origins (ML inference API, no sensitive cookies)
-_cors_env = os.environ.get("CORS_ORIGINS", "")
-if _cors_env.strip() == "*":
-    # Wildcard: allow any origin without credentials (CORS spec requirement)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    _allowed_origins = (
-        _cors_env or
-        "http://localhost:4000,http://localhost:5000,http://localhost:3000,http://localhost:3030,http://localhost:5173,https://dream-analysis.vercel.app,capacitor://localhost,http://localhost"
-    ).split(",")
-    _allow_origin_regex = r"https://.*\.ngrok(-free)?\.app|https://.*\.ngrok\.io|https://.*\.ngrok-free\.dev|capacitor://.*|ionic://.*"
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_allowed_origins,
-        allow_origin_regex=_allow_origin_regex,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+# ─── CORS — explicit origin allowlist (never wildcard in production) ──
+_allowed_origins = get_allowed_origins()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_origin_regex=ORIGIN_REGEX,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ─── Rate limiting — 100 requests/min per IP ──────────────────────────
+_rate_limiter = RateLimiter(
+    max_requests=int(os.environ.get("ML_RATE_LIMIT", "100")),
+    window_seconds=60,
+)
+
+# Paths exempt from rate limiting (health checks, docs)
+_RATE_LIMIT_EXEMPT = frozenset({"/health", "/status", "/docs", "/openapi.json", "/redoc"})
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    path = request.url.path.rstrip("/") or "/"
+    if path not in _RATE_LIMIT_EXEMPT:
+        client_ip = request.client.host if request.client else "unknown"
+        if not _rate_limiter.is_allowed(client_ip):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Max 100 requests per minute."},
+            )
+    return await call_next(request)
 
 app.add_middleware(APIKeyMiddleware)
 

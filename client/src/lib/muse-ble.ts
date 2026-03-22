@@ -306,7 +306,14 @@ export class MuseBleManager {
       addListener: (event: string, cb: (data: any) => void) => Promise<any>;
     }>("MuseBle");
 
+    this.diagLog = [];
+    this.diag("Native plugin: scanning...");
     this.setStatus("scanning");
+
+    // Listen for diagnostic messages from native plugin
+    await MuseBle.addListener("museDiag", (event: { message: string }) => {
+      this.diag(event.message);
+    });
 
     // Scan for Muse devices
     let scanResult;

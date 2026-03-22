@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from ._shared import sanitize_id
 
 router = APIRouter(tags=["Social Emotion"])
 
@@ -143,6 +144,7 @@ def _relationship_quality_hint(synchrony: float, conflict_risk: float) -> str:
 # ── Session persistence ───────────────────────────────────────────────────────
 
 def _load_user(user_id: str) -> Dict:
+    sanitize_id(user_id, "user_id")
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
     p = _DATA_DIR / f"{user_id}.json"
     if p.exists():
@@ -151,6 +153,7 @@ def _load_user(user_id: str) -> Dict:
 
 
 def _save_user(user_id: str, data: Dict) -> None:
+    sanitize_id(user_id, "user_id")
     (_DATA_DIR / f"{user_id}.json").write_text(json.dumps(data, indent=2, default=str))
 
 

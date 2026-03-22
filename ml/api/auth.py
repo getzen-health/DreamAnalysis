@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 # Endpoints that don't require authentication
 _PUBLIC_PATHS = frozenset({
     "/health",
+    "/status",
     "/docs",
     "/openapi.json",
     "/redoc",

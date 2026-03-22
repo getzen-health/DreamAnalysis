@@ -13,6 +13,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
 
+from ._shared import sanitize_id
+
 router = APIRouter(tags=["Workplace EI"])
 
 
@@ -49,6 +51,7 @@ def log_daily(user_id: str, snapshot: DailySnapshot) -> dict:
     emotional state and optional HRV data. After 7+ days, burnout risk
     becomes meaningful (based on progressive HRV decline + stress escalation).
     """
+    sanitize_id(user_id, "user_id")
     try:
         from models.workplace_ei import get_tracker
 
@@ -66,6 +69,7 @@ def log_meeting(user_id: str, checkin: MeetingCheckin) -> dict:
 
     Use case: voice micro-check-in before and after each meeting.
     """
+    sanitize_id(user_id, "user_id")
     try:
         from models.workplace_ei import get_tracker
 
@@ -91,6 +95,7 @@ def get_report(user_id: str) -> dict:
 
     Requires 7+ daily snapshots for meaningful burnout risk.
     """
+    sanitize_id(user_id, "user_id")
     try:
         from models.workplace_ei import get_tracker
 
@@ -106,6 +111,7 @@ def get_meeting_history(user_id: str, limit: int = 20) -> dict:
     Returns the last `limit` meetings with climate label (energizing/draining/neutral/mixed)
     and emotional delta (valence/stress/energy change).
     """
+    sanitize_id(user_id, "user_id")
     try:
         from models.workplace_ei import get_tracker
 
@@ -118,6 +124,7 @@ def get_meeting_history(user_id: str, limit: int = 20) -> dict:
 @router.delete("/workplace-ei/reset/{user_id}")
 def reset(user_id: str) -> dict:
     """Clear all workplace EI data for a user."""
+    sanitize_id(user_id, "user_id")
     try:
         from models.workplace_ei import get_tracker
 

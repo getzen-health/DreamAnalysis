@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 
 from ._shared import (
     _numpy_safe,
+    sanitize_id,
     sleep_model, emotion_model, dream_model, flow_model,
     creativity_model, memory_model,
     drowsiness_model, cognitive_load_model, attention_model,
@@ -163,6 +164,7 @@ async def get_state_coherence(user_id: Optional[str] = "default"):
 @router.post("/feedback/correction")
 async def submit_correction(req: FeedbackRequest):
     """Submit a state correction (model said X, but I was actually Y)."""
+    sanitize_id(req.user_id, "user_id")
     fc = FeedbackCollector(req.user_id)
     features = np.array(req.features) if req.features else None
     fc.record_state_correction(
@@ -179,6 +181,7 @@ async def submit_correction(req: FeedbackRequest):
 @router.post("/feedback/self-report")
 async def submit_self_report(req: SelfReportRequest):
     """Submit a self-report of current state (no model prediction needed)."""
+    sanitize_id(req.user_id, "user_id")
     fc = FeedbackCollector(req.user_id)
     features = np.array(req.features) if req.features else None
     fc.record_self_report(req.reported_state, req.model_name, features)
@@ -192,6 +195,7 @@ async def submit_binary_feedback(req: BinaryFeedbackRequest):
     This is the fastest feedback path: the user just taps thumbs-up
     or thumbs-down on a prediction. No need to specify the correct label.
     """
+    sanitize_id(req.user_id, "user_id")
     fc = FeedbackCollector(req.user_id)
     features = np.array(req.features) if req.features else None
     fc.record_binary_feedback(
@@ -214,6 +218,7 @@ async def get_feedback_stats(user_id: str):
     based on their correction and binary feedback history. This powers
     the "Your Model Accuracy" card in the UI.
     """
+    sanitize_id(user_id, "user_id")
     fc = FeedbackCollector(user_id)
     stats = fc.get_feedback_stats()
 

@@ -28,6 +28,7 @@ import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
+import { InterventionSuggestion } from "@/components/intervention-suggestion";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -689,6 +690,16 @@ export default function HealthAnalytics() {
         allSessions={allSessions}
         periodDays={periodDays}
       />
+
+      {/* Intervention Suggestion — pair mood/stress data with actionable intervention */}
+      {hasRealData && (
+        <InterventionSuggestion
+          emotion={isStreaming ? (emotions?.emotion ?? undefined) : (voiceResult?.emotion ?? undefined)}
+          stressIndex={stressIndex != null ? stressIndex / 100 : undefined}
+          valence={isStreaming ? (emotions?.valence ?? undefined) : (voiceResult?.valence ?? undefined)}
+          compact
+        />
+      )}
 
       {/* Score Gauges — composite scores below the metrics */}
       <div

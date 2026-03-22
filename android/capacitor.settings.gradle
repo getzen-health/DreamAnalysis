@@ -20,5 +20,8 @@ project(':capacitor-push-notifications').projectDir = new File('../node_modules/
 include ':capgo-capacitor-health'
 project(':capgo-capacitor-health').projectDir = new File('../node_modules/@capgo/capacitor-health/android')
 
+include ':sentry-capacitor'
+project(':sentry-capacitor').projectDir = new File('../node_modules/@sentry/capacitor/android')
+
 include ':capacitor-health'
 project(':capacitor-health').projectDir = new File('../node_modules/capacitor-health/android')

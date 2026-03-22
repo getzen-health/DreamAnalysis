@@ -18,6 +18,7 @@ from typing import List, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from ._shared import sanitize_id
 from models.emotion_coach import EmotionCoach, _TECHNIQUES
 
 router = APIRouter(tags=["Emotion Coach"])
@@ -53,6 +54,7 @@ async def recommend_interventions(user_id: str, state: StateRequest):
     with personalised historical effectiveness derived from past sessions.
     No LLM required — purely deterministic logic.
     """
+    sanitize_id(user_id, "user_id")
     history_data = _coach.get_history(user_id)
     user_history = history_data.get("sessions", [])[-30:]  # last 30 sessions
 
@@ -82,6 +84,7 @@ async def log_session(user_id: str, body: SessionLogRequest):
     Returns effectiveness_delta = stress_after - stress_before
     (negative = technique reduced stress).
     """
+    sanitize_id(user_id, "user_id")
     state_before = {
         "valence": body.state_before.valence,
         "arousal": body.state_before.arousal,
@@ -111,6 +114,7 @@ async def get_history(user_id: str):
     top_interventions is sorted by avg_stress_delta ascending
     (most negative = most effective).
     """
+    sanitize_id(user_id, "user_id")
     return _coach.get_history(user_id)
 
 
@@ -121,6 +125,7 @@ async def get_insight(user_id: str):
     Example: 'Box breathing reduces your stress by 28% on average across 7 sessions.'
     Requires at least 3 completed sessions for a meaningful insight.
     """
+    sanitize_id(user_id, "user_id")
     insight = _coach.get_insight(user_id)
     return {"user_id": user_id, "insight": insight}
 

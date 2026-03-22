@@ -131,15 +131,17 @@ export function generateMorningBrief(data: {
 }): NotificationContent {
   const { lastEmotion, streakDays, chronotype } = data;
 
-  // Pick a contextual body based on available data
+  // Pick a contextual body based on available data.
+  // HIPAA: Never include emotion labels, health metrics, or PHI in notification text.
+  // Push notifications are visible on lock screens — use generic prompts instead.
   let body: string;
 
   if (lastEmotion && streakDays && streakDays > 0) {
-    body = `Yesterday you felt ${lastEmotion}. Your ${streakDays}-day streak is going strong.`;
+    body = `Your ${streakDays}-day streak is going strong. Open the app to see yesterday's insights.`;
   } else if (streakDays && streakDays > 0) {
     body = `Your ${streakDays}-day check-in streak is going strong. How are you feeling today?`;
   } else if (lastEmotion) {
-    body = `Yesterday you felt ${lastEmotion}. Start today with a voice check-in.`;
+    body = "Your latest insights are ready. Start today with a voice check-in.";
   } else {
     body = "No pressure -- when you're ready, your brain data is here for you.";
   }
@@ -171,11 +173,13 @@ export function generateWeeklyInsight(data: {
 }): NotificationContent {
   const { voiceCheckins, neurofeedbackSessions, stressTrend } = data;
 
+  // HIPAA: Do not include health trend details in push notifications.
+  // Stress trend info is only shown inside the app.
   let trendNote = "";
   if (stressTrend === "improving") {
-    trendNote = " Your stress trend is improving.";
+    trendNote = " Your wellness trend looks good.";
   } else if (stressTrend === "worsening") {
-    trendNote = " Your stress trend needs attention.";
+    trendNote = " Open the app for your full wellness summary.";
   }
 
   let body = `This week: ${voiceCheckins} voice check-ins, ${neurofeedbackSessions} neurofeedback sessions.${trendNote}`;

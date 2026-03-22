@@ -173,6 +173,24 @@ export default function PrivacyPolicy() {
         </div>
       </div>
 
+      {/* Consent settings link */}
+      <Card className="border-primary/30 bg-primary/5 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Manage your biometric data consent</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Control which types of data the app can collect
+            </p>
+          </div>
+          <a
+            href="/consent-settings"
+            className="text-sm font-medium text-primary hover:underline shrink-0"
+          >
+            Consent Settings
+          </a>
+        </div>
+      </Card>
+
       {/* Policy sections */}
       {SECTIONS.map(({ icon: Icon, title, content }) => (
         <Card key={title} className="glass-card p-5 space-y-3">

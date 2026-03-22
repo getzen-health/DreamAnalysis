@@ -188,12 +188,13 @@ public class MuseBlePlugin extends Plugin {
             @Override
             public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                 Log.d(TAG, "onConnectionStateChange: state=" + newState + " status=" + status);
+                sendDiag("BLE state=" + newState + " status=" + status);
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    Log.d(TAG, "Connected! Refreshing GATT cache...");
+                    sendDiag("Connected. Refreshing GATT...");
                     refreshGattCache(gatt);
                     handler.postDelayed(() -> {
                         try {
-                            Log.d(TAG, "Discovering services (phase 0)...");
+                            sendDiag("Discovering services...");
                             gatt.discoverServices();
                         } catch (SecurityException e) {
                             rejectConnect("Permission denied: " + e.getMessage());
@@ -242,9 +243,11 @@ public class MuseBlePlugin extends Plugin {
                     return;
                 }
 
-                Log.d(TAG, "Muse service has " + svc.getCharacteristics().size() + " chars:");
+                int charCount = svc.getCharacteristics().size();
+                sendDiag("Phase " + connectPhase + ": " + charCount + " chars found");
                 for (BluetoothGattCharacteristic c : svc.getCharacteristics()) {
-                    Log.d(TAG, "  " + c.getUuid() + " props=" + c.getProperties());
+                    String shortUuid = c.getUuid().toString().substring(4, 8);
+                    sendDiag("  " + shortUuid + " props=0x" + Integer.toHexString(c.getProperties()));
                 }
 
                 if (connectPhase == 0) {
@@ -257,7 +260,7 @@ public class MuseBlePlugin extends Plugin {
                         return;
                     }
 
-                    Log.d(TAG, "Phase 1: Subscribe control char, then send commands...");
+                    sendDiag("Subscribing control char...");
                     // Enable control char notifications
                     try {
                         gatt.setCharacteristicNotification(ctrl, true);
@@ -367,15 +370,15 @@ public class MuseBlePlugin extends Plugin {
     private void sendMuseCommands(BluetoothGatt gatt, BluetoothGattCharacteristic ctrl) {
         writeQueue.clear();
         writePending = false;
+        sendDiag("Sending: halt→preset→stream→resume");
 
         enqueueWrite(gatt, ctrl, CMD_HALT, "halt");
         enqueueWrite(gatt, ctrl, CMD_PRESET, "preset");
         enqueueWrite(gatt, ctrl, CMD_STREAM, "stream");
         enqueueWrite(gatt, ctrl, CMD_RESUME, "resume");
 
-        // After all commands sent, wait 3s then try to subscribe/re-discover
         writeQueue.add(() -> {
-            Log.d(TAG, "All commands sent. Waiting 3s for Muse to reconfigure...");
+            sendDiag("Commands done. Waiting 3s for reconfigure...");
             handler.postDelayed(() -> trySubscribeOrRediscover(gatt), 3000);
         });
         processWriteQueue();
@@ -390,16 +393,15 @@ public class MuseBlePlugin extends Plugin {
             return;
         }
 
-        // Check if EEG chars are already visible (works for some Muse firmware)
         List<BluetoothGattCharacteristic> eegChars = findEegChars(svc);
+        sendDiag("EEG chars in cache: " + eegChars.size());
         if (!eegChars.isEmpty()) {
-            Log.d(TAG, "EEG chars found in cache (" + eegChars.size() + "). Subscribing directly.");
+            sendDiag("Subscribing to " + eegChars.size() + " EEG channels...");
             subscribeEeg(gatt, svc);
             return;
         }
 
-        // Not found — Muse likely added new chars after preset. Re-discover.
-        Log.d(TAG, "No EEG chars in cache. Re-discovering services (phase 2)...");
+        sendDiag("No EEG chars. Re-discovering (phase 2)...");
         connectPhase = 2;
         try {
             gatt.discoverServices();
@@ -646,9 +648,18 @@ public class MuseBlePlugin extends Plugin {
 
     private synchronized void rejectConnect(String msg) {
         Log.e(TAG, "REJECT: " + msg);
+        sendDiag("ERROR: " + msg);
         if (connectCall != null) {
             connectCall.reject(msg);
             connectCall = null;
         }
+    }
+
+    /** Send a diagnostic message to the JS side for on-screen display */
+    private void sendDiag(String msg) {
+        Log.d(TAG, "DIAG: " + msg);
+        JSObject data = new JSObject();
+        data.put("message", msg);
+        notifyListeners("museDiag", data);
     }
 }

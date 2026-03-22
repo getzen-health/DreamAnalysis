@@ -7,6 +7,8 @@ import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useFusedState } from "@/hooks/use-fused-state";
+import { ConfidenceMeter } from "@/components/confidence-meter";
+import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import {
@@ -764,6 +766,26 @@ export default function Discover() {
 
       {/* ── Emotions Overview — combined stress, focus, mood graph ── */}
       <EmotionsOverview userId={userId} navigate={navigate} checkin={checkin} />
+
+      {/* ── Confidence + Intervention below emotion section ── */}
+      {hasData && (
+        <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
+              Confidence
+            </span>
+            <div style={{ flex: 1 }}>
+              <ConfidenceMeter confidence={checkin?.confidence ?? 0.5} size="sm" />
+            </div>
+          </div>
+          <InterventionSuggestion
+            emotion={emotion}
+            stressIndex={stress}
+            valence={valence}
+            compact
+          />
+        </div>
+      )}
 
       {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
       <EmotionTimeline userId={userId} />

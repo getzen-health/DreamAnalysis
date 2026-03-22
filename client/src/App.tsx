@@ -98,6 +98,7 @@ const ConnectedAssets        = lazy(() => import("@/pages/connected-assets"));
 const NotificationsPage      = lazy(() => import("@/pages/notifications"));
 const CouplesMeditation      = lazy(() => import("@/pages/couples-meditation"));
 const AchievementsPage       = lazy(() => import("@/pages/achievements"));
+const ConsentSettings        = lazy(() => import("@/pages/consent-settings"));
 
 // ── Error Boundary — Sentry-wrapped; reports crashes + shows branded fallback ──
 function SentryErrorBoundary({ children }: { children: ReactNode }) {
@@ -456,6 +457,14 @@ function AppRoutes() {
         <ProtectedRoute>
           <Suspense fallback={<PageLoader />}>
             <AppLayout><AchievementsPage /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      {/* Biometric consent settings — per-modality data collection toggles */}
+      <Route path="/consent-settings">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><ConsentSettings /></AppLayout>
           </Suspense>
         </ProtectedRoute>
       </Route>

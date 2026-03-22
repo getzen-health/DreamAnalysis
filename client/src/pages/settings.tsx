@@ -412,6 +412,25 @@ export default function SettingsPage() {
       {/* Notifications */}
       <NotificationsCard userId={userId} />
 
+      {/* Biometric Consent link */}
+      <Card className="glass-card p-5 rounded-xl">
+        <div
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => setLocation("/consent-settings")}
+        >
+          <div>
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Shield className="h-4 w-4 text-primary" />
+              Biometric Consent
+            </h3>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Control which biometric data the app can collect
+            </p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </div>
+      </Card>
+
       {/* Privacy Policy link */}
       <Card className="glass-card p-5 rounded-xl">
         <div

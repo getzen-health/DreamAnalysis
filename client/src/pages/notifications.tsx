@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { sanitizeNotificationText } from "@/lib/notification-sanitizer";
 import {
   Bell,
   Mic,
@@ -65,9 +66,16 @@ export function saveNotifications(notifications: AppNotification[]): void {
 }
 
 export function addNotification(n: Omit<AppNotification, "id" | "timestamp" | "read">): void {
+  // HIPAA: sanitize PHI from notification text before saving.
+  // Push notifications are visible on lock screens — no health data allowed.
+  const sanitizedTitle = sanitizeNotificationText(n.title);
+  const sanitizedBody = sanitizeNotificationText(n.body);
+
   const all = loadNotifications();
   const entry: AppNotification = {
     ...n,
+    title: sanitizedTitle,
+    body: sanitizedBody,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: Date.now(),
     read: false,
@@ -83,8 +91,8 @@ export function addNotification(n: Omit<AppNotification, "id" | "timestamp" | "r
       sb.from("notifications").insert({
         user_id: "local",
         type: n.type,
-        title: n.title,
-        body: n.body ?? null,
+        title: sanitizedTitle,
+        body: sanitizedBody ?? null,
         read: false,
         created_at: new Date().toISOString(),
       });

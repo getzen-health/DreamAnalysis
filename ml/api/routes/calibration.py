@@ -35,6 +35,7 @@ def _fine_tune_bg(pm) -> None:
 from ._shared import (
     _get_personal_model,
     get_last_features,
+    sanitize_id,
     CalibrationSubmitRequest, PersonalFeedbackRequest,
 )
 from processing.eeg_processor import BaselineCalibrator
@@ -114,6 +115,7 @@ async def submit_personal_feedback(request: PersonalFeedbackRequest):
     """
     from processing.user_feedback import FeedbackCollector
 
+    sanitize_id(request.user_id, "user_id")
     # Always record the label correction (no EEG needed).
     # Attach the last cached feature vector so the k-NN PersonalizedPipeline
     # has training data even for label-only corrections (no raw EEG submitted).
