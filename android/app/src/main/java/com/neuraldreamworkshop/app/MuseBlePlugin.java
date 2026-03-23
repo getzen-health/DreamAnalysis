@@ -832,31 +832,39 @@ public class MuseBlePlugin extends Plugin {
         int tag = value[9] & 0xFF;
         if (tag != 0x11) return;
 
-        // Athena EEG packet: bytes 0-8=header, byte 9=tag(0x11), bytes 10-11=index, bytes 12-19=EEG data
-        // Use byte[1] (sequence) to determine channel: seq % 4
-        // (Athena sends 4 EEG packets per cycle, one per channel)
+        // Athena EEG: byte[1]=seq, byte[9]=tag(0x11), bytes[10-11]=sub-index
+        // Bytes 12-19 = 8 bytes of EEG data
+        // Channel from sequence: 4 EEG packets per cycle, one per channel
         int seq = value[1] & 0xFF;
         int ch = seq % 4;
 
-        // Extract 4 samples from bytes 12-19 as uint16 big-endian, scale to microvolts
-        // 8 bytes = 4 × uint16 samples
-        double[] samples = new double[4];
-        for (int i = 0; i < 4; i++) {
-            int offset = 12 + i * 2;
-            if (offset + 1 < value.length) {
-                int raw = ((value[offset] & 0xFF) << 8) | (value[offset + 1] & 0xFF);
-                // 14-bit ADC, centered at 8192, scale to microvolts
-                samples[i] = (raw - 8192) * ATHENA_UV_SCALE;
-            }
+        // Decode EEG: try 12-bit packed pairs from bytes 12-19 (same as Muse 2 packing)
+        // Each 3 bytes → 2 twelve-bit samples: s0 = (b0<<4)|(b1>>4), s1 = ((b1&0xf)<<8)|b2
+        // 8 bytes → 5 twelve-bit samples (last byte only contributes to 1 sample)
+        int dataStart = 12;
+        int dataLen = Math.min(value.length - dataStart, 9); // up to 9 bytes = 6 samples
+        int numPairs = dataLen / 3;
+        double[] samples = new double[numPairs * 2];
+        int si = 0;
+        for (int p = 0; p < numPairs; p++) {
+            int off = dataStart + p * 3;
+            if (off + 2 >= value.length) break;
+            int b0 = value[off] & 0xFF;
+            int b1 = value[off + 1] & 0xFF;
+            int b2 = value[off + 2] & 0xFF;
+            int s0 = ((b0 << 4) | (b1 >> 4)) & 0xFFF;
+            int s1 = (((b1 & 0xF) << 8) | b2) & 0xFFF;
+            // 12-bit centered at 2048, scale to microvolts (same as Muse 2)
+            samples[si++] = (s0 - 2048) * 0.48828125;
+            samples[si++] = (s1 - 2048) * 0.48828125;
         }
 
         // Send decoded samples as JSON (not raw bytes)
-        // JS side will push these directly to the ring buffer
         JSObject data = new JSObject();
         data.put("channel", ch);
         data.put("athena", true);
         StringBuilder samplesStr = new StringBuilder();
-        for (int i = 0; i < samples.length; i++) {
+        for (int i = 0; i < si; i++) {
             if (i > 0) samplesStr.append(",");
             samplesStr.append(String.format("%.2f", samples[i]));
         }

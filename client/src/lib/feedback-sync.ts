@@ -147,3 +147,83 @@ export async function getCorrectionCount(userId: string): Promise<number> {
     return 0;
   }
 }
+
+// ─── Auto-retrain triggers ──────────────────────────────────────────────────
+
+const CORRECTION_COUNT_KEY = "ndw_correction_count";
+const LAST_SYNC_KEY = "ndw_last_training_sync";
+const LAST_RETRAINED_KEY = "ndw_last_retrained";
+
+/**
+ * Check if the ML backend should be pinged for a retrain.
+ * Only fires every 10th correction to avoid spamming.
+ * Fire-and-forget — errors are swallowed silently.
+ */
+export async function triggerRetrainCheck(userId: string): Promise<void> {
+  try {
+    const count = parseInt(localStorage.getItem(CORRECTION_COUNT_KEY) || "0", 10) + 1;
+    localStorage.setItem(CORRECTION_COUNT_KEY, String(count));
+
+    if (count % 10 !== 0) return;
+
+    const mlUrl = getMLApiUrl();
+    const resp = await fetch(`${mlUrl}/training/sync/${userId}`, { method: "POST" });
+    if (resp.ok) {
+      try {
+        const data = await resp.json();
+        if (data.retrain_triggered) {
+          localStorage.setItem(LAST_RETRAINED_KEY, new Date().toISOString());
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  } catch {
+    // fire and forget — ML backend may be offline
+  }
+}
+
+/**
+ * Sync corrections and trigger retrain on app startup (once per day).
+ * Should be called after auth is confirmed and user ID is available.
+ * Fire-and-forget — errors are swallowed silently so the app still loads.
+ */
+export async function syncOnStartup(userId: string): Promise<void> {
+  try {
+    const lastSync = localStorage.getItem(LAST_SYNC_KEY);
+    const today = new Date().toISOString().split("T")[0];
+    if (lastSync === today) return;
+
+    const mlUrl = getMLApiUrl();
+    // Only set the lastSync date AFTER a successful fetch, so failures retry next time.
+    const resp = await fetch(`${mlUrl}/training/sync/${userId}`, { method: "POST" });
+    if (resp.ok) {
+      localStorage.setItem(LAST_SYNC_KEY, today);
+      try {
+        const data = await resp.json();
+        if (data.retrain_triggered) {
+          localStorage.setItem(LAST_RETRAINED_KEY, new Date().toISOString());
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  } catch {
+    // fire and forget — ML backend may be offline
+  }
+}
+
+/**
+ * Get local retraining status for display in the UI.
+ */
+export function getRetrainingStatus(): {
+  lastRetrained: string | null;
+  correctionsCount: number;
+  nextRetrainAt: number;
+} {
+  const count = parseInt(localStorage.getItem(CORRECTION_COUNT_KEY) || "0", 10);
+  const lastRetrained = localStorage.getItem(LAST_RETRAINED_KEY);
+  // Next retrain fires at the next multiple of 10 above the current count
+  const nextRetrainAt = (Math.floor(count / 10) + 1) * 10;
+  return { lastRetrained, correctionsCount: count, nextRetrainAt };
+}
