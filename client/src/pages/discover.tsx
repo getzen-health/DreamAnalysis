@@ -659,9 +659,9 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
                 labelStyle={{ color: "var(--muted-foreground)" }}
                 formatter={(v: number, name: string) => [`${v}%`, name]}
               />
-              <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2.5} dot={{ r: 3, fill: "#e879a8" }} activeDot={{ r: 5 }} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-              <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1" }} activeDot={{ r: 5 }} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-              <Area type="monotone" dataKey="mood" stroke="#0891b2" fill="url(#discMoodG)" strokeWidth={2.5} dot={{ r: 3, fill: "#0891b2" }} activeDot={{ r: 5 }} name="Mood" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="natural" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2} dot={false} activeDot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="natural" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2} dot={false} activeDot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="natural" dataKey="mood" stroke="#0891b2" fill="url(#discMoodG)" strokeWidth={2} dot={false} activeDot={false} name="Mood" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
