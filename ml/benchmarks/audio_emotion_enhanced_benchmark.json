@@ -1,0 +1,18 @@
+{
+  "dataset": "Synthetic (distilled from EAV-Audio v1)",
+  "n_samples": 10000,
+  "classifier": "LightGBM (PCA 140->80)",
+  "accuracy": 0.5365,
+  "cv_accuracy_mean": 0.5365,
+  "cv_accuracy_std": 0.0079,
+  "n_features": 140,
+  "n_classes": 5,
+  "classes": [
+    "happy",
+    "sad",
+    "angry",
+    "neutral",
+    "calm"
+  ],
+  "previous_accuracy": 0.6175
+}
