@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { ChronotypeQuiz } from "@/components/chronotype-quiz";
 import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
-import { BrainAgeCard } from "@/components/brain-age-card";
 import { loadPersonalAdapter, resetPersonalAdapter, getPersonalizationStats } from "@/lib/personal-adapter";
 import { NotificationPrefsSheet } from "@/components/notification-prefs-sheet";
 import { Zap } from "lucide-react";
@@ -405,7 +404,6 @@ export default function You() {
 
       {/* Brain Health Section */}
       <SectionLabel>Brain Health</SectionLabel>
-      <BrainAgeCard />
 
       {/* EEG Personalization Status */}
       <div style={{

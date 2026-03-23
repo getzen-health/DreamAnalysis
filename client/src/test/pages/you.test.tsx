@@ -58,10 +58,6 @@ vi.mock("@/lib/chronotype", () => ({
   getStoredChronotype: () => null,
 }));
 
-vi.mock("@/components/brain-age-card", () => ({
-  BrainAgeCard: () => <div data-testid="brain-age-card" />,
-}));
-
 vi.mock("@/components/notification-prefs-sheet", () => ({
   NotificationPrefsSheet: () => <div data-testid="notification-prefs-sheet" />,
 }));
