@@ -20,6 +20,7 @@ import {
   applyAdapter,
   updateAfterSession,
 } from "./personal-adapter";
+import { applyOrtCdnConfig } from "./onnx-cdn-config";
 
 // onnxruntime-web is loaded dynamically to avoid hard failures if not installed
 let ort: typeof import("onnxruntime-web") | null = null;
@@ -79,6 +80,9 @@ async function loadOrt() {
   if (ort) return ort;
   try {
     ort = await import("onnxruntime-web");
+    // Apply CDN loading so WASM binaries come from jsdelivr, not the app bundle.
+    // This reduces APK size by ~24 MB (Issue #510).
+    applyOrtCdnConfig(ort);
     // Apply SIMD/threading configuration before any InferenceSession is created.
     configureOrtWasm(ort);
     return ort;

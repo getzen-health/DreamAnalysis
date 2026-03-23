@@ -99,6 +99,7 @@ const NotificationsPage      = lazy(() => import("@/pages/notifications"));
 const CouplesMeditation      = lazy(() => import("@/pages/couples-meditation"));
 const AchievementsPage       = lazy(() => import("@/pages/achievements"));
 const ConsentSettings        = lazy(() => import("@/pages/consent-settings"));
+const QuickSession           = lazy(() => import("@/pages/quick-session"));
 
 // ── Error Boundary — Sentry-wrapped; reports crashes + shows branded fallback ──
 function SentryErrorBoundary({ children }: { children: ReactNode }) {
@@ -346,6 +347,9 @@ function AppRoutes() {
         <RedirectTo to="/onboarding" />
       </Route>
       <Route path="/onboarding" component={Onboarding} />
+      <Route path="/quick-session">
+        <ProtectedRoute><QuickSession /></ProtectedRoute>
+      </Route>
       {/* Intent selection — study vs explore, shown after first login */}
       <Route path="/intent">
         <Suspense fallback={<PageLoader />}>

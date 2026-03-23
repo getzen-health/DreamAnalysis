@@ -71,7 +71,7 @@ const ALL_BANDS = [
 export default function BrainMonitor() {
   const { isLocal, latencyMs, isReady } = useInference();
   const device = useDevice();
-  const { state: deviceState, latestFrame, deviceStatus, selectedDevice, reconnectCount, epochReady } = device;
+  const { state: deviceState, latestFrame, deviceStatus, selectedDevice, reconnectCount, epochReady, bleReconnect } = device;
   const isStreaming = deviceState === "streaming";
   const { cachedEmotion: voiceResult } = useVoiceCache();
 
@@ -475,7 +475,24 @@ export default function BrainMonitor() {
     <main className="p-4 md:p-6 pb-24 space-y-6">
       {isStreaming && reconnectCount > 0 && (
         <div className="rounded-md bg-amber-500/10 border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-400">
-          Reconnecting to EEG stream… (attempt {reconnectCount})
+          Reconnecting to EEG stream... (attempt {reconnectCount})
+        </div>
+      )}
+      {bleReconnect.isReconnecting && (
+        <div
+          data-testid="ble-reconnect-banner"
+          className="rounded-md bg-amber-500/10 border border-amber-500/40 px-4 py-2 text-sm font-medium text-amber-400 flex items-center gap-2"
+        >
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+          Reconnecting to Muse headband... (attempt {bleReconnect.attempt + 1} of 5)
+        </div>
+      )}
+      {bleReconnect.gaveUp && (
+        <div
+          data-testid="ble-reconnect-failed-banner"
+          className="rounded-md bg-red-500/10 border border-red-500/40 px-4 py-2 text-sm font-medium text-red-400"
+        >
+          Muse connection lost after 5 attempts. Make sure your headband is powered on and nearby, then tap Connect.
         </div>
       )}
       <SimulationModeBanner />

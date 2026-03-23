@@ -11,7 +11,15 @@ import { lookupBarcode, type BarcodeProduct } from "@/lib/barcode-api";
 import { cardVariants, listItemVariants } from "@/lib/animations";
 import { syncFoodLogToML } from "@/lib/ml-api";
 import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
-import { UtensilsCrossed } from "lucide-react";
+import { UtensilsCrossed, Brain as BrainIcon } from "lucide-react";
+import { getEmotionHistory, getFoodLogs as sbGetFoodLogs } from "@/lib/supabase-store";
+import {
+  computeMealCognitiveCorrelation,
+  generateInsight,
+  type TimestampedReading,
+  type MealTimestamp,
+  type MealCognitiveInsight,
+} from "@/lib/meal-cognitive-correlation";
 // Supabase writes are done via dynamic import("@/lib/supabase-browser") to avoid
 // double-writing localStorage (this file manages its own localStorage entries).
 import {
@@ -1813,6 +1821,42 @@ export default function Nutrition() {
     });
   }, [userId]);
 
+  // ── Meal-cognitive correlation (Issue #507) ──
+  const [mealCogInsight, setMealCogInsight] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const [foodLogs, emotionHistory] = await Promise.all([
+          sbGetFoodLogs(userId),
+          getEmotionHistory(userId, 7),
+        ]);
+        if (!foodLogs?.length || !emotionHistory?.length) return;
+
+        const meals: MealTimestamp[] = foodLogs
+          .filter((l: any) => l.loggedAt || l.created_at)
+          .map((l: any) => ({
+            timestamp: l.loggedAt ?? l.created_at,
+            label: l.mealType ?? "meal",
+          }));
+
+        const readings: TimestampedReading[] = emotionHistory
+          .filter((e: any) => e.timestamp || e.created_at)
+          .map((e: any) => ({
+            timestamp: e.timestamp ?? e.created_at,
+            focus: e.focus ?? 0.5,
+            stress: e.stress ?? 0.5,
+          }));
+
+        const insight = computeMealCognitiveCorrelation(meals, readings);
+        if (insight && insight.type !== "no_change") {
+          setMealCogInsight(generateInsight(insight));
+        }
+      } catch {
+        // best-effort
+      }
+    })();
+  }, [userId]);
+
   const { scores } = useScores(userId);
 
   const { data: logs } = useQuery<FoodLog[]>({
@@ -2488,6 +2532,24 @@ export default function Nutrition() {
               exit="exit"
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
+              {/* Meal-Cognitive Insight (Issue #507) */}
+              {mealCogInsight && captureMode === "none" && (
+                <div style={{
+                  background: "linear-gradient(135deg, rgba(124,58,237,0.05) 0%, rgba(6,182,212,0.05) 100%)",
+                  border: "1px solid rgba(124,58,237,0.15)",
+                  borderRadius: 16, padding: 14, marginBottom: 12,
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.04)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <BrainIcon style={{ width: 16, height: 16, color: "#7c3aed" }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>Food-Brain Insight</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.5 }}>
+                    {mealCogInsight}
+                  </p>
+                </div>
+              )}
+
               {/* Mindful Eating Prompt — appears when emotional eating detected */}
               {captureMode === "none" && voiceData && (voiceData.stress_index ?? 0) > 0.4 && (
                 <div style={{

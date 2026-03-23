@@ -13,6 +13,7 @@
  */
 
 import { saveEmotionHistory as sbSaveEmotionHistory } from "./supabase-store";
+import { applyCircadianNormalization } from "./circadian-adjustment";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -263,7 +264,24 @@ class DataFusionBus {
       return;
     }
 
-    const newState = fuse(sources);
+    const rawState = fuse(sources);
+
+    // Apply circadian normalization (Issue #486)
+    const hour = new Date().getHours();
+    const normalized = applyCircadianNormalization({
+      stress: rawState.stress,
+      focus: rawState.focus,
+      relaxation: 1 - rawState.arousal, // approximate relaxation from arousal inverse
+      hour,
+    });
+    const newState: FusedState = {
+      ...rawState,
+      stress: normalized.stress,
+      focus: normalized.focus,
+      // arousal is the inverse of relaxation normalization
+      arousal: clip(1 - normalized.relaxation, 0, 1),
+    };
+
     this.currentState = newState;
 
     // Persist fused emotion reading to Supabase (fire-and-forget, throttled)

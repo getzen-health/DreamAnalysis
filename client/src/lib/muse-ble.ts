@@ -72,6 +72,22 @@ const CMD_STREAM     = makeCommand("s");   // start streaming (muse-js sends thi
 const CMD_RESUME     = makeCommand("d");   // resume/start data flow
 const CMD_STOP       = CMD_HALT;           // alias
 
+// Athena (Muse S) specific commands
+const CMD_VERSION_6     = makeCommand("v6");    // request protocol version 6
+const CMD_STATUS        = makeCommand("s");     // status / start (same as stream)
+const CMD_DC001         = makeCommand("dc001"); // data channel enable
+const CMD_LOW_LATENCY   = makeCommand("L1");    // low-latency mode
+
+// Athena data characteristic (multiplexed — all 4 EEG channels in one notification)
+const MUSE_ATHENA_DATA_CHAR = "273e0013-4c4d-454d-96be-f03bac821358";
+const MUSE_ATHENA_AUX_CHAR  = "273e0014-4c4d-454d-96be-f03bac821358";
+
+// Athena packet constants
+const ATHENA_HEADER_SIZE  = 14;  // 14-byte header per notification
+const ATHENA_TAG_EEG_4CH  = 0x11; // tag for 4-channel EEG subpacket
+const ATHENA_EEG_4CH_SIZE = 28;   // 28 bytes of EEG data after tag
+const ATHENA_UV_SCALE     = 1450.0 / 16383.0; // 14-bit to microvolts
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface MuseEegFrame {
@@ -238,6 +254,7 @@ export class MuseBleManager {
   private emitTimer: ReturnType<typeof setInterval> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private lastNotificationTime: number[] = [0, 0, 0, 0];
+  private _isAthena = false; // true when Muse S Athena protocol detected
   private _controlChar: BluetoothRemoteGATTCharacteristic | null = null;
   private onFrame: ((frame: MuseEegFrame) => void) | null = null;
   private onStatusChange: ((status: MuseBleStatus) => void) | null = null;
@@ -345,7 +362,15 @@ export class MuseBleManager {
       const binary = atob(event.data);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      this.onEegNotification(event.channel, new DataView(bytes.buffer));
+      const dv = new DataView(bytes.buffer);
+
+      if (event.channel === -1) {
+        // Athena multiplexed packet — route to Athena parser
+        this._isAthena = true;
+        this.onAthenaDataNotification(dv);
+      } else {
+        this.onEegNotification(event.channel, dv);
+      }
     });
 
     // Listen for disconnect
@@ -417,37 +442,97 @@ export class MuseBleManager {
     controlChar.addEventListener("characteristicvaluechanged", () => {});
     await controlChar.startNotifications();
 
-    // 2. Discover ALL characteristics and subscribe to EEG channels
+    // 2. Discover ALL characteristics and detect device type
     const allChars = await service.getCharacteristics();
-    const eegUuids = new Set([
-      ...MUSE_EEG_CHARS_MUSE_S.map(u => u.toLowerCase()),
-      ...MUSE_EEG_CHARS_MUSE2.map(u => u.toLowerCase()),
-    ]);
-    const foundChars = allChars.filter(c => eegUuids.has(c.uuid.toLowerCase()));
+    const allUuids = new Set(allChars.map(c => c.uuid.toLowerCase()));
 
-    if (foundChars.length === 0) {
-      // List what IS available for debugging
-      const available = allChars.map(c => c.uuid).join(", ");
-      throw new Error(`No EEG chars found. ${allChars.length} chars available: ${available}`);
-    }
+    // Athena detection: has 0013 (data) but NOT 0003-0006 (Muse 2 per-channel)
+    const has0013 = allUuids.has(MUSE_ATHENA_DATA_CHAR.toLowerCase());
+    const hasMuse2Chars = MUSE_EEG_CHARS_MUSE2.some(u => allUuids.has(u.toLowerCase()));
+    this._isAthena = has0013 && !hasMuse2Chars;
 
-    for (let i = 0; i < Math.min(foundChars.length, N_ACTIVE_CHANNELS); i++) {
-      await foundChars[i].startNotifications();
-      const ch = i;
-      foundChars[i].addEventListener("characteristicvaluechanged", (ev: Event) => {
+    this.diag(`WebBT: ${allChars.length} chars, has0013=${has0013}, hasMuse2=${hasMuse2Chars}, isAthena=${this._isAthena}`);
+
+    if (this._isAthena) {
+      // ── Athena (Muse S) protocol ──────────────────────────────────────
+
+      // Subscribe to data characteristic 0013 (notify — multiplexed 4ch EEG)
+      const dataChar = allChars.find(c => c.uuid.toLowerCase() === MUSE_ATHENA_DATA_CHAR.toLowerCase());
+      if (!dataChar) throw new Error("Athena data char 0013 not found despite detection");
+      await dataChar.startNotifications();
+      dataChar.addEventListener("characteristicvaluechanged", (ev: Event) => {
         const target = ev.target as BluetoothRemoteGATTCharacteristic;
-        if (target.value) this.onEegNotification(ch, target.value);
+        if (target.value) this.onAthenaDataNotification(target.value);
       });
-    }
+      this.diag("Athena: subscribed to 0013 (data, notify)");
 
-    // 3. Send muse-js command sequence: halt → preset → stream → resume
-    await writeCmd(CMD_HALT);
-    await new Promise((r) => setTimeout(r, 100));
-    await writeCmd(CMD_PRESET_P21);
-    await new Promise((r) => setTimeout(r, 100));
-    await writeCmd(CMD_STREAM);
-    await new Promise((r) => setTimeout(r, 100));
-    await writeCmd(CMD_RESUME);
+      // Subscribe to aux characteristic 0014 (indicate — Web Bluetooth handles via startNotifications)
+      const auxChar = allChars.find(c => c.uuid.toLowerCase() === MUSE_ATHENA_AUX_CHAR.toLowerCase());
+      if (auxChar) {
+        try {
+          await auxChar.startNotifications();
+          auxChar.addEventListener("characteristicvaluechanged", () => {}); // discard aux data
+          this.diag("Athena: subscribed to 0014 (aux, indicate)");
+        } catch (e) {
+          this.diag(`Athena: 0014 subscribe failed (non-fatal): ${e}`);
+        }
+      }
+
+      // Athena command sequence: v6 → s → h → p21 → s → dc001 → dc001 → L1 → s
+      this.diag("Athena: sending command sequence v6→s→h→p21→s→dc001→dc001→L1→s");
+      await writeCmd(CMD_VERSION_6);
+      await new Promise((r) => setTimeout(r, 200));
+      await writeCmd(CMD_STATUS);
+      await new Promise((r) => setTimeout(r, 200));
+      await writeCmd(CMD_HALT);
+      await new Promise((r) => setTimeout(r, 200));
+      await writeCmd(CMD_PRESET_P21);
+      await new Promise((r) => setTimeout(r, 200));
+      await writeCmd(CMD_STATUS);
+      await new Promise((r) => setTimeout(r, 200));
+      await writeCmd(CMD_DC001);
+      await new Promise((r) => setTimeout(r, 50));
+      await writeCmd(CMD_DC001); // dc001 sent TWICE
+      await new Promise((r) => setTimeout(r, 100));
+      await writeCmd(CMD_LOW_LATENCY);
+      await new Promise((r) => setTimeout(r, 300));
+      await writeCmd(CMD_STATUS);
+      await new Promise((r) => setTimeout(r, 200));
+      this.diag("Athena: command sequence complete");
+
+      MUSE_EEG_CHARS = [...MUSE_EEG_CHARS_MUSE_S];
+    } else {
+      // ── Standard Muse 2 / Muse S (non-Athena) protocol ───────────────
+
+      const eegUuids = new Set([
+        ...MUSE_EEG_CHARS_MUSE_S.map(u => u.toLowerCase()),
+        ...MUSE_EEG_CHARS_MUSE2.map(u => u.toLowerCase()),
+      ]);
+      const foundChars = allChars.filter(c => eegUuids.has(c.uuid.toLowerCase()));
+
+      if (foundChars.length === 0) {
+        const available = allChars.map(c => c.uuid).join(", ");
+        throw new Error(`No EEG chars found. ${allChars.length} chars available: ${available}`);
+      }
+
+      for (let i = 0; i < Math.min(foundChars.length, N_ACTIVE_CHANNELS); i++) {
+        await foundChars[i].startNotifications();
+        const ch = i;
+        foundChars[i].addEventListener("characteristicvaluechanged", (ev: Event) => {
+          const target = ev.target as BluetoothRemoteGATTCharacteristic;
+          if (target.value) this.onEegNotification(ch, target.value);
+        });
+      }
+
+      // Send muse-js command sequence: halt → preset → stream → resume
+      await writeCmd(CMD_HALT);
+      await new Promise((r) => setTimeout(r, 100));
+      await writeCmd(CMD_PRESET_P21);
+      await new Promise((r) => setTimeout(r, 100));
+      await writeCmd(CMD_STREAM);
+      await new Promise((r) => setTimeout(r, 100));
+      await writeCmd(CMD_RESUME);
+    }
 
     this.startEmitter();
     this.setStatus("streaming");
@@ -753,7 +838,7 @@ export class MuseBleManager {
     }
 
     if (subscribedCount === 0) {
-      const available = charUuids2.join(", ") || "none found";
+      const available = allChars2.map(c => c.uuid.substring(4, 8)).join(", ") || "none found";
       throw new Error(`No EEG channels. Available chars: ${available}`);
     }
 
@@ -877,6 +962,86 @@ export class MuseBleManager {
       }
     } catch (e) {
       if (this._notifCount < 5) console.error("[MuseBLE] packet decode error:", e);
+    }
+  }
+
+  /**
+   * Parse Athena (Muse S) multiplexed data notification from characteristic 0013.
+   *
+   * Packet format:
+   *   [14-byte header][subpacket1][subpacket2]...
+   *
+   * Header (14 bytes):
+   *   bytes 0-1: packet sequence number (uint16 big-endian)
+   *   bytes 2-13: timestamp and other metadata
+   *
+   * Subpacket:
+   *   byte 0: TAG (0x11 = 4ch EEG)
+   *   remaining bytes: data (format depends on tag)
+   *
+   * Tag 0x11 (4-channel EEG, 28 bytes after tag):
+   *   4 samples per channel, 14-bit values packed as uint16 big-endian pairs masked to 14 bits
+   *   Scale: raw * (1450.0 / 16383.0) to get microvolts
+   */
+  private onAthenaDataNotification(data: DataView): void {
+    try {
+      if (data.byteLength <= ATHENA_HEADER_SIZE) {
+        if (this._notifCount < 5) this.diag(`Athena packet too short: ${data.byteLength} bytes`);
+        return;
+      }
+
+      const now = Date.now();
+      let offset = ATHENA_HEADER_SIZE;
+
+      while (offset < data.byteLength) {
+        const tag = data.getUint8(offset);
+        offset += 1;
+
+        if (tag === ATHENA_TAG_EEG_4CH) {
+          // 4-channel EEG: 28 bytes = 4 samples x 4 channels x 14-bit packed
+          if (offset + ATHENA_EEG_4CH_SIZE > data.byteLength) break;
+
+          // Read 14 uint16 values (28 bytes), mask to 14 bits
+          // Layout: 4 samples interleaved across 4 channels
+          // [ch0_s0, ch1_s0, ch2_s0, ch3_s0, ch0_s1, ch1_s1, ch2_s1, ch3_s1, ...]
+          const rawValues: number[] = [];
+          for (let i = 0; i < 14; i++) {
+            rawValues.push(data.getUint16(offset + i * 2, false) & 0x3FFF); // big-endian, 14-bit mask
+          }
+          offset += ATHENA_EEG_4CH_SIZE;
+
+          // Distribute to 4 channels (4 samples each)
+          for (let sample = 0; sample < 4; sample++) {
+            for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+              const rawIdx = sample * N_ACTIVE_CHANNELS + ch;
+              if (rawIdx < rawValues.length) {
+                const uv = rawValues[rawIdx] * ATHENA_UV_SCALE;
+                this.rings[ch].push(uv);
+              }
+            }
+          }
+
+          // Update timestamps for all channels
+          for (let ch = 0; ch < N_ACTIVE_CHANNELS; ch++) {
+            this.lastNotificationTime[ch] = now;
+          }
+
+          this._notifCount++;
+          if (this._notifCount === 1 || this._notifCount === 10 || this._notifCount === 100) {
+            const firstVal = rawValues[0] * ATHENA_UV_SCALE;
+            this.diag(`Athena ${this._notifCount} pkts: 4ch x 4 samples, first=${firstVal.toFixed(1)} uV`);
+          }
+        } else {
+          // Unknown tag — skip remaining bytes (we don't know the subpacket size)
+          // For safety, break out since we can't determine how many bytes to skip
+          if (this._notifCount < 3) {
+            this.diag(`Athena unknown tag 0x${tag.toString(16)} at offset ${offset - 1}, skipping rest`);
+          }
+          break;
+        }
+      }
+    } catch (e) {
+      if (this._notifCount < 5) console.error("[MuseBLE] Athena packet decode error:", e);
     }
   }
 

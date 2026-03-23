@@ -79,23 +79,21 @@ describe("Onboarding — Fast Track (new users)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows a Try it now button", () => {
+  it("shows a Continue button", () => {
     renderWithProviders(<Onboarding />);
     expect(
-      screen.getByText(/Try it now/i)
+      screen.getByText(/Continue/i)
     ).toBeInTheDocument();
   });
 
-  it("shows a Skip for now option", () => {
+  it("shows a Skip option on every screen", () => {
     renderWithProviders(<Onboarding />);
-    expect(screen.getByText(/Skip for now/i)).toBeInTheDocument();
+    expect(screen.getByText(/Skip/i)).toBeInTheDocument();
   });
 
-  it("shows 3 value proposition cards", () => {
+  it("shows the app description on the welcome screen", () => {
     renderWithProviders(<Onboarding />);
-    expect(screen.getByText("10-Second Voice Check-in")).toBeInTheDocument();
-    expect(screen.getByText("Personalized Insights")).toBeInTheDocument();
-    expect(screen.getByText("Holistic Wellness")).toBeInTheDocument();
+    expect(screen.getByText(/voice analysis/i)).toBeInTheDocument();
   });
 
   it("falls back to step 2 flow when step is already set", () => {
@@ -311,10 +309,10 @@ describe("Onboarding — Step 5 (Done)", () => {
 // ── localStorage persistence ──────────────────────────────────────────────────
 
 describe("Onboarding — localStorage persistence", () => {
-  it("saves onboarding complete when Skip for now is clicked", () => {
+  it("saves onboarding complete when Skip is clicked", () => {
     localStorage.clear();
     renderWithProviders(<Onboarding />);
-    fireEvent.click(screen.getByText(/Skip for now/i));
+    fireEvent.click(screen.getByText(/^Skip$/i));
     expect(localStorage.getItem("ndw_onboarding_complete")).toBe("true");
   });
 

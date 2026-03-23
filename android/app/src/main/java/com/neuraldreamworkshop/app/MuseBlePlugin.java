@@ -63,10 +63,27 @@ public class MuseBlePlugin extends Plugin {
     private static final byte[] CMD_RESUME  = {0x02, 0x64, 0x0a};           // "d\n"
     private static final byte[] CMD_STOP    = CMD_HALT;
 
+    // Athena (Muse S) specific commands
+    private static final byte[] CMD_VERSION6    = {0x03, 0x76, 0x36, 0x0a};                     // "v6\n"
+    private static final byte[] CMD_STATUS      = CMD_STREAM;                                     // "s\n" (same byte sequence)
+    private static final byte[] CMD_DC001       = {0x06, 0x64, 0x63, 0x30, 0x30, 0x31, 0x0a};   // "dc001\n"
+    private static final byte[] CMD_LOW_LATENCY = {0x03, 0x4c, 0x31, 0x0a};                     // "L1\n"
+
+    // Athena data characteristic (multiplexed — all 4 EEG channels in one notification)
+    private static final UUID ATHENA_DATA_CHAR = UUID.fromString("273e0013-4c4d-454d-96be-f03bac821358");
+    private static final UUID ATHENA_AUX_CHAR  = UUID.fromString("273e0014-4c4d-454d-96be-f03bac821358");
+
+    // Athena packet constants
+    private static final int ATHENA_HEADER_SIZE  = 14;
+    private static final int ATHENA_TAG_EEG_4CH  = 0x11;
+    private static final int ATHENA_EEG_4CH_SIZE = 28;
+    private static final double ATHENA_UV_SCALE  = 1450.0 / 16383.0;
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     private BluetoothGatt bluetoothGatt;
     private PluginCall connectCall;
     private boolean isStreaming = false;
+    private boolean isAthena = false;
     private int subscribedChannels = 0;
     private boolean connectRetried = false;
     private Runnable timeoutRunnable = null;
@@ -162,6 +179,8 @@ public class MuseBlePlugin extends Plugin {
             bluetoothGatt = null;
         }
         isStreaming = false;
+        isAthena = false;
+        athenaPacketCount = 0;
         subscribedChannels = 0;
         connectRetried = false;
         connectPhase = 0;
@@ -371,12 +390,36 @@ public class MuseBlePlugin extends Plugin {
     private void sendMuseCommands(BluetoothGatt gatt, BluetoothGattCharacteristic ctrl) {
         writeQueue.clear();
         writePending = false;
-        sendDiag("Sending: halt→preset→stream→resume");
 
-        enqueueWrite(gatt, ctrl, CMD_HALT, "halt");
-        enqueueWrite(gatt, ctrl, CMD_PRESET, "preset");
-        enqueueWrite(gatt, ctrl, CMD_STREAM, "stream");
-        enqueueWrite(gatt, ctrl, CMD_RESUME, "resume");
+        // Detect Athena: check if 0013 exists but 0003-0006 do NOT
+        BluetoothGattService svc = gatt.getService(MUSE_SERVICE);
+        boolean has0013 = svc != null && svc.getCharacteristic(ATHENA_DATA_CHAR) != null;
+        boolean hasMuse2Chars = false;
+        if (svc != null) {
+            for (UUID u : EEG_CHARS_MUSE2) {
+                if (svc.getCharacteristic(u) != null) { hasMuse2Chars = true; break; }
+            }
+        }
+        isAthena = has0013 && !hasMuse2Chars;
+
+        if (isAthena) {
+            sendDiag("Athena detected. Sending: v6→s→h→p21→s→dc001→dc001→L1→s");
+            enqueueWrite(gatt, ctrl, CMD_VERSION6, "v6");
+            enqueueWrite(gatt, ctrl, CMD_STATUS, "status1");
+            enqueueWrite(gatt, ctrl, CMD_HALT, "halt");
+            enqueueWrite(gatt, ctrl, CMD_PRESET, "preset");
+            enqueueWrite(gatt, ctrl, CMD_STATUS, "status2");
+            enqueueWrite(gatt, ctrl, CMD_DC001, "dc001-1");
+            enqueueWrite(gatt, ctrl, CMD_DC001, "dc001-2");  // sent TWICE
+            enqueueWrite(gatt, ctrl, CMD_LOW_LATENCY, "L1");
+            enqueueWrite(gatt, ctrl, CMD_STATUS, "status3");
+        } else {
+            sendDiag("Muse 2 detected. Sending: halt→preset→stream→resume");
+            enqueueWrite(gatt, ctrl, CMD_HALT, "halt");
+            enqueueWrite(gatt, ctrl, CMD_PRESET, "preset");
+            enqueueWrite(gatt, ctrl, CMD_STREAM, "stream");
+            enqueueWrite(gatt, ctrl, CMD_RESUME, "resume");
+        }
 
         writeQueue.add(() -> {
             sendDiag("Commands done. Waiting 3s for reconfigure...");
@@ -466,8 +509,23 @@ public class MuseBlePlugin extends Plugin {
     // ── Subscribe helpers ───────────────────────────────────────────────────
 
     private List<BluetoothGattCharacteristic> findEegChars(BluetoothGattService svc) {
-        // Try Muse S first, then Muse 2
         List<BluetoothGattCharacteristic> result = new ArrayList<>();
+
+        // Athena: single multiplexed data characteristic (0013)
+        if (isAthena) {
+            BluetoothGattCharacteristic dataChar = svc.getCharacteristic(ATHENA_DATA_CHAR);
+            if (dataChar != null) {
+                result.add(dataChar);
+                // Also add aux char (0014) for indicate subscription
+                BluetoothGattCharacteristic auxChar = svc.getCharacteristic(ATHENA_AUX_CHAR);
+                if (auxChar != null) result.add(auxChar);
+                EEG_CHARS = EEG_CHARS_MUSE_S;
+                sendDiag("Athena: found data char 0013" + (auxChar != null ? " + aux 0014" : ""));
+            }
+            return result;
+        }
+
+        // Try Muse S first (non-Athena with per-channel chars), then Muse 2
         for (UUID u : EEG_CHARS_MUSE_S) {
             BluetoothGattCharacteristic ch = svc.getCharacteristic(u);
             if (ch != null) result.add(ch);
@@ -489,8 +547,8 @@ public class MuseBlePlugin extends Plugin {
     private void subscribeEeg(BluetoothGatt gatt, BluetoothGattService svc) {
         subscribedChannels = 0;
         List<BluetoothGattCharacteristic> eegChars = findEegChars(svc);
-        Log.d(TAG, "subscribeEeg: found " + eegChars.size() + " EEG channels (type: " +
-            (EEG_CHARS == EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2") + ")");
+        String deviceType = isAthena ? "Athena" : (EEG_CHARS == EEG_CHARS_MUSE_S ? "Muse S" : "Muse 2");
+        Log.d(TAG, "subscribeEeg: found " + eegChars.size() + " chars (type: " + deviceType + ")");
 
         if (eegChars.isEmpty()) {
             StringBuilder allUuids = new StringBuilder();
@@ -516,10 +574,19 @@ public class MuseBlePlugin extends Plugin {
             gatt.setCharacteristicNotification(ch, true);
             BluetoothGattDescriptor desc = ch.getDescriptor(CCC_DESCRIPTOR);
             if (desc != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    gatt.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                // Athena: 0014 uses INDICATE (CCCD 0x0002), 0013 and others use NOTIFY (CCCD 0x0001)
+                byte[] cccdValue;
+                if (isAthena && ch.getUuid().equals(ATHENA_AUX_CHAR)) {
+                    cccdValue = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
+                    sendDiag("Athena: subscribing 0014 with INDICATE");
                 } else {
-                    desc.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                    cccdValue = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    gatt.writeDescriptor(desc, cccdValue);
+                } else {
+                    desc.setValue(cccdValue);
                     gatt.writeDescriptor(desc);
                 }
                 // onDescriptorWrite triggers next
@@ -537,10 +604,13 @@ public class MuseBlePlugin extends Plugin {
     private void finishSubscription() {
         if (subscribedChannels > 0) {
             isStreaming = true;
-            Log.d(TAG, "SUCCESS: Streaming " + subscribedChannels + " EEG channels!");
+            // Athena: 1 multiplexed char = 4 logical EEG channels
+            int logicalChannels = isAthena ? 4 : subscribedChannels;
+            Log.d(TAG, "SUCCESS: Streaming " + logicalChannels + " EEG channels!" +
+                (isAthena ? " (Athena multiplexed)" : ""));
             JSObject r = new JSObject();
             r.put("connected", true);
-            r.put("channels", subscribedChannels);
+            r.put("channels", logicalChannels);
             resolveConnect(r);
         } else {
             rejectConnect("Failed to subscribe to any EEG channel");
@@ -622,8 +692,18 @@ public class MuseBlePlugin extends Plugin {
         }
     }
 
+    private int athenaPacketCount = 0;
+
     private void sendEegData(UUID charUuid, byte[] value) {
         if (value == null) return;
+
+        // Athena: multiplexed data on 0013 — parse and emit per-channel events
+        if (isAthena && charUuid.equals(ATHENA_DATA_CHAR)) {
+            parseAndSendAthenaData(value);
+            return;
+        }
+
+        // Standard Muse 2 / Muse S per-channel path
         int ch = -1;
         for (int i = 0; i < EEG_CHARS.length; i++) {
             if (EEG_CHARS[i].equals(charUuid)) { ch = i; break; }
@@ -634,6 +714,88 @@ public class MuseBlePlugin extends Plugin {
         data.put("channel", ch);
         data.put("data", Base64.encodeToString(value, Base64.NO_WRAP));
         notifyListeners("museEegData", data);
+    }
+
+    /**
+     * Parse Athena multiplexed data notification and emit as separate channel events.
+     *
+     * Packet: [14-byte header][subpacket1][subpacket2]...
+     * Tag 0x11: 4-channel EEG, 28 bytes (4 samples x 4 channels x 14-bit packed as uint16 BE)
+     *
+     * We synthesize 20-byte Muse 2-compatible packets per channel so the JS side
+     * can use the same onEegNotification decoder.
+     *
+     * Actually, since JS side now has onAthenaDataNotification, we send the raw
+     * Athena packet as channel=-1 to signal Athena format. The JS side routes
+     * based on channel value. But it's simpler to just forward the raw bytes
+     * and let JS parse — the JS _connectNativeMusePlugin listener already
+     * routes to onEegNotification. We need to add Athena routing there.
+     *
+     * Simplest approach: send raw bytes with channel=-1, JS side detects Athena.
+     */
+    private void parseAndSendAthenaData(byte[] value) {
+        if (value.length <= ATHENA_HEADER_SIZE) return;
+
+        int offset = ATHENA_HEADER_SIZE;
+        while (offset < value.length) {
+            int tag = value[offset] & 0xFF;
+            offset++;
+
+            if (tag == ATHENA_TAG_EEG_4CH) {
+                if (offset + ATHENA_EEG_4CH_SIZE > value.length) break;
+
+                // Read 14 uint16 big-endian values, mask to 14 bits
+                int[] rawValues = new int[14];
+                for (int i = 0; i < 14; i++) {
+                    int hi = (value[offset + i * 2] & 0xFF);
+                    int lo = (value[offset + i * 2 + 1] & 0xFF);
+                    rawValues[i] = ((hi << 8) | lo) & 0x3FFF;
+                }
+                offset += ATHENA_EEG_4CH_SIZE;
+
+                // Build per-channel sample arrays (4 samples each)
+                // Layout: [ch0_s0, ch1_s0, ch2_s0, ch3_s0, ch0_s1, ...]
+                double[][] channelSamples = new double[4][4];
+                for (int sample = 0; sample < 4; sample++) {
+                    for (int ch = 0; ch < 4; ch++) {
+                        int rawIdx = sample * 4 + ch;
+                        if (rawIdx < rawValues.length) {
+                            channelSamples[ch][sample] = rawValues[rawIdx] * ATHENA_UV_SCALE;
+                        }
+                    }
+                }
+
+                // Emit as 4 separate channel events with a synthetic 20-byte packet
+                // that the JS onEegNotification can decode (12 samples, 12-bit packed)
+                // OR: send raw float arrays. Since JS already decodes the base64 into
+                // a DataView and calls onEegNotification which expects 20-byte Muse 2 format,
+                // the cleanest approach is to send each channel's 4 samples as a minimal packet.
+                //
+                // We'll send a custom format: channel + base64 of float64 array.
+                // The JS side already has onAthenaDataNotification for WebBT.
+                // For native, we send the raw Athena packet bytes with channel=-1.
+                // The JS listener will check channel and route accordingly.
+
+                // Send raw Athena packet once (not per-channel) with channel=-1
+                JSObject data = new JSObject();
+                data.put("channel", -1); // signals Athena multiplexed data
+                data.put("data", Base64.encodeToString(value, Base64.NO_WRAP));
+                notifyListeners("museEegData", data);
+
+                athenaPacketCount++;
+                if (athenaPacketCount == 1 || athenaPacketCount == 10 || athenaPacketCount == 100) {
+                    sendDiag("Athena " + athenaPacketCount + " pkts: first=" +
+                        String.format("%.1f", channelSamples[0][0]) + " uV");
+                }
+                return; // Only process first EEG subpacket per notification
+            } else {
+                // Unknown tag — can't determine subpacket size, skip rest
+                if (athenaPacketCount < 3) {
+                    sendDiag("Athena unknown tag 0x" + Integer.toHexString(tag) + " at offset " + (offset - 1));
+                }
+                break;
+            }
+        }
     }
 
     private synchronized void resolveConnect(JSObject result) {

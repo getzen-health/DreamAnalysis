@@ -23,6 +23,11 @@ import {
 } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import { museBle, museFrameToEegStreamFrame } from "@/lib/muse-ble";
+import {
+  BLE_RECONNECT_MAX_ATTEMPTS,
+  computeBleBackoffDelay,
+  type BleReconnectState,
+} from "@/lib/ble-reconnect";
 
 type DeviceState = "disconnected" | "connecting" | "connected" | "streaming";
 
@@ -157,6 +162,8 @@ interface UseDeviceReturn {
   brainflowAvailable: boolean;
   devicesLoaded: boolean;
   reconnectCount: number;
+  /** BLE-specific reconnection state with exponential backoff (Issue #512) */
+  bleReconnect: BleReconnectState;
   refreshDevices: () => Promise<void>;
   connect: (deviceType: string, params?: Record<string, string>) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -302,6 +309,13 @@ function useDeviceInternal(): UseDeviceReturn {
   const [brainflowAvailable, setBrainflowAvailable] = useState(false);
   const [devicesLoaded, setDevicesLoaded] = useState(false);
   const [reconnectCount, setReconnectCount] = useState(0);
+  const [bleReconnect, setBleReconnect] = useState<BleReconnectState>({
+    attempt: 0,
+    isReconnecting: false,
+    lastError: null,
+    gaveUp: false,
+  });
+  const bleReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -500,24 +514,56 @@ function useDeviceInternal(): UseDeviceReturn {
         });
         await museBle.connect();
         // BLE succeeded — NOW register the status callback for disconnect handling
+        // Issue #512: exponential backoff reconnection (1s, 2s, 4s, 8s, 16s, max 5 attempts)
         museBle.onStatus((status) => {
           if (status.state === "idle" || status.state === "error") {
             if (status.error) setError(status.error);
             if (!intentionalDisconnectRef.current) {
-              reconnectTimerRef.current = setTimeout(async () => {
-                if (intentionalDisconnectRef.current) return;
-                try {
-                  await museBle.reconnect();
-                  setError(null);
-                } catch {
+              setBleReconnect((prev) => {
+                const attempt = prev.attempt;
+                if (attempt >= BLE_RECONNECT_MAX_ATTEMPTS) {
+                  // Exhausted all attempts — give up
                   isStreamingRef.current = false;
                   setState("disconnected");
-                  setError("Muse connection lost. Tap Connect to reconnect.");
+                  setError("Muse connection lost after " + BLE_RECONNECT_MAX_ATTEMPTS + " attempts. Tap Connect to retry.");
+                  return { attempt, isReconnecting: false, lastError: "Max attempts reached", gaveUp: true };
                 }
-              }, 2000);
+                const delay = computeBleBackoffDelay(attempt);
+                const nextState: BleReconnectState = {
+                  attempt,
+                  isReconnecting: true,
+                  lastError: status.error ?? "Connection lost",
+                  gaveUp: false,
+                };
+                // Schedule reconnection with exponential backoff
+                if (bleReconnectTimerRef.current) clearTimeout(bleReconnectTimerRef.current);
+                bleReconnectTimerRef.current = setTimeout(async () => {
+                  if (intentionalDisconnectRef.current) return;
+                  try {
+                    await museBle.reconnect();
+                    // Success — reset counter
+                    setError(null);
+                    setBleReconnect({ attempt: 0, isReconnecting: false, lastError: null, gaveUp: false });
+                  } catch (e) {
+                    const errMsg = e instanceof Error ? e.message : "Reconnection failed";
+                    setBleReconnect((s) => {
+                      const next = s.attempt + 1;
+                      if (next >= BLE_RECONNECT_MAX_ATTEMPTS) {
+                        isStreamingRef.current = false;
+                        setState("disconnected");
+                        setError("Muse connection lost after " + BLE_RECONNECT_MAX_ATTEMPTS + " attempts. Tap Connect to retry.");
+                        return { attempt: next, isReconnecting: false, lastError: errMsg, gaveUp: true };
+                      }
+                      return { attempt: next, isReconnecting: true, lastError: errMsg, gaveUp: false };
+                    });
+                  }
+                }, delay);
+                return nextState;
+              });
             } else {
               isStreamingRef.current = false;
               setState("disconnected");
+              setBleReconnect({ attempt: 0, isReconnecting: false, lastError: null, gaveUp: false });
             }
           }
         });
@@ -619,6 +665,11 @@ function useDeviceInternal(): UseDeviceReturn {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
+    if (bleReconnectTimerRef.current) {
+      clearTimeout(bleReconnectTimerRef.current);
+      bleReconnectTimerRef.current = null;
+    }
+    setBleReconnect({ attempt: 0, isReconnecting: false, lastError: null, gaveUp: false });
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -848,6 +899,7 @@ function useDeviceInternal(): UseDeviceReturn {
     return () => {
       isStreamingRef.current = false;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (bleReconnectTimerRef.current) clearTimeout(bleReconnectTimerRef.current);
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
       if (staleTimerRef.current) clearInterval(staleTimerRef.current);
       if (wsRef.current) wsRef.current.close();
@@ -872,6 +924,7 @@ function useDeviceInternal(): UseDeviceReturn {
     brainflowAvailable,
     devicesLoaded,
     reconnectCount,
+    bleReconnect,
     refreshDevices,
     connect,
     disconnect,

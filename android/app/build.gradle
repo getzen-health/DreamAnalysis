@@ -35,10 +35,37 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Issue #515: Enable R8 minification and resource shrinking for smaller APK
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Strip debug symbols — keep SYMBOL_TABLE for crash symbolication
+            ndk {
+                debugSymbolLevel 'SYMBOL_TABLE'
+            }
         }
     }
+
+    // Issue #515: AAB (Android App Bundle) is default for release — configure splits
+    bundle {
+        language {
+            enableSplit = true
+        }
+        density {
+            enableSplit = true
+        }
+        abi {
+            enableSplit = true
+        }
+    }
+
+    // Issue #515: PNG-to-WebP conversion
+    // All PNG images in android/app/src/main/res/ and client/public/ should be
+    // converted to WebP for 25-35% smaller file sizes. Run:
+    //   find android/app/src/main/res -name "*.png" -exec cwebp {} -o {}.webp \;
+    //   find client/public -name "*.png" -exec cwebp {} -o {}.webp \;
+    // Then update all references from .png to .webp.
+    // Note: Android handles WebP natively since API 18 (minSdk 21+ is safe).
 }
 
 repositories {

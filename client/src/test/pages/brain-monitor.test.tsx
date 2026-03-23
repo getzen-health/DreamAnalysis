@@ -29,6 +29,7 @@ const mockUseDevice = vi.fn().mockReturnValue({
   selectedDevice: null,
   reconnectCount: 0,
   epochReady: false,
+  bleReconnect: { attempt: 0, isReconnecting: false, lastError: null, gaveUp: false },
 });
 
 vi.mock("@/hooks/use-device", () => ({
@@ -93,6 +94,7 @@ describe("BrainMonitor page", () => {
       selectedDevice: null,
       reconnectCount: 0,
       epochReady: false,
+      bleReconnect: { attempt: 0, isReconnecting: false, lastError: null, gaveUp: false },
     });
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -219,6 +221,7 @@ describe("BrainMonitor page", () => {
         selectedDevice: "synthetic",
         reconnectCount: 0,
         epochReady: true,
+        bleReconnect: { attempt: 0, isReconnecting: false, lastError: null, gaveUp: false },
       });
     });
 
@@ -459,6 +462,7 @@ describe("BrainMonitor page", () => {
         selectedDevice: null,
         reconnectCount: 0,
         epochReady: false,
+        bleReconnect: { attempt: 0, isReconnecting: false, lastError: null, gaveUp: false },
       });
       renderWithProviders(<BrainMonitor />);
       const btn = await screen.findByText("Try Synthetic Device");
@@ -483,6 +487,7 @@ describe("BrainMonitor page", () => {
         selectedDevice: "synthetic",
         reconnectCount: 0,
         epochReady: false,
+        bleReconnect: { attempt: 0, isReconnecting: false, lastError: null, gaveUp: false },
       });
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
@@ -510,6 +515,7 @@ describe("BrainMonitor page", () => {
         selectedDevice: "muse2",
         reconnectCount: 0,
         epochReady: true,
+        bleReconnect: { attempt: 0, isReconnecting: false, lastError: null, gaveUp: false },
       };
     }
 

@@ -20,7 +20,10 @@ import { ConfidenceMeter } from "@/components/confidence-meter";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { InterventionCard } from "@/components/intervention-card";
-import { getFoodLogs as sbGetFoodLogs } from "@/lib/supabase-store";
+import { getFoodLogs as sbGetFoodLogs, getCycleData } from "@/lib/supabase-store";
+import { fetchWeather, buildMoodContext, type WeatherData, type WeatherMoodContext } from "@/lib/weather-context";
+import { getCurrentCyclePhase, getCyclePhaseContext, type CyclePhaseContext } from "@/lib/cycle-phase-adjustment";
+import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, Timer, HelpCircle } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -706,6 +709,28 @@ export default function Today() {
   const queryClient = useQueryClient();
   const [showBreathe, setShowBreathe] = useState(false);
 
+  // ── Weather context (Issue #508) ──
+  const [weatherCtx, setWeatherCtx] = useState<WeatherMoodContext | null>(null);
+  useEffect(() => {
+    fetchWeather().then((data) => {
+      if (data) setWeatherCtx(buildMoodContext(data));
+    }).catch(() => {});
+  }, []);
+
+  // ── Cycle phase context (Issue #498) ──
+  const [cycleCtx, setCycleCtx] = useState<CyclePhaseContext | null>(null);
+  useEffect(() => {
+    getCycleData(userId).then((data) => {
+      if (data?.last_period_start) {
+        const phase = getCurrentCyclePhase(data.last_period_start, data.cycle_length ?? 28);
+        if (phase) {
+          const ctx = getCyclePhaseContext(phase.phase);
+          setCycleCtx({ ...ctx, dayInCycle: phase.dayInCycle });
+        }
+      }
+    }).catch(() => {});
+  }, [userId]);
+
   // Fetch recent brain history for trend comparison
   const { data: recentHistory } = useQuery<any[]>({
     queryKey: [`/api/brain/history/${userId}?days=7`],
@@ -1151,6 +1176,127 @@ export default function Today() {
               <span style={{ color: "var(--muted-foreground)", fontSize: 16 }}>{">"}</span>
             </motion.div>
           )}
+
+          {/* ── Weather badge (Issue #508) ── */}
+          {weatherCtx && (
+            <motion.div
+              variants={itemVariants}
+              style={{
+                ...premiumCard,
+                marginBottom: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 16px",
+              }}
+            >
+              {weatherCtx.condition === "sunny" || weatherCtx.condition === "mostly_clear" ? (
+                <Sun style={{ width: 18, height: 18, color: "#fbbf24", flexShrink: 0 }} />
+              ) : weatherCtx.condition === "partly_cloudy" ? (
+                <CloudSun style={{ width: 18, height: 18, color: "#94a3b8", flexShrink: 0 }} />
+              ) : weatherCtx.condition === "cloudy" ? (
+                <Cloud style={{ width: 18, height: 18, color: "#94a3b8", flexShrink: 0 }} />
+              ) : weatherCtx.condition === "rainy" || weatherCtx.condition === "drizzle" ? (
+                <CloudRain style={{ width: 18, height: 18, color: "#60a5fa", flexShrink: 0 }} />
+              ) : weatherCtx.condition === "snowy" ? (
+                <Snowflake style={{ width: 18, height: 18, color: "#93c5fd", flexShrink: 0 }} />
+              ) : weatherCtx.condition === "stormy" ? (
+                <CloudLightning style={{ width: 18, height: 18, color: "#fbbf24", flexShrink: 0 }} />
+              ) : weatherCtx.condition === "foggy" ? (
+                <CloudFog style={{ width: 18, height: 18, color: "#94a3b8", flexShrink: 0 }} />
+              ) : (
+                <HelpCircle style={{ width: 18, height: 18, color: "#94a3b8", flexShrink: 0 }} />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
+                  {Math.round(weatherCtx.temperature)}&deg;C &middot; {weatherCtx.temperatureLabel}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {weatherCtx.message}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Cycle phase context (Issue #498) ── */}
+          {cycleCtx && (
+            <motion.div
+              variants={itemVariants}
+              style={{
+                ...premiumCard,
+                marginBottom: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 16px",
+                borderColor: "rgba(232,121,168,0.15)",
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "rgba(232,121,168,0.12)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Moon style={{ width: 14, height: 14, color: "#e879a8" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
+                  {cycleCtx.phase.charAt(0).toUpperCase() + cycleCtx.phase.slice(1)} phase &middot; Day {cycleCtx.dayInCycle}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                  {cycleCtx.message}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Quick 5-Min Session (Issue #525) ── */}
+          <motion.div
+            variants={itemVariants}
+            onClick={() => navigate("/quick-session")}
+            style={{
+              ...premiumCard,
+              marginBottom: 14,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "12px 16px",
+              background: "linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(124,58,237,0.04) 100%)",
+              borderColor: "rgba(6,182,212,0.2)",
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: "rgba(6,182,212,0.12)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Timer style={{ width: 18, height: 18, color: "#06b6d4" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 1 }}>
+                Quick 5-Min Session
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                Voice check-in + breathing + meditation
+              </div>
+            </div>
+            <span style={{ color: "var(--muted-foreground)", fontSize: 16 }}>{">"}</span>
+          </motion.div>
 
           {/* ── 2. Hero Wellness Circle ── */}
           <motion.div
