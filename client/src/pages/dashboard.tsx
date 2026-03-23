@@ -48,6 +48,8 @@ import {
   type SessionSummary,
 } from "@/lib/ml-api";
 import { HealthEmotionCard } from "@/components/health-emotion-card";
+import { SubstanceContextNote } from "@/components/substance-questionnaire";
+import { getLatestSubstanceLog, getBaselineAdjustment } from "@/lib/substance-context";
 import { StreakCard } from "@/components/streak-card";
 import { ReadinessScore } from "@/components/readiness-score";
 import { StreakBadge } from "@/components/streak-badge";
@@ -377,6 +379,13 @@ export default function Dashboard() {
   const isStreaming = deviceState === "streaming";
   const analysis = latestFrame?.analysis;
 
+  // Substance context note (if answered today)
+  const substanceNote = (() => {
+    const log = getLatestSubstanceLog();
+    const adj = getBaselineAdjustment(log);
+    return adj?.note ?? "";
+  })();
+
   // Health data fallback (iOS/Android only — web returns null)
   const { latestPayload, lastSyncAt } = useHealthSync();
   const healthState = !isStreaming && latestPayload && hasRealHealthData(latestPayload) ? deriveHealthState(latestPayload) : null;
@@ -671,6 +680,9 @@ export default function Dashboard() {
       {!isStreaming && latestPayload && hasRealHealthData(latestPayload) && (
         <HealthEmotionCard payload={latestPayload} lastSyncAt={lastSyncAt} />
       )}
+
+      {/* Substance context note */}
+      {substanceNote && <SubstanceContextNote note={substanceNote} />}
 
       {/* ── Empty state for brand-new users ────────────────── */}
       {!isStreaming && !healthState && sessionsWithData.length === 0 && !sessionsLoading && (

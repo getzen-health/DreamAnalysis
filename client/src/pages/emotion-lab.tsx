@@ -39,6 +39,8 @@ import EmotionStateCard from "@/components/emotion-state-card";
 import EmotionFlow, { type EmotionDataPoint } from "@/components/emotion-flow";
 import { hapticMedium, hapticSuccess } from "@/lib/haptics";
 import { playStartBeep, playSuccessChime } from "@/lib/sound-effects";
+import { SubstanceContextNote } from "@/components/substance-questionnaire";
+import { getLatestSubstanceLog, getBaselineAdjustment } from "@/lib/substance-context";
 
 /* ---------- constants & helpers ---------- */
 
@@ -294,6 +296,13 @@ export default function EmotionLab() {
   const bandPowers = analysis?.band_powers ?? {};
 
   const participantId = user?.id?.toString() ?? getParticipantId();
+
+  // Substance context for baseline adjustment note
+  const substanceNote = useMemo(() => {
+    const log = getLatestSubstanceLog();
+    const adj = getBaselineAdjustment(log);
+    return adj?.note ?? "";
+  }, []);
 
   // Is the 30-second buffer still filling?
   const bufferedSec = emotions?.buffered_sec ?? 0;
@@ -928,6 +937,9 @@ export default function EmotionLab() {
                   source="eeg"
                 />
               )}
+
+              {/* Substance context note */}
+              {substanceNote && <SubstanceContextNote note={substanceNote} />}
             </div>
           )}
         </div>

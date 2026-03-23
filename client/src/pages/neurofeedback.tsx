@@ -35,6 +35,12 @@ import {
   getSessionHistory,
   recordNeurofeedbackSession,
 } from "@/lib/neurofeedback-schedule";
+import SubstanceQuestionnaire, { SubstanceContextNote } from "@/components/substance-questionnaire";
+import {
+  getLatestSubstanceLog,
+  getBaselineAdjustment,
+  hasAnsweredToday,
+} from "@/lib/substance-context";
 
 type SessionPhase = "idle" | "calibrating" | "training" | "summary";
 
@@ -63,6 +69,12 @@ export default function Neurofeedback() {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [showTooSoonDialog, setShowTooSoonDialog] = useState(false);
+  const [showSubstanceQ, setShowSubstanceQ] = useState(() => !hasAnsweredToday());
+  const substanceNote = (() => {
+    const log = getLatestSubstanceLog();
+    const adj = getBaselineAdjustment(log);
+    return adj?.note ?? "";
+  })();
 
   // Session scheduling — recalculate when phase changes back to idle
   const [sessionHistory, setSessionHistory] = useState<Date[]>(() =>
@@ -284,6 +296,18 @@ export default function Neurofeedback() {
       {/* Session Schedule Card — shown in idle phase */}
       {phase === "idle" && (
         <NeurofeedbackScheduleCard schedule={schedule} />
+      )}
+
+      {/* Pre-session substance questionnaire */}
+      {phase === "idle" && showSubstanceQ && (
+        <SubstanceQuestionnaire
+          onComplete={() => setShowSubstanceQ(false)}
+        />
+      )}
+
+      {/* Substance context note */}
+      {phase === "idle" && !showSubstanceQ && substanceNote && (
+        <SubstanceContextNote note={substanceNote} />
       )}
 
       {/* Idle: Protocol Selection */}
