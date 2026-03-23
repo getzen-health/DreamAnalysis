@@ -420,6 +420,22 @@ export default function SettingsPage() {
       {/* Privacy Mode — all-local processing (Issue #493) */}
       <PrivacyModeCard />
 
+      {/* Wellness Disclaimer (Issue #476) */}
+      <Card className="border-amber-500/30 bg-amber-500/5 p-5 rounded-xl" data-testid="wellness-disclaimer">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-semibold text-amber-500">Wellness Disclaimer</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              AntarAI is a wellness and self-improvement app. It is NOT a medical device
+              and is not intended to diagnose, treat, cure, or prevent any disease. EEG
+              and voice analysis features provide general wellness insights only. Not FDA
+              cleared.
+            </p>
+          </div>
+        </div>
+      </Card>
+
       {/* Biometric Consent link */}
       <Card className="glass-card p-5 rounded-xl">
         <div

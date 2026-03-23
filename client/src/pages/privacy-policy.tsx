@@ -3,7 +3,7 @@
  * Accessible without authentication at /privacy.
  */
 
-import { Shield, Brain, Database, Lock, Eye, Mail, Mic, Heart, Utensils, Download, Trash2 } from "lucide-react";
+import { Shield, Brain, Database, Lock, Eye, Mail, Mic, Heart, Utensils, Download, Trash2, Scale } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 interface PolicySection {
@@ -123,6 +123,16 @@ const SECTIONS: PolicySection[] = [
       "If you join the research study via the Research Hub, your data may be used in peer-reviewed publications. All published data is fully anonymized — no names, emails, or identifiers are included.",
       "Research participation is voluntary. You may withdraw at any time by contacting us, and your data will be excluded from all future analyses.",
       "The research protocol was designed to comply with IRB guidelines for non-invasive EEG research.",
+    ],
+  },
+  {
+    icon: Scale,
+    title: "EU AI Act Notice",
+    content: [
+      "This app uses EEG-based emotion recognition, classified as high-risk AI under EU AI Act Annex III.",
+      "This system is designed for personal wellness use only. It is not deployed in workplace or educational settings.",
+      "Users maintain full control over their data and can disable emotion recognition at any time via Biometric Consent settings.",
+      "For questions about our AI compliance, contact privacy@neuraldreamworkshop.com.",
     ],
   },
   {

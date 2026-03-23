@@ -153,4 +153,26 @@ describe("Settings page", () => {
       expect(screen.getByText("Morning Reminders")).toBeInTheDocument();
     });
   });
+
+  it("shows Wellness Disclaimer card", async () => {
+    renderWithProviders(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId("wellness-disclaimer")).toBeInTheDocument();
+      expect(screen.getByText("Wellness Disclaimer")).toBeInTheDocument();
+    });
+  });
+
+  it("wellness disclaimer states app is not a medical device", async () => {
+    renderWithProviders(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/NOT a medical device/)).toBeInTheDocument();
+    });
+  });
+
+  it("wellness disclaimer mentions not FDA cleared", async () => {
+    renderWithProviders(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/Not FDA cleared/)).toBeInTheDocument();
+    });
+  });
 });

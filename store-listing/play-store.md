@@ -1,14 +1,21 @@
 # Google Play Store Listing
 
 ## App Name
-Neural Dream
+AntarAI — Brain Health & EEG Wellness
 
 ## Short Description (80 chars)
-EEG brain monitor + AI emotion tracking with Muse 2 headband
+Meditation, brain training, EEG mood tracker & neurofeedback with Muse 2
+
+## Keyword Metadata
+- **Primary keywords**: meditation app, brain training, EEG wellness, mood tracker, neurofeedback
+- **Secondary keywords**: stress relief, sleep analysis, brain health, Muse 2, brain waves
+- **Long-tail keywords**: EEG emotion tracking, brain wave meditation, neurofeedback training app, Muse headband app, brain health tracker
 
 ## Full Description
 
-Neural Dream is a brain-computer interface app that connects to your Muse 2 EEG headband and uses 16 machine learning models to track your emotions, focus, stress, sleep stages, and more in real time.
+AntarAI is a wellness and self-improvement app. It is NOT a medical device and is not intended to diagnose, treat, cure, or prevent any disease. EEG and voice analysis features provide general wellness insights only. Not FDA cleared.
+
+AntarAI is a brain-computer interface app that connects to your Muse 2 EEG headband and uses 16 machine learning models to track your emotions, focus, stress, sleep stages, and more in real time.
 
 **What it does:**
 - Real-time EEG brain wave visualization (delta, theta, alpha, beta bands)
@@ -34,6 +41,9 @@ All EEG processing happens on your device and our secure ML backend. No raw brai
 
 **Medical disclaimer:**
 Neural Dream is NOT a medical device. It is designed for general wellness monitoring, personal research, and educational purposes only. It does not claim to detect, manage, or prevent any disease or medical condition. Always consult a qualified healthcare professional for medical advice.
+
+## Tags
+meditation, brain training, EEG, mood tracker, stress relief, sleep analysis, neurofeedback, brain health, Muse 2, brain waves, wellness, mindfulness, focus training, relaxation, biofeedback
 
 ## Category
 Health & Fitness

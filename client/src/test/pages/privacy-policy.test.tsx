@@ -176,4 +176,30 @@ describe("Privacy Policy page", () => {
     renderWithProviders(<PrivacyPolicy />);
     expect(screen.getByText("Research Participation")).toBeInTheDocument();
   });
+
+  it("shows EU AI Act Notice section", () => {
+    renderWithProviders(<PrivacyPolicy />);
+    expect(screen.getByText("EU AI Act Notice")).toBeInTheDocument();
+  });
+
+  it("mentions high-risk AI classification under EU AI Act", () => {
+    renderWithProviders(<PrivacyPolicy />);
+    expect(
+      screen.getByText(/classified as high-risk AI under EU AI Act Annex III/)
+    ).toBeInTheDocument();
+  });
+
+  it("mentions users can disable emotion recognition", () => {
+    renderWithProviders(<PrivacyPolicy />);
+    expect(
+      screen.getByText(/disable emotion recognition at any time via Biometric Consent/)
+    ).toBeInTheDocument();
+  });
+
+  it("states system is for personal wellness only", () => {
+    renderWithProviders(<PrivacyPolicy />);
+    expect(
+      screen.getByText(/designed for personal wellness use only/)
+    ).toBeInTheDocument();
+  });
 });
