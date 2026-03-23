@@ -17,12 +17,10 @@ import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
 import { useFusedState } from "@/hooks/use-fused-state";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
-import { InterventionSuggestion } from "@/components/intervention-suggestion";
-import { InterventionCard } from "@/components/intervention-card";
 import { getCycleData, getFoodLogs as sbGetFoodLogs, sbGetSetting, sbSaveGeneric, sbSaveSetting } from "../lib/supabase-store";
 import { fetchWeather, buildMoodContext, type WeatherData, type WeatherMoodContext } from "@/lib/weather-context";
 import { getCurrentCyclePhase, getCyclePhaseContext, type CyclePhaseContext } from "@/lib/cycle-phase-adjustment";
-import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, Timer, HelpCircle } from "lucide-react";
+import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, HelpCircle } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1216,47 +1214,6 @@ export default function Today() {
             </motion.div>
           )}
 
-          {/* ── Quick 5-Min Session (Issue #525) ── */}
-          <motion.div
-            variants={itemVariants}
-            onClick={() => navigate("/quick-session")}
-            style={{
-              ...premiumCard,
-              marginBottom: 14,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "12px 16px",
-              background: "linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(124,58,237,0.04) 100%)",
-              borderColor: "rgba(6,182,212,0.2)",
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                background: "rgba(6,182,212,0.12)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Timer style={{ width: 18, height: 18, color: "#06b6d4" }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 1 }}>
-                Quick 5-Min Session
-              </div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-                Voice check-in + breathing + meditation
-              </div>
-            </div>
-            <span style={{ color: "var(--muted-foreground)", fontSize: 16 }}>{">"}</span>
-          </motion.div>
-
           {/* ── 2. Hero Wellness Circle ── */}
           <motion.div
             variants={itemVariants}
@@ -1695,28 +1652,6 @@ export default function Today() {
             </motion.div>
           )}
 
-          {/* ── Intervention Suggestion — always pair mood data with action ── */}
-          {checkin?.emotion && checkin.emotion !== "---" && (
-            <motion.div variants={itemVariants} style={{ marginBottom: 20 }}>
-              <InterventionSuggestion
-                emotion={correctedEmotion ?? checkin.emotion}
-                stressIndex={stressVal}
-                valence={valenceVal}
-                compact
-              />
-            </motion.div>
-          )}
-
-          {/* ── Intervention Card — multi-tier actionable suggestions (#524) ── */}
-          {checkin?.emotion && checkin.emotion !== "---" && (
-            <motion.div variants={itemVariants} style={{ marginBottom: 20 }}>
-              <InterventionCard
-                emotion={correctedEmotion ?? checkin.emotion}
-                stress={stressVal}
-                compact
-              />
-            </motion.div>
-          )}
 
           {/* ── Stress Warning (conditional) ── */}
           {(checkin?.stress_index ?? 0) > 0.6 && (
