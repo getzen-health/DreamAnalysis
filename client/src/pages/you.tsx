@@ -15,6 +15,7 @@ import {
 import { ChronotypeQuiz } from "@/components/chronotype-quiz";
 import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
 import { loadPersonalAdapter, resetPersonalAdapter, getPersonalizationStats } from "@/lib/personal-adapter";
+import { getModalityAccuracies, type ModalityAccuracy } from "@/lib/multimodal-fusion";
 import { NotificationPrefsSheet } from "@/components/notification-prefs-sheet";
 import { Zap } from "lucide-react";
 import { getCorrectionCount } from "@/lib/feedback-sync";
@@ -215,6 +216,7 @@ export default function You() {
     const adapter = loadPersonalAdapter();
     setAdapterStats(getPersonalizationStats(adapter));
   };
+
   const [chronotype, setChronotype] = useState<ChronotypeCategory | null>(
     () => getStoredChronotype()?.category ?? null,
   );
@@ -224,6 +226,13 @@ export default function You() {
   useEffect(() => {
     getCorrectionCount(userId).then(setSupabaseCorrectionCount).catch(() => {});
   }, [userId]);
+
+  // Modality accuracy stats
+  const [modalityAcc, setModalityAcc] = useState<ModalityAccuracy>(() => getModalityAccuracies());
+  // Refresh when corrections count changes (proxy for new corrections)
+  useEffect(() => {
+    setModalityAcc(getModalityAccuracies());
+  }, [supabaseCorrectionCount]);
 
   // Sessions from ML backend (Railway) — where voice check-in data actually lives
   const { data: sessionList } = useQuery<SessionSummary[]>({
@@ -469,6 +478,31 @@ export default function You() {
             {supabaseCorrectionCount >= 5
               ? "Model improving with your feedback"
               : `${5 - supabaseCorrectionCount} more correction${5 - supabaseCorrectionCount !== 1 ? "s" : ""} until model retraining`}
+          </div>
+        </div>
+      )}
+
+      {/* Per-Modality Accuracy */}
+      {(modalityAcc.eeg.total > 0 || modalityAcc.voice.total > 0 || modalityAcc.health.total > 0) && (
+        <div style={{
+          padding: "10px 16px",
+          background: "var(--card)",
+          borderRadius: 12,
+          marginBottom: 8,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)", marginBottom: 6 }}>
+            Modality Accuracy
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {modalityAcc.eeg.total > 0 && (
+              <span>EEG: {Math.round(modalityAcc.eeg.accuracy * 100)}% ({modalityAcc.eeg.correct}/{modalityAcc.eeg.total})</span>
+            )}
+            {modalityAcc.voice.total > 0 && (
+              <span>Voice: {Math.round(modalityAcc.voice.accuracy * 100)}% ({modalityAcc.voice.correct}/{modalityAcc.voice.total})</span>
+            )}
+            {modalityAcc.health.total > 0 && (
+              <span>Health: {Math.round(modalityAcc.health.accuracy * 100)}% ({modalityAcc.health.correct}/{modalityAcc.health.total})</span>
+            )}
           </div>
         </div>
       )}

@@ -241,11 +241,11 @@ export function fuseModalities(inputs: ModalityInput[]): FusedResult | null {
   let fusedConfidence = 0;
   const weights: Record<string, number> = {};
 
-  for (const { input, weight } of weighted) {
+  for (const { input, blendedConf, weight } of weighted) {
     fusedValence += weight * input.valence;
     fusedArousal += weight * input.arousal;
     fusedStress += weight * input.stress;
-    fusedConfidence += weight * input.confidence;
+    fusedConfidence += weight * blendedConf;
     weights[input.source] = weight;
   }
 
