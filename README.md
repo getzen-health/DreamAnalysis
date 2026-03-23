@@ -9,44 +9,45 @@ A multimodal AI health platform that fuses EEG brain data, voice analysis, and h
 ## System Architecture
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'primaryTextColor': '#fff', 'primaryBorderColor': '#4f46e5', 'lineColor': '#94a3b8', 'secondaryColor': '#f0abfc', 'tertiaryColor': '#e0f2fe'}}}%%
 graph TB
-    subgraph Mobile["Mobile App (React 18 + Capacitor)"]
-        UI[72 Pages / shadcn-ui]
-        Hooks[Custom Hooks<br/>auth, device, fusion, consent]
-        Cache[localStorage + Sync Queue]
+    subgraph Mobile["<b>Mobile App</b><br/>React 18 + Capacitor"]
+        UI["72 Pages<br/>shadcn/ui + Tailwind"]
+        Hooks["Custom Hooks<br/>auth, device, fusion, consent"]
+        Cache["Sync Queue<br/>localStorage cache"]
     end
 
-    subgraph Data["Data Sources"]
-        EEG[Muse 2 / Muse S<br/>4-ch EEG via BLE]
-        Voice[Voice Mic<br/>30-sec recordings]
-        HC[Health Connect<br/>Apple HealthKit]
-        Wearables[Withings / Oura<br/>WHOOP / Garmin]
+    subgraph Data["<b>Data Sources</b>"]
+        EEG["Muse 2 / Muse S<br/>4-ch EEG via BLE<br/>256 Hz"]
+        Voice["Voice Mic<br/>30-sec recordings"]
+        HC["Health Connect<br/>Apple HealthKit"]
+        Wearables["Withings / Oura<br/>WHOOP / Garmin"]
     end
 
-    subgraph Supabase["Supabase"]
-        Auth[Auth - JWT + RLS]
-        DB[(PostgreSQL<br/>12 tables)]
-        Edge[Edge Functions<br/>score compute, health ingest]
+    subgraph Supa["<b>Supabase</b>"]
+        Auth["Auth<br/>JWT + RLS"]
+        DB[("PostgreSQL<br/>12 tables")]
+        Edge["Edge Functions<br/>score compute"]
     end
 
-    subgraph ML["ML Backend (FastAPI :8080)"]
-        Models[16 ML Models<br/>EEGNet, LightGBM, PyTorch]
-        Pipeline[EEG Signal Processing<br/>12 modules]
-        VoiceML[Voice Biomarkers<br/>eGeMAPS + emotion2vec]
-        API[76+ REST Endpoints<br/>+ WebSocket]
+    subgraph MLBack["<b>ML Backend</b><br/>FastAPI :8080"]
+        Models["16 ML Models<br/>EEGNet, LightGBM, PyTorch"]
+        Pipeline["Signal Processing<br/>12 modules"]
+        VoiceML["Voice Biomarkers<br/>eGeMAPS + emotion2vec"]
+        API["76+ REST Endpoints<br/>+ WebSocket"]
     end
 
-    Hosting[Vercel - Frontend Hosting]
+    Hosting["Vercel<br/>Frontend Hosting"]
 
-    EEG -->|BLE 256 Hz| UI
-    Voice -->|MediaRecorder| UI
-    HC -->|Capacitor Plugin| Hooks
-    Wearables -->|OAuth API| Edge
+    EEG -->|"BLE 256 Hz"| UI
+    Voice -->|"MediaRecorder"| UI
+    HC -->|"Capacitor Plugin"| Hooks
+    Wearables -->|"OAuth API"| Edge
 
     UI --> Hooks
-    Hooks -->|REST + WS| API
-    Hooks -->|REST| Auth
-    Cache -->|Offline Sync| DB
+    Hooks -->|"REST + WS"| API
+    Hooks -->|"REST"| Auth
+    Cache -->|"Offline Sync"| DB
 
     API --> Models
     API --> Pipeline
@@ -54,7 +55,31 @@ graph TB
 
     Edge --> DB
     Auth --> DB
-    Mobile -->|Deploy| Hosting
+    Mobile -->|"Deploy"| Hosting
+
+    style Mobile fill:#6366f1,stroke:#4f46e5,color:#fff
+    style UI fill:#818cf8,stroke:#6366f1,color:#fff
+    style Hooks fill:#818cf8,stroke:#6366f1,color:#fff
+    style Cache fill:#818cf8,stroke:#6366f1,color:#fff
+
+    style Data fill:#0891b2,stroke:#0e7490,color:#fff
+    style EEG fill:#06b6d4,stroke:#0891b2,color:#fff
+    style Voice fill:#06b6d4,stroke:#0891b2,color:#fff
+    style HC fill:#06b6d4,stroke:#0891b2,color:#fff
+    style Wearables fill:#06b6d4,stroke:#0891b2,color:#fff
+
+    style Supa fill:#10b981,stroke:#059669,color:#fff
+    style Auth fill:#34d399,stroke:#10b981,color:#000
+    style DB fill:#34d399,stroke:#10b981,color:#000
+    style Edge fill:#34d399,stroke:#10b981,color:#000
+
+    style MLBack fill:#f59e0b,stroke:#d97706,color:#000
+    style Models fill:#fbbf24,stroke:#f59e0b,color:#000
+    style Pipeline fill:#fbbf24,stroke:#f59e0b,color:#000
+    style VoiceML fill:#fbbf24,stroke:#f59e0b,color:#000
+    style API fill:#fbbf24,stroke:#f59e0b,color:#000
+
+    style Hosting fill:#e879a8,stroke:#db2777,color:#fff
 ```
 
 ---
@@ -62,44 +87,56 @@ graph TB
 ## Data Fusion Architecture
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'lineColor': '#64748b'}}}%%
 graph LR
-    subgraph Inputs
-        EEG["EEG (Muse 2/S)<br/>256 Hz, 4 channels"]
-        Voice["Voice (Mic)<br/>30-sec sample"]
-        Health["Health Sync<br/>HR, Sleep, Steps"]
+    subgraph Inputs["<b>Input Sources</b>"]
+        EEG["EEG<br/>Muse 2/S<br/>256 Hz, 4-ch"]
+        Voice["Voice<br/>Mic<br/>30-sec"]
+        Health["Health<br/>HR, Sleep<br/>Steps"]
     end
 
-    subgraph Fusion["Data Fusion Bus"]
+    subgraph Fusion["<b>Data Fusion Bus</b>"]
         direction TB
         Weights["Source Weights<br/>EEG 50% | Voice 35% | Health 15%"]
-        Stale["Stale Discount<br/>>5 min = 50% weight reduction"]
-        Adjust["Circadian + Cycle Phase<br/>Adjustment"]
+        Stale["Stale Discount<br/>&gt;5 min old = 50% reduction"]
+        Adjust["Circadian + Cycle Phase<br/>Time-of-day normalization"]
     end
 
-    subgraph State["Unified State"]
-        Stress[Stress Index]
-        Focus[Focus Index]
-        Mood[Mood Score]
-        Valence[Valence -1..+1]
-        Arousal[Arousal 0..1]
-        Emotion[Emotion Label]
+    subgraph State["<b>Unified State</b>"]
+        Metrics["stress | focus | mood<br/>valence | arousal | emotion"]
     end
 
-    subgraph Pages["UI Pages"]
-        Today[Today]
-        Discover[Discover]
-        HealthP[Health Analytics]
-        Scores[Scores Dashboard]
+    subgraph Pages["<b>UI Pages</b>"]
+        Today["Today"]
+        Discover["Discover"]
+        HealthP["Health"]
+        Brain["Brain"]
     end
 
     EEG --> Weights
     Voice --> Weights
     Health --> Weights
-    Weights --> Stale --> Adjust
-    Adjust --> Stress & Focus & Mood & Valence & Arousal & Emotion
-    Stress --> Today & Discover & HealthP & Scores
-    Focus --> Today & Discover & HealthP & Scores
-    Mood --> Today & Discover & HealthP & Scores
+    Weights --> Stale --> Adjust --> Metrics
+    Metrics --> Today & Discover & HealthP & Brain
+
+    style Inputs fill:#0891b2,stroke:#0e7490,color:#fff
+    style EEG fill:#06b6d4,stroke:#0891b2,color:#fff
+    style Voice fill:#06b6d4,stroke:#0891b2,color:#fff
+    style Health fill:#06b6d4,stroke:#0891b2,color:#fff
+
+    style Fusion fill:#7c3aed,stroke:#6d28d9,color:#fff
+    style Weights fill:#8b5cf6,stroke:#7c3aed,color:#fff
+    style Stale fill:#8b5cf6,stroke:#7c3aed,color:#fff
+    style Adjust fill:#8b5cf6,stroke:#7c3aed,color:#fff
+
+    style State fill:#f59e0b,stroke:#d97706,color:#000
+    style Metrics fill:#fbbf24,stroke:#f59e0b,color:#000
+
+    style Pages fill:#10b981,stroke:#059669,color:#fff
+    style Today fill:#34d399,stroke:#10b981,color:#000
+    style Discover fill:#34d399,stroke:#10b981,color:#000
+    style HealthP fill:#34d399,stroke:#10b981,color:#000
+    style Brain fill:#34d399,stroke:#10b981,color:#000
 ```
 
 ---
@@ -107,34 +144,35 @@ graph LR
 ## EEG Signal Processing Pipeline
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'lineColor': '#64748b'}}}%%
 graph TD
-    Raw["Raw Muse 2 EEG<br/>256 Hz, 4 channels, uV"]
-    Reref["Mastoid Re-reference<br/>AF7/AF8 re-ref to avg(TP9, TP10)"]
+    Raw["Raw Muse 2 EEG<br/>256 Hz | 4 channels | uV"]
+    Reref["Mastoid Re-reference<br/>AF7/AF8 re-ref to avg TP9+TP10"]
     BP["Bandpass Filter<br/>Butterworth 1-50 Hz, order 5"]
-    Notch["Notch Filters<br/>50 Hz (EU) + 60 Hz (US)"]
-    Artifact["Artifact Detection<br/>75 uV threshold, kurtosis > 10"]
-    Buffer["Epoch Buffer<br/>4-sec sliding window, 50% overlap"]
+    Notch["Notch Filters<br/>50 Hz EU + 60 Hz US"]
+    Artifact["Artifact Detection<br/>75 uV threshold | kurtosis &gt; 10"]
+    Buffer["Epoch Buffer<br/>4-sec window | 50% overlap"]
 
-    subgraph Features["Feature Extraction"]
-        Band["Band Powers<br/>delta, theta, alpha, beta, gamma"]
-        FAA["Frontal Alpha Asymmetry<br/>ln(AF8) - ln(AF7)"]
-        DASM["DASM / RASM<br/>10 asymmetry features"]
-        FMT["Frontal Midline Theta<br/>ACC/mPFC activity"]
-        Hjorth["Hjorth Parameters<br/>activity, mobility, complexity"]
-        Entropy["Spectral + Differential Entropy"]
+    subgraph Features["<b>Feature Extraction</b> (41 features)"]
+        Band["Band Powers<br/>delta | theta | alpha | beta | gamma"]
+        FAA["Frontal Alpha Asymmetry<br/>ln AF8 - ln AF7"]
+        DASM["DASM + RASM<br/>10 asymmetry features"]
+        FMT["Frontal Midline Theta<br/>ACC / mPFC activity"]
+        Hjorth["Hjorth Parameters<br/>activity | mobility | complexity"]
+        Entropy["Spectral + Differential<br/>Entropy"]
     end
 
-    subgraph Models["16 ML Models"]
-        Emotion["Emotion Classifier<br/>EEGNet 4-ch, 85% CV"]
-        Sleep["Sleep Staging<br/>92.98% accuracy"]
-        Dream["Dream Detector<br/>82-88% est."]
+    subgraph Models["<b>16 ML Models</b>"]
+        Emotion["Emotion Classifier<br/>EEGNet 4-ch | 85% CV"]
+        Sleep["Sleep Staging<br/>92.98%"]
+        Dream["Dream Detector<br/>82-88% est"]
         FlowM["Flow State<br/>62.86%"]
-        StressM["Stress Detector<br/>4 levels"]
-        Others["Attention, Meditation,<br/>Drowsiness, Cognitive Load,<br/>Lucid Dream, Brain Age,<br/>Anomaly, Artifact,<br/>Denoising, Online Learner"]
+        StressM["Stress | 4 levels"]
+        Others["Attention | Meditation<br/>Drowsiness | Cog Load<br/>Lucid Dream | Brain Age<br/>Anomaly | Artifact<br/>Denoising | Online Learner"]
     end
 
-    StateEngine["State Engine<br/>valence, arousal, stress,<br/>focus, emotion label"]
-    UIOut["UI Components<br/>charts, gauges, scores"]
+    StateEngine["State Engine<br/>valence | arousal | stress | focus | emotion"]
+    UIOut["UI Dashboard<br/>charts | gauges | scores"]
 
     Raw --> Reref --> BP --> Notch --> Artifact --> Buffer
     Buffer --> Band & FAA & DASM & FMT & Hjorth & Entropy
@@ -145,6 +183,32 @@ graph TD
     Hjorth --> Emotion & Others
     Entropy --> Others
     Emotion & Sleep & Dream & FlowM & StressM & Others --> StateEngine --> UIOut
+
+    style Raw fill:#e879a8,stroke:#db2777,color:#fff
+    style Reref fill:#f9a8d4,stroke:#ec4899,color:#000
+    style BP fill:#f9a8d4,stroke:#ec4899,color:#000
+    style Notch fill:#f9a8d4,stroke:#ec4899,color:#000
+    style Artifact fill:#fca5a5,stroke:#ef4444,color:#000
+    style Buffer fill:#fcd34d,stroke:#f59e0b,color:#000
+
+    style Features fill:#dbeafe,stroke:#3b82f6,color:#000
+    style Band fill:#93c5fd,stroke:#3b82f6,color:#000
+    style FAA fill:#93c5fd,stroke:#3b82f6,color:#000
+    style DASM fill:#93c5fd,stroke:#3b82f6,color:#000
+    style FMT fill:#93c5fd,stroke:#3b82f6,color:#000
+    style Hjorth fill:#93c5fd,stroke:#3b82f6,color:#000
+    style Entropy fill:#93c5fd,stroke:#3b82f6,color:#000
+
+    style Models fill:#dcfce7,stroke:#22c55e,color:#000
+    style Emotion fill:#86efac,stroke:#22c55e,color:#000
+    style Sleep fill:#86efac,stroke:#22c55e,color:#000
+    style Dream fill:#86efac,stroke:#22c55e,color:#000
+    style FlowM fill:#86efac,stroke:#22c55e,color:#000
+    style StressM fill:#86efac,stroke:#22c55e,color:#000
+    style Others fill:#86efac,stroke:#22c55e,color:#000
+
+    style StateEngine fill:#fbbf24,stroke:#f59e0b,color:#000
+    style UIOut fill:#6366f1,stroke:#4f46e5,color:#fff
 ```
 
 ---
@@ -277,67 +341,93 @@ All tables have Row-Level Security (RLS) with `auth.uid()` policies for per-user
 ## Mobile App Page Hierarchy
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'lineColor': '#94a3b8'}}}%%
 graph TD
-    subgraph BottomTabs["Bottom Tab Bar"]
-        T1["Today /"]
-        T2["Discover /discover"]
-        T3["Voice Mic<br/>(center button)"]
-        T4["AI Chat /ai-companion"]
-        T5["You /you"]
+    subgraph BottomTabs["<b>Bottom Tab Bar</b>"]
+        T1["Today"]
+        T2["Discover"]
+        T3["Voice Mic"]
+        T4["AI Chat"]
+        T5["You"]
     end
 
-    subgraph TodaySub["Today Tab"]
-        T1 --> BrainReport["/brain-report"]
-        T1 --> WeeklySummary["/weekly-summary"]
-        T1 --> Scores["/scores"]
-        T1 --> QuickSession["/quick-session"]
+    subgraph TodaySub["<b>Today Tab</b>"]
+        T1 --> BrainReport["Brain Report"]
+        T1 --> WeeklySummary["Weekly Summary"]
+        T1 --> Scores["Scores"]
+        T1 --> QuickSession["Quick Session"]
     end
 
-    subgraph DiscoverSub["Discover Tab"]
-        T2 --> Brain["/brain-monitor"]
-        T2 --> Sleep["/sleep"]
-        T2 --> Health["/health"]
-        T2 --> Nutrition["/nutrition"]
-        T2 --> Wellness["/wellness"]
-        Brain --> BrainConn["/brain-connectivity"]
-        Brain --> Neurofeedback["/neurofeedback"]
-        Brain --> Biofeedback["/biofeedback"]
-        Brain --> DeepWork["/deep-work"]
-        Brain --> Calibration["/calibration"]
-        Sleep --> SleepSession["/sleep-session"]
-        Sleep --> SleepMusic["/sleep-music"]
-        Sleep --> CBTI["/cbti"]
-        Health --> HealthAnalytics["/health-analytics"]
-        Health --> HeartRate["/heart-rate"]
-        Health --> Steps["/steps"]
-        Health --> BodyMetrics["/body-metrics"]
-        Health --> Workout["/workout"]
-        T2 --> Stress["/stress"]
-        T2 --> Focus["/focus"]
-        T2 --> Dreams["/dreams"]
-        T2 --> InnerEnergy["/inner-energy"]
-        T2 --> FoodEmotion["/food-emotion"]
-        T2 --> Insights["/insights"]
-        T2 --> Habits["/habits"]
+    subgraph DiscoverSub["<b>Discover Tab</b>"]
+        T2 --> Brain["Brain Monitor"]
+        T2 --> Sleep["Sleep"]
+        T2 --> Health["Health"]
+        T2 --> Nutrition["Nutrition"]
+        T2 --> Wellness["Wellness"]
+        Brain --> BrainConn["Connectivity"]
+        Brain --> Neurofeedback["Neurofeedback"]
+        Brain --> Biofeedback["Biofeedback"]
+        Brain --> DeepWork["Deep Work"]
+        Sleep --> SleepMusic["Sleep Music"]
+        Sleep --> CBTI["CBT-I"]
+        Health --> HealthAnalytics["Analytics"]
+        Health --> HeartRate["Heart Rate"]
+        Health --> BodyMetrics["Body Metrics"]
+        Health --> Workout["Workout"]
+        T2 --> Dreams["Dreams"]
+        T2 --> Insights["Insights"]
     end
 
-    subgraph AIChatSub["AI Chat Tab"]
-        T4 --> CouplesMed["/couples-meditation"]
+    subgraph YouSub["<b>You Tab</b>"]
+        T5 --> Settings["Settings"]
+        T5 --> Sessions["Sessions"]
+        T5 --> Achievements["Achievements"]
+        T5 --> ConnectedAssets["Devices"]
+        T5 --> Export["Export"]
+        T5 --> Help["Help"]
+        T5 --> Notifications["Notifications"]
     end
 
-    subgraph YouSub["You Tab"]
-        T5 --> Settings["/settings"]
-        T5 --> Sessions["/sessions"]
-        T5 --> Records["/records"]
-        T5 --> Achievements["/achievements"]
-        T5 --> ConnectedAssets["/connected-assets"]
-        T5 --> Export["/export"]
-        T5 --> Help["/help"]
-        T5 --> ConsentSettings["/consent-settings"]
-        T5 --> Notifications["/notifications"]
-        T5 --> DeviceSetup["/device-setup"]
-        T5 --> Supplements["/supplements"]
-    end
+    style BottomTabs fill:#1e1b4b,stroke:#4f46e5,color:#fff
+    style T1 fill:#6366f1,stroke:#4f46e5,color:#fff
+    style T2 fill:#0891b2,stroke:#0e7490,color:#fff
+    style T3 fill:#e879a8,stroke:#db2777,color:#fff
+    style T4 fill:#10b981,stroke:#059669,color:#fff
+    style T5 fill:#f59e0b,stroke:#d97706,color:#000
+
+    style TodaySub fill:#eef2ff,stroke:#6366f1,color:#000
+    style BrainReport fill:#c7d2fe,stroke:#6366f1,color:#000
+    style WeeklySummary fill:#c7d2fe,stroke:#6366f1,color:#000
+    style Scores fill:#c7d2fe,stroke:#6366f1,color:#000
+    style QuickSession fill:#c7d2fe,stroke:#6366f1,color:#000
+
+    style DiscoverSub fill:#ecfeff,stroke:#0891b2,color:#000
+    style Brain fill:#a5f3fc,stroke:#0891b2,color:#000
+    style Sleep fill:#a5f3fc,stroke:#0891b2,color:#000
+    style Health fill:#a5f3fc,stroke:#0891b2,color:#000
+    style Nutrition fill:#a5f3fc,stroke:#0891b2,color:#000
+    style Wellness fill:#a5f3fc,stroke:#0891b2,color:#000
+    style BrainConn fill:#67e8f9,stroke:#06b6d4,color:#000
+    style Neurofeedback fill:#67e8f9,stroke:#06b6d4,color:#000
+    style Biofeedback fill:#67e8f9,stroke:#06b6d4,color:#000
+    style DeepWork fill:#67e8f9,stroke:#06b6d4,color:#000
+    style SleepMusic fill:#67e8f9,stroke:#06b6d4,color:#000
+    style CBTI fill:#67e8f9,stroke:#06b6d4,color:#000
+    style HealthAnalytics fill:#67e8f9,stroke:#06b6d4,color:#000
+    style HeartRate fill:#67e8f9,stroke:#06b6d4,color:#000
+    style BodyMetrics fill:#67e8f9,stroke:#06b6d4,color:#000
+    style Workout fill:#67e8f9,stroke:#06b6d4,color:#000
+    style Dreams fill:#a5f3fc,stroke:#0891b2,color:#000
+    style Insights fill:#a5f3fc,stroke:#0891b2,color:#000
+
+    style YouSub fill:#fffbeb,stroke:#f59e0b,color:#000
+    style Settings fill:#fde68a,stroke:#f59e0b,color:#000
+    style Sessions fill:#fde68a,stroke:#f59e0b,color:#000
+    style Achievements fill:#fde68a,stroke:#f59e0b,color:#000
+    style ConnectedAssets fill:#fde68a,stroke:#f59e0b,color:#000
+    style Export fill:#fde68a,stroke:#f59e0b,color:#000
+    style Help fill:#fde68a,stroke:#f59e0b,color:#000
+    style Notifications fill:#fde68a,stroke:#f59e0b,color:#000
 ```
 
 ---
