@@ -257,13 +257,20 @@ export function BrainAgeCard() {
         )}
       </div>
 
-      {/* Estimated Age */}
-      <div style={{ textAlign: "center", marginBottom: 8 }}>
-        <div style={{ fontSize: 42, fontWeight: 700, color: gapColor, lineHeight: 1 }}>
-          {brainAge.estimatedAge}
+      {/* Brain Age vs Your Age — side by side */}
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 24, marginBottom: 10 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 42, fontWeight: 700, color: gapColor, lineHeight: 1 }}>
+            {brainAge.estimatedAge}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>Brain Age</div>
         </div>
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
-          estimated brain age
+        <div style={{ fontSize: 20, fontWeight: 300, color: "var(--muted-foreground)", paddingBottom: 8 }}>vs</div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 42, fontWeight: 700, color: "var(--foreground)", lineHeight: 1 }}>
+            {actualAge}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>Your Age</div>
         </div>
       </div>
 
@@ -272,12 +279,12 @@ export function BrainAgeCard() {
         style={{
           textAlign: "center",
           fontSize: 13,
-          fontWeight: 500,
+          fontWeight: 600,
           color: gapColor,
           marginBottom: 4,
         }}
       >
-        Your brain is {gapLabel} than your actual age ({actualAge})
+        {gapLabel}
       </div>
 
       {/* Alpha Peak */}

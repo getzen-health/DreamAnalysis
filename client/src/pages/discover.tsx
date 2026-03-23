@@ -7,8 +7,6 @@ import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useFusedState } from "@/hooks/use-fused-state";
-import { ConfidenceMeter } from "@/components/confidence-meter";
-import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { getEmotionHistory as sbGetEmotionHistory, saveEmotionHistory as sbSaveEmotionHistory, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
@@ -602,6 +600,14 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
         </div>
         {current && (
           <div style={{ display: "flex", gap: 10 }}>
+            {checkin?.confidence != null && (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: checkin.confidence > 0.7 ? "#10b981" : checkin.confidence > 0.5 ? "#f59e0b" : "#ef4444" }}>
+                  {Math.round(checkin.confidence * 100)}%
+                </div>
+                <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Confidence</div>
+              </div>
+            )}
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#e879a8" }}>{current.stress}%</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Stress</div>
@@ -770,25 +776,6 @@ export default function Discover() {
       {/* ── Emotions Overview — combined stress, focus, mood graph ── */}
       <EmotionsOverview userId={userId} navigate={navigate} checkin={checkin} />
 
-      {/* ── Confidence + Intervention below emotion section ── */}
-      {hasData && (
-        <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
-              Confidence
-            </span>
-            <div style={{ flex: 1 }}>
-              <ConfidenceMeter confidence={checkin?.confidence ?? 0.5} size="sm" />
-            </div>
-          </div>
-          <InterventionSuggestion
-            emotion={emotion}
-            stressIndex={stress}
-            valence={valence}
-            compact
-          />
-        </div>
-      )}
 
       {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
       <EmotionTimeline userId={userId} />
