@@ -304,6 +304,8 @@ export default function StressTrends() {
         </div>
 
         {chartData.length >= 2 ? (
+          <div style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", marginLeft: -8, marginRight: -8, paddingLeft: 8, paddingRight: 8 }}>
+          <div style={{ width: Math.max(chartData.length * 40, 320), minWidth: "100%" }}>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart
               data={chartData}
@@ -356,6 +358,8 @@ export default function StressTrends() {
               />
             </AreaChart>
           </ResponsiveContainer>
+          </div>
+          </div>
         ) : (
           <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
             Not enough data to show a trend yet
