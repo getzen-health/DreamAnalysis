@@ -1848,6 +1848,7 @@ export default function Nutrition() {
   const [mealText, setMealText] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [selectedMealType, setSelectedMealType] = useState<string>(autoMealType());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [favorites, setFavorites] = useState<FavoriteMeal[]>(loadFavorites);
@@ -2267,7 +2268,7 @@ export default function Nutrition() {
     try {
       const res = await apiRequest("POST", "/api/food/analyze", {
         userId,
-        mealType: autoMealType(),
+        mealType: selectedMealType,
         textDescription: summary,
       });
       const data = await res.json();
@@ -2286,14 +2287,14 @@ export default function Nutrition() {
       }
       hapticSuccess();
       qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-      syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
+      syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: selectedMealType });
     } catch {
       // Fallback: use local estimation when API fails — always persist to localStorage
       const local = estimateNutritionLocally(summary);
       const entry: FoodLog = {
         id: `local_${Date.now()}`,
         loggedAt: new Date().toISOString(),
-        mealType: autoMealType(),
+        mealType: selectedMealType,
         summary: local.summary,
         totalCalories: local.total_calories,
         dominantMacro: local.dominant_macro,
@@ -2304,7 +2305,7 @@ export default function Nutrition() {
       try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
       hapticSuccess();
       qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-      syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
+      syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: selectedMealType });
     } finally {
       setIsAnalyzing(false);
     }
@@ -2318,7 +2319,7 @@ export default function Nutrition() {
     try {
       const res = await apiRequest("POST", "/api/food/analyze", {
         userId,
-        mealType: autoMealType(),
+        mealType: selectedMealType,
         textDescription: `${summary} - ${items.map((i) => `${i.name} (${i.calories} kcal, ${i.protein_g}g protein, ${i.carbs_g}g carbs, ${i.fat_g}g fat)`).join(", ")}`,
       });
       const data = await res.json();
@@ -2337,7 +2338,7 @@ export default function Nutrition() {
       }
       hapticSuccess();
       qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-      syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
+      syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: selectedMealType });
     } catch {
       // Fallback: log barcode items directly — always persist to localStorage
       const totalCal = items.reduce((s, i) => s + i.calories, 0);
@@ -2348,7 +2349,7 @@ export default function Nutrition() {
       const entry: FoodLog = {
         id: `local_${Date.now()}`,
         loggedAt: new Date().toISOString(),
-        mealType: autoMealType(),
+        mealType: selectedMealType,
         summary,
         totalCalories: totalCal,
         dominantMacro: dominant,
@@ -2359,7 +2360,7 @@ export default function Nutrition() {
       try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
       hapticSuccess();
       qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
-      syncFoodToRailway({ summary, totalCalories: totalCal, dominantMacro: dominant, foodItems: items, mealType: autoMealType() });
+      syncFoodToRailway({ summary, totalCalories: totalCal, dominantMacro: dominant, foodItems: items, mealType: selectedMealType });
     } finally {
       setIsAnalyzing(false);
     }
@@ -2504,7 +2505,7 @@ export default function Nutrition() {
               });
               const apiPromise = apiRequest("POST", "/api/food/analyze", {
                 userId,
-                mealType: autoMealType(),
+                mealType: selectedMealType,
                 imageBase64: base64,
               });
               const timeoutPromise = new Promise<never>((_, reject) =>
@@ -2526,7 +2527,7 @@ export default function Nutrition() {
                 });
               }
               hapticSuccess();
-              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
+              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: selectedMealType });
               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
               setCaptureMode("none");
             } catch {
@@ -2537,7 +2538,7 @@ export default function Nutrition() {
                 const entry: FoodLog = {
                   id: `local_${Date.now()}`,
                   loggedAt: new Date().toISOString(),
-                  mealType: autoMealType(),
+                  mealType: selectedMealType,
                   summary: local.summary,
                   totalCalories: local.total_calories,
                   dominantMacro: local.dominant_macro,
@@ -2547,7 +2548,7 @@ export default function Nutrition() {
                 persistFoodLogLocally(userId, entry);
                 try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                 hapticSuccess();
-                syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
+                syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: selectedMealType });
                 qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                 setCaptureMode("none");
               } catch (fallbackErr) {
@@ -2583,7 +2584,7 @@ export default function Nutrition() {
               });
               const apiPromise = apiRequest("POST", "/api/food/analyze", {
                 userId,
-                mealType: autoMealType(),
+                mealType: selectedMealType,
                 imageBase64: base64,
               });
               const timeoutPromise = new Promise<never>((_, reject) =>
@@ -2605,7 +2606,7 @@ export default function Nutrition() {
                 });
               }
               hapticSuccess();
-              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
+              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: selectedMealType });
               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
               setCaptureMode("none");
             } catch {
@@ -2616,7 +2617,7 @@ export default function Nutrition() {
                 const entry: FoodLog = {
                   id: `local_${Date.now()}`,
                   loggedAt: new Date().toISOString(),
-                  mealType: autoMealType(),
+                  mealType: selectedMealType,
                   summary: local.summary,
                   totalCalories: local.total_calories,
                   dominantMacro: local.dominant_macro,
@@ -2626,7 +2627,7 @@ export default function Nutrition() {
                 persistFoodLogLocally(userId, entry);
                 try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                 hapticSuccess();
-                syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
+                syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: selectedMealType });
                 qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                 setCaptureMode("none");
               } catch (fallbackErr) {
@@ -2690,6 +2691,31 @@ export default function Nutrition() {
                 </div>
               )}
 
+              {/* Meal type selector */}
+              {captureMode === "none" && (
+                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                  {[
+                    { value: "breakfast", label: "🌅 Breakfast" },
+                    { value: "lunch", label: "☀️ Lunch" },
+                    { value: "dinner", label: "🌙 Dinner" },
+                    { value: "snack", label: "🍿 Snack" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setSelectedMealType(opt.value)}
+                      style={{
+                        flex: 1, padding: "8px 4px", fontSize: 11, fontWeight: 600, borderRadius: 8, border: "none", cursor: "pointer",
+                        background: selectedMealType === opt.value ? "var(--primary)" : "var(--muted)",
+                        color: selectedMealType === opt.value ? "white" : "var(--muted-foreground)",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Action Buttons — Scan (primary) + Describe + Barcode */}
               {captureMode === "none" && (
                 <div style={{ marginBottom: 14 }}>
@@ -2713,7 +2739,7 @@ export default function Nutrition() {
                             try {
                               const res = await apiRequest("POST", "/api/food/analyze", {
                                 userId,
-                                mealType: autoMealType(),
+                                mealType: selectedMealType,
                                 imageBase64: photo.base64String,
                               });
                               const data = await res.json();
@@ -2731,7 +2757,7 @@ export default function Nutrition() {
                                 });
                               }
                               hapticSuccess();
-                              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
+                              syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: selectedMealType });
                               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                               setCaptureMode("none");
                             } catch {
@@ -2740,7 +2766,7 @@ export default function Nutrition() {
                               const entry: FoodLog = {
                                 id: `local_${Date.now()}`,
                                 loggedAt: new Date().toISOString(),
-                                mealType: autoMealType(),
+                                mealType: selectedMealType,
                                 summary: local.summary,
                                 totalCalories: local.total_calories,
                                 dominantMacro: local.dominant_macro,
@@ -2750,7 +2776,7 @@ export default function Nutrition() {
                               persistFoodLogLocally(userId, entry);
                               try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                               hapticSuccess();
-                              syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
+                              syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: selectedMealType });
                               qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                               setCaptureMode("none");
                             } finally {
@@ -2880,7 +2906,7 @@ export default function Nutrition() {
                         try {
                           const apiPromise = apiRequest("POST", "/api/food/analyze", {
                             userId,
-                            mealType: autoMealType(),
+                            mealType: selectedMealType,
                             textDescription: mealText.trim(),
                           });
                           const timeoutPromise = new Promise<never>((_, reject) =>
@@ -2902,7 +2928,7 @@ export default function Nutrition() {
                             });
                           }
                           hapticSuccess();
-                          syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: autoMealType() });
+                          syncFoodToRailway({ summary: data.summary, totalCalories: data.totalCalories, dominantMacro: data.dominantMacro, foodItems: data.foodItems, mealType: selectedMealType });
                           setMealText("");
                           qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                           setCaptureMode("none");
@@ -2913,7 +2939,7 @@ export default function Nutrition() {
                             const entry: FoodLog = {
                               id: `local_${Date.now()}`,
                               loggedAt: new Date().toISOString(),
-                              mealType: autoMealType(),
+                              mealType: selectedMealType,
                               summary: local.summary,
                               totalCalories: local.total_calories,
                               dominantMacro: local.dominant_macro,
@@ -2923,7 +2949,7 @@ export default function Nutrition() {
                             persistFoodLogLocally(userId, entry);
                             try { await apiRequest("POST", "/api/food/log", { userId, ...entry }); } catch { /* ok */ }
                             hapticSuccess();
-                            syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: autoMealType() });
+                            syncFoodToRailway({ summary: local.summary, totalCalories: local.total_calories, dominantMacro: local.dominant_macro, foodItems: local.food_items, mealType: selectedMealType });
                             setMealText("");
                             qc.invalidateQueries({ queryKey: ["/api/food/logs", userId] });
                             setCaptureMode("none");

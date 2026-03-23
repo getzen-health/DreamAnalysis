@@ -849,6 +849,11 @@ export default function Today() {
         predictedEmotion: checkin.emotion,
         correctedEmotion: checkin.emotion,
         source: "voice",
+        features: checkin.valence != null ? {
+          voice_valence: checkin.valence,
+          voice_arousal: checkin.arousal ?? 0.5,
+          voice_stress: checkin.stress_index ?? 0,
+        } : undefined,
       }).catch(() => {});
     }
   }, [userId, checkin]);
@@ -861,12 +866,17 @@ export default function Today() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ correctedEmotion: emotion }),
     }).catch((err) => console.error("Failed to save emotion correction:", err));
-    // Persist correction to Supabase + ML backend
+    // Persist correction to Supabase + ML backend with voice feature vectors
     recordCorrection({
       userId,
       predictedEmotion: checkin?.emotion ?? "unknown",
       correctedEmotion: emotion,
       source: "voice",
+      features: checkin?.valence != null ? {
+        voice_valence: checkin.valence ?? 0,
+        voice_arousal: checkin.arousal ?? 0.5,
+        voice_stress: checkin.stress_index ?? 0,
+      } : undefined,
     }).catch(() => {});
     // Record fusion feedback — adapts per-modality weights for this user
     correctFusedEmotion(emotion);

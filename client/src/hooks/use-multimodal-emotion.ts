@@ -11,7 +11,7 @@
  * Returns the fused result and a readiness flag.
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useHealthSync } from "./use-health-sync";
 import { analyzeHealthState, type HealthSnapshot } from "@/lib/health-inference";
 import {
@@ -136,19 +136,44 @@ export function useMultimodalEmotion(): UseMultimodalEmotionReturn {
   const [fusedEmotion, setFusedEmotion] = useState<FusedResult | null>(null);
   const [lastInputs, setLastInputs] = useState<ModalityInput[]>([]);
 
+  // Cache latest feature vectors from each modality for retraining.
+  // Stored as a ref to avoid re-renders — only read during corrections.
+  const cachedFeaturesRef = useRef<Record<string, number>>({});
+
   // Recompute fusion whenever any source updates
   const recompute = useCallback(() => {
     const inputs: ModalityInput[] = [];
+    const features: Record<string, number> = {};
 
     const eeg = readEEGEmotion();
-    if (eeg) inputs.push(eeg);
+    if (eeg) {
+      inputs.push(eeg);
+      // Cache EEG numeric features for correction payloads
+      features["eeg_valence"] = eeg.valence;
+      features["eeg_arousal"] = eeg.arousal;
+      features["eeg_stress"] = eeg.stress;
+      features["eeg_confidence"] = eeg.confidence;
+    }
 
     const voice = readVoiceEmotion();
-    if (voice) inputs.push(voice);
+    if (voice) {
+      inputs.push(voice);
+      features["voice_valence"] = voice.valence;
+      features["voice_arousal"] = voice.arousal;
+      features["voice_stress"] = voice.stress;
+      features["voice_confidence"] = voice.confidence;
+    }
 
     const health = buildHealthInput(latestPayload as Record<string, unknown> | null);
-    if (health) inputs.push(health);
+    if (health) {
+      inputs.push(health);
+      features["health_valence"] = health.valence;
+      features["health_arousal"] = health.arousal;
+      features["health_stress"] = health.stress;
+      features["health_confidence"] = health.confidence;
+    }
 
+    cachedFeaturesRef.current = features;
     setLastInputs(inputs);
     setFusedEmotion(fuseModalities(inputs));
   }, [latestPayload]);
@@ -194,12 +219,16 @@ export function useMultimodalEmotion(): UseMultimodalEmotionReturn {
           savePersonalAdapter(updated);
         }
 
-        // Persist correction to Supabase + ML backend
+        // Persist correction to Supabase + ML backend with cached feature vectors
         recordCorrection({
           userId: getParticipantId(),
           predictedEmotion: fusedEmotion.emotion,
           correctedEmotion: userCorrectedEmotion,
           source: "manual",
+          confidence: fusedEmotion.confidence,
+          features: Object.keys(cachedFeaturesRef.current).length > 0
+            ? cachedFeaturesRef.current
+            : undefined,
         }).catch(() => {});
 
         // Recompute immediately with updated multipliers
