@@ -78,35 +78,18 @@ function filterByRange(entries: HistoryEntry[], range: TimeRange): HistoryEntry[
 
 function buildChartData(
   entries: HistoryEntry[],
-  range: TimeRange,
+  _range: TimeRange,
 ): { time: string; value: number }[] {
   if (entries.length === 0) return [];
-
-  if (range === "today") {
-    return entries.map((e) => ({
+  // Show EVERY individual data point — no averaging
+  return entries
+    .map((e) => ({
       time: new Date(e.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      value: Math.round(e.stress * 100),
-    }));
-  }
-
-  const dayMap = new Map<string, { values: number[]; ts: number }>();
-  for (const e of entries) {
-    const d = new Date(e.timestamp);
-    const key =
-      range === "week"
-        ? d.toLocaleDateString("en-US", { weekday: "short" })
-        : `${d.getMonth() + 1}/${d.getDate()}`;
-    const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    if (!dayMap.has(key)) dayMap.set(key, { values: [], ts });
-    dayMap.get(key)!.values.push(e.stress * 100);
-  }
-
-  return Array.from(dayMap.entries())
-    .sort(([, a], [, b]) => a.ts - b.ts)
-    .map(([time, { values }]) => ({
-      time,
-      value: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
-    }));
+      value: Math.round((e.stress ?? 0) * 100),
+      ts: new Date(e.timestamp).getTime(),
+    }))
+    .sort((a, b) => a.ts - b.ts)
+    .map(({ time, value }) => ({ time, value }));
 }
 
 function buildPeriodAverages(
@@ -161,16 +144,27 @@ export default function StressTrends() {
   const [range, setRange] = useState<TimeRange>("week");
   const { emotion: currentEmotion } = useCurrentEmotion();
 
-  const { data } = useQuery<
-    Array<{
-      stress: number;
-      happiness: number;
-      focus: number;
-      dominantEmotion: string;
-      timestamp: string;
-    }>
-  >({
+  const { data } = useQuery<HistoryEntry[]>({
     queryKey: [`/api/brain/history/${userId}?days=30`],
+    queryFn: async () => {
+      // Try API first
+      try {
+        const res = await fetch(`/api/brain/history/${userId}?days=30`);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json) && json.length > 0) return json;
+        }
+      } catch { /* API unavailable */ }
+      // Fallback: localStorage emotion history
+      try {
+        const raw = localStorage.getItem("ndw_emotion_history");
+        if (raw) {
+          const entries = JSON.parse(raw);
+          if (Array.isArray(entries)) return entries;
+        }
+      } catch { /* ignore */ }
+      return [];
+    },
     retry: false,
     staleTime: 60_000,
   });
