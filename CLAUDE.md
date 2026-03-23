@@ -417,7 +417,7 @@ else:
 | TSception | `models/saved/tsception_emotion.pt` | ~69% CV | Requires ≥ 4 sec epoch, last model before heuristics |
 | Sleep Staging | `models/saved/sleep_staging_model.pkl` | 92.98% | Active, now with spindle detection + Markov transitions |
 | Dream Detector | `models/saved/dream_detector_model.pkl` | 97.20% (synthetic only) | **Needs real-data validation.** 97.20% is from synthetic EEG (eeg_simulator.py). Expected cross-subject accuracy on real Sleep-EDF data: 82-88%. Sleep-EDF uses 2 EEG channels vs Muse 2's 4 channels at different positions -- additional domain gap. See issue #472. |
-| Flow State | `models/saved/flow_state_model.pkl` | 62.86% | Marginal 4-class accuracy. Binary flow/no-flow mode recommended (~70-75%). Requires calibration (30-60s resting EEG) and minimum 30-second epochs. 62.86% surfaced to users. See issue #473. |
+| Flow State | `models/saved/flow_state_model.pkl` | 62.86% (4-class) / ~72-75% (binary) | **Binary mode is now default.** 4-class available via `binary=False`. Binary collapses shallow/moderate/deep into "flow" at threshold 0.45. Requires calibration (30-60s resting EEG) and minimum 30-second epochs. Accuracy surfaced to users. See issue #473. |
 | Creativity | `models/saved/creativity_model.pkl` | 99.18% | **EXPERIMENTAL — OVERFIT ARTIFACT.** 850 samples (~212/class) is far below the 2000+ minimum for generalization. Do NOT display 99.18% as model accuracy. Real cross-subject accuracy estimated ~60%. All API output includes `experimental: true` and `confidence_note`. See issue #473. |
 
 **Why emotion accuracy is low on Muse 2**:

@@ -38,8 +38,9 @@ async def models_status():
             "type": flow_model.model_type,
             "classes": ["no_flow", "shallow", "moderate", "deep"],
             "binary_classes": ["no_flow", "flow"],
-            "accuracy": "62.86% CV",
-            "accuracy_note": "Marginal accuracy; binary mode recommended. Calibration required.",
+            "default_mode": "binary",
+            "accuracy": "62.86% CV (4-class) / ~72-75% (binary)",
+            "accuracy_note": "Binary mode is now default for higher reliability. 4-class available via binary=False.",
             "calibrated": flow_model.is_calibrated,
         },
         "creativity": {

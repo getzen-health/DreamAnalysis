@@ -218,11 +218,11 @@ class TestBetaAsymmetry:
         ch3 = np.random.randn(n_samples) * 10
 
         channels = np.array([ch0, ch1, ch2, ch3])
-        result = detector.predict(channels)
+        result = detector.predict(channels, binary=False)
 
         # Compare with symmetric version
         sym_channels = _make_multichannel(freqs=[6, 10, 20], amps=[10, 10, 15])
-        sym_result = detector.predict(sym_channels)
+        sym_result = detector.predict(sym_channels, binary=False)
 
         assert result["components"]["beta_symmetry"] < sym_result["components"]["beta_symmetry"], (
             f"Asymmetric ({result['components']['beta_symmetry']}) should be < "
@@ -232,7 +232,7 @@ class TestBetaAsymmetry:
     def test_single_channel_default_symmetry(self, detector):
         """Single-channel input should use default beta_symmetry of 0.5."""
         signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         assert result["components"]["beta_symmetry"] == 0.5
 
 
@@ -242,7 +242,7 @@ class TestEdgeCases:
     def test_all_zeros_signal(self, detector):
         """All-zeros signal should not crash; should return valid result."""
         signal = np.zeros(1024)
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         assert "flow_score" in result
         assert 0 <= result["flow_score"] <= 1
         assert result["state"] in FLOW_STATES
@@ -250,7 +250,7 @@ class TestEdgeCases:
     def test_single_channel_1d(self, detector):
         """1D input should work without multichannel features."""
         signal = np.random.randn(1024) * 20
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         assert "flow_score" in result
         assert "components" in result
         assert "beta_symmetry" in result["components"]
@@ -258,13 +258,13 @@ class TestEdgeCases:
     def test_two_channel_input(self, detector):
         """2-channel input (< 3 channels) should use default beta_symmetry."""
         channels = np.random.randn(2, 1024) * 20
-        result = detector.predict(channels)
+        result = detector.predict(channels, binary=False)
         assert result["components"]["beta_symmetry"] == 0.5
 
     def test_constant_signal(self, detector):
         """Near-constant signal should not crash."""
         signal = np.ones(1024) * 0.001
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         assert 0 <= result["flow_score"] <= 1
 
 
@@ -274,14 +274,14 @@ class TestCalibrationBaseline:
     def test_no_baseline_default_score(self, detector):
         """Without calibration, beta_decrease should default to 0.4."""
         signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         assert result["components"]["beta_decrease"] == 0.4
 
     def test_with_baseline_beta_decreased(self, calibrated_detector):
         """When current beta is lower than baseline, beta_decrease should be > 0.5."""
         # Signal with low beta (flow-like) — baseline_beta is 0.20
         signal = _make_signal(freqs=[6, 10, 20], amps=[20, 20, 3])
-        result = calibrated_detector.predict(signal)
+        result = calibrated_detector.predict(signal, binary=False)
         # Beta should be lower than baseline 0.20, so score should be > 0.5
         assert result["components"]["beta_decrease"] > 0.4, (
             f"Expected beta_decrease > 0.4 when beta drops from baseline, "
@@ -292,7 +292,7 @@ class TestCalibrationBaseline:
         """When current beta exceeds baseline, beta_decrease should be < 0.5."""
         # Signal with high beta (stressed) — baseline_beta is 0.20
         signal = _make_signal(freqs=[20, 25, 30], amps=[30, 25, 20])
-        result = calibrated_detector.predict(signal)
+        result = calibrated_detector.predict(signal, binary=False)
         # Beta should be higher than baseline 0.20, so score should be < 0.5
         assert result["components"]["beta_decrease"] < 0.5, (
             f"Expected beta_decrease < 0.5 when beta exceeds baseline, "
@@ -301,12 +301,12 @@ class TestCalibrationBaseline:
 
 
 class TestOutputStructure:
-    """Verify the output dict has all required fields."""
+    """Verify the output dict has all required fields (4-class mode)."""
 
     def test_all_required_keys(self, detector):
         """Output should contain all required keys."""
         signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         required_keys = {
             "state", "state_index", "flow_score", "confidence",
             "flow_intensity", "components", "band_powers"
@@ -318,14 +318,14 @@ class TestOutputStructure:
     def test_component_keys(self, detector):
         """Components dict should have the four validated biomarker scores."""
         signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         component_keys = {"theta_flow", "flow_ratio", "beta_decrease", "beta_symmetry"}
         assert component_keys == set(result["components"].keys())
 
     def test_flow_score_is_weighted_sum(self, detector):
         """flow_score should be the weighted sum of the four components."""
         signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         c = result["components"]
         expected = (
             0.35 * c["theta_flow"] +
@@ -341,5 +341,101 @@ class TestOutputStructure:
         """Confidence should be in [0.3, 0.95]."""
         for _ in range(5):
             signal = np.random.randn(1024) * 20
-            result = detector.predict(signal)
+            result = detector.predict(signal, binary=False)
             assert 0.3 <= result["confidence"] <= 0.95
+
+
+class TestBinaryMode:
+    """Verify binary flow/no-flow mode output."""
+
+    def test_binary_is_default(self, detector):
+        """predict() should default to binary mode."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result = detector.predict(signal)
+        assert result["binary_mode"] is True
+
+    def test_binary_state_only_flow_or_no_flow(self, detector):
+        """Binary mode should return only 'flow' or 'no_flow' as state."""
+        for _ in range(10):
+            signal = np.random.randn(1024) * 20
+            result = detector.predict(signal, binary=True)
+            assert result["state"] in ("flow", "no_flow"), (
+                f"Expected 'flow' or 'no_flow', got '{result['state']}'"
+            )
+
+    def test_binary_is_flow_boolean(self, detector):
+        """is_flow should be a boolean."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result = detector.predict(signal, binary=True)
+        assert isinstance(result["is_flow"], bool)
+
+    def test_binary_in_flow_alias(self, detector):
+        """in_flow should match is_flow (frontend compatibility)."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result = detector.predict(signal, binary=True)
+        assert result["in_flow"] == result["is_flow"]
+
+    def test_binary_confidence_bounded(self, detector):
+        """Confidence should be in [0, 1] range in binary mode."""
+        for _ in range(10):
+            signal = np.random.randn(1024) * 20
+            result = detector.predict(signal, binary=True)
+            assert 0 <= result["confidence"] <= 1.0
+
+    def test_binary_flow_score_preserved(self, detector):
+        """flow_score should be the same continuous value in binary mode."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result_binary = detector.predict(signal, binary=True)
+        result_4class = detector.predict(signal, binary=False)
+        assert result_binary["flow_score"] == result_4class["flow_score"]
+
+    def test_binary_detailed_state_contains_4class(self, detector):
+        """detailed_state should contain the original 4-class label."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result = detector.predict(signal, binary=True)
+        assert "detailed_state" in result
+        assert result["detailed_state"] in FLOW_STATES
+
+    def test_binary_model_type(self, detector):
+        """model_type should be 'flow_binary' in binary mode."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result = detector.predict(signal, binary=True)
+        assert result["model_type"] == "flow_binary"
+
+    def test_4class_model_type(self, detector):
+        """model_type should be 'flow_4class' when binary=False."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result = detector.predict(signal, binary=False)
+        assert result["model_type"] == "flow_4class"
+
+    def test_binary_threshold_at_045(self, detector):
+        """Binary mode should classify as 'flow' when flow_score >= 0.45."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result = detector.predict(signal, binary=True)
+        if result["flow_score"] >= 0.45:
+            assert result["state"] == "flow"
+            assert result["is_flow"] is True
+        else:
+            assert result["state"] == "no_flow"
+            assert result["is_flow"] is False
+
+    def test_binary_state_index_values(self, detector):
+        """Binary state_index should be 0 (no_flow) or 1 (flow)."""
+        for _ in range(10):
+            signal = np.random.randn(1024) * 20
+            result = detector.predict(signal, binary=True)
+            assert result["state_index"] in (0, 1)
+
+    def test_binary_required_keys(self, detector):
+        """Binary output should contain all required keys."""
+        signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
+        result = detector.predict(signal, binary=True)
+        required_keys = {
+            "state", "state_index", "flow_score", "confidence",
+            "flow_intensity", "components", "band_powers",
+            "is_flow", "in_flow", "detailed_state", "binary_mode",
+            "model_type", "model_accuracy", "accuracy_note",
+        }
+        assert required_keys.issubset(result.keys()), (
+            f"Missing keys: {required_keys - result.keys()}"
+        )

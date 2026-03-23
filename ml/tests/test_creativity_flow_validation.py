@@ -134,11 +134,11 @@ class TestFlowBinaryMode:
         result = calibrated_flow_detector.predict(long_eeg, fs=256.0, binary=False)
         assert result["binary_mode"] is False
 
-    def test_default_is_non_binary(self, calibrated_flow_detector, long_eeg):
-        """Default predict() should use 4-state mode."""
+    def test_default_is_binary(self, calibrated_flow_detector, long_eeg):
+        """Default predict() should use binary mode (higher accuracy)."""
         result = calibrated_flow_detector.predict(long_eeg, fs=256.0)
-        assert result["binary_mode"] is False
-        assert result["state"] in FLOW_STATES
+        assert result["binary_mode"] is True
+        assert result["state"] in FLOW_STATES_BINARY
 
     def test_binary_state_index_range(self, calibrated_flow_detector, long_eeg):
         """In binary mode, state_index should be 0 or 1."""
