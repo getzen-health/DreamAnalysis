@@ -240,6 +240,10 @@ function AppRoutes() {
       <Route path="/steps">
         <ProtectedRoute><AppLayout><StepsPage /></AppLayout></ProtectedRoute>
       </Route>
+      {/* Redirects for removed pages → brain */}
+      <Route path="/emotions"><RedirectTo to="/brain-monitor" /></Route>
+      <Route path="/mood"><RedirectTo to="/brain-monitor" /></Route>
+      <Route path="/journal"><RedirectTo to="/brain-monitor" /></Route>
       {/* Bottom tab route aliases */}
       <Route path="/trends">
         <ProtectedRoute><AppLayout><HealthAnalytics /></AppLayout></ProtectedRoute>
