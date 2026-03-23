@@ -450,7 +450,7 @@ function StepDone({
           onClick={onEmotions}
         >
           <Activity className="h-4 w-4 mr-2" />
-          Go to Emotions
+          Go to Brain
         </Button>
       </div>
     </div>
@@ -566,7 +566,7 @@ export default function DeviceSetup() {
           </div>
           <button
             onClick={() => navigate("/brain-monitor")}
-            aria-label="Skip device setup and go to Emotions"
+            aria-label="Skip device setup and go to Brain"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Skip
