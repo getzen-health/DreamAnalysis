@@ -261,9 +261,9 @@ def run_benchmark():
     eeg_data, true_stages = generate_synthetic_night(fs=256, duration_min=30.0)
     log.info(f"  Generated {len(true_stages)} epochs ({len(eeg_data)} samples)")
     log.info(f"  True stage distribution:")
-    for stage in STAGE_NAMES:
-        count = sum(1 for s in true_stages if _normalize_stage(s) == STAGE_MAP.get(stage[0] if stage != "Wake" else "W", -1))
-        log.info(f"    {stage}: {count} epochs")
+    for idx, name in enumerate(STAGE_NAMES):
+        count = sum(1 for s in true_stages if _normalize_stage(s) == idx)
+        log.info(f"    {name}: {count} epochs")
 
     # Run YASA
     log.info("\n--- YASA Sleep Staging ---")
