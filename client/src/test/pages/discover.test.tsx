@@ -154,10 +154,10 @@ describe("Discover page", () => {
     });
   });
 
-  it("shows 7-day trend subtitle on emotions card", async () => {
+  it("shows continuous trend subtitle on emotions card", async () => {
     renderWithProviders(<Discover />);
     await waitFor(() => {
-      expect(screen.getByText("Stress, Focus, Mood — 7 day trends")).toBeInTheDocument();
+      expect(screen.getByText("Stress, Focus, Mood — continuous trend")).toBeInTheDocument();
     });
   });
 });
