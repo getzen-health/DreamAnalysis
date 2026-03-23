@@ -155,5 +155,8 @@
   "optionalDependencies": {
     "bufferutil": "^4.0.8",
     "dd-trace": "^5.87.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }
