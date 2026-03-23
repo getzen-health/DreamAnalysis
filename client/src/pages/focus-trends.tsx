@@ -79,16 +79,19 @@ function filterByRange(entries: HistoryEntry[], range: TimeRange): HistoryEntry[
 
 function buildChartData(
   entries: HistoryEntry[],
-  _range: TimeRange,
+  range: TimeRange,
 ): { time: string; value: number }[] {
   if (entries.length === 0) return [];
-  // Show EVERY individual data point — no averaging
   return entries
-    .map((e) => ({
-      time: new Date(e.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      value: Math.round((e.focus ?? 0) * 100),
-      ts: new Date(e.timestamp).getTime(),
-    }))
+    .map((e) => {
+      const d = new Date(e.timestamp);
+      const time = range === "today"
+        ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : range === "week"
+        ? d.toLocaleDateString([], { weekday: "short", hour: "2-digit" })
+        : d.toLocaleDateString([], { month: "short", day: "numeric" });
+      return { time, value: Math.round((e.focus ?? 0) * 100), ts: d.getTime() };
+    })
     .sort((a, b) => a.ts - b.ts)
     .map(({ time, value }) => ({ time, value }));
 }
@@ -148,21 +151,44 @@ export default function FocusTrends() {
   const { data } = useQuery<HistoryEntry[]>({
     queryKey: [`/api/brain/history/${userId}?days=30`],
     queryFn: async () => {
+      let all: HistoryEntry[] = [];
       try {
         const res = await fetch(`/api/brain/history/${userId}?days=30`);
         if (res.ok) {
           const json = await res.json();
-          if (Array.isArray(json) && json.length > 0) return json;
+          if (Array.isArray(json)) all = json;
         }
       } catch { /* API unavailable */ }
+      try {
+        const { getSupabase } = await import("@/lib/supabase-browser");
+        const sb = await getSupabase();
+        if (sb) {
+          const since = new Date(Date.now() - 30 * 86400000).toISOString();
+          const { data: rows } = await sb.from("emotion_history").select("*")
+            .eq("user_id", userId).gte("created_at", since).order("created_at", { ascending: false }).limit(500);
+          if (rows) {
+            for (const r of rows) {
+              all.push({ stress: r.stress ?? 0, happiness: r.mood ?? 0, focus: r.focus ?? 0, dominantEmotion: r.dominant_emotion ?? "neutral", timestamp: r.created_at });
+            }
+          }
+        }
+      } catch { /* Supabase unavailable */ }
       try {
         const raw = localStorage.getItem("ndw_emotion_history");
         if (raw) {
           const entries = JSON.parse(raw);
-          if (Array.isArray(entries)) return entries;
+          if (Array.isArray(entries)) all.push(...entries);
         }
       } catch { /* ignore */ }
-      return [];
+      all.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      const deduped: HistoryEntry[] = [];
+      for (const e of all) {
+        const ts = new Date(e.timestamp).getTime();
+        if (deduped.length === 0 || ts - new Date(deduped[deduped.length - 1].timestamp).getTime() > 3000) {
+          deduped.push(e);
+        }
+      }
+      return deduped;
     },
     retry: false,
     staleTime: 60_000,
