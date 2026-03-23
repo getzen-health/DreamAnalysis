@@ -72,9 +72,9 @@ export function StreakCard({ userId }: StreakCardProps) {
     retry: 1,
   });
 
-  /** Navigate to the emotions page to start a voice analysis. */
+  /** Navigate to the brain page. */
   const handleCheckin = () => {
-    navigate("/emotions");
+    navigate("/brain-monitor");
   };
 
   if (isLoading) {

@@ -429,7 +429,7 @@ export default function Insights() {
             A 30-second voice analysis analyzes your emotional tone, stress level, and energy.
             Once recorded, this page will show personalized insights, recommended actions, and trends over time.
           </p>
-          <Link href="/emotions">
+          <Link href="/brain-monitor">
             <Button size="default" className="mb-6">
               <Mic className="h-4 w-4 mr-2" />
               Start Voice Analysis

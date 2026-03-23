@@ -309,7 +309,7 @@ describe("BrainMonitor page", () => {
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
         const link = screen.getByTestId("model-link-Emotion").closest("a");
-        expect(link).toHaveAttribute("href", "/emotions");
+        expect(link).toHaveAttribute("href", "/brain-monitor");
       });
     });
 

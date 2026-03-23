@@ -565,7 +565,7 @@ export default function DeviceSetup() {
             <WizardProgress step={step} totalSteps={TOTAL_STEPS} />
           </div>
           <button
-            onClick={() => navigate("/emotions")}
+            onClick={() => navigate("/brain-monitor")}
             aria-label="Skip device setup and go to Emotions"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -612,7 +612,7 @@ export default function DeviceSetup() {
             deviceName={selectedName}
             isSynthetic={isSynthetic}
             onCalibrate={() => navigate("/onboarding")}
-            onEmotions={() => navigate("/emotions")}
+            onEmotions={() => navigate("/brain-monitor")}
           />
         )}
       </div>

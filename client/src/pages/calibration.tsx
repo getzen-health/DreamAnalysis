@@ -368,7 +368,7 @@ export default function CalibrationPage() {
         <div className="flex flex-col items-center gap-3 w-full">
           {phase === "complete" && (
             <>
-              <Button className="w-full" onClick={() => navigate("/emotions")}>
+              <Button className="w-full" onClick={() => navigate("/brain-monitor")}>
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Start measuring emotions
               </Button>
@@ -400,7 +400,7 @@ export default function CalibrationPage() {
             <Button
               variant="outline"
               className="w-full border-success/30 text-success hover:bg-success/10"
-              onClick={() => navigate("/emotions")}
+              onClick={() => navigate("/brain-monitor")}
             >
               Done — use readings now
             </Button>
@@ -418,7 +418,7 @@ export default function CalibrationPage() {
           )}
 
           <button
-            onClick={() => navigate("/emotions")}
+            onClick={() => navigate("/brain-monitor")}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Skip for now →

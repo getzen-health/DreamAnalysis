@@ -617,7 +617,7 @@ export default function HealthAnalytics() {
               {isLiveToday ? "Start your first session to see trends" : "No sessions in this period"}
             </p>
             {isLiveToday && (
-              <Link href="/emotions">
+              <Link href="/brain-monitor">
                 <Button
                   size="sm"
                   className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30"

@@ -349,7 +349,7 @@ export default function DataHub() {
               <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">
                 Record your first voice analysis or connect an EEG device to start tracking your brain health over time.
               </p>
-              <Link href="/emotions">
+              <Link href="/brain-monitor">
                 <Button size="sm">
                   <Activity className="h-3.5 w-3.5 mr-1.5" />
                   Start Voice Analysis

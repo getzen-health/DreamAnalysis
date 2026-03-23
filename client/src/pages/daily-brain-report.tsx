@@ -129,7 +129,7 @@ function recommendedAction(health: HealthEntry[], voice: VoiceSnapshot | null): 
   if (!health.length && !voice) {
     return {
       label: "Record voice for analysis",
-      route: "/emotions",
+      route: "/brain-monitor",
       description: "Speak naturally for 10 seconds to detect your emotional state",
     };
   }
@@ -151,14 +151,14 @@ function recommendedAction(health: HealthEntry[], voice: VoiceSnapshot | null): 
   if (voice && voice.valence < -0.2) {
     return {
       label: "Check your emotion state",
-      route: "/emotions",
+      route: "/brain-monitor",
       description: "Review your voice snapshot and reset before the day ramps up",
     };
   }
   if (focus < 4) {
     return {
       label: "Check your emotion state",
-      route: "/emotions",
+      route: "/brain-monitor",
       description: "See what your brain is doing right now",
     };
   }
@@ -484,7 +484,7 @@ export default function DailyBrainReport() {
                 variant="ghost"
                 size="sm"
                 className="mt-2 h-7 px-2 text-xs text-primary"
-                onClick={() => navigate("/emotions")}
+                onClick={() => navigate("/brain-monitor")}
               >
                 Record voice <ArrowRight className="h-3 w-3 ml-1" />
               </Button>

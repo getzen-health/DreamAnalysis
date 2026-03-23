@@ -700,7 +700,7 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center justify-center gap-3">
-            <Link href="/emotions">
+            <Link href="/brain-monitor">
               <button
                 className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-all"
               >
@@ -1074,7 +1074,7 @@ export default function Dashboard() {
                     <p className="text-[10px] text-muted-foreground mt-0.5">Longest session</p>
                   </div>
                   {longestSession > 0 && (
-                    <Link href="/emotions"
+                    <Link href="/brain-monitor"
                       className="text-[10px] text-muted-foreground/50 hover:text-secondary transition-colors">
                       Beat {longestSession}m? →
                     </Link>
