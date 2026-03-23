@@ -570,7 +570,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
   return (
     <button
       onClick={() => navigate("/mood")}
-      aria-label="View Emotions: Stress, Focus, Mood trends"
+      aria-label="View Emotions: Stress & Focus trends"
       role="link"
       style={{
         width: "100%",
@@ -584,8 +584,10 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>Emotions</p>
-          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "2px 0 0" }}>Stress, Focus, Mood — continuous trend</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
+            {current?.mood ? `Mood: ${String(current.mood).charAt(0).toUpperCase() + String(current.mood).slice(1)}` : "Emotions"}
+          </p>
+          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "2px 0 0" }}>Stress & Focus — continuous trend</p>
         </div>
         {current && (
           <div style={{ display: "flex", gap: 10 }}>
@@ -661,7 +663,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
               />
               <Area type="natural" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2} dot={false} activeDot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
               <Area type="natural" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2} dot={false} activeDot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-              <Area type="natural" dataKey="mood" stroke="#0891b2" fill="url(#discMoodG)" strokeWidth={2} dot={false} activeDot={false} name="Mood" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              {/* Mood removed from chart — shown as text label at top instead */}
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -680,10 +682,6 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ width: 8, height: 3, borderRadius: 2, background: "#6366f1" }} />
           <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Focus</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <div style={{ width: 8, height: 3, borderRadius: 2, background: "#0891b2" }} />
-          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Mood</span>
         </div>
       </div>
     </button>

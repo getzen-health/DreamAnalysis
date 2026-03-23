@@ -1581,11 +1581,7 @@ export default function Today() {
                           <span title="Health"><Activity style={{ width: 12, height: 12, color: "#e879a8" }} /></span>
                         )}
                       </>
-                    ) : (
-                      <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-                        detected from {fusedEmotion?.sources[0] ?? "voice"}
-                      </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
