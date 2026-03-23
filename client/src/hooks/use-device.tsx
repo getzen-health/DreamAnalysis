@@ -491,6 +491,7 @@ function useDeviceInternal(): UseDeviceReturn {
       // Suppress BLE status errors during initial connection
       museBle.onStatus(() => {});
       try {
+        let eegEmotionThrottle = 0;
         museBle.onEegFrame((frame) => {
           try {
             const eegFrame = museFrameToEegStreamFrame(frame);
@@ -498,6 +499,31 @@ function useDeviceInternal(): UseDeviceReturn {
               new CustomEvent("eeg-signals", { detail: eegFrame.signals })
             );
             setLatestFrame(eegFrame as EEGStreamFrame);
+
+            // Propagate EEG emotion data to localStorage so Today page + all other pages update
+            const now = Date.now();
+            if (now - eegEmotionThrottle > 3000) { // throttle to every 3s
+              eegEmotionThrottle = now;
+              const emotions = eegFrame.analysis?.emotions as Record<string, unknown> | undefined;
+              if (emotions?.emotion) {
+                try {
+                  localStorage.setItem("ndw_last_emotion", JSON.stringify({
+                    result: {
+                      emotion: emotions.emotion,
+                      valence: emotions.valence ?? 0,
+                      arousal: emotions.arousal ?? 0.5,
+                      stress_index: emotions.stress_index ?? 0.5,
+                      focus_index: emotions.focus_index ?? 0.5,
+                      confidence: emotions.confidence ?? 0.5,
+                      model_type: "eeg",
+                      timestamp: now / 1000,
+                    },
+                    timestamp: now,
+                  }));
+                  window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
+                } catch { /* storage quota */ }
+              }
+            }
           } catch (frameErr) {
             console.error("EEG frame conversion failed:", frameErr);
             // Still set raw signals so waveform renders
