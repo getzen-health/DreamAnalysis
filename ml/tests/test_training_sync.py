@@ -133,17 +133,9 @@ class TestStatusEndpoint:
         """Status endpoint shows training data stats."""
         _append_corrections("user1", sample_corrections)
 
-        with patch("api.routes.training_sync.get_supabase", return_value=None):
-            # Need to patch the import inside the function
-            with patch(
-                "api.routes.training_sync._get_supabase_corrections",
-                return_value=[],
-            ):
-                pass
-
         from api.routes.training_sync import training_status
 
-        # Patch supabase to return None (not configured)
+        # Patch supabase client to return None (not configured)
         with patch("lib.supabase_client.get_supabase", return_value=None):
             result = await training_status("user1")
             assert result.user_id == "user1"
