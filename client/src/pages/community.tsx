@@ -21,6 +21,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { sbGetSetting, sbSaveGeneric, sbSaveSetting } from "../lib/supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -116,7 +117,7 @@ function getDailyChallenge(): DailyChallenge {
 
 function loadStreak(): number {
   try {
-    const raw = localStorage.getItem(STORAGE_STREAK_KEY);
+    const raw = sbGetSetting(STORAGE_STREAK_KEY);
     if (!raw) return 0;
     const data = JSON.parse(raw);
     const today = getTodayKey();
@@ -132,12 +133,12 @@ function loadStreak(): number {
 function incrementStreak(): number {
   const today = getTodayKey();
   try {
-    const raw = localStorage.getItem(STORAGE_STREAK_KEY);
+    const raw = sbGetSetting(STORAGE_STREAK_KEY);
     const data = raw ? JSON.parse(raw) : { count: 0, lastDate: "" };
     if (data.lastDate === today) return data.count; // Already counted today
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
     const newCount = data.lastDate === yesterday ? data.count + 1 : 1;
-    localStorage.setItem(STORAGE_STREAK_KEY, JSON.stringify({ count: newCount, lastDate: today }));
+    sbSaveGeneric(STORAGE_STREAK_KEY, { count: newCount, lastDate: today });
     return newCount;
   } catch {
     return 1;
@@ -189,7 +190,7 @@ export default function Community() {
   useEffect(() => {
     setStreak(loadStreak());
     // Check if already voted today
-    const voteData = localStorage.getItem(STORAGE_MOOD_KEY);
+    const voteData = sbGetSetting(STORAGE_MOOD_KEY);
     if (voteData) {
       try {
         const parsed = JSON.parse(voteData);
@@ -197,19 +198,19 @@ export default function Community() {
       } catch { /* ignore */ }
     }
     // Check if challenge done today
-    const chalData = localStorage.getItem(STORAGE_CHALLENGE_KEY);
+    const chalData = sbGetSetting(STORAGE_CHALLENGE_KEY);
     if (chalData === getTodayKey()) setChallengeDone(true);
   }, []);
 
   const handleVote = useCallback((mood: MoodVote) => {
     setMoodVote(mood);
-    localStorage.setItem(STORAGE_MOOD_KEY, JSON.stringify({ mood, date: getTodayKey() }));
+    sbSaveGeneric(STORAGE_MOOD_KEY, { mood, date: getTodayKey() });
     // In production: POST to /api/community/mood-vote
   }, []);
 
   const handleChallengeComplete = useCallback(() => {
     setChallengeDone(true);
-    localStorage.setItem(STORAGE_CHALLENGE_KEY, getTodayKey());
+    sbSaveSetting(STORAGE_CHALLENGE_KEY, getTodayKey());
     const newStreak = incrementStreak();
     setStreak(newStreak);
   }, []);

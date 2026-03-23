@@ -36,6 +36,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { sbGetSetting, sbSaveSetting } from "../lib/supabase-store";
 
 /* -- Types -------------------------------------------------- */
 
@@ -111,12 +112,12 @@ export default function ConnectedAssets() {
   // Health connect status
   useEffect(() => {
     if (platform === "android") {
-      setHealthConnected(localStorage.getItem("ndw_health_connect_granted") === "true");
+      setHealthConnected(sbGetSetting("ndw_health_connect_granted") === "true");
     } else if (platform === "ios") {
-      setHealthConnected(localStorage.getItem("ndw_apple_health_granted") === "true");
+      setHealthConnected(sbGetSetting("ndw_apple_health_granted") === "true");
     } else {
-      const gfit = localStorage.getItem("ndw_health_connect_granted") === "true";
-      const apple = localStorage.getItem("ndw_apple_health_granted") === "true";
+      const gfit = sbGetSetting("ndw_health_connect_granted") === "true";
+      const apple = sbGetSetting("ndw_apple_health_granted") === "true";
       setHealthConnected(gfit || apple);
     }
   }, [platform]);
@@ -170,13 +171,13 @@ export default function ConnectedAssets() {
         });
         requestHealthWritePermissions().catch(() => {});
         setHealthConnected(true);
-        localStorage.setItem("ndw_health_connect_granted", "true");
+        sbSaveSetting("ndw_health_connect_granted", "true");
         toast({ title: "Connected", description: "Google Health Connect linked." });
       } else if (platform === "ios") {
         await fetch(resolveUrl("/api/health/connect"), { method: "POST" });
         requestHealthWritePermissions().catch(() => {});
         setHealthConnected(true);
-        localStorage.setItem("ndw_apple_health_granted", "true");
+        sbSaveSetting("ndw_apple_health_granted", "true");
         toast({ title: "Connected", description: "Apple HealthKit linked." });
       } else {
         toast({ title: "Mobile Only", description: "Health Connect is available on the mobile app.", variant: "destructive" });

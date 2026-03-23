@@ -4,6 +4,7 @@
  */
 import { useState, useEffect } from "react";
 import { Clock, Lightbulb } from "lucide-react";
+import { sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 
 interface SleepDay {
   date: string;
@@ -22,7 +23,7 @@ interface SleepInsightProps {
 
 function getSleepHistory(): SleepDay[] {
   try {
-    const raw = localStorage.getItem("ndw_sleep_history");
+    const raw = sbGetSetting("ndw_sleep_history");
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
@@ -35,7 +36,7 @@ function saveSleepDay(day: SleepDay) {
     else history.push(day);
     // Keep last 14 days
     const recent = history.slice(-14);
-    localStorage.setItem("ndw_sleep_history", JSON.stringify(recent));
+    sbSaveGeneric("ndw_sleep_history", recent);
   } catch { /* ignore */ }
 }
 

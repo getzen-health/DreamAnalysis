@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * Companion usage safeguards — gentle nudges toward human connection
  * when AI chat usage becomes heavy.
@@ -53,7 +54,7 @@ function yesterdayStr(): string {
 
 function readStorage(): StoredUsage | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as StoredUsage;
   } catch {
@@ -62,7 +63,7 @@ function readStorage(): StoredUsage | null {
 }
 
 function writeStorage(data: StoredUsage): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  sbSaveGeneric(STORAGE_KEY, data);
 }
 
 function emptyUsage(): StoredUsage {

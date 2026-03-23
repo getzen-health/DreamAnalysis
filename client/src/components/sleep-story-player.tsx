@@ -30,6 +30,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { fadeOutAudio, cancelFade } from "@/lib/audio-fade";
 import { createAmbientAudio, type AmbientType, type AmbientHandle } from "@/lib/ambient-audio";
+import { sbGetGeneric, sbSaveGeneric } from "../lib/supabase-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ const LATENCY_STORAGE_KEY = "ndw_sleep_story_latency";
 
 function loadLatencyRecords(): SleepLatencyRecord[] {
   try {
-    return JSON.parse(localStorage.getItem(LATENCY_STORAGE_KEY) ?? "[]");
+    return sbGetGeneric(LATENCY_STORAGE_KEY) ?? [];
   } catch {
     return [];
   }
@@ -62,7 +63,7 @@ function saveLatencyRecord(record: SleepLatencyRecord): void {
   try {
     const records = loadLatencyRecords();
     records.unshift(record); // newest first
-    localStorage.setItem(LATENCY_STORAGE_KEY, JSON.stringify(records.slice(0, 30)));
+    sbSaveGeneric(LATENCY_STORAGE_KEY, records.slice(0, 30));
   } catch {
     // localStorage write failure is non-fatal
   }

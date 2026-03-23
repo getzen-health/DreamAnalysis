@@ -11,10 +11,7 @@ import { ConfidenceMeter } from "@/components/confidence-meter";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib/mood-patterns";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
-import {
-  saveEmotionHistory as sbSaveEmotionHistory,
-  getEmotionHistory as sbGetEmotionHistory,
-} from "@/lib/supabase-store";
+import { getEmotionHistory as sbGetEmotionHistory, saveEmotionHistory as sbSaveEmotionHistory, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -62,7 +59,7 @@ interface LocalEmotionEntry {
 function appendToEmotionHistory(checkin: CheckinData): void {
   if (!checkin?.emotion) return;
   try {
-    const raw = localStorage.getItem(EMOTION_HISTORY_KEY);
+    const raw = sbGetSetting(EMOTION_HISTORY_KEY);
     const history: LocalEmotionEntry[] = raw ? JSON.parse(raw) : [];
     const now = new Date();
     const cutoff = now.getTime() - EMOTION_HISTORY_MAX_AGE_MS;
@@ -88,7 +85,7 @@ function appendToEmotionHistory(checkin: CheckinData): void {
       .filter(e => new Date(e.timestamp).getTime() > cutoff)
       .slice(-EMOTION_HISTORY_MAX);
 
-    localStorage.setItem(EMOTION_HISTORY_KEY, JSON.stringify(pruned));
+    sbSaveGeneric(EMOTION_HISTORY_KEY, pruned);
 
     // Also persist to Supabase (fire-and-forget)
     sbSaveEmotionHistory("local", {
@@ -104,7 +101,7 @@ function appendToEmotionHistory(checkin: CheckinData): void {
 
 function getLocalEmotionHistory(): LocalEmotionEntry[] {
   try {
-    const raw = localStorage.getItem(EMOTION_HISTORY_KEY);
+    const raw = sbGetSetting(EMOTION_HISTORY_KEY);
     if (!raw) return [];
     const history: LocalEmotionEntry[] = JSON.parse(raw);
     const cutoff = Date.now() - EMOTION_HISTORY_MAX_AGE_MS;
@@ -119,7 +116,7 @@ function useCheckinData(): CheckinData | null {
   useEffect(() => {
     const read = (): CheckinData | null => {
       try {
-        const raw = localStorage.getItem("ndw_last_emotion");
+        const raw = sbGetSetting("ndw_last_emotion");
         if (raw) return JSON.parse(raw)?.result ?? JSON.parse(raw);
       } catch { /* ignore */ }
       return null;
@@ -236,7 +233,6 @@ const ALL_FEATURES = [
   { route: "/biofeedback", title: "Breathing Exercise", icon: Wind as LucideIcon, iconColor: "#0891b2", category: "calm" },
   { route: "/sleep-session", title: "Sleep Music", icon: Moon as LucideIcon, iconColor: "#7c3aed", category: "calm" },
   { route: "/inner-energy", title: "Inner Energy", icon: Sparkles as LucideIcon, iconColor: "#4ade80", category: "energy" },
-  { route: "/mood", title: "Mood Trends", icon: Smile as LucideIcon, iconColor: "#0891b2", category: "insight" },
   { route: "/neurofeedback", title: "Neurofeedback", icon: Target as LucideIcon, iconColor: "#6366f1", category: "focus" },
   { route: "/dreams", title: "Dream Journal", icon: BookOpen as LucideIcon, iconColor: "#a78bfa", category: "insight" },
   { route: "/workout", title: "Workout", icon: Dumbbell as LucideIcon, iconColor: "#ea580c", category: "energy" },
@@ -248,7 +244,7 @@ const ALL_FEATURES = [
 
 function getUsedFeatures(): Set<string> {
   try {
-    const raw = localStorage.getItem("ndw_feature_usage");
+    const raw = sbGetSetting("ndw_feature_usage");
     return raw ? new Set(JSON.parse(raw)) : new Set();
   } catch {
     return new Set();
@@ -259,7 +255,7 @@ function trackFeatureUsage(route: string) {
   try {
     const used = getUsedFeatures();
     used.add(route);
-    localStorage.setItem("ndw_feature_usage", JSON.stringify(Array.from(used)));
+    sbSaveGeneric("ndw_feature_usage", Array.from(used));
   } catch { /* ignore */ }
 }
 
@@ -298,7 +294,7 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
     } else if (isEvening) {
       recs.push({ icon: Moon, iconColor: "#7c3aed", title: "Sleep Music", reason: "Prepare for a restful night", route: "/sleep-session" });
     } else {
-      recs.push({ icon: Smile, iconColor: "#0891b2", title: "Mood Trends", reason: "See your patterns", route: "/mood" });
+      recs.push({ icon: Smile, iconColor: "#0891b2", title: "Wellness", reason: "See your patterns", route: "/wellness" });
     }
   }
 
@@ -586,7 +582,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
 
   return (
     <button
-      onClick={() => navigate("/mood")}
+      onClick={() => navigate("/wellness")}
       aria-label="View Emotions: Stress, Focus, Mood trends"
       role="link"
       style={{

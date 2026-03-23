@@ -23,6 +23,7 @@ import {
   UtensilsCrossed, GraduationCap, Palette, Brain, Lock, Zap,
   type LucideIcon,
 } from "lucide-react";
+import { sbGetGeneric, sbGetSetting } from "../lib/supabase-store";
 
 // ── Visual tier system ──────────────────────────────────────────────────
 
@@ -102,7 +103,7 @@ export function checkBadges(): Badge[] {
 
   // ── Sessions category ──
 
-  const hasCheckin = !!localStorage.getItem("ndw_last_emotion");
+  const hasCheckin = !!sbGetSetting("ndw_last_emotion");
   badges.push({
     id: "first-checkin",
     icon: Mic,
@@ -117,7 +118,7 @@ export function checkBadges(): Badge[] {
 
   // Early Bird / Night Owl
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
+    const raw = sbGetSetting("ndw_last_emotion");
     if (raw) {
       const ts = JSON.parse(raw)?.timestamp;
       if (ts) {
@@ -150,7 +151,7 @@ export function checkBadges(): Badge[] {
 
   // ── Streaks category ──
 
-  const streakStr = localStorage.getItem("ndw_streak_count");
+  const streakStr = sbGetSetting("ndw_streak_count");
   const streak = streakStr ? parseInt(streakStr, 10) : 0;
   badges.push({
     id: "streak-3",
@@ -207,7 +208,7 @@ export function checkBadges(): Badge[] {
 
   // ── Milestones category ──
 
-  const onboarded = localStorage.getItem("ndw_onboarding_complete") === "true";
+  const onboarded = sbGetSetting("ndw_onboarding_complete") === "true";
   badges.push({
     id: "onboarded",
     icon: GraduationCap,
@@ -223,7 +224,7 @@ export function checkBadges(): Badge[] {
   // Emotion Explorer — logged all 6 emotions
   const ALL_EMOTIONS = ["happy", "sad", "angry", "fear", "surprise", "neutral"];
   try {
-    const seen = JSON.parse(localStorage.getItem("ndw_emotions_seen") || "[]") as string[];
+    const seen = sbGetGeneric("ndw_emotions_seen") ?? [] as string[];
     const allSeen = ALL_EMOTIONS.every(e => seen.includes(e));
     const matchCount = seen.filter(e => ALL_EMOTIONS.includes(e)).length;
     badges.push({
@@ -256,8 +257,8 @@ export function checkBadges(): Badge[] {
 
   // ── Wellness category ──
 
-  const healthConnected = localStorage.getItem("ndw_health_connect_granted") === "true"
-    || localStorage.getItem("ndw_apple_health_granted") === "true";
+  const healthConnected = sbGetSetting("ndw_health_connect_granted") === "true"
+    || sbGetSetting("ndw_apple_health_granted") === "true";
   badges.push({
     id: "health-sync",
     icon: Heart,
@@ -270,7 +271,7 @@ export function checkBadges(): Badge[] {
     earnedDate: healthConnected ? now.toISOString() : undefined,
   });
 
-  const mealLogged = !!localStorage.getItem("ndw_meal_logged");
+  const mealLogged = !!sbGetSetting("ndw_meal_logged");
   badges.push({
     id: "first-meal",
     icon: UtensilsCrossed,
@@ -285,7 +286,7 @@ export function checkBadges(): Badge[] {
 
   // ── Brain category ──
 
-  const museConnected = localStorage.getItem("ndw_muse_connected") === "true";
+  const museConnected = sbGetSetting("ndw_muse_connected") === "true";
   badges.push({
     id: "muse-connected",
     icon: Brain,

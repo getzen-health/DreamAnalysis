@@ -18,13 +18,13 @@ import { StreakCelebration } from "@/components/streak-celebration";
 import { EmotionBadge } from "@/components/emotion-badge";
 import { ScoreHeader } from "@/components/score-header";
 import { getParticipantId } from "@/lib/participant";
+import { sbGetSetting } from "../lib/supabase-store";
 
 const routeTitles: Record<string, string> = {
   "/": "Today",
   "/discover": "Discover",
   "/nutrition": "Nutrition",
   "/you": "You",
-  "/emotions": "Emotion Lab",
   "/inner-energy": "Inner Energy",
   "/brain-monitor": "Brain Monitor",
   "/brain-connectivity": "Brain Connectivity",
@@ -135,7 +135,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Privacy Mode indicator — show shield icon in header when active
   const [privacyMode, setPrivacyModeState] = useState(() => {
-    try { return localStorage.getItem("ndw_privacy_mode") === "true"; } catch { return false; }
+    try { return sbGetSetting("ndw_privacy_mode") === "true"; } catch { return false; }
   });
   useEffect(() => {
     const handler = (e: Event) => {

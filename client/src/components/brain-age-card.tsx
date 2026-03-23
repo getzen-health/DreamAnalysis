@@ -14,6 +14,7 @@
 import { useState, useEffect } from "react";
 import { Brain, ChevronDown, ChevronUp } from "lucide-react";
 import { type BrainAgeResult } from "@/lib/brain-age";
+import { sbGetSetting, sbSaveSetting } from "../lib/supabase-store";
 
 // ── localStorage keys ────────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ const BRAIN_AGE_KEY = "ndw_brain_age";
 
 function getStoredAge(): number | null {
   try {
-    const raw = localStorage.getItem(AGE_KEY);
+    const raw = sbGetSetting(AGE_KEY);
     if (!raw) return null;
     const parsed = parseInt(raw, 10);
     return isNaN(parsed) ? null : parsed;
@@ -35,7 +36,7 @@ function getStoredAge(): number | null {
 
 function getStoredBrainAge(): (BrainAgeResult & { timestamp: number }) | null {
   try {
-    const raw = localStorage.getItem(BRAIN_AGE_KEY);
+    const raw = sbGetSetting(BRAIN_AGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -45,7 +46,7 @@ function getStoredBrainAge(): (BrainAgeResult & { timestamp: number }) | null {
 
 function saveActualAge(age: number): void {
   try {
-    localStorage.setItem(AGE_KEY, String(age));
+    sbSaveSetting(AGE_KEY, String(age));
   } catch {
     // storage full or unavailable
   }

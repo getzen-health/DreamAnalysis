@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveSetting } from "./supabase-store";
 /**
  * adaptive-sampling.ts — Adaptive EEG sampling rate for battery optimization.
  *
@@ -118,7 +119,7 @@ export class LowPowerManager {
 
   private _loadState(): boolean {
     try {
-      return localStorage.getItem(LOW_POWER_STORAGE_KEY) === "true";
+      return sbGetSetting(LOW_POWER_STORAGE_KEY) === "true";
     } catch {
       return false;
     }
@@ -126,7 +127,7 @@ export class LowPowerManager {
 
   private _saveState(): void {
     try {
-      localStorage.setItem(LOW_POWER_STORAGE_KEY, String(this._enabled));
+      sbSaveSetting(LOW_POWER_STORAGE_KEY, String(this._enabled));
     } catch {
       // localStorage unavailable
     }

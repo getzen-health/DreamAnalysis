@@ -14,12 +14,7 @@ import {
   Trash2,
   BellOff,
 } from "lucide-react";
-import {
-  getNotifications as sbGetNotifications,
-  markNotificationRead as sbMarkNotificationRead,
-  markAllNotificationsRead as sbMarkAllNotificationsRead,
-  clearAllNotifications as sbClearAllNotifications,
-} from "@/lib/supabase-store";
+import { clearAllNotifications as sbClearAllNotifications, getNotifications as sbGetNotifications, markAllNotificationsRead as sbMarkAllNotificationsRead, markNotificationRead as sbMarkNotificationRead, sbGetSetting, sbRemoveSetting, sbSaveGeneric } from "../lib/supabase-store";
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -47,7 +42,7 @@ const STORAGE_KEY = "ndw_notifications";
 
 export function loadNotifications(): AppNotification[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -59,7 +54,7 @@ export function loadNotifications(): AppNotification[] {
 
 export function saveNotifications(notifications: AppNotification[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+    sbSaveGeneric(STORAGE_KEY, notifications);
   } catch {
     // localStorage full or unavailable — silently ignore
   }
@@ -102,7 +97,7 @@ export function addNotification(n: Omit<AppNotification, "id" | "timestamp" | "r
 
 export function clearNotifications(): void {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    sbRemoveSetting(STORAGE_KEY);
   } catch {
     // ignore
   }

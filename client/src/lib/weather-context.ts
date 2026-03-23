@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * weather-context.ts — Weather + seasonal mood context.
  *
@@ -170,7 +171,7 @@ interface CachedEntry {
 
 export function getCachedWeather(): WeatherData | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = sbGetSetting(CACHE_KEY);
     if (!raw) return null;
     const entry: CachedEntry = JSON.parse(raw);
     if (!entry || typeof entry.timestamp !== "number") return null;
@@ -184,7 +185,7 @@ export function getCachedWeather(): WeatherData | null {
 export function setCachedWeather(data: WeatherData): void {
   try {
     const entry: CachedEntry = { data, timestamp: Date.now() };
-    localStorage.setItem(CACHE_KEY, JSON.stringify(entry));
+    sbSaveGeneric(CACHE_KEY, entry);
   } catch {
     // localStorage full or unavailable
   }

@@ -32,6 +32,7 @@ import { useVoiceData } from "@/hooks/use-voice-data";
 import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { syncFoodLogToML } from "@/lib/ml-api";
+import { sbGetGeneric, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -124,7 +125,7 @@ function FoodMoodInsights() {
       );
       keys.forEach(k => {
         try {
-          const raw = JSON.parse(localStorage.getItem(k) || "{}");
+          const raw = sbGetGeneric(k) ?? {};
           if (raw.timestamp) localLogs.push(raw);
         } catch { /* skip */ }
       });
@@ -441,22 +442,19 @@ export default function FoodEmotion() {
   /** Save a food-mood correlation entry to localStorage after a meal is captured. */
   function saveFoodLog(result: FoodImageAnalysisResult) {
     try {
-      const emotionRaw = localStorage.getItem("ndw_last_emotion");
+      const emotionRaw = sbGetSetting("ndw_last_emotion");
       const emotion = emotionRaw
         ? (JSON.parse(emotionRaw)?.result?.emotion as string | undefined)
         : undefined;
       const logKey = `ndw_food_log_${Date.now()}`;
-      localStorage.setItem(
-        logKey,
-        JSON.stringify({
-          emotion,
-          calories: result.total_calories || 0,
-          carbs: result.total_carbs_g || 0,
-          protein: result.total_protein_g || 0,
-          fat: result.total_fat_g || 0,
-          timestamp: Date.now(),
-        })
-      );
+      sbSaveGeneric(logKey, {
+        emotion,
+        calories: result.total_calories || 0,
+        carbs: result.total_carbs_g || 0,
+        protein: result.total_protein_g || 0,
+        fat: result.total_fat_g || 0,
+        timestamp: Date.now(),
+      });
     } catch { /* ignore */ }
 
     // Also sync to Railway ML backend for session history + food-mood correlation

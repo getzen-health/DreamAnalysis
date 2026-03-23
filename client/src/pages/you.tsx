@@ -19,6 +19,7 @@ import { loadPersonalAdapter, resetPersonalAdapter, getPersonalizationStats } fr
 import { NotificationPrefsSheet } from "@/components/notification-prefs-sheet";
 import { Zap } from "lucide-react";
 import { InterventionTriggerSettings } from "@/components/intervention-trigger-settings";
+import { sbGetSetting } from "../lib/supabase-store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ function getPlatform(): "ios" | "android" | "web" {
 
 function getHealthConnectStatus(): boolean {
   try {
-    return localStorage.getItem("ndw_health_connect_granted") === "true";
+    return sbGetSetting("ndw_health_connect_granted") === "true";
   } catch {
     return false;
   }
@@ -55,7 +56,7 @@ function getHealthConnectStatus(): boolean {
 
 function getMuseStatus(): boolean {
   try {
-    const raw = localStorage.getItem("ndw_muse_connected");
+    const raw = sbGetSetting("ndw_muse_connected");
     return raw === "true";
   } catch {
     return false;
@@ -75,13 +76,13 @@ const TOTAL_DEVICE_SLOTS = 7;
 function getConnectedDeviceCount(): number {
   let count = 0;
   try {
-    if (localStorage.getItem("ndw_health_connect_granted") === "true"
-        || localStorage.getItem("ndw_apple_health_granted") === "true") count++;
-    if (localStorage.getItem("ndw_muse_connected") === "true") count++;
+    if (sbGetSetting("ndw_health_connect_granted") === "true"
+        || sbGetSetting("ndw_apple_health_granted") === "true") count++;
+    if (sbGetSetting("ndw_muse_connected") === "true") count++;
     // Wearables: oura, whoop, garmin, fitbit, samsung
     for (const key of ["ndw_oura_connected", "ndw_whoop_connected", "ndw_garmin_connected",
                         "ndw_fitbit_connected", "ndw_samsung_connected"]) {
-      if (localStorage.getItem(key) === "true") count++;
+      if (sbGetSetting(key) === "true") count++;
     }
   } catch { /* ignore */ }
   return count;

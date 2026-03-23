@@ -43,6 +43,7 @@ import {
   recordCompanionSession,
   getUsageNudge,
 } from "@/lib/companion-safeguards";
+import { sbGetSetting } from "../lib/supabase-store";
 
 interface AICompanionProps {
   userId: string;
@@ -143,7 +144,7 @@ Does this match how you're actually feeling? Sometimes the brain signals things 
 Would you like to explore any of these states further, or try a quick exercise to shift your mental state?`;
     }
     try {
-      const raw = localStorage.getItem("ndw_last_emotion");
+      const raw = sbGetSetting("ndw_last_emotion");
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed?.timestamp && Date.now() - parsed.timestamp < 86_400_000) {
@@ -419,7 +420,7 @@ export function AICompanion({ userId }: AICompanionProps) {
       action: () => {
         let moodContext = "";
         try {
-          const raw = localStorage.getItem("ndw_last_emotion");
+          const raw = sbGetSetting("ndw_last_emotion");
           if (raw) {
             const parsed = JSON.parse(raw);
             if (parsed?.timestamp && Date.now() - parsed.timestamp < 86_400_000) {

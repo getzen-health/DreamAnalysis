@@ -57,6 +57,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import EmotionLandscape, { type HeatmapCell } from "@/components/emotion-landscape";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
+import { sbGetSetting, sbSaveSetting } from "../lib/supabase-store";
 
 /* ---------- helpers ---------- */
 
@@ -368,12 +369,12 @@ const USER_ID = getParticipantId();
 export default function Dashboard() {
   const { user } = useAuth();
   const [calibrationBannerDismissed, setCalibrationBannerDismissed] = useState(() => {
-    return localStorage.getItem("ndw_calibration_banner_dismissed") === "true";
+    return sbGetSetting("ndw_calibration_banner_dismissed") === "true";
   });
   const showCalibrationBanner =
     !calibrationBannerDismissed &&
-    localStorage.getItem("ndw_onboarding_complete") === "true" &&
-    localStorage.getItem("ndw_baseline_complete") === null;
+    sbGetSetting("ndw_onboarding_complete") === "true" &&
+    sbGetSetting("ndw_baseline_complete") === null;
 
   const { latestFrame, state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
@@ -399,7 +400,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("ndw_last_emotion");
+      const raw = sbGetSetting("ndw_last_emotion");
       if (!raw) return;
       const parsed = JSON.parse(raw);
       // Only show if less than 24 hours old
@@ -579,7 +580,7 @@ export default function Dashboard() {
           </div>
           <button
             onClick={() => {
-              localStorage.setItem("ndw_calibration_banner_dismissed", "true");
+              sbSaveSetting("ndw_calibration_banner_dismissed", "true");
               setCalibrationBannerDismissed(true);
             }}
             className="shrink-0 p-1 rounded hover:bg-amber-500/20 transition-colors"

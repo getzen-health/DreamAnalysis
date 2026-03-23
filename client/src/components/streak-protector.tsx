@@ -4,6 +4,7 @@
  */
 import { useState, useEffect } from "react";
 import { Flame, TrendingUp, Clock } from "lucide-react";
+import { sbGetSetting } from "../lib/supabase-store";
 
 interface StreakNudge {
   type: "protection" | "reflection" | "contextual";
@@ -15,8 +16,8 @@ interface StreakNudge {
 }
 
 function getStreakNudge(): StreakNudge | null {
-  const streak = parseInt(localStorage.getItem("ndw_streak_count") || "0", 10);
-  const lastDate = localStorage.getItem("ndw_streak_last_date");
+  const streak = parseInt(sbGetSetting("ndw_streak_count") || "0", 10);
+  const lastDate = sbGetSetting("ndw_streak_last_date");
   const today = new Date().toISOString().slice(0, 10);
   const hour = new Date().getHours();
   const checkedInToday = lastDate === today;
@@ -46,7 +47,7 @@ function getStreakNudge(): StreakNudge | null {
       const key = `voice-checkin-${d}-morning`;
       const key2 = `voice-checkin-${d}-noon`;
       const key3 = `voice-checkin-${d}-evening`;
-      if (localStorage.getItem(key) || localStorage.getItem(key2) || localStorage.getItem(key3)) {
+      if (sbGetSetting(key) || sbGetSetting(key2) || sbGetSetting(key3)) {
         weekDays.push(i);
       }
     }

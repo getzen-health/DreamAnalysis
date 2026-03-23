@@ -33,6 +33,7 @@ import {
   TrendingDown,
   Minus,
 } from "lucide-react";
+import { sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ const COMMON_DEVICES = [
 
 function loadSessions(): TPBMSession[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as TPBMSession[];
   } catch {
@@ -77,7 +78,7 @@ function loadSessions(): TPBMSession[] {
 function saveSessions(sessions: TPBMSession[]): void {
   try {
     const capped = sessions.slice(0, MAX_SESSIONS);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(capped));
+    sbSaveGeneric(STORAGE_KEY, capped);
   } catch {
     // localStorage full or unavailable
   }
@@ -97,7 +98,7 @@ function moodLabel(value: number): string {
 
 function getLatestGammaPower(): number | null {
   try {
-    const raw = localStorage.getItem("ndw_last_eeg_emotion");
+    const raw = sbGetSetting("ndw_last_eeg_emotion");
     if (!raw) return null;
     const data = JSON.parse(raw);
     // gamma_power may be stored as part of band powers

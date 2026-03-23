@@ -25,6 +25,7 @@ import { Capacitor } from "@capacitor/core";
 import { getParticipantId } from "./participant";
 import { getMLApiUrl } from "./ml-api";
 import { apiRequest } from "./queryClient";
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -832,7 +833,7 @@ class HealthSyncManager {
     // Load cached health data on startup so UI has data immediately
     latestPayload: (() => {
       try {
-        const saved = localStorage.getItem("ndw_health_payload");
+        const saved = sbGetSetting("ndw_health_payload");
         return saved ? JSON.parse(saved) : null;
       } catch { return null; }
     })(),
@@ -916,7 +917,7 @@ class HealthSyncManager {
       // On web, still try loading cached data
       if (!this.state.latestPayload) {
         try {
-          const saved = localStorage.getItem("ndw_health_payload");
+          const saved = sbGetSetting("ndw_health_payload");
           if (saved) this.set({ status: "ok", latestPayload: JSON.parse(saved), error: null });
         } catch { /* ok */ }
       }
@@ -926,7 +927,7 @@ class HealthSyncManager {
       // Health Connect unavailable — still load cached data so UI isn't empty
       if (!this.state.latestPayload) {
         try {
-          const saved = localStorage.getItem("ndw_health_payload");
+          const saved = sbGetSetting("ndw_health_payload");
           if (saved) this.set({ status: "ok", latestPayload: JSON.parse(saved), error: null });
         } catch { /* ok */ }
       }
@@ -955,7 +956,7 @@ class HealthSyncManager {
       });
 
       // Also save to localStorage so data persists across page navigations
-      try { localStorage.setItem("ndw_health_payload", JSON.stringify(payload)); } catch { /* ok */ }
+      try { sbSaveGeneric("ndw_health_payload", payload); } catch { /* ok */ }
 
       // Post to ML backend (best-effort — not available on native APK)
       try { await postToBackend(payload); } catch { /* ML backend unavailable — ok */ }
@@ -1005,7 +1006,7 @@ class HealthSyncManager {
       if (!cached) {
         // No data at all — try loading from localStorage
         try {
-          const saved = localStorage.getItem("ndw_health_payload");
+          const saved = sbGetSetting("ndw_health_payload");
           if (saved) {
             this.set({ status: "ok", latestPayload: JSON.parse(saved), error: null });
             return;

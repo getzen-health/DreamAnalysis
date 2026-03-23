@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveSetting } from "./supabase-store";
 /**
  * posthog.ts — Privacy-respecting analytics via PostHog.
  *
@@ -36,7 +37,7 @@ const CONSENT_KEY = "ndw_analytics_consent";
  */
 export function hasAnalyticsConsent(): boolean {
   try {
-    return localStorage.getItem(CONSENT_KEY) === "true";
+    return sbGetSetting(CONSENT_KEY) === "true";
   } catch {
     return false;
   }
@@ -47,7 +48,7 @@ export function hasAnalyticsConsent(): boolean {
  */
 export function setAnalyticsConsent(granted: boolean): void {
   try {
-    localStorage.setItem(CONSENT_KEY, granted ? "true" : "false");
+    sbSaveSetting(CONSENT_KEY, granted ? "true" : "false");
   } catch {
     // localStorage unavailable
   }

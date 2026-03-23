@@ -21,6 +21,7 @@ import { getParticipantId } from "@/lib/participant";
 import { useToast } from "@/hooks/use-toast";
 import { useDevice } from "@/hooks/use-device";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { sbGetSetting } from "../../lib/supabase-store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -152,7 +153,7 @@ export default function StudySession() {
   const { toast } = useToast();
 
   const params = new URLSearchParams(search);
-  const participantCode = params.get("code") ?? localStorage.getItem("ndw_study_code") ?? "";
+  const participantCode = params.get("code") ?? sbGetSetting("ndw_study_code") ?? "";
   const preBlock = params.get("block") as BlockType | null;
 
   const { state: deviceState, connect, latestFrame } = useDevice();

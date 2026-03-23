@@ -12,7 +12,7 @@ import { cardVariants, listItemVariants } from "@/lib/animations";
 import { syncFoodLogToML } from "@/lib/ml-api";
 import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 import { UtensilsCrossed, Brain as BrainIcon } from "lucide-react";
-import { getEmotionHistory, getFoodLogs as sbGetFoodLogs } from "@/lib/supabase-store";
+import { getEmotionHistory, getFoodLogs as sbGetFoodLogs, sbGetGeneric, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 import {
   computeMealCognitiveCorrelation,
   generateInsight,
@@ -119,7 +119,7 @@ const FAVORITES_KEY = "ndw_favorite_meals";
 
 function loadFavorites(): FavoriteMeal[] {
   try {
-    const raw = localStorage.getItem(FAVORITES_KEY);
+    const raw = sbGetSetting(FAVORITES_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -128,7 +128,7 @@ function loadFavorites(): FavoriteMeal[] {
 
 function saveFavorites(favs: FavoriteMeal[]) {
   try {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
+    sbSaveGeneric(FAVORITES_KEY, favs);
   } catch {}
 }
 
@@ -164,13 +164,13 @@ function isFavorite(logId: string, favs: FavoriteMeal[]): boolean {
 function persistFoodLogLocally(userId: string, entry: FoodLog): void {
   try {
     const key = `ndw_food_logs_${userId}`;
-    const existing: FoodLog[] = JSON.parse(localStorage.getItem(key) || "[]");
+    const existing: FoodLog[] = sbGetGeneric(key) ?? [];
     // Deduplicate: don't add if same id already exists
     if (existing.some((l) => l.id === entry.id)) return;
     existing.unshift(entry);
     // Keep max 200 entries to avoid localStorage quota issues
     if (existing.length > 200) existing.length = 200;
-    localStorage.setItem(key, JSON.stringify(existing));
+    sbSaveGeneric(key, existing);
   } catch { /* localStorage full or unavailable */ }
   // Also persist to Supabase (fire-and-forget, skip localStorage since we handle it above)
   import("@/lib/supabase-browser").then(({ getSupabase }) =>
@@ -388,13 +388,13 @@ const GLP1_INJECTIONS_KEY = "ndw_glp1_injections";
 
 function loadGlp1Injections(): Glp1Injection[] {
   try {
-    const raw = localStorage.getItem(GLP1_INJECTIONS_KEY);
+    const raw = sbGetSetting(GLP1_INJECTIONS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
 function saveGlp1Injections(injections: Glp1Injection[]) {
-  try { localStorage.setItem(GLP1_INJECTIONS_KEY, JSON.stringify(injections)); } catch {}
+  try { sbSaveGeneric(GLP1_INJECTIONS_KEY, injections); } catch {}
 }
 
 function getNextInjectionDate(injections: Glp1Injection[], medication: string): Date | null {
@@ -510,7 +510,7 @@ function calculateFoodQualityScore(
   score = Math.max(0, Math.min(100, score));
 
   // Persist to localStorage
-  try { localStorage.setItem(FOOD_QUALITY_KEY, JSON.stringify({ score, date: new Date().toISOString().slice(0, 10) })); } catch {}
+  try { sbSaveGeneric(FOOD_QUALITY_KEY, { score, date: new Date().toISOString().slice(0, 10) }); } catch {}
 
   return score;
 }
@@ -535,13 +535,13 @@ const SUPPLEMENT_LOG_KEY = "ndw_supplement_log";
 
 function loadSupplements(): Supplement[] {
   try {
-    const raw = localStorage.getItem(SUPPLEMENTS_KEY);
+    const raw = sbGetSetting(SUPPLEMENTS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
 function saveSupplements(supps: Supplement[]) {
-  try { localStorage.setItem(SUPPLEMENTS_KEY, JSON.stringify(supps)); } catch {}
+  try { sbSaveGeneric(SUPPLEMENTS_KEY, supps); } catch {}
 }
 
 function getTodayLogKey(): string {
@@ -550,13 +550,13 @@ function getTodayLogKey(): string {
 
 function loadTodayLog(): SupplementDailyLog {
   try {
-    const raw = localStorage.getItem(getTodayLogKey());
+    const raw = sbGetSetting(getTodayLogKey());
     return raw ? JSON.parse(raw) : {};
   } catch { return {}; }
 }
 
 function saveTodayLog(log: SupplementDailyLog) {
-  try { localStorage.setItem(getTodayLogKey(), JSON.stringify(log)); } catch {}
+  try { sbSaveGeneric(getTodayLogKey(), log); } catch {}
 }
 
 function SupplementTracker({ onSupplementsChange }: { onSupplementsChange?: (supplements: Supplement[], dailyLog: SupplementDailyLog) => void }) {
@@ -1873,7 +1873,7 @@ export default function Nutrition() {
       // Merge with localStorage (local entries may not have synced to DB yet)
       let localLogs: FoodLog[] = [];
       try {
-        localLogs = JSON.parse(localStorage.getItem(`ndw_food_logs_${userId}`) || "[]");
+        localLogs = sbGetGeneric(`ndw_food_logs_${userId}`) ?? [];
       } catch { /* ignore */ }
       if (localLogs.length === 0) return apiLogs;
       if (apiLogs.length === 0) return localLogs;

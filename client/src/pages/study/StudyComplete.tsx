@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import { CheckCircle2, ChevronRight, Brain, Zap, FlaskConical, Compass } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { sbGetSetting, sbSaveSetting } from "../../lib/supabase-store";
 
 // ── Interpretation helper ────────────────────────────────────────────────────
 
@@ -86,16 +87,16 @@ export default function StudyComplete() {
 
   useEffect(() => {
     if (!participantCode) return;
-    if (done === "stress") localStorage.setItem(`study_completed_stress_${participantCode}`, "true");
-    if (done === "food")   localStorage.setItem(`study_completed_food_${participantCode}`, "true");
+    if (done === "stress") sbSaveSetting(`study_completed_stress_${participantCode}`, "true");
+    if (done === "food")   sbSaveSetting(`study_completed_food_${participantCode}`, "true");
   }, [participantCode, done]);
 
   // ── Derive completion state ───────────────────────────────────────────────
 
   const stressDone = done === "stress" ||
-    localStorage.getItem(`study_completed_stress_${participantCode}`) === "true";
+    sbGetSetting(`study_completed_stress_${participantCode}`) === "true";
   const foodDone   = done === "food" ||
-    localStorage.getItem(`study_completed_food_${participantCode}`)   === "true";
+    sbGetSetting(`study_completed_food_${participantCode}`)   === "true";
   const bothDone   = stressDone && foodDone;
 
   // ── Navigation ────────────────────────────────────────────────────────────

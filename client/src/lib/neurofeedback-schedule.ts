@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * Evidence-based neurofeedback session scheduling.
  *
@@ -114,15 +115,15 @@ export function getSessionSchedule(sessionHistory: Date[]): SessionSchedule {
 
 export function recordNeurofeedbackSession(): void {
   const sessions = JSON.parse(
-    localStorage.getItem(STORAGE_KEY) || "[]"
+    sbGetSetting(STORAGE_KEY) || "[]"
   ) as string[];
   sessions.push(new Date().toISOString());
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+  sbSaveGeneric(STORAGE_KEY, sessions);
 }
 
 export function getSessionHistory(): Date[] {
   const raw = JSON.parse(
-    localStorage.getItem(STORAGE_KEY) || "[]"
+    sbGetSetting(STORAGE_KEY) || "[]"
   ) as string[];
   return raw.map((s) => new Date(s));
 }

@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { sbGetSetting } from "../lib/supabase-store";
 
 export interface VoiceCheckinData {
   emotion?: string;
@@ -25,7 +26,7 @@ export interface VoiceCheckinData {
 
 function readCheckin(): VoiceCheckinData | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
+    const raw = sbGetSetting("ndw_last_emotion");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     // Handle both {result: {...}, timestamp} and direct format

@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * Brain Age Estimation — a pure computation module (no UI).
  *
@@ -183,7 +184,7 @@ export function computeAndCacheBrainAge(
 ): BrainAgeResult | null {
   let actualAge: number | null = null;
   try {
-    const raw = localStorage.getItem(ACTUAL_AGE_KEY);
+    const raw = sbGetSetting(ACTUAL_AGE_KEY);
     if (raw) {
       const parsed = parseInt(raw, 10);
       if (!isNaN(parsed)) actualAge = parsed;
@@ -208,10 +209,7 @@ export function computeAndCacheBrainAge(
   });
 
   try {
-    localStorage.setItem(
-      BRAIN_AGE_KEY,
-      JSON.stringify({ ...result, timestamp: Date.now() }),
-    );
+    sbSaveGeneric(BRAIN_AGE_KEY, { ...result, timestamp: Date.now() });
   } catch {
     // storage full or unavailable
   }

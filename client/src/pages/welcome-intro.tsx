@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { sbSaveSetting } from "../lib/supabase-store";
 
 // ── Step 1: Health Connect ──────────────────────────────────────────────────
 
@@ -397,7 +398,7 @@ export default function WelcomeIntro() {
 
   function finish() {
     try {
-      localStorage.setItem("onboarding_complete", "true");
+      sbSaveSetting("onboarding_complete", "true");
     } catch {
       /* ignore */
     }

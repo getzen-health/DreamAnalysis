@@ -11,6 +11,7 @@ import { hapticLight, hapticMedium } from "@/lib/haptics";
 import { useQueryClient } from "@tanstack/react-query";
 import { VoiceCheckinCard } from "@/components/voice-checkin-card";
 import { getParticipantId } from "@/lib/participant";
+import { sbGetSetting, sbSaveSetting } from "../lib/supabase-store";
 
 const AFFIRMATIONS = [
   "You're doing great today",
@@ -27,7 +28,7 @@ const AFFIRMATIONS = [
 
 const tabs = [
   { path: "/",          icon: Sun,              label: "Today",     aliases: [] as string[] },
-  { path: "/discover",  icon: Compass,          label: "Discover",  aliases: ["/inner-energy", "/nutrition", "/food", "/food-log", "/food-emotion", "/brain-monitor", "/dreams", "/neurofeedback", "/biofeedback", "/sleep-session", "/insights", "/weekly-summary", "/emotions", "/body-metrics", "/workout", "/habits", "/wellness", "/mood", "/stress", "/focus", "/sleep", "/health", "/heart-rate", "/steps", "/brain-connectivity"] },
+  { path: "/discover",  icon: Compass,          label: "Discover",  aliases: ["/inner-energy", "/nutrition", "/food", "/food-log", "/food-emotion", "/brain-monitor", "/dreams", "/neurofeedback", "/biofeedback", "/sleep-session", "/insights", "/weekly-summary", "/body-metrics", "/workout", "/habits", "/wellness", "/stress", "/focus", "/sleep", "/health", "/heart-rate", "/steps", "/brain-connectivity"] },
   // mic button stays in center (already implemented)
   { path: "/ai-companion",  icon: Bot, label: "AI Chat", aliases: [] },
   { path: "/you",        icon: CircleUser,      label: "You",       aliases: ["/settings", "/profile", "/sessions", "/records"] },
@@ -67,8 +68,8 @@ export function BottomTabs() {
     // Update streak counter in localStorage for badges
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const lastDate = localStorage.getItem("ndw_streak_last_date");
-      const currentStreak = parseInt(localStorage.getItem("ndw_streak_count") || "0", 10);
+      const lastDate = sbGetSetting("ndw_streak_last_date");
+      const currentStreak = parseInt(sbGetSetting("ndw_streak_count") || "0", 10);
 
       if (lastDate === today) {
         // Already checked in today — streak unchanged
@@ -76,12 +77,12 @@ export function BottomTabs() {
         const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
         if (lastDate === yesterday) {
           // Consecutive day — increment streak
-          localStorage.setItem("ndw_streak_count", String(currentStreak + 1));
+          sbSaveSetting("ndw_streak_count", String(currentStreak + 1));
         } else {
           // Streak broken — reset to 1
-          localStorage.setItem("ndw_streak_count", "1");
+          sbSaveSetting("ndw_streak_count", "1");
         }
-        localStorage.setItem("ndw_streak_last_date", today);
+        sbSaveSetting("ndw_streak_last_date", today);
       }
     } catch { /* ignore */ }
 

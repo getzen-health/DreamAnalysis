@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveSetting } from "./supabase-store";
 /**
  * meditation-narrative.ts — Story-based meditation progression system (#530)
  *
@@ -179,7 +180,7 @@ const STORAGE_KEY = "ndw_meditation_session_count";
 /** Read the stored session count from localStorage. */
 export function getStoredSessionCount(): number {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (raw === null) return 0;
     const n = parseInt(raw, 10);
     return Number.isFinite(n) && n >= 0 ? n : 0;
@@ -193,7 +194,7 @@ export function incrementSessionCount(): number {
   const current = getStoredSessionCount();
   const next = current + 1;
   try {
-    localStorage.setItem(STORAGE_KEY, String(next));
+    sbSaveSetting(STORAGE_KEY, String(next));
   } catch {
     // localStorage full or unavailable — no-op
   }

@@ -12,7 +12,7 @@
  * When multiple sources are present, confidence-weighted fusion is applied.
  */
 
-import { saveEmotionHistory as sbSaveEmotionHistory } from "./supabase-store";
+import { saveEmotionHistory as sbSaveEmotionHistory, sbGetSetting } from "./supabase-store";
 import { applyCircadianNormalization } from "./circadian-adjustment";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ interface SourceReading {
 
 function readEEGSource(): SourceReading | null {
   try {
-    const raw = localStorage.getItem("ndw_last_eeg_emotion");
+    const raw = sbGetSetting("ndw_last_eeg_emotion");
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (!data?.emotion) return null;
@@ -67,7 +67,7 @@ function readEEGSource(): SourceReading | null {
 
 function readVoiceSource(): SourceReading | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
+    const raw = sbGetSetting("ndw_last_emotion");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     const data = parsed?.result ?? parsed;
@@ -88,7 +88,7 @@ function readVoiceSource(): SourceReading | null {
 
 function readHealthSource(): SourceReading | null {
   try {
-    const raw = localStorage.getItem("ndw_health_emotion");
+    const raw = sbGetSetting("ndw_health_emotion");
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (!data) return null;

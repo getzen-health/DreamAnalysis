@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { sbGetSetting } from "../lib/supabase-store";
 
 export interface CurrentEmotion {
   /** Primary emotion label */
@@ -36,7 +37,7 @@ const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
 function readFromStorage(): CurrentEmotion | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
+    const raw = sbGetSetting("ndw_last_emotion");
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);

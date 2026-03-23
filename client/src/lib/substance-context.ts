@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * Pre-session substance/medication context for EEG baseline adjustment.
  *
@@ -56,7 +57,7 @@ const SSRI_KEYWORDS = [
 
 export function saveSubstanceLog(log: SubstanceLog): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(log));
+    sbSaveGeneric(STORAGE_KEY, log);
   } catch {
     // localStorage full or unavailable
   }
@@ -64,7 +65,7 @@ export function saveSubstanceLog(log: SubstanceLog): void {
 
 export function getLatestSubstanceLog(): SubstanceLog | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || !parsed.timestamp) {

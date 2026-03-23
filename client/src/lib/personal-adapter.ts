@@ -14,6 +14,7 @@
  */
 
 import { EEGNET_EMOTIONS } from "./eegnet-utils";
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ function createFreshAdapter(): PersonalAdapter {
  */
 export function loadPersonalAdapter(): PersonalAdapter {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       // Validate structure
@@ -103,7 +104,7 @@ export function loadPersonalAdapter(): PersonalAdapter {
 /** Save adapter to localStorage. */
 export function savePersonalAdapter(adapter: PersonalAdapter): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(adapter));
+    sbSaveGeneric(STORAGE_KEY, adapter);
   } catch {
     /* localStorage full or unavailable */
   }

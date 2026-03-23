@@ -26,6 +26,7 @@ import {
   updateFromCorrection,
 } from "@/lib/personal-adapter";
 import { EEGNET_EMOTIONS } from "@/lib/eegnet-utils";
+import { sbGetSetting } from "../lib/supabase-store";
 
 export interface UseMultimodalEmotionReturn {
   emotion: FusedResult | null;
@@ -48,7 +49,7 @@ interface CachedEmotion {
 
 function readEEGEmotion(): ModalityInput | null {
   try {
-    const raw = localStorage.getItem("ndw_last_eeg_emotion");
+    const raw = sbGetSetting("ndw_last_eeg_emotion");
     if (!raw) return null;
     const data: CachedEmotion = JSON.parse(raw);
     if (!data.emotion) return null;
@@ -67,7 +68,7 @@ function readEEGEmotion(): ModalityInput | null {
 
 function readVoiceEmotion(): ModalityInput | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
+    const raw = sbGetSetting("ndw_last_emotion");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     const data: CachedEmotion = parsed?.result ?? parsed;

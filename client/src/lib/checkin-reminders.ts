@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveSetting } from "./supabase-store";
 /**
  * Smart check-in reminders — schedules daily notifications for voice analysis.
  * Context-aware: skips periods the user already checked in for.
@@ -24,12 +25,12 @@ function getRandomMessage(): string {
 
 function isCheckedIn(period: string): boolean {
   const today = new Date().toISOString().slice(0, 10);
-  return !!localStorage.getItem(`voice-checkin-${today}-${period}`);
+  return !!sbGetSetting(`voice-checkin-${today}-${period}`);
 }
 
 function isQuietHours(): boolean {
   try {
-    const prefs = localStorage.getItem("ndw_notification_prefs");
+    const prefs = sbGetSetting("ndw_notification_prefs");
     if (!prefs) return false;
     const { quiet_hours_start = 22, quiet_hours_end = 6, enabled = true } = JSON.parse(prefs);
     if (!enabled) return true; // All notifications disabled
@@ -45,7 +46,7 @@ function isQuietHours(): boolean {
 
 function getLastEmotion(): string | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
+    const raw = sbGetSetting("ndw_last_emotion");
     if (!raw) return null;
     const data = JSON.parse(raw);
     return data?.result?.emotion || null;
@@ -104,7 +105,7 @@ export function initCheckinReminders(): () => void {
     // Don't fire more than once per period per day
     const today = new Date().toISOString().slice(0, 10);
     const firedKey = `ndw_reminder_fired_${today}_${reminder.period}`;
-    if (localStorage.getItem(firedKey)) return;
+    if (sbGetSetting(firedKey)) return;
 
     new Notification(reminder.title, {
       body: reminder.body,
@@ -112,7 +113,7 @@ export function initCheckinReminders(): () => void {
       tag: `checkin-${reminder.period}`,
     });
 
-    localStorage.setItem(firedKey, "true");
+    sbSaveSetting(firedKey, "true");
   }, 30 * 60 * 1000); // 30 minutes
 
   return () => clearInterval(intervalId);

@@ -31,6 +31,7 @@ import {
   Cell,
 } from "recharts";
 import { Target, Zap, TrendingUp, TrendingDown, Lightbulb, Clock, Sun, Sunset, Moon } from "lucide-react";
+import { sbGetSetting } from "../lib/supabase-store";
 
 /* ---------- constants ---------- */
 
@@ -50,7 +51,7 @@ interface HistoryEntry {
 
 function getCurrentFocus(): { focusIndex: number; timestamp: number } | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
+    const raw = sbGetSetting("ndw_last_emotion");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.timestamp || Date.now() - parsed.timestamp > 86_400_000) return null;

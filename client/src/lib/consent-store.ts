@@ -9,6 +9,7 @@
  */
 
 import { getSupabase } from "./supabase-browser";
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export const CONSENT_MODALITIES: ConsentModalityInfo[] = [
 
 export function getConsentState(): BiometricConsentState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_CONSENT_STATE };
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || typeof parsed.eeg !== "boolean") {
@@ -97,13 +98,10 @@ export function getConsentState(): BiometricConsentState {
 
 export function saveConsentState(state: BiometricConsentState): void {
   try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        ...state,
-        updated_at: Date.now(),
-      })
-    );
+    sbSaveGeneric(STORAGE_KEY, {
+      ...state,
+      updated_at: Date.now(),
+    });
   } catch {
     // localStorage full or unavailable
   }
@@ -117,7 +115,7 @@ export function saveConsentState(state: BiometricConsentState): void {
 async function syncConsentToSupabase(state: BiometricConsentState): Promise<void> {
   // Block Supabase sync when Privacy Mode is active (Issue #493)
   try {
-    if (localStorage.getItem("ndw_privacy_mode") === "true") return;
+    if (sbGetSetting("ndw_privacy_mode") === "true") return;
   } catch { /* proceed if localStorage unavailable */ }
 
   const sb = await getSupabase();

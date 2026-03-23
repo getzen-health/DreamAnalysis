@@ -11,6 +11,7 @@
 import { useState, useCallback, useRef } from "react";
 import { analyzeEEG, type EEGAnalysisResult } from "@/lib/ml-api";
 import { computeAndCacheBrainAge } from "@/lib/brain-age";
+import { sbSaveGeneric } from "@/lib/supabase-store";
 
 interface InferenceResult {
   analyze: (signals: number[][], fs?: number) => Promise<EEGAnalysisResult | null>;
@@ -100,14 +101,14 @@ export function useInference(): InferenceResult {
 
             // Cache EEG emotion for multimodal fusion
             try {
-              localStorage.setItem("ndw_last_eeg_emotion", JSON.stringify({
+              sbSaveGeneric("ndw_last_eeg_emotion", {
                 emotion: emotion.emotion,
                 confidence: emotion.confidence,
                 valence: eegnetValence,
                 arousal: eegnetArousal,
                 stress_index: 0,
                 timestamp: Date.now(),
-              }));
+              });
               window.dispatchEvent(new CustomEvent("ndw-eeg-updated"));
             } catch { /* localStorage full — non-critical */ }
 

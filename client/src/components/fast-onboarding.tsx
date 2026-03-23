@@ -21,6 +21,7 @@ import {
   Activity,
 } from "lucide-react";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import { sbRemoveSetting, sbSaveSetting } from "../lib/supabase-store";
 
 // ── Types & Constants ─────────────────────────────────────────────────────
 
@@ -32,9 +33,9 @@ interface Props {
 
 function markFastComplete() {
   try {
-    localStorage.setItem("ndw_onboarding_complete", "true");
-    localStorage.removeItem("ndw_onboarding_step");
-    localStorage.removeItem("ndw_onboarding_path");
+    sbSaveSetting("ndw_onboarding_complete", "true");
+    sbRemoveSetting("ndw_onboarding_step");
+    sbRemoveSetting("ndw_onboarding_path");
   } catch {
     // ignore quota errors
   }
@@ -416,9 +417,9 @@ export function FastOnboarding({ onComplete }: Props) {
 
   function saveConsent() {
     try {
-      localStorage.setItem("ndw_consent_voice", enabled.has("voice") ? "true" : "false");
-      localStorage.setItem("ndw_consent_eeg", enabled.has("eeg") ? "true" : "false");
-      localStorage.setItem("ndw_consent_health", enabled.has("health") ? "true" : "false");
+      sbSaveSetting("ndw_consent_voice", enabled.has("voice") ? "true" : "false");
+      sbSaveSetting("ndw_consent_eeg", enabled.has("eeg") ? "true" : "false");
+      sbSaveSetting("ndw_consent_health", enabled.has("health") ? "true" : "false");
     } catch {
       // ignore
     }

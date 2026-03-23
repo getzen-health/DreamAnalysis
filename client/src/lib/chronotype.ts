@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * Chronotype assessment and time-of-day baseline adjustment.
  *
@@ -192,7 +193,7 @@ const STORAGE_KEY = "ndw_chronotype";
 
 export function saveChronotype(score: number, category: ChronotypeCategory): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ score, category }));
+    sbSaveGeneric(STORAGE_KEY, { score, category });
   } catch {
     // localStorage unavailable or full -- silently fail
   }
@@ -200,7 +201,7 @@ export function saveChronotype(score: number, category: ChronotypeCategory): voi
 
 export function getStoredChronotype(): ChronotypeResult | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (

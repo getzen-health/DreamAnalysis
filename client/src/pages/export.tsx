@@ -32,6 +32,7 @@ import {
   deleteAllLocalData,
   type CheckinData,
 } from "@/lib/data-export";
+import { sbGetSetting } from "../lib/supabase-store";
 
 /* ── Helpers ────────────────────────────────────────────────── */
 
@@ -73,7 +74,7 @@ function downloadBlob(blob: Blob, filename: string) {
 /** Gather voice check-in data from localStorage. */
 function getStoredCheckins(): CheckinData[] {
   try {
-    const raw = localStorage.getItem("ndw_voice_checkins");
+    const raw = sbGetSetting("ndw_voice_checkins");
     if (raw) return JSON.parse(raw) as CheckinData[];
   } catch {
     /* ignore */

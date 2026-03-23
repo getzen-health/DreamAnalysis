@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * Adaptive multimodal emotion fusion — merges EEG, voice, and health signals
  * into a single best estimate using confidence-weighted blending.
@@ -52,7 +53,7 @@ function clip(value: number, min: number, max: number): number {
 
 export function loadLearnedMultipliers(): LearnedMultipliers {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
@@ -67,7 +68,7 @@ export function loadLearnedMultipliers(): LearnedMultipliers {
 
 function saveLearnedMultipliers(m: LearnedMultipliers): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(m));
+    sbSaveGeneric(STORAGE_KEY, m);
   } catch { /* localStorage full or unavailable */ }
 }
 

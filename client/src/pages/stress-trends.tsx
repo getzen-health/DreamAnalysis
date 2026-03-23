@@ -44,6 +44,7 @@ import {
   Moon,
 } from "lucide-react";
 import { InterventionCard } from "@/components/intervention-card";
+import { sbGetSetting } from "../lib/supabase-store";
 
 /* ---------- constants ---------- */
 
@@ -76,7 +77,7 @@ function getStressLabel(percent: number): string {
 
 function readCurrentStress(): number | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
+    const raw = sbGetSetting("ndw_last_emotion");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     const data = parsed?.result ?? parsed;

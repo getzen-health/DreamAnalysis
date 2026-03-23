@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { hapticSuccess } from "@/lib/haptics";
+import { sbGetSetting, sbSaveSetting } from "../lib/supabase-store";
 
 const MILESTONES = [3, 7, 14, 30, 60, 100];
 
@@ -24,8 +25,8 @@ export function StreakCelebration() {
   useEffect(() => {
     function check() {
       try {
-        const streak = parseInt(localStorage.getItem("ndw_streak_count") || "0", 10);
-        const lastCelebrated = parseInt(localStorage.getItem("ndw_streak_celebrated") || "0", 10);
+        const streak = parseInt(sbGetSetting("ndw_streak_count") || "0", 10);
+        const lastCelebrated = parseInt(sbGetSetting("ndw_streak_celebrated") || "0", 10);
 
         // Find the highest milestone reached that hasn't been celebrated
         const reached = MILESTONES.filter(m => streak >= m && m > lastCelebrated);
@@ -34,7 +35,7 @@ export function StreakCelebration() {
           setMilestone(highest);
           setShow(true);
           hapticSuccess();
-          localStorage.setItem("ndw_streak_celebrated", String(highest));
+          sbSaveSetting("ndw_streak_celebrated", String(highest));
 
           // Auto-dismiss after 2.5s
           setTimeout(() => setShow(false), 2500);

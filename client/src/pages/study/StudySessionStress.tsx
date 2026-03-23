@@ -9,6 +9,7 @@ import { Loader2, Wind, CheckCircle2, Eye, EyeOff, SkipForward, AlertTriangle } 
 import { apiRequest } from "@/lib/queryClient";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { useToast } from "@/hooks/use-toast";
+import { sbGetSetting, sbRemoveSetting, sbSaveGeneric } from "../../lib/supabase-store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -407,7 +408,7 @@ export default function StudySessionStress() {
   useEffect(() => {
     if (!participantCode) return;
     try {
-      const raw = localStorage.getItem(getBackupKey(participantCode));
+      const raw = sbGetSetting(getBackupKey(participantCode));
       if (!raw) return;
       const backup: SessionBackup = JSON.parse(raw);
       const age = Date.now() - backup.timestamp;
@@ -415,10 +416,10 @@ export default function StudySessionStress() {
         setPendingBackup(backup);
         setShowRecovery(true);
       } else {
-        localStorage.removeItem(getBackupKey(participantCode));
+        sbRemoveSetting(getBackupKey(participantCode));
       }
     } catch {
-      localStorage.removeItem(getBackupKey(participantCode));
+      sbRemoveSetting(getBackupKey(participantCode));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -452,7 +453,7 @@ export default function StudySessionStress() {
 
   function handleStartFresh() {
     if (participantCode) {
-      localStorage.removeItem(getBackupKey(participantCode));
+      sbRemoveSetting(getBackupKey(participantCode));
     }
     setShowRecovery(false);
     setPendingBackup(null);
@@ -476,7 +477,7 @@ export default function StudySessionStress() {
         timestamp: Date.now(),
       };
       try {
-        localStorage.setItem(getBackupKey(participantCode), JSON.stringify(backup));
+        sbSaveGeneric(getBackupKey(participantCode), backup);
       } catch {
         // localStorage full or unavailable — ignore
       }
@@ -674,7 +675,7 @@ export default function StudySessionStress() {
         data_quality_score: Math.round(quality),
       });
       // Clear backup on successful completion
-      localStorage.removeItem(getBackupKey(participantCode));
+      sbRemoveSetting(getBackupKey(participantCode));
       navigate(`/study/complete?code=${encodeURIComponent(participantCode)}&done=stress`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Submission failed";

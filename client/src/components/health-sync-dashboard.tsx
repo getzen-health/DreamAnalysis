@@ -22,6 +22,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { getMLApiUrl } from "@/lib/ml-api";
+import { sbGetSetting } from "../lib/supabase-store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -292,10 +293,10 @@ export default function HealthSyncDashboard() {
 
   // Check local flags for on-device health connections (Capacitor)
   const localGoogleConnected = (() => {
-    try { return localStorage.getItem("ndw_health_connect_granted") === "true"; } catch { return false; }
+    try { return sbGetSetting("ndw_health_connect_granted") === "true"; } catch { return false; }
   })();
   const localAppleConnected = (() => {
-    try { return localStorage.getItem("ndw_apple_health_granted") === "true"; } catch { return false; }
+    try { return sbGetSetting("ndw_apple_health_granted") === "true"; } catch { return false; }
   })();
 
   const orderedSources: HealthSourceStatus[] = SOURCE_ORDER.map((key) => {

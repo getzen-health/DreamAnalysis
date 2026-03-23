@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { resolveUrl } from "@/lib/queryClient";
 import { Users } from "lucide-react";
+import { sbGetSetting, sbSaveSetting } from "../lib/supabase-store";
 
 const EMOTION_EMOJI: Record<string, string> = {
   happy: "😊", sad: "😢", angry: "😠", fear: "😰", surprise: "😮", neutral: "😐",
@@ -44,20 +45,20 @@ export function CommunityMood() {
   // Check if user already shared today
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem(`ndw_community_shared_${today}`)) {
+    if (sbGetSetting(`ndw_community_shared_${today}`)) {
       setShared(true);
     }
   }, []);
 
   function handleShare() {
     try {
-      const raw = localStorage.getItem("ndw_last_emotion");
+      const raw = sbGetSetting("ndw_last_emotion");
       if (!raw) return;
       const emotion = JSON.parse(raw)?.result?.emotion;
       if (!emotion) return;
       shareMutation.mutate(emotion);
       const today = new Date().toISOString().slice(0, 10);
-      localStorage.setItem(`ndw_community_shared_${today}`, "true");
+      sbSaveSetting(`ndw_community_shared_${today}`, "true");
     } catch { /* ignore */ }
   }
 

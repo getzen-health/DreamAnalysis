@@ -13,7 +13,6 @@ import {
   LayoutDashboard,
   Activity,
   Network,
-  Sparkles,
   Radio,
   SlidersHorizontal,
   BarChart2,
@@ -52,7 +51,6 @@ const coreSections: NavSection[] = [
     items: [
       { path: "/",               label: "Dashboard",      icon: LayoutDashboard },
       { path: "/brain-report",   label: "Daily Report",   icon: Sun },
-      { path: "/mood",           label: "Emotions",       icon: Brain },
       { path: "/stress",         label: "Stress",         icon: Activity },
       { path: "/focus",          label: "Focus",          icon: BarChart2 },
       { path: "/nutrition",      label: "Nutrition",      icon: Utensils },
@@ -69,7 +67,6 @@ const moreSections: NavSection[] = [
     title: "More",
     items: [
       { path: "/weekly-summary",        label: "Weekly Summary",   icon: CalendarDays },
-      { path: "/emotions",              label: "Emotion Lab",      icon: Sparkles },
       { path: "/emotional-intelligence", label: "EI Dashboard",    icon: Brain },
       { path: "/health-analytics",      label: "Health Analytics", icon: BarChart2 },
       { path: "/biofeedback",           label: "Breathe",          icon: Wind },

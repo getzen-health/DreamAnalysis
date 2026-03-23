@@ -45,6 +45,7 @@ import {
 import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import { playSuccessChime } from "@/lib/sound-effects";
+import { sbGetSetting, sbRemoveSetting, sbSaveSetting } from "../lib/supabase-store";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ type EegPhase = "intro" | "recording" | "done";
 
 function loadStep(): OnboardingStep {
   try {
-    const v = localStorage.getItem("ndw_onboarding_step");
+    const v = sbGetSetting("ndw_onboarding_step");
     const n = v ? parseInt(v, 10) : 1;
     if (n >= 1 && n <= TOTAL_STEPS) return n as OnboardingStep;
   } catch {}
@@ -74,13 +75,13 @@ function loadStep(): OnboardingStep {
 
 function saveStep(step: OnboardingStep) {
   try {
-    localStorage.setItem("ndw_onboarding_step", String(step));
+    sbSaveSetting("ndw_onboarding_step", String(step));
   } catch {}
 }
 
 function loadPath(): PathChoice {
   try {
-    const v = localStorage.getItem("ndw_onboarding_path");
+    const v = sbGetSetting("ndw_onboarding_path");
     if (v === "voice" || v === "eeg") return v;
   } catch {}
   return null;
@@ -88,15 +89,15 @@ function loadPath(): PathChoice {
 
 function savePath(path: PathChoice) {
   try {
-    if (path) localStorage.setItem("ndw_onboarding_path", path);
+    if (path) sbSaveSetting("ndw_onboarding_path", path);
   } catch {}
 }
 
 function markComplete() {
   try {
-    localStorage.setItem("ndw_onboarding_complete", "true");
-    localStorage.removeItem("ndw_onboarding_step");
-    localStorage.removeItem("ndw_onboarding_path");
+    sbSaveSetting("ndw_onboarding_complete", "true");
+    sbRemoveSetting("ndw_onboarding_step");
+    sbRemoveSetting("ndw_onboarding_path");
   } catch {}
 }
 

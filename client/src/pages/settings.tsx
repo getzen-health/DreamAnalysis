@@ -41,6 +41,7 @@ import { getPushStatus, type PushStatusResult } from "@/lib/native-push";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserAge, setUserAge, getAgeGroupInfo, AGE_GROUPS, type AgeGroup } from "@/lib/age-stratification";
+import { sbGetSetting, sbSaveSetting } from "../lib/supabase-store";
 
 interface SettingsState {
   chartAnimations: boolean;
@@ -1518,7 +1519,7 @@ const PRIVACY_MODE_KEY = "ndw_privacy_mode";
 
 function getPrivacyMode(): boolean {
   try {
-    return localStorage.getItem(PRIVACY_MODE_KEY) === "true";
+    return sbGetSetting(PRIVACY_MODE_KEY) === "true";
   } catch {
     return false;
   }
@@ -1526,7 +1527,7 @@ function getPrivacyMode(): boolean {
 
 function setPrivacyMode(enabled: boolean): void {
   try {
-    localStorage.setItem(PRIVACY_MODE_KEY, enabled ? "true" : "false");
+    sbSaveSetting(PRIVACY_MODE_KEY, enabled ? "true" : "false");
     // Dispatch event so other components (e.g. app-layout header) can react
     window.dispatchEvent(new CustomEvent("ndw-privacy-mode-changed", { detail: { enabled } }));
   } catch {

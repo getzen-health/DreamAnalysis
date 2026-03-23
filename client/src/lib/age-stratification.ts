@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveSetting } from "./supabase-store";
 /**
  * age-stratification.ts — Age-stratified emotion baseline adjustments.
  *
@@ -123,7 +124,7 @@ const AGE_KEY = "ndw_user_age";
  */
 export function getUserAge(): number | null {
   try {
-    const raw = localStorage.getItem(AGE_KEY);
+    const raw = sbGetSetting(AGE_KEY);
     if (!raw) return null;
     const age = parseInt(raw, 10);
     return isNaN(age) || age < 1 || age > 120 ? null : age;
@@ -137,7 +138,7 @@ export function getUserAge(): number | null {
  */
 export function setUserAge(age: number): void {
   try {
-    localStorage.setItem(AGE_KEY, String(Math.round(age)));
+    sbSaveSetting(AGE_KEY, String(Math.round(age)));
   } catch {
     // localStorage unavailable
   }

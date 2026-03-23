@@ -16,6 +16,7 @@
 import en from "@/locales/en.json";
 import hi from "@/locales/hi.json";
 import te from "@/locales/te.json";
+import { sbGetSetting, sbSaveSetting } from "./supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ let _currentLanguage: string = DEFAULT_LANGUAGE;
 
 // Initialize from localStorage if available
 if (typeof window !== "undefined") {
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = sbGetSetting(STORAGE_KEY);
   if (stored && LOCALE_MAP[stored]) {
     _currentLanguage = stored;
   }
@@ -115,7 +116,7 @@ export function setLanguage(code: string): void {
   }
   _currentLanguage = code;
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, code);
+    sbSaveSetting(STORAGE_KEY, code);
   }
 }
 

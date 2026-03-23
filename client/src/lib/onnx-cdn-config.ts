@@ -1,3 +1,4 @@
+import { sbGetSetting } from "./supabase-store";
 /**
  * ONNX Runtime CDN configuration (Issue #510).
  *
@@ -36,7 +37,7 @@ export function getOrtWasmCdnUrl(filename: string): string {
  */
 export function shouldUseCdnWasm(): boolean {
   try {
-    const override = localStorage.getItem("ndw_onnx_use_cdn");
+    const override = sbGetSetting("ndw_onnx_use_cdn");
     if (override === "false") return false;
   } catch {
     // localStorage not available (SSR, etc.)

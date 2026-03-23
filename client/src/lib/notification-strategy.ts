@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * Evidence-based notification strategy for Neural Dream Workshop.
  *
@@ -87,7 +88,7 @@ export function getDefaultPreferences(): NotificationPreferences {
 
 export function saveNotificationPreferences(prefs: NotificationPreferences): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+    sbSaveGeneric(STORAGE_KEY, prefs);
   } catch {
     // localStorage full or unavailable
   }
@@ -95,7 +96,7 @@ export function saveNotificationPreferences(prefs: NotificationPreferences): voi
 
 export function getNotificationPreferences(): NotificationPreferences {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (!raw) return getDefaultPreferences();
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || !parsed.frequency) {

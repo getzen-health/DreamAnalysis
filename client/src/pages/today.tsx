@@ -15,12 +15,11 @@ import { syncMoodLogToML } from "@/lib/ml-api";
 import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
 import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
 import { useFusedState } from "@/hooks/use-fused-state";
-import { BrainAgeCard } from "@/components/brain-age-card";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { InterventionCard } from "@/components/intervention-card";
-import { getFoodLogs as sbGetFoodLogs, getCycleData } from "@/lib/supabase-store";
+import { getCycleData, getFoodLogs as sbGetFoodLogs, sbGetSetting, sbSaveGeneric, sbSaveSetting } from "../lib/supabase-store";
 import { fetchWeather, buildMoodContext, type WeatherData, type WeatherMoodContext } from "@/lib/weather-context";
 import { getCurrentCyclePhase, getCyclePhaseContext, type CyclePhaseContext } from "@/lib/cycle-phase-adjustment";
 import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, Timer, HelpCircle } from "lucide-react";
@@ -790,7 +789,7 @@ export default function Today() {
   useEffect(() => {
     function loadCheckin() {
       try {
-        const raw = localStorage.getItem("ndw_last_emotion");
+        const raw = sbGetSetting("ndw_last_emotion");
         if (raw) {
           const parsed = JSON.parse(raw);
           const data = parsed?.result ?? parsed;
@@ -844,13 +843,13 @@ export default function Today() {
     correctFusedEmotion(emotion);
     // Update local emotion display so the card reflects the correction immediately
     try {
-      const raw = localStorage.getItem("ndw_last_emotion");
+      const raw = sbGetSetting("ndw_last_emotion");
       if (raw) {
         const parsed = JSON.parse(raw);
         const data = parsed?.result ?? parsed;
         data.emotion = emotion;
         if (parsed?.result) parsed.result = data;
-        localStorage.setItem("ndw_last_emotion", JSON.stringify(parsed?.result ? parsed : { result: data, timestamp: Date.now() }));
+        sbSaveGeneric("ndw_last_emotion", parsed?.result ? parsed : { result: data, timestamp: Date.now() });
         window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
       }
     } catch { /* ignore */ }
@@ -924,7 +923,7 @@ export default function Today() {
   // Yesterday comparison — read from localStorage history
   const yesterday = useMemo(() => {
     try {
-      const raw = localStorage.getItem("ndw_yesterday_emotion");
+      const raw = sbGetSetting("ndw_yesterday_emotion");
       if (raw) return JSON.parse(raw) as { stress_index?: number; focus_index?: number; valence?: number };
     } catch { /* ignore */ }
     return null;
@@ -935,16 +934,16 @@ export default function Today() {
     if (!checkin?.stress_index) return;
     try {
       const todayKey = new Date().toISOString().slice(0, 10);
-      const savedKey = localStorage.getItem("ndw_yesterday_date");
+      const savedKey = sbGetSetting("ndw_yesterday_date");
       if (savedKey !== todayKey) {
         // Move current "today" to "yesterday"
-        const prev = localStorage.getItem("ndw_today_emotion");
-        if (prev) localStorage.setItem("ndw_yesterday_emotion", prev);
-        localStorage.setItem("ndw_yesterday_date", todayKey);
+        const prev = sbGetSetting("ndw_today_emotion");
+        if (prev) sbSaveSetting("ndw_yesterday_emotion", prev);
+        sbSaveSetting("ndw_yesterday_date", todayKey);
       }
-      localStorage.setItem("ndw_today_emotion", JSON.stringify({
+      sbSaveGeneric("ndw_today_emotion", {
         stress_index: stressVal, focus_index: focusVal, valence: checkin?.valence ?? 0,
-      }));
+      });
     } catch { /* ignore */ }
   }, [checkin, stressVal, focusVal]);
 
@@ -1136,46 +1135,6 @@ export default function Today() {
             </div>
           </motion.div>
 
-          {/* ── Chronotype prompt (if not set) ── */}
-          {!getStoredChronotype() && (
-            <motion.div
-              variants={itemVariants}
-              onClick={() => navigate("/you")}
-              style={{
-                ...premiumCard,
-                marginBottom: 14,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "12px 16px",
-              }}
-            >
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  background: "rgba(167,139,250,0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Clock style={{ width: 16, height: 16, color: "#a78bfa" }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>
-                  Personalize your brain data
-                </div>
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-                  Take a 1-minute quiz to adjust readings for your sleep type
-                </div>
-              </div>
-              <span style={{ color: "var(--muted-foreground)", fontSize: 16 }}>{">"}</span>
-            </motion.div>
-          )}
 
           {/* ── Weather badge (Issue #508) ── */}
           {weatherCtx && (
@@ -1381,7 +1340,7 @@ export default function Today() {
               value={moodDisplay}
               statusLabel={moodStatusLabel}
               dotColor={moodDotColor}
-              onClick={() => navigate("/mood")}
+              onClick={() => navigate("/wellness")}
               delta={moodDelta}
             />
             <ScoreCard
@@ -1416,11 +1375,6 @@ export default function Today() {
               {checkin?.model_type === "on-device" && " (on-device)"}
             </p>
           )}
-
-          {/* ── 3b. Brain Age ── */}
-          <motion.div variants={itemVariants} style={{ marginBottom: 14 }}>
-            <BrainAgeCard />
-          </motion.div>
 
           {/* ── 4. AI Insight ── */}
           <motion.div

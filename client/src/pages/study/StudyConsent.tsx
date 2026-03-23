@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertCircle, ChevronRight, Shield, Loader2 } from "lucide-react";
 import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { sbGetSetting, sbSaveSetting } from "../../lib/supabase-store";
 
 const CONSENT_TEXT = `INFORMED CONSENT — AntarAI Pilot Study
 
@@ -68,7 +69,7 @@ function generateCode(): string {
 }
 
 function getStoredCode(): string | null {
-  const stored = localStorage.getItem(STUDY_CODE_KEY);
+  const stored = sbGetSetting(STUDY_CODE_KEY);
   if (stored && /^P\d{4}$/.test(stored)) return stored;
   return null;
 }
@@ -89,13 +90,13 @@ async function getOrCreateCode(): Promise<string> {
     const candidate = generateCode();
     const available = await checkCodeAvailable(candidate);
     if (available) {
-      localStorage.setItem(STUDY_CODE_KEY, candidate);
+      sbSaveSetting(STUDY_CODE_KEY, candidate);
       return candidate;
     }
   }
   // Fallback: use last generated code even if check failed
   const fallback = generateCode();
-  localStorage.setItem(STUDY_CODE_KEY, fallback);
+  sbSaveSetting(STUDY_CODE_KEY, fallback);
   return fallback;
 }
 

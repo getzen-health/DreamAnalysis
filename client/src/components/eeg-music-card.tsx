@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { recommendMusic, type MusicRecommendation, type EegMusicState } from "@/lib/eeg-music";
 import { createBinauralBeat, type BinauralHandle } from "@/lib/binaural";
+import { sbGetSetting } from "../lib/supabase-store";
 
 // ── Category icons ───────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ function useEegMusicState(): EegMusicState | null {
   useEffect(() => {
     const read = (): EegMusicState | null => {
       try {
-        const raw = localStorage.getItem("ndw_last_emotion");
+        const raw = sbGetSetting("ndw_last_emotion");
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         const result = parsed?.result ?? parsed;

@@ -673,6 +673,109 @@ export async function clearAllNotifications(userId: string): Promise<void> {
   }
 }
 
+// ── Generic Settings (string/boolean values) ─────────────────────────────────
+
+/**
+ * Read a setting value. Sync read from localStorage for fast initial render,
+ * with an async Supabase fetch that updates localStorage cache in the background.
+ * Returns the localStorage value immediately (or null).
+ */
+export function sbGetSetting(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write a setting to both localStorage (sync) and Supabase user_settings (async).
+ * Fire-and-forget — never throws.
+ */
+export function sbSaveSetting(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch { /* localStorage full or unavailable */ }
+
+  // Async Supabase upsert (fire-and-forget)
+  (async () => {
+    const sb = await getSupabaseIfAllowed();
+    if (!sb) return;
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      await sb.from("user_settings").upsert(
+        { user_id: user.id, key, value, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,key" }
+      );
+    } catch (err) {
+      console.warn("[supabase-store] sbSaveSetting failed:", err);
+    }
+  })();
+}
+
+/**
+ * Remove a setting from both localStorage and Supabase.
+ */
+export function sbRemoveSetting(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch { /* ok */ }
+
+  (async () => {
+    const sb = await getSupabaseIfAllowed();
+    if (!sb) return;
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      await sb.from("user_settings").delete().eq("user_id", user.id).eq("key", key);
+    } catch (err) {
+      console.warn("[supabase-store] sbRemoveSetting failed:", err);
+    }
+  })();
+}
+
+// ── Generic Store (JSON blobs) ───────────────────────────────────────────────
+
+/**
+ * Read a JSON blob. Sync read from localStorage for immediate render.
+ * Returns parsed JSON or null.
+ */
+export function sbGetGeneric<T = any>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write a JSON blob to both localStorage (sync) and Supabase generic_store (async).
+ * Fire-and-forget — never throws.
+ */
+export function sbSaveGeneric(key: string, value: any): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch { /* localStorage full or unavailable */ }
+
+  (async () => {
+    const sb = await getSupabaseIfAllowed();
+    if (!sb) return;
+    try {
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      await sb.from("generic_store").upsert(
+        { user_id: user.id, key, value, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,key" }
+      );
+    } catch (err) {
+      console.warn("[supabase-store] sbSaveGeneric failed:", err);
+    }
+  })();
+}
+
 // ── One-time migration: localStorage -> Supabase ─────────────────────────────
 
 const SYNC_FLAG_KEY = "ndw_supabase_synced";

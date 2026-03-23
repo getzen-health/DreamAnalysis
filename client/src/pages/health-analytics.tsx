@@ -29,6 +29,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
+import { sbGetSetting } from "../lib/supabase-store";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -134,7 +135,7 @@ interface LocalEmotionEntry {
 
 function getLocalEmotionHistory(): LocalEmotionEntry[] {
   try {
-    const raw = localStorage.getItem(EMOTION_HISTORY_KEY);
+    const raw = sbGetSetting(EMOTION_HISTORY_KEY);
     if (!raw) return [];
     const history: LocalEmotionEntry[] = JSON.parse(raw);
     const cutoff = Date.now() - EMOTION_HISTORY_MAX_AGE_MS;

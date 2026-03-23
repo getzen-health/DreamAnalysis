@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { LogIn, UserPlus, Loader2, Check, X as XIcon } from 'lucide-react';
+import { sbGetSetting } from "../lib/supabase-store";
 
 // ── Password & username validation ───────────────────────────────────────────
 
@@ -147,7 +148,7 @@ export default function AuthPage() {
         description: 'Welcome to AntarAI! Your emotional health journey starts now.',
       });
       // New users see welcome intro; returning users go through intent flow
-      const seen = localStorage.getItem("onboarding_complete");
+      const seen = sbGetSetting("onboarding_complete");
       if (!seen) {
         setLocation("/welcome-intro");
       } else {

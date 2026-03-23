@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +55,7 @@ const STORAGE_KEY = "ndw_pain_episodes";
 
 function loadEpisodes(): PainEpisode[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -62,7 +63,7 @@ function loadEpisodes(): PainEpisode[] {
 }
 
 function saveEpisodes(episodes: PainEpisode[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(episodes));
+  sbSaveGeneric(STORAGE_KEY, episodes);
 }
 
 function getSeverityColor(severity: number): string {
@@ -89,7 +90,7 @@ function formatTimeAgo(timestamp: number): string {
 
 function getEegPainMarkers(): PainEpisode["eegData"] | undefined {
   try {
-    const raw = localStorage.getItem("ndw_last_eeg_features");
+    const raw = sbGetSetting("ndw_last_eeg_features");
     if (!raw) return undefined;
     const data = JSON.parse(raw);
     const theta = data.theta_power ?? data.theta ?? 0;

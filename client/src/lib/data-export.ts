@@ -6,6 +6,7 @@
  */
 
 import type { SessionSummary } from "@/lib/ml-api";
+import { sbGetSetting, sbRemoveSetting } from "./supabase-store";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ export function exportAccountJSON(
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith("ndw_")) {
-        localStorageData[key] = localStorage.getItem(key) ?? "";
+        localStorageData[key] = sbGetSetting(key) ?? "";
       }
     }
   } catch {
@@ -194,7 +195,7 @@ export function deleteAllLocalData(): number {
     }
 
     for (const key of keysToRemove) {
-      localStorage.removeItem(key);
+      sbRemoveSetting(key);
       removed++;
     }
   } catch {

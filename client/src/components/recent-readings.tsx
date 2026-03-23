@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Clock } from "lucide-react";
+import { sbGetSetting } from "../lib/supabase-store";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ export interface RecentReadingsProps {
 
 function readFromStorage(key: string, singleObject: boolean): any[] {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = sbGetSetting(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (singleObject) {

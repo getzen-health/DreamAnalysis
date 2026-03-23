@@ -1,3 +1,4 @@
+import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
 /**
  * EEG-Triggered Intervention Engine — closed-loop auto-suggest system.
  *
@@ -86,7 +87,7 @@ export function getDefaultTriggerConfig(): TriggerConfig {
 
 export function saveTriggerConfig(config: TriggerConfig): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    sbSaveGeneric(STORAGE_KEY, config);
   } catch {
     // localStorage unavailable — silent fail
   }
@@ -94,7 +95,7 @@ export function saveTriggerConfig(config: TriggerConfig): void {
 
 export function loadTriggerConfig(): TriggerConfig {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sbGetSetting(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as TriggerConfig;
       return parsed;

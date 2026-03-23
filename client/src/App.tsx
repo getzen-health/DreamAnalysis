@@ -23,12 +23,12 @@ import Discover from "@/pages/discover";
 import Nutrition from "@/pages/nutrition";
 import You from "@/pages/you";
 import NotFound from "@/pages/not-found";
+import { sbGetSetting } from "./lib/supabase-store";
 
 // ── Everything else lazy-loaded — faster startup ──────────────────────────
 const ForgotPasswordPage = lazy(() => import("@/pages/forgot-password"));
 const ResetPasswordPage  = lazy(() => import("@/pages/reset-password"));
 const Dashboard          = lazy(() => import("@/pages/dashboard"));
-const EmotionLab         = lazy(() => import("@/pages/emotion-lab"));
 const BrainMonitor       = lazy(() => import("@/pages/brain-monitor"));
 const DreamJournal       = lazy(() => import("@/pages/dream-journal"));
 const AICompanionPage    = lazy(() => import("@/pages/ai-companion"));
@@ -53,7 +53,6 @@ const StudyComplete      = lazy(() => import("@/pages/study/StudyComplete"));
 const StudyAdmin         = lazy(() => import("@/pages/study/StudyAdmin"));
 
 // ── New consolidated pages — lazy loaded ─────────────────────────────────────
-const MoodTrends             = lazy(() => import("@/pages/mood-trends"));
 const StressTrends           = lazy(() => import("@/pages/stress-trends"));
 const FocusTrends            = lazy(() => import("@/pages/focus-trends"));
 const SleepPage              = lazy(() => import("@/pages/sleep"));
@@ -173,7 +172,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
 
   // Onboarding check runs BEFORE auth — new users see onboarding first, not a login wall
-  if (location !== "/onboarding" && !localStorage.getItem("ndw_onboarding_complete")) {
+  if (location !== "/onboarding" && !sbGetSetting("ndw_onboarding_complete")) {
     setLocation("/onboarding");
     return null;
   }
@@ -222,13 +221,6 @@ function AppRoutes() {
       <Route path="/you">
         <ProtectedRoute><AppLayout><You /></AppLayout></ProtectedRoute>
       </Route>
-      <Route path="/emotions">
-        <ProtectedRoute><AppLayout><EmotionLab /></AppLayout></ProtectedRoute>
-      </Route>
-      {/* New focused pages — split from emotion-lab */}
-      <Route path="/mood">
-        <ProtectedRoute><AppLayout><MoodTrends /></AppLayout></ProtectedRoute>
-      </Route>
       <Route path="/stress">
         <ProtectedRoute><AppLayout><StressTrends /></AppLayout></ProtectedRoute>
       </Route>
@@ -249,9 +241,6 @@ function AppRoutes() {
         <ProtectedRoute><AppLayout><StepsPage /></AppLayout></ProtectedRoute>
       </Route>
       {/* Bottom tab route aliases */}
-      <Route path="/journal">
-        <ProtectedRoute><AppLayout><EmotionLab /></AppLayout></ProtectedRoute>
-      </Route>
       <Route path="/trends">
         <ProtectedRoute><AppLayout><HealthAnalytics /></AppLayout></ProtectedRoute>
       </Route>

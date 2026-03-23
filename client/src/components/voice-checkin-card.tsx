@@ -26,7 +26,7 @@ import { runVoiceEmotionONNX } from "@/lib/voice-onnx";
 import { writeEmotionToHealth } from "@/lib/health-connect";
 import { extractVoiceBiomarkers } from "@/lib/voice-biomarkers";
 import type { VoiceBiomarkers } from "@/lib/voice-biomarkers";
-import { saveVoiceHistory as sbSaveVoiceHistory } from "@/lib/supabase-store";
+import { saveVoiceHistory as sbSaveVoiceHistory, sbGetGeneric, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 import { InterventionCard } from "@/components/intervention-card";
@@ -91,7 +91,7 @@ function todayKey(period: Period): string {
 
 function isCheckinDone(period: Period): boolean {
   try {
-    return !!localStorage.getItem(todayKey(period));
+    return !!sbGetSetting(todayKey(period));
   } catch {
     return false;
   }
@@ -99,7 +99,7 @@ function isCheckinDone(period: Period): boolean {
 
 function markCheckinDone(period: Period, result: VoiceWatchCheckinResult): void {
   try {
-    localStorage.setItem(todayKey(period), JSON.stringify(result));
+    sbSaveGeneric(todayKey(period), result);
   } catch {
     // ignore quota errors
   }
@@ -612,11 +612,11 @@ export function VoiceCheckinCard({
           setBiomarkers(vb);
           // Persist to localStorage as an array with timestamp
           try {
-            const stored = JSON.parse(localStorage.getItem("ndw_voice_biomarkers") || "[]") as VoiceBiomarkers[];
+            const stored = sbGetGeneric("ndw_voice_biomarkers") ?? [] as VoiceBiomarkers[];
             stored.push(vb);
             // Keep last 100 entries to avoid unbounded growth
             if (stored.length > 100) stored.splice(0, stored.length - 100);
-            localStorage.setItem("ndw_voice_biomarkers", JSON.stringify(stored));
+            sbSaveGeneric("ndw_voice_biomarkers", stored);
           } catch { /* storage quota */ }
         } catch (bioErr) {
           console.warn("Voice biomarker extraction failed:", bioErr);
@@ -681,21 +681,21 @@ export function VoiceCheckinCard({
 
         // Persist to ndw_last_emotion so useCurrentEmotion picks it up everywhere
         try {
-          localStorage.setItem("ndw_last_emotion", JSON.stringify({
+          sbSaveGeneric("ndw_last_emotion", {
             result: checkinResult,
             timestamp: Date.now(),
-          }));
+          });
         } catch { /* storage quota */ }
         // Append to voice history for "Recent Voice Analyses" display
         try {
           const historyKey = "ndw_voice_history";
-          const existing = JSON.parse(localStorage.getItem(historyKey) || "[]") as any[];
+          const existing = sbGetGeneric(historyKey) ?? [] as any[];
           existing.unshift({
             ...checkinResult,
             timestamp: Date.now(),
           });
           if (existing.length > 50) existing.length = 50;
-          localStorage.setItem(historyKey, JSON.stringify(existing));
+          sbSaveGeneric(historyKey, existing);
         } catch { /* storage quota */ }
         // Also persist to Supabase (fire-and-forget)
         sbSaveVoiceHistory(resolvedUserId, {
@@ -709,10 +709,10 @@ export function VoiceCheckinCard({
         try {
           const emotion = checkinResult.emotion;
           if (emotion) {
-            const seen = JSON.parse(localStorage.getItem("ndw_emotions_seen") || "[]") as string[];
+            const seen = sbGetGeneric("ndw_emotions_seen") ?? [] as string[];
             if (!seen.includes(emotion)) {
               seen.push(emotion);
-              localStorage.setItem("ndw_emotions_seen", JSON.stringify(seen));
+              sbSaveGeneric("ndw_emotions_seen", seen);
             }
           }
         } catch { /* storage quota */ }
@@ -803,18 +803,18 @@ export function VoiceCheckinCard({
         if (period) markCheckinDone(period, fallbackResult);
         setCardState("done");
         try {
-          localStorage.setItem("ndw_last_emotion", JSON.stringify({
+          sbSaveGeneric("ndw_last_emotion", {
             result: fallbackResult,
             timestamp: Date.now(),
-          }));
+          });
         } catch { /* ok */ }
         // Append to voice history
         try {
           const historyKey = "ndw_voice_history";
-          const existing = JSON.parse(localStorage.getItem(historyKey) || "[]") as any[];
+          const existing = sbGetGeneric(historyKey) ?? [] as any[];
           existing.unshift({ ...fallbackResult, timestamp: Date.now() });
           if (existing.length > 50) existing.length = 50;
-          localStorage.setItem(historyKey, JSON.stringify(existing));
+          sbSaveGeneric(historyKey, existing);
         } catch { /* ok */ }
         // Also persist to Supabase (fire-and-forget)
         sbSaveVoiceHistory(resolvedUserId, {

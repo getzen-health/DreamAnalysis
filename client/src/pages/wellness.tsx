@@ -3,12 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { syncMoodLogToML } from "@/lib/ml-api";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  saveMoodLog as sbSaveMoodLog,
-  getMoodLogs as sbGetMoodLogs,
-  saveCycleData as sbSaveCycleData,
-  getCycleData as sbGetCycleData,
-} from "@/lib/supabase-store";
+import { getCycleData as sbGetCycleData, getMoodLogs as sbGetMoodLogs, saveCycleData as sbSaveCycleData, saveMoodLog as sbSaveMoodLog, sbGetGeneric, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -165,11 +160,9 @@ const CYCLE_STORAGE_KEY = "ndw_cycle_data";
 
 function getLocalCycleData(): LocalCycleData | null {
   try {
-    const raw = localStorage.getItem(CYCLE_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed.lastPeriodStart && parsed.cycleLength && parsed.periodLength) {
-      return parsed as LocalCycleData;
+    const parsed = sbGetGeneric<LocalCycleData>(CYCLE_STORAGE_KEY);
+    if (parsed && parsed.lastPeriodStart && parsed.cycleLength && parsed.periodLength) {
+      return parsed;
     }
     return null;
   } catch {
@@ -178,7 +171,7 @@ function getLocalCycleData(): LocalCycleData | null {
 }
 
 function setLocalCycleData(data: LocalCycleData): void {
-  localStorage.setItem(CYCLE_STORAGE_KEY, JSON.stringify(data));
+  sbSaveGeneric(CYCLE_STORAGE_KEY, data);
   // Also persist to Supabase (fire-and-forget)
   sbSaveCycleData("local", {
     last_period_start: data.lastPeriodStart,
@@ -643,7 +636,7 @@ function CycleTab() {
       }
       // Fallback: read from localStorage
       try {
-        const raw = JSON.parse(localStorage.getItem("ndw_cycle_logs") || "{}");
+        const raw = sbGetGeneric("ndw_cycle_logs") ?? {};
         return Object.entries(raw).map(([date, entry]: [string, any]) => ({
           id: date, userId: null, date, flowLevel: entry.flowLevel,
           symptoms: entry.symptoms, phase: null, contraception: null,
@@ -739,9 +732,9 @@ function CycleTab() {
       } catch {
         // API unavailable or auth missing — save to localStorage
         const key = "ndw_cycle_logs";
-        const existing: Record<string, typeof entry> = JSON.parse(localStorage.getItem(key) || "{}");
+        const existing: Record<string, typeof entry> = sbGetGeneric(key) ?? {};
         existing[selectedDate] = entry;
-        localStorage.setItem(key, JSON.stringify(existing));
+        sbSaveGeneric(key, existing);
         return entry;
       }
     },
@@ -1338,14 +1331,14 @@ function MoodTab() {
   // Always load mood history from localStorage (works without auth)
   const [localMoodLogs, setLocalMoodLogs] = useState<MoodLog[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem("ndw_mood_logs") || "[]");
+      return sbGetGeneric("ndw_mood_logs") ?? [];
     } catch { return []; }
   });
 
   // Re-read localStorage on mount and after mutations; also try Supabase
   const refreshLocalLogs = useCallback(() => {
     try {
-      setLocalMoodLogs(JSON.parse(localStorage.getItem("ndw_mood_logs") || "[]"));
+      setLocalMoodLogs(sbGetGeneric("ndw_mood_logs") ?? []);
     } catch { setLocalMoodLogs([]); }
     // Also fetch from Supabase in background (updates localStorage cache)
     sbGetMoodLogs(user?.id ?? "local", 30).then((logs) => {
@@ -1391,7 +1384,7 @@ function MoodTab() {
       } catch {
         // Fallback: save to localStorage
         const key = "ndw_mood_logs";
-        const existing = JSON.parse(localStorage.getItem(key) || "[]");
+        const existing = sbGetGeneric(key) ?? [];
         const entry = {
           id: `local_${Date.now()}`,
           userId: user?.id,
@@ -1402,7 +1395,7 @@ function MoodTab() {
         };
         existing.unshift(entry);
         if (existing.length > 100) existing.length = 100;
-        localStorage.setItem(key, JSON.stringify(existing));
+        sbSaveGeneric(key, existing);
         return entry;
       }
     },
