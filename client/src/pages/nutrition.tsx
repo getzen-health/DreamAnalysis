@@ -179,11 +179,15 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
       if (!sb) return;
       sb.from("food_logs").insert({
         user_id: userId,
+        meal_type: entry.mealType ?? "meal",
         summary: entry.summary ?? (entry.foodItems ?? []).map((fi: any) => fi.name).join(", "),
         calories: entry.totalCalories ?? entry.calories ?? null,
         protein: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.protein_g ?? 0), 0) || null,
         carbs: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.carbs_g ?? 0), 0) || null,
         fat: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.fat_g ?? 0), 0) || null,
+        fiber: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.fiber_g ?? 0), 0) || null,
+        food_items: entry.foodItems ?? null,
+        vitamins: entry.vitamins ?? null,
         food_quality_score: null,
         created_at: entry.loggedAt ?? new Date().toISOString(),
       });
@@ -1880,6 +1884,7 @@ export default function Nutrition() {
     queryKey: ["/api/food/logs", userId],
     queryFn: async () => {
       let apiLogs: FoodLog[] = [];
+      // 1. Try Express API
       try {
         const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
         if (res.ok) {
@@ -1887,18 +1892,44 @@ export default function Nutrition() {
           if (Array.isArray(data)) apiLogs = data;
         }
       } catch { /* API unavailable */ }
-      // Merge with localStorage (local entries may not have synced to DB yet)
+      // 2. Try Supabase (survives APK reinstall)
+      let sbLogs: FoodLog[] = [];
+      try {
+        const { getSupabase } = await import("@/lib/supabase-browser");
+        const sb = await getSupabase();
+        if (sb) {
+          const { data: rows } = await sb.from("food_logs").select("*")
+            .eq("user_id", userId).order("created_at", { ascending: false }).limit(200);
+          if (rows) {
+            sbLogs = rows.map((r: any) => ({
+              id: r.id ?? `sb_${r.created_at}`,
+              loggedAt: r.created_at,
+              mealType: r.meal_type ?? "meal",
+              summary: r.summary,
+              totalCalories: r.calories,
+              dominantMacro: r.dominant_macro ?? null,
+              foodItems: r.food_items ?? null,
+              vitamins: r.vitamins ?? null,
+            }));
+          }
+        }
+      } catch { /* Supabase unavailable */ }
+      // 3. localStorage (offline cache)
       let localLogs: FoodLog[] = [];
       try {
         localLogs = sbGetGeneric(`ndw_food_logs_${userId}`) ?? [];
       } catch { /* ignore */ }
-      if (localLogs.length === 0) return apiLogs;
-      if (apiLogs.length === 0) return localLogs;
-      // Deduplicate by id, prefer API version
-      const apiIds = new Set(apiLogs.map((l) => l.id));
-      const merged = [...apiLogs, ...localLogs.filter((l) => !apiIds.has(l.id))];
-      merged.sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
-      return merged;
+      // Merge all sources, deduplicate by id
+      const allLogs = [...apiLogs, ...sbLogs, ...localLogs];
+      const seen = new Set<string>();
+      const unique = allLogs.filter((l) => {
+        const key = l.id ?? l.loggedAt;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      unique.sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+      return unique;
     },
   });
 
