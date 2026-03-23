@@ -41,7 +41,7 @@ import type { TriggerState } from "@/lib/eeg-intervention-trigger";
 
 // Route targets for each ML model card — null means no linked page
 const MODEL_ROUTES: Record<string, string | null> = {
-  "Emotion": "/emotions",
+  "Emotion": "/brain-monitor",
   "Stress": "/stress",
   "Focus": "/focus",
   "Sleep": "/sleep",

@@ -289,57 +289,73 @@ async function shareWellnessScore(score: number, emotion: string, insight: strin
   ctx.font = "500 22px system-ui, -apple-system, sans-serif";
   ctx.fillText("NeuralDreamWorkshop", cx, H - 60);
 
-  // Export as blob and share (wrapped in Promise so caller can await)
-  const blob = await new Promise<Blob | null>((resolve) => {
-    try {
-      canvas.toBlob((b) => resolve(b), "image/png");
-    } catch {
-      resolve(null);
-    }
-  });
-
-  // If toBlob failed, try toDataURL as fallback
-  if (!blob) {
-    try {
-      const link = document.createElement("a");
-      link.download = "antarai-wellness.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    } catch { /* last resort failed */ }
-    return;
-  }
-
-  const file = new File([blob], "antarai-wellness.png", { type: "image/png" });
-
-  // Try Web Share API with file
+  // Export as blob
+  const dataUrl = canvas.toDataURL("image/png");
+  let blob: Blob | null = null;
   try {
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({
+    blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), "image/png");
+    });
+  } catch { /* toBlob not supported */ }
+
+  // Try native share (Capacitor)
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    if (Capacitor.isNativePlatform()) {
+      // Use Capacitor's native share via a temporary file
+      const { Filesystem, Directory } = await import("@capacitor/filesystem" as string);
+      const base64Data = dataUrl.split(",")[1];
+      const saved = await Filesystem.writeFile({
+        path: "antarai-wellness.png",
+        data: base64Data,
+        directory: Directory.Cache,
+      });
+      const { Share } = await import("@capacitor/share" as string);
+      await Share.share({
         title: `My Wellness Score: ${score}`,
         text: `My wellness score today is ${score}/100. ${insight}`,
-        files: [file],
+        url: saved.uri,
       });
       return;
     }
   } catch {
-    // User cancelled or share failed — fall through to download
+    // Capacitor share not available — fall through
   }
 
-  // Fallback: download the image directly
+  // Try Web Share API
+  if (blob) {
+    try {
+      const file = new File([blob], "antarai-wellness.png", { type: "image/png" });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: `My Wellness Score: ${score}`,
+          text: `My wellness score today is ${score}/100. ${insight}`,
+          files: [file],
+        });
+        return;
+      }
+    } catch { /* share cancelled or failed */ }
+  }
+
+  // Fallback: open image in new tab / download
+  try {
+    const w = window.open();
+    if (w) {
+      w.document.write(`<img src="${dataUrl}" style="max-width:100%"/>`);
+      w.document.title = "Wellness Score";
+      return;
+    }
+  } catch { /* popup blocked */ }
+
+  // Last resort: download link
   try {
     const link = document.createElement("a");
     link.download = "antarai-wellness.png";
-    link.href = canvas.toDataURL("image/png");
+    link.href = dataUrl;
+    document.body.appendChild(link);
     link.click();
-  } catch {
-    // toDataURL fallback failed — try blob URL
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "antarai-wellness.png";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
+    document.body.removeChild(link);
+  } catch { /* all methods failed */ }
 }
 
 // ── Animation variants ──────────────────────────────────────────────────
