@@ -616,6 +616,105 @@ def extract_features(eeg: np.ndarray, fs: float = 256.0) -> Dict[str, float]:
     return features
 
 
+def extract_eye_movement_features(
+    signal: np.ndarray,
+    fs: float = 256.0,
+    amplitude_threshold_uv: float = 50.0,
+    window_ms: float = 300.0,
+) -> Dict[str, float]:
+    """Extract eye movement features from frontal EEG for REM detection.
+
+    Detects rapid eye movements (saccades) from frontal EEG channels by
+    identifying rapid amplitude deflections that exceed a threshold within
+    a short time window. These eye-movement artifacts are informative for
+    REM sleep detection since REMs are a hallmark of the REM stage.
+
+    Supports two modes:
+    - Single-channel (1D): high-pass filter + peak detection on one frontal channel.
+    - Multichannel (2D, 2 rows = AF7 + AF8): uses AF7-AF8 difference for
+      lateral eye movement detection (horizontal EOG proxy).
+
+    Args:
+        signal: 1D EEG array (single frontal channel) or 2D array of shape
+                (2, n_samples) for AF7 + AF8 multichannel mode.
+        fs: Sampling frequency in Hz.
+        amplitude_threshold_uv: Minimum amplitude change (uV) to count as a
+                                 saccade. Default 50 uV.
+        window_ms: Maximum duration (ms) of a saccade deflection. Default 300 ms.
+
+    Returns:
+        Dict with:
+            saccade_rate: Saccades per second (Hz).
+            avg_saccade_amplitude: Mean absolute amplitude of detected saccades (uV).
+            eye_movement_index: Composite index = saccade_rate * avg_saccade_amplitude / 100.
+    """
+    _zero = {"saccade_rate": 0.0, "avg_saccade_amplitude": 0.0, "eye_movement_index": 0.0}
+
+    # Handle empty signal
+    if signal.size == 0:
+        return _zero
+
+    # Determine working signal
+    if signal.ndim == 2:
+        # Multichannel: AF7 - AF8 difference (lateral eye movement proxy)
+        if signal.shape[0] < 2 or signal.shape[1] == 0:
+            return _zero
+        working = signal[0] - signal[1]  # AF7 - AF8
+    elif signal.ndim == 1:
+        working = signal.copy()
+    else:
+        return _zero
+
+    n_samples = len(working)
+    if n_samples < 4:
+        return _zero
+
+    duration_sec = n_samples / fs
+    if duration_sec <= 0:
+        return _zero
+
+    # High-pass filter at 0.5 Hz to isolate eye movement artifacts
+    # (removes slow DC drift while preserving saccade waveforms)
+    nyq = 0.5 * fs
+    hp_freq = 0.5 / nyq
+    if hp_freq < 0.999 and n_samples > 18:  # Need enough samples for filtfilt
+        try:
+            b, a = scipy_signal.butter(2, hp_freq, btype="high")
+            padlen = 3 * max(len(a), len(b)) - 1
+            if n_samples > padlen:
+                working = scipy_signal.filtfilt(b, a, working)
+        except Exception:
+            pass  # If filtering fails, use unfiltered signal
+
+    # Window size in samples
+    window_samples = max(1, int((window_ms / 1000.0) * fs))
+
+    # Detect rapid deflections: look for amplitude changes > threshold within window
+    saccade_amplitudes = []
+    i = 0
+    while i < n_samples - window_samples:
+        segment = working[i:i + window_samples]
+        seg_range = np.max(segment) - np.min(segment)
+
+        if seg_range >= amplitude_threshold_uv:
+            saccade_amplitudes.append(float(seg_range))
+            # Skip past this saccade to avoid double-counting
+            i += window_samples
+        else:
+            i += 1
+
+    n_saccades = len(saccade_amplitudes)
+    saccade_rate = float(n_saccades / duration_sec)
+    avg_amplitude = float(np.mean(saccade_amplitudes)) if n_saccades > 0 else 0.0
+    eye_movement_index = float(saccade_rate * avg_amplitude / 100.0)
+
+    return {
+        "saccade_rate": saccade_rate,
+        "avg_saccade_amplitude": avg_amplitude,
+        "eye_movement_index": eye_movement_index,
+    }
+
+
 def compute_frontal_asymmetry(
     signals: np.ndarray, fs: float = 256.0,
     left_ch: int = 0, right_ch: int = 1

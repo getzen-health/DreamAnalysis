@@ -8,7 +8,12 @@ Supports three inference paths: ONNX > sklearn > feature-based fallback.
 
 import numpy as np
 from typing import Dict, Optional
-from processing.eeg_processor import extract_band_powers, extract_features, preprocess
+from processing.eeg_processor import (
+    extract_band_powers,
+    extract_eye_movement_features,
+    extract_features,
+    preprocess,
+)
 
 
 class DreamDetector:
@@ -23,6 +28,7 @@ class DreamDetector:
         self.sklearn_model = None
         self.feature_names = None
         self.model_type = "feature-based"
+        self.includes_eye_features = False
 
         if model_path:
             self._load_model(model_path)
@@ -42,6 +48,7 @@ class DreamDetector:
                 data = joblib.load(model_path)
                 self.sklearn_model = data["model"]
                 self.feature_names = data["feature_names"]
+                self.includes_eye_features = data.get("includes_eye_features", False)
                 self.model_type = "sklearn"
             except Exception:
                 pass
@@ -68,6 +75,12 @@ class DreamDetector:
         processed = preprocess(signal, fs)
         bands = extract_band_powers(processed, fs)
         features = extract_features(processed, fs)
+
+        # Add eye movement features if model was trained with them
+        if self.includes_eye_features:
+            eye_feats = extract_eye_movement_features(eeg, fs)
+            features.update({f"eye_{k}": v for k, v in eye_feats.items()})
+
         feature_vector = np.array([features.get(k, 0.0) for k in self.feature_names]).reshape(1, -1)
 
         probs = self.sklearn_model.predict_proba(feature_vector)[0]
@@ -112,22 +125,28 @@ class DreamDetector:
         bands = extract_band_powers(processed, fs)
         features = extract_features(processed, fs)
 
+        # Extract eye movement features from raw (unfiltered) signal
+        eye_feats = extract_eye_movement_features(eeg, fs)
+
         delta = bands.get("delta", 0)
         theta = bands.get("theta", 0)
         alpha = bands.get("alpha", 0)
         beta = bands.get("beta", 0)
         gamma = bands.get("gamma", 0)
 
-        # REM likelihood: high theta + beta, low delta, desynchronized EEG.
-        # NOTE: gamma on Muse 2 is unreliable for dream-related neural signals —
+        # REM likelihood: high theta + beta, low delta, desynchronized EEG
+        # + eye movement index as a direct REM indicator.
+        # NOTE: gamma on Muse 2 is unreliable for dream-related neural signals --
         # it is predominantly EMG (muscle artifact) at AF7/AF8. The gamma_burst
         # field in band_analysis is reported for completeness only; gamma is
         # excluded from rem_score, dream_intensity, and lucidity scoring.
+        eye_idx = min(eye_feats.get("eye_movement_index", 0.0), 1.0)
         rem_score = (
-            theta * 0.35
-            + beta * 0.25
-            + (1 - delta) * 0.20
-            + (1 - alpha) * 0.20
+            theta * 0.30
+            + beta * 0.20
+            + (1 - delta) * 0.15
+            + (1 - alpha) * 0.15
+            + eye_idx * 0.20
         )
 
         # Dream probability: based on REM + EEG complexity
@@ -170,6 +189,11 @@ class DreamDetector:
                 "alpha_presence": float(alpha),
                 "beta_activation": float(beta),
                 "gamma_burst": float(gamma),
+            },
+            "eye_movement": {
+                "saccade_rate": eye_feats.get("saccade_rate", 0.0),
+                "avg_saccade_amplitude": eye_feats.get("avg_saccade_amplitude", 0.0),
+                "eye_movement_index": eye_feats.get("eye_movement_index", 0.0),
             },
         }
 
