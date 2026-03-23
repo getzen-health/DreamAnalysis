@@ -818,7 +818,6 @@ public class MuseBlePlugin extends Plugin {
     private void parseAndSendAthenaData(byte[] value) {
         athenaPacketCount++;
 
-        // Log first 5 packets for format analysis
         if (athenaPacketCount <= 5) {
             StringBuilder hex = new StringBuilder();
             for (int i = 0; i < Math.min(value.length, 24); i++) {
@@ -827,31 +826,46 @@ public class MuseBlePlugin extends Plugin {
             sendDiag("Athena pkt#" + athenaPacketCount + " len=" + value.length + ": " + hex.toString().trim());
         }
 
-        if (value.length >= 20) {
-            // Check tag byte at offset 9 — only forward EEG packets (0x11)
-            int tag = value[9] & 0xFF;
-            if (tag != 0x11) {
-                // Skip non-EEG packets (0x47=accel/gyro, etc.)
-                return;
-            }
+        if (value.length < 20) return;
 
-            // Forward as Muse 2-compatible packet on rotating channels
-            int ch = athenaChannelRotation % 4;
-            athenaChannelRotation++;
+        // Tag at byte 9 — only process EEG (0x11)
+        int tag = value[9] & 0xFF;
+        if (tag != 0x11) return;
 
-            JSObject data = new JSObject();
-            data.put("channel", ch);
-            data.put("data", Base64.encodeToString(value, Base64.NO_WRAP));
-            notifyListeners("museEegData", data);
+        // Athena EEG packet: bytes 0-8=header, byte 9=tag(0x11), bytes 10-11=index, bytes 12-19=EEG data
+        // Use byte[1] (sequence) to determine channel: seq % 4
+        // (Athena sends 4 EEG packets per cycle, one per channel)
+        int seq = value[1] & 0xFF;
+        int ch = seq % 4;
 
-            if (athenaPacketCount == 50 || athenaPacketCount == 200) {
-                sendDiag("Athena: " + athenaPacketCount + " pkts, len=" + value.length + " ch_rot=" + ch);
+        // Extract 4 samples from bytes 12-19 as uint16 big-endian, scale to microvolts
+        // 8 bytes = 4 × uint16 samples
+        double[] samples = new double[4];
+        for (int i = 0; i < 4; i++) {
+            int offset = 12 + i * 2;
+            if (offset + 1 < value.length) {
+                int raw = ((value[offset] & 0xFF) << 8) | (value[offset + 1] & 0xFF);
+                // 14-bit ADC, centered at 8192, scale to microvolts
+                samples[i] = (raw - 8192) * ATHENA_UV_SCALE;
             }
-        } else if (value.length > 0) {
-            // Small packet — might be status/control response, skip
-            if (athenaPacketCount <= 10) {
-                sendDiag("Athena small pkt len=" + value.length);
-            }
+        }
+
+        // Send decoded samples as JSON (not raw bytes)
+        // JS side will push these directly to the ring buffer
+        JSObject data = new JSObject();
+        data.put("channel", ch);
+        data.put("athena", true);
+        StringBuilder samplesStr = new StringBuilder();
+        for (int i = 0; i < samples.length; i++) {
+            if (i > 0) samplesStr.append(",");
+            samplesStr.append(String.format("%.2f", samples[i]));
+        }
+        data.put("samples", samplesStr.toString());
+        notifyListeners("museEegData", data);
+
+        if (athenaPacketCount == 50 || athenaPacketCount == 200) {
+            sendDiag("Athena: " + athenaPacketCount + " pkts ch=" + ch +
+                " s0=" + String.format("%.1f", samples[0]) + "uV");
         }
     }
 

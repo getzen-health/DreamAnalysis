@@ -357,19 +357,25 @@ export class MuseBleManager {
     if (this._nativeMuseListener) {
       try { await this._nativeMuseListener.remove(); } catch { /* ok */ }
     }
-    this._nativeMuseListener = await MuseBle.addListener("museEegData", (event: { channel: number; data: string }) => {
-      // Decode base64 data to DataView
-      const binary = atob(event.data);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const dv = new DataView(bytes.buffer);
-
-      if (event.channel === -1) {
-        // Athena multiplexed packet — route to Athena parser
+    this._nativeMuseListener = await MuseBle.addListener("museEegData", (event: { channel: number; data?: string; athena?: boolean; samples?: string }) => {
+      if (event.athena && event.samples) {
+        // Athena: Java already decoded samples to microvolts
         this._isAthena = true;
-        this.onAthenaDataNotification(dv);
-      } else {
-        this.onEegNotification(event.channel, dv);
+        const ch = event.channel;
+        if (ch >= 0 && ch < N_ACTIVE_CHANNELS) {
+          const vals = event.samples.split(",").map(Number);
+          for (const v of vals) {
+            if (!isNaN(v)) this.rings[ch].push(v);
+          }
+          this.lastNotificationTime[ch] = Date.now();
+          this._notifCount++;
+        }
+      } else if (event.data) {
+        // Muse 2: raw base64 packet
+        const binary = atob(event.data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        this.onEegNotification(event.channel, new DataView(bytes.buffer));
       }
     });
 
