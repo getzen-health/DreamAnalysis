@@ -41,6 +41,9 @@ import {
   getBaselineAdjustment,
   hasAnsweredToday,
 } from "@/lib/substance-context";
+import { useInterventionTriggers } from "@/hooks/use-intervention-triggers";
+import { InterventionTriggerToast } from "@/components/intervention-trigger-toast";
+import type { TriggerState } from "@/lib/eeg-intervention-trigger";
 
 type SessionPhase = "idle" | "calibrating" | "training" | "summary";
 
@@ -88,6 +91,31 @@ export default function Neurofeedback() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const calibrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionStartRef = useRef<Date | null>(null);
+
+  // ── EEG intervention trigger engine (#504) ──────────────────────
+  const nfSessionStartTime = useRef<number>(Date.now());
+  useEffect(() => {
+    if (phase === "training") nfSessionStartTime.current = Date.now();
+  }, [phase]);
+
+  const getNfTriggerState = useCallback((): TriggerState | null => {
+    if (phase !== "training") return null;
+    const bp = bandPowers as Record<string, number> | undefined;
+    return {
+      stressIndex: 0, // Neurofeedback sessions don't have a direct stress index
+      stressDurationSeconds: 0,
+      blinksPerMinute: 15,
+      sessionMinutes: (Date.now() - nfSessionStartTime.current) / 60000,
+      alphaLevel: bp?.alpha ?? 0.2,
+      betaLevel: bp?.beta ?? 0.15,
+      highBetaDurationSeconds: 0,
+    };
+  }, [phase, bandPowers]);
+
+  const { activeTrigger: nfTrigger, dismiss: dismissNfTrigger } = useInterventionTriggers(
+    phase === "training",
+    getNfTriggerState,
+  );
 
   // Load protocols on mount
   useEffect(() => {
@@ -531,6 +559,14 @@ export default function Neurofeedback() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* EEG intervention trigger toast (#504) */}
+      {nfTrigger && (
+        <InterventionTriggerToast
+          trigger={nfTrigger}
+          onDismiss={dismissNfTrigger}
+        />
+      )}
     </main>
   );
 }

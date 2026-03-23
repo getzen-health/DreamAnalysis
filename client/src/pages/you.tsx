@@ -17,6 +17,8 @@ import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
 import { BrainAgeCard } from "@/components/brain-age-card";
 import { loadPersonalAdapter, resetPersonalAdapter, getPersonalizationStats } from "@/lib/personal-adapter";
 import { NotificationPrefsSheet } from "@/components/notification-prefs-sheet";
+import { Zap } from "lucide-react";
+import { InterventionTriggerSettings } from "@/components/intervention-trigger-settings";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -481,6 +483,14 @@ export default function You() {
           onClick={() => setLocation("/connected-assets")}
           isLast
         />
+      </GroupedList>
+
+      {/* Smart Interventions Section (#504) */}
+      <SectionLabel>Smart Interventions</SectionLabel>
+      <GroupedList>
+        <div style={{ padding: "14px 14px 10px" }}>
+          <InterventionTriggerSettings />
+        </div>
       </GroupedList>
 
       {/* Settings Section */}
