@@ -12,6 +12,7 @@ import { cardVariants, listItemVariants } from "@/lib/animations";
 import { syncFoodLogToML } from "@/lib/ml-api";
 import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 import { UtensilsCrossed, Brain as BrainIcon } from "lucide-react";
+import { FoodScoreCard } from "@/components/food-score-card";
 import { getEmotionHistory, getFoodLogs as sbGetFoodLogs, sbGetGeneric, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 import {
   computeMealCognitiveCorrelation,
@@ -1424,6 +1425,22 @@ function MealCard({
             <span><span style={{ color: "#e879a8" }}>P</span> {Math.round(totalP)}g</span>
             <span><span style={{ color: "#0891b2" }}>C</span> {Math.round(totalC)}g</span>
             <span><span style={{ color: "#7c3aed" }}>F</span> {Math.round(totalF)}g</span>
+          </div>
+
+          {/* Food Health Score (Yuka-style) */}
+          <div style={{
+            padding: "4px 10px", background: "var(--muted)", borderRadius: 10,
+            marginBottom: 8, border: "1px solid var(--border)",
+          }}>
+            <FoodScoreCard
+              food={{
+                calories: log.totalCalories ?? 0,
+                protein_g: totalP,
+                carbs_g: totalC,
+                fat_g: totalF,
+              }}
+              compact
+            />
           </div>
 
           {/* AI insight */}
@@ -2857,6 +2874,28 @@ export default function Nutrition() {
                   )}
                 </div>
               </div>
+
+              {/* Yuka-style Food Score for most recent meal */}
+              {todayLogs.length > 0 && (() => {
+                const latest = todayLogs[0];
+                const latestItems = latest.foodItems ?? [];
+                const latestP = latestItems.reduce((s, f) => s + (f.protein_g ?? 0), 0);
+                const latestC = latestItems.reduce((s, f) => s + (f.carbs_g ?? 0), 0);
+                const latestF = latestItems.reduce((s, f) => s + (f.fat_g ?? 0), 0);
+                return (
+                  <div style={{ marginBottom: 16 }}>
+                    <FoodScoreCard
+                      food={{
+                        calories: latest.totalCalories ?? 0,
+                        protein_g: latestP,
+                        carbs_g: latestC,
+                        fat_g: latestF,
+                      }}
+                      mealName={`${getMealLabel(latest.mealType)} Score`}
+                    />
+                  </div>
+                );
+              })()}
 
               {/* Daily Running Totals + Food Quality Score (Tasks 1 & 3) */}
               {todayLogs.length > 0 && (
