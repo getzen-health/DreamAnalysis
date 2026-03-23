@@ -507,6 +507,295 @@ export function extractFeatures92(samples: Float32Array, sr: number): Float32Arr
   return features;
 }
 
+// ─── Enhanced 140-Dim Feature Extraction ─────────────────────────────────────
+
+/**
+ * Estimate pitch (F0) per frame using autocorrelation-based detection.
+ * Returns an array of F0 values in Hz (0 for unvoiced frames).
+ */
+function estimatePitchPerFrame(
+  samples: Float32Array,
+  sr: number,
+): number[] {
+  const minF0 = 80;
+  const maxF0 = 400;
+  const minLag = Math.floor(sr / maxF0);
+  const maxLag = Math.ceil(sr / minF0);
+  const frameDuration = 0.03; // 30ms
+  const hopDuration = 0.015;  // 15ms
+  const frameSize = Math.floor(sr * frameDuration);
+  const hopSize = Math.floor(sr * hopDuration);
+
+  const pitches: number[] = [];
+
+  for (let start = 0; start + frameSize <= samples.length; start += hopSize) {
+    const frame = samples.subarray(start, start + frameSize);
+    let bestLag = 0;
+    let bestCorr = -Infinity;
+
+    for (let lag = minLag; lag <= maxLag && lag < frame.length; lag++) {
+      let sum = 0;
+      let norm1 = 0;
+      let norm2 = 0;
+      const count = frame.length - lag;
+      for (let i = 0; i < count; i++) {
+        sum += frame[i] * frame[i + lag];
+        norm1 += frame[i] * frame[i];
+        norm2 += frame[i + lag] * frame[i + lag];
+      }
+      const denom = Math.sqrt(norm1 * norm2);
+      const corr = denom > 0 ? sum / denom : 0;
+      if (corr > bestCorr) {
+        bestCorr = corr;
+        bestLag = lag;
+      }
+    }
+
+    if (bestCorr >= 0.3 && bestLag > 0) {
+      pitches.push(sr / bestLag);
+    } else {
+      pitches.push(0); // unvoiced
+    }
+  }
+
+  return pitches;
+}
+
+/**
+ * Compute jitter (period perturbation) from voiced pitch values.
+ * Returns a ratio in [0, 1].
+ */
+function computeJitter(pitchValues: number[]): number {
+  const voiced = pitchValues.filter(f => f > 0);
+  if (voiced.length < 2) return 0;
+
+  const periods = voiced.map(f => 1 / f);
+  let sumDiff = 0;
+  let sumPeriod = 0;
+  for (let i = 1; i < periods.length; i++) {
+    sumDiff += Math.abs(periods[i] - periods[i - 1]);
+  }
+  for (const p of periods) sumPeriod += p;
+  const meanPeriod = sumPeriod / periods.length;
+  const meanDiff = sumDiff / (periods.length - 1);
+  return meanPeriod > 0 ? Math.min(1, meanDiff / meanPeriod) : 0;
+}
+
+/**
+ * Compute shimmer (amplitude perturbation) from per-frame peak amplitudes
+ * of voiced frames. Returns a ratio in [0, 1].
+ */
+function computeShimmer(
+  samples: Float32Array,
+  sr: number,
+  pitchValues: number[],
+): number {
+  const frameDuration = 0.03;
+  const hopDuration = 0.015;
+  const frameSize = Math.floor(sr * frameDuration);
+  const hopSize = Math.floor(sr * hopDuration);
+
+  const peaks: number[] = [];
+  let frameIdx = 0;
+  for (let start = 0; start + frameSize <= samples.length; start += hopSize) {
+    if (frameIdx < pitchValues.length && pitchValues[frameIdx] > 0) {
+      let peak = 0;
+      for (let i = start; i < start + frameSize; i++) {
+        const abs = Math.abs(samples[i]);
+        if (abs > peak) peak = abs;
+      }
+      peaks.push(peak);
+    }
+    frameIdx++;
+  }
+
+  if (peaks.length < 2) return 0;
+
+  let sumDiff = 0;
+  let sumPeak = 0;
+  for (let i = 1; i < peaks.length; i++) {
+    sumDiff += Math.abs(peaks[i] - peaks[i - 1]);
+  }
+  for (const p of peaks) sumPeak += p;
+  const meanPeak = sumPeak / peaks.length;
+  const meanDiff = sumDiff / (peaks.length - 1);
+  return meanPeak > 0 ? Math.min(1, meanDiff / meanPeak) : 0;
+}
+
+/**
+ * Estimate speaking rate (syllables per second) using energy-based
+ * syllable nucleus detection.
+ */
+function estimateSpeakingRate(
+  samples: Float32Array,
+  sr: number,
+): number {
+  const frameDuration = 0.03;
+  const hopDuration = 0.015;
+  const frameSize = Math.floor(sr * frameDuration);
+  const hopSize = Math.floor(sr * hopDuration);
+  const silenceThreshold = 0.01;
+  const syllableThreshold = silenceThreshold * 3;
+
+  let syllables = 0;
+  let wasSilent = true;
+
+  for (let start = 0; start + frameSize <= samples.length; start += hopSize) {
+    let sumSq = 0;
+    for (let i = start; i < start + frameSize; i++) {
+      sumSq += samples[i] * samples[i];
+    }
+    const energy = Math.sqrt(sumSq / frameSize);
+
+    if (energy > syllableThreshold && wasSilent) {
+      syllables++;
+      wasSilent = false;
+    } else if (energy <= syllableThreshold) {
+      wasSilent = true;
+    }
+  }
+
+  const durationSec = samples.length / sr;
+  return durationSec > 0 ? syllables / durationSec : 0;
+}
+
+/**
+ * Compute pause ratio: ratio of silence frames to total frames.
+ * Returns a value in [0, 1].
+ */
+function computePauseRatio(
+  samples: Float32Array,
+  sr: number,
+): number {
+  const frameDuration = 0.03;
+  const hopDuration = 0.015;
+  const frameSize = Math.floor(sr * frameDuration);
+  const hopSize = Math.floor(sr * hopDuration);
+  const silenceThreshold = 0.01;
+
+  let totalFrames = 0;
+  let silentFrames = 0;
+
+  for (let start = 0; start + frameSize <= samples.length; start += hopSize) {
+    let sumSq = 0;
+    for (let i = start; i < start + frameSize; i++) {
+      sumSq += samples[i] * samples[i];
+    }
+    const energy = Math.sqrt(sumSq / frameSize);
+    totalFrames++;
+    if (energy <= silenceThreshold) silentFrames++;
+  }
+
+  return totalFrames > 0 ? silentFrames / totalFrames : 0;
+}
+
+/**
+ * Extract the enhanced 140-dimensional feature vector for the v2 voice
+ * emotion model.
+ *
+ * Layout:
+ *   [0..91]    Original 92 features (40 MFCCs mean+std + 6 spectral mean+std)
+ *   [92..131]  40 delta MFCC features (mean absolute frame-to-frame difference)
+ *   [132..135] Pitch features: pitchMean, pitchStd, pitchRange, pitchSlope
+ *   [136..137] Jitter, shimmer
+ *   [138]      Speaking rate (syllables/sec)
+ *   [139]      Pause ratio (0-1)
+ */
+export function extractEnhancedFeatures(samples: Float32Array, sr: number): Float32Array {
+  // Pad short audio to at least 2 frames (50ms)
+  const minSamples = Math.floor(sr * 0.05);
+  let audio = samples;
+  if (audio.length < minSamples) {
+    const padded = new Float32Array(minSamples);
+    padded.set(audio);
+    audio = padded;
+  }
+
+  const features = new Float32Array(140);
+
+  // ── Base 92 features ────────────────────────────────────────────────────────
+  const base = extractFeatures92(audio, sr);
+  features.set(base, 0);
+
+  // ── Delta MFCCs (40 features at indices 92-131) ─────────────────────────────
+  const mfccFrames = extractMFCC(audio, sr, 40);
+  if (mfccFrames.length >= 2) {
+    for (let c = 0; c < 40; c++) {
+      let sum = 0;
+      for (let f = 1; f < mfccFrames.length; f++) {
+        sum += Math.abs(mfccFrames[f][c] - mfccFrames[f - 1][c]);
+      }
+      features[92 + c] = sum / (mfccFrames.length - 1);
+    }
+  }
+
+  // ── Pitch features (4 features at indices 132-135) ──────────────────────────
+  const pitchValues = estimatePitchPerFrame(audio, sr);
+  const voicedPitches = pitchValues.filter(f => f > 0);
+
+  if (voicedPitches.length > 0) {
+    // pitchMean
+    let pitchSum = 0;
+    for (const f of voicedPitches) pitchSum += f;
+    const pitchMean = pitchSum / voicedPitches.length;
+    features[132] = pitchMean;
+
+    // pitchStd
+    if (voicedPitches.length > 1) {
+      let sumSq = 0;
+      for (const f of voicedPitches) sumSq += (f - pitchMean) ** 2;
+      features[133] = Math.sqrt(sumSq / (voicedPitches.length - 1));
+    }
+
+    // pitchRange
+    let pMin = Infinity;
+    let pMax = -Infinity;
+    for (const f of voicedPitches) {
+      if (f < pMin) pMin = f;
+      if (f > pMax) pMax = f;
+    }
+    features[134] = pMax - pMin;
+
+    // pitchSlope (linear regression over voiced frame indices)
+    if (voicedPitches.length >= 2) {
+      // Collect (index, pitch) pairs for voiced frames
+      const indices: number[] = [];
+      for (let i = 0; i < pitchValues.length; i++) {
+        if (pitchValues[i] > 0) indices.push(i);
+      }
+      let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+      for (let j = 0; j < indices.length; j++) {
+        const x = indices[j];
+        const y = voicedPitches[j];
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumXX += x * x;
+      }
+      const n = indices.length;
+      const denom = n * sumXX - sumX * sumX;
+      features[135] = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+    }
+  }
+
+  // ── Jitter and shimmer (2 features at indices 136-137) ──────────────────────
+  features[136] = computeJitter(pitchValues);
+  features[137] = computeShimmer(audio, sr, pitchValues);
+
+  // ── Speaking rate (1 feature at index 138) ──────────────────────────────────
+  features[138] = estimateSpeakingRate(audio, sr);
+
+  // ── Pause ratio (1 feature at index 139) ────────────────────────────────────
+  features[139] = computePauseRatio(audio, sr);
+
+  // Safety: replace any NaN/Inf with 0
+  for (let i = 0; i < 140; i++) {
+    if (!Number.isFinite(features[i])) features[i] = 0;
+  }
+
+  return features;
+}
+
 // ─── ONNX Session Cache ─────────────────────────────────────────────────────
 
 const CLASS_MAP: Record<number, string> = {
@@ -517,64 +806,64 @@ const CLASS_MAP: Record<number, string> = {
   4: "calm",
 };
 
-let preprocessSession: ort.InferenceSession | null = null;
-let classifierSession: ort.InferenceSession | null = null;
+// v1 models: 92-dim input, 60-dim PCA
+let preprocessSessionV1: ort.InferenceSession | null = null;
+let classifierSessionV1: ort.InferenceSession | null = null;
 
-async function getPreprocessSession(): Promise<ort.InferenceSession> {
-  if (!preprocessSession) {
-    preprocessSession = await ort.InferenceSession.create(
+// v2 models: 140-dim input, 80-dim PCA (enhanced features)
+let preprocessSessionV2: ort.InferenceSession | null = null;
+let classifierSessionV2: ort.InferenceSession | null = null;
+let v2Available: boolean | null = null; // null = not yet checked
+
+async function getPreprocessSessionV1(): Promise<ort.InferenceSession> {
+  if (!preprocessSessionV1) {
+    preprocessSessionV1 = await ort.InferenceSession.create(
       "/models/voice_preprocess.onnx",
       { executionProviders: ["wasm"] },
     );
   }
-  return preprocessSession;
+  return preprocessSessionV1;
 }
 
-async function getClassifierSession(): Promise<ort.InferenceSession> {
-  if (!classifierSession) {
-    classifierSession = await ort.InferenceSession.create(
+async function getClassifierSessionV1(): Promise<ort.InferenceSession> {
+  if (!classifierSessionV1) {
+    classifierSessionV1 = await ort.InferenceSession.create(
       "/models/voice_classifier.onnx",
       { executionProviders: ["wasm"] },
     );
   }
-  return classifierSession;
+  return classifierSessionV1;
+}
+
+async function tryLoadV2(): Promise<boolean> {
+  if (v2Available !== null) return v2Available;
+  try {
+    preprocessSessionV2 = await ort.InferenceSession.create(
+      "/models/voice_preprocess_v2.onnx",
+      { executionProviders: ["wasm"] },
+    );
+    classifierSessionV2 = await ort.InferenceSession.create(
+      "/models/voice_classifier_v2.onnx",
+      { executionProviders: ["wasm"] },
+    );
+    v2Available = true;
+  } catch {
+    v2Available = false;
+  }
+  return v2Available;
 }
 
 // ─── Full ONNX Inference Pipeline ───────────────────────────────────────────
 
-/**
- * Run the full on-device voice emotion ONNX pipeline:
- *   1. Extract 92 audio features
- *   2. Run voice_preprocess.onnx (scaler + PCA) -> 60 PCA features
- *   3. Run voice_classifier.onnx (LightGBM) -> label + probabilities
- *   4. Map to emotion + compute stress/focus from probabilities
- */
-export async function runVoiceEmotionONNX(
-  samples: Float32Array,
-  sr: number,
-): Promise<OnDeviceEmotionResult> {
-  // Step 1: Extract 92-dim feature vector
-  const features92 = extractFeatures92(samples, sr);
-
-  // Step 2: Preprocess (scaler + PCA) -> 60 PCA features
-  const preprocess = await getPreprocessSession();
-  const inputTensor = new ort.Tensor("float32", features92, [1, 92]);
-  const preResult = await preprocess.run({ features: inputTensor });
-  const pcaFeatures = preResult["variable"].data as Float32Array;
-
-  // Step 3: Classify -> label + probabilities
-  const classifier = await getClassifierSession();
-  const pcaTensor = new ort.Tensor("float32", pcaFeatures, [1, 60]);
-  const clsResult = await classifier.run({ pca_features: pcaTensor });
-
-  const labelRaw = clsResult["label"].data;
-  const label = Number(labelRaw[0]);
-  const probsRaw = clsResult["probabilities"].data as Float32Array;
-
+/** Shared logic to map classifier output to OnDeviceEmotionResult. */
+function buildEmotionResult(
+  label: number,
+  probsRaw: Float32Array,
+): OnDeviceEmotionResult {
   // Build probability map
   const probabilities: Record<string, number> = {};
   for (let i = 0; i < 5; i++) {
-    probabilities[CLASS_MAP[i]] = probsRaw[i];
+    probabilities[CLASS_MAP[i]] = probsRaw[i] ?? 0;
   }
 
   // Map label to emotion
@@ -627,4 +916,53 @@ export async function runVoiceEmotionONNX(
     probabilities,
     model_type: "voice-onnx",
   };
+}
+
+/**
+ * Run the full on-device voice emotion ONNX pipeline.
+ *
+ * Prefers v2 models (140-dim enhanced features, 80-dim PCA) when available.
+ * Falls back to v1 models (92-dim features, 60-dim PCA) if v2 not found.
+ *
+ * Pipeline:
+ *   1. Extract audio features (140-dim for v2, 92-dim for v1)
+ *   2. Run voice_preprocess ONNX (scaler + PCA)
+ *   3. Run voice_classifier ONNX (LightGBM) -> label + probabilities
+ *   4. Map to emotion + compute stress/focus from probabilities
+ */
+export async function runVoiceEmotionONNX(
+  samples: Float32Array,
+  sr: number,
+): Promise<OnDeviceEmotionResult> {
+  const useV2 = await tryLoadV2();
+
+  if (useV2 && preprocessSessionV2 && classifierSessionV2) {
+    // ── V2 path: 140-dim enhanced features ──────────────────────────────────
+    const features140 = extractEnhancedFeatures(samples, sr);
+    const inputTensor = new ort.Tensor("float32", features140, [1, 140]);
+    const preResult = await preprocessSessionV2.run({ features: inputTensor });
+    const pcaFeatures = preResult["variable"].data as Float32Array;
+
+    const pcaTensor = new ort.Tensor("float32", pcaFeatures, [1, 80]);
+    const clsResult = await classifierSessionV2.run({ pca_features: pcaTensor });
+
+    const label = Number(clsResult["label"].data[0]);
+    const probsRaw = clsResult["probabilities"].data as Float32Array;
+    return buildEmotionResult(label, probsRaw);
+  }
+
+  // ── V1 fallback: 92-dim features ────────────────────────────────────────
+  const features92 = extractFeatures92(samples, sr);
+  const preprocess = await getPreprocessSessionV1();
+  const inputTensor = new ort.Tensor("float32", features92, [1, 92]);
+  const preResult = await preprocess.run({ features: inputTensor });
+  const pcaFeatures = preResult["variable"].data as Float32Array;
+
+  const classifier = await getClassifierSessionV1();
+  const pcaTensor = new ort.Tensor("float32", pcaFeatures, [1, 60]);
+  const clsResult = await classifier.run({ pca_features: pcaTensor });
+
+  const label = Number(clsResult["label"].data[0]);
+  const probsRaw = clsResult["probabilities"].data as Float32Array;
+  return buildEmotionResult(label, probsRaw);
 }
