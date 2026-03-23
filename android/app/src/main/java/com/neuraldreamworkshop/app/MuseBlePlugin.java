@@ -828,6 +828,13 @@ public class MuseBlePlugin extends Plugin {
         }
 
         if (value.length >= 20) {
+            // Check tag byte at offset 9 — only forward EEG packets (0x11)
+            int tag = value[9] & 0xFF;
+            if (tag != 0x11) {
+                // Skip non-EEG packets (0x47=accel/gyro, etc.)
+                return;
+            }
+
             // Forward as Muse 2-compatible packet on rotating channels
             int ch = athenaChannelRotation % 4;
             athenaChannelRotation++;
