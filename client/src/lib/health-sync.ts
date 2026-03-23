@@ -522,6 +522,7 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
   const { Health } = await import("capacitor-health");
 
   const payload: BiometricPayload = { user_id: userId };
+  const diagnostics: string[] = [];
   const now = new Date();
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
@@ -538,8 +539,11 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
     if (hr.aggregatedData.length > 0) {
       const latest = hr.aggregatedData[hr.aggregatedData.length - 1];
       if (latest.value > 0) payload.current_heart_rate = Math.round(latest.value);
+      diagnostics.push(`heart-rate: ${hr.aggregatedData.length} records`);
+    } else {
+      diagnostics.push("heart-rate: 0 records");
     }
-  } catch { /* heart-rate aggregated not supported — try workouts */ }
+  } catch (e) { diagnostics.push(`heart-rate: FAILED (${String(e).slice(0, 80)})`); }
 
   if (!payload.current_heart_rate) {
     try {
@@ -559,112 +563,52 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
           }
         }
       }
-    } catch { /* ok */ }
+    } catch (e) { diagnostics.push(`heart-rate-workouts: FAILED (${String(e).slice(0, 80)})`); }
   }
 
-  // ── Resting heart rate ──
-  try {
-    const rhr = await Health.queryAggregated({
-      startDate: fmt(todayStart),
-      endDate: fmt(now),
-      dataType: "resting-heart-rate",
-      bucket: "DAY",
-    });
-    if (rhr.aggregatedData.length > 0 && rhr.aggregatedData[0].value > 0) {
-      payload.resting_heart_rate = Math.round(rhr.aggregatedData[0].value);
+  // Helper to query + diagnose each data type
+  async function queryType(dataType: string, bucket: "DAY" | "HOUR", start: Date, end: Date): Promise<number | null> {
+    try {
+      const result = await Health.queryAggregated({ startDate: fmt(start), endDate: fmt(end), dataType: dataType as any, bucket });
+      if (result.aggregatedData.length > 0 && result.aggregatedData[0].value > 0) {
+        diagnostics.push(`${dataType}: ${result.aggregatedData.length} records, latest=${result.aggregatedData[result.aggregatedData.length - 1].value}`);
+        return result.aggregatedData[result.aggregatedData.length - 1].value;
+      }
+      diagnostics.push(`${dataType}: 0 records (empty or zero)`);
+      return null;
+    } catch (e) {
+      diagnostics.push(`${dataType}: FAILED (${String(e).slice(0, 80)})`);
+      return null;
     }
-  } catch { /* ok */ }
+  }
 
-  // ── Sleep ──
-  try {
-    const sleep = await Health.queryAggregated({
-      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
-      endDate: fmt(now),
-      dataType: "sleep",
-      bucket: "DAY",
-    });
-    if (sleep.aggregatedData.length > 0 && sleep.aggregatedData[0].value > 0) {
-      payload.sleep_total_hours = sleep.aggregatedData[0].value / 60; // minutes to hours
-    }
-  } catch { /* ok */ }
+  // Query all data types
+  const rhr = await queryType("resting-heart-rate", "DAY", todayStart, now);
+  if (rhr) payload.resting_heart_rate = Math.round(rhr);
 
-  // ── Distance ──
-  try {
-    const dist = await Health.queryAggregated({
-      startDate: fmt(todayStart),
-      endDate: fmt(now),
-      dataType: "distance",
-      bucket: "DAY",
-    });
-    if (dist.aggregatedData.length > 0 && dist.aggregatedData[0].value > 0) {
-      payload.walking_distance_km = dist.aggregatedData[0].value / 1000; // meters to km
-    }
-  } catch { /* ok */ }
+  const sleep = await queryType("sleep", "DAY", new Date(now.getTime() - 24 * 3600000), now);
+  if (sleep) payload.sleep_total_hours = sleep / 60;
 
-  // ── Steps today ──
-  try {
-    const steps = await Health.queryAggregated({
-      startDate: fmt(todayStart),
-      endDate: fmt(now),
-      dataType: "steps",
-      bucket: "DAY",
-    });
-    if (steps.aggregatedData.length > 0) {
-      payload.steps_today = steps.aggregatedData.reduce((s, d) => s + d.value, 0);
-    }
-  } catch { /* ok */ }
+  const dist = await queryType("distance", "DAY", todayStart, now);
+  if (dist) payload.walking_distance_km = dist / 1000;
 
-  // ── Active calories today ──
-  try {
-    const cals = await Health.queryAggregated({
-      startDate: fmt(todayStart),
-      endDate: fmt(now),
-      dataType: "active-calories",
-      bucket: "DAY",
-    });
-    if (cals.aggregatedData.length > 0) {
-      payload.active_energy_kcal = cals.aggregatedData.reduce((s, d) => s + d.value, 0);
-    }
-  } catch { /* ok */ }
+  const steps = await queryType("steps", "DAY", todayStart, now);
+  if (steps) payload.steps_today = steps;
 
-  // ── Mindfulness (exercise minutes proxy) ──
-  try {
-    const mind = await Health.queryAggregated({
-      startDate: fmt(todayStart),
-      endDate: fmt(now),
-      dataType: "mindfulness",
-      bucket: "DAY",
-    });
-    if (mind.aggregatedData.length > 0) {
-      payload.exercise_minutes_today = mind.aggregatedData.reduce((s, d) => s + d.value, 0);
-    }
-  } catch { /* ok */ }
+  const cals = await queryType("active-calories", "DAY", todayStart, now);
+  if (cals) payload.active_energy_kcal = cals;
 
-  // ── Weight (last 24 hours) ──
-  try {
-    const weight = await Health.queryAggregated({
-      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
-      endDate: fmt(now),
-      dataType: "weight" as any,
-      bucket: "DAY",
-    });
-    if (weight.aggregatedData.length > 0) {
-      payload.weight_kg = weight.aggregatedData[weight.aggregatedData.length - 1].value;
-    }
-  } catch { /* ok */ }
+  const mind = await queryType("mindfulness", "DAY", todayStart, now);
+  if (mind) payload.exercise_minutes_today = mind;
 
-  // ── Body fat percentage (last 24 hours) ──
-  try {
-    const bf = await Health.queryAggregated({
-      startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
-      endDate: fmt(now),
-      dataType: "body-fat" as any,
-      bucket: "DAY",
-    });
-    if (bf.aggregatedData.length > 0) {
-      payload.body_fat_pct = bf.aggregatedData[bf.aggregatedData.length - 1].value;
-    }
-  } catch { /* ok */ }
+  const weight = await queryType("weight", "DAY", new Date(now.getTime() - 24 * 3600000), now);
+  if (weight) payload.weight_kg = weight;
+
+  const bf = await queryType("body-fat", "DAY", new Date(now.getTime() - 24 * 3600000), now);
+  if (bf) payload.body_fat_pct = bf;
+
+  // Store diagnostics so UI can show what happened
+  (payload as any)._diagnostics = diagnostics;
 
   return { payload, workouts: [] };
 }

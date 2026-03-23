@@ -85,6 +85,20 @@ export function HealthSyncStatusBar({
         </div>
       )}
 
+      {/* Diagnostics — show what each data type returned */}
+      {(latestPayload as any)?._diagnostics && (
+        <details className="text-[10px] text-muted-foreground">
+          <summary className="cursor-pointer text-[11px] font-medium">Sync diagnostics</summary>
+          <ul className="mt-1 space-y-0.5 pl-3 list-disc">
+            {((latestPayload as any)._diagnostics as string[]).map((d: string, i: number) => (
+              <li key={i} className={d.includes("FAILED") ? "text-red-400" : d.includes("0 records") ? "text-amber-400" : "text-green-400"}>
+                {d}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       {/* Sync Now button */}
       <Button
         onClick={onSyncNow}
