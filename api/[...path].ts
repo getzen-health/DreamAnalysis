@@ -336,7 +336,7 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
     ? `\n\nRecent dream themes: ${recentDreams.map(d => (d.symbols as string[] | null)?.join(', ') || 'unknown').join('; ')}`
     : '';
   const resp = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: `You are an expert dream analyst combining Jungian, Freudian, and neuroscience perspectives. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":"","lucidityScore":1,"themes":[],"wakingLifeConnections":"","recurringPatterns":""}${historyCtx}` },
       { role: 'user', content: `Analyze this dream: ${dreamText}` },
@@ -415,7 +415,7 @@ async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
   if (!dreamText || !userId) return badRequest(res, 'Missing dreamText or userId');
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: 'You are a dream analysis expert. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":""}' },
       { role: 'user', content: `Analyze this dream: ${dreamText}` },
@@ -452,7 +452,7 @@ async function aiChatPost(req: VercelRequest, res: VercelResponse) {
     : '';
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: `You are an AI wellness companion for a Brain-Computer Interface system. ${ctx} Be supportive and concise.` },
       { role: 'user', content: message },
@@ -687,7 +687,7 @@ async function insightsWeekly(req: VercelRequest, res: VercelResponse) {
     dominantEmotions: emotions.slice(0, 10).map(e => e.dominantEmotion),
   };
   const resp = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: 'You are an AI neuroscience wellness advisor. Generate 4 personalized weekly insights. Respond with JSON: {"insights":[{"title":"","description":"","type":"success|warning|info|secondary","icon":"brain|heart|moon|lightbulb"}],"weeklyScore":0,"recommendation":""}' },
       { role: 'user', content: `Generate weekly insights for: ${JSON.stringify(ctx)}` },
@@ -763,7 +763,7 @@ async function analyzeMood(req: VercelRequest, res: VercelResponse) {
   if (!text) return badRequest(res, 'Missing text to analyze');
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: 'Analyze the mood from text. Respond with JSON: {"mood":"","stressLevel":0,"emotions":[],"recommendations":[]}' },
       { role: 'user', content: text },
@@ -809,7 +809,7 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
         ? `The user describes their ${mealType ?? 'meal'}: "${textDescription}". Also analyze the photo.`
         : `Analyze this ${mealType ?? 'meal'} photo.`;
       const resp = await visionClient.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: [
           { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: 'low' } },
           { type: 'text', text: `${textPart}\n\n${jsonPrompt}` },
@@ -825,7 +825,7 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
         return error(res, `AI service unavailable: ${msg}`, 503);
       }
       const resp = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'llama-3.3-70b-versatile',
         messages: [{ role: 'user', content: `The user describes their ${mealType ?? 'meal'}: "${textDescription}"\n\n${jsonPrompt}` }],
         response_format: { type: 'json_object' },
       });

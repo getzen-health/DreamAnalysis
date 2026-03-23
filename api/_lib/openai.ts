@@ -2,22 +2,22 @@ import OpenAI from 'openai';
 
 let cachedClient: OpenAI | null = null;
 
-// Uses Cerebras's OpenAI-compatible API — open-source Llama 3.1 70B, 1M tokens/day free,
-// no credit card required, no IP blocking from Vercel/AWS.
-// Get a free API key at https://cloud.cerebras.ai
+// Uses Groq's OpenAI-compatible API — free Llama 3.3 70B inference.
+// 30 requests/minute, no credit card required.
+// Get a free API key at https://console.groq.com/keys
 export function getOpenAIClient(): OpenAI {
   if (cachedClient) {
     return cachedClient;
   }
 
-  const apiKey = process.env.CEREBRAS_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    throw new Error('CEREBRAS_API_KEY environment variable is not set');
+    throw new Error('GROQ_API_KEY environment variable is not set');
   }
 
   cachedClient = new OpenAI({
     apiKey,
-    baseURL: 'https://api.cerebras.ai/v1',
+    baseURL: 'https://api.groq.com/openai/v1',
   });
 
   return cachedClient;
