@@ -116,25 +116,60 @@ _RETRAIN_INTERVAL_SEC = 12 * 3600  # every 12 hours = twice daily
 
 
 async def _auto_train_loop():
-    """Background task: retrain the personal model every 12 hours."""
+    """Background task: retrain models every 12 hours.
+
+    Two retrain paths:
+      1. Per-user UserModelRetrainer: fine-tunes from accumulated corrections.
+      2. Legacy retrain_personal_model: retrains from session data.
+    """
     await asyncio.sleep(90)  # wait 90 s after startup before first run
     while True:
+        # 1. Per-user retraining from accumulated corrections
+        try:
+            from training.retrain_from_user_data import UserModelRetrainer
+            user_corrections_dir = os.path.join(
+                os.path.dirname(__file__), "user_data", "corrections"
+            )
+            if os.path.exists(user_corrections_dir):
+                for filename in os.listdir(user_corrections_dir):
+                    if filename.endswith("_corrections.jsonl"):
+                        user_id = filename.replace("_corrections.jsonl", "")
+                        try:
+                            retrainer = UserModelRetrainer(user_id)
+                            if retrainer.should_retrain():
+                                result = await asyncio.to_thread(retrainer.retrain_all)
+                                logger.info(
+                                    "[auto-retrain] UserModelRetrainer user=%s: %s",
+                                    user_id, result,
+                                )
+                        except Exception as exc:
+                            logger.warning(
+                                "[auto-retrain] UserModelRetrainer user=%s error: %s",
+                                user_id, exc,
+                            )
+        except Exception as exc:
+            logger.warning(f"[auto-retrain] per-user retrain sweep error: {exc}")
+
+        # 2. Legacy session-based retraining
         try:
             from training.auto_retrainer import retrain_personal_model
-            from monitoring.datadog_reporter import report_metric, report_error
             result = await asyncio.to_thread(retrain_personal_model)
-            logger.info(f"[auto-retrain] {result}")
-            # Report accuracy metric to Datadog
-            if isinstance(result, dict) and "accuracy" in result:
-                report_metric("neural_dream.retrain.accuracy", float(result["accuracy"]))
-                report_metric("neural_dream.retrain.success", 1.0, metric_type="count")
+            logger.info(f"[auto-retrain] legacy: {result}")
+            try:
+                from monitoring.datadog_reporter import report_metric
+                if isinstance(result, dict) and "accuracy" in result:
+                    report_metric("neural_dream.retrain.accuracy", float(result["accuracy"]))
+                    report_metric("neural_dream.retrain.success", 1.0, metric_type="count")
+            except Exception:
+                pass
         except Exception as exc:
-            logger.warning(f"[auto-retrain] error: {exc}")
+            logger.warning(f"[auto-retrain] legacy error: {exc}")
             try:
                 from monitoring.datadog_reporter import report_error
                 report_error("auto_retrain_failed", f"Personal model retraining failed: {exc}", exc=exc)
             except Exception:
                 pass
+
         await asyncio.sleep(_RETRAIN_INTERVAL_SEC)
 
 

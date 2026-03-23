@@ -68,6 +68,9 @@ export async function recordCorrection(record: CorrectionRecord): Promise<void> 
   } catch {
     // fire and forget — ML backend may be offline
   }
+
+  // 3. Trigger retrain check (fire-and-forget, non-blocking)
+  triggerRetrainCheck(record.userId).catch(() => {});
 }
 
 /**

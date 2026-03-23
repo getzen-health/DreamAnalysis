@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Sentry from "@sentry/react";
 import { cleanExpiredLocalStorage } from "@/lib/storage-cleanup";
+import { syncOnStartup } from "@/lib/feedback-sync";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -520,10 +521,19 @@ function AppShell() {
   const [location] = useLocation();
   const { user, isLoading } = useAuth();
   const isPublicRoute = PUBLIC_ROUTES.has(location);
+  const syncTriggered = useRef(false);
 
   useEffect(() => {
     cleanExpiredLocalStorage();
   }, []);
+
+  // Sync corrections and trigger retrain check once per day after auth
+  useEffect(() => {
+    if (user?.id && !syncTriggered.current) {
+      syncTriggered.current = true;
+      syncOnStartup(user.id).catch(() => {});
+    }
+  }, [user?.id]);
 
   // Only show warmup screen for authenticated users on non-public routes
   const showWarmup = !warmupDismissed && !isPublicRoute && !isLoading && !!user;

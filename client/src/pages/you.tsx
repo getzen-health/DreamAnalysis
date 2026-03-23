@@ -18,7 +18,7 @@ import { loadPersonalAdapter, resetPersonalAdapter, getPersonalizationStats } fr
 import { getModalityAccuracies, type ModalityAccuracy } from "@/lib/multimodal-fusion";
 import { NotificationPrefsSheet } from "@/components/notification-prefs-sheet";
 import { Zap } from "lucide-react";
-import { getCorrectionCount } from "@/lib/feedback-sync";
+import { getCorrectionCount, getRetrainingStatus } from "@/lib/feedback-sync";
 import { InterventionTriggerSettings } from "@/components/intervention-trigger-settings";
 import { sbGetSetting } from "../lib/supabase-store";
 
@@ -226,6 +226,9 @@ export default function You() {
   useEffect(() => {
     getCorrectionCount(userId).then(setSupabaseCorrectionCount).catch(() => {});
   }, [userId]);
+
+  // Retraining status from local tracking
+  const retrainStatus = getRetrainingStatus();
 
   // Modality accuracy stats
   const [modalityAcc, setModalityAcc] = useState<ModalityAccuracy>(() => getModalityAccuracies());
@@ -478,6 +481,34 @@ export default function You() {
             {supabaseCorrectionCount >= 5
               ? "Model improving with your feedback"
               : `${5 - supabaseCorrectionCount} more correction${5 - supabaseCorrectionCount !== 1 ? "s" : ""} until model retraining`}
+          </div>
+        </div>
+      )}
+
+      {/* Retraining Status */}
+      {retrainStatus.correctionsCount > 0 && (
+        <div style={{
+          padding: "10px 16px",
+          background: "var(--card)",
+          borderRadius: 12,
+          marginBottom: 8,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
+            Model Retraining
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+            {retrainStatus.lastRetrained
+              ? `Last updated: ${(() => {
+                  const diff = Date.now() - new Date(retrainStatus.lastRetrained).getTime();
+                  const hours = Math.floor(diff / 3600000);
+                  if (hours < 1) return "just now";
+                  if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+                  const days = Math.floor(hours / 24);
+                  return `${days} day${days !== 1 ? "s" : ""} ago`;
+                })()} (based on ${retrainStatus.correctionsCount} corrections)`
+              : `${retrainStatus.nextRetrainAt - retrainStatus.correctionsCount} more correction${
+                  retrainStatus.nextRetrainAt - retrainStatus.correctionsCount !== 1 ? "s" : ""
+                } until next model update`}
           </div>
         </div>
       )}
