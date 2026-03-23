@@ -10,6 +10,23 @@ Scientific basis:
 - Brain Age Gap: positive = accelerated neural aging, negative = younger-than-expected
 
 DISCLAIMER: This is a wellness indicator only, not a medical device.
+
+Validation notes (#489):
+- Expected accuracy: MAE = 7-10 years with Muse 2 (4-channel consumer EEG)
+  vs. MAE = 4-6 years with research-grade 64-channel systems
+- Aperiodic exponent accounts for ~30-50% of variance (Banville 2024)
+- Individual variation is HIGH: same person can vary by +/- 5 years across sessions
+  depending on caffeine, sleep, time of day, electrode impedance
+- The heuristic model uses population-level norms; a trained LightGBM model
+  (if available) improves accuracy but is still limited to the training population
+- Brain age gap should NOT be used for clinical decision-making
+- Factors that bias the estimate:
+    - Sleep deprivation: temporarily increases brain age by 2-5 years
+    - Caffeine within 2 hours: alters aperiodic exponent
+    - Poor electrode contact: inflates high-frequency power, biasing age upward
+    - Time of day: cortical excitability varies with circadian rhythm
+- Cross-session reliability: moderate (r = 0.5-0.7) with consumer EEG
+  vs. good (r = 0.7-0.9) with research-grade EEG
 """
 from __future__ import annotations
 
@@ -23,6 +40,21 @@ DISCLAIMER = (
     "This is not a medical device. Individual variation is high. "
     "Consult a healthcare professional for medical concerns."
 )
+
+# Shorter disclaimer for UI display (#489)
+UI_DISCLAIMER = (
+    "Brain age is an estimate based on EEG patterns. "
+    "Not a medical measurement. Results vary with sleep, caffeine, and electrode fit."
+)
+
+# Expected accuracy ranges for display (#489)
+ACCURACY_NOTES = {
+    "mae_consumer_eeg": "7-10 years (Muse 2, 4-channel)",
+    "mae_research_eeg": "4-6 years (64-channel research-grade)",
+    "r2_aperiodic": "0.3-0.5 (Banville et al., 2024)",
+    "cross_session_reliability": "moderate (r = 0.5-0.7)",
+    "population": "Norms based on adults 18-80, Western population",
+}
 
 # Population norms derived from Banville 2024 + literature
 # Aperiodic exponent decreases linearly with age
@@ -181,6 +213,8 @@ class BrainAgeEstimator:
             "beta_power": round(float(feats[6]), 4),
             "delta_power": round(float(feats[3]), 4),
             "disclaimer": DISCLAIMER,
+            "ui_disclaimer": UI_DISCLAIMER,
+            "accuracy_notes": ACCURACY_NOTES,
             "model_type": "aperiodic_heuristic" if self._lgbm is None else "lgbm",
         }
 

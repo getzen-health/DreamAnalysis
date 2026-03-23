@@ -1,6 +1,25 @@
 -- 004_app_data.sql — Tables for all client-side data previously stored in localStorage.
 -- Each table uses user_id (text) for multi-user isolation.
 -- RLS is enabled on every table; policies are permissive for now (anon key).
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PRODUCTION NOTE: TimescaleDB Migration (Issue #491)
+--
+-- For production EEG time-series workloads, emotion_history and voice_history
+-- should be migrated to TimescaleDB hypertables. TimescaleDB provides:
+--   - 10-100x faster time-range queries on large datasets
+--   - Automatic partitioning by time (chunks)
+--   - Built-in compression (90%+ space savings on EEG data)
+--   - Continuous aggregates for real-time dashboards
+--
+-- Supabase supports TimescaleDB as an extension. To enable:
+--   1. Run: CREATE EXTENSION IF NOT EXISTS timescaledb;
+--   2. Convert tables: SELECT create_hypertable('emotion_history', 'created_at');
+--   3. See: scripts/enable-timescaledb.sql for the full migration
+--
+-- Do NOT run this on small datasets (<100K rows). The overhead is not worth it
+-- until the tables are storing continuous EEG session data at high frequency.
+-- ═══════════════════════════════════════════════════════════════════════════
 
 -- mood_logs: mood and energy tracking
 CREATE TABLE mood_logs (

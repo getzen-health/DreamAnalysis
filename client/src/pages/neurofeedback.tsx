@@ -44,6 +44,7 @@ import {
 import { useInterventionTriggers } from "@/hooks/use-intervention-triggers";
 import { InterventionTriggerToast } from "@/components/intervention-trigger-toast";
 import type { TriggerState } from "@/lib/eeg-intervention-trigger";
+import { shouldShowReappraisal, type ReappraisalPrompt } from "@/lib/reappraisal-prompts";
 
 type SessionPhase = "idle" | "calibrating" | "training" | "summary";
 
@@ -73,6 +74,9 @@ export default function Neurofeedback() {
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [showTooSoonDialog, setShowTooSoonDialog] = useState(false);
   const [showSubstanceQ, setShowSubstanceQ] = useState(() => !hasAnsweredToday());
+  // Cognitive reappraisal prompts (#526)
+  const [activeReappraisal, setActiveReappraisal] = useState<ReappraisalPrompt | null>(null);
+  const reappraisalCooldownRef = useRef<number>(0);
   const substanceNote = (() => {
     const log = getLatestSubstanceLog();
     const adj = getBaselineAdjustment(log);
@@ -227,6 +231,19 @@ export default function Neurofeedback() {
             setRewardCount((c) => c + 1);
             playRewardTone();
             setTimeout(() => setReward(false), 500);
+          }
+          // Cognitive reappraisal check (#526) — show prompt when score is low
+          // (indicating stress/difficulty), with a 30s cooldown between prompts
+          const now = Date.now();
+          if (now > reappraisalCooldownRef.current) {
+            // Low score maps to high stress — score < 30 suggests struggling
+            const stressProxy = Math.max(0, 1 - (evalResult.score || 50) / 100);
+            const prompt = shouldShowReappraisal(stressProxy, 0.7);
+            if (prompt) {
+              setActiveReappraisal(prompt);
+              reappraisalCooldownRef.current = now + 30_000; // 30s cooldown
+              setTimeout(() => setActiveReappraisal(null), 12_000); // auto-dismiss
+            }
           }
         }
       } catch {
@@ -559,6 +576,22 @@ export default function Neurofeedback() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cognitive reappraisal prompt (#526) */}
+      {activeReappraisal && phase === "training" && (
+        <div className="fixed bottom-24 left-4 right-4 z-40 max-w-lg mx-auto animate-in slide-in-from-bottom-4">
+          <div className="p-4 rounded-xl border border-primary/30 bg-card/95 backdrop-blur-sm shadow-lg">
+            <p className="text-sm text-foreground leading-relaxed">{activeReappraisal.text}</p>
+            <p className="text-[10px] text-muted-foreground mt-2">{activeReappraisal.rationale}</p>
+            <button
+              onClick={() => setActiveReappraisal(null)}
+              className="text-[10px] text-muted-foreground hover:text-foreground mt-1 underline"
+            >
+              dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* EEG intervention trigger toast (#504) */}
       {nfTrigger && (

@@ -1,0 +1,90 @@
+{
+  "app": {
+    "name": "AntarAI",
+    "tagline": "आपकी आंतरिक बुद्धिमत्ता"
+  },
+  "nav": {
+    "today": "आज",
+    "discover": "खोजें",
+    "brain": "मस्तिष्क",
+    "you": "आप",
+    "settings": "सेटिंग्स",
+    "nutrition": "पोषण"
+  },
+  "today": {
+    "title": "आज",
+    "greeting_morning": "सुप्रभात",
+    "greeting_afternoon": "शुभ दोपहर",
+    "greeting_evening": "शुभ संध्या",
+    "readiness_score": "तत्परता स्कोर",
+    "voice_checkin": "वॉइस चेक-इन",
+    "mood_log": "मूड लॉग",
+    "no_data": "अभी तक कोई डेटा नहीं"
+  },
+  "discover": {
+    "title": "खोजें",
+    "subtitle": "अपने मस्तिष्क और भावनाओं को समझें",
+    "brain_monitor": "ब्रेन मॉनिटर",
+    "emotion_lab": "भावना लैब",
+    "dream_journal": "स्वप्न डायरी",
+    "neurofeedback": "न्यूरोफीडबैक",
+    "sleep": "नींद",
+    "health": "स्वास्थ्य"
+  },
+  "settings": {
+    "title": "सेटिंग्स",
+    "theme": "थीम",
+    "theme_light": "लाइट",
+    "theme_dark": "डार्क",
+    "theme_system": "सिस्टम",
+    "language": "भाषा",
+    "notifications": "सूचनाएं",
+    "privacy": "गोपनीयता",
+    "export_data": "डेटा निर्यात",
+    "sign_out": "साइन आउट",
+    "ml_backend": "ML बैकएंड",
+    "device": "डिवाइस",
+    "calibration": "कैलिब्रेशन"
+  },
+  "emotions": {
+    "happy": "खुश",
+    "sad": "उदास",
+    "angry": "गुस्सा",
+    "fear": "डर",
+    "surprise": "आश्चर्य",
+    "neutral": "तटस्थ"
+  },
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "error": "कुछ गलत हो गया",
+    "retry": "पुनः प्रयास करें",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "done": "हो गया",
+    "back": "वापस",
+    "next": "आगे",
+    "unavailable": "अनुपलब्ध"
+  },
+  "community": {
+    "title": "समुदाय",
+    "subtitle": "अनाम मूड साझाकरण और चुनौतियाँ",
+    "collective_mood": "सामूहिक मनोदशा",
+    "daily_challenge": "दैनिक चुनौती",
+    "streaks": "स्ट्रीक लीडरबोर्ड",
+    "your_streak": "आपकी स्ट्रीक",
+    "days": "दिन"
+  },
+  "pain_tracker": {
+    "title": "दर्द ट्रैकर",
+    "subtitle": "दर्द एपिसोड और EEG पैटर्न ट्रैक करें",
+    "log_episode": "दर्द एपिसोड लॉग करें",
+    "severity": "गंभीरता",
+    "location": "स्थान",
+    "duration": "अवधि (मिनट)",
+    "eeg_patterns": "EEG दर्द पैटर्न",
+    "theta_power": "थीटा पावर",
+    "alpha_power": "अल्फा पावर",
+    "history": "दर्द इतिहास",
+    "no_episodes": "कोई दर्द एपिसोड लॉग नहीं"
+  }
+}

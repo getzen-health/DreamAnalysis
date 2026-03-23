@@ -100,6 +100,10 @@ const CouplesMeditation      = lazy(() => import("@/pages/couples-meditation"));
 const AchievementsPage       = lazy(() => import("@/pages/achievements"));
 const ConsentSettings        = lazy(() => import("@/pages/consent-settings"));
 const QuickSession           = lazy(() => import("@/pages/quick-session"));
+const TPBMSession            = lazy(() => import("@/pages/tpbm-session"));
+const DeepWork               = lazy(() => import("@/pages/deep-work"));
+const PainTracker            = lazy(() => import("@/pages/pain-tracker"));
+const CommunityPage          = lazy(() => import("@/pages/community"));
 
 // ── Error Boundary — Sentry-wrapped; reports crashes + shows branded fallback ──
 function SentryErrorBoundary({ children }: { children: ReactNode }) {
@@ -350,6 +354,9 @@ function AppRoutes() {
       <Route path="/quick-session">
         <ProtectedRoute><QuickSession /></ProtectedRoute>
       </Route>
+      <Route path="/deep-work">
+        <ProtectedRoute><AppLayout><DeepWork /></AppLayout></ProtectedRoute>
+      </Route>
       {/* Intent selection — study vs explore, shown after first login */}
       <Route path="/intent">
         <Suspense fallback={<PageLoader />}>
@@ -461,6 +468,30 @@ function AppRoutes() {
         <ProtectedRoute>
           <Suspense fallback={<PageLoader />}>
             <AppLayout><AchievementsPage /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      {/* tPBM session tracking */}
+      <Route path="/tpbm">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><TPBMSession /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      {/* Pain/migraine tracking from frontal EEG */}
+      <Route path="/pain-tracker">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><PainTracker /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      {/* Community features — anonymous mood sharing, challenges, streaks */}
+      <Route path="/community">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><CommunityPage /></AppLayout>
           </Suspense>
         </ProtectedRoute>
       </Route>

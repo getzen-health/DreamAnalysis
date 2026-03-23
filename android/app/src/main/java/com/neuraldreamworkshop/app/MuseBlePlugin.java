@@ -185,6 +185,7 @@ public class MuseBlePlugin extends Plugin {
         connectRetried = false;
         connectPhase = 0;
         writePending = false;
+        commandsSentAfterSubscribe = false;
         writeQueue.clear();
         connectCall = null;
 
@@ -331,15 +332,30 @@ public class MuseBlePlugin extends Plugin {
                 UUID charUuid = desc.getCharacteristic().getUuid();
                 Log.d(TAG, "onDescriptorWrite: char=" + charUuid + " status=" + status + " phase=" + connectPhase);
 
-                // Phase 1: control char descriptor written → now send commands
+                // Phase 1: control char subscribed → subscribe EEG chars BEFORE commands
                 if (connectPhase == 1 && charUuid.equals(CONTROL_CHAR)) {
-                    Log.d(TAG, "Control char subscribed. Sending muse-js command sequence...");
+                    sendDiag("Control subscribed. Now subscribing EEG BEFORE commands...");
+                    // Detect Athena
                     BluetoothGattService svc = gatt.getService(MUSE_SERVICE);
-                    BluetoothGattCharacteristic ctrl = svc != null ? svc.getCharacteristic(CONTROL_CHAR) : null;
-                    if (ctrl != null) {
-                        sendMuseCommands(gatt, ctrl);
+                    boolean has0013 = svc != null && svc.getCharacteristic(ATHENA_DATA_CHAR) != null;
+                    boolean hasMuse2 = false;
+                    if (svc != null) {
+                        for (UUID u : EEG_CHARS_MUSE2) {
+                            if (svc.getCharacteristic(u) != null) { hasMuse2 = true; break; }
+                        }
+                    }
+                    isAthena = has0013 && !hasMuse2;
+                    connectPhase = 2; // EEG subscribe phase
+                    subscribedChannels = 0;
+                    List<BluetoothGattCharacteristic> eegChars = findEegChars(svc);
+                    sendDiag((isAthena ? "Athena" : "Muse2") + ": subscribing " + eegChars.size() + " EEG chars...");
+                    if (!eegChars.isEmpty()) {
+                        subscribeNextChannel(gatt, eegChars, 0);
                     } else {
-                        rejectConnect("Control char lost after subscribe");
+                        // No EEG chars yet — send commands then re-discover
+                        sendDiag("No EEG chars in phase 1. Sending commands...");
+                        BluetoothGattCharacteristic ctrl = svc != null ? svc.getCharacteristic(CONTROL_CHAR) : null;
+                        if (ctrl != null) sendMuseCommands(gatt, ctrl);
                     }
                     return;
                 }
@@ -601,20 +617,78 @@ public class MuseBlePlugin extends Plugin {
         }
     }
 
+    private boolean commandsSentAfterSubscribe = false;
+
     private void finishSubscription() {
-        if (subscribedChannels > 0) {
+        if (subscribedChannels <= 0) {
+            rejectConnect("Failed to subscribe to any EEG channel");
+            return;
+        }
+
+        int logicalChannels = isAthena ? 4 : subscribedChannels;
+        sendDiag(logicalChannels + " EEG channels subscribed" + (isAthena ? " (Athena)" : ""));
+
+        // If commands haven't been sent yet (subscribe-first flow), send them NOW
+        if (!commandsSentAfterSubscribe) {
+            commandsSentAfterSubscribe = true;
+            sendDiag("EEG subscribed. NOW sending start commands...");
+            BluetoothGattService svc = bluetoothGatt.getService(MUSE_SERVICE);
+            BluetoothGattCharacteristic ctrl = svc != null ? svc.getCharacteristic(CONTROL_CHAR) : null;
+            if (ctrl != null) {
+                // Send commands, then resolve on completion
+                sendMuseCommandsThenResolve(logicalChannels);
+            } else {
+                rejectConnect("Control char not found after subscribe");
+            }
+            return;
+        }
+
+        // Commands already sent — we're done
+        isStreaming = true;
+        sendDiag("SUCCESS: Streaming " + logicalChannels + " channels!");
+        JSObject r = new JSObject();
+        r.put("connected", true);
+        r.put("channels", logicalChannels);
+        resolveConnect(r);
+    }
+
+    /** Send Athena/Muse2 commands after EEG chars are subscribed, then resolve. */
+    private void sendMuseCommandsThenResolve(int logicalChannels) {
+        BluetoothGattService svc = bluetoothGatt.getService(MUSE_SERVICE);
+        BluetoothGattCharacteristic ctrl = svc != null ? svc.getCharacteristic(CONTROL_CHAR) : null;
+        if (ctrl == null) { rejectConnect("Control char lost"); return; }
+
+        writeQueue.clear();
+        writePending = false;
+
+        if (isAthena) {
+            sendDiag("Sending Athena: v6→s→h→p21→s→dc001→dc001→L1→s");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_VERSION6, "v6");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_STATUS, "status1");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_HALT, "halt");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_PRESET, "preset");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_STATUS, "status2");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_DC001, "dc001-1");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_DC001, "dc001-2");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_LOW_LATENCY, "L1");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_STATUS, "status3");
+        } else {
+            sendDiag("Sending Muse2: h→p21→s→d");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_HALT, "halt");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_PRESET, "preset");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_STREAM, "stream");
+            enqueueWrite(bluetoothGatt, ctrl, CMD_RESUME, "resume");
+        }
+
+        writeQueue.add(() -> {
+            sendDiag("Commands sent! Streaming should start...");
             isStreaming = true;
-            // Athena: 1 multiplexed char = 4 logical EEG channels
-            int logicalChannels = isAthena ? 4 : subscribedChannels;
-            Log.d(TAG, "SUCCESS: Streaming " + logicalChannels + " EEG channels!" +
-                (isAthena ? " (Athena multiplexed)" : ""));
             JSObject r = new JSObject();
             r.put("connected", true);
             r.put("channels", logicalChannels);
             resolveConnect(r);
-        } else {
-            rejectConnect("Failed to subscribe to any EEG channel");
-        }
+        });
+        processWriteQueue();
     }
 
     // ── Disconnect ──────────────────────────────────────────────────────────

@@ -12,6 +12,29 @@
 
 import { getSupabase } from "./supabase-browser";
 
+// ── Privacy Mode gate ────────────────────────────────────────────────────────
+
+/**
+ * When Privacy Mode is enabled (ndw_privacy_mode = "true"), ALL Supabase
+ * sync is disabled. Data stays in localStorage only. (Issue #493)
+ */
+function isPrivacyModeEnabled(): boolean {
+  try {
+    return localStorage.getItem("ndw_privacy_mode") === "true";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get Supabase client only if Privacy Mode is OFF.
+ * Returns null when privacy mode is active (blocks all cloud sync).
+ */
+async function getSupabaseIfAllowed() {
+  if (isPrivacyModeEnabled()) return null;
+  return getSupabase();
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function safeJsonParse<T>(raw: string | null, fallback: T): T {
@@ -64,7 +87,7 @@ export async function saveMoodLog(userId: string, entry: MoodLogEntry): Promise<
   safeLocalSet(key, existing);
 
   // Try Supabase
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("mood_logs").insert({
@@ -80,7 +103,7 @@ export async function saveMoodLog(userId: string, entry: MoodLogEntry): Promise<
 }
 
 export async function getMoodLogs(userId: string, limit = 30): Promise<any[]> {
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (sb) {
     try {
       const { data, error } = await sb
@@ -131,7 +154,7 @@ export async function saveVoiceHistory(userId: string, entry: VoiceHistoryEntry)
   if (existing.length > 50) existing.length = 50;
   safeLocalSet(key, existing);
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("voice_history").insert({
@@ -149,7 +172,7 @@ export async function saveVoiceHistory(userId: string, entry: VoiceHistoryEntry)
 }
 
 export async function getVoiceHistory(userId: string, limit = 50): Promise<any[]> {
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (sb) {
     try {
       const { data, error } = await sb
@@ -203,7 +226,7 @@ export async function saveEmotionHistory(userId: string, entry: EmotionHistoryEn
     .slice(-200);
   safeLocalSet(key, pruned);
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("emotion_history").insert({
@@ -220,7 +243,7 @@ export async function saveEmotionHistory(userId: string, entry: EmotionHistoryEn
 }
 
 export async function getEmotionHistory(userId: string, days = 7): Promise<any[]> {
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   if (sb) {
@@ -279,7 +302,7 @@ export async function saveFoodLog(userId: string, entry: FoodLogEntry): Promise<
   if (existing.length > 200) existing.length = 200;
   safeLocalSet(key, existing);
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("food_logs").insert({
@@ -298,7 +321,7 @@ export async function saveFoodLog(userId: string, entry: FoodLogEntry): Promise<
 }
 
 export async function getFoodLogs(userId: string, limit = 50): Promise<any[]> {
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (sb) {
     try {
       const { data, error } = await sb
@@ -335,7 +358,7 @@ export async function saveCycleData(userId: string, data: CycleDataEntry): Promi
     periodLength: data.period_length ?? 5,
   });
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     // Upsert: one row per user
@@ -367,7 +390,7 @@ export async function saveCycleData(userId: string, data: CycleDataEntry): Promi
 }
 
 export async function getCycleData(userId: string): Promise<CycleDataEntry | null> {
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (sb) {
     try {
       const { data, error } = await sb
@@ -424,7 +447,7 @@ export async function saveBrainAge(userId: string, entry: BrainAgeEntry): Promis
     timestamp: Date.now(),
   });
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("brain_age").insert({
@@ -440,7 +463,7 @@ export async function saveBrainAge(userId: string, entry: BrainAgeEntry): Promis
 }
 
 export async function getBrainAge(userId: string): Promise<BrainAgeEntry | null> {
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (sb) {
     try {
       const { data, error } = await sb
@@ -497,7 +520,7 @@ export async function saveGlp1Injection(userId: string, entry: Glp1InjectionEntr
   });
   safeLocalSet(key, existing);
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("glp1_injections").insert({
@@ -512,7 +535,7 @@ export async function saveGlp1Injection(userId: string, entry: Glp1InjectionEntr
 }
 
 export async function getGlp1Injections(userId: string): Promise<any[]> {
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (sb) {
     try {
       const { data, error } = await sb
@@ -563,7 +586,7 @@ export async function saveNotification(userId: string, entry: NotificationEntry)
   if (existing.length > 100) existing.length = 100;
   safeLocalSet(key, existing);
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("notifications").insert({
@@ -580,7 +603,7 @@ export async function saveNotification(userId: string, entry: NotificationEntry)
 }
 
 export async function getNotifications(userId: string): Promise<any[]> {
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (sb) {
     try {
       const { data, error } = await sb
@@ -615,7 +638,7 @@ export async function markNotificationRead(userId: string, notificationId: strin
   const updated = all.map((n: any) => n.id === notificationId ? { ...n, read: true } : n);
   safeLocalSet(key, updated);
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("notifications").update({ read: true }).eq("id", notificationId);
@@ -629,7 +652,7 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
   const all = safeLocalGet<any[]>(key, []);
   safeLocalSet(key, all.map((n: any) => ({ ...n, read: true })));
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
@@ -641,7 +664,7 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
 export async function clearAllNotifications(userId: string): Promise<void> {
   safeLocalSet("ndw_notifications", []);
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
     await sb.from("notifications").delete().eq("user_id", userId);
@@ -657,7 +680,7 @@ const SYNC_FLAG_KEY = "ndw_supabase_synced";
 export async function syncLocalToSupabase(userId: string): Promise<void> {
   if (safeLocalGet<boolean>(SYNC_FLAG_KEY, false)) return;
 
-  const sb = await getSupabase();
+  const sb = await getSupabaseIfAllowed();
   if (!sb) return;
 
   try {

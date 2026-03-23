@@ -1,0 +1,90 @@
+{
+  "app": {
+    "name": "AntarAI",
+    "tagline": "మీ అంతర్గత తెలివితేటలు"
+  },
+  "nav": {
+    "today": "ఈరోజు",
+    "discover": "అన్వేషించు",
+    "brain": "మెదడు",
+    "you": "మీరు",
+    "settings": "సెట్టింగ్‌లు",
+    "nutrition": "పోషణ"
+  },
+  "today": {
+    "title": "ఈరోజు",
+    "greeting_morning": "శుభోదయం",
+    "greeting_afternoon": "శుభ మధ్యాహ్నం",
+    "greeting_evening": "శుభ సాయంత్రం",
+    "readiness_score": "సిద్ధత స్కోరు",
+    "voice_checkin": "వాయిస్ చెక్-ఇన్",
+    "mood_log": "మూడ్ లాగ్",
+    "no_data": "ఇంకా డేటా లేదు"
+  },
+  "discover": {
+    "title": "అన్వేషించు",
+    "subtitle": "మీ మెదడు మరియు భావాలను అర్థం చేసుకోండి",
+    "brain_monitor": "బ్రెయిన్ మానిటర్",
+    "emotion_lab": "ఎమోషన్ ల్యాబ్",
+    "dream_journal": "కలల డైరీ",
+    "neurofeedback": "న్యూరోఫీడ్‌బ్యాక్",
+    "sleep": "నిద్ర",
+    "health": "ఆరోగ్యం"
+  },
+  "settings": {
+    "title": "సెట్టింగ్‌లు",
+    "theme": "థీమ్",
+    "theme_light": "లైట్",
+    "theme_dark": "డార్క్",
+    "theme_system": "సిస్టమ్",
+    "language": "భాష",
+    "notifications": "నోటిఫికేషన్‌లు",
+    "privacy": "గోప్యత",
+    "export_data": "డేటా ఎగుమతి",
+    "sign_out": "సైన్ అవుట్",
+    "ml_backend": "ML బ్యాకెండ్",
+    "device": "పరికరం",
+    "calibration": "క్యాలిబ్రేషన్"
+  },
+  "emotions": {
+    "happy": "సంతోషం",
+    "sad": "విచారం",
+    "angry": "కోపం",
+    "fear": "భయం",
+    "surprise": "ఆశ్చర్యం",
+    "neutral": "తటస్థం"
+  },
+  "common": {
+    "loading": "లోడ్ అవుతోంది...",
+    "error": "ఏదో తప్పు జరిగింది",
+    "retry": "మళ్ళీ ప్రయత్నించు",
+    "save": "సేవ్",
+    "cancel": "రద్దు",
+    "done": "పూర్తి",
+    "back": "వెనుకకు",
+    "next": "తదుపరి",
+    "unavailable": "అందుబాటులో లేదు"
+  },
+  "community": {
+    "title": "సముదాయం",
+    "subtitle": "అనామక మూడ్ షేరింగ్ మరియు సవాళ్లు",
+    "collective_mood": "సామూహిక మనోదశ",
+    "daily_challenge": "రోజువారీ సవాలు",
+    "streaks": "స్ట్రీక్ లీడర్‌బోర్డ్",
+    "your_streak": "మీ స్ట్రీక్",
+    "days": "రోజులు"
+  },
+  "pain_tracker": {
+    "title": "నొప్పి ట్రాకర్",
+    "subtitle": "నొప్పి ఎపిసోడ్‌లు మరియు EEG నమూనాలను ట్రాక్ చేయండి",
+    "log_episode": "నొప్పి ఎపిసోడ్ లాగ్ చేయండి",
+    "severity": "తీవ్రత",
+    "location": "స్థానం",
+    "duration": "వ్యవధి (నిమిషాలు)",
+    "eeg_patterns": "EEG నొప్పి నమూనాలు",
+    "theta_power": "థీటా పవర్",
+    "alpha_power": "ఆల్ఫా పవర్",
+    "history": "నొప్పి చరిత్ర",
+    "no_episodes": "నొప్పి ఎపిసోడ్‌లు లాగ్ చేయలేదు"
+  }
+}

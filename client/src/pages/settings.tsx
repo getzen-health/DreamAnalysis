@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Download, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Brain, LogOut, User, Shield, ChevronRight } from "lucide-react";
+import { AlertTriangle, Download, CheckCircle2, XCircle, Info, Server, Bell, BellOff, Brain, LogOut, User, Shield, ShieldCheck, ChevronRight, Eye } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/use-theme";
 import { useLocation } from "wouter";
@@ -40,6 +40,7 @@ import { addBaselineFrame, getBaselineStatus, resetBaselineCalibration, getCalib
 import { getPushStatus, type PushStatusResult } from "@/lib/native-push";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getUserAge, setUserAge, getAgeGroupInfo, AGE_GROUPS, type AgeGroup } from "@/lib/age-stratification";
 
 interface SettingsState {
   chartAnimations: boolean;
@@ -411,6 +412,12 @@ export default function SettingsPage() {
 
       {/* Notifications */}
       <NotificationsCard userId={userId} />
+
+      {/* Age Group — for age-stratified emotion models (Issue #496) */}
+      <AgeGroupCard />
+
+      {/* Privacy Mode — all-local processing (Issue #493) */}
+      <PrivacyModeCard />
 
       {/* Biometric Consent link */}
       <Card className="glass-card p-5 rounded-xl">
@@ -1500,6 +1507,134 @@ function DataPrivacyCard({ userId }: { userId: string }) {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      </div>
+    </Card>
+  );
+}
+
+/* ── Privacy Mode Card (Issue #493) ──────────────────────────── */
+
+const PRIVACY_MODE_KEY = "ndw_privacy_mode";
+
+function getPrivacyMode(): boolean {
+  try {
+    return localStorage.getItem(PRIVACY_MODE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function setPrivacyMode(enabled: boolean): void {
+  try {
+    localStorage.setItem(PRIVACY_MODE_KEY, enabled ? "true" : "false");
+    // Dispatch event so other components (e.g. app-layout header) can react
+    window.dispatchEvent(new CustomEvent("ndw-privacy-mode-changed", { detail: { enabled } }));
+  } catch {
+    // localStorage unavailable
+  }
+}
+
+function PrivacyModeCard() {
+  const [enabled, setEnabled] = useState(getPrivacyMode);
+
+  function handleToggle(checked: boolean) {
+    setEnabled(checked);
+    setPrivacyMode(checked);
+  }
+
+  return (
+    <Card className="glass-card p-5 rounded-xl" data-testid="privacy-mode-card">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <h3 className="text-base font-semibold flex items-center gap-2">
+            {enabled ? (
+              <ShieldCheck className="h-4 w-4 text-green-400" aria-hidden="true" />
+            ) : (
+              <Shield className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            )}
+            Privacy Mode
+          </h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {enabled
+              ? "All data stays on this device. Supabase sync and biometric API calls are disabled."
+              : "When enabled, all processing happens locally. No data is sent to the cloud."}
+          </p>
+        </div>
+        <Switch
+          checked={enabled}
+          onCheckedChange={handleToggle}
+          data-testid="switch-privacy-mode"
+          aria-label="Toggle privacy mode"
+        />
+      </div>
+      {enabled && (
+        <div className="mt-3 rounded-lg bg-green-500/10 border border-green-500/20 p-3">
+          <p className="text-xs text-green-400 flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            Privacy Mode is active. All cloud sync is disabled.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ── Age Group Card (Issue #496) ─────────────────────────────── */
+
+function AgeGroupCard() {
+  const [age, setAge] = useState<string>(() => {
+    const stored = getUserAge();
+    return stored !== null ? String(stored) : "";
+  });
+
+  const parsedAge = age ? parseInt(age, 10) : null;
+  const groupInfo = parsedAge && parsedAge >= 1 && parsedAge <= 120
+    ? getAgeGroupInfo(parsedAge)
+    : null;
+
+  function handleChange(value: string) {
+    setAge(value);
+    const num = parseInt(value, 10);
+    if (!isNaN(num) && num >= 1 && num <= 120) {
+      setUserAge(num);
+    }
+  }
+
+  return (
+    <Card className="glass-card p-5 rounded-xl" data-testid="age-group-card">
+      <h3 className="text-base font-semibold flex items-center gap-2 mb-2">
+        <User className="h-4 w-4 text-primary" aria-hidden="true" />
+        Age Group
+      </h3>
+      <p className="text-sm text-muted-foreground mb-3">
+        Emotion baselines are adjusted for your age group for more accurate readings.
+      </p>
+
+      <div className="flex items-center gap-3">
+        <div className="w-24">
+          <Label htmlFor="settings-age" className="sr-only">Age</Label>
+          <Input
+            id="settings-age"
+            type="number"
+            min={1}
+            max={120}
+            placeholder="Age"
+            value={age}
+            onChange={(e) => handleChange(e.target.value)}
+            aria-label="Your age"
+            data-testid="input-age"
+          />
+        </div>
+        {groupInfo && (
+          <div>
+            <Badge variant="outline" className="text-xs">
+              {groupInfo.label} ({groupInfo.ageRange})
+            </Badge>
+            <p className="text-xs text-muted-foreground mt-1">
+              {groupInfo.description}
+            </p>
+          </div>
+        )}
       </div>
     </Card>
   );

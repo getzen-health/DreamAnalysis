@@ -34,5 +34,6 @@ pyarrow>=14.0.0
 psycopg2-binary>=2.9.9
 asyncpg>=0.29.0
 ddtrace>=2.0.0
+yasa>=0.6.0
 pytest>=7.0.0
 pytest-cov>=4.0.0

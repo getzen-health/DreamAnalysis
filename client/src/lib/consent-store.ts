@@ -115,6 +115,11 @@ export function saveConsentState(state: BiometricConsentState): void {
 // ── Supabase sync ────────────────────────────────────────────────────────
 
 async function syncConsentToSupabase(state: BiometricConsentState): Promise<void> {
+  // Block Supabase sync when Privacy Mode is active (Issue #493)
+  try {
+    if (localStorage.getItem("ndw_privacy_mode") === "true") return;
+  } catch { /* proceed if localStorage unavailable */ }
+
   const sb = await getSupabase();
   if (!sb) return;
 

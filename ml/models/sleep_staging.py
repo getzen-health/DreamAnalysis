@@ -212,12 +212,26 @@ class SleepStagingModel:
         }
 
     def predict_sequence(self, epochs: List[np.ndarray], fs: float = 256.0) -> List[Dict]:
-        """Predict sleep stages for a sequence of epochs (full night)."""
+        """Predict sleep stages for a sequence of epochs (full night).
+
+        Returns list of per-epoch dicts, each augmented with:
+          - spindle_density: spindles per minute in N2 epochs (float)
+          - so_spindle_coupling: phase-amplitude coupling score 0-1 (float)
+        """
         results = []
         for epoch in epochs:
             result = self.predict(epoch, fs)
             results.append(result)
-        return self._smooth_predictions(results)
+
+        smoothed = self._smooth_predictions(results)
+
+        # Augment with advanced biomarkers (#499)
+        for i, (result, epoch) in enumerate(zip(smoothed, epochs)):
+            signal = epoch[0] if epoch.ndim == 2 else epoch
+            result["spindle_density"] = compute_spindle_density(signal, fs, result["stage"])
+            result["so_spindle_coupling"] = compute_so_spindle_coupling(signal, fs, result["stage"])
+
+        return smoothed
 
     # Biologically invalid transition penalties (Markov prior).
     # Stage indices: Wake=0, N1=1, N2=2, N3=3, REM=4.
@@ -272,3 +286,114 @@ class SleepStagingModel:
             smoothed.append(current)
 
         return smoothed
+
+
+# ── Advanced sleep biomarkers (#499) ──────────────────────────────────────
+
+
+def compute_spindle_density(
+    signal: np.ndarray, fs: float, stage: str
+) -> float:
+    """Compute spindle density (spindles per minute) for N2 epochs.
+
+    Spindle density during N2 is a validated marker of sleep-dependent memory
+    consolidation (Schabus et al., 2004).
+
+    Args:
+        signal: 1D EEG epoch (typically 30s)
+        fs: Sampling frequency
+        stage: Predicted sleep stage label
+
+    Returns:
+        Spindle density (spindles/min). Returns 0.0 for non-N2 stages.
+    """
+    if stage != "N2":
+        return 0.0
+
+    try:
+        spindles = detect_sleep_spindles(signal, fs)
+        # detect_sleep_spindles returns a list of dicts
+        n_spindles = len(spindles) if isinstance(spindles, list) else 0
+        # Handle dict return from some versions
+        if isinstance(spindles, dict):
+            n_spindles = spindles.get("count", 0)
+            if not n_spindles:
+                n_spindles = 1 if spindles.get("spindles_detected", False) else 0
+        duration_minutes = len(signal) / fs / 60.0
+        if duration_minutes <= 0:
+            return 0.0
+        return round(n_spindles / duration_minutes, 2)
+    except Exception:
+        return 0.0
+
+
+def compute_so_spindle_coupling(
+    signal: np.ndarray, fs: float, stage: str
+) -> float:
+    """Compute slow-oscillation/spindle phase-amplitude coupling score.
+
+    Phase-amplitude coupling (PAC) between slow oscillations (0.5-1.5 Hz phase)
+    and spindles (11-16 Hz amplitude) is a validated biomarker for memory
+    consolidation quality (Helfrich et al., 2018; Staresina et al., 2015).
+
+    Uses Modulation Index (MI) approach: extracts SO phase and spindle amplitude,
+    computes the non-uniformity of amplitude distribution across phase bins.
+
+    Args:
+        signal: 1D EEG epoch (at least a few seconds)
+        fs: Sampling frequency
+        stage: Predicted sleep stage label
+
+    Returns:
+        Coupling score 0-1 (0 = no coupling, 1 = strong coupling).
+        Returns 0.0 for non-N2/N3 stages.
+    """
+    if stage not in ("N2", "N3"):
+        return 0.0
+
+    if len(signal) < int(fs * 2):
+        return 0.0
+
+    try:
+        from scipy.signal import hilbert, butter, filtfilt
+
+        # Extract slow oscillation phase (0.5-1.5 Hz)
+        nyq = fs / 2
+        b_so, a_so = butter(3, [0.5 / nyq, 1.5 / nyq], btype="band")
+        so_filtered = filtfilt(b_so, a_so, signal)
+        so_phase = np.angle(hilbert(so_filtered))
+
+        # Extract spindle amplitude envelope (11-16 Hz)
+        b_sp, a_sp = butter(3, [11.0 / nyq, 16.0 / nyq], btype="band")
+        sp_filtered = filtfilt(b_sp, a_sp, signal)
+        sp_amplitude = np.abs(hilbert(sp_filtered))
+
+        # Modulation Index: bin amplitudes by phase, measure non-uniformity
+        n_bins = 18
+        phase_bins = np.linspace(-np.pi, np.pi, n_bins + 1)
+        mean_amps = np.zeros(n_bins)
+
+        for i in range(n_bins):
+            mask = (so_phase >= phase_bins[i]) & (so_phase < phase_bins[i + 1])
+            if mask.sum() > 0:
+                mean_amps[i] = float(np.mean(sp_amplitude[mask]))
+
+        # Normalize to probability distribution
+        total = mean_amps.sum()
+        if total <= 0:
+            return 0.0
+
+        p = mean_amps / total
+        # Kullback-Leibler divergence from uniform distribution
+        uniform = np.ones(n_bins) / n_bins
+        # Avoid log(0)
+        p_safe = np.clip(p, 1e-10, None)
+        kl_div = float(np.sum(p_safe * np.log(p_safe / uniform)))
+        # Normalize by max possible KL (log(n_bins))
+        max_kl = np.log(n_bins)
+        mi = float(np.clip(kl_div / max_kl, 0, 1))
+
+        return round(mi, 3)
+
+    except Exception:
+        return 0.0

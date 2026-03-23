@@ -1,0 +1,90 @@
+{
+  "app": {
+    "name": "AntarAI",
+    "tagline": "Your inner intelligence"
+  },
+  "nav": {
+    "today": "Today",
+    "discover": "Discover",
+    "brain": "Brain",
+    "you": "You",
+    "settings": "Settings",
+    "nutrition": "Nutrition"
+  },
+  "today": {
+    "title": "Today",
+    "greeting_morning": "Good morning",
+    "greeting_afternoon": "Good afternoon",
+    "greeting_evening": "Good evening",
+    "readiness_score": "Readiness Score",
+    "voice_checkin": "Voice Check-in",
+    "mood_log": "Mood Log",
+    "no_data": "No data yet"
+  },
+  "discover": {
+    "title": "Discover",
+    "subtitle": "Explore your brain and emotions",
+    "brain_monitor": "Brain Monitor",
+    "emotion_lab": "Emotion Lab",
+    "dream_journal": "Dream Journal",
+    "neurofeedback": "Neurofeedback",
+    "sleep": "Sleep",
+    "health": "Health"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "theme_system": "System",
+    "language": "Language",
+    "notifications": "Notifications",
+    "privacy": "Privacy",
+    "export_data": "Export Data",
+    "sign_out": "Sign Out",
+    "ml_backend": "ML Backend",
+    "device": "Device",
+    "calibration": "Calibration"
+  },
+  "emotions": {
+    "happy": "Happy",
+    "sad": "Sad",
+    "angry": "Angry",
+    "fear": "Fear",
+    "surprise": "Surprise",
+    "neutral": "Neutral"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "save": "Save",
+    "cancel": "Cancel",
+    "done": "Done",
+    "back": "Back",
+    "next": "Next",
+    "unavailable": "Unavailable"
+  },
+  "community": {
+    "title": "Community",
+    "subtitle": "Anonymous mood sharing and challenges",
+    "collective_mood": "Collective Mood",
+    "daily_challenge": "Daily Challenge",
+    "streaks": "Streaks Leaderboard",
+    "your_streak": "Your Streak",
+    "days": "days"
+  },
+  "pain_tracker": {
+    "title": "Pain Tracker",
+    "subtitle": "Track pain episodes and EEG patterns",
+    "log_episode": "Log Pain Episode",
+    "severity": "Severity",
+    "location": "Location",
+    "duration": "Duration (minutes)",
+    "eeg_patterns": "EEG Pain Patterns",
+    "theta_power": "Theta Power",
+    "alpha_power": "Alpha Power",
+    "history": "Pain History",
+    "no_episodes": "No pain episodes logged"
+  }
+}

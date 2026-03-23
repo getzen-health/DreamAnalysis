@@ -10,6 +10,8 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "shared"),
       // Stub native-only Capacitor plugins that aren't installed in the web/test env
       "@capacitor/camera": path.resolve(__dirname, "client/src/test/__mocks__/capacitor-camera.ts"),
+      // Stub posthog-js (not installed — placeholder for future analytics)
+      "posthog-js": path.resolve(__dirname, "client/src/test/__mocks__/posthog-js.ts"),
     },
   },
   test: {

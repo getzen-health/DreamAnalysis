@@ -194,10 +194,14 @@ function EmotionTimeline({ userId }: { userId: string }) {
           const color = TIMELINE_COLORS[emotion] ?? "#94a3b8";
           return (
             <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%", background: color,
-                opacity: 0.85, transition: "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
-              }} />
+              <div
+                role="img"
+                aria-label={`${label}: ${emotion}`}
+                style={{
+                  width: 28, height: 28, borderRadius: "50%", background: color,
+                  opacity: 0.85, transition: "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+                }}
+              />
               <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{label}</span>
             </div>
           );
@@ -343,6 +347,7 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
           <button
             key={rec.route}
             onClick={() => { trackFeatureUsage(rec.route); navigate(rec.route); }}
+            aria-label={`${rec.title}: ${rec.reason}`}
             style={{
               background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
               border: "1px solid rgba(255,255,255,0.08)",
@@ -352,7 +357,7 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
               transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
-            <rec.icon style={{ width: 22, height: 22, color: rec.iconColor }} />
+            <rec.icon style={{ width: 22, height: 22, color: rec.iconColor }} aria-hidden="true" />
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginTop: 6 }}>{rec.title}</div>
             <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{rec.reason}</div>
           </button>
@@ -582,6 +587,8 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
   return (
     <button
       onClick={() => navigate("/mood")}
+      aria-label="View Emotions: Stress, Focus, Mood trends"
+      role="link"
       style={{
         width: "100%",
         background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
@@ -803,6 +810,8 @@ export default function Discover() {
 
       {/* ── 2-column navigation grid ── */}
       <div
+        role="navigation"
+        aria-label="Explore features"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
@@ -818,6 +827,7 @@ export default function Discover() {
             initial="hidden"
             animate="visible"
             onClick={() => navigate(card.route)}
+            aria-label={`${card.title}: ${card.subtitle}`}
             style={{
               background: `linear-gradient(135deg, var(--card) 0%, ${card.accentColor}06 100%)`,
               border: "1px solid rgba(255,255,255,0.08)",
@@ -832,7 +842,7 @@ export default function Discover() {
               transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
-            <card.icon style={{ width: 28, height: 28, marginBottom: 8, color: card.accentColor }} />
+            <card.icon style={{ width: 28, height: 28, marginBottom: 8, color: card.accentColor }} aria-hidden="true" />
             <p
               style={{
                 fontSize: 14,

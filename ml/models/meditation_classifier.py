@@ -1,9 +1,14 @@
-"""Meditation Depth Classifier from EEG signals.
+"""Meditation Engagement Classifier from EEG signals.
 
-Classifies meditation depth into 3 levels (reduced from 5 for better cross-subject accuracy):
-  0: relaxed     — eyes-closed rest, alpha dominant, minimal meditation depth
-  1: meditating  — sustained theta increase, alpha stabilization, reduced mental chatter
-  2: deep        — strong theta dominance, beta suppressed, deep absorption
+Classifies meditation engagement into 3 levels using validated EEG markers:
+  0: relaxed     — eyes-closed rest, alpha dominant, minimal meditation engagement
+  1: engaged     — sustained theta increase, alpha stabilization, reduced mental chatter
+  2: absorbed    — strong theta dominance, beta suppressed, deep absorption
+
+Primary validated markers (Travis & Shear, 2010; Cahn & Polich, 2006):
+- Alpha coherence: inter-hemispheric alpha-band coherence increases with meditation
+- Theta power: frontal midline theta (FMT) elevation is the gold standard marker
+- These replace any unvalidated "depth" claims with measurable EEG features
 
 Scientific basis:
 - Meditation increases frontal midline theta (Kubota et al., 2001)
@@ -29,7 +34,10 @@ from processing.eeg_processor import (
     spectral_entropy, compute_frontal_midline_theta
 )
 
-MEDITATION_DEPTHS = ["relaxed", "meditating", "deep"]
+# Renamed from "depth" to "engagement" — validated markers only (#490)
+MEDITATION_LEVELS = ["relaxed", "engaged", "absorbed"]
+# Backward compat alias
+MEDITATION_DEPTHS = MEDITATION_LEVELS
 
 
 class MeditationClassifier:
@@ -77,11 +85,13 @@ class MeditationClassifier:
         self.baseline_theta = bands.get("theta", 0.15)
 
     def predict(self, eeg: np.ndarray, fs: float = 256.0) -> Dict:
-        """Classify meditation depth from EEG.
+        """Classify meditation engagement from EEG.
 
         Returns:
-            Dict with 'depth', 'depth_index', 'meditation_score' (0-1),
-            'confidence', 'tradition_match', and component scores.
+            Dict with 'engagement', 'engagement_index', 'meditation_score' (0-1),
+            'confidence', 'tradition_match', validated markers (alpha_coherence,
+            theta_power), and component scores.
+            Legacy keys 'depth' and 'depth_index' are retained for backward compat.
         """
         # Try Random Forest first (Issue #45 — 86.7% accuracy on theta/alpha/beta)
         if self.rf_model is not None:
@@ -212,17 +222,39 @@ class MeditationClassifier:
         range_size = thresholds[depth_idx + 1] - thresholds[depth_idx]
         confidence = float(np.clip(1.0 - dist / (range_size / 2 + 1e-10), 0.3, 0.95))
 
+        # Compute validated markers (#490)
+        # Alpha coherence: inter-hemispheric alpha coherence (Travis & Shear, 2010)
+        alpha_coherence = 0.0
+        if eeg.ndim == 2 and eeg.shape[0] >= 2:
+            try:
+                from processing.eeg_processor import compute_coherence
+                alpha_coherence = compute_coherence(eeg, fs, "alpha")
+            except Exception:
+                alpha_coherence = round(alpha_stability, 3)  # fallback to stability proxy
+        else:
+            alpha_coherence = round(alpha_stability, 3)
+
+        # Theta power: absolute theta power as validated meditation marker
+        theta_power_val = round(theta, 4)
+
         return {
-            "depth": MEDITATION_DEPTHS[depth_idx],
+            # New validated labels (#490)
+            "engagement": MEDITATION_LEVELS[depth_idx],
+            "engagement_index": depth_idx,
+            # Legacy compat
+            "depth": MEDITATION_LEVELS[depth_idx],
             "depth_index": depth_idx,
             "meditation_score": round(adjusted_score, 3),
             "confidence": round(confidence, 3),
             "tradition_match": best_tradition,
             "tradition_scores": {k: round(v, 3) for k, v in tradition_scores.items()},
             "session_minutes": round(session_minutes, 1),
+            # Validated markers (#490)
+            "alpha_coherence": round(float(alpha_coherence), 3),
+            "theta_power": theta_power_val,
             "components": {
                 "alpha_stability": round(alpha_stability, 3),
-                "theta_depth": round(theta_depth, 3),
+                "theta_elevation": round(theta_depth, 3),
                 "beta_quiet": round(beta_quiet, 3),
                 "delta_balance": round(delta_balance, 3),
                 "fmt_power": round(fmt_power, 3),

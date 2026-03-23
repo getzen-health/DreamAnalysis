@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useKeyboardScroll } from "@/hooks/use-keyboard-scroll";
 import { pingBackend } from "@/lib/ml-api";
-import { Loader2, Sun, Moon, Monitor, ChevronLeft } from "lucide-react";
+import { Loader2, Sun, Moon, Monitor, ChevronLeft, ShieldCheck } from "lucide-react";
 import { StreakCelebration } from "@/components/streak-celebration";
 import { EmotionBadge } from "@/components/emotion-badge";
 import { ScoreHeader } from "@/components/score-header";
@@ -133,6 +133,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const { ref: pullRef, pullDistance, refreshing } = usePullRefresh<HTMLDivElement>();
   const { theme, themeSetting, setTheme } = useTheme();
 
+  // Privacy Mode indicator — show shield icon in header when active
+  const [privacyMode, setPrivacyModeState] = useState(() => {
+    try { return localStorage.getItem("ndw_privacy_mode") === "true"; } catch { return false; }
+  });
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ enabled: boolean }>).detail;
+      setPrivacyModeState(detail?.enabled ?? false);
+    };
+    window.addEventListener("ndw-privacy-mode-changed", handler);
+    return () => window.removeEventListener("ndw-privacy-mode-changed", handler);
+  }, []);
+
   const pageTitle = routeTitles[location] || "Dashboard";
   const dateStr = currentTime.toLocaleDateString("en-US", {
     weekday: "long",
@@ -166,6 +179,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
               {pageTitle}
             </p>
             <div className="ml-auto flex items-center gap-1.5">
+              {privacyMode && (
+                <div
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-500/10"
+                  title="Privacy Mode active — all data stays on-device"
+                  aria-label="Privacy Mode is active"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-green-400" />
+                </div>
+              )}
               <EmotionBadge
                 size="sm"
                 showLabel

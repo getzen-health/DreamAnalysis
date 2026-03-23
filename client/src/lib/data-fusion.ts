@@ -92,11 +92,45 @@ function readHealthSource(): SourceReading | null {
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (!data) return null;
+
+    // Base values
+    let stress = data.stress ?? data.stress_index ?? 0.5;
+    let arousal = data.arousal ?? 0.5;
+
+    // Feature-level fusion of HR/HRV (#492):
+    // When health sync data includes heart rate or HRV, incorporate into
+    // stress/arousal estimation. These are physiological signals that provide
+    // complementary information to EEG and voice.
+    const heartRate: number | undefined = data.heart_rate ?? data.heartRate;
+    const hrv: number | undefined = data.hrv ?? data.heart_rate_variability;
+
+    if (typeof heartRate === "number" && heartRate > 0) {
+      // HR > 100 bpm suggests higher arousal/stress (resting HR is typically 60-100)
+      if (heartRate > 100) {
+        const hrStressBump = Math.min((heartRate - 100) / 80, 0.3); // max +0.3
+        stress = Math.min(1, stress + hrStressBump);
+        arousal = Math.min(1, arousal + hrStressBump * 0.5);
+      }
+    }
+
+    if (typeof hrv === "number" && hrv > 0) {
+      // Low HRV (< 40ms RMSSD) indicates higher stress / lower parasympathetic tone
+      // Normal resting HRV for adults: 20-80ms RMSSD
+      if (hrv < 40) {
+        const hrvStressBump = Math.min((40 - hrv) / 40, 0.25); // max +0.25
+        stress = Math.min(1, stress + hrvStressBump);
+      } else if (hrv > 60) {
+        // High HRV = good parasympathetic tone = lower stress
+        const hrvStressReduction = Math.min((hrv - 60) / 80, 0.15);
+        stress = Math.max(0, stress - hrvStressReduction);
+      }
+    }
+
     return {
-      stress: data.stress ?? data.stress_index ?? 0.5,
+      stress: clip(stress, 0, 1),
       focus: data.focus ?? data.focus_index ?? 0.5,
       valence: data.valence ?? 0,
-      arousal: data.arousal ?? 0.5,
+      arousal: clip(arousal, 0, 1),
       emotion: data.emotion ?? "neutral",
       confidence: data.confidence ?? 0.3,
       timestamp: data.timestamp ?? Date.now(),
