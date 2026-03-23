@@ -807,67 +807,43 @@ public class MuseBlePlugin extends Plugin {
      *
      * Simplest approach: send raw bytes with channel=-1, JS side detects Athena.
      */
+    private int athenaChannelRotation = 0;
+
+    /**
+     * Athena data on 0013: with p21 preset, sends Muse 2-compatible 20-byte packets
+     * multiplexed across 4 channels in round-robin order.
+     * Just forward each packet as a channel event using rotation.
+     * Also log the first few packets' raw bytes to understand format.
+     */
     private void parseAndSendAthenaData(byte[] value) {
-        if (value.length <= ATHENA_HEADER_SIZE) return;
+        athenaPacketCount++;
 
-        int offset = ATHENA_HEADER_SIZE;
-        while (offset < value.length) {
-            int tag = value[offset] & 0xFF;
-            offset++;
+        // Log first 5 packets for format analysis
+        if (athenaPacketCount <= 5) {
+            StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < Math.min(value.length, 24); i++) {
+                hex.append(String.format("%02x ", value[i] & 0xFF));
+            }
+            sendDiag("Athena pkt#" + athenaPacketCount + " len=" + value.length + ": " + hex.toString().trim());
+        }
 
-            if (tag == ATHENA_TAG_EEG_4CH) {
-                if (offset + ATHENA_EEG_4CH_SIZE > value.length) break;
+        if (value.length >= 20) {
+            // Forward as Muse 2-compatible packet on rotating channels
+            int ch = athenaChannelRotation % 4;
+            athenaChannelRotation++;
 
-                // Read 14 uint16 big-endian values, mask to 14 bits
-                int[] rawValues = new int[14];
-                for (int i = 0; i < 14; i++) {
-                    int hi = (value[offset + i * 2] & 0xFF);
-                    int lo = (value[offset + i * 2 + 1] & 0xFF);
-                    rawValues[i] = ((hi << 8) | lo) & 0x3FFF;
-                }
-                offset += ATHENA_EEG_4CH_SIZE;
+            JSObject data = new JSObject();
+            data.put("channel", ch);
+            data.put("data", Base64.encodeToString(value, Base64.NO_WRAP));
+            notifyListeners("museEegData", data);
 
-                // Build per-channel sample arrays (4 samples each)
-                // Layout: [ch0_s0, ch1_s0, ch2_s0, ch3_s0, ch0_s1, ...]
-                double[][] channelSamples = new double[4][4];
-                for (int sample = 0; sample < 4; sample++) {
-                    for (int ch = 0; ch < 4; ch++) {
-                        int rawIdx = sample * 4 + ch;
-                        if (rawIdx < rawValues.length) {
-                            channelSamples[ch][sample] = rawValues[rawIdx] * ATHENA_UV_SCALE;
-                        }
-                    }
-                }
-
-                // Emit as 4 separate channel events with a synthetic 20-byte packet
-                // that the JS onEegNotification can decode (12 samples, 12-bit packed)
-                // OR: send raw float arrays. Since JS already decodes the base64 into
-                // a DataView and calls onEegNotification which expects 20-byte Muse 2 format,
-                // the cleanest approach is to send each channel's 4 samples as a minimal packet.
-                //
-                // We'll send a custom format: channel + base64 of float64 array.
-                // The JS side already has onAthenaDataNotification for WebBT.
-                // For native, we send the raw Athena packet bytes with channel=-1.
-                // The JS listener will check channel and route accordingly.
-
-                // Send raw Athena packet once (not per-channel) with channel=-1
-                JSObject data = new JSObject();
-                data.put("channel", -1); // signals Athena multiplexed data
-                data.put("data", Base64.encodeToString(value, Base64.NO_WRAP));
-                notifyListeners("museEegData", data);
-
-                athenaPacketCount++;
-                if (athenaPacketCount == 1 || athenaPacketCount == 10 || athenaPacketCount == 100) {
-                    sendDiag("Athena " + athenaPacketCount + " pkts: first=" +
-                        String.format("%.1f", channelSamples[0][0]) + " uV");
-                }
-                return; // Only process first EEG subpacket per notification
-            } else {
-                // Unknown tag — can't determine subpacket size, skip rest
-                if (athenaPacketCount < 3) {
-                    sendDiag("Athena unknown tag 0x" + Integer.toHexString(tag) + " at offset " + (offset - 1));
-                }
-                break;
+            if (athenaPacketCount == 50 || athenaPacketCount == 200) {
+                sendDiag("Athena: " + athenaPacketCount + " pkts, len=" + value.length + " ch_rot=" + ch);
+            }
+        } else if (value.length > 0) {
+            // Small packet — might be status/control response, skip
+            if (athenaPacketCount <= 10) {
+                sendDiag("Athena small pkt len=" + value.length);
             }
         }
     }
