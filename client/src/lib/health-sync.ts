@@ -530,6 +530,30 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
   todayStart.setHours(0, 0, 0, 0);
   const fmt = (d: Date) => d.toISOString();
 
+  // Check if Health Connect is available
+  try {
+    const avail = await HC.isAvailable();
+    diagnostics.push(`Health Connect available: ${JSON.stringify(avail)}`);
+    if (!avail?.available) {
+      diagnostics.push("Health Connect NOT available — install from Play Store");
+      (payload as any)._diagnostics = diagnostics;
+      return { payload, workouts: [] };
+    }
+  } catch (e) {
+    diagnostics.push(`isAvailable check failed: ${String(e).slice(0, 100)}`);
+  }
+
+  // Request permissions
+  try {
+    await HC.requestAuthorization({
+      read: ["heartRate", "restingHeartRate", "heartRateVariability", "steps", "calories", "distance", "sleep", "oxygenSaturation", "weight", "bodyFat", "respiratoryRate", "bloodPressure"],
+      write: [],
+    });
+    diagnostics.push("Permissions requested OK");
+  } catch (e) {
+    diagnostics.push(`Permission request failed: ${String(e).slice(0, 100)}`);
+  }
+
   // Helper: read latest samples for a data type
   async function readLatest(dataType: string, hoursBack: number = 24): Promise<number | null> {
     try {
@@ -628,6 +652,8 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
 
   // Store diagnostics so UI can show what happened
   (payload as any)._diagnostics = diagnostics;
+  // Also persist diagnostics for debugging
+  try { localStorage.setItem("ndw_health_diagnostics", JSON.stringify(diagnostics)); } catch { /* ok */ }
 
   return { payload, workouts: [] };
 }
