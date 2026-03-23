@@ -1297,7 +1297,7 @@ export default function Today() {
               value={moodDisplay}
               statusLabel={moodStatusLabel}
               dotColor={moodDotColor}
-              onClick={() => navigate("/wellness")}
+              onClick={() => navigate("/mood")}
               delta={moodDelta}
             />
             <ScoreCard

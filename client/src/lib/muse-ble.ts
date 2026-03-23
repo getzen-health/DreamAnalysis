@@ -1193,6 +1193,7 @@ export function museFrameToEegStreamFrame(f: MuseEegFrame): {
     signals: f.signals,
     analysis: {
       band_powers: bp,
+      epoch_ready: true,
       features: {
         faa: f.faa,
         stress_index: f.stressIndex,
@@ -1211,6 +1212,9 @@ export function museFrameToEegStreamFrame(f: MuseEegFrame): {
         stress_index: f.stressIndex,
         focus_index: f.focusIndex,
         relaxation_index: f.relaxationIndex,
+        ready: true,
+        buffered_sec: 30,
+        window_sec: 30,
       },
       stress: {
         level: stressLevel,
