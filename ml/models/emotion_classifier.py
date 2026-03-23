@@ -505,6 +505,93 @@ class EmotionClassifier:
             )
         return result
 
+    # ── Per-user fine-tuned model inference ──────────────────────────────────
+
+    # Cache: user_id -> (model, scaler, meta) or None (checked and missing)
+    _user_model_cache: Dict[str, Optional[tuple]] = {}
+
+    def _try_predict_user_model(
+        self, eeg: np.ndarray, fs: float, user_id: str, device_type: str
+    ) -> Optional[Dict]:
+        """Try inference with a per-user fine-tuned EEG model.
+
+        Loads from user_models/{user_id}/eeg_classifier.pkl if it exists.
+        Returns None if no user model is available (falls through to generic).
+        """
+        # Check cache first
+        if user_id not in self._user_model_cache:
+            try:
+                from training.retrain_from_user_data import UserModelRetrainer
+                retrainer = UserModelRetrainer(user_id)
+                loaded = retrainer.load_eeg_model()
+                self._user_model_cache[user_id] = loaded
+            except Exception:
+                self._user_model_cache[user_id] = None
+
+        cached = self._user_model_cache.get(user_id)
+        if cached is None:
+            return None
+
+        model, scaler, meta = cached
+        try:
+            # Extract the same 85-dim features used for training
+            feat = self._extract_muse_live_features(eeg, fs)  # 85-dim
+            if self._is_consumer_device:
+                feat[_GAMMA_FEAT_IDX] = 0.0
+
+            # Pad to 170-dim (training concatenated raw + scaled features)
+            feat_170 = np.zeros(170, dtype=np.float32)
+            feat_170[:85] = feat
+            feat_170[85:170] = feat  # duplicate as stand-in for scaled version
+
+            if scaler is not None:
+                feat_input = scaler.transform(feat_170.reshape(1, -1))
+            else:
+                feat_input = feat_170.reshape(1, -1)
+
+            proba = model.predict_proba(feat_input)[0]
+            pred_idx = int(np.argmax(proba))
+            classes = meta.get("classes", meta.get("label_encoder_classes", EMOTIONS))
+
+            # Map prediction back to emotion label
+            if pred_idx < len(classes):
+                emotion = classes[pred_idx]
+            else:
+                emotion = "neutral"
+
+            # Build a 6-class probability dict matching EMOTIONS order
+            probs6 = np.zeros(6, dtype=np.float32)
+            for i, cls in enumerate(classes):
+                if i < len(proba) and cls in EMOTIONS:
+                    emo_idx = EMOTIONS.index(cls)
+                    probs6[emo_idx] = proba[i]
+            total = probs6.sum()
+            if total > 0:
+                probs6 /= total
+            else:
+                probs6 = np.ones(6, dtype=np.float32) / 6.0
+
+            # Build result via standard path for consistent output format
+            emotion_idx = int(np.argmax(probs6))
+            result = self._build_muse_result(
+                emotion_idx, probs6, eeg, fs,
+                artifact_detected=False, device_type=device_type,
+            )
+            result["model_type"] = "user-finetuned"
+            result["user_model_accuracy"] = meta.get("train_accuracy")
+            result["explanation"] = []
+            return result
+
+        except Exception as exc:
+            logging.getLogger(__name__).debug(
+                "User model inference failed for %s: %s", user_id, exc
+            )
+            return None
+
+    def invalidate_user_model_cache(self, user_id: str) -> None:
+        """Clear cached user model so it gets reloaded on next predict call."""
+        self._user_model_cache.pop(user_id, None)
+
     def _try_load_deap_model(self):
         """Try loading the DEAP-trained Muse 2 model (best accuracy)."""
         from pathlib import Path
@@ -1098,6 +1185,14 @@ class EmotionClassifier:
             )
             result["explanation"] = []
             return result
+
+        # Per-user fine-tuned model — highest priority after artifact check.
+        # Loaded from user_models/{user_id}/ if a retrained model exists.
+        # Falls through to generic models on any error or missing model.
+        if user_id and user_id != "default" and eeg.ndim == 2 and eeg.shape[0] >= 4:
+            user_result = self._try_predict_user_model(eeg, fs, user_id, device_type)
+            if user_result is not None:
+                return user_result
 
         # REVE Foundation (brain-bzh/reve-base) — highest priority when HF access is granted.
         # Pre-trained on 60K+ hours, handles arbitrary channel layouts via 4D positional encoding.

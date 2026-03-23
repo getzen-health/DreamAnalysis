@@ -1489,6 +1489,56 @@ function BarcodePanel({
   const [product, setProduct] = useState<BarcodeProduct | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [servings, setServings] = useState("1");
+  const [scanning, setScanning] = useState(false);
+  const scannerRef = useRef<HTMLDivElement>(null);
+  const scannerInstanceRef = useRef<any>(null);
+
+  // Camera barcode scanner
+  const startScanner = useCallback(async () => {
+    setScanning(true);
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const scannerId = "barcode-scanner-" + Date.now();
+      if (scannerRef.current) {
+        scannerRef.current.id = scannerId;
+        const scanner = new Html5Qrcode(scannerId);
+        scannerInstanceRef.current = scanner;
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 100 }, aspectRatio: 2.0 },
+          (decodedText: string) => {
+            // Barcode found! Stop scanner and look up
+            scanner.stop().catch(() => {});
+            setScanning(false);
+            setBarcodeInput(decodedText);
+            // Auto-lookup
+            setLoading(true);
+            setNotFound(false);
+            setProduct(null);
+            lookupBarcode(decodedText).then((result) => {
+              if (!result) setNotFound(true);
+              else { setProduct(result); setServings("1"); }
+            }).catch(() => setNotFound(true)).finally(() => setLoading(false));
+          },
+          () => {} // ignore scan errors
+        );
+      }
+    } catch (e) {
+      console.error("Barcode scanner failed:", e);
+      setScanning(false);
+    }
+  }, []);
+
+  const stopScanner = useCallback(() => {
+    scannerInstanceRef.current?.stop?.().catch(() => {});
+    scannerInstanceRef.current = null;
+    setScanning(false);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { scannerInstanceRef.current?.stop?.().catch(() => {}); };
+  }, []);
 
   const handleLookup = useCallback(async () => {
     if (!barcodeInput.trim()) return;
@@ -1540,10 +1590,32 @@ function BarcodePanel({
       }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", marginBottom: 8 }}>
-        Barcode Lookup
+        Barcode Scanner
       </div>
+
+      {/* Camera scanner */}
+      {scanning ? (
+        <div style={{ marginBottom: 10 }}>
+          <div ref={scannerRef} style={{ width: "100%", borderRadius: 10, overflow: "hidden" }} />
+          <button onClick={stopScanner} style={{
+            width: "100%", marginTop: 8, padding: 8, fontSize: 12, fontWeight: 600,
+            background: "#e879a8", color: "white", border: "none", borderRadius: 8, cursor: "pointer",
+          }}>
+            Stop Scanner
+          </button>
+        </div>
+      ) : (
+        <button onClick={startScanner} style={{
+          width: "100%", marginBottom: 10, padding: 12, fontSize: 13, fontWeight: 600,
+          background: "var(--primary)", color: "white", border: "none", borderRadius: 10, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}>
+          📷 Scan Barcode with Camera
+        </button>
+      )}
+
       <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "0 0 8px 0" }}>
-        Enter the barcode number from the package (UPC/EAN).
+        Or enter the barcode number manually:
       </p>
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <input

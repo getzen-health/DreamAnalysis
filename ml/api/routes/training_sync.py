@@ -132,18 +132,39 @@ async def sync_corrections(user_id: str):
 
     retrain_triggered = False
     if new_count >= 5:
+        # Try new UserModelRetrainer first (fine-tunes from feature vectors),
+        # fall back to legacy auto_retrainer (retrains from session data).
         try:
-            from training.auto_retrainer import retrain_personal_model
+            from training.retrain_from_user_data import UserModelRetrainer
 
             import asyncio
 
-            result = await asyncio.to_thread(retrain_personal_model, user_id)
-            retrain_triggered = result.get("trained", False)
-            log.info(
-                "[training-sync] Retrain triggered for %s: %s", user_id, result
-            )
+            retrainer = UserModelRetrainer(user_id)
+            if retrainer.should_retrain():
+                result = await asyncio.to_thread(retrainer.retrain_all)
+                retrain_triggered = result.get("any_trained", False)
+                log.info(
+                    "[training-sync] UserModelRetrainer for %s: %s", user_id, result
+                )
+            else:
+                log.info("[training-sync] UserModelRetrainer: not enough data yet for %s", user_id)
         except Exception as exc:
-            log.warning("[training-sync] Retrain failed for %s: %s", user_id, exc)
+            log.warning("[training-sync] UserModelRetrainer failed for %s: %s", user_id, exc)
+
+        # Legacy fallback: retrain from session data
+        if not retrain_triggered:
+            try:
+                from training.auto_retrainer import retrain_personal_model
+
+                import asyncio
+
+                result = await asyncio.to_thread(retrain_personal_model, user_id)
+                retrain_triggered = result.get("trained", False)
+                log.info(
+                    "[training-sync] Legacy retrain for %s: %s", user_id, result
+                )
+            except Exception as exc:
+                log.warning("[training-sync] Legacy retrain failed for %s: %s", user_id, exc)
 
     return SyncResult(
         synced=len(supabase_corrections),
@@ -157,16 +178,31 @@ async def sync_corrections(user_id: str):
 
 @router.post("/retrain/{user_id}")
 async def force_retrain(user_id: str):
-    """Force retrain from all available local data."""
+    """Force retrain from all available local data (both user-specific and legacy)."""
+    import asyncio
+
+    results: Dict[str, Any] = {}
+
+    # 1. UserModelRetrainer — fine-tune from feature vectors
+    try:
+        from training.retrain_from_user_data import UserModelRetrainer
+
+        retrainer = UserModelRetrainer(user_id)
+        user_result = await asyncio.to_thread(retrainer.retrain_all, True)
+        results["user_model"] = user_result
+    except Exception as exc:
+        results["user_model"] = {"error": str(exc)}
+
+    # 2. Legacy auto_retrainer — retrain from session data
     try:
         from training.auto_retrainer import retrain_personal_model
 
-        import asyncio
-
-        result = await asyncio.to_thread(retrain_personal_model, user_id)
-        return {"user_id": user_id, "result": result}
+        legacy_result = await asyncio.to_thread(retrain_personal_model, user_id)
+        results["legacy"] = legacy_result
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Retrain failed: {exc}")
+        results["legacy"] = {"error": str(exc)}
+
+    return {"user_id": user_id, "results": results}
 
 
 @router.get("/status/{user_id}", response_model=TrainingStatus)
