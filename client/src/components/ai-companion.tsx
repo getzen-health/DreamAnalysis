@@ -392,9 +392,77 @@ export function AICompanion({ userId }: AICompanionProps) {
     window.speechSynthesis.speak(utterance);
   };
 
+  // ── Analyze text for emotion and save as voice input ────────────────
+  const analyzeAndSaveTextEmotion = (text: string) => {
+    const lower = text.toLowerCase();
+    // Simple keyword-based emotion detection from text
+    const emotionKeywords: Record<string, string[]> = {
+      happy: ["happy", "great", "amazing", "wonderful", "good", "love", "excited", "joy", "awesome", "fantastic"],
+      sad: ["sad", "depressed", "down", "unhappy", "crying", "lonely", "miserable", "heartbroken"],
+      angry: ["angry", "furious", "mad", "frustrated", "annoyed", "irritated", "rage"],
+      anxious: ["anxious", "worried", "nervous", "stressed", "panic", "scared", "fear", "afraid"],
+      peaceful: ["calm", "peaceful", "relaxed", "serene", "content", "tranquil", "meditative"],
+      grateful: ["grateful", "thankful", "blessed", "appreciate"],
+      tired: ["tired", "exhausted", "sleepy", "fatigued", "drained"],
+    };
+
+    let detected = "neutral";
+    let maxScore = 0;
+    for (const [emotion, keywords] of Object.entries(emotionKeywords)) {
+      const score = keywords.filter(k => lower.includes(k)).length;
+      if (score > maxScore) { maxScore = score; detected = emotion; }
+    }
+
+    // Map to valence/stress/focus
+    const emotionMap: Record<string, { valence: number; stress: number; focus: number }> = {
+      happy: { valence: 0.7, stress: 0.15, focus: 0.6 },
+      sad: { valence: -0.5, stress: 0.5, focus: 0.3 },
+      angry: { valence: -0.4, stress: 0.8, focus: 0.5 },
+      anxious: { valence: -0.3, stress: 0.75, focus: 0.35 },
+      peaceful: { valence: 0.5, stress: 0.1, focus: 0.5 },
+      grateful: { valence: 0.6, stress: 0.1, focus: 0.55 },
+      tired: { valence: -0.1, stress: 0.4, focus: 0.2 },
+      neutral: { valence: 0, stress: 0.35, focus: 0.45 },
+    };
+    const mapped = emotionMap[detected] ?? emotionMap.neutral;
+
+    // Save to localStorage + Supabase as voice input
+    try {
+      const now = Date.now();
+      localStorage.setItem("ndw_last_emotion", JSON.stringify({
+        result: {
+          emotion: detected,
+          valence: mapped.valence,
+          arousal: 0.5,
+          stress_index: mapped.stress,
+          focus_index: mapped.focus,
+          confidence: Math.min(0.8, 0.3 + maxScore * 0.2),
+          model_type: "voice-chat",
+          timestamp: now / 1000,
+        },
+        timestamp: now,
+      }));
+      window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
+
+      // Sync to Supabase
+      import("@/lib/supabase-store").then(({ saveEmotionHistory }) => {
+        saveEmotionHistory(userId, {
+          stress: mapped.stress,
+          focus: mapped.focus,
+          mood: mapped.valence,
+          source: "voice-chat",
+          dominantEmotion: detected,
+        }).catch(() => {});
+      });
+    } catch { /* ok */ }
+  };
+
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isTyping) return;
+
+    // Analyze user's text for emotion and save as voice input data
+    analyzeAndSaveTextEmotion(trimmed);
 
     const optimisticUser: ChatResponse = {
       id: `optimistic-${Date.now()}`,
