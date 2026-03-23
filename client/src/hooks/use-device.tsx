@@ -943,7 +943,10 @@ function useDeviceInternal(): UseDeviceReturn {
   // Defaults to false while buffering; once true it stays true for the session.
   const epochReady =
     (latestFrame?.analysis as Record<string, unknown> | undefined)?.epoch_ready === true ||
-    latestFrame?.analysis?.emotions?.ready === true;
+    (latestFrame?.analysis?.emotions as Record<string, unknown> | undefined)?.ready === true ||
+    // BLE path: if we have band_powers with real values, data is flowing
+    (state === "streaming" && latestFrame?.analysis?.band_powers != null &&
+      Object.values(latestFrame.analysis.band_powers as Record<string, number>).some(v => v > 0));
 
   return {
     state,
