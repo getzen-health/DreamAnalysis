@@ -32,7 +32,12 @@ import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { emgDetector, type EMGDetectionResult } from "@/lib/emg-detector";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 import { computeBlinkStats, type BlinkStats } from "@/lib/blink-detector";
+import { detectBreathingState, type BreathingAnalysis } from "@/lib/breathing-detector";
+import { BreathingIndicator } from "@/components/breathing-indicator";
 import { Eye } from "lucide-react";
+import { useInterventionTriggers } from "@/hooks/use-intervention-triggers";
+import { InterventionTriggerToast } from "@/components/intervention-trigger-toast";
+import type { TriggerState } from "@/lib/eeg-intervention-trigger";
 
 // Route targets for each ML model card — null means no linked page
 const MODEL_ROUTES: Record<string, string | null> = {
@@ -119,7 +124,106 @@ export default function BrainMonitor() {
     setBlinkStats(stats);
   }, [isStreaming, isSynthetic, latestFrame?.timestamp]);
 
+  // ── Breathing state detection (AF7 channel, buffered) ────────────────────
+  const [breathingAnalysis, setBreathingAnalysis] = useState<BreathingAnalysis | null>(null);
+  const breathingBufferRef = useRef<Float32Array>(new Float32Array(0));
+
+  useEffect(() => {
+    if (!isStreaming || !latestFrame?.signals || isSynthetic) {
+      setBreathingAnalysis(null);
+      breathingBufferRef.current = new Float32Array(0);
+      return;
+    }
+    // AF7 is channel index 1 (BrainFlow Muse 2 order: TP9, AF7, AF8, TP10)
+    const signals = latestFrame.signals as number[][];
+    if (signals.length < 2) return;
+    const af7 = new Float32Array(signals[1]);
+    const fs = latestFrame.sample_rate || 256;
+
+    // Accumulate into a sliding buffer (keep last 30 seconds for breathing analysis)
+    const maxSamples = fs * 30;
+    const prev = breathingBufferRef.current;
+    const combined = new Float32Array(prev.length + af7.length);
+    combined.set(prev);
+    combined.set(af7, prev.length);
+    // Trim to maxSamples
+    if (combined.length > maxSamples) {
+      breathingBufferRef.current = combined.slice(combined.length - maxSamples);
+    } else {
+      breathingBufferRef.current = combined;
+    }
+
+    // Only analyze once we have at least 10 seconds of data
+    if (breathingBufferRef.current.length >= fs * 10) {
+      const result = detectBreathingState(breathingBufferRef.current, fs);
+      setBreathingAnalysis(result);
+    }
+  }, [isStreaming, isSynthetic, latestFrame?.timestamp]);
+
   const CHANNEL_NAMES = ["TP9", "AF7", "AF8", "TP10"];
+
+  // ── EEG intervention trigger engine (#504) ────────────────────────
+  const sessionStartRef = useRef<number>(Date.now());
+  const stressDurationRef = useRef<number>(0);
+  const highBetaDurationRef = useRef<number>(0);
+  const lastStressCheckRef = useRef<number>(Date.now());
+
+  // Reset session timer when streaming starts/stops
+  useEffect(() => {
+    if (isStreaming) {
+      sessionStartRef.current = Date.now();
+      stressDurationRef.current = 0;
+      highBetaDurationRef.current = 0;
+    }
+  }, [isStreaming]);
+
+  // Accumulate stress/beta duration from analysis
+  useEffect(() => {
+    if (!isStreaming || !analysis) return;
+    const now = Date.now();
+    const dt = (now - lastStressCheckRef.current) / 1000;
+    lastStressCheckRef.current = now;
+    if (dt > 10) return; // skip large gaps
+
+    const emotions = analysis.emotions as { stress_index?: number } | undefined;
+    const stressIdx = emotions?.stress_index ?? 0;
+    const bp = (analysis as Record<string, unknown>).band_powers as Record<string, number> | undefined;
+    const alphaLvl = bp?.alpha ?? 0.2;
+    const betaLvl = bp?.beta ?? 0.15;
+
+    if (stressIdx > 0.7) {
+      stressDurationRef.current += dt;
+    } else {
+      stressDurationRef.current = Math.max(0, stressDurationRef.current - dt * 0.5);
+    }
+
+    if (alphaLvl < 0.05 && betaLvl > 0.3) {
+      highBetaDurationRef.current += dt;
+    } else {
+      highBetaDurationRef.current = Math.max(0, highBetaDurationRef.current - dt * 0.5);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming, latestFrame?.timestamp]);
+
+  const getTriggerState = useCallback((): TriggerState | null => {
+    if (!analysis) return null;
+    const emotions = analysis.emotions as { stress_index?: number } | undefined;
+    const bp = (analysis as Record<string, unknown>).band_powers as Record<string, number> | undefined;
+    return {
+      stressIndex: emotions?.stress_index ?? 0,
+      stressDurationSeconds: stressDurationRef.current,
+      blinksPerMinute: blinkStats?.blinksPerMinute ?? 15,
+      sessionMinutes: (Date.now() - sessionStartRef.current) / 60000,
+      alphaLevel: bp?.alpha ?? 0.2,
+      betaLevel: bp?.beta ?? 0.15,
+      highBetaDurationSeconds: highBetaDurationRef.current,
+    };
+  }, [analysis, blinkStats]);
+
+  const { activeTrigger, dismiss: dismissTrigger } = useInterventionTriggers(
+    isStreaming,
+    getTriggerState,
+  );
 
   useEffect(() => {
     if (!isStreaming || !latestFrame?.signals || isSynthetic) {
@@ -465,6 +569,11 @@ export default function BrainMonitor() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Breathing State Indicator */}
+      {isStreaming && breathingAnalysis && breathingAnalysis.state !== "unknown" && (
+        <BreathingIndicator analysis={breathingAnalysis} />
       )}
 
       {/* Emotion Shift Alert */}
@@ -998,6 +1107,14 @@ export default function BrainMonitor() {
             </div>
           )}
         </Card>
+      )}
+
+      {/* EEG intervention trigger toast (#504) */}
+      {activeTrigger && (
+        <InterventionTriggerToast
+          trigger={activeTrigger}
+          onDismiss={dismissTrigger}
+        />
       )}
     </main>
   );
