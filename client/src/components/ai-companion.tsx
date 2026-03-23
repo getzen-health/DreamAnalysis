@@ -8,6 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Bot,
   Send,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
   Brain,
   Wind,
   Heart,
@@ -242,6 +246,9 @@ export function AICompanion({ userId }: AICompanionProps) {
   const [isTyping, setIsTyping] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [brainDrawerOpen, setBrainDrawerOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speakEnabled, setSpeakEnabled] = useState(true);
+  const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -334,6 +341,57 @@ export function AICompanion({ userId }: AICompanionProps) {
     return parts.join(", ");
   };
 
+  // ── Voice input (speech-to-text) ────────────────────────────────────
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setMessage("Voice input not supported on this device");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((r: any) => r[0].transcript)
+        .join("");
+      setMessage(transcript);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      // Auto-send if we got text
+      if (message.trim()) {
+        setTimeout(() => sendMessage(message), 200);
+      }
+    };
+
+    recognition.onerror = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
+
+  // ── Voice output (text-to-speech) ─────────────────────────────────
+  const speakText = (text: string) => {
+    if (!speakEnabled || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+  };
+
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isTyping) return;
@@ -369,6 +427,8 @@ export function AICompanion({ userId }: AICompanionProps) {
         ];
       });
       setIsOffline(false);
+      // Speak AI response if voice mode is on
+      if (speakEnabled && aiResponse.message) speakText(aiResponse.message);
     } catch {
       // API unavailable -- generate a local response so the user always gets feedback
       const eegContext = buildEegContext();
@@ -680,25 +740,38 @@ export function AICompanion({ userId }: AICompanionProps) {
         </div>
 
         {/* Input row */}
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-1.5">
+          {/* Voice input */}
+          <Button
+            onClick={toggleVoiceInput}
+            size="icon"
+            variant={isListening ? "default" : "outline"}
+            className={`h-11 w-11 rounded-xl shrink-0 ${isListening ? "bg-red-500 hover:bg-red-600 animate-pulse" : "border-primary/30"}`}
+            title={isListening ? "Stop listening" : "Voice input"}
+          >
+            {isListening ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-muted-foreground" />}
+          </Button>
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message... (Enter to send)"
+            placeholder={isListening ? "Listening..." : "Message or tap mic..."}
             className="flex-1 min-h-[44px] max-h-32 resize-none border border-primary/30 rounded-xl text-sm"
             rows={1}
-            disabled={isTyping}
+            disabled={isTyping || isListening}
           />
-          {/* Brain drawer toggle */}
+          {/* Speaker toggle */}
           <Button
-            onClick={() => setBrainDrawerOpen((o) => !o)}
+            onClick={() => {
+              setSpeakEnabled(!speakEnabled);
+              if (speakEnabled) window.speechSynthesis?.cancel();
+            }}
             size="icon"
             variant="outline"
             className="h-11 w-11 rounded-xl border-primary/30 shrink-0"
-            title="Brain metrics and coach"
+            title={speakEnabled ? "Mute AI voice" : "Enable AI voice"}
           >
-            <Brain className={`h-4 w-4 ${brainDrawerOpen ? "text-primary" : "text-muted-foreground"}`} />
+            {speakEnabled ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
           </Button>
           {/* Send */}
           <Button
