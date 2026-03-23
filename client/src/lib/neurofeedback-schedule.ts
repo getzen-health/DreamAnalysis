@@ -72,8 +72,10 @@ export function getSessionSchedule(sessionHistory: Date[]): SessionSchedule {
     lastSession.getTime() + 2.5 * 24 * 60 * 60 * 1000
   );
 
-  // Use whole-day count for classification (avoids fractional-day edge cases)
-  const wholeDays = Math.floor(daysSinceLastSession);
+  // Use calendar day difference (avoids noon-to-noon fractional issues)
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const lastMidnight = new Date(lastSession.getFullYear(), lastSession.getMonth(), lastSession.getDate());
+  const wholeDays = Math.round((nowMidnight.getTime() - lastMidnight.getTime()) / (1000 * 60 * 60 * 24));
   const isTooSoon = wholeDays < 2;
   const isOptimalWindow = wholeDays >= 2 && wholeDays <= 3;
   const isGettingLate = wholeDays >= 4 && wholeDays <= 5;
