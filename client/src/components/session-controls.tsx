@@ -23,6 +23,14 @@ export function SessionControls({ onRecordingChange }: SessionControlsProps) {
   const [_sessionId, setSessionId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Auto-start recording when EEG connects
+  useEffect(() => {
+    if (!isRecording) {
+      handleStart();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (isRecording) {
       timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
