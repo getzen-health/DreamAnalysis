@@ -82,15 +82,15 @@ class TestQuadraticThetaModel:
         than very low or very high theta (inverted-U relationship)."""
         # Moderate theta: balanced signal (theta ~0.25 relative power)
         moderate_theta = _make_signal(freqs=[6, 10, 18], amps=[10, 12, 12])
-        result_moderate = detector.predict(moderate_theta)
+        result_moderate = detector.predict(moderate_theta, binary=False)
 
         # Very high theta signal: dominant 6 Hz (theta ~0.98 relative power)
         high_theta = _make_signal(freqs=[6, 10, 18], amps=[40, 3, 3])
-        result_high = detector.predict(high_theta)
+        result_high = detector.predict(high_theta, binary=False)
 
         # Very low theta signal: dominant beta (theta ~0.004 relative power)
         low_theta = _make_signal(freqs=[6, 10, 18], amps=[2, 5, 30])
-        result_low = detector.predict(low_theta)
+        result_low = detector.predict(low_theta, binary=False)
 
         mod_score = result_moderate["components"]["theta_flow"]
         high_score = result_high["components"]["theta_flow"]
@@ -108,7 +108,7 @@ class TestQuadraticThetaModel:
         """theta_flow_score should always be in [0, 1]."""
         for amp in [0.1, 5, 20, 50, 100]:
             signal = _make_signal(freqs=[6], amps=[amp])
-            result = detector.predict(signal)
+            result = detector.predict(signal, binary=False)
             score = result["components"]["theta_flow"]
             assert 0 <= score <= 1, f"theta_flow out of range: {score}"
 
@@ -116,7 +116,7 @@ class TestQuadraticThetaModel:
         """Zero theta power should produce a low theta_flow_score."""
         # Pure beta signal — minimal theta
         signal = _make_signal(freqs=[20, 25], amps=[30, 20])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         # With no theta, normalized theta is 0, distance from 0.5 optimal is large
         assert result["components"]["theta_flow"] < 0.8
 
@@ -128,7 +128,7 @@ class TestFlowRatio:
         """High alpha+theta with low beta should produce high flow_ratio score."""
         # Strong alpha + theta, weak beta
         flow_signal = _make_signal(freqs=[6, 10, 18], amps=[25, 25, 3])
-        result = detector.predict(flow_signal)
+        result = detector.predict(flow_signal, binary=False)
         assert result["components"]["flow_ratio"] > 0.4, (
             f"Expected high flow_ratio, got {result['components']['flow_ratio']}"
         )
@@ -137,7 +137,7 @@ class TestFlowRatio:
         """Low alpha+theta with high beta should produce low flow_ratio score."""
         # Weak alpha + theta, strong beta (stressed / anxious state)
         stress_signal = _make_signal(freqs=[6, 10, 20, 25], amps=[3, 3, 25, 20])
-        result = detector.predict(stress_signal)
+        result = detector.predict(stress_signal, binary=False)
         assert result["components"]["flow_ratio"] < 0.5, (
             f"Expected low flow_ratio, got {result['components']['flow_ratio']}"
         )
@@ -146,7 +146,7 @@ class TestFlowRatio:
         """flow_ratio score should always be in [0, 1]."""
         for beta_amp in [0.1, 5, 30]:
             signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, beta_amp])
-            result = detector.predict(signal)
+            result = detector.predict(signal, binary=False)
             score = result["components"]["flow_ratio"]
             assert 0 <= score <= 1
 
@@ -159,33 +159,33 @@ class TestFlowIntensityClassification:
         assert FLOW_STATES == ["no_flow", "shallow", "moderate", "deep"]
 
     def test_no_flow_below_03(self, detector):
-        """Scores below 0.3 should be classified as no_flow."""
+        """Scores below 0.3 should be classified as no_flow (4-class mode)."""
         # Dominant high-beta (anxious) — should be low flow
         signal = _make_signal(freqs=[25, 30], amps=[40, 30])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         if result["flow_score"] < 0.3:
             assert result["state"] == "no_flow"
             assert result["flow_intensity"] == "none"
 
     def test_deep_flow_above_075(self, detector):
-        """Scores >= 0.75 should be classified as deep flow."""
-        result = detector.predict(_make_signal(freqs=[6, 10], amps=[20, 20]))
+        """Scores >= 0.75 should be classified as deep flow (4-class mode)."""
+        result = detector.predict(_make_signal(freqs=[6, 10], amps=[20, 20]), binary=False)
         # Manually verify: if score happens to be >= 0.75
         if result["flow_score"] >= 0.75:
             assert result["state"] == "deep"
             assert result["flow_intensity"] == "deep"
 
     def test_flow_intensity_field_present(self, detector):
-        """Result should contain 'flow_intensity' field."""
+        """Result should contain 'flow_intensity' field (4-class mode)."""
         signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         assert "flow_intensity" in result
         assert result["flow_intensity"] in ("none", "shallow", "moderate", "deep")
 
     def test_state_index_matches_state(self, detector):
-        """state_index should correspond to the correct FLOW_STATES entry."""
+        """state_index should correspond to the correct FLOW_STATES entry (4-class mode)."""
         signal = _make_signal(freqs=[6, 10, 20], amps=[15, 15, 10])
-        result = detector.predict(signal)
+        result = detector.predict(signal, binary=False)
         assert FLOW_STATES[result["state_index"]] == result["state"]
 
 
@@ -196,7 +196,7 @@ class TestBetaAsymmetry:
         """Symmetric AF7/AF8 beta should produce high beta_symmetry score."""
         # All channels identical — perfectly symmetric
         channels = _make_multichannel(freqs=[6, 10, 20], amps=[10, 10, 15])
-        result = detector.predict(channels)
+        result = detector.predict(channels, binary=False)
         # With identical channels, beta asymmetry should be near zero
         assert result["components"]["beta_symmetry"] > 0.7, (
             f"Expected high beta_symmetry for symmetric channels, "

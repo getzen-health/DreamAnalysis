@@ -1,11 +1,12 @@
 /**
- * StressTrends -- Stress detail page with clean data visualization.
+ * MoodTrends -- Mood detail page showing emotional state over time.
  *
  * Shows:
- * 1. Hero stress percentage (0-100%), color-coded cyan/amber/rose
+ * 1. Hero mood score (0-100) derived from valence: (valence + 1) * 50
  * 2. Time range tabs: Today | Week | Month
- * 3. Smooth AreaChart of stress % over time
- * 4. Morning / Afternoon / Evening breakdown
+ * 3. Smooth AreaChart of mood score over time
+ * 4. Morning / Afternoon / Evening averages
+ * 5. Recent emotion labels
  *
  * Data: /api/brain/history/:userId?days=30, localStorage ndw_last_emotion
  */
@@ -25,13 +26,13 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Activity, Sun, Sunset, Moon } from "lucide-react";
+import { Smile, Sun, Sunset, Moon } from "lucide-react";
 
 /* ---------- constants ---------- */
 
-const STRESS_CYAN = "#0891b2";
-const STRESS_AMBER = "#d4a017";
-const STRESS_ROSE = "#e879a8";
+const MOOD_CYAN = "#0891b2";
+const MOOD_AMBER = "#d4a017";
+const MOOD_ROSE = "#e879a8";
 
 type TimeRange = "today" | "week" | "month";
 
@@ -42,22 +43,29 @@ interface HistoryEntry {
   happiness: number;
   focus: number;
   dominantEmotion: string;
+  valence: number | null;
   timestamp: string;
 }
 
 /* ---------- helpers ---------- */
 
-function getStressColor(percent: number): string {
-  if (percent < 30) return STRESS_CYAN;
-  if (percent < 60) return STRESS_AMBER;
-  return STRESS_ROSE;
+function valenceToMood(valence: number | null): number {
+  if (valence == null) return 50;
+  return Math.round((valence + 1) * 50);
 }
 
-function getStressLabel(percent: number): string {
-  if (percent < 25) return "Low";
-  if (percent < 50) return "Moderate";
-  if (percent < 75) return "High";
-  return "Critical";
+function getMoodColor(score: number): string {
+  if (score >= 65) return MOOD_CYAN;
+  if (score >= 40) return MOOD_AMBER;
+  return MOOD_ROSE;
+}
+
+function getMoodLabel(score: number): string {
+  if (score >= 80) return "Great";
+  if (score >= 65) return "Good";
+  if (score >= 45) return "Okay";
+  if (score >= 30) return "Low";
+  return "Poor";
 }
 
 function filterByRange(entries: HistoryEntry[], range: TimeRange): HistoryEntry[] {
@@ -85,10 +93,11 @@ function buildChartData(
   if (range === "today") {
     return entries.map((e) => ({
       time: new Date(e.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      value: Math.round(e.stress * 100),
+      value: valenceToMood(e.valence),
     }));
   }
 
+  // Group by day for week/month
   const dayMap = new Map<string, { values: number[]; ts: number }>();
   for (const e of entries) {
     const d = new Date(e.timestamp);
@@ -98,7 +107,7 @@ function buildChartData(
         : `${d.getMonth() + 1}/${d.getDate()}`;
     const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     if (!dayMap.has(key)) dayMap.set(key, { values: [], ts });
-    dayMap.get(key)!.values.push(e.stress * 100);
+    dayMap.get(key)!.values.push(valenceToMood(e.valence));
   }
 
   return Array.from(dayMap.entries())
@@ -111,7 +120,7 @@ function buildChartData(
 
 function buildPeriodAverages(
   entries: HistoryEntry[],
-): { period: string; stress: number; icon: "sun" | "sunset" | "moon" }[] {
+): { period: string; score: number; icon: "sun" | "sunset" | "moon" }[] {
   const buckets: Record<string, number[]> = {
     Morning: [],
     Afternoon: [],
@@ -120,10 +129,10 @@ function buildPeriodAverages(
 
   for (const e of entries) {
     const hour = new Date(e.timestamp).getHours();
-    const val = Math.round(e.stress * 100);
-    if (hour >= 5 && hour < 12) buckets.Morning.push(val);
-    else if (hour >= 12 && hour < 18) buckets.Afternoon.push(val);
-    else buckets.Evening.push(val);
+    const score = valenceToMood(e.valence);
+    if (hour >= 5 && hour < 12) buckets.Morning.push(score);
+    else if (hour >= 12 && hour < 18) buckets.Afternoon.push(score);
+    else buckets.Evening.push(score);
   }
 
   const icons: Record<string, "sun" | "sunset" | "moon"> = {
@@ -136,7 +145,7 @@ function buildPeriodAverages(
     .filter(([, values]) => values.length > 0)
     .map(([period, values]) => ({
       period,
-      stress: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
+      score: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
       icon: icons[period],
     }));
 }
@@ -150,13 +159,22 @@ function PeriodIcon({ name }: { name: string }) {
     case "moon":
       return <Moon className="h-4 w-4 text-indigo-400" />;
     default:
-      return <Activity className="h-4 w-4 text-muted-foreground" />;
+      return <Smile className="h-4 w-4 text-muted-foreground" />;
   }
 }
 
+const EMOTION_COLORS: Record<string, string> = {
+  happy: "#0891b2",
+  sad: "#6366f1",
+  angry: "#ea580c",
+  fear: "#7c3aed",
+  surprise: "#d4a017",
+  neutral: "#94a3b8",
+};
+
 /* ---------- component ---------- */
 
-export default function StressTrends() {
+export default function MoodTrends() {
   const userId = getParticipantId();
   const [range, setRange] = useState<TimeRange>("week");
   const { emotion: currentEmotion } = useCurrentEmotion();
@@ -167,6 +185,7 @@ export default function StressTrends() {
       happiness: number;
       focus: number;
       dominantEmotion: string;
+      valence: number | null;
       timestamp: string;
     }>
   >({
@@ -175,8 +194,8 @@ export default function StressTrends() {
     staleTime: 60_000,
   });
 
-  const stressPercent = currentEmotion?.stress != null
-    ? Math.round(currentEmotion.stress * 100)
+  const moodScore = currentEmotion?.valence != null
+    ? valenceToMood(currentEmotion.valence)
     : null;
 
   const filtered = useMemo(
@@ -194,10 +213,31 @@ export default function StressTrends() {
     [filtered],
   );
 
-  const heroColor =
-    stressPercent !== null ? getStressColor(stressPercent) : "var(--muted-foreground)";
-  const heroLabel =
-    stressPercent !== null ? getStressLabel(stressPercent) : "Unknown";
+  // Recent emotion labels (last 10 unique entries)
+  const recentEmotions = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    const seen = new Set<string>();
+    const result: { emotion: string; time: string }[] = [];
+    for (let i = data.length - 1; i >= 0 && result.length < 8; i--) {
+      const e = data[i];
+      if (!e.dominantEmotion) continue;
+      const key = `${e.dominantEmotion}-${new Date(e.timestamp).toDateString()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({
+        emotion: e.dominantEmotion,
+        time: new Date(e.timestamp).toLocaleDateString(undefined, {
+          weekday: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      });
+    }
+    return result;
+  }, [data]);
+
+  const heroColor = moodScore !== null ? getMoodColor(moodScore) : "var(--muted-foreground)";
+  const heroLabel = moodScore !== null ? getMoodLabel(moodScore) : "Unknown";
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-4">
@@ -208,14 +248,14 @@ export default function StressTrends() {
         transition={pageTransition.transition}
       >
         <h1 className="text-xl font-bold tracking-tight text-foreground">
-          Stress
+          Mood
         </h1>
         <p className="text-sm mt-1 text-muted-foreground">
-          Your stress levels over time
+          How you've been feeling over time
         </p>
       </motion.div>
 
-      {/* Hero — stress percentage */}
+      {/* Hero — mood score */}
       <motion.div
         className="rounded-2xl p-6 border border-border bg-card flex flex-col items-center"
         style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
@@ -223,26 +263,32 @@ export default function StressTrends() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
-        {stressPercent !== null ? (
+        {moodScore !== null ? (
           <>
             <span
               className="text-5xl font-bold tabular-nums"
               style={{ color: heroColor }}
             >
-              {stressPercent}%
+              {moodScore}
             </span>
+            <span className="text-xs text-muted-foreground mt-1">/ 100</span>
             <div
               className="text-sm font-semibold mt-2"
               style={{ color: heroColor }}
             >
-              {heroLabel} Stress
+              {heroLabel}
             </div>
+            {currentEmotion?.emotion && (
+              <span className="text-xs text-muted-foreground mt-1 capitalize">
+                Feeling {currentEmotion.emotion}
+              </span>
+            )}
           </>
         ) : (
           <div className="text-center py-4">
-            <Activity className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+            <Smile className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
             <p className="text-sm text-muted-foreground">
-              Complete a check-in to measure your stress level
+              Complete a check-in to see your mood score
             </p>
           </div>
         )}
@@ -265,7 +311,7 @@ export default function StressTrends() {
         ))}
       </div>
 
-      {/* Stress chart */}
+      {/* Mood chart */}
       <motion.div
         className="rounded-2xl p-4 border border-border bg-card"
         style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
@@ -275,9 +321,9 @@ export default function StressTrends() {
         variants={cardVariants}
       >
         <div className="flex items-center gap-2 mb-4">
-          <Activity className="h-4 w-4" style={{ color: STRESS_ROSE }} />
+          <Smile className="h-4 w-4" style={{ color: MOOD_CYAN }} />
           <span className="text-sm font-semibold text-foreground">
-            Stress Over Time
+            Mood Over Time
           </span>
         </div>
 
@@ -288,10 +334,10 @@ export default function StressTrends() {
               margin={{ left: 0, right: 4, top: 4, bottom: 0 }}
             >
               <defs>
-                <linearGradient id="stressGradNew" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={STRESS_ROSE} stopOpacity={0.3} />
-                  <stop offset="50%" stopColor={STRESS_ROSE} stopOpacity={0.12} />
-                  <stop offset="100%" stopColor={STRESS_ROSE} stopOpacity={0} />
+                <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={MOOD_CYAN} stopOpacity={0.3} />
+                  <stop offset="50%" stopColor={MOOD_CYAN} stopOpacity={0.12} />
+                  <stop offset="100%" stopColor={MOOD_ROSE} stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <CartesianGrid
@@ -320,14 +366,14 @@ export default function StressTrends() {
                   fontSize: 11,
                   color: "hsl(220,12%,80%)",
                 }}
-                formatter={(v: number) => [`${v}%`, "Stress"]}
+                formatter={(v: number) => [`${v}`, "Mood"]}
               />
               <Area
                 type="natural"
                 dataKey="value"
-                name="Stress"
-                stroke={STRESS_ROSE}
-                fill="url(#stressGradNew)"
+                name="Mood"
+                stroke={MOOD_CYAN}
+                fill="url(#moodGrad)"
                 strokeWidth={2.5}
                 dot={false}
                 activeDot={false}
@@ -356,7 +402,7 @@ export default function StressTrends() {
           </span>
           <div className="space-y-3">
             {periodAverages.map((p) => {
-              const color = getStressColor(p.stress);
+              const color = getMoodColor(p.score);
               return (
                 <div key={p.period} className="flex items-center gap-3">
                   <PeriodIcon name={p.icon} />
@@ -366,7 +412,7 @@ export default function StressTrends() {
                       className="h-2 rounded-full"
                       style={{ backgroundColor: color }}
                       initial={{ width: 0 }}
-                      animate={{ width: `${p.stress}%` }}
+                      animate={{ width: `${p.score}%` }}
                       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                     />
                   </div>
@@ -374,7 +420,7 @@ export default function StressTrends() {
                     className="text-xs font-mono font-semibold w-10 text-right"
                     style={{ color }}
                   >
-                    {p.stress}%
+                    {p.score}
                   </span>
                 </div>
               );
@@ -383,16 +429,54 @@ export default function StressTrends() {
         </motion.div>
       )}
 
+      {/* Recent emotions */}
+      {recentEmotions.length > 0 && (
+        <motion.div
+          className="rounded-2xl p-4 border border-border bg-card"
+          style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
+          custom={3}
+          initial="hidden"
+          animate="visible"
+          variants={cardVariants}
+        >
+          <span className="text-sm font-semibold text-foreground mb-3 block">
+            Recent Feelings
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {recentEmotions.map((e, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5 bg-muted/30"
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{
+                    backgroundColor:
+                      EMOTION_COLORS[e.emotion.toLowerCase()] ?? "#94a3b8",
+                  }}
+                />
+                <span className="text-xs text-foreground capitalize">
+                  {e.emotion}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {e.time}
+                </span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Empty state */}
-      {chartData.length === 0 && stressPercent === null && (
+      {chartData.length === 0 && moodScore === null && (
         <div
           className="rounded-2xl p-8 border border-border bg-card text-center"
           style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
         >
-          <Activity className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+          <Smile className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground">
-            No stress data yet. Complete a voice check-in to start tracking your
-            stress patterns.
+            No mood data yet. Complete a voice check-in to start tracking how
+            you feel.
           </p>
         </div>
       )}

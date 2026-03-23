@@ -103,7 +103,7 @@ class FlowStateDetector:
         self.baseline_theta = bands.get("theta", 0.15)
         self._is_calibrated = True
 
-    def predict(self, eeg: np.ndarray, fs: float = 256.0, binary: bool = False) -> Dict:
+    def predict(self, eeg: np.ndarray, fs: float = 256.0, binary: bool = True) -> Dict:
         """Detect flow state from EEG signal.
 
         Accepts either a 1D single-channel signal or a 2D multichannel array
@@ -113,9 +113,9 @@ class FlowStateDetector:
         Args:
             eeg: Raw EEG signal (1D or 2D array).
             fs: Sampling frequency in Hz (default 256.0).
-            binary: If True, return binary flow/no-flow classification instead
-                of 4-state classification.  Binary mode is recommended for
-                higher reliability (~70-75% vs 62.86%).
+            binary: If True (default), return binary flow/no-flow classification
+                instead of 4-state classification.  Binary mode is recommended
+                for higher reliability (~70-75% vs 62.86%).
 
         Returns:
             Dict with 'state', 'flow_score', 'confidence',
@@ -339,11 +339,19 @@ class FlowStateDetector:
             flow_score = result["flow_score"]
             # Threshold at 0.45 — same as the moderate/shallow boundary
             is_flow = flow_score >= 0.45
+            detailed_state = result["state"]  # preserve 4-class label
             result["state"] = "flow" if is_flow else "no_flow"
             result["state_index"] = 1 if is_flow else 0
+            result["is_flow"] = is_flow
+            result["in_flow"] = is_flow  # alias for frontend compatibility
             result["flow_intensity"] = "flow" if is_flow else "none"
+            result["detailed_state"] = detailed_state
             result["binary_mode"] = True
+            result["model_type"] = "flow_binary"
         else:
+            result["is_flow"] = result.get("flow_score", 0) >= 0.45
+            result["in_flow"] = result["is_flow"]
             result["binary_mode"] = False
+            result["model_type"] = "flow_4class"
 
         return result

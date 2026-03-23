@@ -53,6 +53,7 @@ const StudyComplete      = lazy(() => import("@/pages/study/StudyComplete"));
 const StudyAdmin         = lazy(() => import("@/pages/study/StudyAdmin"));
 
 // ── New consolidated pages — lazy loaded ─────────────────────────────────────
+const MoodTrends             = lazy(() => import("@/pages/mood-trends"));
 const StressTrends           = lazy(() => import("@/pages/stress-trends"));
 const FocusTrends            = lazy(() => import("@/pages/focus-trends"));
 const SleepPage              = lazy(() => import("@/pages/sleep"));
@@ -242,7 +243,9 @@ function AppRoutes() {
       </Route>
       {/* Redirects for removed pages → brain */}
       <Route path="/emotions"><RedirectTo to="/brain-monitor" /></Route>
-      <Route path="/mood"><RedirectTo to="/brain-monitor" /></Route>
+      <Route path="/mood">
+        <ProtectedRoute><AppLayout><MoodTrends /></AppLayout></ProtectedRoute>
+      </Route>
       <Route path="/journal"><RedirectTo to="/brain-monitor" /></Route>
       {/* Bottom tab route aliases */}
       <Route path="/trends">

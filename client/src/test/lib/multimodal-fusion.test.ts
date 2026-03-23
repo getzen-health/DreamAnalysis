@@ -3,8 +3,11 @@ import {
   fuseModalities,
   recordFusionFeedback,
   loadLearnedMultipliers,
+  getModalityAccuracies,
+  updateModalityAccuracy,
   type ModalityInput,
   type FusedResult,
+  type ModalityAccuracy,
 } from "@/lib/multimodal-fusion";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -413,5 +416,152 @@ describe("weights transparency", () => {
     // Weights sum to 1
     const weightSum = Object.values(result!.weights).reduce((a, b) => a + b, 0);
     expect(weightSum).toBeCloseTo(1.0, 5);
+  });
+});
+
+// ── Learned modality accuracy tracking ──────────────────────────────────────
+
+describe("modality accuracy tracking", () => {
+  it("returns zeroed accuracies with no history", () => {
+    const acc = getModalityAccuracies();
+    expect(acc.eeg.correct).toBe(0);
+    expect(acc.eeg.total).toBe(0);
+    expect(acc.eeg.accuracy).toBe(0);
+    expect(acc.voice.correct).toBe(0);
+    expect(acc.voice.total).toBe(0);
+    expect(acc.health.correct).toBe(0);
+    expect(acc.health.total).toBe(0);
+  });
+
+  it("updateModalityAccuracy tracks correct/total correctly", () => {
+    updateModalityAccuracy("eeg", true);
+    updateModalityAccuracy("eeg", true);
+    updateModalityAccuracy("eeg", false);
+
+    const acc = getModalityAccuracies();
+    expect(acc.eeg.correct).toBe(2);
+    expect(acc.eeg.total).toBe(3);
+    expect(acc.eeg.accuracy).toBeCloseTo(2 / 3, 4);
+  });
+
+  it("tracks multiple modalities independently", () => {
+    updateModalityAccuracy("eeg", true);
+    updateModalityAccuracy("voice", false);
+    updateModalityAccuracy("health", true);
+    updateModalityAccuracy("health", true);
+
+    const acc = getModalityAccuracies();
+    expect(acc.eeg.correct).toBe(1);
+    expect(acc.eeg.total).toBe(1);
+    expect(acc.eeg.accuracy).toBeCloseTo(1.0, 4);
+
+    expect(acc.voice.correct).toBe(0);
+    expect(acc.voice.total).toBe(1);
+    expect(acc.voice.accuracy).toBeCloseTo(0.0, 4);
+
+    expect(acc.health.correct).toBe(2);
+    expect(acc.health.total).toBe(2);
+    expect(acc.health.accuracy).toBeCloseTo(1.0, 4);
+  });
+});
+
+describe("learned accuracy weights in fusion", () => {
+  it("with no history, fusion uses confidence weights (unchanged behavior)", () => {
+    const eeg = makeInput("eeg", { confidence: 0.85, valence: 0.5 });
+    const voice = makeInput("voice", { confidence: 0.72, valence: 0.3 });
+    const result = fuseModalities([eeg, voice]);
+
+    // No accuracy history, so weights should be pure confidence-based
+    const totalConf = 0.85 + 0.72;
+    expect(result!.weights["eeg"]).toBeCloseTo(0.85 / totalConf, 2);
+    expect(result!.weights["voice"]).toBeCloseTo(0.72 / totalConf, 2);
+  });
+
+  it("less than 5 corrections: still uses confidence (not enough data)", () => {
+    // Record only 4 corrections for EEG — below threshold
+    for (let i = 0; i < 4; i++) {
+      updateModalityAccuracy("eeg", true);
+    }
+
+    const eeg = makeInput("eeg", { confidence: 0.60, valence: 0.5 });
+    const voice = makeInput("voice", { confidence: 0.60, valence: 0.3 });
+    const result = fuseModalities([eeg, voice]);
+
+    // Both have same confidence and EEG has < 5 corrections, so weights should be equal
+    expect(result!.weights["eeg"]).toBeCloseTo(0.5, 2);
+    expect(result!.weights["voice"]).toBeCloseTo(0.5, 2);
+  });
+
+  it("after 10 corrections, fusion shifts toward accuracy weights", () => {
+    // EEG: 9/10 correct = 0.9 accuracy
+    for (let i = 0; i < 9; i++) updateModalityAccuracy("eeg", true);
+    updateModalityAccuracy("eeg", false);
+
+    // Voice: 5/10 correct = 0.5 accuracy
+    for (let i = 0; i < 5; i++) updateModalityAccuracy("voice", true);
+    for (let i = 0; i < 5; i++) updateModalityAccuracy("voice", false);
+
+    // Both start with same raw confidence of 0.70
+    const eeg = makeInput("eeg", { confidence: 0.70, valence: 0.8 });
+    const voice = makeInput("voice", { confidence: 0.70, valence: -0.3 });
+    const result = fuseModalities([eeg, voice]);
+
+    // EEG should get more weight because its learned accuracy (0.9) is higher
+    expect(result!.weights["eeg"]).toBeGreaterThan(result!.weights["voice"]);
+  });
+
+  it("modality with higher accuracy gets more weight even with lower confidence", () => {
+    // Voice: very high accuracy (10/10)
+    for (let i = 0; i < 10; i++) updateModalityAccuracy("voice", true);
+
+    // Health: very low accuracy (2/10)
+    for (let i = 0; i < 2; i++) updateModalityAccuracy("health", true);
+    for (let i = 0; i < 8; i++) updateModalityAccuracy("health", false);
+
+    // Voice has LOW raw confidence but HIGH accuracy
+    // Health has HIGH raw confidence but LOW accuracy
+    const voice = makeInput("voice", { confidence: 0.40, valence: 0.5 });
+    const health = makeInput("health", { confidence: 0.90, valence: -0.2 });
+    const result = fuseModalities([voice, health]);
+
+    // Voice should dominate due to its learned accuracy despite lower raw confidence
+    expect(result!.weights["voice"]).toBeGreaterThan(result!.weights["health"]);
+  });
+
+  it("accuracy influences fusion output (valence shifts toward accurate modality)", () => {
+    // EEG: perfect accuracy
+    for (let i = 0; i < 10; i++) updateModalityAccuracy("eeg", true);
+
+    // Voice: terrible accuracy
+    for (let i = 0; i < 10; i++) updateModalityAccuracy("voice", false);
+
+    // EEG says very positive, voice says very negative, same raw confidence
+    const eeg = makeInput("eeg", { confidence: 0.60, valence: 0.8, emotion: "happy" });
+    const voice = makeInput("voice", { confidence: 0.60, valence: -0.8, emotion: "sad" });
+    const result = fuseModalities([eeg, voice]);
+
+    // Fused valence should be positive (closer to EEG) since EEG is trusted more
+    expect(result!.valence).toBeGreaterThan(0);
+  });
+});
+
+describe("recordFusionFeedback updates modality accuracy", () => {
+  it("updates accuracy for each active source based on emotion match", () => {
+    const sources: ModalityInput[] = [
+      makeInput("eeg", { emotion: "happy" }),
+      makeInput("voice", { emotion: "happy" }),
+      makeInput("health", { emotion: "sad" }),
+    ];
+
+    // User says emotion was "happy" — eeg and voice were correct, health was wrong
+    recordFusionFeedback("happy", "happy", sources);
+
+    const acc = getModalityAccuracies();
+    expect(acc.eeg.correct).toBe(1);
+    expect(acc.eeg.total).toBe(1);
+    expect(acc.voice.correct).toBe(1);
+    expect(acc.voice.total).toBe(1);
+    expect(acc.health.correct).toBe(0);
+    expect(acc.health.total).toBe(1);
   });
 });

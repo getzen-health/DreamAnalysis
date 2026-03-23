@@ -39,7 +39,22 @@ export interface FusedResult {
 
 type LearnedMultipliers = Record<string, number>;
 
+export interface ModalityAccuracyEntry {
+  correct: number;
+  total: number;
+  accuracy: number;
+}
+
+export interface ModalityAccuracy {
+  eeg: ModalityAccuracyEntry;
+  voice: ModalityAccuracyEntry;
+  health: ModalityAccuracyEntry;
+  lastUpdated: string;
+}
+
 const STORAGE_KEY = "ndw_fusion_weights";
+const ACCURACY_STORAGE_KEY = "ndw_modality_accuracy";
+const ACCURACY_MIN_SAMPLES = 5;
 const BOOST_STEP = 0.05;
 const DECAY_STEP = 0.02;
 
@@ -69,6 +84,59 @@ export function loadLearnedMultipliers(): LearnedMultipliers {
 function saveLearnedMultipliers(m: LearnedMultipliers): void {
   try {
     sbSaveGeneric(STORAGE_KEY, m);
+  } catch { /* localStorage full or unavailable */ }
+}
+
+// ── Learned modality accuracy tracking ─────────────────────────────────────
+
+function emptyAccuracyEntry(): ModalityAccuracyEntry {
+  return { correct: 0, total: 0, accuracy: 0 };
+}
+
+/**
+ * Load per-modality accuracy stats from localStorage.
+ * Returns zeroed entries if no history exists.
+ */
+export function getModalityAccuracies(): ModalityAccuracy {
+  try {
+    const raw = sbGetSetting(ACCURACY_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        eeg: parsed.eeg ?? emptyAccuracyEntry(),
+        voice: parsed.voice ?? emptyAccuracyEntry(),
+        health: parsed.health ?? emptyAccuracyEntry(),
+        lastUpdated: parsed.lastUpdated ?? new Date().toISOString(),
+      };
+    }
+  } catch { /* corrupted — start fresh */ }
+  return {
+    eeg: emptyAccuracyEntry(),
+    voice: emptyAccuracyEntry(),
+    health: emptyAccuracyEntry(),
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+/**
+ * Update the running accuracy for a single modality.
+ *
+ * @param source - "eeg" | "voice" | "health"
+ * @param wasCorrect - whether that modality's individual prediction matched the user's correction
+ */
+export function updateModalityAccuracy(source: string, wasCorrect: boolean): void {
+  const acc = getModalityAccuracies();
+  const entry = acc[source as keyof Pick<ModalityAccuracy, "eeg" | "voice" | "health">];
+  if (!entry) return;
+
+  entry.total += 1;
+  if (wasCorrect) entry.correct += 1;
+  entry.accuracy = entry.total > 0 ? entry.correct / entry.total : 0;
+
+  acc.lastUpdated = new Date().toISOString();
+
+  try {
+    sbSaveGeneric(ACCURACY_STORAGE_KEY, acc);
   } catch { /* localStorage full or unavailable */ }
 }
 
@@ -142,12 +210,22 @@ export function fuseModalities(inputs: ModalityInput[]): FusedResult | null {
   if (inputs.length === 0) return null;
 
   const multipliers = loadLearnedMultipliers();
+  const learned = getModalityAccuracies();
 
-  // Compute effective confidence for each modality
-  const effective: { input: ModalityInput; effConf: number }[] = inputs.map((input) => ({
-    input,
-    effConf: input.confidence * (multipliers[input.source] ?? 1.0),
-  }));
+  // Compute effective confidence for each modality.
+  // Blend learned accuracy into confidence: 70% learned accuracy + 30% raw confidence.
+  // Only activates once a modality has >= ACCURACY_MIN_SAMPLES corrections.
+  const effective: { input: ModalityInput; effConf: number; blendedConf: number }[] = inputs.map((input) => {
+    const entry = learned[input.source as keyof Pick<ModalityAccuracy, "eeg" | "voice" | "health">];
+    const blendedConf = (entry && entry.total >= ACCURACY_MIN_SAMPLES)
+      ? 0.7 * entry.accuracy + 0.3 * input.confidence
+      : input.confidence;
+    return {
+      input,
+      blendedConf,
+      effConf: blendedConf * (multipliers[input.source] ?? 1.0),
+    };
+  });
 
   // Normalize weights to sum to 1
   const totalEffConf = effective.reduce((sum, e) => sum + e.effConf, 0);
@@ -248,6 +326,12 @@ export function recordFusionFeedback(
   sources: ModalityInput[],
 ): void {
   if (sources.length === 0) return;
+
+  // Update per-modality accuracy: was each source's individual emotion correct?
+  for (const s of sources) {
+    const wasCorrect = s.emotion === userCorrectedEmotion;
+    updateModalityAccuracy(s.source, wasCorrect);
+  }
 
   const targetValence = EMOTION_VALENCE_MAP[userCorrectedEmotion] ?? 0;
 
