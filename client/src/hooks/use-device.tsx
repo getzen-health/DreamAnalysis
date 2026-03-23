@@ -28,6 +28,7 @@ import {
   computeBleBackoffDelay,
   type BleReconnectState,
 } from "@/lib/ble-reconnect";
+import { saveEmotionHistory } from "@/lib/supabase-store";
 
 type DeviceState = "disconnected" | "connecting" | "connected" | "streaming";
 
@@ -521,6 +522,14 @@ function useDeviceInternal(): UseDeviceReturn {
                     timestamp: now,
                   }));
                   window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
+                  // Fire-and-forget: sync EEG emotion to Supabase emotion_history
+                  saveEmotionHistory(userIdRef.current, {
+                    stress: Number(emotions.stress_index ?? 0.5),
+                    focus: Number(emotions.focus_index ?? 0.5),
+                    mood: Number(emotions.valence ?? 0),
+                    source: "eeg",
+                    dominantEmotion: String(emotions.emotion),
+                  }).catch(() => {});
                 } catch { /* storage quota */ }
               }
             }
