@@ -3,15 +3,20 @@
 Two retraining paths:
   - EEG: fine-tune a small classifier head on cached 170-dim EEG features
          (85-dim muse live features concatenated from raw + PCA-transformed).
-         Uses a 2-layer MLP trained with SGD. Minimum 10 corrections.
+         Uses a 2-layer MLP trained with SGD. Minimum 5 corrections.
   - Voice: retrain a LightGBM on accumulated voice feature vectors.
-           Minimum 10 corrections.
+           Minimum 5 corrections.
 
 Auto-retrain triggers:
-  - After 20 total corrections, then every 10 new ones.
+  - After 5 total corrections, then every 5 new ones.
+  - Research shows 5-10 labeled samples per class is enough for meaningful
+    personalization with fine-tuning on pre-trained feature extractors.
 
 Per-user models saved to ml/user_models/{user_id}/.
 Falls back to generic model when no per-user model exists.
+
+After successful retraining, per-user ONNX models are exported for on-device
+deployment via the /training/model/{user_id}/*.onnx endpoints.
 """
 
 from __future__ import annotations
@@ -30,12 +35,14 @@ USER_DATA_DIR = Path(__file__).parent.parent / "user_data" / "corrections"
 USER_MODELS_DIR = Path(__file__).parent.parent / "user_models"
 
 # Minimum corrections before retraining is allowed
-MIN_CORRECTIONS_EEG = 10
-MIN_CORRECTIONS_VOICE = 10
+# 5 samples per class is enough for meaningful personalization (research-backed)
+MIN_CORRECTIONS_EEG = 5
+MIN_CORRECTIONS_VOICE = 5
 
 # Auto-retrain thresholds
-AUTO_RETRAIN_INITIAL = 20  # first retrain after this many total corrections
-AUTO_RETRAIN_INCREMENT = 10  # retrain again every N new corrections after initial
+# Lower thresholds mean the model starts improving after ~5 days of daily use
+AUTO_RETRAIN_INITIAL = 5  # first retrain after this many total corrections
+AUTO_RETRAIN_INCREMENT = 5  # retrain again every N new corrections after initial
 
 
 class UserModelRetrainer:

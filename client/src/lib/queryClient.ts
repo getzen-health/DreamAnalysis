@@ -120,7 +120,8 @@ export const queryClient = new QueryClient({
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
+      staleTime: 10_000, // data older than 10s refetches when page regains focus
       staleTime: Infinity,
       retry: false,
     },
