@@ -87,10 +87,21 @@ export function BrainAgeCard() {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [askingAge, setAskingAge] = useState(false);
 
-  // Refresh from localStorage on mount (in case another component wrote it)
+  // Refresh on mount + listen for EEG updates so brain age appears live
   useEffect(() => {
-    const stored = getStoredBrainAge();
-    if (stored) setBrainAge(stored);
+    const refresh = () => {
+      const stored = getStoredBrainAge();
+      if (stored) setBrainAge(stored);
+    };
+    refresh();
+    window.addEventListener("ndw-eeg-updated", refresh);
+    window.addEventListener("ndw-voice-updated", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("ndw-eeg-updated", refresh);
+      window.removeEventListener("ndw-voice-updated", refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, []);
 
   // ── Age prompt ─────────────────────────────────────────────────────────

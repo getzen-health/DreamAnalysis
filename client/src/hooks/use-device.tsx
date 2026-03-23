@@ -667,6 +667,12 @@ function useDeviceInternal(): UseDeviceReturn {
             new CustomEvent("eeg-signals", { detail: frame.signals })
           );
           setLatestFrame(frame as EEGStreamFrame);
+          // Compute brain age from synthetic band powers
+          if (frame.band_powers) {
+            import("@/lib/brain-age").then(({ computeAndCacheBrainAge }) => {
+              computeAndCacheBrainAge(frame.band_powers!);
+            }).catch(() => {});
+          }
         }, 1500);
 
         // Store interval ID so disconnect can clear it
