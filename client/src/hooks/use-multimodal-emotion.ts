@@ -27,6 +27,8 @@ import {
 } from "@/lib/personal-adapter";
 import { EEGNET_EMOTIONS } from "@/lib/eegnet-utils";
 import { sbGetSetting } from "../lib/supabase-store";
+import { recordCorrection } from "@/lib/feedback-sync";
+import { getParticipantId } from "@/lib/participant";
 
 export interface UseMultimodalEmotionReturn {
   emotion: FusedResult | null;
@@ -191,6 +193,14 @@ export function useMultimodalEmotion(): UseMultimodalEmotionReturn {
           const updated = updateFromCorrection(adapter, predictedIdx, correctIdx);
           savePersonalAdapter(updated);
         }
+
+        // Persist correction to Supabase + ML backend
+        recordCorrection({
+          userId: getParticipantId(),
+          predictedEmotion: fusedEmotion.emotion,
+          correctedEmotion: userCorrectedEmotion,
+          source: "manual",
+        }).catch(() => {});
 
         // Recompute immediately with updated multipliers
         recompute();

@@ -519,7 +519,9 @@ async function pullAppleHealth(userId: string): Promise<PullResult> {
 // ── Android Google Health Connect data pull ───────────────────────────────────
 
 async function pullAndroidHealth(userId: string): Promise<PullResult> {
-  const { Health } = await import("capacitor-health");
+  // Use @capgo/capacitor-health which supports heartRate, sleep, HRV, weight, etc.
+  const capgoModule = await import("@capgo/capacitor-health");
+  const HC = capgoModule.CapgoHealth;
 
   const payload: BiometricPayload = { user_id: userId };
   const diagnostics: string[] = [];
@@ -528,53 +530,23 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
   todayStart.setHours(0, 0, 0, 0);
   const fmt = (d: Date) => d.toISOString();
 
-  // ── Heart rate — try direct query first, fall back to workouts ──
-  try {
-    const hr = await Health.queryAggregated({
-      startDate: fmt(new Date(now.getTime() - 4 * 60 * 60 * 1000)),
-      endDate: fmt(now),
-      dataType: "heart-rate",
-      bucket: "HOUR",
-    });
-    if (hr.aggregatedData.length > 0) {
-      const latest = hr.aggregatedData[hr.aggregatedData.length - 1];
-      if (latest.value > 0) payload.current_heart_rate = Math.round(latest.value);
-      diagnostics.push(`heart-rate: ${hr.aggregatedData.length} records`);
-    } else {
-      diagnostics.push("heart-rate: 0 records");
-    }
-  } catch (e) { diagnostics.push(`heart-rate: FAILED (${String(e).slice(0, 80)})`); }
-
-  if (!payload.current_heart_rate) {
+  // Helper: read latest samples for a data type
+  async function readLatest(dataType: string, hoursBack: number = 24): Promise<number | null> {
     try {
-      const workouts = await Health.queryWorkouts({
-        startDate: fmt(new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+      const result = await HC.readSamples({
+        dataType: dataType as any,
+        startDate: fmt(new Date(now.getTime() - hoursBack * 3600000)),
         endDate: fmt(now),
-        includeHeartRate: true,
-        includeRoute: false,
-        includeSteps: false,
+        limit: 10,
       });
-      if (workouts.workouts.length > 0) {
-        const latest = workouts.workouts[workouts.workouts.length - 1];
-        if (latest.heartRate && latest.heartRate.length > 0) {
-          const hrSamples = latest.heartRate.map((h: { bpm: number }) => h.bpm).filter((v: number) => v > 0);
-          if (hrSamples.length > 0) {
-            payload.current_heart_rate = hrSamples[hrSamples.length - 1];
-          }
-        }
+      const samples = result?.samples ?? [];
+      if (samples.length > 0) {
+        const latest = samples[samples.length - 1];
+        const val = latest.value ?? latest.quantity ?? 0;
+        diagnostics.push(`${dataType}: ${samples.length} samples, latest=${val}`);
+        return val;
       }
-    } catch (e) { diagnostics.push(`heart-rate-workouts: FAILED (${String(e).slice(0, 80)})`); }
-  }
-
-  // Helper to query + diagnose each data type
-  async function queryType(dataType: string, bucket: "DAY" | "HOUR", start: Date, end: Date): Promise<number | null> {
-    try {
-      const result = await Health.queryAggregated({ startDate: fmt(start), endDate: fmt(end), dataType: dataType as any, bucket });
-      if (result.aggregatedData.length > 0 && result.aggregatedData[0].value > 0) {
-        diagnostics.push(`${dataType}: ${result.aggregatedData.length} records, latest=${result.aggregatedData[result.aggregatedData.length - 1].value}`);
-        return result.aggregatedData[result.aggregatedData.length - 1].value;
-      }
-      diagnostics.push(`${dataType}: 0 records (empty or zero)`);
+      diagnostics.push(`${dataType}: 0 samples`);
       return null;
     } catch (e) {
       diagnostics.push(`${dataType}: FAILED (${String(e).slice(0, 80)})`);
@@ -582,30 +554,77 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
     }
   }
 
-  // Query all data types
-  const rhr = await queryType("resting-heart-rate", "DAY", todayStart, now);
-  if (rhr) payload.resting_heart_rate = Math.round(rhr);
+  // Heart rate
+  const hr = await readLatest("heartRate", 4);
+  if (hr && hr > 0) payload.current_heart_rate = Math.round(hr);
 
-  const sleep = await queryType("sleep", "DAY", new Date(now.getTime() - 24 * 3600000), now);
-  if (sleep) payload.sleep_total_hours = sleep / 60;
+  // Resting heart rate
+  const rhr = await readLatest("restingHeartRate", 48);
+  if (rhr && rhr > 0) payload.resting_heart_rate = Math.round(rhr);
 
-  const dist = await queryType("distance", "DAY", todayStart, now);
-  if (dist) payload.walking_distance_km = dist / 1000;
+  // HRV
+  const hrv = await readLatest("heartRateVariability", 48);
+  if (hrv && hrv > 0) payload.hrv_rmssd = hrv;
 
-  const steps = await queryType("steps", "DAY", todayStart, now);
-  if (steps) payload.steps_today = steps;
+  // Sleep
+  const sleep = await readLatest("sleep", 24);
+  if (sleep && sleep > 0) payload.sleep_total_hours = sleep / 60;
 
-  const cals = await queryType("active-calories", "DAY", todayStart, now);
-  if (cals) payload.active_energy_kcal = cals;
+  // Steps (use queryAggregated for steps — it's supported)
+  try {
+    const stepsResult = await HC.queryAggregated({
+      dataType: "steps" as any,
+      startDate: fmt(todayStart),
+      endDate: fmt(now),
+      bucket: "DAY",
+    });
+    if (stepsResult?.aggregatedData?.length > 0 && stepsResult.aggregatedData[0].value > 0) {
+      payload.steps_today = stepsResult.aggregatedData[0].value;
+      diagnostics.push(`steps: ${payload.steps_today}`);
+    } else {
+      diagnostics.push("steps: 0");
+    }
+  } catch (e) { diagnostics.push(`steps: FAILED (${String(e).slice(0, 80)})`); }
 
-  const mind = await queryType("mindfulness", "DAY", todayStart, now);
-  if (mind) payload.exercise_minutes_today = mind;
+  // Active calories
+  try {
+    const calsResult = await HC.queryAggregated({
+      dataType: "calories" as any,
+      startDate: fmt(todayStart),
+      endDate: fmt(now),
+      bucket: "DAY",
+    });
+    if (calsResult?.aggregatedData?.length > 0 && calsResult.aggregatedData[0].value > 0) {
+      payload.active_calories = Math.round(calsResult.aggregatedData[0].value);
+      diagnostics.push(`calories: ${payload.active_calories}`);
+    }
+  } catch (e) { diagnostics.push(`calories: FAILED (${String(e).slice(0, 80)})`); }
 
-  const weight = await queryType("weight", "DAY", new Date(now.getTime() - 24 * 3600000), now);
-  if (weight) payload.weight_kg = weight;
+  // SpO2
+  const spo2 = await readLatest("oxygenSaturation", 24);
+  if (spo2 && spo2 > 0) payload.spo2 = spo2;
 
-  const bf = await queryType("body-fat", "DAY", new Date(now.getTime() - 24 * 3600000), now);
-  if (bf) payload.body_fat_pct = bf;
+  // Weight
+  const weight = await readLatest("weight", 168); // last week
+  if (weight && weight > 0) payload.weight_kg = weight;
+
+  // Body fat
+  const bodyFat = await readLatest("bodyFat", 168);
+  if (bodyFat && bodyFat > 0) payload.body_fat_pct = bodyFat;
+
+  // Distance
+  const dist = await readLatest("distance", 24);
+  if (dist && dist > 0) payload.walking_distance_km = dist / 1000;
+
+  // Respiratory rate
+  const rr = await readLatest("respiratoryRate", 24);
+  if (rr && rr > 0) payload.respiratory_rate = rr;
+
+  // Blood pressure
+  const bpSys = await readLatest("bloodPressure", 168);
+  if (bpSys && bpSys > 0) payload.blood_pressure_systolic = bpSys;
+
+  if (payload.active_calories) payload.active_energy_kcal = payload.active_calories;
 
   // Store diagnostics so UI can show what happened
   (payload as any)._diagnostics = diagnostics;
@@ -647,20 +666,23 @@ async function requestPermissionsIos(): Promise<void> {
 }
 
 async function requestPermissionsAndroid(): Promise<void> {
-  const { Health } = await import("capacitor-health");
-  await Health.requestHealthPermissions({
-    permissions: [
-      "READ_HEART_RATE",
-      "READ_STEPS",
-      "READ_ACTIVE_CALORIES",
-      "READ_WORKOUTS",
-      "READ_MINDFULNESS",
-      "READ_WEIGHT",
-      "READ_BODY_FAT",
-      "READ_SLEEP",
-      "READ_RESTING_HEART_RATE",
-      "READ_DISTANCE",
+  const capgoModule = await import("@capgo/capacitor-health");
+  await capgoModule.CapgoHealth.requestAuthorization({
+    read: [
+      "heartRate",
+      "restingHeartRate",
+      "heartRateVariability",
+      "steps",
+      "calories",
+      "distance",
+      "sleep",
+      "oxygenSaturation",
+      "weight",
+      "bodyFat",
+      "respiratoryRate",
+      "bloodPressure",
     ],
+    write: [],
   });
 }
 

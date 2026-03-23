@@ -17,6 +17,7 @@ import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
 import { loadPersonalAdapter, resetPersonalAdapter, getPersonalizationStats } from "@/lib/personal-adapter";
 import { NotificationPrefsSheet } from "@/components/notification-prefs-sheet";
 import { Zap } from "lucide-react";
+import { getCorrectionCount } from "@/lib/feedback-sync";
 import { InterventionTriggerSettings } from "@/components/intervention-trigger-settings";
 import { sbGetSetting } from "../lib/supabase-store";
 
@@ -217,6 +218,12 @@ export default function You() {
   const [chronotype, setChronotype] = useState<ChronotypeCategory | null>(
     () => getStoredChronotype()?.category ?? null,
   );
+
+  // Supabase correction count for training pipeline display
+  const [supabaseCorrectionCount, setSupabaseCorrectionCount] = useState(0);
+  useEffect(() => {
+    getCorrectionCount(userId).then(setSupabaseCorrectionCount).catch(() => {});
+  }, [userId]);
 
   // Sessions from ML backend (Railway) — where voice check-in data actually lives
   const { data: sessionList } = useQuery<SessionSummary[]>({
@@ -446,6 +453,25 @@ export default function You() {
           </button>
         )}
       </div>
+
+      {/* Training Pipeline Stats */}
+      {supabaseCorrectionCount > 0 && (
+        <div style={{
+          padding: "10px 16px",
+          background: "var(--card)",
+          borderRadius: 12,
+          marginBottom: 8,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
+            {supabaseCorrectionCount} correction{supabaseCorrectionCount !== 1 ? "s" : ""} submitted
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+            {supabaseCorrectionCount >= 5
+              ? "Model improving with your feedback"
+              : `${5 - supabaseCorrectionCount} more correction${5 - supabaseCorrectionCount !== 1 ? "s" : ""} until model retraining`}
+          </div>
+        </div>
+      )}
 
       {/* Activity Section */}
       <SectionLabel>Activity</SectionLabel>

@@ -223,6 +223,7 @@ from .device_adapters import router as _device_adapters
 from .emotion_forecaster import router as _emotion_forecaster
 from .pilot_validation import router as _pilot_validation
 from .user_data_sync import router as _user_data_sync
+from .training_sync import router as _training_sync
 
 router = APIRouter()
 
@@ -415,3 +416,4 @@ router.include_router(_device_adapters)
 router.include_router(_emotion_forecaster)
 router.include_router(_pilot_validation)
 router.include_router(_user_data_sync)
+router.include_router(_training_sync)

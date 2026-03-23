@@ -21,6 +21,7 @@ import { getCycleData, getFoodLogs as sbGetFoodLogs, sbGetSetting, sbSaveGeneric
 import { fetchWeather, buildMoodContext, type WeatherData, type WeatherMoodContext } from "@/lib/weather-context";
 import { getCurrentCyclePhase, getCyclePhaseContext, type CyclePhaseContext } from "@/lib/cycle-phase-adjustment";
 import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, HelpCircle } from "lucide-react";
+import { recordCorrection } from "@/lib/feedback-sync";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -842,6 +843,13 @@ export default function Today() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ correctedEmotion: checkin.emotion }),
       }).catch(() => {});
+      // Persist confirmed emotion to Supabase (prediction matched reality)
+      recordCorrection({
+        userId,
+        predictedEmotion: checkin.emotion,
+        correctedEmotion: checkin.emotion,
+        source: "voice",
+      }).catch(() => {});
     }
   }, [userId, checkin]);
 
@@ -853,6 +861,13 @@ export default function Today() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ correctedEmotion: emotion }),
     }).catch((err) => console.error("Failed to save emotion correction:", err));
+    // Persist correction to Supabase + ML backend
+    recordCorrection({
+      userId,
+      predictedEmotion: checkin?.emotion ?? "unknown",
+      correctedEmotion: emotion,
+      source: "voice",
+    }).catch(() => {});
     // Record fusion feedback — adapts per-modality weights for this user
     correctFusedEmotion(emotion);
     // Update local emotion display so the card reflects the correction immediately

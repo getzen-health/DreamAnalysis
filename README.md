@@ -1,77 +1,343 @@
 # AntarAI
 
-A multimodal AI health platform that fuses EEG brain data, voice analysis, and health device sync (Withings, Oura, WHOOP, Garmin) to track emotions, stress, focus, sleep, nutrition, and wellness — with 16 ML models running on-device and in the cloud.
+A multimodal AI health platform that fuses EEG brain data, voice analysis, and health device sync (Withings, Oura, WHOOP, Garmin) to track emotions, stress, focus, sleep, nutrition, and wellness -- with 16 ML models running on-device and in the cloud.
 
-**73 pages | 16 ML models | 3 data sources | Supabase backend | Capacitor mobile app**
-
----
-
-## Architecture
-
-```
-                          ┌─────────────────────────────────────┐
-                          │         AntarAI Mobile App          │
-                          │    React 18 + TypeScript + Capacitor │
-                          │         73 pages, shadcn/ui          │
-                          └──────────┬──────────┬───────────────┘
-                                     │          │
-                    ┌────────────────┘          └────────────────┐
-                    ▼                                            ▼
-          ┌─────────────────┐                        ┌──────────────────┐
-          │   Supabase       │                        │   FastAPI ML     │
-          │   PostgreSQL     │                        │   Backend :8080  │
-          │                  │                        │                  │
-          │ • 9 data tables  │                        │ • 16 ML models   │
-          │ • user_settings  │                        │ • EEG processing │
-          │ • generic_store  │                        │ • Voice analysis │
-          │ • Auth (JWT)     │                        │ • 76+ endpoints  │
-          │ • RLS per user   │                        │ • API key auth   │
-          │ • Edge Functions │                        │ • Rate limiting  │
-          └─────────────────┘                        └────────┬─────────┘
-                                                              │
-                                                     ┌────────┴────────┐
-                                                     │   Data Sources   │
-                                                     │                  │
-                                                     │ • Muse 2/S (BLE)│
-                                                     │ • Voice (mic)    │
-                                                     │ • Health Connect │
-                                                     │ • Apple HealthKit│
-                                                     │ • Withings       │
-                                                     │ • Oura / WHOOP   │
-                                                     └─────────────────┘
-```
+**72 pages | 16 ML models | 3 data sources | Supabase backend | Capacitor mobile app**
 
 ---
 
-## Data Flow — Three Input Sources
+## System Architecture
 
+```mermaid
+graph TB
+    subgraph Mobile["Mobile App (React 18 + Capacitor)"]
+        UI[72 Pages / shadcn-ui]
+        Hooks[Custom Hooks<br/>auth, device, fusion, consent]
+        Cache[localStorage + Sync Queue]
+    end
+
+    subgraph Data["Data Sources"]
+        EEG[Muse 2 / Muse S<br/>4-ch EEG via BLE]
+        Voice[Voice Mic<br/>30-sec recordings]
+        HC[Health Connect<br/>Apple HealthKit]
+        Wearables[Withings / Oura<br/>WHOOP / Garmin]
+    end
+
+    subgraph Supabase["Supabase"]
+        Auth[Auth - JWT + RLS]
+        DB[(PostgreSQL<br/>12 tables)]
+        Edge[Edge Functions<br/>score compute, health ingest]
+    end
+
+    subgraph ML["ML Backend (FastAPI :8080)"]
+        Models[16 ML Models<br/>EEGNet, LightGBM, PyTorch]
+        Pipeline[EEG Signal Processing<br/>12 modules]
+        VoiceML[Voice Biomarkers<br/>eGeMAPS + emotion2vec]
+        API[76+ REST Endpoints<br/>+ WebSocket]
+    end
+
+    Hosting[Vercel - Frontend Hosting]
+
+    EEG -->|BLE 256 Hz| UI
+    Voice -->|MediaRecorder| UI
+    HC -->|Capacitor Plugin| Hooks
+    Wearables -->|OAuth API| Edge
+
+    UI --> Hooks
+    Hooks -->|REST + WS| API
+    Hooks -->|REST| Auth
+    Cache -->|Offline Sync| DB
+
+    API --> Models
+    API --> Pipeline
+    API --> VoiceML
+
+    Edge --> DB
+    Auth --> DB
+    Mobile -->|Deploy| Hosting
 ```
-┌──────────┐     ┌──────────┐     ┌───────────────┐
-│  EEG     │     │  Voice   │     │ Health Sync   │
-│ Muse 2/S │     │  Mic     │     │ Withings/Oura │
-│ 256 Hz   │     │ 30 sec   │     │ HR/Sleep/Steps│
-└────┬─────┘     └────┬─────┘     └──────┬────────┘
-     │                │                   │
-     ▼                ▼                   ▼
-┌────────────────────────────────────────────────┐
-│              Data Fusion Bus                    │
-│  EEG: 50% weight | Voice: 35% | Health: 15%   │
-│  Stale readings (>5 min) discounted 50%        │
-│  + Circadian adjustment + Cycle phase adjust   │
-└────────────────────────┬───────────────────────┘
-                         │
-                         ▼
-              ┌─────────────────┐
-              │  Unified State   │
-              │ stress, focus,   │
-              │ mood, valence,   │
-              │ arousal, emotion │
-              └────────┬────────┘
-                       │
-            ┌──────────┼──────────┐
-            ▼          ▼          ▼
-         Today     Discover    Health
-         Page       Page       Page
+
+---
+
+## Data Fusion Architecture
+
+```mermaid
+graph LR
+    subgraph Inputs
+        EEG["EEG (Muse 2/S)<br/>256 Hz, 4 channels"]
+        Voice["Voice (Mic)<br/>30-sec sample"]
+        Health["Health Sync<br/>HR, Sleep, Steps"]
+    end
+
+    subgraph Fusion["Data Fusion Bus"]
+        direction TB
+        Weights["Source Weights<br/>EEG 50% | Voice 35% | Health 15%"]
+        Stale["Stale Discount<br/>>5 min = 50% weight reduction"]
+        Adjust["Circadian + Cycle Phase<br/>Adjustment"]
+    end
+
+    subgraph State["Unified State"]
+        Stress[Stress Index]
+        Focus[Focus Index]
+        Mood[Mood Score]
+        Valence[Valence -1..+1]
+        Arousal[Arousal 0..1]
+        Emotion[Emotion Label]
+    end
+
+    subgraph Pages["UI Pages"]
+        Today[Today]
+        Discover[Discover]
+        HealthP[Health Analytics]
+        Scores[Scores Dashboard]
+    end
+
+    EEG --> Weights
+    Voice --> Weights
+    Health --> Weights
+    Weights --> Stale --> Adjust
+    Adjust --> Stress & Focus & Mood & Valence & Arousal & Emotion
+    Stress --> Today & Discover & HealthP & Scores
+    Focus --> Today & Discover & HealthP & Scores
+    Mood --> Today & Discover & HealthP & Scores
+```
+
+---
+
+## EEG Signal Processing Pipeline
+
+```mermaid
+graph TD
+    Raw["Raw Muse 2 EEG<br/>256 Hz, 4 channels, uV"]
+    Reref["Mastoid Re-reference<br/>AF7/AF8 re-ref to avg(TP9, TP10)"]
+    BP["Bandpass Filter<br/>Butterworth 1-50 Hz, order 5"]
+    Notch["Notch Filters<br/>50 Hz (EU) + 60 Hz (US)"]
+    Artifact["Artifact Detection<br/>75 uV threshold, kurtosis > 10"]
+    Buffer["Epoch Buffer<br/>4-sec sliding window, 50% overlap"]
+
+    subgraph Features["Feature Extraction"]
+        Band["Band Powers<br/>delta, theta, alpha, beta, gamma"]
+        FAA["Frontal Alpha Asymmetry<br/>ln(AF8) - ln(AF7)"]
+        DASM["DASM / RASM<br/>10 asymmetry features"]
+        FMT["Frontal Midline Theta<br/>ACC/mPFC activity"]
+        Hjorth["Hjorth Parameters<br/>activity, mobility, complexity"]
+        Entropy["Spectral + Differential Entropy"]
+    end
+
+    subgraph Models["16 ML Models"]
+        Emotion["Emotion Classifier<br/>EEGNet 4-ch, 85% CV"]
+        Sleep["Sleep Staging<br/>92.98% accuracy"]
+        Dream["Dream Detector<br/>82-88% est."]
+        FlowM["Flow State<br/>62.86%"]
+        StressM["Stress Detector<br/>4 levels"]
+        Others["Attention, Meditation,<br/>Drowsiness, Cognitive Load,<br/>Lucid Dream, Brain Age,<br/>Anomaly, Artifact,<br/>Denoising, Online Learner"]
+    end
+
+    StateEngine["State Engine<br/>valence, arousal, stress,<br/>focus, emotion label"]
+    UIOut["UI Components<br/>charts, gauges, scores"]
+
+    Raw --> Reref --> BP --> Notch --> Artifact --> Buffer
+    Buffer --> Band & FAA & DASM & FMT & Hjorth & Entropy
+    Band --> Emotion & Sleep & Dream & FlowM & StressM & Others
+    FAA --> Emotion
+    DASM --> Emotion
+    FMT --> Emotion
+    Hjorth --> Emotion & Others
+    Entropy --> Others
+    Emotion & Sleep & Dream & FlowM & StressM & Others --> StateEngine --> UIOut
+```
+
+---
+
+## Database Schema (Supabase)
+
+```mermaid
+erDiagram
+    mood_logs {
+        uuid id PK
+        text user_id
+        int mood
+        int energy
+        text notes
+        timestamptz created_at
+    }
+
+    voice_history {
+        uuid id PK
+        text user_id
+        text emotion
+        numeric stress
+        numeric focus
+        numeric valence
+        numeric arousal
+        timestamptz created_at
+    }
+
+    emotion_history {
+        uuid id PK
+        text user_id
+        numeric stress
+        numeric focus
+        numeric mood
+        text source
+        timestamptz created_at
+    }
+
+    food_logs {
+        uuid id PK
+        text user_id
+        text summary
+        numeric calories
+        numeric protein
+        numeric carbs
+        numeric fat
+        numeric food_quality_score
+        timestamptz created_at
+    }
+
+    cycle_data {
+        uuid id PK
+        text user_id
+        date last_period_start
+        int cycle_length
+        int period_length
+        jsonb logged_days
+        timestamptz updated_at
+    }
+
+    brain_age {
+        uuid id PK
+        text user_id
+        numeric estimated_age
+        numeric actual_age
+        numeric gap
+        timestamptz created_at
+    }
+
+    glp1_injections {
+        uuid id PK
+        text user_id
+        text medication
+        numeric dose
+        timestamptz injected_at
+    }
+
+    supplements {
+        uuid id PK
+        text user_id
+        text name
+        text dosage
+        boolean taken
+        timestamptz created_at
+    }
+
+    notifications {
+        uuid id PK
+        text user_id
+        text type
+        text title
+        text body
+        boolean read
+        timestamptz created_at
+    }
+
+    user_settings {
+        uuid id PK
+        text user_id
+        text key
+        text value
+        timestamptz updated_at
+    }
+
+    generic_store {
+        uuid id PK
+        text user_id
+        text key
+        jsonb value
+        timestamptz updated_at
+    }
+
+    user_feedback {
+        uuid id PK
+        text user_id
+        text predicted_emotion
+        text corrected_emotion
+        text source
+        real confidence
+        jsonb features
+        text session_id
+        timestamptz created_at
+    }
+```
+
+All tables have Row-Level Security (RLS) with `auth.uid()` policies for per-user data isolation.
+
+---
+
+## Mobile App Page Hierarchy
+
+```mermaid
+graph TD
+    subgraph BottomTabs["Bottom Tab Bar"]
+        T1["Today /"]
+        T2["Discover /discover"]
+        T3["Voice Mic<br/>(center button)"]
+        T4["AI Chat /ai-companion"]
+        T5["You /you"]
+    end
+
+    subgraph TodaySub["Today Tab"]
+        T1 --> BrainReport["/brain-report"]
+        T1 --> WeeklySummary["/weekly-summary"]
+        T1 --> Scores["/scores"]
+        T1 --> QuickSession["/quick-session"]
+    end
+
+    subgraph DiscoverSub["Discover Tab"]
+        T2 --> Brain["/brain-monitor"]
+        T2 --> Sleep["/sleep"]
+        T2 --> Health["/health"]
+        T2 --> Nutrition["/nutrition"]
+        T2 --> Wellness["/wellness"]
+        Brain --> BrainConn["/brain-connectivity"]
+        Brain --> Neurofeedback["/neurofeedback"]
+        Brain --> Biofeedback["/biofeedback"]
+        Brain --> DeepWork["/deep-work"]
+        Brain --> Calibration["/calibration"]
+        Sleep --> SleepSession["/sleep-session"]
+        Sleep --> SleepMusic["/sleep-music"]
+        Sleep --> CBTI["/cbti"]
+        Health --> HealthAnalytics["/health-analytics"]
+        Health --> HeartRate["/heart-rate"]
+        Health --> Steps["/steps"]
+        Health --> BodyMetrics["/body-metrics"]
+        Health --> Workout["/workout"]
+        T2 --> Stress["/stress"]
+        T2 --> Focus["/focus"]
+        T2 --> Dreams["/dreams"]
+        T2 --> InnerEnergy["/inner-energy"]
+        T2 --> FoodEmotion["/food-emotion"]
+        T2 --> Insights["/insights"]
+        T2 --> Habits["/habits"]
+    end
+
+    subgraph AIChatSub["AI Chat Tab"]
+        T4 --> CouplesMed["/couples-meditation"]
+    end
+
+    subgraph YouSub["You Tab"]
+        T5 --> Settings["/settings"]
+        T5 --> Sessions["/sessions"]
+        T5 --> Records["/records"]
+        T5 --> Achievements["/achievements"]
+        T5 --> ConnectedAssets["/connected-assets"]
+        T5 --> Export["/export"]
+        T5 --> Help["/help"]
+        T5 --> ConsentSettings["/consent-settings"]
+        T5 --> Notifications["/notifications"]
+        T5 --> DeviceSetup["/device-setup"]
+        T5 --> Supplements["/supplements"]
+    end
 ```
 
 ---
@@ -81,7 +347,7 @@ A multimodal AI health platform that fuses EEG brain data, voice analysis, and h
 ```
 AntarAI/
 ├── client/                     # React 18 + TypeScript frontend
-│   ├── src/pages/              # 73 route pages
+│   ├── src/pages/              # 72 route pages
 │   ├── src/components/         # UI components + charts
 │   ├── src/hooks/              # React hooks (auth, device, fusion, consent)
 │   ├── src/lib/                # Utilities (supabase-store, data-fusion, ml-api,
@@ -96,22 +362,6 @@ AntarAI/
 │
 ├── ml/                         # Python ML backend
 │   ├── models/                 # 16 ML model classes + saved weights
-│   │   ├── emotion_classifier.py      # 85% CV (EEGNet 4-ch, active path)
-│   │   ├── sleep_staging.py           # 92.98% (ISRUC dataset)
-│   │   ├── dream_detector.py          # 82-88% est. (real data pipeline)
-│   │   ├── flow_state_detector.py     # 62.86% (binary ~70-75%)
-│   │   ├── creativity_detector.py     # EXPERIMENTAL (overfit, ~60% real)
-│   │   ├── stress_detector.py         # 4 stress levels
-│   │   ├── attention_classifier.py    # Beta/theta ratio
-│   │   ├── meditation_classifier.py   # Engagement/stability (validated)
-│   │   ├── drowsiness_detector.py     # Theta + alpha slowing
-│   │   ├── cognitive_load_estimator.py # 3 workload levels
-│   │   ├── lucid_dream_detector.py    # Gamma bursts in REM
-│   │   ├── brain_age_estimator.py     # Alpha peak regression
-│   │   ├── anomaly_detector.py        # Isolation Forest
-│   │   ├── artifact_classifier.py     # Blink/muscle/electrode
-│   │   ├── denoising_autoencoder.py   # PyTorch signal cleaner
-│   │   └── online_learner.py          # Per-user adaptation
 │   ├── processing/             # EEG signal pipeline (12 modules)
 │   ├── training/               # Training scripts + data loaders
 │   ├── api/                    # FastAPI routes + auth + CORS + rate limiting
@@ -121,21 +371,17 @@ AntarAI/
 ├── android/                    # Capacitor Android project
 ├── ios/                        # Capacitor iOS project
 ├── supabase/                   # Database
-│   ├── migrations/             # 6 SQL migrations
-│   │   ├── 004_app_data.sql    # 9 biometric tables
-│   │   ├── 005_fix_rls.sql     # auth.uid() RLS policies
-│   │   └── 006_user_settings.sql # settings + generic store
+│   ├── migrations/             # SQL migrations (12 tables)
 │   └── functions/              # Edge Functions (score compute, health ingest)
 │
 ├── scripts/                    # Build tools
 │   ├── build-custom-ort.sh     # Custom ONNX WASM build
 │   ├── quantize-models.py      # INT8 model quantization
-│   ├── enable-timescaledb.sql  # EEG time-series optimization
-│   └── generate_readme.py      # Auto-generate README from registry
+│   └── enable-timescaledb.sql  # EEG time-series optimization
 │
 ├── store-listing/              # Google Play Store assets
 ├── docs/                       # Documentation
-│   ├── APP_PAGES.md            # All 73 pages reference
+│   ├── APP_PAGES.md            # All 72 pages reference
 │   ├── BUSINESS_ROADMAP.md     # Business strategy roadmap
 │   └── COMPLETE_SCIENTIFIC_GUIDE.md  # 40KB EEG science reference
 │
@@ -145,7 +391,7 @@ AntarAI/
 
 ---
 
-## Key Pages (73 total)
+## Key Pages (72 total)
 
 See [docs/APP_PAGES.md](docs/APP_PAGES.md) for the full reference.
 
@@ -154,7 +400,7 @@ See [docs/APP_PAGES.md](docs/APP_PAGES.md) for the full reference.
 | **Today** | 1 page | Wellness gauge, mood/stress/focus scores, weather context, cycle phase |
 | **Discover** | 1 page | Emotions graph (stress/focus/mood trends), feature navigation |
 | **Nutrition** | 1 page | Food logging, GLP-1 tracker, vitamins, meal history, quality score |
-| **AI Chat** | 1 page | GPT-5 wellness companion with safeguards |
+| **AI Chat** | 1 page | AI wellness companion with safeguards |
 | **You** | 1 page | Profile, streaks, achievements link, connected devices |
 | **Brain** | 7 pages | EEG monitor, neurofeedback, biofeedback, deep work, connectivity |
 | **Health** | 12 pages | Health sync, analytics, sleep, workout, body metrics, wellness |
@@ -192,26 +438,6 @@ Additional ML capabilities:
 
 ---
 
-## Database (Supabase)
-
-| Table | Purpose |
-|-------|---------|
-| `mood_logs` | Mood + energy tracking |
-| `voice_history` | Voice analysis results |
-| `emotion_history` | Emotion readings over time |
-| `food_logs` | Nutrition tracking |
-| `cycle_data` | Menstrual cycle tracking |
-| `brain_age` | Brain age readings |
-| `glp1_injections` | GLP-1 medication tracking |
-| `supplements` | Supplement tracking |
-| `notifications` | HIPAA-safe notifications |
-| `user_settings` | App preferences (key-value) |
-| `generic_store` | JSON blob storage |
-
-All tables have Row-Level Security (RLS) with `auth.uid()` initPlan pattern.
-
----
-
 ## Security & Compliance
 
 - **API auth**: X-API-Key middleware on all ML endpoints
@@ -235,12 +461,12 @@ All tables have Row-Level Security (RLS) with `auth.uid()` initPlan pattern.
 npm install
 npm run dev
 
-# ML backend (port 8080) — use start.sh
+# ML backend (port 8080) -- use start.sh
 cd ml && ./start.sh
 
 # Android APK
 npx cap sync android
-# Open Android Studio → Build → Build APK
+# Open Android Studio -> Build -> Build APK
 ```
 
 ## Environment Variables
@@ -275,10 +501,10 @@ npx cap sync android
 ## Testing
 
 ```bash
-# Frontend — 1700+ tests
+# Frontend -- 1700+ tests
 npx vitest run
 
-# ML — 6400+ tests
+# ML -- 6400+ tests
 cd ml && pytest tests/ -v
 
 # Full suite

@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { initSentry } from "./lib/sentry";
 import App from "./App";
 import "./index.css";
+import { flushPendingCorrections } from "@/lib/feedback-sync";
 
 // Sentry crash analytics — only activates when VITE_SENTRY_DSN is set
 initSentry();
@@ -45,3 +46,6 @@ if (ddAppId && ddClientToken) {
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Flush any queued corrections from previous offline sessions
+flushPendingCorrections().catch(() => {});
