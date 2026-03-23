@@ -860,13 +860,31 @@ function CycleTab() {
         nextPeriodDate: localCycleInfo.nextPeriodDate,
       };
     }
+    // Auto-derive from logged cycle entries if setup was lost but logs exist
+    if (cycleData.length > 0) {
+      const periodEntries = cycleData.filter(e => e.flowLevel && e.flowLevel !== "none");
+      if (periodEntries.length > 0) {
+        const lastPeriod = periodEntries.sort((a, b) => b.date.localeCompare(a.date))[0];
+        const autoData: LocalCycleData = { lastPeriodStart: lastPeriod.date, cycleLength: 28, periodLength: 5 };
+        setLocalCycleData(autoData);
+        setLocalCycleData_(autoData);
+        const info = computeCycleInfo(autoData);
+        return {
+          source: "local" as const,
+          currentPhase: info.currentPhase,
+          dayOfCycle: info.dayOfCycle,
+          cycleLength: info.cycleLength,
+          nextPeriodDate: info.nextPeriodDate,
+        };
+      }
+    }
     return null;
-  }, [phaseInfo, localCycleInfo]);
+  }, [phaseInfo, localCycleInfo, cycleData]);
 
   return (
     <div className="space-y-5">
-      {/* Setup prompt — show when no cycle data exists anywhere */}
-      {!effectiveCycleInfo && !showSettings && (
+      {/* Setup prompt — show ONLY when no cycle data exists AND no logs at all */}
+      {!effectiveCycleInfo && !showSettings && cycleData.length === 0 && (
         <CycleSetupPrompt onComplete={handleCycleSetup} initialData={localCycleData} />
       )}
 
