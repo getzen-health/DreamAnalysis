@@ -445,6 +445,58 @@ export function FoodScoreCard({
           {result.moodPrediction}
         </p>
       </div>
+
+      {/* ── Verdict: Buy / Okay / Avoid ── */}
+      <div
+        style={{
+          padding: "14px 16px",
+          borderRadius: 14,
+          background: result.verdict === "buy"
+            ? "linear-gradient(135deg, rgba(8,145,178,0.08), rgba(8,145,178,0.02))"
+            : result.verdict === "avoid"
+            ? "linear-gradient(135deg, rgba(232,121,168,0.08), rgba(232,121,168,0.02))"
+            : "linear-gradient(135deg, rgba(212,160,23,0.08), rgba(212,160,23,0.02))",
+          border: `1px solid ${result.verdict === "buy" ? "rgba(8,145,178,0.2)" : result.verdict === "avoid" ? "rgba(232,121,168,0.2)" : "rgba(212,160,23,0.2)"}`,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <span style={{
+            fontSize: 18,
+          }}>
+            {result.verdict === "buy" ? "✅" : result.verdict === "avoid" ? "❌" : "⚠️"}
+          </span>
+          <span style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: result.verdict === "buy" ? "#0891b2" : result.verdict === "avoid" ? "#e879a8" : "#d4a017",
+          }}>
+            {result.verdictText}
+          </span>
+        </div>
+        <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.5 }}>
+          {result.verdictReason}
+        </p>
+      </div>
+
+      {/* ── GLP-1 Impact (only if user is on GLP-1 medication) ── */}
+      {result.glpImpact && (
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: 14,
+            background: "linear-gradient(135deg, rgba(124,58,237,0.08), rgba(124,58,237,0.02))",
+            border: "1px solid rgba(124,58,237,0.2)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 13 }}>💊</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed" }}>GLP-1 Guidance</span>
+          </div>
+          <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.5 }}>
+            {result.glpImpact}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

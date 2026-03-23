@@ -33,6 +33,12 @@ export interface FoodScoreResult {
   moodPrediction: string;
   /** Per-nutrient breakdown */
   nutrientFlags: NutrientFlag[];
+  /** Buy/eat recommendation */
+  verdict: "buy" | "okay" | "avoid";
+  verdictText: string;
+  verdictReason: string;
+  /** GLP-1 impact (for users on semaglutide/tirzepatide) */
+  glpImpact: string | null;
 }
 
 export interface FoodScoreInput {
@@ -260,6 +266,48 @@ export function calculateFoodScore(food: FoodScoreInput): FoodScoreResult {
     },
   ];
 
+  // ── Verdict: Buy / Okay / Avoid ─────────────────────────────────────
+  let verdict: "buy" | "okay" | "avoid";
+  let verdictText: string;
+  let verdictReason: string;
+
+  if (score >= 70) {
+    verdict = "buy";
+    verdictText = "Recommended";
+    verdictReason = "High nutritional value. Good balance of protein and fiber with low sugar. Great choice for sustained energy and brain health.";
+  } else if (score >= 40) {
+    verdict = "okay";
+    verdictText = "Acceptable";
+    verdictReason = "Moderate nutritional value. Fine in moderation but consider pairing with more protein or fiber to balance the meal.";
+  } else {
+    verdict = "avoid";
+    verdictText = "Not recommended";
+    verdictReason = sugar > 20
+      ? "High sugar content will spike blood glucose and crash your energy. Consider a lower-sugar alternative."
+      : fat > 30
+      ? "Excessive fat relative to other nutrients. If consumed, balance with vegetables and lean protein."
+      : "Poor nutritional profile — high in empty calories with little beneficial nutrients. Look for alternatives with more protein and fiber.";
+  }
+
+  // ── GLP-1 impact (for users on Ozempic/Wegovy/Mounjaro) ──────────
+  let glpImpact: string | null = null;
+  try {
+    const onGlp = localStorage.getItem("ndw_glp1_active") === "true";
+    if (onGlp) {
+      if (sugar > 25) {
+        glpImpact = "High sugar — may cause nausea with GLP-1. Choose low-glycemic foods to minimize GI side effects.";
+      } else if (fat > 30) {
+        glpImpact = "High fat — may slow gastric emptying further with GLP-1. Smaller portions recommended to avoid discomfort.";
+      } else if (food.protein_g > 20 && sugar < 10) {
+        glpImpact = "Great choice on GLP-1 — high protein keeps you full longer and supports muscle preservation during weight loss.";
+      } else if (food.fiber_g && food.fiber_g > 5) {
+        glpImpact = "Good fiber content — helps with digestion on GLP-1. Stay hydrated.";
+      } else {
+        glpImpact = "Moderate choice on GLP-1. Aim for 20g+ protein per meal to preserve lean mass.";
+      }
+    }
+  } catch { /* no localStorage access */ }
+
   return {
     score,
     rating,
@@ -267,5 +315,9 @@ export function calculateFoodScore(food: FoodScoreInput): FoodScoreResult {
     brainImpact: analyzeBrainImpact(food),
     moodPrediction: predictMood(food),
     nutrientFlags,
+    verdict,
+    verdictText,
+    verdictReason,
+    glpImpact,
   };
 }
