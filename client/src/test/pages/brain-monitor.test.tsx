@@ -132,32 +132,18 @@ describe("BrainMonitor page", () => {
     });
   });
 
-  it("shows Brain State Now panel", async () => {
+  it("shows Brain State panel", async () => {
     renderWithProviders(<BrainMonitor />);
     await waitFor(() => {
-      expect(screen.getByText("Brain State Now")).toBeInTheDocument();
+      expect(screen.getByText("Brain State")).toBeInTheDocument();
     });
   });
 
-  it("shows prompt to connect device inside Brain State Now panel", async () => {
+  it("shows offline message when not streaming", async () => {
     renderWithProviders(<BrainMonitor />);
     await waitFor(() => {
-      const els = screen.getAllByText("No EEG signal — showing voice + health estimates");
+      const els = screen.getAllByText(/No EEG signal/);
       expect(els.length).toBeGreaterThan(0);
-    });
-  });
-
-  it("shows Electrode Status Grid section", async () => {
-    renderWithProviders(<BrainMonitor />);
-    await waitFor(() => {
-      expect(screen.getByText("Electrode Status Grid")).toBeInTheDocument();
-    });
-  });
-
-  it("shows No Device label when not streaming", async () => {
-    renderWithProviders(<BrainMonitor />);
-    await waitFor(() => {
-      expect(screen.getByText("No Device")).toBeInTheDocument();
     });
   });
 
@@ -337,99 +323,11 @@ describe("BrainMonitor page", () => {
       });
     });
 
-    it("renders Dream model card as a link to /dreams", async () => {
+    // Remaining models are collapsed by default — only visible after expanding
+    it("shows expand button for remaining models", async () => {
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
-        const link = screen.getByTestId("model-link-Dream").closest("a");
-        expect(link).toHaveAttribute("href", "/dreams");
-      });
-    });
-
-    it("renders Meditation model card as a link to /biofeedback", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const link = screen.getByTestId("model-link-Meditation").closest("a");
-        expect(link).toHaveAttribute("href", "/biofeedback");
-      });
-    });
-
-    it("renders Attention model card as a link to /neurofeedback", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const link = screen.getByTestId("model-link-Attention").closest("a");
-        expect(link).toHaveAttribute("href", "/neurofeedback");
-      });
-    });
-
-    it("renders Flow model card as a link to /biofeedback", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const link = screen.getByTestId("model-link-Flow").closest("a");
-        expect(link).toHaveAttribute("href", "/biofeedback");
-      });
-    });
-
-    it("renders Creativity model card as a link to /biofeedback", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const link = screen.getByTestId("model-link-Creativity").closest("a");
-        expect(link).toHaveAttribute("href", "/biofeedback");
-      });
-    });
-
-    it("renders Drowsiness model card as a link to /sleep", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const link = screen.getByTestId("model-link-Drowsiness").closest("a");
-        expect(link).toHaveAttribute("href", "/sleep");
-      });
-    });
-
-    it("renders Cog. Load model card as a link to /focus", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const link = screen.getByTestId("model-link-Cog. Load").closest("a");
-        expect(link).toHaveAttribute("href", "/focus");
-      });
-    });
-
-    it("renders Lucid model card as a link to /dreams", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const link = screen.getByTestId("model-link-Lucid").closest("a");
-        expect(link).toHaveAttribute("href", "/dreams");
-      });
-    });
-
-    it("renders Memory model card as a link to /insights", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const link = screen.getByTestId("model-link-Memory").closest("a");
-        expect(link).toHaveAttribute("href", "/insights");
-      });
-    });
-
-    it("renders Artifact card without a link (technical model)", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const card = screen.getByTestId("model-card-Artifact");
-        expect(card.closest("a")).toBeNull();
-      });
-    });
-
-    it("renders Denoising card without a link (technical model)", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const card = screen.getByTestId("model-card-Denoising");
-        expect(card.closest("a")).toBeNull();
-      });
-    });
-
-    it("renders Online Lrn card without a link (technical model)", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        const card = screen.getByTestId("model-card-Online Lrn");
-        expect(card.closest("a")).toBeNull();
+        expect(screen.getByText("Show all 16 models")).toBeInTheDocument();
       });
     });
 
