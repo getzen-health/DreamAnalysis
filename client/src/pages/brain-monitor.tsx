@@ -27,6 +27,7 @@ import { assessSignalQuality, type SignalQualityResult as SQResult } from "@/lib
 import { Link } from "wouter";
 import { Music } from "lucide-react";
 import { museBle } from "@/lib/muse-ble";
+import { BrainAgeCard } from "@/components/brain-age-card";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { emgDetector, type EMGDetectionResult } from "@/lib/emg-detector";
@@ -917,6 +918,9 @@ export default function BrainMonitor() {
           />
         );
       })()}
+
+      {/* Brain Age */}
+      {isStreaming && <BrainAgeCard />}
 
       {/* Band Powers Bar — always show all 5 standard EEG bands */}
       {isStreaming && analysis?.band_powers && (

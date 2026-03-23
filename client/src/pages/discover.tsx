@@ -517,55 +517,44 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
   }, [sessions]);
 
   const chartData = useMemo(() => {
-    // Use API data if available, otherwise fall back to localStorage history
+    // Continuous data points — every reading as an individual point, not daily averages
+    const points: { time: string; ts: number; stress: number; focus: number; mood: number }[] = [];
+
+    // From API history
     const rows: HistoryRow[] =
-      data && Array.isArray(data) && data.length > 0
-        ? data
-        : getLocalEmotionHistory();
+      data && Array.isArray(data) && data.length > 0 ? data : getLocalEmotionHistory();
 
-    // Group by day, average values
-    const dayMap = new Map<string, { stress: number[]; focus: number[]; mood: number[]; ts: number }>();
-
-    // Add rows from API / localStorage
     for (const r of rows) {
       const d = new Date(r.timestamp);
-      const day = d.toLocaleDateString(undefined, { weekday: "short" });
-      const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-      if (!dayMap.has(day)) dayMap.set(day, { stress: [], focus: [], mood: [], ts });
-      const bucket = dayMap.get(day)!;
-      bucket.stress.push((r.stress ?? 0) * 100);
-      bucket.focus.push((r.focus ?? 0) * 100);
-      bucket.mood.push((r.happiness ?? 0.5) * 100);
+      points.push({
+        time: d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+        ts: d.getTime(),
+        stress: Math.round((r.stress ?? 0) * 100),
+        focus: Math.round((r.focus ?? 0) * 100),
+        mood: Math.round((r.happiness ?? 0.5) * 100),
+      });
     }
 
-    // Also incorporate session history data (listSessions) when available
+    // From session history
     if (sessions && sessions.length > 0) {
       const weekAgo = Date.now() / 1000 - 7 * 86400;
       for (const s of sessions) {
         if (!s.summary || s.summary.avg_focus == null) continue;
         if ((s.start_time ?? 0) < weekAgo) continue;
         const d = new Date((s.start_time ?? 0) * 1000);
-        const day = d.toLocaleDateString(undefined, { weekday: "short" });
-        const ts = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        if (!dayMap.has(day)) dayMap.set(day, { stress: [], focus: [], mood: [], ts });
-        const bucket = dayMap.get(day)!;
-        bucket.stress.push((s.summary.avg_stress ?? 0) * 100);
-        bucket.focus.push((s.summary.avg_focus ?? 0) * 100);
-        // Use relaxation as a mood proxy (higher relaxation = more positive mood)
-        bucket.mood.push((s.summary.avg_relaxation ?? 0.5) * 100);
+        points.push({
+          time: d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+          ts: d.getTime(),
+          stress: Math.round((s.summary.avg_stress ?? 0) * 100),
+          focus: Math.round((s.summary.avg_focus ?? 0) * 100),
+          mood: Math.round((s.summary.avg_relaxation ?? 0.5) * 100),
+        });
       }
     }
 
-    if (dayMap.size === 0) return [];
-
-    return Array.from(dayMap.entries())
-      .sort(([, a], [, b]) => a.ts - b.ts)
-      .map(([day, v]) => ({
-        day,
-        stress: Math.round(v.stress.reduce((a, b) => a + b, 0) / v.stress.length),
-        focus: Math.round(v.focus.reduce((a, b) => a + b, 0) / v.focus.length),
-        mood: Math.round(v.mood.reduce((a, b) => a + b, 0) / v.mood.length),
-      }));
+    // Sort by timestamp, show all individual data points
+    points.sort((a, b) => a.ts - b.ts);
+    return points;
   }, [data, sessions]);
 
   // Current values from checkin data (reactive via useCheckinData hook)
@@ -580,7 +569,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
 
   return (
     <button
-      onClick={() => navigate("/wellness")}
+      onClick={() => navigate("/mood")}
       aria-label="View Emotions: Stress, Focus, Mood trends"
       role="link"
       style={{
@@ -596,7 +585,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div>
           <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>Emotions</p>
-          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "2px 0 0" }}>Stress, Focus, Mood — 7 day trends</p>
+          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "2px 0 0" }}>Stress, Focus, Mood — continuous trend</p>
         </div>
         {current && (
           <div style={{ display: "flex", gap: 10 }}>
@@ -663,7 +652,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}`} />
               <Tooltip
                 contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 11 }}
