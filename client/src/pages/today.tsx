@@ -23,6 +23,7 @@ import { fetchWeather, buildMoodContext, type WeatherData, type WeatherMoodConte
 import { getCurrentCyclePhase, getCyclePhaseContext, type CyclePhaseContext } from "@/lib/cycle-phase-adjustment";
 import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, HelpCircle } from "lucide-react";
 import { recordCorrection } from "@/lib/feedback-sync";
+import { updateModalityAccuracy } from "@/lib/multimodal-fusion";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ interface EmotionCheckin {
   probabilities?: Record<string, number>;
   valence?: number;
   arousal?: number;
+  confidence?: number;
   stress_index?: number;
   focus_index?: number;
   relaxation_index?: number;
@@ -925,6 +927,8 @@ export default function Today() {
 
   const confirmVoiceEmotion = useCallback(() => {
     setEmotionFeedback("confirmed");
+    // Update per-modality accuracy tracking (prediction was correct)
+    updateModalityAccuracy("voice", true);
     if (checkin?.emotion) {
       fetch(resolveUrl(`/api/readings/${userId}/correct-latest`), {
         method: "PATCH",
@@ -937,6 +941,7 @@ export default function Today() {
         predictedEmotion: checkin.emotion,
         correctedEmotion: checkin.emotion,
         source: "voice",
+        confidence: checkin.confidence,
         features: checkin.valence != null ? {
           voice_valence: checkin.valence,
           voice_arousal: checkin.arousal ?? 0.5,
@@ -949,6 +954,8 @@ export default function Today() {
   const submitEmotionCorrection = useCallback((emotion: string) => {
     setCorrectedEmotion(emotion);
     setEmotionFeedback("corrected");
+    // Update per-modality accuracy tracking
+    updateModalityAccuracy("voice", emotion === checkin?.emotion);
     fetch(resolveUrl(`/api/readings/${userId}/correct-latest`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -960,6 +967,7 @@ export default function Today() {
       predictedEmotion: checkin?.emotion ?? "unknown",
       correctedEmotion: emotion,
       source: "voice",
+      confidence: checkin?.confidence,
       features: checkin?.valence != null ? {
         voice_valence: checkin.valence ?? 0,
         voice_arousal: checkin.arousal ?? 0.5,
@@ -1691,7 +1699,57 @@ export default function Today() {
                 </div>
               )}
 
-              {emotionFeedback === "ask" && (
+              {/* Active learning prompt — prominent when confidence < 0.4 */}
+              {emotionFeedback === "ask" && (checkin.confidence ?? 1) < 0.4 && (
+                <div
+                  data-testid="active-learning-prompt"
+                  style={{
+                    borderRadius: 8,
+                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    background: "rgba(245, 158, 11, 0.08)",
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <AlertTriangle style={{ width: 14, height: 14, color: "#f59e0b", flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#fbbf24" }}>
+                      Low confidence — your feedback is especially valuable
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 10, color: "var(--muted-foreground)", lineHeight: 1.4, marginBottom: 8 }}>
+                    The model is uncertain about this prediction. One correction here teaches more than 5 high-confidence ones.
+                  </p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={confirmVoiceEmotion}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "5px 14px", borderRadius: 16, border: "none",
+                        background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24",
+                        fontSize: 12, fontWeight: 500, cursor: "pointer",
+                      }}
+                    >
+                      <Check style={{ width: 12, height: 12 }} />
+                      Yes, correct
+                    </button>
+                    <button
+                      onClick={() => setEmotionFeedback("correcting")}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "5px 14px", borderRadius: 16, border: "none",
+                        background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24",
+                        fontSize: 12, fontWeight: 500, cursor: "pointer",
+                      }}
+                    >
+                      <Pencil style={{ width: 12, height: 12 }} />
+                      No, I felt...
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Standard "Is this right?" feedback (confidence >= 0.4) */}
+              {emotionFeedback === "ask" && (checkin.confidence ?? 1) >= 0.4 && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
                   <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Is this right?</span>
                   <div style={{ display: "flex", gap: 8 }}>

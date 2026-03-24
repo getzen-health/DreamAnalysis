@@ -18,7 +18,7 @@ import { resolveUrl } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, X, Check, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { Mic, MicOff, X, Check, Pencil, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { getMLApiUrl, submitVoiceWatch } from "@/lib/ml-api";
 import type { VoiceWatchCheckinResult } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
@@ -30,6 +30,8 @@ import { saveVoiceHistory as sbSaveVoiceHistory, sbGetGeneric, sbGetSetting, sbS
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 import { InterventionCard } from "@/components/intervention-card";
+import { updateModalityAccuracy } from "@/lib/multimodal-fusion";
+import { recordCorrection } from "@/lib/feedback-sync";
 
 // ─── positive affirmations shown during recording ───────────────────────────
 
@@ -388,22 +390,52 @@ export function VoiceCheckinCard({
   const submitCorrection = useCallback(async (emotion: string) => {
     setCorrectedEmotion(emotion);
     setFeedbackState("corrected");
+    // Update per-modality accuracy tracking
+    updateModalityAccuracy("voice", emotion === result?.emotion);
     // Fire-and-forget: save correction to backend
     fetch(resolveUrl(`/api/readings/${resolvedUserId}/correct-latest`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ correctedEmotion: emotion }),
     }).catch((err) => console.error("Failed to save emotion correction:", err));
-  }, [resolvedUserId]);
+    // Persist correction to Supabase + ML backend for retraining
+    recordCorrection({
+      userId: resolvedUserId,
+      predictedEmotion: result?.emotion ?? "unknown",
+      correctedEmotion: emotion,
+      source: "voice",
+      confidence: result?.confidence,
+      features: result ? {
+        voice_valence: result.valence ?? 0,
+        voice_arousal: result.arousal ?? 0.5,
+        voice_stress: result.stress_index ?? 0,
+      } : undefined,
+    }).catch(() => {});
+  }, [resolvedUserId, result]);
 
   const confirmEmotion = useCallback(async () => {
     setFeedbackState("confirmed");
+    // Update per-modality accuracy tracking (prediction was correct)
+    updateModalityAccuracy("voice", true);
     // Confirm = correct with the same emotion that was predicted
     if (result?.emotion) {
       fetch(resolveUrl(`/api/readings/${resolvedUserId}/correct-latest`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ correctedEmotion: result.emotion }),
+      }).catch(() => {});
+      // Persist confirmation to Supabase + ML backend
+      recordCorrection({
+        userId: resolvedUserId,
+        predictedEmotion: result.emotion,
+        correctedEmotion: result.emotion,
+        source: "voice",
+        confidence: result.confidence,
+        features: {
+          voice_valence: result.valence ?? 0,
+          voice_arousal: result.arousal ?? 0.5,
+          voice_stress: result.stress_index ?? 0,
+        },
       }).catch(() => {});
     }
   }, [resolvedUserId, result]);
@@ -1109,8 +1141,37 @@ export function VoiceCheckinCard({
                 Voice analysis reflects acoustic patterns, not a clinical assessment.
               </p>
 
-              {/* ── "Was this right?" feedback row ── */}
-              {feedbackState === "ask" && (
+              {/* ── Active learning feedback — prominent when confidence < 0.4 ── */}
+              {feedbackState === "ask" && result.confidence < 0.4 && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2" data-testid="active-learning-prompt">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
+                    <span className="text-xs font-medium text-amber-300">Low confidence — your feedback is especially valuable</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    The model is uncertain about this prediction. One correction here teaches more than 5 high-confidence ones.
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={confirmEmotion}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition-colors"
+                    >
+                      <Check className="h-3 w-3" />
+                      Yes, correct
+                    </button>
+                    <button
+                      onClick={() => setFeedbackState("correcting")}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      No, I felt...
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Standard "Was this right?" feedback row (confidence >= 0.4) ── */}
+              {feedbackState === "ask" && result.confidence >= 0.4 && (
                 <div className="flex items-center justify-between pt-1 border-t border-border/30">
                   <span className="text-xs text-muted-foreground">Was this right?</span>
                   <div className="flex gap-2">
