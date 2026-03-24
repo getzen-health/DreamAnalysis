@@ -458,6 +458,7 @@ else:
 - [x] **BaselineCalibrator exposed via API** — three endpoints: `POST /calibration/baseline/add-frame`, `GET /calibration/baseline/status`, `POST /calibration/baseline/reset` (commit `87e0c56`)
 - [x] **FMT added to emotion output** — `compute_frontal_midline_theta()` called on AF7 channel and returned as `frontal_midline_theta` key in all `_predict_features()` return paths (commit `378af43`)
 - [x] **Alpha sub-band splitting** — Split alpha (8-12 Hz) into low-alpha (8-10 Hz, general alertness) and high-alpha (10-12 Hz, emotion-specific processing). Added to BANDS dict, enhanced feature extractor (53->68 dim), emotion classifier heuristics. High-Alpha Asymmetry (HAA) added as more precise valence indicator. Valence blend updated to 4-signal: ABR + FAA + HAA + DASM_alpha. References: Klimesch 1999, Bazanova & Vernon 2014.
+- [x] **PLV functional connectivity in emotion classifier** — `compute_pairwise_plv()` extracts all 6 channel-pair PLVs for theta/alpha/beta (18 raw + 7 summary features). Wired into `_predict_features()`: PLV-weighted FAA confidence boost for valence, fronto-temporal PLV for arousal (8%), frontal beta PLV for focus (5%). `plv_connectivity` dict in all output paths. Reference: Wang et al. (2024), PLV + microstates + PSD fusion = 7%+ accuracy improvement.
 
 ### Known Remaining Issues
 - [x] ~~**97.79% LGBM model not integrated**~~: Deleted — inflated score (per-dataset PCA + one-hot dataset indicators, 100% SEED within-subject contamination). Replaced by `emotion_mega_lgbm.pkl` (single global PCA, honest cross-subject CV, active live path).
@@ -573,7 +574,8 @@ compute_dasm_rasm(signals, fs)               # DASM + RASM: 10 asymmetry feature
 compute_frontal_midline_theta(signal, fs)    # FMT power/DE/amplitude — reference-robust valence complement
 BaselineCalibrator                           # Class: collect resting baseline, normalize live features (+15-29% accuracy)
 compute_coherence(signals, fs, band)         # Mean inter-channel coherence in a band
-compute_phase_locking_value(signals, fs)     # PLV across channel pairs
+compute_phase_locking_value(signals, fs)     # PLV across channel pairs (single scalar mean)
+compute_pairwise_plv(signals, fs)            # Per-pair PLV for theta/alpha/beta (18 raw + 7 summary features)
 compute_cwt_spectrogram(signal, fs)          # Morlet wavelet time-frequency map
 compute_dwt_features(signal, fs)             # DWT band energy decomposition
 detect_sleep_spindles(signal, fs)            # 11-16 Hz bursts → N2 sleep
