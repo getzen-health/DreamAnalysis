@@ -231,6 +231,96 @@ def _expand_3class_to_6(
     return (exp_vals / total).astype(np.float32)
 
 
+# ── PredictionStabilityTracker ─────────────────────────────────────────────────
+#
+# Tracks how *stable* the classifier's predictions are over time using cosine
+# similarity between consecutive probability vectors.  Rapid flipping
+# (happy->angry->sad in 10 seconds) means the signal is noisy or the person
+# is near an emotion boundary — either way, confidence should be penalized.
+#
+# The tracker maintains an EMA of pairwise cosine similarities.  High stability
+# (~1.0) means predictions are consistent.  Low stability (<0.5) means rapid
+# flipping, and confidence is multiplied by a penalty in [0.5, 1.0].
+
+
+class PredictionStabilityTracker:
+    """Cosine-similarity-based emotion prediction stability tracker.
+
+    Computes cosine similarity between the current and previous probability
+    vectors.  An EMA over these similarities produces a smooth ``stability``
+    score in [0, 1].  When stability is low, ``adjust_confidence()`` applies
+    a penalty to reduce reported confidence.
+
+    The penalty ramp is:
+        stability >= 0.8  -> no penalty  (multiplier = 1.0)
+        stability <= 0.3  -> max penalty (multiplier = 0.5)
+        in between        -> linear interpolation
+    """
+
+    _EMA_ALPHA = 0.3  # Smoothing factor for stability EMA
+
+    def __init__(self) -> None:
+        self._prev_probs: Optional[np.ndarray] = None
+        self._stability: float = 1.0  # Default: fully stable
+
+    @property
+    def stability(self) -> float:
+        return self._stability
+
+    def update(self, probs: np.ndarray) -> float:
+        """Feed a new probability vector and return the updated stability score.
+
+        Args:
+            probs: 1-D array of class probabilities (e.g. 6 emotions).
+
+        Returns:
+            Updated stability score in [0, 1].
+        """
+        probs = np.asarray(probs, dtype=float)
+
+        if self._prev_probs is None:
+            self._prev_probs = probs.copy()
+            return self._stability  # 1.0 on first call
+
+        # Cosine similarity: dot(a,b) / (|a| * |b|)
+        norm_curr = np.linalg.norm(probs)
+        norm_prev = np.linalg.norm(self._prev_probs)
+
+        if norm_curr < 1e-12 or norm_prev < 1e-12:
+            cos_sim = 0.0  # Degenerate (all-zero) -> treat as unstable
+        else:
+            cos_sim = float(np.dot(probs, self._prev_probs) / (norm_curr * norm_prev))
+            cos_sim = max(0.0, min(1.0, cos_sim))  # Clamp to [0, 1]
+
+        # EMA update
+        self._stability = (
+            self._EMA_ALPHA * cos_sim + (1 - self._EMA_ALPHA) * self._stability
+        )
+        self._prev_probs = probs.copy()
+
+        return self._stability
+
+    def adjust_confidence(self, raw_confidence: float) -> float:
+        """Apply stability-based penalty to raw confidence.
+
+        When predictions are flipping rapidly, confidence should be lower
+        because the model is effectively guessing.
+
+        Penalty ramp:
+            stability >= 0.8  -> multiplier = 1.0 (no penalty)
+            stability <= 0.3  -> multiplier = 0.5 (halved confidence)
+            between           -> linear interpolation
+        """
+        if self._stability >= 0.8:
+            multiplier = 1.0
+        elif self._stability <= 0.3:
+            multiplier = 0.5
+        else:
+            # Linear ramp from 0.5 at stability=0.3 to 1.0 at stability=0.8
+            multiplier = 0.5 + 0.5 * (self._stability - 0.3) / 0.5
+        return float(raw_confidence * multiplier)
+
+
 # Singleton RunningNormalizer for session drift correction
 _running_normalizer: Optional[object] = None
 
@@ -282,6 +372,9 @@ class EmotionClassifier:
         self._ema_relaxation: Optional[float] = None
         self._ema_anger: Optional[float] = None
         self._ema_fear: Optional[float] = None
+
+        # Prediction stability — cosine similarity tracker for confidence penalty
+        self._stability_tracker = PredictionStabilityTracker()
 
         # SHAP explainers — lazily initialised on first use (one per LGBM model)
         self._shap_explainer_mega: Optional[object] = None
@@ -1205,6 +1298,51 @@ class EmotionClassifier:
             user_id:     Per-user identifier for rolling z-score normalization.
                          Used by RunningNormalizer to maintain separate buffers
                          per user and correct within-session EEG drift.
+
+        Returns:
+            Dict with emotion prediction fields.  Always includes:
+            - ``prediction_stability`` (float, 0-1): cosine similarity stability
+              of recent probability vectors.  1.0 = very stable, <0.5 = rapid flipping.
+            - ``stability_adjusted_confidence`` (float): confidence penalized when
+              predictions are unstable (rapid emotion flipping).
+        """
+        result = self._predict_core(eeg, fs, device_type, user_id)
+        return self._apply_stability_tracking(result)
+
+    def _apply_stability_tracking(self, result: Dict) -> Dict:
+        """Feed probability vector to stability tracker and augment result dict.
+
+        Adds ``prediction_stability`` and ``stability_adjusted_confidence``
+        fields to the result.  Operates on every output path via ``predict()``.
+        On artifact-frozen epochs the tracker is not updated (frozen probs are
+        identical to previous, so stability would trivially be 1.0 — no info).
+        """
+        probs_dict = result.get("probabilities", {})
+        if probs_dict:
+            # Build an aligned probability array in EMOTIONS order
+            probs_arr = np.array(
+                [float(probs_dict.get(e, 0.0)) for e in EMOTIONS],
+                dtype=float,
+            )
+            # Skip stability update on artifact-frozen epochs
+            if not result.get("artifact_detected", False):
+                self._stability_tracker.update(probs_arr)
+
+        stability = self._stability_tracker.stability
+        raw_conf = float(result.get("confidence", 0.0))
+        adjusted_conf = self._stability_tracker.adjust_confidence(raw_conf)
+
+        result["prediction_stability"] = round(stability, 4)
+        result["stability_adjusted_confidence"] = round(adjusted_conf, 4)
+        return result
+
+    def _predict_core(self, eeg: np.ndarray, fs: float = 256.0,
+                      device_type: str = "muse_2",
+                      user_id: str = "default") -> Dict:
+        """Internal prediction dispatch — selects the best available model.
+
+        All model paths return through here; ``predict()`` wraps the output
+        with stability tracking.
         """
         # Centralized artifact check — runs before every model path so no path bypasses it.
         # TSception and EEGNet return early without updating _ema_probs, so we must check
