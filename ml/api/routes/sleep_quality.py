@@ -2,7 +2,7 @@
 
 GitHub issue: #122
 """
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 from fastapi import APIRouter
@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from ._shared import _numpy_safe
 from models.sleep_quality_predictor import SleepQualityPredictor
+from models.sleep_staging import compute_waso, compute_sleep_stats
 
 router = APIRouter(tags=["sleep-quality"])
 
@@ -74,3 +75,53 @@ async def reset_sleep_quality(user_id: str):
     """Clear sleep quality history for a user."""
     _predictor.reset(user_id=user_id)
     return {"status": "ok", "message": "Sleep quality history cleared.", "user_id": user_id}
+
+
+class StagedEpoch(BaseModel):
+    stage: str = Field(..., description="Sleep stage: Wake, N1, N2, N3, REM, or artifact")
+    stage_index: int = Field(..., description="Stage index: 0=Wake, 1=N1, 2=N2, 3=N3, 4=REM, -1=artifact")
+    confidence: float = Field(0.8, ge=0.0, le=1.0, description="Classification confidence")
+
+
+class SleepStatsInput(BaseModel):
+    epochs: List[StagedEpoch] = Field(..., description="Staged epoch sequence from predict_sequence()")
+    epoch_duration_s: float = Field(30.0, gt=0, description="Duration of each epoch in seconds")
+    user_id: str = Field("default", description="User identifier")
+
+
+@router.post("/sleep-quality/stats")
+async def get_sleep_stats(data: SleepStatsInput):
+    """Compute comprehensive sleep statistics from staged epochs.
+
+    Accepts a sequence of staged epochs (output of predict_sequence) and
+    returns all clinical sleep metrics: stage percentages, WASO, number
+    of awakenings, sleep onset latency, sleep efficiency, and a quality
+    prediction -- all auto-computed.
+
+    This is the preferred endpoint for post-session sleep analysis. Instead
+    of manually computing stage percentages and WASO, pass the raw staged
+    epoch list and get everything in one call.
+    """
+    epoch_dicts = [e.model_dump() for e in data.epochs]
+
+    stats = compute_sleep_stats(epoch_dicts, epoch_duration_s=data.epoch_duration_s)
+    if stats is None:
+        return {"error": "No valid epochs provided", "stats": None, "quality": None}
+
+    # Auto-compute quality prediction from the derived stats
+    quality = _predictor.predict(
+        n3_pct=stats["n3_pct"],
+        rem_pct=stats["rem_pct"],
+        n2_pct=stats["n2_pct"],
+        n1_pct=stats["n1_pct"],
+        wake_pct=stats["wake_pct"],
+        sleep_efficiency=stats["sleep_efficiency"],
+        total_sleep_hours=stats["total_sleep_minutes"] / 60.0,
+        waso_minutes=stats["waso_minutes"],
+        user_id=data.user_id,
+    )
+
+    return _numpy_safe({
+        "stats": stats,
+        "quality": quality,
+    })

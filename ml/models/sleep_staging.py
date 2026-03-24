@@ -512,3 +512,174 @@ def _is_sleep(epoch: Dict) -> bool:
     """Return True if this epoch is a non-Wake sleep stage."""
     stage = epoch.get("stage", "Wake")
     return stage != "Wake" and stage != "W"
+
+
+def _is_wake(epoch: Dict) -> bool:
+    """Return True if this epoch is explicitly Wake (not artifact, not sleep)."""
+    stage = epoch.get("stage", "")
+    return stage == "Wake" or stage == "W"
+
+
+def compute_waso(
+    epochs: List[Dict],
+    epoch_duration_s: float = 30.0,
+) -> Optional[Dict]:
+    """Compute WASO (Wake After Sleep Onset) from staged epoch data.
+
+    WASO is a standard clinical sleep continuity metric (AASM): the total
+    time spent awake between sleep onset and the final awakening.
+
+    High WASO (>30 min) correlates with:
+    - Next-day cognitive impairment (Stepanski et al., 1984)
+    - Reduced subjective sleep quality
+    - Higher daytime sleepiness
+    - Impaired memory consolidation
+
+    Clinical thresholds (adults):
+        <20 min  = normal
+        20-30 min = mild fragmentation
+        30-60 min = moderate fragmentation
+        >60 min  = severe fragmentation
+
+    Args:
+        epochs: List of epoch dicts from predict_sequence(), each with at least
+            "stage" (str) and "stage_index" (int). Epochs labeled "artifact"
+            are excluded from WASO (neither Wake nor sleep).
+        epoch_duration_s: Duration of each epoch in seconds (default 30).
+
+    Returns:
+        None if no sleep onset was detected (all Wake or empty).
+        Otherwise a dict:
+            waso_minutes: float -- total Wake minutes between onset and final sleep
+            num_awakenings: int -- count of distinct Wake bouts after onset
+            longest_awakening_minutes: float -- duration of the longest single bout
+    """
+    if not epochs:
+        return None
+
+    # Find sleep onset using the existing function
+    onset = detect_sleep_onset(epochs, epoch_duration_s=epoch_duration_s)
+    if onset is None:
+        return None
+
+    onset_idx = onset["onset_epoch"]
+
+    # Find the last sleep epoch (defines the end of the sleep period)
+    last_sleep_idx = -1
+    for i in range(len(epochs) - 1, onset_idx - 1, -1):
+        if _is_sleep(epochs[i]):
+            last_sleep_idx = i
+            break
+
+    if last_sleep_idx < 0:
+        # Should not happen if onset was detected, but be defensive
+        return None
+
+    # Count Wake epochs between onset and last sleep epoch (inclusive range)
+    # Wake epochs after last_sleep_idx are the "final awakening" and excluded.
+    wake_epochs = 0
+    awakenings: List[int] = []  # length of each Wake bout in epochs
+    current_bout = 0
+
+    for i in range(onset_idx, last_sleep_idx + 1):
+        if _is_wake(epochs[i]):
+            wake_epochs += 1
+            current_bout += 1
+        else:
+            if current_bout > 0:
+                awakenings.append(current_bout)
+                current_bout = 0
+
+    # Close any trailing bout (Wake epoch right at last_sleep_idx edge)
+    if current_bout > 0:
+        awakenings.append(current_bout)
+
+    waso_minutes = round(wake_epochs * epoch_duration_s / 60.0, 1)
+    longest = max(awakenings) if awakenings else 0
+    longest_minutes = round(longest * epoch_duration_s / 60.0, 1)
+
+    return {
+        "waso_minutes": waso_minutes,
+        "num_awakenings": len(awakenings),
+        "longest_awakening_minutes": longest_minutes,
+    }
+
+
+def compute_sleep_stats(
+    epochs: List[Dict],
+    epoch_duration_s: float = 30.0,
+    recording_start: Optional[datetime] = None,
+) -> Optional[Dict]:
+    """Compute comprehensive sleep statistics from staged epochs.
+
+    Combines stage distribution, sleep onset, WASO, and sleep efficiency
+    into a single summary dict -- ready to feed directly into
+    SleepQualityPredictor.predict().
+
+    Args:
+        epochs: List of epoch dicts from predict_sequence().
+        epoch_duration_s: Duration of each epoch in seconds.
+        recording_start: Optional recording start time for onset_time.
+
+    Returns:
+        None if no epochs or no sleep detected.
+        Otherwise a dict with:
+            n3_pct, rem_pct, n2_pct, n1_pct, wake_pct: float (0-1)
+            total_sleep_minutes: float
+            total_recording_minutes: float
+            sleep_efficiency: float (0-1)
+            waso_minutes: float
+            num_awakenings: int
+            longest_awakening_minutes: float
+            sleep_onset: dict | None (from detect_sleep_onset)
+    """
+    if not epochs:
+        return None
+
+    # Exclude artifact epochs from all calculations
+    valid = [e for e in epochs if e.get("stage") != "artifact"]
+    if not valid:
+        return None
+
+    total = len(valid)
+    stage_counts = {"Wake": 0, "N1": 0, "N2": 0, "N3": 0, "REM": 0}
+    for e in valid:
+        stage = e.get("stage", "Wake")
+        if stage in stage_counts:
+            stage_counts[stage] += 1
+
+    wake_pct = stage_counts["Wake"] / total
+    n1_pct = stage_counts["N1"] / total
+    n2_pct = stage_counts["N2"] / total
+    n3_pct = stage_counts["N3"] / total
+    rem_pct = stage_counts["REM"] / total
+
+    total_recording_min = total * epoch_duration_s / 60.0
+    sleep_epochs = total - stage_counts["Wake"]
+    total_sleep_min = sleep_epochs * epoch_duration_s / 60.0
+
+    # Sleep efficiency: time asleep / time in bed
+    sleep_efficiency = sleep_epochs / total if total > 0 else 0.0
+
+    # WASO
+    waso = compute_waso(epochs, epoch_duration_s=epoch_duration_s)
+
+    # Sleep onset
+    onset = detect_sleep_onset(
+        epochs, epoch_duration_s=epoch_duration_s, recording_start=recording_start,
+    )
+
+    return {
+        "n3_pct": round(n3_pct, 4),
+        "rem_pct": round(rem_pct, 4),
+        "n2_pct": round(n2_pct, 4),
+        "n1_pct": round(n1_pct, 4),
+        "wake_pct": round(wake_pct, 4),
+        "total_sleep_minutes": round(total_sleep_min, 1),
+        "total_recording_minutes": round(total_recording_min, 1),
+        "sleep_efficiency": round(sleep_efficiency, 4),
+        "waso_minutes": waso["waso_minutes"] if waso else 0.0,
+        "num_awakenings": waso["num_awakenings"] if waso else 0,
+        "longest_awakening_minutes": waso["longest_awakening_minutes"] if waso else 0.0,
+        "sleep_onset": onset,
+    }
