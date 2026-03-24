@@ -56,31 +56,56 @@
 
 .dark {
   /*
-   * Warm, organic dark palette — inspired by Calm (deep serene blues),
-   * Whoop (data-focused black), Apple Health (clarity), and Bewel (warmth).
-   *
-   * Key shift: cold blue-black → warm charcoal with purple undertone.
-   * This feels more human, less mechanical.
+   * Premium dark palette — deeper blacks for OLED, richer gradients,
+   * inspired by Apple Health + Oura + Calm + How We Feel.
+   * True-dark base with warm purple undertone for depth.
    */
-  --background: hsl(260 20% 7%);       /* #13111a — warm charcoal with purple warmth */
-  --foreground: hsl(40 25% 93%);       /* #f2ece0 — warm cream, not cold white */
-  --card: hsl(255 15% 12%);            /* #1c1a26 — warm dark card with subtle warmth */
-  --card-foreground: hsl(40 18% 90%);
-  --popover: hsl(255 15% 11%);
-  --popover-foreground: hsl(40 25% 93%);
-  --primary: hsl(262 55% 60%);         /* AntarAI violet — warm, distinct from teal/Claude */
+  --background: hsl(260 25% 5%);       /* #0d0a14 — near-black with purple depth */
+  --foreground: rgba(255, 255, 255, 0.95);
+  --card: hsl(260 18% 10%);            /* #181322 — deep card surface */
+  --card-foreground: rgba(255, 255, 255, 0.92);
+  --popover: hsl(260 18% 9%);
+  --popover-foreground: rgba(255, 255, 255, 0.95);
+  --primary: hsl(262 55% 60%);         /* AntarAI violet */
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(330 55% 58%);       /* warm rose — emotional, vivid */
+  --secondary: hsl(330 55% 58%);       /* warm rose */
   --secondary-foreground: hsl(0 0% 100%);
-  --muted: hsl(255 12% 16%);           /* #27243a — warm muted */
-  --muted-foreground: hsl(30 12% 63%); /* warm taupe — WCAG AA 4.5:1 on dark bg */
-  --accent: hsl(32 85% 55%);           /* warm amber-gold — emotion warmth */
+  --muted: hsl(260 15% 14%);           /* #211d2e — deeper muted */
+  --muted-foreground: rgba(255, 255, 255, 0.55);
+  --accent: hsl(32 85% 55%);           /* warm amber-gold */
   --accent-foreground: hsl(32 30% 10%);
-  --destructive: hsl(0 65% 55%);       /* softer red — less alarming */
+  --destructive: hsl(0 65% 55%);
   --destructive-foreground: hsl(0 0% 96%);
-  --border: hsl(255 10% 18%);          /* #2d2a3a — warm subtle border */
-  --input: hsl(255 10% 15%);
+  --border: rgba(255, 255, 255, 0.08); /* subtle glass-style border */
+  --input: hsl(260 12% 13%);
   --ring: hsl(262 55% 60%);
+
+  /* ── Mood color system (green→yellow→red spectrum) ── */
+  --mood-excellent: #4ADE80;
+  --mood-good: #A3E635;
+  --mood-okay: #FACC15;
+  --mood-bad: #FB923C;
+  --mood-terrible: #F87171;
+
+  /* ── Glass surfaces ── */
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-hover: rgba(255, 255, 255, 0.07);
+  --glass-active: rgba(255, 255, 255, 0.10);
+
+  /* ── Emotion accent colors (gradient pairs) ── */
+  --emotion-happy-from: #4ADE80;
+  --emotion-happy-to: #22D3EE;
+  --emotion-sad-from: #818CF8;
+  --emotion-sad-to: #6366F1;
+  --emotion-angry-from: #FB7185;
+  --emotion-angry-to: #EF4444;
+  --emotion-fear-from: #C084FC;
+  --emotion-fear-to: #A855F7;
+  --emotion-calm-from: #2DD4BF;
+  --emotion-calm-to: #06B6D4;
+  --emotion-focus-from: #60A5FA;
+  --emotion-focus-to: #3B82F6;
 }
 
 @layer base {
@@ -130,37 +155,81 @@
   }
 
   .glass-card {
-    @apply rounded-[14px] border;
-    background: var(--card);
-    border-color: var(--border);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 4px 24px hsl(0 0% 0% / 0.06);
+    @apply rounded-2xl;
+    background: var(--glass-bg, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .dark .glass-card {
-    background: linear-gradient(160deg, hsl(260 18% 12%) 0%, hsl(255 12% 10%) 100%);
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 1px 2px hsl(0 0% 0% / 0.2);
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
-  /* Premium card with depth — Bevel-style */
-  .premium-card {
-    @apply rounded-2xl border;
+  .glass-card:hover {
+    background: var(--glass-hover, rgba(255, 255, 255, 0.06));
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .glass-card:active {
+    transform: scale(0.985) translateY(0);
+  }
+
+  /* Gradient border card — Oura/Whoop style */
+  .gradient-border-card {
+    @apply rounded-2xl p-5 relative;
     background: var(--card);
-    border-color: var(--border);
-    box-shadow: 0 1px 3px hsl(0 0% 0% / 0.04), 0 6px 24px hsl(0 0% 0% / 0.06);
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+    overflow: hidden;
+  }
+
+  .gradient-border-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--emotion-happy-from), var(--primary), var(--secondary));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+  }
+
+  .gradient-border-card:hover::before {
+    opacity: 0.8;
+  }
+
+  /* Premium card with depth — glass morphism + gradient */
+  .premium-card {
+    @apply rounded-2xl;
+    background: var(--card);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .premium-card:active {
     transform: scale(0.98);
   }
 
+  .premium-card:hover {
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+  }
+
   .dark .premium-card {
-    background: linear-gradient(160deg, hsl(260 18% 13%) 0%, hsl(255 12% 10%) 100%);
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 1px 3px hsl(0 0% 0% / 0.15);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
   /* Score metric card — colored top accent border */
@@ -679,8 +748,141 @@ html {
   top: 0;
   left: 0;
   right: 0;
-  height: 300px;
-  background: linear-gradient(180deg, hsl(260 25% 12% / 0.6) 0%, transparent 100%);
+  height: 400px;
+  background: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    hsl(262 40% 18% / 0.4) 0%,
+    hsl(260 25% 8% / 0.2) 50%,
+    transparent 100%
+  );
   pointer-events: none;
   z-index: -1;
+}
+
+/* ── Animated ambient gradient — subtle living background ── */
+@keyframes ambient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+    opacity: 0.3;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 0.5;
+  }
+}
+
+.dark .ambient-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    -45deg,
+    hsl(262 40% 12% / 0.3),
+    hsl(330 30% 10% / 0.2),
+    hsl(200 30% 10% / 0.2),
+    hsl(262 40% 12% / 0.3)
+  );
+  background-size: 400% 400%;
+  animation: ambient-shift 20s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -2;
+}
+
+/* ── Mood orb glow — pulsing colored glow behind mood selection ── */
+@keyframes mood-glow-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.7;
+  }
+}
+
+.mood-orb-glow {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  filter: blur(40px);
+  animation: mood-glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ── Gradient progress bar ── */
+.progress-gradient {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-gradient-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+
+.progress-gradient-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+/* ── Emotion glow ring — animated ring around selected emotion ── */
+@keyframes glow-ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.emotion-glow-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    var(--ring-color-1, #4ADE80),
+    var(--ring-color-2, #22D3EE),
+    var(--ring-color-1, #4ADE80)
+  );
+  animation: glow-ring-spin 4s linear infinite;
+  opacity: 0.6;
+}
+
+.emotion-glow-ring::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--card);
+}
+
+/* ── Score ring glow ── */
+.score-ring-glow {
+  filter: drop-shadow(0 0 12px var(--ring-glow-color, hsl(262 55% 60% / 0.35)));
+}
+
+/* ── Animated gradient text — flowing color ── */
+@keyframes gradient-text-flow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.text-gradient-animated {
+  background: linear-gradient(90deg, #4ADE80, #22D3EE, #818CF8, #C084FC, #4ADE80);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-text-flow 6s ease-in-out infinite;
 }
