@@ -72,6 +72,8 @@ class ConfidenceCalibrator:
 
     def __init__(self):
         self.calibration_params = {}
+        self.temperature_params: Dict[str, Dict] = {}
+        self._calibration_dir = CALIBRATION_DIR
         self._load_calibrations()
 
     def calibrate(self, model_name: str, raw_confidence: float,
@@ -205,6 +207,100 @@ class ConfidenceCalibrator:
         self.calibration_params[model_name] = {"a": float(a), "b": float(b)}
         self._save_calibrations()
 
+    def fit_temperature(self, model_name: str,
+                        logits: np.ndarray,
+                        true_labels: np.ndarray,
+                        min_samples: int = 20) -> None:
+        """Learn a temperature parameter T from validation data (Guo et al., 2017).
+
+        Temperature scaling applies softmax(logits / T) where T is a single
+        scalar optimized to minimize negative log-likelihood on a held-out
+        validation set. T > 1 softens overconfident predictions; T < 1
+        sharpens underconfident ones.
+
+        This is the simplest post-hoc calibration method: one parameter,
+        model-agnostic, works with any classifier that outputs logits.
+
+        Args:
+            model_name: Model identifier (e.g., "emotion", "sleep_staging").
+            logits:     (n_samples, n_classes) raw logits from the model.
+            true_labels: (n_samples,) integer class labels.
+            min_samples: Minimum samples required to fit (default 20).
+        """
+        logits = np.asarray(logits, dtype=np.float64)
+        true_labels = np.asarray(true_labels, dtype=np.int64)
+
+        if len(logits) < min_samples:
+            return  # Not enough data to learn a reliable temperature
+
+        if logits.ndim != 2:
+            return
+
+        n_samples, n_classes = logits.shape
+
+        # Initialize T = 1.0 (no scaling) and optimize via gradient descent.
+        # We minimize NLL = -mean(log(softmax(logits/T)[true_label])).
+        #
+        # Gradient derivation:
+        #   log(q_y) = z_y/T - logsumexp(z/T)
+        #   d(log q_y)/dT = (1/T^2) * (E_q[z] - z_y)
+        #     where E_q[z] = sum_j q_j * z_j  (expected logit under softmax)
+        #   d(NLL)/dT = -(1/T^2) * mean(E_q[z] - z_y)
+        #             = (1/T^2) * mean(z_y - E_q[z])
+        T = 1.0
+        lr = 0.01
+
+        for _ in range(500):
+            # Forward: softmax with current temperature
+            scaled = logits / T
+            scaled -= scaled.max(axis=1, keepdims=True)  # numerical stability
+            exp_vals = np.exp(scaled)
+            probs = exp_vals / exp_vals.sum(axis=1, keepdims=True)
+            probs = np.clip(probs, 1e-10, 1.0)
+
+            logit_true = logits[np.arange(n_samples), true_labels]
+            expected_logit = (probs * logits).sum(axis=1)
+
+            # dL/dT = (1/T^2) * mean(z_y - E_q[z])
+            grad = np.mean(logit_true - expected_logit) / (T * T)
+
+            T -= lr * grad
+
+            # Clamp T to reasonable range: [0.1, 10.0]
+            T = max(0.1, min(10.0, T))
+
+        self.temperature_params[model_name] = {
+            "temperature": float(T),
+            "n_samples": int(n_samples),
+            "n_classes": int(n_classes),
+        }
+        self._save_calibrations()
+
+    def apply_temperature(self, model_name: str,
+                          logits: np.ndarray) -> Optional[List[float]]:
+        """Apply learned temperature to logits, returning calibrated probabilities.
+
+        Args:
+            model_name: Model identifier.
+            logits:     1D array of shape (n_classes,) — raw logits for one sample.
+
+        Returns:
+            List of calibrated probabilities summing to 1.0, or None if no
+            temperature has been learned for this model.
+        """
+        if model_name not in self.temperature_params:
+            return None
+
+        T = self.temperature_params[model_name]["temperature"]
+        logits = np.asarray(logits, dtype=np.float64)
+
+        scaled = logits / T
+        scaled -= scaled.max()  # numerical stability
+        exp_vals = np.exp(scaled)
+        probs = exp_vals / exp_vals.sum()
+
+        return [float(p) for p in probs]
+
     def _platt_scale(self, raw_score: float, params: Dict) -> float:
         """Apply Platt scaling: calibrated = sigmoid(a * raw + b)."""
         z = params["a"] * raw_score + params["b"]
@@ -251,22 +347,32 @@ class ConfidenceCalibrator:
         """Get reliability assessment for a model."""
         prior = self.MODEL_PRIORS.get(model_name, {})
 
-        has_calibration = model_name in self.calibration_params
+        has_platt = model_name in self.calibration_params
+        has_temperature = model_name in self.temperature_params
+
+        if has_temperature:
+            method = "temperature_scaling"
+            note = (
+                f"Temperature-calibrated (T={self.temperature_params[model_name]['temperature']:.2f})"
+            )
+        elif has_platt:
+            method = "platt_scaling"
+            note = "Calibrated on real data"
+        else:
+            method = "conservative_heuristic"
+            note = "Using conservative estimates — confidence scores may be pessimistic"
 
         return {
             "model": model_name,
             "expected_accuracy": prior.get("expected_accuracy", 0.5),
-            "is_calibrated": has_calibration,
-            "calibration_method": "platt_scaling" if has_calibration else "conservative_heuristic",
+            "is_calibrated": has_platt or has_temperature,
+            "calibration_method": method,
             "reliability_tier": (
                 "high" if prior.get("expected_accuracy", 0) >= 0.65
                 else "medium" if prior.get("expected_accuracy", 0) >= 0.50
                 else "low"
             ),
-            "note": (
-                "Calibrated on real data" if has_calibration
-                else "Using conservative estimates — confidence scores may be pessimistic"
-            ),
+            "note": note,
         }
 
     def get_all_reliability(self) -> Dict:
@@ -277,15 +383,28 @@ class ConfidenceCalibrator:
         }
 
     def _save_calibrations(self):
-        """Save learned calibration params to disk."""
-        filepath = CALIBRATION_DIR / "platt_params.json"
-        filepath.write_text(json.dumps(self.calibration_params, indent=2))
+        """Save learned calibration params (Platt + temperature) to disk."""
+        cal_dir = self._calibration_dir
+        cal_dir.mkdir(parents=True, exist_ok=True)
+
+        platt_path = cal_dir / "platt_params.json"
+        platt_path.write_text(json.dumps(self.calibration_params, indent=2))
+
+        if self.temperature_params:
+            temp_path = cal_dir / "temperature_params.json"
+            temp_path.write_text(json.dumps(self.temperature_params, indent=2))
 
     def _load_calibrations(self):
-        """Load learned calibration params from disk."""
-        filepath = CALIBRATION_DIR / "platt_params.json"
-        if filepath.exists():
-            self.calibration_params = json.loads(filepath.read_text())
+        """Load learned calibration params (Platt + temperature) from disk."""
+        cal_dir = self._calibration_dir
+
+        platt_path = cal_dir / "platt_params.json"
+        if platt_path.exists():
+            self.calibration_params = json.loads(platt_path.read_text())
+
+        temp_path = cal_dir / "temperature_params.json"
+        if temp_path.exists():
+            self.temperature_params = json.loads(temp_path.read_text())
 
 
 def add_uncertainty_labels(predictions: Dict, calibrator: ConfidenceCalibrator) -> Dict:

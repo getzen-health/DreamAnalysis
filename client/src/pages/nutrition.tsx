@@ -173,14 +173,26 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
     if (existing.length > 200) existing.length = 200;
     sbSaveGeneric(key, existing);
   } catch { /* localStorage full or unavailable */ }
-  // Also persist to Supabase (fire-and-forget, skip localStorage since we handle it above)
+  // Also persist via Express API (primary server storage — no auth required)
+  import("@/lib/queryClient").then(({ resolveUrl }) => {
+    fetch(resolveUrl("/api/food/log"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        mealType: entry.mealType ?? "meal",
+        summary: entry.summary ?? (entry.foodItems ?? []).map((fi: any) => fi.name).join(", "),
+        totalCalories: entry.totalCalories ?? entry.calories ?? 0,
+        dominantMacro: entry.dominantMacro ?? null,
+        foodItems: entry.foodItems ?? [],
+      }),
+    }).catch((e) => console.warn("[nutrition] Express API food/log failed:", e));
+  }).catch(() => {});
+
+  // Also try Supabase (may fail due to RLS if not authenticated)
   import("@/lib/supabase-browser").then(({ getSupabase }) =>
     getSupabase().then((sb) => {
-      if (!sb) {
-        console.log("[nutrition] Supabase client not available, skipping food_logs insert");
-        return;
-      }
-      console.log("[nutrition] Inserting food log to Supabase:", { userId, calories: entry.totalCalories ?? entry.calories, summary: entry.summary });
+      if (!sb) return;
       sb.from("food_logs").insert({
         user_id: userId,
         meal_type: entry.mealType ?? "meal",

@@ -277,11 +277,19 @@ function getLocalCycleData(): LocalCycleData | null {
 
 function setLocalCycleData(data: LocalCycleData): void {
   sbSaveGeneric(CYCLE_STORAGE_KEY, data);
-  // Also persist to Supabase (fire-and-forget)
+  // Persist to Supabase (may fail due to RLS)
   sbSaveCycleData("local", {
     last_period_start: data.lastPeriodStart,
     cycle_length: data.cycleLength,
     period_length: data.periodLength,
+  }).catch(() => {});
+  // Also save via Express API (primary server storage — no auth required)
+  import("@/lib/queryClient").then(({ apiRequest }) => {
+    apiRequest("POST", "/api/cycle", {
+      date: data.lastPeriodStart,
+      flowLevel: "medium",
+      notes: `Cycle: ${data.cycleLength} days, Period: ${data.periodLength} days`,
+    }).catch(() => {});
   }).catch(() => {});
 }
 
@@ -969,6 +977,23 @@ function CycleTab() {
   // Local cycle data from localStorage
   const [localCycleData, setLocalCycleData_] = useState<LocalCycleData | null>(() => getLocalCycleData());
   const [showSettings, setShowSettings] = useState(false);
+
+  // On mount: if no local data, try loading from Express API (survives APK reinstall)
+  useEffect(() => {
+    if (localCycleData) return;
+    if (!user?.id) return;
+    fetch(`/api/cycle/${user.id}/phase`).then(r => r.ok ? r.json() : null).then(phase => {
+      if (phase && phase.lastPeriodStart && phase.avgCycleLength > 0) {
+        const restored: LocalCycleData = {
+          lastPeriodStart: phase.lastPeriodStart,
+          cycleLength: phase.avgCycleLength || 28,
+          periodLength: 5,
+        };
+        setLocalCycleData(restored);
+        setLocalCycleData_(restored);
+      }
+    }).catch(() => {});
+  }, [user?.id, localCycleData]);
 
   const handleCycleSetup = useCallback((data: LocalCycleData) => {
     setLocalCycleData_(data);
