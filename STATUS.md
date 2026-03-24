@@ -49,6 +49,7 @@
 - [x] Mastoid re-reference wired into live BrainFlow stream
 - [x] FAA, DASM/RASM, FMT fully integrated into emotion classifier
 - [x] PLV functional connectivity features in emotion classifier — per-pair Phase Locking Value across theta/alpha/beta bands modulates valence (PLV-weighted FAA confidence), arousal (8% fronto-temporal PLV), and focus (5% frontal beta PLV). Reference: Wang et al. (2024), 7%+ accuracy improvement from PLV fusion.
+- [x] Band-specific Hjorth mobility with frontal/temporal ratio — Hjorth mobility on beta-filtered EEG is the single best feature for emotion recognition (83.33% acc, AUC 0.904 on SEED, SVM LOSO). compute_band_hjorth_mobility() and compute_hjorth_mobility_ratio() added. Beta mobility ratio modulates focus_index (5% weight). 18 tests.
 - [x] DREAMER dataset integrated (23 subjects, Emotiv EPOC 14-ch)
 - [x] GAMEEMO dataset integrated (28 subjects, 4 games, neutral class source)
 - [x] Device-aware gamma masking — Muse 2 zeros gamma features; research EEG uses all 85
