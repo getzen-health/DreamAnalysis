@@ -20,6 +20,11 @@ export interface OnDeviceEmotionResult {
    *  Useful for the fusion engine to adjust valence/arousal based on
    *  intonation patterns (rising = question/surprise, falling = calm). */
   f0_contour?: F0ContourFeatures;
+  /** Voice energy envelope features — captures temporal dynamics of
+   *  utterance energy (attack, sustain, decay).  Used as post-processing
+   *  modulation: fast attack + high sustain nudges arousal up (+0.05),
+   *  slow attack nudges arousal down (-0.05). */
+  energy_envelope?: EnergyEnvelopeFeatures;
 }
 
 // ─── Speaker Baseline F0 (Pitch Normalization) ─────────────────────────────
@@ -1037,6 +1042,151 @@ export function extractF0ContourFeatures(
   };
 }
 
+// ─── Voice Energy Envelope Features ──────────────────────────────────────────
+
+/**
+ * Energy envelope features capture the temporal dynamics of utterance energy.
+ *
+ * Three features:
+ *   1. attackTimeMs:  Time from silence to peak energy at utterance start.
+ *                     Fast attack (~50ms) = assertive/excited speech.
+ *                     Slow attack (~200ms+) = hesitant/calm speech.
+ *
+ *   2. sustainRatio:  Ratio of sustained energy to peak energy (0-1).
+ *                     High sustain (~0.7+) = confident, steady speech.
+ *                     Low sustain (~0.3) = breathy, fading speech.
+ *
+ *   3. decayRateDb:   Energy decay rate at utterance end in dB/second.
+ *                     Fast decay (large negative) = abrupt stop.
+ *                     Slow decay (near 0) = trailing off gently.
+ */
+export interface EnergyEnvelopeFeatures {
+  attackTimeMs: number;
+  sustainRatio: number;
+  decayRateDb: number;
+}
+
+/**
+ * Extract energy envelope features from audio.
+ *
+ * Algorithm:
+ *   1. Compute energy per 25ms frame (10ms hop for finer resolution).
+ *   2. Find onset: first frame above 10% of max energy.
+ *   3. Find peak energy frame.
+ *   4. Attack time = (peak_frame - onset_frame) * hop_ms.
+ *   5. Sustain = median energy of middle 50% of frames / peak energy.
+ *   6. Decay = linear regression slope of log energy over last 25% of frames,
+ *             converted to dB/second.
+ *
+ * @param samples  Mono PCM audio samples
+ * @param sr       Sample rate in Hz
+ * @returns        EnergyEnvelopeFeatures (safe defaults for silence/short audio)
+ */
+export function extractEnergyEnvelope(
+  samples: Float32Array,
+  sr: number,
+): EnergyEnvelopeFeatures {
+  const frameLenSec = 0.025; // 25ms frames
+  const hopLenSec = 0.01;    // 10ms hop
+  const frameLen = Math.floor(sr * frameLenSec);
+  const hopLen = Math.floor(sr * hopLenSec);
+  const hopMs = hopLenSec * 1000;
+
+  // Safe defaults for silence / degenerate input
+  const defaults: EnergyEnvelopeFeatures = {
+    attackTimeMs: 0,
+    sustainRatio: 0,
+    decayRateDb: 0,
+  };
+
+  if (frameLen <= 0 || hopLen <= 0 || samples.length < frameLen) {
+    return defaults;
+  }
+
+  // Step 1: Compute energy per frame (mean squared amplitude)
+  const energies: number[] = [];
+  for (let start = 0; start + frameLen <= samples.length; start += hopLen) {
+    let sumSq = 0;
+    for (let i = start; i < start + frameLen; i++) {
+      sumSq += samples[i] * samples[i];
+    }
+    energies.push(sumSq / frameLen);
+  }
+
+  if (energies.length === 0) return defaults;
+
+  // Find max energy
+  let maxEnergy = 0;
+  let peakFrame = 0;
+  for (let i = 0; i < energies.length; i++) {
+    if (energies[i] > maxEnergy) {
+      maxEnergy = energies[i];
+      peakFrame = i;
+    }
+  }
+
+  // All silence — return defaults
+  if (maxEnergy <= 1e-14) return defaults;
+
+  // Step 2: Find onset — first frame above 10% of max energy
+  const onsetThreshold = maxEnergy * 0.1;
+  let onsetFrame = 0;
+  for (let i = 0; i < energies.length; i++) {
+    if (energies[i] >= onsetThreshold) {
+      onsetFrame = i;
+      break;
+    }
+  }
+
+  // Step 3: Attack time = (peak - onset) * hop_ms
+  const attackTimeMs = Math.max(0, (peakFrame - onsetFrame) * hopMs);
+
+  // Step 4: Sustain ratio = median of middle 50% / peak
+  const n = energies.length;
+  const midStart = Math.floor(n * 0.25);
+  const midEnd = Math.floor(n * 0.75);
+  let sustainRatio = 0;
+  if (midEnd > midStart) {
+    const middleEnergies = energies.slice(midStart, midEnd);
+    middleEnergies.sort((a, b) => a - b);
+    const median = middleEnergies[Math.floor(middleEnergies.length / 2)];
+    sustainRatio = maxEnergy > 0 ? Math.min(1, Math.max(0, median / maxEnergy)) : 0;
+  }
+
+  // Step 5: Decay rate — linear regression of log energy over last 25%
+  let decayRateDb = 0;
+  const decayStart = Math.floor(n * 0.75);
+  const decayFrames = energies.slice(decayStart);
+  if (decayFrames.length >= 2) {
+    // Convert to dB (10*log10), floor to avoid log(0)
+    const logEnergies = decayFrames.map(e => 10 * Math.log10(Math.max(e, 1e-14)));
+
+    // Linear regression: slope of dB over frame index
+    const m = logEnergies.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    for (let i = 0; i < m; i++) {
+      sumX += i;
+      sumY += logEnergies[i];
+      sumXY += i * logEnergies[i];
+      sumXX += i * i;
+    }
+    const denom = m * sumXX - sumX * sumX;
+    if (denom !== 0) {
+      const slopePerFrame = (m * sumXY - sumX * sumY) / denom;
+      // Convert slope from dB/frame to dB/second
+      // Each frame hop = hopLenSec seconds
+      decayRateDb = slopePerFrame / hopLenSec;
+    }
+  }
+
+  // Ensure all values are finite
+  return {
+    attackTimeMs: Number.isFinite(attackTimeMs) ? attackTimeMs : 0,
+    sustainRatio: Number.isFinite(sustainRatio) ? sustainRatio : 0,
+    decayRateDb: Number.isFinite(decayRateDb) ? decayRateDb : 0,
+  };
+}
+
 // ─── Audio SNR Estimation ────────────────────────────────────────────────────
 
 /**
@@ -1201,12 +1351,15 @@ async function tryLoadV2(): Promise<boolean> {
  *  @param snrDb     Audio SNR in dB — used to modulate confidence.
  *                   When SNR < 15 dB, confidence is scaled by SNR/15.
  *  @param contour   Optional F0 contour features — used to nudge
- *                   valence/arousal based on prosodic intonation. */
+ *                   valence/arousal based on prosodic intonation.
+ *  @param envelope  Optional energy envelope features — used to nudge
+ *                   arousal based on utterance dynamics. */
 function buildEmotionResult(
   label: number,
   probsRaw: Float32Array,
   snrDb: number = 60,
   contour?: F0ContourFeatures,
+  envelope?: EnergyEnvelopeFeatures,
 ): OnDeviceEmotionResult {
   // Build probability map
   const probabilities: Record<string, number> = {};
@@ -1281,6 +1434,25 @@ function buildEmotionResult(
     arousal = Math.max(0, Math.min(1, arousal + arousalNudge * expressiveness));
   }
 
+  // ── Energy envelope-based modulation ──────────────────────────────────
+  // Fast attack + high sustain = assertive/energetic speech → arousal up.
+  // Slow attack = hesitant/calm speech → arousal down.
+  // Nudge magnitude: +/-0.05 (same scale as F0 contour nudges).
+  if (envelope) {
+    let envelopeArousalNudge = 0;
+
+    // Fast attack (< 80ms) + high sustain (> 0.5) → energetic
+    if (envelope.attackTimeMs < 80 && envelope.sustainRatio > 0.5) {
+      envelopeArousalNudge = 0.05;
+    }
+    // Slow attack (> 150ms) → hesitant/calm
+    else if (envelope.attackTimeMs > 150) {
+      envelopeArousalNudge = -0.05;
+    }
+
+    arousal = Math.max(0, Math.min(1, arousal + envelopeArousalNudge));
+  }
+
   // Confidence is the max probability, modulated by audio SNR.
   // When background noise is high (SNR < 15 dB), scale confidence down
   // proportionally because noisy audio degrades voice emotion accuracy.
@@ -1315,6 +1487,7 @@ function buildEmotionResult(
     model_type: "voice-onnx",
     snr_db: snrDb,
     f0_contour: contour,
+    energy_envelope: envelope,
   };
 }
 
@@ -1344,6 +1517,11 @@ export async function runVoiceEmotionONNX(
   // pattern, independent of the ONNX spectral model.
   const contour = extractF0ContourFeatures(samples, sr);
 
+  // Extract energy envelope features (attack, sustain, decay).
+  // Used for post-processing arousal modulation — fast attack + high sustain
+  // nudges arousal up, slow attack nudges arousal down.
+  const envelope = extractEnergyEnvelope(samples, sr);
+
   const useV2 = await tryLoadV2();
 
   if (useV2 && preprocessSessionV2 && classifierSessionV2) {
@@ -1358,7 +1536,7 @@ export async function runVoiceEmotionONNX(
 
     const label = Number(clsResult["label"].data[0]);
     const probsRaw = clsResult["probabilities"].data as Float32Array;
-    return buildEmotionResult(label, probsRaw, snrDb, contour);
+    return buildEmotionResult(label, probsRaw, snrDb, contour, envelope);
   }
 
   // ── V1 fallback: 92-dim features ────────────────────────────────────────
@@ -1374,5 +1552,5 @@ export async function runVoiceEmotionONNX(
 
   const label = Number(clsResult["label"].data[0]);
   const probsRaw = clsResult["probabilities"].data as Float32Array;
-  return buildEmotionResult(label, probsRaw, snrDb, contour);
+  return buildEmotionResult(label, probsRaw, snrDb, contour, envelope);
 }
