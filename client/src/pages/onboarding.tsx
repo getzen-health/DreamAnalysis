@@ -634,7 +634,7 @@ function StepHealthSync({ onNext }: { onNext: () => void }) {
         });
         setStatus("connected");
       } else if (platform === "android") {
-        const { Health } = await import("capacitor-health");
+        const capgoModule = await import("@capgo/capacitor-health"); const Health = capgoModule.CapgoHealth;
         const available = await Health.isHealthAvailable();
         if (!available.available) {
           setErrorMsg(

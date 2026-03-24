@@ -160,7 +160,7 @@ export default function ConnectedAssets() {
     setIsConnectingHealth(true);
     try {
       if (platform === "android") {
-        const { Health } = await import("capacitor-health");
+        const capgoModule = await import("@capgo/capacitor-health"); const Health = capgoModule.CapgoHealth;
         const available = await Health.isHealthAvailable();
         if (!available.available) {
           toast({ title: "Health Connect Not Available", description: "Install Google Health Connect from the Play Store.", variant: "destructive" });

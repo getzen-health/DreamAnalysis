@@ -885,7 +885,8 @@ class HealthSyncManager {
       if (os === "ios") {
         await requestPermissionsIos();
       } else {
-        const { Health } = await import("capacitor-health");
+        const capgoModule = await import("@capgo/capacitor-health");
+        const Health = capgoModule.CapgoHealth;
         let available: { available: boolean };
         try {
           available = await Health.isHealthAvailable();
