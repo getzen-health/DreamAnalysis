@@ -43,6 +43,7 @@ from torch.utils.data import DataLoader, TensorDataset, random_split
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.eegnet import EEGNet
+from processing.focal_loss import FocalLoss, focal_mixup_cross_entropy
 from processing.mixup_augmentation import (
     mixup_signal_batch, mixup_cross_entropy, to_one_hot,
 )
@@ -189,6 +190,7 @@ def train(
     patience: int = 20,
     device: str = "cpu",
     mixup_alpha: float = 0.4,
+    focal_gamma: float = 2.0,
 ) -> Tuple[EEGNet, float]:
     """Train EEGNet and return (model, test_accuracy).
 
@@ -196,6 +198,10 @@ def train(
         mixup_alpha: Mixup interpolation strength. 0 disables mixup.
             0.2-0.4 is recommended for EEG data (conservative mixing).
             Higher values mix more aggressively. Default 0.4.
+        focal_gamma: Focal loss focusing parameter. 0 disables focal
+            modulation (standard CE). 2.0 is the default from Lin et al.
+            (2017). Down-weights easy/well-classified samples so the model
+            focuses on hard cases (ambiguous emotions, noisy epochs).
     """
 
     log.info(
@@ -232,12 +238,13 @@ def train(
 
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
-    # Standard CE for validation; mixup uses soft-label CE for training
-    val_criterion = nn.CrossEntropyLoss(weight=weights)
+    # Focal loss for both validation and training — down-weights easy samples
+    val_criterion = FocalLoss(gamma=focal_gamma, weight=weights)
     use_mixup = mixup_alpha > 0.0
 
+    log.info("Focal loss enabled (gamma=%.1f) — down-weighting easy samples", focal_gamma)
     if use_mixup:
-        log.info("Mixup enabled (alpha=%.2f) — using soft-label cross-entropy for training", mixup_alpha)
+        log.info("Mixup enabled (alpha=%.2f) — using focal soft-label CE for training", mixup_alpha)
 
     best_val_acc = 0.0
     best_state = None
@@ -260,7 +267,7 @@ def train(
                 xb_mix = torch.from_numpy(xb_mix_np).to(device)
                 yb_mix = torch.from_numpy(yb_mix_np).to(device)
                 logits = model(xb_mix)
-                loss = mixup_cross_entropy(logits, yb_mix, class_weights=weights)
+                loss = focal_mixup_cross_entropy(logits, yb_mix, gamma=focal_gamma, class_weights=weights)
             else:
                 loss = val_criterion(model(xb), yb)
 
@@ -345,6 +352,7 @@ def main() -> None:
     parser.add_argument("--fs",          type=float, default=256.0, help="EEG sampling rate Hz")
     parser.add_argument("--epoch-sec",   type=float, default=4.0,   help="Seconds per epoch")
     parser.add_argument("--mixup-alpha", type=float, default=0.4,   help="Mixup alpha (0=disabled, 0.2-0.4=recommended)")
+    parser.add_argument("--focal-gamma", type=float, default=2.0,  help="Focal loss gamma (0=standard CE, 2.0=default focal)")
     args = parser.parse_args()
 
     n_samples = int(args.epoch_sec * args.fs)
@@ -405,6 +413,7 @@ def main() -> None:
         patience=args.patience,
         device=device,
         mixup_alpha=args.mixup_alpha,
+        focal_gamma=args.focal_gamma,
     )
 
     save_model(model, accuracy, args.channels)

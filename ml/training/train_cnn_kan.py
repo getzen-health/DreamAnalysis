@@ -49,6 +49,7 @@ sys.path.insert(0, str(_ML_ROOT))
 
 # ── project imports (after path setup) ───────────────────────────────────────
 from models.cnn_kan import CNNKANModel, EMOTION_CLASSES
+from processing.focal_loss import FocalLoss
 
 log = logging.getLogger(__name__)
 
@@ -303,7 +304,7 @@ def train(
 
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=lr * 1e-2)
-    criterion = nn.CrossEntropyLoss(weight=weights)
+    criterion = FocalLoss(gamma=2.0, weight=weights)
 
     best_val_acc  = 0.0
     best_state    = None

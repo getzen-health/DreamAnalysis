@@ -39,6 +39,7 @@ from processing.emotion_features_enhanced import (
     extract_enhanced_emotion_features,
     extract_temporal_features,
 )
+from processing.focal_loss import FocalLoss, focal_mixup_cross_entropy
 from processing.mixup_augmentation import mixup_batch, mixup_cross_entropy, to_one_hot
 from training.pretrain_eeg_ssl import _BAND_CENTERS, _generate_epoch
 
@@ -252,7 +253,7 @@ def train(
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.Adam(trainable_params, lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # for validation + non-mixup training
+    criterion = FocalLoss(gamma=2.0, label_smoothing=0.1)  # focal loss for validation + non-mixup training
     use_mixup = mixup_alpha > 0.0
 
     best_val_acc = 0.0
@@ -283,7 +284,7 @@ def train(
                     y_onehot = F.one_hot(batch_labels, num_classes=len(EMOTIONS)).float()
                     y_mix = lam * y_onehot + (1.0 - lam) * y_onehot[idx]
                     logits = model(batch_eeg_mix, batch_feat_mix)
-                    loss = mixup_cross_entropy(logits, y_mix)
+                    loss = focal_mixup_cross_entropy(logits, y_mix, gamma=2.0)
                 else:
                     logits = model(batch_eeg, batch_feat)
                     loss = criterion(logits, batch_labels)

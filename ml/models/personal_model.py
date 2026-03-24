@@ -57,6 +57,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import AdamW
 
+from processing.focal_loss import FocalLoss
+
 log = logging.getLogger(__name__)
 
 EMOTIONS = ["happy", "sad", "angry", "fearful", "relaxed", "focused"]
@@ -330,7 +332,7 @@ class PersonalModel:
         weights = torch.tensor(1.0 / counts)
 
         optimizer = AdamW(self.head.parameters(), lr=self._FINE_TUNE_LR, weight_decay=1e-3)
-        criterion = nn.CrossEntropyLoss(weight=weights)
+        criterion = FocalLoss(gamma=2.0, weight=weights)
 
         best_acc = 0.0
         best_state = None
