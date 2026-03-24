@@ -16,6 +16,10 @@ export interface OnDeviceEmotionResult {
    *  noise degrades voice emotion accuracy.  Consumers can use this to
    *  weight voice predictions lower in the fusion engine. */
   snr_db: number;
+  /** F0 contour shape features — captures the prosodic pitch trajectory.
+   *  Useful for the fusion engine to adjust valence/arousal based on
+   *  intonation patterns (rising = question/surprise, falling = calm). */
+  f0_contour?: F0ContourFeatures;
 }
 
 // ─── Speaker Baseline F0 (Pitch Normalization) ─────────────────────────────
@@ -872,6 +876,167 @@ export function extractEnhancedFeatures(samples: Float32Array, sr: number): Floa
   return features;
 }
 
+// ─── F0 Contour Shape Features ──────────────────────────────────────────────
+
+/**
+ * F0 contour shape features capture the SHAPE of pitch over time, which is
+ * critical for emotion recognition (Schuller 2013, eGeMAPS feature set).
+ *
+ * Three features:
+ *   1. contourType: overall pitch trajectory shape
+ *      - "rising":      question intonation, surprise, uncertainty
+ *      - "falling":     declarative, calm, confident statement
+ *      - "flat":        monotone, neutral, or constant-pitch signal
+ *      - "U":           pitch dips then rises — hesitation then recovery
+ *      - "inverted-U":  pitch rises then falls — emphasis/exclamation
+ *
+ *   2. contourVariance: how much the pitch direction changes across quarters.
+ *      High = dynamic/expressive speech.  Low = monotone/flat.
+ *
+ *   3. maxExcursionPosition: where in the utterance (0=start, 1=end) the
+ *      biggest pitch change happens.
+ *      - Near 0 = emphasis at start (strong assertion)
+ *      - Near 1 = question/trailing emphasis
+ *      - Near 0.5 = mid-utterance peak (surprise/exclamation)
+ */
+export interface F0ContourFeatures {
+  contourType: "rising" | "falling" | "flat" | "U" | "inverted-U";
+  contourVariance: number;
+  maxExcursionPosition: number;
+  /** Per-quarter F0 slope (Hz per frame). 4 elements: Q1, Q2, Q3, Q4. */
+  quarterSlopes: [number, number, number, number];
+}
+
+/**
+ * Extract F0 contour shape features from audio.
+ *
+ * Splits the voiced pitch track into 4 quarters, computes the linear
+ * slope in each, then classifies the overall contour shape.
+ *
+ * @param samples  Mono PCM audio samples
+ * @param sr       Sample rate in Hz
+ * @returns        F0ContourFeatures object (safe defaults if no voiced frames)
+ */
+export function extractF0ContourFeatures(
+  samples: Float32Array,
+  sr: number,
+): F0ContourFeatures {
+  const pitchValues = estimatePitchPerFrame(samples, sr);
+  const voicedPitches = pitchValues.filter((f) => f > 0);
+
+  // Safe defaults when there are no voiced frames
+  if (voicedPitches.length < 4) {
+    return {
+      contourType: "flat",
+      contourVariance: 0,
+      maxExcursionPosition: 0.5,
+      quarterSlopes: [0, 0, 0, 0],
+    };
+  }
+
+  // Split voiced pitches into 4 approximately equal quarters
+  const qLen = Math.floor(voicedPitches.length / 4);
+  const quarters: number[][] = [
+    voicedPitches.slice(0, qLen),
+    voicedPitches.slice(qLen, qLen * 2),
+    voicedPitches.slice(qLen * 2, qLen * 3),
+    voicedPitches.slice(qLen * 3),
+  ];
+
+  // Compute linear slope per quarter using least-squares regression
+  function linearSlope(values: number[]): number {
+    if (values.length < 2) return 0;
+    const n = values.length;
+    let sumX = 0,
+      sumY = 0,
+      sumXY = 0,
+      sumXX = 0;
+    for (let i = 0; i < n; i++) {
+      sumX += i;
+      sumY += values[i];
+      sumXY += i * values[i];
+      sumXX += i * i;
+    }
+    const denom = n * sumXX - sumX * sumX;
+    return denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+  }
+
+  const quarterSlopes: [number, number, number, number] = [
+    linearSlope(quarters[0]),
+    linearSlope(quarters[1]),
+    linearSlope(quarters[2]),
+    linearSlope(quarters[3]),
+  ];
+
+  // ── Contour variance: variance of the 4 quarter slopes ──
+  // Measures how much the pitch direction changes across the utterance.
+  let slopeMean = 0;
+  for (const s of quarterSlopes) slopeMean += s;
+  slopeMean /= 4;
+  let slopeVar = 0;
+  for (const s of quarterSlopes) slopeVar += (s - slopeMean) ** 2;
+  slopeVar /= 4;
+  const contourVariance = Number.isFinite(slopeVar) ? slopeVar : 0;
+
+  // ── Max excursion position: where the biggest pitch change occurs ──
+  // Compute cumulative absolute pitch change per frame, find the position
+  // of the maximum single-frame jump.
+  let maxDelta = 0;
+  let maxDeltaIdx = 0;
+  for (let i = 1; i < voicedPitches.length; i++) {
+    const delta = Math.abs(voicedPitches[i] - voicedPitches[i - 1]);
+    if (delta > maxDelta) {
+      maxDelta = delta;
+      maxDeltaIdx = i;
+    }
+  }
+  // Normalize to [0, 1] where 0=start, 1=end
+  const maxExcursionPosition =
+    voicedPitches.length > 1 ? maxDeltaIdx / (voicedPitches.length - 1) : 0.5;
+
+  // ── Classify contour type ──
+  // Use the overall slope (first half vs second half mean) plus quarter slopes.
+  const overallSlope = linearSlope(voicedPitches);
+  const firstHalfMean = (quarterSlopes[0] + quarterSlopes[1]) / 2;
+  const secondHalfMean = (quarterSlopes[2] + quarterSlopes[3]) / 2;
+
+  // Threshold for "significant" slope: 0.5 Hz per frame.
+  // At 15ms hop, that's ~33 Hz/sec change — a noticeable pitch shift.
+  const SLOPE_THRESH = 0.5;
+
+  let contourType: F0ContourFeatures["contourType"];
+
+  if (Math.abs(overallSlope) < SLOPE_THRESH && contourVariance < 0.5) {
+    // Neither overall change nor directional changes → flat
+    contourType = "flat";
+  } else if (firstHalfMean < -SLOPE_THRESH && secondHalfMean > SLOPE_THRESH) {
+    // Pitch drops then rises → U shape
+    contourType = "U";
+  } else if (firstHalfMean > SLOPE_THRESH && secondHalfMean < -SLOPE_THRESH) {
+    // Pitch rises then falls → inverted-U shape
+    contourType = "inverted-U";
+  } else if (overallSlope > SLOPE_THRESH) {
+    contourType = "rising";
+  } else if (overallSlope < -SLOPE_THRESH) {
+    contourType = "falling";
+  } else {
+    // Ambiguous — classify by predominant direction
+    const posCount = quarterSlopes.filter((s) => s > 0).length;
+    if (posCount >= 3) contourType = "rising";
+    else if (posCount <= 1) contourType = "falling";
+    else contourType = "flat";
+  }
+
+  return {
+    contourType,
+    contourVariance: Number.isFinite(contourVariance) ? contourVariance : 0,
+    maxExcursionPosition: Number.isFinite(maxExcursionPosition)
+      ? maxExcursionPosition
+      : 0.5,
+    quarterSlopes,
+  };
+}
+
 // ─── Audio SNR Estimation ────────────────────────────────────────────────────
 
 /**
@@ -1033,12 +1198,15 @@ async function tryLoadV2(): Promise<boolean> {
 // ─── Full ONNX Inference Pipeline ───────────────────────────────────────────
 
 /** Shared logic to map classifier output to OnDeviceEmotionResult.
- *  @param snrDb  Audio SNR in dB — used to modulate confidence.
- *                When SNR < 15 dB, confidence is scaled by SNR/15. */
+ *  @param snrDb     Audio SNR in dB — used to modulate confidence.
+ *                   When SNR < 15 dB, confidence is scaled by SNR/15.
+ *  @param contour   Optional F0 contour features — used to nudge
+ *                   valence/arousal based on prosodic intonation. */
 function buildEmotionResult(
   label: number,
   probsRaw: Float32Array,
   snrDb: number = 60,
+  contour?: F0ContourFeatures,
 ): OnDeviceEmotionResult {
   // Build probability map
   const probabilities: Record<string, number> = {};
@@ -1051,7 +1219,7 @@ function buildEmotionResult(
 
   // Derive valence and arousal from probabilities
   // happy/calm -> positive valence; sad/angry -> negative
-  const valence = Math.max(-1, Math.min(1,
+  let valence = Math.max(-1, Math.min(1,
     probabilities.happy * 0.8
     + probabilities.calm * 0.4
     - probabilities.sad * 0.7
@@ -1060,13 +1228,58 @@ function buildEmotionResult(
   ));
 
   // happy/angry -> high arousal; calm/sad -> low arousal
-  const arousal = Math.max(0, Math.min(1,
+  let arousal = Math.max(0, Math.min(1,
     probabilities.happy * 0.7
     + probabilities.angry * 0.9
     + probabilities.neutral * 0.3
     + probabilities.sad * 0.2
     + probabilities.calm * 0.1,
   ));
+
+  // ── F0 contour-based modulation ──────────────────────────────────────
+  // Prosodic contour carries emotion signal independent of spectral
+  // features. Apply small nudges (max +/-0.08) based on contour shape.
+  // Research: Schuller 2013, Bänziger & Scherer 2005.
+  //
+  //   rising   → question/surprise:   arousal +0.06, valence +0.04
+  //   falling  → declarative/calm:    arousal -0.05, valence +0.02
+  //   U-shape  → hesitation/recovery: arousal +0.03, valence -0.03
+  //   inverted-U → exclamation/emphasis: arousal +0.08, valence 0
+  //   flat     → monotone (no adjustment)
+  //
+  // contourVariance modulates the magnitude: high variance = expressive
+  // speech where contour matters more. Scale factor = min(1, sqrt(var)).
+  if (contour) {
+    const expressiveness = Math.min(1, Math.sqrt(Math.max(0, contour.contourVariance)));
+
+    let arousalNudge = 0;
+    let valenceNudge = 0;
+
+    switch (contour.contourType) {
+      case "rising":
+        arousalNudge = 0.06;
+        valenceNudge = 0.04;
+        break;
+      case "falling":
+        arousalNudge = -0.05;
+        valenceNudge = 0.02;
+        break;
+      case "U":
+        arousalNudge = 0.03;
+        valenceNudge = -0.03;
+        break;
+      case "inverted-U":
+        arousalNudge = 0.08;
+        valenceNudge = 0;
+        break;
+      case "flat":
+      default:
+        break;
+    }
+
+    valence = Math.max(-1, Math.min(1, valence + valenceNudge * expressiveness));
+    arousal = Math.max(0, Math.min(1, arousal + arousalNudge * expressiveness));
+  }
 
   // Confidence is the max probability, modulated by audio SNR.
   // When background noise is high (SNR < 15 dB), scale confidence down
@@ -1101,6 +1314,7 @@ function buildEmotionResult(
     probabilities,
     model_type: "voice-onnx",
     snr_db: snrDb,
+    f0_contour: contour,
   };
 }
 
@@ -1125,6 +1339,11 @@ export async function runVoiceEmotionONNX(
   // Compute SNR before any feature extraction — it needs the raw audio.
   const snrDb = computeAudioSNR(samples, sr);
 
+  // Extract F0 contour features (runs pitch detection once; ~5ms for 2s audio).
+  // These are used to modulate valence/arousal based on prosodic intonation
+  // pattern, independent of the ONNX spectral model.
+  const contour = extractF0ContourFeatures(samples, sr);
+
   const useV2 = await tryLoadV2();
 
   if (useV2 && preprocessSessionV2 && classifierSessionV2) {
@@ -1139,7 +1358,7 @@ export async function runVoiceEmotionONNX(
 
     const label = Number(clsResult["label"].data[0]);
     const probsRaw = clsResult["probabilities"].data as Float32Array;
-    return buildEmotionResult(label, probsRaw, snrDb);
+    return buildEmotionResult(label, probsRaw, snrDb, contour);
   }
 
   // ── V1 fallback: 92-dim features ────────────────────────────────────────
@@ -1155,5 +1374,5 @@ export async function runVoiceEmotionONNX(
 
   const label = Number(clsResult["label"].data[0]);
   const probsRaw = clsResult["probabilities"].data as Float32Array;
-  return buildEmotionResult(label, probsRaw, snrDb);
+  return buildEmotionResult(label, probsRaw, snrDb, contour);
 }
