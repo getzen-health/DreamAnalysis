@@ -318,8 +318,12 @@ def _staging_yasa(
 ) -> Dict:
     """Use YASA's SleepStaging classifier."""
     import yasa
+    import mne
 
-    sls = yasa.SleepStaging(eeg, sf=fs)
+    # YASA >= 0.6 requires MNE Raw object, not raw numpy array
+    info = mne.create_info(ch_names=["EEG"], sfreq=fs, ch_types=["eeg"])
+    raw = mne.io.RawArray(eeg.reshape(1, -1) / 1e6, info, verbose=False)  # uV to V
+    sls = yasa.SleepStaging(raw, eeg_name="EEG")
     hypno = sls.predict()
     proba = sls.predict_proba()
 

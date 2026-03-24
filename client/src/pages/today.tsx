@@ -856,9 +856,12 @@ export default function Today() {
       setFeelingSaved(true);
       setFeelingText("");
       queryClient.invalidateQueries({ queryKey: ["/api/mood"] });
-      setTimeout(() => setFeelingSaved(false), 2000);
+      // Keep saved confirmation visible longer
+      setTimeout(() => setFeelingSaved(false), 10000);
+      // Manual feeling stays as the active emotion until next check-in
+      try { localStorage.setItem("ndw_manual_emotion_until", String(Date.now() + 86400000)); } catch { /* ok */ }
 
-      // Also sync to Railway ML backend for session history + retraining
+      // Sync to Railway ML backend for session history
       syncMoodLogToML({
         user_id: userId,
         mood_score: moodScore,
@@ -867,6 +870,15 @@ export default function Today() {
         emotion: emotionLabel,
         valence: detected.valence,
       });
+
+      // Send as MODEL CORRECTION — teaches the model that this user's current
+      // brain/voice state = this emotion. Used for personalization.
+      import("@/lib/ml-api").then(({ submitFeedback }) => {
+        // Get current EEG prediction to send as "predicted" vs user's "correct" label
+        const currentPrediction = checkin?.emotion ?? "neutral";
+        submitFeedback(null, currentPrediction, emotionLabel, userId)
+          .catch(() => {});
+      }).catch(() => {});
     } catch {
       // best-effort
     } finally {

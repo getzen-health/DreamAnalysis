@@ -506,7 +506,9 @@ function useDeviceInternal(): UseDeviceReturn {
             if (now - eegEmotionThrottle > 3000) { // throttle to every 3s
               eegEmotionThrottle = now;
               const emotions = eegFrame.analysis?.emotions as Record<string, unknown> | undefined;
-              if (emotions?.emotion) {
+              // Don't overwrite manual feelings (user logged a feeling recently)
+              const manualUntil = parseInt(localStorage.getItem("ndw_manual_emotion_until") ?? "0", 10);
+              if (emotions?.emotion && now > manualUntil) {
                 try {
                   localStorage.setItem("ndw_last_emotion", JSON.stringify({
                     result: {

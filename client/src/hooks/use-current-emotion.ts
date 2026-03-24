@@ -57,7 +57,7 @@ function readFromStorage(): CurrentEmotion | null {
       stress: data.stress_index ?? data.stress ?? 0.5,
       focus: data.focus_index ?? data.focus ?? 0.5,
       confidence: data.confidence ?? 0.5,
-      source: data.model_type === "eeg" ? "eeg" : "voice",
+      source: data.model_type === "eeg" ? "eeg" : data.model_type === "manual" ? "manual" : "voice",
       timestamp: new Date(epochMs).toISOString(),
       isStale,
     };
