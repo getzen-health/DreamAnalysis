@@ -172,38 +172,28 @@ function EmotionTimeline({ userId }: { userId: string }) {
   if (days.length === 0) return null;
 
   return (
-    <div style={{
-      background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
-      border: "1px solid rgba(255,255,255,0.08)",
-      borderRadius: 20, padding: "14px 16px", marginBottom: 14,
-      boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)",
-    }}>
-      <div style={{
-        fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
-        textTransform: "uppercase" as const, letterSpacing: "0.8px", marginBottom: 10,
-      }}>
+    <div className="glass-card p-4 mb-3.5">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-2.5">
         Your week in emotions
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="flex justify-between items-center">
         {days.map(([key, { emotion, label }]) => {
           const color = TIMELINE_COLORS[emotion] ?? "#94a3b8";
           return (
-            <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <div key={key} className="flex flex-col items-center gap-1">
               <div
                 role="img"
                 aria-label={`${label}: ${emotion}`}
-                style={{
-                  width: 28, height: 28, borderRadius: "50%", background: color,
-                  opacity: 0.85, transition: "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
-                }}
+                className="w-7 h-7 rounded-full opacity-85 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                style={{ background: color }}
               />
-              <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{label}</span>
+              <span className="text-[9px] text-foreground/35">{label}</span>
             </div>
           );
         })}
       </div>
       {days.length >= 3 && (
-        <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 8, textAlign: "center" }}>
+        <div className="text-[10px] text-foreground/35 mt-2 text-center">
           {(() => {
             const counts: Record<string, number> = {};
             days.forEach(([, { emotion }]) => { counts[emotion] = (counts[emotion] || 0) + 1; });
@@ -216,7 +206,7 @@ function EmotionTimeline({ userId }: { userId: string }) {
   );
 }
 
-// ── Recommended Section — personalized suggestions based on emotion ────────
+// ── Recommended Section -- personalized suggestions based on emotion ────────
 
 interface Recommendation {
   icon: LucideIcon;
@@ -296,7 +286,7 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
     }
   }
 
-  // Progressive discovery — suggest an unused feature
+  // Progressive discovery -- suggest an unused feature
   if (recs.length < 3) {
     const unused = ALL_FEATURES.filter(f =>
       !usedFeatures.has(f.route) && !recs.some(r => r.route === f.route)
@@ -329,31 +319,21 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
   if (recs.length === 0) return null;
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{
-        fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
-        textTransform: "uppercase" as const, letterSpacing: "0.8px", marginBottom: 8,
-      }}>
+    <div className="mb-4">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-2">
         Recommended for you
       </div>
-      <div style={{ display: "flex", gap: 8, overflowX: "auto" as const, paddingBottom: 4 }}>
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {recs.map((rec) => (
           <button
             key={rec.route}
             onClick={() => { trackFeatureUsage(rec.route); navigate(rec.route); }}
             aria-label={`${rec.title}: ${rec.reason}`}
-            style={{
-              background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 20, padding: "12px 14px", minWidth: 150, flexShrink: 0,
-              textAlign: "left" as const, cursor: "pointer",
-              boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)",
-              transition: "transform 0.2s ease, box-shadow 0.2s ease",
-            }}
+            className="glass-card p-3 min-w-[150px] shrink-0 text-left cursor-pointer"
           >
-            <rec.icon style={{ width: 22, height: 22, color: rec.iconColor }} aria-hidden="true" />
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginTop: 6 }}>{rec.title}</div>
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{rec.reason}</div>
+            <rec.icon className="w-[22px] h-[22px]" style={{ color: rec.iconColor }} aria-hidden="true" />
+            <div className="text-xs font-semibold text-foreground mt-1.5">{rec.title}</div>
+            <div className="text-[10px] text-foreground/35 mt-0.5">{rec.reason}</div>
           </button>
         ))}
       </div>
@@ -394,29 +374,25 @@ function MoodInsightsCard({ userId }: { userId: string }) {
   };
 
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{
-        fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
-        textTransform: "uppercase" as const, letterSpacing: "0.8px", marginBottom: 8,
-      }}>
+    <div className="mb-3.5">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-2">
         Mood insights
       </div>
-      <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+      <div className="flex flex-col gap-2">
         {insights.map((insight, i) => {
           const iconEntry = INSIGHT_ICONS[insight.icon];
           const IconComp = iconEntry?.Icon ?? Activity;
           const iconColor = iconEntry?.color ?? "var(--muted-foreground)";
           return (
-          <div key={i} style={{
-            background: "var(--card)",
-            border: `1px solid ${borderColors[insight.type] ?? "var(--border)"}`,
-            borderRadius: 12, padding: "10px 12px",
-            display: "flex", alignItems: "flex-start", gap: 8,
-          }}>
-            <IconComp style={{ width: 18, height: 18, flexShrink: 0, color: iconColor, marginTop: 1 }} />
+          <div
+            key={i}
+            className="bg-card rounded-xl p-2.5 flex items-start gap-2"
+            style={{ border: `1px solid ${borderColors[insight.type] ?? "var(--border)"}` }}
+          >
+            <IconComp className="w-[18px] h-[18px] shrink-0 mt-px" style={{ color: iconColor }} />
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{insight.title}</div>
-              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2, lineHeight: 1.4 }}>
+              <div className="text-xs font-semibold text-foreground">{insight.title}</div>
+              <div className="text-[10px] text-foreground/35 mt-0.5 leading-relaxed">
                 {insight.description}
               </div>
             </div>
@@ -438,7 +414,7 @@ interface NavCard {
   accentColor: string;
 }
 
-// ── Data — 8 main navigation cards (2x4 grid) ─────────────────────────────
+// ── Data -- 8 main navigation cards (2x4 grid) ─────────────────────────────
 
 const NAV_CARDS: NavCard[] = [
   { icon: BedDouble,  title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#7c3aed" },
@@ -473,7 +449,7 @@ function pointsToArea(pts: [number, number][]): string {
   return `M ${first[0]},${first[1]} L ${line} L ${last[0]},40 L ${first[0]},40 Z`;
 }
 
-// ── Emotions Overview — combined stress/focus/mood chart ──────────────────
+// ── Emotions Overview -- combined stress/focus/mood chart ──────────────────
 
 interface HistoryRow {
   stress: number;
@@ -521,7 +497,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
   }, [sessions]);
 
   const allPoints = useMemo(() => {
-    // Continuous data points — every reading as an individual point, not daily averages
+    // Continuous data points -- every reading as an individual point, not daily averages
     const points: { time: string; ts: number; stress: number; focus: number; mood: number }[] = [];
 
     // From API history
@@ -605,52 +581,44 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
       onClick={() => navigate("/mood")}
       aria-label="View Emotions: Stress & Focus trends"
       role="link"
-      style={{
-        width: "100%",
-        background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 20, padding: 16, marginBottom: 14, cursor: "pointer",
-        textAlign: "left" as const,
-        boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)",
-        transition: "transform 0.2s ease, box-shadow 0.2s ease",
-      }}
+      className="glass-card w-full p-4 mb-3.5 cursor-pointer text-left transition-all duration-200 ease-out"
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <div className="flex justify-between items-center mb-3">
         <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
+          <p className="text-sm font-semibold text-foreground m-0">
             {current?.mood ? `Mood: ${String(current.mood).charAt(0).toUpperCase() + String(current.mood).slice(1)}` : "Emotions"}
           </p>
-          <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: "2px 0 0" }}>Stress & Focus — continuous trend</p>
+          <p className="text-[10px] text-foreground/35 mt-0.5 m-0">Stress & Focus — continuous trend</p>
         </div>
         {current && (
-          <div style={{ display: "flex", gap: 10 }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#e879a8" }}>{current.stress}%</div>
-              <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Stress</div>
+          <div className="flex gap-2.5">
+            <div className="text-center">
+              <div className="text-base font-bold text-[#e879a8]">{current.stress}%</div>
+              <div className="text-[9px] text-foreground/35">Stress</div>
               {trends?.stressDelta != null && Math.abs(trends.stressDelta) > 2 && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginTop: 2 }}>
+                <div className="flex items-center justify-center gap-0.5 mt-0.5">
                   {trends.stressDelta > 0 ? (
-                    <TrendingUp style={{ width: 12, height: 12, color: "#e879a8" }} />
+                    <TrendingUp className="w-3 h-3 text-[#e879a8]" />
                   ) : (
-                    <TrendingDown style={{ width: 12, height: 12, color: "#0891b2" }} />
+                    <TrendingDown className="w-3 h-3 text-[#0891b2]" />
                   )}
-                  <span style={{ fontSize: 8, color: "var(--muted-foreground)" }}>
+                  <span className="text-[8px] text-foreground/35">
                     {Math.abs(Math.round(trends.stressDelta))}% vs last
                   </span>
                 </div>
               )}
             </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#6366f1" }}>{current.focus}%</div>
-              <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Focus</div>
+            <div className="text-center">
+              <div className="text-base font-bold text-[#6366f1]">{current.focus}%</div>
+              <div className="text-[9px] text-foreground/35">Focus</div>
               {trends?.focusDelta != null && Math.abs(trends.focusDelta) > 2 && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, marginTop: 2 }}>
+                <div className="flex items-center justify-center gap-0.5 mt-0.5">
                   {trends.focusDelta > 0 ? (
-                    <TrendingUp style={{ width: 12, height: 12, color: "#0891b2" }} />
+                    <TrendingUp className="w-3 h-3 text-[#0891b2]" />
                   ) : (
-                    <TrendingDown style={{ width: 12, height: 12, color: "#e879a8" }} />
+                    <TrendingDown className="w-3 h-3 text-[#e879a8]" />
                   )}
-                  <span style={{ fontSize: 8, color: "var(--muted-foreground)" }}>
+                  <span className="text-[8px] text-foreground/35">
                     {Math.abs(Math.round(trends.focusDelta))}% vs last
                   </span>
                 </div>
@@ -661,23 +629,16 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
       </div>
 
       {/* Time range tabs */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 10 }} onClick={(e) => e.stopPropagation()}>
+      <div className="flex gap-1.5 mb-2.5" onClick={(e) => e.stopPropagation()}>
         {(["today", "week", "month"] as DiscoverTimeRange[]).map((r) => (
           <button
             key={r}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRange(r); }}
-            style={{
-              flex: 1,
-              padding: "6px 0",
-              borderRadius: 10,
-              fontSize: 11,
-              fontWeight: 600,
-              border: "none",
-              cursor: "pointer",
-              transition: "background 0.2s, color 0.2s",
-              background: range === r ? "var(--primary)" : "rgba(255,255,255,0.06)",
-              color: range === r ? "var(--primary-foreground)" : "var(--muted-foreground)",
-            }}
+            className={`flex-1 py-1.5 rounded-[10px] text-[11px] font-semibold border-none cursor-pointer transition-colors duration-200 ${
+              range === r
+                ? "bg-primary text-primary-foreground"
+                : "bg-foreground/[0.06] text-foreground/60"
+            }`}
           >
             {r === "today" ? "Today" : r === "week" ? "Week" : "Month"}
           </button>
@@ -685,7 +646,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
       </div>
 
       {chartData.length > 1 ? (
-        <div style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", height: 220 }} onClick={(e) => e.stopPropagation()}>
+        <div className="overflow-x-auto overflow-y-hidden h-[220px]" style={{ WebkitOverflowScrolling: "touch" }} onClick={(e) => e.stopPropagation()}>
           <div style={{ width: Math.max(chartData.length * 40, 320), minWidth: "100%", height: "100%" }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
@@ -703,36 +664,36 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
                   <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
-              <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" strokeOpacity={0.5} />
+              <XAxis dataKey="time" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}`} />
               <Tooltip
-                contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 11 }}
-                labelStyle={{ color: "var(--muted-foreground)" }}
+                contentStyle={{ background: "var(--card)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, fontSize: 11 }}
+                labelStyle={{ color: "rgba(255,255,255,0.55)" }}
                 formatter={(v: number, name: string) => [`${v}%`, name]}
               />
               <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2} dot={false} activeDot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
               <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2} dot={false} activeDot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-              {/* Mood removed from chart — shown as text label at top instead */}
+              {/* Mood removed from chart -- shown as text label at top instead */}
             </AreaChart>
           </ResponsiveContainer>
           </div>
         </div>
       ) : (
-        <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Complete a voice analysis to see trends</p>
+        <div className="h-20 flex items-center justify-center">
+          <p className="text-[11px] text-foreground/35">Complete a voice analysis to see trends</p>
         </div>
       )}
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 14, marginTop: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <div style={{ width: 8, height: 3, borderRadius: 2, background: "#e879a8" }} />
-          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Stress</span>
+      <div className="flex gap-3.5 mt-2">
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-[3px] rounded-sm bg-[#e879a8]" />
+          <span className="text-[9px] text-foreground/35">Stress</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <div style={{ width: 8, height: 3, borderRadius: 2, background: "#6366f1" }} />
-          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Focus</span>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-[3px] rounded-sm bg-[#6366f1]" />
+          <span className="text-[9px] text-foreground/35">Focus</span>
         </div>
       </div>
     </button>
@@ -755,7 +716,7 @@ export default function Discover() {
   });
 
   // Use fused state when available, fall back to checkin data
-  const emotion = fusedState?.emotion ?? checkin?.emotion ?? "—";
+  const emotion = fusedState?.emotion ?? checkin?.emotion ?? "\u2014";
   const emoColor = EMOTION_COLOR[emotion] ?? "var(--muted-foreground)";
   const stress = fusedState?.stress ?? checkin?.stress_index ?? 0;
   const focus = fusedState?.focus ?? checkin?.focus_index ?? 0;
@@ -791,41 +752,30 @@ export default function Discover() {
       initial={pageTransition.initial}
       animate={pageTransition.animate}
       transition={pageTransition.transition}
-      style={{
-        background: "var(--background)",
-        padding: 16,
-        paddingBottom: 16,
-        fontFamily: "system-ui, -apple-system, sans-serif",
-      }}
+      className="bg-background p-4 pb-4 font-sans"
     >
       {/* ── Header ── */}
-      <div style={{ marginBottom: 18 }}>
-        <p style={{
-          fontSize: 20, fontWeight: 700, color: "var(--foreground)", margin: "0 0 4px 0",
-          letterSpacing: "-0.3px",
-        }}>
+      <div className="mb-[18px]">
+        <p className="text-xl font-bold text-foreground m-0 mb-1 -tracking-[0.3px]">
           Discover
         </p>
-        <p style={{ fontSize: 12, color: "var(--muted-foreground)", margin: 0, letterSpacing: "0.1px" }}>
+        <p className="text-xs text-foreground/60 m-0 tracking-[0.1px]">
           Your scores at a glance
         </p>
       </div>
 
-      {/* ── Emotions Overview — combined stress, focus, mood graph ── */}
+      {/* ── Emotions Overview -- combined stress, focus, mood graph ── */}
       <EmotionsOverview userId={userId} navigate={navigate} checkin={checkin} />
 
 
-      {/* ── Emotion Timeline — color-coded dots for last 7 days ── */}
+      {/* ── Emotion Timeline -- color-coded dots for last 7 days ── */}
       <EmotionTimeline userId={userId} />
 
-      {/* ── Mood Insights — pattern detection from emotion history ── */}
+      {/* ── Mood Insights -- pattern detection from emotion history ── */}
       <MoodInsightsCard userId={userId} />
 
       {/* ── Section label ── */}
-      <div style={{
-        fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)", textTransform: "uppercase" as const,
-        letterSpacing: "0.8px", marginBottom: 12,
-      }}>
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-3">
         Explore
       </div>
 
@@ -833,12 +783,7 @@ export default function Discover() {
       <div
         role="navigation"
         aria-label="Explore features"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 10,
-          marginBottom: 20,
-        }}
+        className="grid grid-cols-2 gap-2.5 mb-5"
       >
         {NAV_CARDS.map((card, index) => (
           <motion.button
@@ -849,33 +794,17 @@ export default function Discover() {
             animate="visible"
             onClick={() => navigate(card.route)}
             aria-label={`${card.title}: ${card.subtitle}`}
+            className="glass-card p-4 text-left cursor-pointer w-full"
             style={{
-              background: `linear-gradient(135deg, var(--card) 0%, ${card.accentColor}06 100%)`,
-              border: "1px solid rgba(255,255,255,0.08)",
               borderLeft: `3px solid ${card.accentColor}`,
-              borderRadius: 20,
-              padding: 16,
-              textAlign: "left",
-              cursor: "pointer",
-              width: "100%",
               WebkitTapHighlightColor: "transparent",
-              boxShadow: `0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)`,
-              transition: "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
-            <card.icon style={{ width: 28, height: 28, marginBottom: 8, color: card.accentColor }} aria-hidden="true" />
-            <p
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: "var(--foreground)",
-                margin: "0 0 4px 0",
-                letterSpacing: "-0.2px",
-              }}
-            >
+            <card.icon className="w-7 h-7 mb-2" style={{ color: card.accentColor }} aria-hidden="true" />
+            <p className="text-sm font-bold text-foreground m-0 mb-1 -tracking-[0.2px]">
               {card.title}
             </p>
-            <p style={{ fontSize: 10, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.4 }}>
+            <p className="text-[10px] text-foreground/35 m-0 leading-relaxed">
               {card.subtitle}
             </p>
           </motion.button>

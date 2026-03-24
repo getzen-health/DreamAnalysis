@@ -12,19 +12,29 @@ beforeAll(() => {
   };
 });
 
-vi.mock("framer-motion", () => ({
-  motion: {
-    main: React.forwardRef(
+vi.mock("framer-motion", () => {
+  const forwardRefFactory = (tag: string) =>
+    React.forwardRef(
       (
         { children, ...props }: React.PropsWithChildren<Record<string, unknown>>,
         ref: React.Ref<HTMLElement>,
-      ) => React.createElement("main", { ...props, ref }, children),
-    ),
-  },
-}));
+      ) => React.createElement(tag, { ...props, ref }, children),
+    );
+  return {
+    motion: {
+      main: forwardRefFactory("main"),
+      div: forwardRefFactory("div"),
+      p: forwardRefFactory("p"),
+      span: forwardRefFactory("span"),
+      button: forwardRefFactory("button"),
+    },
+    AnimatePresence: ({ children }: React.PropsWithChildren) => children,
+  };
+});
 
 vi.mock("@/lib/animations", () => ({
   pageTransition: { initial: {}, animate: {}, transition: {} },
+  cardVariants: { hidden: {}, visible: () => ({}) },
 }));
 
 vi.mock("@/hooks/use-auth", () => ({

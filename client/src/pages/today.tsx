@@ -86,9 +86,9 @@ function getStressLabel(stress: number): string {
 }
 
 function getStressColor(stress: number): string {
-  if (stress < 0.3) return "#06b6d4";
-  if (stress < 0.6) return "#d4a017";
-  return "#e879a8";
+  if (stress < 0.3) return "var(--emotion-calm-to, #06b6d4)";
+  if (stress < 0.6) return "var(--warning, #d4a017)";
+  return "var(--secondary, #e879a8)";
 }
 
 function getFocusLabel(focus: number): string {
@@ -104,9 +104,9 @@ function getMoodLabel(valence: number): string {
 }
 
 function getMoodDotColor(valence: number): string {
-  if (valence > 0.3) return "#06b6d4";
-  if (valence > -0.1) return "#d4a017";
-  return "#e879a8";
+  if (valence > 0.3) return "var(--emotion-calm-to, #06b6d4)";
+  if (valence > -0.1) return "var(--warning, #d4a017)";
+  return "var(--secondary, #e879a8)";
 }
 
 function getAIInsight(checkin: EmotionCheckin | null): string {
@@ -135,9 +135,9 @@ function getAIInsight(checkin: EmotionCheckin | null): string {
 }
 
 function getMoodLogTone(moodScore: number): { label: string; color: string } {
-  if (moodScore >= 7) return { label: "Positive", color: "#06b6d4" };
-  if (moodScore >= 4) return { label: "Neutral", color: "#94a3b8" };
-  return { label: "Low", color: "#e879a8" };
+  if (moodScore >= 7) return { label: "Positive", color: "var(--emotion-calm-to, #06b6d4)" };
+  if (moodScore >= 4) return { label: "Neutral", color: "var(--muted-foreground, #94a3b8)" };
+  return { label: "Low", color: "var(--secondary, #e879a8)" };
 }
 
 function formatTime(dateStr: string): string {
@@ -390,18 +390,9 @@ const itemVariants = {
   },
 };
 
-// ── Premium card style ───────────────────────────────────────────────────
-
-const premiumCard: React.CSSProperties = {
-  borderRadius: 20,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "linear-gradient(135deg, var(--card) 0%, rgba(124,58,237,0.03) 100%)",
-  padding: "18px 20px",
-  boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(255,255,255,0.04)",
-};
-
-/** @deprecated alias kept for backward compatibility */
-const bevelCard = premiumCard;
+// ── Card classes ─────────────────────────────────────────────────────────
+// All cards now use Tailwind `glass-card p-5` class from index.css.
+// premiumCard / bevelCard style objects have been removed.
 
 // ── Hero Wellness Gauge ──────────────────────────────────────────────────
 
@@ -418,12 +409,12 @@ function WellnessGauge({ score }: { score: number }) {
   const gradientId = "gaugeGrad";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+    <div className="flex flex-col items-center gap-2">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <defs>
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#7c3aed" />
-            <stop offset="100%" stopColor="#e879a8" />
+            <stop offset="0%" stopColor="var(--primary)" />
+            <stop offset="100%" stopColor="var(--secondary)" />
           </linearGradient>
         </defs>
         {/* Background arc */}
@@ -449,9 +440,7 @@ function WellnessGauge({ score }: { score: number }) {
           strokeDasharray={`${filled} ${circumference - filled}`}
           strokeLinecap="round"
           transform={`rotate(135 ${cx} ${cy})`}
-          style={{
-            transition: "stroke-dasharray 1.4s cubic-bezier(0.22, 1, 0.36, 1)",
-          }}
+          className="transition-all duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
         />
         {/* Percentage text */}
         <text
@@ -461,7 +450,7 @@ function WellnessGauge({ score }: { score: number }) {
           fill="var(--foreground)"
           fontSize={36}
           fontWeight={700}
-          fontFamily="system-ui, -apple-system, sans-serif"
+          className="font-sans"
         >
           {score}
         </text>
@@ -471,22 +460,13 @@ function WellnessGauge({ score }: { score: number }) {
           textAnchor="middle"
           fill="var(--muted-foreground)"
           fontSize={12}
-          fontFamily="system-ui, -apple-system, sans-serif"
+          className="font-sans"
           letterSpacing="0.5"
         >
           Wellness
         </text>
       </svg>
-      <p
-        style={{
-          fontSize: 14,
-          color: score === 0 ? "var(--muted-foreground)" : "#7c3aed",
-          margin: 0,
-          textAlign: "center",
-          lineHeight: 1.5,
-          maxWidth: 220,
-        }}
-      >
+      <p className={`text-sm m-0 text-center leading-normal max-w-[220px] ${score === 0 ? "text-muted-foreground" : "text-primary"}`}>
         {getEmotionScoreLabel(score)}
       </p>
     </div>
@@ -514,64 +494,31 @@ function ScoreCard({
     <motion.div
       variants={itemVariants}
       onClick={onClick}
-      style={{
-        ...bevelCard,
-        cursor: onClick ? "pointer" : "default",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 6,
-        padding: "18px 20px",
-      }}
+      className={`glass-card p-5 flex flex-col items-center gap-1.5 ${onClick ? "cursor-pointer" : "cursor-default"}`}
     >
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 500,
-          color: "var(--muted-foreground)",
-          textTransform: "uppercase" as const,
-          letterSpacing: "0.6px",
-        }}
-      >
+      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
         {label}
       </span>
-      <span
-        style={{
-          fontSize: 28,
-          fontWeight: 700,
-          color: "var(--foreground)",
-          lineHeight: 1,
-        }}
-      >
+      <span className="text-[28px] font-bold text-foreground leading-none">
         {value}
       </span>
-      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <div className="flex items-center gap-1.5">
         <div
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            background: dotColor,
-            flexShrink: 0,
-          }}
+          className="w-[7px] h-[7px] rounded-full shrink-0"
+          style={{ background: dotColor }}
         />
-        <span
-          style={{
-            fontSize: 11,
-            color: "var(--muted-foreground)",
-          }}
-        >
+        <span className="text-[11px] text-muted-foreground">
           {statusLabel}
         </span>
       </div>
       {delta != null && Math.abs(delta) > 0.02 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 2 }}>
+        <div className="flex items-center gap-1 mt-0.5">
           {delta > 0 ? (
-            <TrendingUp style={{ width: 12, height: 12, color: label === "Stress" ? "#e879a8" : "#06b6d4" }} />
+            <TrendingUp className={`w-3 h-3 ${label === "Stress" ? "text-rose-400" : "text-cyan-400"}`} />
           ) : (
-            <TrendingDown style={{ width: 12, height: 12, color: label === "Stress" ? "#06b6d4" : "#e879a8" }} />
+            <TrendingDown className={`w-3 h-3 ${label === "Stress" ? "text-cyan-400" : "text-rose-400"}`} />
           )}
-          <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+          <span className="text-[10px] text-muted-foreground">
             {Math.abs(Math.round(delta * 100))}% vs last
           </span>
         </div>
@@ -616,96 +563,55 @@ function HealthMetricCard({
     <motion.div
       variants={itemVariants}
       onClick={onClick}
-      style={{
-        ...bevelCard,
-        cursor: onClick ? "pointer" : "default",
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        ...(isEmpty && accentColor
-          ? {
-              borderLeft: `3px solid ${accentColor}`,
-              background: `linear-gradient(135deg, ${accentColor}08 0%, var(--card) 40%)`,
-            }
-          : {}),
-      }}
+      className={`glass-card p-5 flex flex-col gap-3.5 ${onClick ? "cursor-pointer" : "cursor-default"}`}
+      style={isEmpty && accentColor ? {
+        borderLeft: `3px solid ${accentColor}`,
+        background: `linear-gradient(135deg, ${accentColor}08 0%, var(--card) 40%)`,
+      } : undefined}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <div className="flex justify-between items-start">
+        <div className="flex items-center gap-1.5">
           {isEmpty && EmptyIcon && (
-            <EmptyIcon style={{ width: 14, height: 14, color: accentColor || "var(--muted-foreground)" }} />
+            <EmptyIcon className="w-3.5 h-3.5" style={{ color: accentColor || "var(--muted-foreground)" }} />
           )}
           <span
-            style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: isEmpty && accentColor ? accentColor : "var(--muted-foreground)",
-              textTransform: "uppercase" as const,
-              letterSpacing: "0.6px",
-            }}
+            className="text-[11px] font-medium uppercase tracking-wider"
+            style={{ color: isEmpty && accentColor ? accentColor : "var(--muted-foreground)" }}
           >
             {label}
           </span>
         </div>
         {!isEmpty && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div className="flex items-center gap-1.5">
             <div
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: dotColor,
-                flexShrink: 0,
-              }}
+              className="w-[7px] h-[7px] rounded-full shrink-0"
+              style={{ background: dotColor }}
             />
-            <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{statusLabel}</span>
+            <span className="text-[11px] text-muted-foreground">{statusLabel}</span>
           </div>
         )}
       </div>
       {isEmpty ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span
-            style={{
-              fontSize: 14,
-              fontWeight: 500,
-              color: "var(--muted-foreground)",
-              lineHeight: 1.4,
-            }}
-          >
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-muted-foreground leading-snug">
             {emptyCta || "No data yet"}
           </span>
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-            <span
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: "var(--foreground)",
-                lineHeight: 1,
-              }}
-            >
+          <div className="flex items-baseline gap-1">
+            <span className="text-[28px] font-bold text-foreground leading-none">
               {value}
             </span>
-            <span style={{ fontSize: 14, color: "var(--muted-foreground)" }}>{unit}</span>
+            <span className="text-sm text-muted-foreground">{unit}</span>
           </div>
           {barPercent !== undefined && (
-            <div
-              style={{
-                height: 10,
-                borderRadius: 6,
-                background: "var(--muted)",
-                overflow: "hidden",
-              }}
-            >
+            <div className="progress-thick">
               <div
+                className="progress-thick-fill"
                 style={{
-                  height: "100%",
                   width: `${clamp(barPercent, 0, 100)}%`,
-                  background: barGradient || "linear-gradient(90deg, #7c3aed, #e879a8)",
-                  borderRadius: 6,
-                  transition: "width 1s cubic-bezier(0.22, 1, 0.36, 1)",
+                  background: barGradient || "linear-gradient(90deg, var(--primary), var(--secondary))",
                 }}
               />
             </div>
@@ -1119,37 +1025,37 @@ export default function Today() {
   // Heart rate status
   const hrStatus = heartRate
     ? heartRate < 60
-      ? { label: "Low", color: "#d4a017" }
+      ? { label: "Low", color: "var(--warning, #d4a017)" }
       : heartRate < 100
-      ? { label: "Normal", color: "#06b6d4" }
-      : { label: "Elevated", color: "#e879a8" }
+      ? { label: "Normal", color: "var(--emotion-calm-to, #06b6d4)" }
+      : { label: "Elevated", color: "var(--secondary, #e879a8)" }
     : { label: "No data", color: "var(--muted-foreground)" };
 
   // Sleep status
   const sleepStatus = sleepTotal > 0
     ? sleepTotal >= 7
-      ? { label: "Good", color: "#06b6d4" }
+      ? { label: "Good", color: "var(--emotion-calm-to, #06b6d4)" }
       : sleepTotal >= 5
-      ? { label: "Fair", color: "#d4a017" }
-      : { label: "Low", color: "#e879a8" }
+      ? { label: "Fair", color: "var(--warning, #d4a017)" }
+      : { label: "Low", color: "var(--secondary, #e879a8)" }
     : { label: "No data", color: "var(--muted-foreground)" };
 
   // Steps status
   const stepsStatus = steps > 0
     ? stepsPct >= 80
-      ? { label: "On Track", color: "#06b6d4" }
+      ? { label: "On Track", color: "var(--emotion-calm-to, #06b6d4)" }
       : stepsPct >= 40
-      ? { label: "Moderate", color: "#d4a017" }
-      : { label: "Low", color: "#e879a8" }
+      ? { label: "Moderate", color: "var(--warning, #d4a017)" }
+      : { label: "Low", color: "var(--secondary, #e879a8)" }
     : { label: "No data", color: "var(--muted-foreground)" };
 
   // Nutrition status
   const nutritionStatus = todayCalories > 0
     ? calPct >= 80
-      ? { label: "On Track", color: "#06b6d4" }
+      ? { label: "On Track", color: "var(--emotion-calm-to, #06b6d4)" }
       : calPct >= 40
-      ? { label: "Moderate", color: "#d4a017" }
-      : { label: "Low", color: "#e879a8" }
+      ? { label: "Moderate", color: "var(--warning, #d4a017)" }
+      : { label: "Low", color: "var(--secondary, #e879a8)" }
     : { label: "No data", color: "var(--muted-foreground)" };
 
   // Mood display
@@ -1167,7 +1073,7 @@ export default function Today() {
   // Focus display
   const focusDisplay = focusVal > 0 ? `${Math.round(focusVal * 100)}%` : "---";
   const focusDotColor = focusVal > 0
-    ? focusVal >= 0.7 ? "#06b6d4" : focusVal >= 0.45 ? "#d4a017" : "#e879a8"
+    ? focusVal >= 0.7 ? "var(--emotion-calm-to, #06b6d4)" : focusVal >= 0.45 ? "var(--warning, #d4a017)" : "var(--secondary, #e879a8)"
     : "var(--muted-foreground)";
   const focusStatusLabel = focusVal > 0 ? getFocusLabel(focusVal) : "No data";
 
@@ -1212,51 +1118,24 @@ export default function Today() {
         initial={pageTransition.initial}
         animate={pageTransition.animate}
         transition={pageTransition.transition}
-        style={{
-          background: "var(--background)",
-          padding: "16px 16px 16px 16px",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-        }}
+        className="bg-background p-4 font-sans"
       >
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          style={{ maxWidth: 480, margin: "0 auto" }}
+          className="max-w-[480px] mx-auto"
         >
           {/* ── 1. Header ── */}
           <motion.div
             variants={itemVariants}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 24,
-            }}
+            className="flex items-center justify-between mb-6"
           >
             <div>
-              <p
-                style={{
-                  fontSize: 11,
-                  color: "var(--muted-foreground)",
-                  margin: "0 0 4px 0",
-                  letterSpacing: "0.3px",
-                }}
-              >
+              <p className="text-[11px] text-muted-foreground m-0 mb-1 tracking-wide">
                 {formatDate()}
               </p>
-              <p
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  background: "linear-gradient(135deg, #c4b5fd, #e879a8, #7c3aed)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                  margin: 0,
-                  lineHeight: 1.3,
-                }}
-              >
+              <p className="text-[22px] font-bold text-gradient m-0 leading-tight">
                 {(() => {
                   const h = new Date().getHours();
                   const timeGreet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
@@ -1268,21 +1147,7 @@ export default function Today() {
                 })()}
               </p>
             </div>
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #7c3aed, #e879a8)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 15,
-                fontWeight: 700,
-                color: "#fff",
-                flexShrink: 0,
-              }}
-            >
+            <div className="w-[38px] h-[38px] rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-[15px] font-bold text-white shrink-0">
               S
             </div>
           </motion.div>
@@ -1292,37 +1157,30 @@ export default function Today() {
           {weatherCtx && (
             <motion.div
               variants={itemVariants}
-              style={{
-                ...premiumCard,
-                marginBottom: 14,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 16px",
-              }}
+              className="glass-card mb-3.5 flex items-center gap-2.5 px-4 py-2.5"
             >
               {weatherCtx.condition === "sunny" || weatherCtx.condition === "mostly_clear" ? (
-                <Sun style={{ width: 18, height: 18, color: "#fbbf24", flexShrink: 0 }} />
+                <Sun className="w-[18px] h-[18px] text-amber-400 shrink-0" />
               ) : weatherCtx.condition === "partly_cloudy" ? (
-                <CloudSun style={{ width: 18, height: 18, color: "#94a3b8", flexShrink: 0 }} />
+                <CloudSun className="w-[18px] h-[18px] text-foreground/40 shrink-0" />
               ) : weatherCtx.condition === "cloudy" ? (
-                <Cloud style={{ width: 18, height: 18, color: "#94a3b8", flexShrink: 0 }} />
+                <Cloud className="w-[18px] h-[18px] text-foreground/40 shrink-0" />
               ) : weatherCtx.condition === "rainy" || weatherCtx.condition === "drizzle" ? (
-                <CloudRain style={{ width: 18, height: 18, color: "#60a5fa", flexShrink: 0 }} />
+                <CloudRain className="w-[18px] h-[18px] text-blue-400 shrink-0" />
               ) : weatherCtx.condition === "snowy" ? (
-                <Snowflake style={{ width: 18, height: 18, color: "#93c5fd", flexShrink: 0 }} />
+                <Snowflake className="w-[18px] h-[18px] text-blue-300 shrink-0" />
               ) : weatherCtx.condition === "stormy" ? (
-                <CloudLightning style={{ width: 18, height: 18, color: "#fbbf24", flexShrink: 0 }} />
+                <CloudLightning className="w-[18px] h-[18px] text-amber-400 shrink-0" />
               ) : weatherCtx.condition === "foggy" ? (
-                <CloudFog style={{ width: 18, height: 18, color: "#94a3b8", flexShrink: 0 }} />
+                <CloudFog className="w-[18px] h-[18px] text-foreground/40 shrink-0" />
               ) : (
-                <HelpCircle style={{ width: 18, height: 18, color: "#94a3b8", flexShrink: 0 }} />
+                <HelpCircle className="w-[18px] h-[18px] text-foreground/40 shrink-0" />
               )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-foreground">
                   {Math.round(weatherCtx.temperature)}&deg;C &middot; {weatherCtx.temperatureLabel}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div className="text-[11px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">
                   {weatherCtx.message}
                 </div>
               </div>
@@ -1333,35 +1191,16 @@ export default function Today() {
           {cycleCtx && (
             <motion.div
               variants={itemVariants}
-              style={{
-                ...premiumCard,
-                marginBottom: 14,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 16px",
-                borderColor: "rgba(232,121,168,0.15)",
-              }}
+              className="glass-card mb-3.5 flex items-center gap-2.5 px-4 py-2.5 border-secondary/15"
             >
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  background: "rgba(232,121,168,0.12)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Moon style={{ width: 14, height: 14, color: "#e879a8" }} />
+              <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
+                <Moon className="w-3.5 h-3.5 text-secondary" />
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
+              <div className="flex-1">
+                <div className="text-xs font-semibold text-foreground">
                   {cycleCtx.phase.charAt(0).toUpperCase() + cycleCtx.phase.slice(1)} phase &middot; Day {cycleCtx.dayInCycle}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                <div className="text-[11px] text-muted-foreground">
                   {cycleCtx.message}
                 </div>
               </div>
@@ -1371,28 +1210,10 @@ export default function Today() {
           {/* ── 2. Hero Wellness Circle ── */}
           <motion.div
             variants={itemVariants}
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              marginBottom: 24,
-              position: "relative",
-            }}
+            className="flex justify-center mb-6 relative"
           >
             {/* Ambient glow behind gauge */}
-            <div
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                width: 200,
-                height: 200,
-                borderRadius: "50%",
-                background: "radial-gradient(circle, rgba(124,58,237,0.15) 0%, rgba(232,121,168,0.08) 50%, transparent 70%)",
-                filter: "blur(30px)",
-                pointerEvents: "none",
-              }}
-            />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] rounded-full blur-[30px] pointer-events-none bg-[radial-gradient(circle,_var(--primary)_0%,_var(--secondary)_50%,_transparent_70%)] opacity-15" />
             <WellnessGauge score={readiness} />
           </motion.div>
 
@@ -1400,33 +1221,11 @@ export default function Today() {
           {readiness > 0 && (
             <motion.div
               variants={itemVariants}
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                marginBottom: 20,
-                marginTop: -12,
-              }}
+              className="flex justify-center mb-5 -mt-3"
             >
               <button
                 onClick={() => shareWellnessScore(readiness, emotion, aiInsight)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 18px",
-                  borderRadius: 20,
-                  border: "1px solid rgba(124, 58, 237, 0.25)",
-                  background: "rgba(124, 58, 237, 0.08)",
-                  color: "#a78bfa",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  letterSpacing: "0.3px",
-                }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[20px] border border-primary/25 bg-primary/[0.08] text-violet-400 text-sm font-semibold cursor-pointer transition-all duration-200 tracking-wide active:scale-[0.96]"
               >
                 <Share2 size={13} />
                 Share Score
@@ -1439,12 +1238,7 @@ export default function Today() {
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 14,
-              marginBottom: 20,
-            }}
+            className="grid grid-cols-3 gap-3.5 mb-5"
           >
             <ScoreCard
               label="Mood"
@@ -1474,7 +1268,7 @@ export default function Today() {
 
           {/* ── Last analysis timestamp ── */}
           {checkinTimestamp && (
-            <p style={{ fontSize: 11, color: "var(--muted-foreground)", textAlign: "center", marginTop: -12, marginBottom: 14, opacity: 0.7 }}>
+            <p className="text-[11px] text-muted-foreground text-center -mt-3 mb-3.5 opacity-70">
               Voice analyzed {(() => {
                 const diff = Date.now() - checkinTimestamp;
                 if (diff < 60_000) return "just now";
@@ -1490,40 +1284,15 @@ export default function Today() {
           {/* ── 4. AI Insight ── */}
           <motion.div
             variants={itemVariants}
-            style={{
-              ...bevelCard,
-              marginBottom: 20,
-            }}
+            className="glass-card p-5 mb-5"
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginBottom: 8,
-              }}
-            >
-              <Sparkles size={13} color="#7c3aed" />
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "#7c3aed",
-                  textTransform: "uppercase" as const,
-                  letterSpacing: "0.5px",
-                }}
-              >
+            <div className="flex items-center gap-1.5 mb-2">
+              <Sparkles size={13} className="text-primary" />
+              <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">
                 AI Insight
               </span>
             </div>
-            <p
-              style={{
-                fontSize: 14,
-                color: "var(--foreground)",
-                margin: 0,
-                lineHeight: 1.6,
-              }}
-            >
+            <p className="text-sm text-foreground m-0 leading-relaxed">
               {aiInsight}
             </p>
           </motion.div>
@@ -1600,13 +1369,11 @@ export default function Today() {
               <button
                 onClick={submitFeeling}
                 disabled={!feelingText.trim() || feelingSaving}
-                className="px-4 py-1.5 rounded-2xl border-none text-xs font-semibold transition-all duration-150"
-                style={{
-                  background: feelingText.trim() ? "linear-gradient(135deg, #7c3aed, #e879a8)" : "rgba(255,255,255,0.04)",
-                  color: feelingText.trim() ? "#fff" : "rgba(255,255,255,0.35)",
-                  cursor: feelingText.trim() ? "pointer" : "default",
-                  opacity: feelingSaving ? 0.6 : 1,
-                }}
+                className={`px-4 py-1.5 rounded-2xl border-none text-xs font-semibold transition-all duration-150 ${
+                  feelingText.trim()
+                    ? "bg-gradient-to-br from-primary to-secondary text-white cursor-pointer"
+                    : "bg-foreground/[0.04] text-foreground/35 cursor-default"
+                } ${feelingSaving ? "opacity-60" : "opacity-100"}`}
               >
                 {feelingSaving ? "Saving..." : "Save"}
               </button>
@@ -1620,31 +1387,27 @@ export default function Today() {
                 Feeling logged!
               </motion.p>
             )}
-            {/* Feeling history — show last 3 as pills with timestamps */}
+            {/* Feeling history -- show last 3 as pills with timestamps */}
             {moodLogHistory && moodLogHistory.length > 0 && (
-              <div style={{ marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div className="mt-3 border-t border-foreground/[0.06] pt-2.5">
+                <div className="flex flex-wrap gap-1.5">
                   {moodLogHistory.slice(0, 3).map((entry, i) => {
                     const score = typeof entry.moodScore === "string" ? parseFloat(entry.moodScore) : (entry.moodScore ?? 5);
                     const tone = getMoodLogTone(score);
                     return (
                       <div
                         key={entry.id ?? i}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[20px]"
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          padding: "5px 10px",
-                          borderRadius: 20,
-                          background: `${tone.color}15`,
-                          border: `1px solid ${tone.color}30`,
+                          background: `color-mix(in srgb, ${tone.color} 8%, transparent)`,
+                          border: `1px solid color-mix(in srgb, ${tone.color} 18%, transparent)`,
                         }}
                       >
-                        <span style={{ fontSize: 12, color: "var(--foreground)", lineHeight: 1.3 }}>
+                        <span className="text-xs text-foreground leading-snug">
                           {entry.notes || tone.label}
                         </span>
                         {entry.loggedAt && (
-                          <span style={{ fontSize: 9, color: "var(--muted-foreground)", flexShrink: 0 }}>
+                          <span className="text-[9px] text-muted-foreground shrink-0">
                             {formatTime(entry.loggedAt)}
                           </span>
                         )}
@@ -1660,32 +1423,28 @@ export default function Today() {
           {checkin?.emotion && checkin.emotion !== "---" && (
             <motion.div
               variants={itemVariants}
-              style={{
-                ...bevelCard,
-                marginBottom: 20,
-                borderLeft: "3px solid #7c3aed",
-              }}
+              className="glass-card p-5 mb-5 border-l-[3px] border-l-primary"
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 22 }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[22px]">
                   {checkin.emotion === "happy" ? "😊" : checkin.emotion === "sad" ? "😢" : checkin.emotion === "angry" ? "😠" : checkin.emotion === "fear" ? "😨" : checkin.emotion === "surprise" ? "😲" : checkin.emotion === "anxious" ? "😰" : checkin.emotion === "neutral" ? "😐" : "🧠"}
                 </span>
                 <div>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", textTransform: "capitalize" as const }}>
+                  <span className="text-sm font-semibold text-foreground capitalize">
                     {correctedEmotion ?? (fusedEmotion?.emotion ?? checkin.emotion)}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                  <div className="flex items-center gap-1 mt-0.5">
                     {fusedEmotion && fusedEmotion.sources.length > 1 ? (
                       <>
-                        <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>fused from</span>
+                        <span className="text-[11px] text-muted-foreground">fused from</span>
                         {fusedEmotion.sources.includes("eeg") && (
-                          <span title="EEG"><Brain style={{ width: 12, height: 12, color: "#7c3aed" }} /></span>
+                          <span title="EEG"><Brain className="w-3 h-3 text-primary" /></span>
                         )}
                         {fusedEmotion.sources.includes("voice") && (
-                          <span title="Voice"><Mic style={{ width: 12, height: 12, color: "#06b6d4" }} /></span>
+                          <span title="Voice"><Mic className="w-3 h-3 text-cyan-400" /></span>
                         )}
                         {fusedEmotion.sources.includes("health") && (
-                          <span title="Health"><Activity style={{ width: 12, height: 12, color: "#e879a8" }} /></span>
+                          <span title="Health"><Activity className="w-3 h-3 text-rose-400" /></span>
                         )}
                       </>
                     ) : null}
@@ -1695,7 +1454,7 @@ export default function Today() {
 
               {/* Confidence meter for emotion reading */}
               {emotionConfidence && (
-                <div style={{ marginTop: 8, marginBottom: 4 }}>
+                <div className="mt-2 mb-1">
                   {emotionConfidence.showEmotion ? (
                     <ConfidenceMeter
                       confidence={emotionConfidence.confidence}
@@ -1703,56 +1462,41 @@ export default function Today() {
                       showLabel
                     />
                   ) : (
-                    <p style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.4 }}>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
                       Not enough data to determine your emotional state. Try a voice check-in or connect your Muse headband.
                     </p>
                   )}
                 </div>
               )}
 
-              {/* Active learning prompt — prominent when confidence < 0.4 */}
+              {/* Active learning prompt -- prominent when confidence < 0.4 */}
               {emotionFeedback === "ask" && (checkin.confidence ?? 1) < 0.4 && (
                 <div
                   data-testid="active-learning-prompt"
-                  style={{
-                    borderRadius: 8,
-                    border: "1px solid rgba(245, 158, 11, 0.3)",
-                    background: "rgba(245, 158, 11, 0.08)",
-                    padding: 12,
-                  }}
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/[0.08] p-3"
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <AlertTriangle style={{ width: 14, height: 14, color: "#f59e0b", flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#fbbf24" }}>
-                      Low confidence — your feedback is especially valuable
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span className="text-xs font-semibold text-amber-400">
+                      Low confidence -- your feedback is especially valuable
                     </span>
                   </div>
-                  <p style={{ fontSize: 10, color: "var(--muted-foreground)", lineHeight: 1.4, marginBottom: 8 }}>
+                  <p className="text-[10px] text-muted-foreground leading-snug mb-2">
                     The model is uncertain about this prediction. One correction here teaches more than 5 high-confidence ones.
                   </p>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="flex gap-2">
                     <button
                       onClick={confirmVoiceEmotion}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 4,
-                        padding: "5px 14px", borderRadius: 16, border: "none",
-                        background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24",
-                        fontSize: 12, fontWeight: 500, cursor: "pointer",
-                      }}
+                      className="flex items-center gap-1 px-3.5 py-1 rounded-2xl border-none bg-amber-500/15 text-amber-400 text-xs font-medium cursor-pointer"
                     >
-                      <Check style={{ width: 12, height: 12 }} />
+                      <Check className="w-3 h-3" />
                       Yes, correct
                     </button>
                     <button
                       onClick={() => setEmotionFeedback("correcting")}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 4,
-                        padding: "5px 14px", borderRadius: 16, border: "none",
-                        background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24",
-                        fontSize: 12, fontWeight: 500, cursor: "pointer",
-                      }}
+                      className="flex items-center gap-1 px-3.5 py-1 rounded-2xl border-none bg-amber-500/15 text-amber-400 text-xs font-medium cursor-pointer"
                     >
-                      <Pencil style={{ width: 12, height: 12 }} />
+                      <Pencil className="w-3 h-3" />
                       No, I felt...
                     </button>
                   </div>
@@ -1761,31 +1505,21 @@ export default function Today() {
 
               {/* Standard "Is this right?" feedback (confidence >= 0.4) */}
               {emotionFeedback === "ask" && (checkin.confidence ?? 1) >= 0.4 && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-                  <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Is this right?</span>
-                  <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex items-center justify-between pt-2 border-t border-foreground/[0.06]">
+                  <span className="text-xs text-muted-foreground">Is this right?</span>
+                  <div className="flex gap-2">
                     <button
                       onClick={confirmVoiceEmotion}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 4,
-                        padding: "5px 14px", borderRadius: 16, border: "none",
-                        background: "rgba(124, 58, 237, 0.1)", color: "#7c3aed",
-                        fontSize: 12, fontWeight: 500, cursor: "pointer",
-                      }}
+                      className="flex items-center gap-1 px-3.5 py-1 rounded-2xl border-none bg-primary/10 text-primary text-xs font-medium cursor-pointer"
                     >
-                      <Check style={{ width: 12, height: 12 }} />
+                      <Check className="w-3 h-3" />
                       Yes
                     </button>
                     <button
                       onClick={() => setEmotionFeedback("correcting")}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 4,
-                        padding: "5px 14px", borderRadius: 16, border: "none",
-                        background: "var(--muted)", color: "var(--muted-foreground)",
-                        fontSize: 12, fontWeight: 500, cursor: "pointer",
-                      }}
+                      className="flex items-center gap-1 px-3.5 py-1 rounded-2xl border-none bg-muted text-muted-foreground text-xs font-medium cursor-pointer"
                     >
-                      <Pencil style={{ width: 12, height: 12 }} />
+                      <Pencil className="w-3 h-3" />
                       Correct it
                     </button>
                   </div>
@@ -1793,23 +1527,20 @@ export default function Today() {
               )}
 
               {emotionFeedback === "correcting" && (
-                <div style={{ paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-                  <span style={{ fontSize: 12, color: "var(--muted-foreground)", display: "block", marginBottom: 8 }}>
+                <div className="pt-2 border-t border-foreground/[0.06]">
+                  <span className="text-xs text-muted-foreground block mb-2">
                     What were you actually feeling?
                   </span>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  <div className="flex flex-wrap gap-1.5">
                     {["happy", "sad", "angry", "fearful", "surprised", "neutral", "anxious", "peaceful", "excited", "frustrated"].map((em) => (
                       <button
                         key={em}
                         onClick={() => submitEmotionCorrection(em)}
-                        style={{
-                          padding: "5px 12px", borderRadius: 16, border: "none",
-                          background: em === checkin.emotion ? "var(--muted)" : "rgba(124, 58, 237, 0.1)",
-                          color: em === checkin.emotion ? "var(--muted-foreground)" : "#7c3aed",
-                          fontSize: 11, fontWeight: 500, cursor: "pointer",
-                          textTransform: "capitalize" as const,
-                          opacity: em === checkin.emotion ? 0.5 : 1,
-                        }}
+                        className={`px-3 py-1 rounded-2xl border-none text-[11px] font-medium cursor-pointer capitalize ${
+                          em === checkin.emotion
+                            ? "bg-muted text-muted-foreground opacity-50"
+                            : "bg-primary/10 text-primary"
+                        }`}
                       >
                         {em}
                       </button>
@@ -1819,16 +1550,16 @@ export default function Today() {
               )}
 
               {emotionFeedback === "confirmed" && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-                  <Check style={{ width: 13, height: 13, color: "#06b6d4" }} />
-                  <span style={{ fontSize: 12, color: "#06b6d4", fontWeight: 500 }}>Confirmed</span>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-foreground/[0.06]">
+                  <Check className="w-[13px] h-[13px] text-cyan-400" />
+                  <span className="text-xs text-cyan-400 font-medium">Confirmed</span>
                 </div>
               )}
 
               {emotionFeedback === "corrected" && correctedEmotion && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-                  <Check style={{ width: 13, height: 13, color: "#06b6d4" }} />
-                  <span style={{ fontSize: 12, color: "#06b6d4", fontWeight: 500 }}>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-foreground/[0.06]">
+                  <Check className="w-[13px] h-[13px] text-cyan-400" />
+                  <span className="text-xs text-cyan-400 font-medium">
                     Saved as {correctedEmotion}. This helps improve accuracy!
                   </span>
                 </div>
@@ -1841,48 +1572,24 @@ export default function Today() {
           {(checkin?.stress_index ?? 0) > 0.6 && (
             <motion.div
               variants={itemVariants}
-              style={{
-                ...bevelCard,
-                border: "1px solid rgba(232, 121, 168, 0.2)",
-                marginBottom: 20,
-              }}
+              className="glass-card p-5 mb-5 border-secondary/20"
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  marginBottom: 12,
-                }}
-              >
-                <AlertTriangle style={{ width: 22, height: 22, color: "#e879a8", flexShrink: 0 }} />
+              <div className="flex items-start gap-3 mb-3">
+                <AlertTriangle className="w-[22px] h-[22px] text-rose-400 shrink-0" />
                 <div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#e879a8",
-                      marginBottom: 4,
-                    }}
-                  >
+                  <div className="text-sm font-semibold text-rose-400 mb-1">
                     Your stress levels are elevated
                   </div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: "var(--muted-foreground)",
-                      lineHeight: 1.6,
-                    }}
-                  >
+                  <div className="text-sm text-muted-foreground leading-relaxed">
                     Take a moment to breathe. Try the 4-7-8 breathing technique:
                     <br />
-                    <span style={{ fontWeight: 500, color: "var(--foreground)" }}>
+                    <span className="font-medium text-foreground">
                       Inhale 4s &rarr; Hold 7s &rarr; Exhale 8s
                     </span>
                   </div>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div className="flex gap-2">
                 <button
                   onClick={() =>
                     window.open(
@@ -1890,33 +1597,13 @@ export default function Today() {
                       "_blank"
                     )
                   }
-                  style={{
-                    flex: 1,
-                    background: "linear-gradient(135deg, #1DB954, #158a3e)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 12,
-                    padding: "10px 16px",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
+                  className="flex-1 bg-gradient-to-br from-green-500 to-green-700 text-white border-none rounded-xl px-4 py-2.5 text-sm font-semibold cursor-pointer active:scale-[0.97]"
                 >
                   Listen to Calm Music
                 </button>
                 <button
                   onClick={() => setShowBreathe(true)}
-                  style={{
-                    flex: 1,
-                    background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 12,
-                    padding: "10px 16px",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
+                  className="flex-1 bg-gradient-to-br from-primary to-violet-700 text-white border-none rounded-xl px-4 py-2.5 text-sm font-semibold cursor-pointer active:scale-[0.97]"
                 >
                   Breathing Exercise
                 </button>
@@ -1932,11 +1619,7 @@ export default function Today() {
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 14,
-            }}
+            className="grid grid-cols-2 gap-3.5"
           >
             {/* Sleep */}
             <HealthMetricCard
@@ -1951,8 +1634,8 @@ export default function Today() {
               dotColor={sleepStatus.color}
               onClick={() => navigate("/sleep-session")}
               barPercent={sleepTotal > 0 ? Math.min(100, (sleepTotal / 8) * 100) : undefined}
-              barGradient="linear-gradient(90deg, #7c3aed, #a78bfa)"
-              accentColor="#7c3aed"
+              barGradient="linear-gradient(90deg, var(--primary), var(--neural-purple))"
+              accentColor="var(--primary)"
               emptyIcon={Moon}
               emptyCta="Sync sleep data"
             />
@@ -1965,7 +1648,7 @@ export default function Today() {
               statusLabel={hrStatus.label}
               dotColor={hrStatus.color}
               onClick={() => navigate("/heart-rate")}
-              accentColor="#e879a8"
+              accentColor="var(--secondary)"
               emptyIcon={Heart}
               emptyCta="Connect Health to track"
             />
@@ -1979,8 +1662,8 @@ export default function Today() {
               dotColor={stepsStatus.color}
               onClick={() => navigate("/steps")}
               barPercent={steps > 0 ? stepsPct : undefined}
-              barGradient="linear-gradient(90deg, #06b6d4, #22d3ee)"
-              accentColor="#06b6d4"
+              barGradient="linear-gradient(90deg, var(--emotion-calm-to), var(--neural-cyan))"
+              accentColor="var(--emotion-calm-to)"
               emptyIcon={Footprints}
               emptyCta="Sync to see steps"
             />
@@ -1994,8 +1677,8 @@ export default function Today() {
               dotColor={nutritionStatus.color}
               onClick={() => navigate("/nutrition")}
               barPercent={todayCalories > 0 ? calPct : undefined}
-              barGradient="linear-gradient(90deg, #d4a017, #ea580c)"
-              accentColor="#d4a017"
+              barGradient="linear-gradient(90deg, var(--warning), var(--destructive))"
+              accentColor="var(--warning)"
               emptyIcon={UtensilsCrossed}
               emptyCta="Log a meal to start"
             />
@@ -2004,56 +1687,35 @@ export default function Today() {
             })()}
           </motion.div>
 
-          {/* ── Quick Listen — Spotify Music Section ── */}
+          {/* ── Quick Listen -- Spotify Music Section ── */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.5, ease: "easeOut" }}
-            style={{ marginBottom: 20 }}
+            className="mb-5"
           >
-            <div style={{
-              fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-              textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 8,
-            }}>
+            <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Quick Listen
             </div>
-            <div style={{
-              display: "flex", gap: 14, overflowX: "auto",
-              paddingBottom: 4, scrollbarWidth: "none",
-              WebkitOverflowScrolling: "touch",
-            }}>
+            <div className="flex gap-3.5 overflow-x-auto pb-1 [scrollbar-width:none] [-webkit-overflow-scrolling:touch]">
               {([
-                { icon: Music, color: "#6366f1", title: "Focus", url: "https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ" },
-                { icon: Wind, color: "#0891b2", title: "Calm", url: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO" },
-                { icon: CloudMoon, color: "#7c3aed", title: "Sleep", url: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp" },
-                { icon: Dumbbell, color: "#ea580c", title: "Workout", url: "https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" },
-                { icon: TreePine, color: "#4ade80", title: "Energize", url: "https://open.spotify.com/playlist/37i9dQZF1DX3rxVfibe1L0" },
+                { icon: Music, colorClass: "text-indigo-400", title: "Focus", url: "https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ" },
+                { icon: Wind, colorClass: "text-cyan-500", title: "Calm", url: "https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO" },
+                { icon: CloudMoon, colorClass: "text-primary", title: "Sleep", url: "https://open.spotify.com/playlist/37i9dQZF1DWZd79rJ6a7lp" },
+                { icon: Dumbbell, colorClass: "text-orange-500", title: "Workout", url: "https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" },
+                { icon: TreePine, colorClass: "text-green-400", title: "Energize", url: "https://open.spotify.com/playlist/37i9dQZF1DX3rxVfibe1L0" },
               ] as const).map((card) => {
                 const IconComp = card.icon;
                 return (
                 <button
                   key={card.title}
                   onClick={() => window.open(card.url, "_blank")}
-                  style={{
-                    flex: "0 0 auto",
-                    width: 90,
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 20,
-                    padding: "12px 8px",
-                    textAlign: "center" as const,
-                    cursor: "pointer",
-                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                    boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-                  }}
-                  onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
-                  onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                  className="flex-none w-[90px] glass-card px-2 py-3 text-center cursor-pointer transition-transform duration-200 active:scale-[0.96]"
                 >
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
-                    <IconComp style={{ width: 24, height: 24, color: card.color }} />
+                  <div className="flex justify-center mb-1">
+                    <IconComp className={`w-6 h-6 ${card.colorClass}`} />
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)" }}>{card.title}</div>
+                  <div className="text-[11px] font-semibold text-foreground">{card.title}</div>
                 </button>
                 );
               })}

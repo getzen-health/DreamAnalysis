@@ -39,16 +39,23 @@ vi.mock("@/lib/queryClient", () => ({
   resolveUrl: (url: string) => url,
 }));
 
-vi.mock("framer-motion", () => ({
-  motion: {
-    main: React.forwardRef(({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>, ref: React.Ref<HTMLElement>) =>
-      React.createElement("main", { ...props, ref }, children)
-    ),
-    button: React.forwardRef(({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>, ref: React.Ref<HTMLButtonElement>) =>
-      React.createElement("button", { ...props, ref }, children)
-    ),
-  },
-}));
+vi.mock("framer-motion", () => {
+  const forwardRefFactory = (tag: string) =>
+    React.forwardRef(
+      ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>, ref: React.Ref<HTMLElement>) =>
+        React.createElement(tag, { ...props, ref }, children),
+    );
+  return {
+    motion: {
+      main: forwardRefFactory("main"),
+      div: forwardRefFactory("div"),
+      button: forwardRefFactory("button"),
+      p: forwardRefFactory("p"),
+      span: forwardRefFactory("span"),
+    },
+    AnimatePresence: ({ children }: React.PropsWithChildren) => children,
+  };
+});
 
 describe("Discover page", () => {
   beforeEach(() => {
