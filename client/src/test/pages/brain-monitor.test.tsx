@@ -291,7 +291,7 @@ describe("BrainMonitor page", () => {
   });
 
   describe("Task #21: ML model cards link to history pages", () => {
-    it("renders Emotion model card as a link to /emotions", async () => {
+    it("renders Emotion model card linking to brain-monitor", async () => {
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
         const link = screen.getByTestId("model-link-Emotion").closest("a");

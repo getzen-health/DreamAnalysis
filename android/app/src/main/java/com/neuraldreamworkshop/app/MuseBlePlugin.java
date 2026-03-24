@@ -77,7 +77,8 @@ public class MuseBlePlugin extends Plugin {
     private static final int ATHENA_HEADER_SIZE  = 14;
     private static final int ATHENA_TAG_EEG_4CH  = 0x11;
     private static final int ATHENA_EEG_4CH_SIZE = 28;
-    private static final double ATHENA_UV_SCALE  = 1450.0 / 16383.0;
+    // 12-bit ADC centered at 2048, ±1000 µV range → 1000/2048 µV per bit
+    private static final double ATHENA_UV_SCALE  = 1000.0 / 2048.0;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private BluetoothGatt bluetoothGatt;
@@ -854,9 +855,18 @@ public class MuseBlePlugin extends Plugin {
             int b2 = value[off + 2] & 0xFF;
             int s0 = ((b0 << 4) | (b1 >> 4)) & 0xFFF;
             int s1 = (((b1 & 0xF) << 8) | b2) & 0xFFF;
-            // 12-bit centered at 2048, scale to microvolts (same as Muse 2)
-            samples[si++] = (s0 - 2048) * 0.48828125;
-            samples[si++] = (s1 - 2048) * 0.48828125;
+            // 12-bit centered at 2048, scale to microvolts
+            samples[si++] = (s0 - 2048) * ATHENA_UV_SCALE;
+            samples[si++] = (s1 - 2048) * ATHENA_UV_SCALE;
+        }
+
+        // Validate: resting EEG should be within ±500 µV; warn on extremes
+        boolean outOfRange = false;
+        for (int i = 0; i < si; i++) {
+            if (Math.abs(samples[i]) > 500.0) { outOfRange = true; break; }
+        }
+        if (outOfRange && athenaPacketCount < 20) {
+            sendDiag("Athena WARNING: sample > ±500µV — possible format/scale mismatch");
         }
 
         // Send decoded samples as JSON (not raw bytes)
