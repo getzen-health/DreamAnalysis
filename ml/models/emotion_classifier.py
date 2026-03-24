@@ -464,6 +464,149 @@ class EmotionClassifier:
             return False
         return self.device_type.lower() in _CONSUMER_EEG_DEVICES
 
+    # ── Fast epoch-level signal quality for adaptive ensemble ──────────────────
+    #
+    # Lightweight quality check that runs inside the ensemble prediction path.
+    # Uses three fast, FFT-free metrics:
+    #   1. Amplitude range — flatline or saturated channels
+    #   2. High-frequency power ratio — EMG / broadband noise
+    #   3. Channel variance consistency — disconnected electrode detection
+    #
+    # NOT a replacement for SignalQualityChecker (which is thorough but too slow
+    # to run on every prediction frame).  This is a 0.1 ms check that drives
+    # the adaptive ensemble weights.
+
+    # Quality thresholds for the adaptive ensemble weight ramp.
+    # Above _QUALITY_GOOD: full EEGNet weight (default 0.6).
+    # Below _QUALITY_POOR: zero EEGNet weight (heuristic-only).
+    # Between: linear interpolation.
+    _QUALITY_GOOD = 0.7
+    _QUALITY_POOR = 0.35
+
+    def _compute_epoch_quality(self, eeg: np.ndarray, fs: float = 256.0) -> float:
+        """Fast signal quality estimate for a single epoch.
+
+        Computes a 0-1 quality score from three lightweight metrics averaged
+        across channels.  Designed to be fast enough to run on every prediction
+        frame (~0.1 ms for 4ch x 1024 samples).
+
+        Args:
+            eeg: 1D (n_samples,) or 2D (n_channels, n_samples) EEG array.
+            fs:  Sampling frequency in Hz.
+
+        Returns:
+            Quality score in [0, 1].  1.0 = clean lab-grade signal,
+            0.0 = flatline or fully contaminated.
+        """
+        if eeg.ndim == 1:
+            eeg = eeg.reshape(1, -1)
+
+        n_channels, n_samples = eeg.shape
+        if n_samples < 4:
+            return 0.0
+
+        scores = []
+
+        for ch in range(n_channels):
+            signal = eeg[ch]
+            ch_score = self._channel_quality(signal, fs)
+            scores.append(ch_score)
+
+        if not scores:
+            return 0.0
+
+        # Per-channel quality averaged, then penalize if channels are
+        # inconsistent (one good, one dead = unreliable spatial features).
+        mean_quality = float(np.mean(scores))
+
+        if n_channels >= 2:
+            variance_penalty = float(np.std(scores))
+            # Penalize up to 0.2 for high inter-channel variance
+            mean_quality -= min(0.2, variance_penalty * 0.5)
+
+        return float(np.clip(mean_quality, 0.0, 1.0))
+
+    @staticmethod
+    def _channel_quality(signal: np.ndarray, fs: float) -> float:
+        """Quality score for a single channel. Returns float in [0, 1]."""
+        rms = float(np.sqrt(np.mean(signal ** 2)))
+        peak = float(np.max(np.abs(signal)))
+
+        # 1. Amplitude score:
+        #    Flatline (RMS < 1 uV) -> hard 0 (no neural info regardless of other metrics)
+        #    Clean EEG (5-30 uV RMS) = high
+        #    High RMS (> 40 uV) = noisy / near-artifact
+        #    Approaching artifact threshold (peak > 75 uV) = low
+        if rms < 1.0:
+            # Flatline / disconnected: no neural information at all.
+            # Return immediately — no point checking HF or stationarity.
+            return 0.05
+        elif rms > 60.0:
+            amp_score = 0.15  # near-artifact / saturated
+        elif peak > _ARTIFACT_THRESHOLD_UV:
+            amp_score = 0.25  # individual peaks hit artifact threshold
+        elif rms > 40.0:
+            amp_score = 0.40  # elevated — noisy but not saturated
+        else:
+            # Good range: 1-40 uV RMS.  Peak quality around 10-25 uV.
+            amp_score = float(np.clip(1.0 - abs(rms - 17.0) / 30.0, 0.4, 1.0))
+
+        # 2. High-frequency power ratio (EMG contamination proxy).
+        #    Compute power above 30 Hz vs total power using simple time-domain
+        #    second-order difference filter (no FFT needed — fast).
+        if len(signal) >= 3:
+            hf_proxy = np.diff(signal, n=2)  # approximates high-pass
+            hf_power = float(np.mean(hf_proxy ** 2))
+            total_power = float(np.mean(signal ** 2)) + 1e-10
+            hf_ratio = hf_power / total_power
+            # Clean EEG: hf_ratio ~0.5-1.5 (dominated by low-freq oscillations).
+            # Heavy EMG / line noise: hf_ratio > 3.
+            # Map [0, 4] -> [1.0, 0.1]
+            hf_score = float(np.clip(1.0 - hf_ratio / 4.0, 0.1, 1.0))
+        else:
+            hf_score = 0.5
+
+        # 3. Stationarity (variance stability across epoch quarters).
+        #    Non-stationary signal = motion artifact or electrode shift.
+        quarter = max(1, len(signal) // 4)
+        quarters = [signal[i * quarter:(i + 1) * quarter] for i in range(4)]
+        quarter_vars = [float(np.var(q)) for q in quarters if len(q) > 0]
+        if len(quarter_vars) >= 2 and max(quarter_vars) > 0:
+            cv = float(np.std(quarter_vars)) / (float(np.mean(quarter_vars)) + 1e-10)
+            # Coefficient of variation: < 0.5 = stationary, > 2.0 = non-stationary
+            stat_score = float(np.clip(1.0 - cv / 2.0, 0.2, 1.0))
+        else:
+            stat_score = 0.5
+
+        # Weighted combination: amplitude most important, then HF, then stationarity
+        return 0.40 * amp_score + 0.35 * hf_score + 0.25 * stat_score
+
+    def _adaptive_ensemble_weights(
+        self, epoch_quality: float
+    ) -> tuple:
+        """Compute quality-adaptive ensemble weights for EEGNet vs heuristic.
+
+        When signal quality is high, use the default weights (0.6 EEGNet / 0.4
+        heuristic).  When quality drops below the poor threshold, use heuristic
+        only (0.0 / 1.0).  Linear ramp between thresholds.
+
+        Returns:
+            (w_eegnet, w_heuristic) tuple that sums to 1.0.
+        """
+        max_w_eegnet = self._ENSEMBLE_W_EEGNET  # 0.6
+
+        if epoch_quality >= self._QUALITY_GOOD:
+            w_e = max_w_eegnet
+        elif epoch_quality <= self._QUALITY_POOR:
+            w_e = 0.0
+        else:
+            # Linear ramp from 0 at _QUALITY_POOR to max_w_eegnet at _QUALITY_GOOD
+            t = (epoch_quality - self._QUALITY_POOR) / (self._QUALITY_GOOD - self._QUALITY_POOR)
+            w_e = max_w_eegnet * t
+
+        w_h = 1.0 - w_e
+        return (round(w_e, 4), round(w_h, 4))
+
     # ── SHAP Explainability ────────────────────────────────────────────────────
 
     def _get_shap_explainer(self, model, cache_attr: str):
@@ -1691,9 +1834,11 @@ class EmotionClassifier:
             dtype=float,
         )
 
-        # 4. Weighted average
-        w_e = self._ENSEMBLE_W_EEGNET
-        w_h = self._ENSEMBLE_W_HEURISTIC
+        # 4. Adaptive weighted average — signal quality drives EEGNet weight.
+        # EEGNet (CNN on raw waveforms) degrades faster than heuristics (band-power
+        # ratios) on noisy signals.  When quality is poor, shift weight to heuristic.
+        _epoch_quality = self._compute_epoch_quality(eeg, fs)
+        w_e, w_h = self._adaptive_ensemble_weights(_epoch_quality)
         ensemble_probs = w_e * eegnet_probs + w_h * heuristic_probs
 
         # Re-normalize to sum to 1
@@ -1788,6 +1933,11 @@ class EmotionClassifier:
 
         result["eegnet_contribution"] = round(closeness_eegnet / total_closeness, 4)
         result["heuristic_contribution"] = round(closeness_heuristic / total_closeness, 4)
+
+        # 9. Signal quality adaptive weighting — expose for debugging and UI
+        result["epoch_quality"] = round(_epoch_quality, 4)
+        result["adaptive_eegnet_weight"] = w_e
+        result["adaptive_heuristic_weight"] = w_h
 
         return result
 
