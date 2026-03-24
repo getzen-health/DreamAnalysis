@@ -624,14 +624,6 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
         </div>
         {current && (
           <div style={{ display: "flex", gap: 10 }}>
-            {checkin?.confidence != null && (
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: checkin.confidence > 0.7 ? "#10b981" : checkin.confidence > 0.5 ? "#f59e0b" : "#ef4444" }}>
-                  {Math.round(checkin.confidence * 100)}%
-                </div>
-                <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Confidence</div>
-              </div>
-            )}
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#e879a8" }}>{current.stress}%</div>
               <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>Stress</div>
@@ -693,7 +685,8 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
       </div>
 
       {chartData.length > 1 ? (
-        <div style={{ height: 220 }}>
+        <div style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", height: 220 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ width: Math.max(chartData.length * 40, 320), minWidth: "100%", height: "100%" }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
               <defs>
@@ -723,6 +716,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
               {/* Mood removed from chart — shown as text label at top instead */}
             </AreaChart>
           </ResponsiveContainer>
+          </div>
         </div>
       ) : (
         <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
