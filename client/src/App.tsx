@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "rea
 import * as Sentry from "@sentry/react";
 import { cleanExpiredLocalStorage } from "@/lib/storage-cleanup";
 import { syncOnStartup } from "@/lib/feedback-sync";
+import { checkAndUpdateModels } from "@/lib/model-updater";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -527,11 +528,13 @@ function AppShell() {
     cleanExpiredLocalStorage();
   }, []);
 
-  // Sync corrections and trigger retrain check once per day after auth
+  // Sync corrections, trigger retrain, and check for updated models once per day
   useEffect(() => {
     if (user?.id && !syncTriggered.current) {
       syncTriggered.current = true;
       syncOnStartup(user.id).catch(() => {});
+      // Check if the ML backend has a newer per-user ONNX model and download it
+      checkAndUpdateModels(user.id).catch(() => {});
     }
   }, [user?.id]);
 
