@@ -1066,6 +1066,150 @@ def compute_phase_locking_value(
     return float(np.mean(plv_values)) if plv_values else 0.0
 
 
+def compute_pairwise_plv(
+    signals: np.ndarray, fs: float = 256.0,
+    bands: Optional[Dict[str, tuple]] = None,
+) -> Dict:
+    """Compute per-pair, per-band Phase Locking Value for emotion classification.
+
+    Unlike compute_phase_locking_value() which returns a single mean scalar,
+    this returns the full 6-pair PLV matrix for theta/alpha/beta bands plus
+    named summary features (frontal pair, fronto-temporal mean, global mean).
+
+    Motivated by Wang et al. (2024), "Fusion of Multi-domain EEG Signatures
+    Improves Emotion Recognition" -- PLV connectivity features combined with
+    spectral/microstate features achieved 7%+ accuracy improvement over
+    single-domain approaches.  High-frequency PLV in prefrontal and temporal
+    regions particularly enhances emotional differentiation.
+
+    Muse 2 channel order: TP9=0, AF7=1, AF8=2, TP10=3.
+    6 pairs (4C2): (0,1) (0,2) (0,3) (1,2) (1,3) (2,3).
+    Frontal pair: AF7-AF8 = pair index 3 → (1,2).
+    Fronto-temporal: AF7-TP9 = pair 0 → (0,1), AF8-TP10 = pair 5 → (2,3).
+
+    Args:
+        signals: EEG data, shape (n_channels, n_samples).
+        fs: Sampling rate in Hz.
+        bands: Dict of band_name -> (low_hz, high_hz).  Defaults to
+               theta (4-8), alpha (8-12), beta (12-30).
+
+    Returns:
+        Dict with keys:
+            plv_theta, plv_alpha, plv_beta: list of per-pair PLV values.
+            plv_frontal_alpha/theta/beta: AF7-AF8 PLV (pair index depends on n_channels).
+            plv_fronto_temporal_alpha: mean of AF7-TP9 and AF8-TP10 PLV in alpha.
+            plv_mean_alpha/theta/beta: global mean PLV across all pairs.
+            feature_vector: flat list of all PLV features for ML pipelines.
+            n_features: length of feature_vector.
+    """
+    if bands is None:
+        bands = {
+            "theta": (4.0, 8.0),
+            "alpha": (8.0, 12.0),
+            "beta": (12.0, 30.0),
+        }
+
+    n_channels = signals.shape[0]
+    n_samples = signals.shape[1] if signals.ndim == 2 else 0
+
+    # Build pair indices
+    pairs = []
+    for i in range(n_channels):
+        for j in range(i + 1, n_channels):
+            pairs.append((i, j))
+    n_pairs = len(pairs)
+
+    # Edge case: fewer than 2 channels or very short signal
+    if n_channels < 2 or n_samples < 64:
+        n_pairs_default = max(n_pairs, 1)
+        empty: Dict = {}
+        for band_name in bands:
+            empty[f"plv_{band_name}"] = [0.0] * n_pairs_default
+            empty[f"plv_mean_{band_name}"] = 0.0
+        empty["plv_frontal_alpha"] = 0.0
+        empty["plv_frontal_theta"] = 0.0
+        empty["plv_frontal_beta"] = 0.0
+        empty["plv_fronto_temporal_alpha"] = 0.0
+        n_feats = n_pairs_default * len(bands) + 4  # 4 summary features
+        empty["feature_vector"] = [0.0] * n_feats
+        empty["n_features"] = n_feats
+        return empty
+
+    from scipy.signal import hilbert as _hilbert
+
+    # Compute PLV per band per pair
+    band_plvs: Dict[str, list] = {}
+    for band_name, (low, high) in bands.items():
+        # Bandpass filter each channel for this band
+        filtered = np.array([
+            bandpass_filter(signals[ch], low, high, fs)
+            for ch in range(n_channels)
+        ])
+
+        # Extract instantaneous phase via Hilbert transform
+        analytic = _hilbert(filtered, axis=1)
+        phases = np.angle(analytic)
+
+        pair_plvs = []
+        for (i, j) in pairs:
+            phase_diff = phases[i] - phases[j]
+            plv = float(np.abs(np.mean(np.exp(1j * phase_diff))))
+            pair_plvs.append(round(float(np.clip(plv, 0.0, 1.0)), 4))
+        band_plvs[band_name] = pair_plvs
+
+    # Build result dict
+    result: Dict = {}
+    for band_name in bands:
+        result[f"plv_{band_name}"] = band_plvs[band_name]
+        result[f"plv_mean_{band_name}"] = round(
+            float(np.mean(band_plvs[band_name])), 4
+        )
+
+    # Named summary features based on Muse 2 channel layout
+    # Frontal pair: AF7(1)-AF8(2).  Find the pair index.
+    frontal_idx = None
+    ft_left_idx = None   # AF7(1)-TP9(0)
+    ft_right_idx = None  # AF8(2)-TP10(3)
+    for idx, (i, j) in enumerate(pairs):
+        if (i, j) == (1, 2):
+            frontal_idx = idx
+        if (i, j) == (0, 1):
+            ft_left_idx = idx
+        if (i, j) == (2, 3):
+            ft_right_idx = idx
+
+    for band_name in bands:
+        key = f"plv_frontal_{band_name}"
+        if frontal_idx is not None:
+            result[key] = band_plvs[band_name][frontal_idx]
+        else:
+            result[key] = 0.0
+
+    # Fronto-temporal: mean of left (AF7-TP9) and right (AF8-TP10) in alpha
+    ft_vals = []
+    if ft_left_idx is not None and "alpha" in band_plvs:
+        ft_vals.append(band_plvs["alpha"][ft_left_idx])
+    if ft_right_idx is not None and "alpha" in band_plvs:
+        ft_vals.append(band_plvs["alpha"][ft_right_idx])
+    result["plv_fronto_temporal_alpha"] = round(
+        float(np.mean(ft_vals)), 4
+    ) if ft_vals else 0.0
+
+    # Build flat feature vector: all per-pair PLVs + 4 summary features
+    fv: list = []
+    for band_name in bands:
+        fv.extend(band_plvs[band_name])
+    fv.append(result.get("plv_frontal_alpha", 0.0))
+    fv.append(result.get("plv_frontal_theta", 0.0))
+    fv.append(result.get("plv_frontal_beta", 0.0))
+    fv.append(result.get("plv_fronto_temporal_alpha", 0.0))
+
+    result["feature_vector"] = fv
+    result["n_features"] = len(fv)
+
+    return result
+
+
 # --- Wavelet Time-Frequency Analysis ---
 
 

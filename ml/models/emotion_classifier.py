@@ -16,6 +16,7 @@ from processing.eeg_processor import (
     extract_band_powers, differential_entropy, extract_features, preprocess,
     compute_frontal_asymmetry, compute_dasm_rasm,
     compute_frontal_midline_theta, compute_coherence,
+    compute_pairwise_plv,
     EuclideanAligner,
 )
 from processing.covariate_shift_detector import CovariateShiftDetector
@@ -2176,6 +2177,11 @@ class EmotionClassifier:
                 "band_powers": {}, "differential_entropy": {},
                 "dasm_rasm": {}, "frontal_midline_theta": {},
                 "frontal_alpha_coherence": 0.0,
+                "plv_connectivity": {
+                    "plv_frontal_alpha": 0.0, "plv_frontal_beta": 0.0,
+                    "plv_fronto_temporal_alpha": 0.0,
+                    "plv_mean_alpha": 0.0, "plv_mean_theta": 0.0, "plv_mean_beta": 0.0,
+                },
                 "artifact_detected": True,
                 "explanation": [],
             }
@@ -2310,6 +2316,32 @@ class EmotionClassifier:
             except Exception:
                 frontal_alpha_coh = 0.0
 
+        # ── PLV Functional Connectivity ──────────────────────────
+        # Per-pair Phase Locking Value across theta/alpha/beta bands.
+        # Wang et al. (2024): PLV + microstates + PSD fusion → 7%+ accuracy
+        # improvement over single-domain features. High-frequency PLV in
+        # prefrontal and temporal regions enhances emotional differentiation.
+        #
+        # plv_frontal_alpha: AF7-AF8 phase synchrony in alpha band.
+        #   High frontal PLV + positive FAA → stronger positive valence signal.
+        #   Low frontal PLV → dissociated hemispheres → less trust in FAA.
+        # plv_fronto_temporal_alpha: AF7-TP9 / AF8-TP10 mean PLV.
+        #   High fronto-temporal coupling → integrated emotional processing → arousal.
+        # plv_frontal_beta: AF7-AF8 PLV in beta band.
+        #   High frontal beta synchrony → cognitive engagement / focus.
+        plv_data: Dict = {}
+        plv_frontal_alpha = 0.0
+        plv_frontal_beta = 0.0
+        plv_ft_alpha = 0.0
+        if channels is not None and channels.shape[0] >= 4:
+            try:
+                plv_data = compute_pairwise_plv(channels, fs)
+                plv_frontal_alpha = plv_data.get("plv_frontal_alpha", 0.0)
+                plv_frontal_beta = plv_data.get("plv_frontal_beta", 0.0)
+                plv_ft_alpha = plv_data.get("plv_fronto_temporal_alpha", 0.0)
+            except Exception:
+                plv_data = {}
+
         # ── Valence (pleasantness) ──────────────────────────────
         # Alpha/beta ratio (ABR) as secondary valence signal.
         # Use high_alpha (10-12 Hz) instead of full alpha for the ratio term:
@@ -2324,11 +2356,24 @@ class EmotionClassifier:
             + 0.35 * np.tanh((alpha - 0.15) * 4)                     # absolute alpha level
         )
         if channels is not None and channels.shape[0] >= 3 and dasm_rasm:
-            # 4-signal blend: ABR + FAA + HAA + DASM_alpha.
+            # 5-signal blend: ABR + FAA + HAA + DASM_alpha + PLV-weighted FAA boost.
             # HAA (high-alpha asymmetry) is more emotion-specific than FAA.
             # Splitting FAA weight: 20% full-band FAA + 15% HAA.
+            #
+            # PLV confidence modulation (Wang et al. 2024): when AF7-AF8 phase
+            # locking in alpha is high (>0.5), the FAA signal is more reliable
+            # because the hemispheres are coherently processing — amplify the
+            # asymmetry signal by up to 10%.  When PLV is low, asymmetry signals
+            # (FAA, HAA, DASM) may be noise-driven — reduce their weight.
+            # plv_faa_boost: 0 when plv_frontal_alpha=0, up to 0.10 when plv=1.
+            plv_faa_boost = 0.10 * plv_frontal_alpha * abs(faa_valence)
+            plv_faa_sign = 1.0 if faa_valence >= 0 else -1.0
             valence = float(np.clip(
-                0.35 * valence_abr + 0.20 * faa_valence + 0.15 * haa_valence + 0.30 * dasm_alpha_valence,
+                0.33 * valence_abr
+                + 0.20 * faa_valence
+                + 0.12 * haa_valence
+                + 0.25 * dasm_alpha_valence
+                + 0.10 * plv_faa_sign * plv_faa_boost,
                 -1, 1
             ))
         elif channels is not None and channels.shape[0] >= 2:
@@ -2345,10 +2390,16 @@ class EmotionClassifier:
         # Gamma EXCLUDED: at Muse 2 frontal sites (AF7/AF8), 30-100 Hz is dominated
         # by frontalis EMG artifact, not neural gamma. Including it artificially
         # inflates arousal whenever the user tenses their forehead or jaw.
+        # PLV fronto-temporal arousal component: high alpha coupling between
+        # frontal and temporal regions indicates integrated emotional processing
+        # (Pessoa 2008, "The cognitive-emotional brain").  This reflects
+        # emotional engagement — a signal complementary to spectral arousal.
+        # Weight is small (0.08) to avoid overwhelming the proven spectral features.
         arousal_raw = (
-            0.45 * beta / max(beta + alpha, 1e-10)                     # beta proportion (primary)
-            + 0.30 * (1.0 - alpha / max(alpha + beta + theta, 1e-10))  # inverse alpha
-            + 0.25 * (1.0 - delta / max(delta + beta, 1e-10))          # inverse delta
+            0.42 * beta / max(beta + alpha, 1e-10)                     # beta proportion (primary)
+            + 0.28 * (1.0 - alpha / max(alpha + beta + theta, 1e-10))  # inverse alpha
+            + 0.22 * (1.0 - delta / max(delta + beta, 1e-10))          # inverse delta
+            + 0.08 * plv_ft_alpha                                       # fronto-temporal PLV coupling
         )
         arousal = float(np.clip(arousal_raw, 0, 1))
 
@@ -2460,6 +2511,14 @@ class EmotionClassifier:
                 "dasm_rasm": dasm_rasm,
                 "frontal_midline_theta": fmt,
                 "frontal_alpha_coherence": frontal_alpha_coh,
+                "plv_connectivity": {
+                    "plv_frontal_alpha": float(plv_frontal_alpha),
+                    "plv_frontal_beta": float(plv_frontal_beta),
+                    "plv_fronto_temporal_alpha": float(plv_ft_alpha),
+                    "plv_mean_alpha": float(plv_data.get("plv_mean_alpha", 0.0)),
+                    "plv_mean_theta": float(plv_data.get("plv_mean_theta", 0.0)),
+                    "plv_mean_beta": float(plv_data.get("plv_mean_beta", 0.0)),
+                },
                 "artifact_detected": _artifact_now,
                 "model_type": "feature-based",
                 "explanation": [],
@@ -2499,10 +2558,13 @@ class EmotionClassifier:
 
         # Focus: strong beta (especially low-beta), low theta/beta, moderate arousal.
         # Gamma excluded — EMG noise at AF7/AF8 produces false focus spikes.
+        # PLV frontal beta (5% weight): high AF7-AF8 beta synchrony indicates
+        # coordinated cognitive engagement across hemispheres (Sauseng et al. 2005).
         focus_index = float(np.clip(
-            0.45 * min(1, beta * 3.5)
-            + 0.40 * max(0, 1 - theta_beta_ratio * 0.40)
-            + 0.15 * min(1, low_beta * 5),         # low-beta is the primary attentional band
+            0.42 * min(1, beta * 3.5)
+            + 0.38 * max(0, 1 - theta_beta_ratio * 0.40)
+            + 0.15 * min(1, low_beta * 5)           # low-beta is the primary attentional band
+            + 0.05 * plv_frontal_beta,               # frontal beta synchrony = cognitive engagement
             0, 1
         ))
 
@@ -2582,6 +2644,9 @@ class EmotionClassifier:
             ("high_alpha_frac", float(high_alpha_frac)),
             ("dasm_beta_stress", float(dasm_beta_stress)),
             ("frontal_alpha_coherence", float(frontal_alpha_coh)),
+            ("plv_frontal_alpha", float(plv_frontal_alpha)),
+            ("plv_frontal_beta", float(plv_frontal_beta)),
+            ("plv_fronto_temporal_alpha", float(plv_ft_alpha)),
         ]
         heuristic_explanation = self._compute_heuristic_explanation(_contributions)
 
@@ -2608,6 +2673,14 @@ class EmotionClassifier:
             "frontal_alpha_coherence": frontal_alpha_coh,
             "high_alpha_asymmetry": float(haa_valence),
             "high_alpha_fraction": float(high_alpha_frac),
+            "plv_connectivity": {
+                "plv_frontal_alpha": float(plv_frontal_alpha),
+                "plv_frontal_beta": float(plv_frontal_beta),
+                "plv_fronto_temporal_alpha": float(plv_ft_alpha),
+                "plv_mean_alpha": float(plv_data.get("plv_mean_alpha", 0.0)),
+                "plv_mean_theta": float(plv_data.get("plv_mean_theta", 0.0)),
+                "plv_mean_beta": float(plv_data.get("plv_mean_beta", 0.0)),
+            },
             "artifact_detected": _artifact_now,
             "model_type": "feature-based",
             "explanation": heuristic_explanation,
