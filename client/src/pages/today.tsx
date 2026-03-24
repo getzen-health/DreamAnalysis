@@ -766,17 +766,66 @@ export default function Today() {
 
   // ── Log a feeling state ──
   const [feelingText, setFeelingText] = useState("");
-  const [feelingTone, setFeelingTone] = useState<"positive" | "neutral" | "low">("neutral");
+  const [feelingTone, setFeelingTone] = useState<string>("neutral");
+  const FEELING_OPTIONS = [
+    { emoji: "😊", label: "Happy", valence: 0.7, stress: 0.15, focus: 0.6 },
+    { emoji: "😌", label: "Calm", valence: 0.4, stress: 0.1, focus: 0.5 },
+    { emoji: "🎯", label: "Focused", valence: 0.3, stress: 0.3, focus: 0.85 },
+    { emoji: "🤩", label: "Excited", valence: 0.8, stress: 0.3, focus: 0.7 },
+    { emoji: "🙏", label: "Grateful", valence: 0.6, stress: 0.1, focus: 0.5 },
+    { emoji: "😤", label: "Frustrated", valence: -0.4, stress: 0.7, focus: 0.4 },
+    { emoji: "😰", label: "Anxious", valence: -0.3, stress: 0.8, focus: 0.3 },
+    { emoji: "😢", label: "Sad", valence: -0.5, stress: 0.5, focus: 0.3 },
+    { emoji: "😴", label: "Tired", valence: -0.1, stress: 0.4, focus: 0.2 },
+    { emoji: "😐", label: "Neutral", valence: 0, stress: 0.35, focus: 0.45 },
+    { emoji: "💪", label: "Proud", valence: 0.6, stress: 0.2, focus: 0.6 },
+    { emoji: "😞", label: "Disappointed", valence: -0.4, stress: 0.5, focus: 0.3 },
+    { emoji: "😡", label: "Angry", valence: -0.5, stress: 0.85, focus: 0.5 },
+    { emoji: "🥰", label: "Loved", valence: 0.8, stress: 0.05, focus: 0.4 },
+    { emoji: "😶", label: "Lonely", valence: -0.3, stress: 0.4, focus: 0.25 },
+    { emoji: "🌟", label: "Inspired", valence: 0.7, stress: 0.15, focus: 0.75 },
+  ];
   const [feelingSaving, setFeelingSaving] = useState(false);
   const [feelingSaved, setFeelingSaved] = useState(false);
 
   const submitFeeling = useCallback(async () => {
-    if (!feelingText.trim() || feelingSaving) return;
+    if (!feelingTone || feelingSaving) return;
     setFeelingSaving(true);
-    const moodScore = feelingTone === "positive" ? 8 : feelingTone === "low" ? 3 : 5;
-    const energyLevel = feelingTone === "positive" ? 7 : feelingTone === "low" ? 3 : 5;
+    const selected = FEELING_OPTIONS.find(f => f.label.toLowerCase() === feelingTone.toLowerCase());
+    const moodScore = selected ? Math.round((selected.valence + 1) * 5) : 5;
+    const energyLevel = selected ? Math.round((1 - selected.stress) * 10) : 5;
+    const emotionLabel = selected?.label.toLowerCase() ?? feelingTone;
     try {
-      await apiRequest("POST", "/api/mood", { moodScore, energyLevel, notes: feelingText.trim() });
+      await apiRequest("POST", "/api/mood", { moodScore, energyLevel, notes: feelingText.trim() || emotionLabel });
+
+      // Save as emotion data so all pages update
+      const now = Date.now();
+      if (selected) {
+        try {
+          localStorage.setItem("ndw_last_emotion", JSON.stringify({
+            result: {
+              emotion: emotionLabel,
+              valence: selected.valence,
+              arousal: 0.5,
+              stress_index: selected.stress,
+              focus_index: selected.focus,
+              confidence: 0.9,
+              model_type: "manual",
+              timestamp: now / 1000,
+            },
+            timestamp: now,
+          }));
+          window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
+          // Sync to Supabase
+          import("@/lib/supabase-store").then(({ saveEmotionHistory }) => {
+            saveEmotionHistory(getParticipantId(), {
+              stress: selected.stress, focus: selected.focus,
+              mood: selected.valence, source: "manual",
+              dominantEmotion: emotionLabel,
+            }).catch(() => {});
+          });
+        } catch { /* ok */ }
+      }
       setFeelingSaved(true);
       setFeelingText("");
       queryClient.invalidateQueries({ queryKey: ["/api/mood"] });
@@ -1463,12 +1512,31 @@ export default function Today() {
                 boxSizing: "border-box",
               }}
             />
+            {/* Emotion grid — tap to select specific feeling */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 10 }}>
+              {FEELING_OPTIONS.map(({ emoji, label }) => (
+                <button
+                  key={label}
+                  onClick={() => setFeelingTone(label.toLowerCase())}
+                  style={{
+                    padding: "8px 4px", borderRadius: 10, border: "none", cursor: "pointer",
+                    background: feelingTone === label.toLowerCase() ? "var(--primary)" : "var(--muted)",
+                    color: feelingTone === label.toLowerCase() ? "white" : "var(--foreground)",
+                    fontSize: 10, fontWeight: 600, display: "flex", flexDirection: "column" as const,
+                    alignItems: "center", gap: 2, transition: "all 0.2s",
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>{emoji}</span>
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", gap: 6 }}>
-                {([
+                {/* Optional text note */}
+                {false && ([
                   { key: "positive" as const, Icon: Smile, label: "Positive", color: "#06b6d4" },
-                  { key: "neutral" as const, Icon: Minus, label: "Neutral", color: "#94a3b8" },
-                  { key: "low" as const, Icon: Frown, label: "Low", color: "#e879a8" },
                 ] as const).map(({ key, Icon, label, color }) => (
                   <button
                     key={key}
