@@ -679,15 +679,15 @@ function useDeviceInternal(): UseDeviceReturn {
           );
           setLatestFrame(frame as EEGStreamFrame);
           // Compute brain age from synthetic band powers
-          if (frame.band_powers) {
+          if (frame.analysis?.band_powers) {
             import("@/lib/brain-age").then(({ computeAndCacheBrainAge }) => {
-              computeAndCacheBrainAge(frame.band_powers!);
+              computeAndCacheBrainAge(frame.analysis.band_powers);
             }).catch(() => {});
           }
         }, 1500);
 
         // Store interval ID so disconnect can clear it
-        (window as Record<string, unknown>).__ndw_synthetic_interval = syntheticInterval;
+        (window as unknown as Record<string, unknown>).__ndw_synthetic_interval = syntheticInterval;
         return;
       }
 
@@ -718,10 +718,10 @@ function useDeviceInternal(): UseDeviceReturn {
       wsRef.current = null;
     }
     // Clear client-side synthetic data interval if active
-    const synInterval = (window as Record<string, unknown>).__ndw_synthetic_interval;
+    const synInterval = (window as unknown as Record<string, unknown>).__ndw_synthetic_interval;
     if (synInterval) {
       clearInterval(synInterval as ReturnType<typeof setInterval>);
-      (window as Record<string, unknown>).__ndw_synthetic_interval = undefined;
+      (window as unknown as Record<string, unknown>).__ndw_synthetic_interval = undefined;
     }
     stopSession(userIdRef.current).catch(() => {}); // save recording if one was active
 

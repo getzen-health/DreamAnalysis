@@ -225,8 +225,8 @@ export function checkBadges(): Badge[] {
   const ALL_EMOTIONS = ["happy", "sad", "angry", "fear", "surprise", "neutral"];
   try {
     const seen = sbGetGeneric("ndw_emotions_seen") ?? [] as string[];
-    const allSeen = ALL_EMOTIONS.every(e => seen.includes(e));
-    const matchCount = seen.filter(e => ALL_EMOTIONS.includes(e)).length;
+    const allSeen = ALL_EMOTIONS.every((e: string) => (seen as string[]).includes(e));
+    const matchCount = (seen as string[]).filter((e: string) => ALL_EMOTIONS.includes(e)).length;
     badges.push({
       id: "emotion-explorer",
       icon: Palette,

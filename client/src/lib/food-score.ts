@@ -284,7 +284,7 @@ export function calculateFoodScore(food: FoodScoreInput): FoodScoreResult {
     verdictText = "Not recommended";
     verdictReason = sugar > 20
       ? "High sugar content will spike blood glucose and crash your energy. Consider a lower-sugar alternative."
-      : fat > 30
+      : food.fat_g > 30
       ? "Excessive fat relative to other nutrients. If consumed, balance with vegetables and lean protein."
       : "Poor nutritional profile — high in empty calories with little beneficial nutrients. Look for alternatives with more protein and fiber.";
   }
@@ -296,7 +296,7 @@ export function calculateFoodScore(food: FoodScoreInput): FoodScoreResult {
     if (onGlp) {
       if (sugar > 25) {
         glpImpact = "High sugar — may cause nausea with GLP-1. Choose low-glycemic foods to minimize GI side effects.";
-      } else if (fat > 30) {
+      } else if (food.fat_g > 30) {
         glpImpact = "High fat — may slow gastric emptying further with GLP-1. Smaller portions recommended to avoid discomfort.";
       } else if (food.protein_g > 20 && sugar < 10) {
         glpImpact = "Great choice on GLP-1 — high protein keeps you full longer and supports muscle preservation during weight loss.";

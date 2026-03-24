@@ -47,6 +47,7 @@ export interface BiometricPayload {
   hours_since_wake?: number;
   steps_today?: number;
   active_energy_kcal?: number;
+  active_calories?: number;
   exercise_minutes_today?: number;
   minutes_since_last_meal?: number;
   // Body composition
