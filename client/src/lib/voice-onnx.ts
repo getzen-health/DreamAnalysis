@@ -11,6 +11,11 @@ export interface OnDeviceEmotionResult {
   focus_index: number;
   probabilities: Record<string, number>;
   model_type: "voice-onnx";
+  /** Audio signal-to-noise ratio in dB.  When SNR < 15 dB, confidence is
+   *  scaled down proportionally (confidence * SNR/15) because background
+   *  noise degrades voice emotion accuracy.  Consumers can use this to
+   *  weight voice predictions lower in the fusion engine. */
+  snr_db: number;
 }
 
 // ─── Speaker Baseline F0 (Pitch Normalization) ─────────────────────────────
@@ -867,6 +872,107 @@ export function extractEnhancedFeatures(samples: Float32Array, sr: number): Floa
   return features;
 }
 
+// ─── Audio SNR Estimation ────────────────────────────────────────────────────
+
+/**
+ * Estimate signal-to-noise ratio (SNR) of an audio recording in dB.
+ *
+ * Method: segment audio into 30ms frames (15ms hop), compute mean squared
+ * energy per frame, classify each frame as "speech" or "silence" using an
+ * adaptive threshold (geometric mean of 25th/75th percentile frame energies).
+ * SNR = 10 * log10(mean_speech_energy / mean_silence_energy).
+ *
+ * If energy range across frames is < 5 dB (uniform signal), returns 60 dB
+ * (treated as clean).  When background noise is high (cafe, traffic), voice
+ * emotion predictions are unreliable.  The caller reduces confidence when
+ * SNR < 15 dB.
+ *
+ * @param samples  Mono PCM audio samples (any sample rate)
+ * @param sr       Sample rate in Hz
+ * @returns        Estimated SNR in dB, clamped to [0, 60].
+ *                 Returns 0 for pure silence or degenerate input.
+ */
+export function computeAudioSNR(samples: Float32Array, sr: number): number {
+  const frameDuration = 0.03; // 30ms frames
+  const hopDuration = 0.015;  // 15ms hop (50% overlap)
+  const frameSize = Math.floor(sr * frameDuration);
+  const hopSize = Math.floor(sr * hopDuration);
+
+  if (frameSize <= 0 || samples.length < frameSize) {
+    return 0;
+  }
+
+  // Compute per-frame mean squared energy (power)
+  const energies: number[] = [];
+  for (let start = 0; start + frameSize <= samples.length; start += hopSize) {
+    let sumSq = 0;
+    for (let i = start; i < start + frameSize; i++) {
+      sumSq += samples[i] * samples[i];
+    }
+    energies.push(sumSq / frameSize);
+  }
+
+  if (energies.length === 0) return 0;
+
+  // Sort energies to find adaptive threshold.
+  const sorted = [...energies].sort((a, b) => a - b);
+  const eMin = sorted[0];
+  const eMax = sorted[sorted.length - 1];
+
+  // If energy range is very narrow (max/min < 3, i.e. < 5 dB dynamic range),
+  // the recording has uniform energy throughout — no discernible speech/silence
+  // boundary.  Treat as clean (continuous speech or steady tone).
+  if (eMin > 0 && eMax / eMin < 3) {
+    return 60;
+  }
+
+  // Use the geometric mean of the 25th and 75th percentile energies as the
+  // speech/silence boundary.  This adapts to the dynamic range of the
+  // recording rather than assuming a fixed ratio.
+  const p25 = sorted[Math.floor(sorted.length * 0.25)];
+  const p75 = sorted[Math.floor(sorted.length * 0.75)];
+  const threshold = Math.max(Math.sqrt(Math.max(p25, 1e-14) * Math.max(p75, 1e-14)), 1e-10);
+
+  // Classify frames and accumulate energy
+  let speechEnergySum = 0;
+  let speechCount = 0;
+  let silenceEnergySum = 0;
+  let silenceCount = 0;
+
+  for (const e of energies) {
+    if (e > threshold) {
+      speechEnergySum += e;
+      speechCount++;
+    } else {
+      silenceEnergySum += e;
+      silenceCount++;
+    }
+  }
+
+  // Edge cases
+  if (speechCount === 0) {
+    // No speech detected — pure silence / very low energy
+    return 0;
+  }
+
+  if (silenceCount === 0) {
+    // All frames are speech — no silence frames to estimate noise floor.
+    // Without silence frames we cannot reliably estimate background noise.
+    // Treat as high-SNR (clean recording with continuous speech).
+    return 60;
+  }
+
+  const avgSpeechEnergy = speechEnergySum / speechCount;
+  const avgSilenceEnergy = silenceEnergySum / silenceCount;
+
+  if (avgSilenceEnergy <= 0 || !Number.isFinite(avgSilenceEnergy)) {
+    return 60; // silence frames have zero energy — noiseless
+  }
+
+  const snrDb = 10 * Math.log10(avgSpeechEnergy / avgSilenceEnergy);
+  return Math.max(0, Math.min(60, Number.isFinite(snrDb) ? snrDb : 0));
+}
+
 // ─── ONNX Session Cache ─────────────────────────────────────────────────────
 
 const CLASS_MAP: Record<number, string> = {
@@ -926,10 +1032,13 @@ async function tryLoadV2(): Promise<boolean> {
 
 // ─── Full ONNX Inference Pipeline ───────────────────────────────────────────
 
-/** Shared logic to map classifier output to OnDeviceEmotionResult. */
+/** Shared logic to map classifier output to OnDeviceEmotionResult.
+ *  @param snrDb  Audio SNR in dB — used to modulate confidence.
+ *                When SNR < 15 dB, confidence is scaled by SNR/15. */
 function buildEmotionResult(
   label: number,
   probsRaw: Float32Array,
+  snrDb: number = 60,
 ): OnDeviceEmotionResult {
   // Build probability map
   const probabilities: Record<string, number> = {};
@@ -959,8 +1068,13 @@ function buildEmotionResult(
     + probabilities.calm * 0.1,
   ));
 
-  // Confidence is the max probability
-  const confidence = Math.max(...Object.values(probabilities));
+  // Confidence is the max probability, modulated by audio SNR.
+  // When background noise is high (SNR < 15 dB), scale confidence down
+  // proportionally because noisy audio degrades voice emotion accuracy.
+  const SNR_THRESHOLD_DB = 15;
+  const rawConfidence = Math.max(...Object.values(probabilities));
+  const snrScale = snrDb >= SNR_THRESHOLD_DB ? 1.0 : Math.max(0, snrDb / SNR_THRESHOLD_DB);
+  const confidence = rawConfidence * snrScale;
 
   // Stress: angry + sad weighted
   const stress_index = Math.max(0, Math.min(1,
@@ -986,6 +1100,7 @@ function buildEmotionResult(
     focus_index,
     probabilities,
     model_type: "voice-onnx",
+    snr_db: snrDb,
   };
 }
 
@@ -996,15 +1111,20 @@ function buildEmotionResult(
  * Falls back to v1 models (92-dim features, 60-dim PCA) if v2 not found.
  *
  * Pipeline:
- *   1. Extract audio features (140-dim for v2, 92-dim for v1)
- *   2. Run voice_preprocess ONNX (scaler + PCA)
- *   3. Run voice_classifier ONNX (LightGBM) -> label + probabilities
- *   4. Map to emotion + compute stress/focus from probabilities
+ *   1. Compute audio SNR (used to modulate output confidence)
+ *   2. Extract audio features (140-dim for v2, 92-dim for v1)
+ *   3. Run voice_preprocess ONNX (scaler + PCA)
+ *   4. Run voice_classifier ONNX (LightGBM) -> label + probabilities
+ *   5. Map to emotion + compute stress/focus from probabilities
+ *   6. Apply SNR-based confidence modulation
  */
 export async function runVoiceEmotionONNX(
   samples: Float32Array,
   sr: number,
 ): Promise<OnDeviceEmotionResult> {
+  // Compute SNR before any feature extraction — it needs the raw audio.
+  const snrDb = computeAudioSNR(samples, sr);
+
   const useV2 = await tryLoadV2();
 
   if (useV2 && preprocessSessionV2 && classifierSessionV2) {
@@ -1019,7 +1139,7 @@ export async function runVoiceEmotionONNX(
 
     const label = Number(clsResult["label"].data[0]);
     const probsRaw = clsResult["probabilities"].data as Float32Array;
-    return buildEmotionResult(label, probsRaw);
+    return buildEmotionResult(label, probsRaw, snrDb);
   }
 
   // ── V1 fallback: 92-dim features ────────────────────────────────────────
@@ -1035,5 +1155,5 @@ export async function runVoiceEmotionONNX(
 
   const label = Number(clsResult["label"].data[0]);
   const probsRaw = clsResult["probabilities"].data as Float32Array;
-  return buildEmotionResult(label, probsRaw);
+  return buildEmotionResult(label, probsRaw, snrDb);
 }
