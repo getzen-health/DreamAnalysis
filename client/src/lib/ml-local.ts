@@ -22,6 +22,11 @@ import {
 } from "./personal-adapter";
 import { applyOrtCdnConfig } from "./onnx-cdn-config";
 import { loadModelFromStorage } from "./model-updater";
+import {
+  InferenceLatencyTracker,
+  type InferenceStats,
+  type ModelLatencyStats,
+} from "./inference-latency";
 
 // onnxruntime-web is loaded dynamically to avoid hard failures if not installed
 let ort: typeof import("onnxruntime-web") | null = null;
@@ -177,6 +182,7 @@ class LocalMLEngine {
   private _initPromise: Promise<void> | null = null;
   private _lastSignal: number[] = [];
   private _lastFs = 256;
+  private _latency = new InferenceLatencyTracker();
 
   /** Must call before first prediction. Resolves after ONNX attempt. */
   async initialize(): Promise<void> {
@@ -302,7 +308,9 @@ class LocalMLEngine {
 
       const input = new ortModule.Tensor("float32", flat, [1, 4, 1024]);
       const inputName = this.eegnetSession.inputNames[0];
+      const t0 = performance.now();
       const results = await this.eegnetSession.run({ [inputName]: input });
+      this._latency.record("eegnet", performance.now() - t0);
       const outputName = this.eegnetSession.outputNames[0];
       const logits = Array.from(results[outputName].data as Float32Array);
 
@@ -367,7 +375,9 @@ class LocalMLEngine {
             [1, paddedFeatures.length]
           );
           const inputName = this.userEegSession.inputNames[0];
+          const t0 = performance.now();
           const results = await this.userEegSession.run({ [inputName]: input });
+          this._latency.record("userEeg", performance.now() - t0);
           const outputName = this.userEegSession.outputNames[0];
           const output = results[outputName];
           const data = output.data as Float32Array | Int64Array;
@@ -424,7 +434,9 @@ class LocalMLEngine {
             [1, features.length]
           );
           const inputName = this.emotionSession.inputNames[0];
+          const t0 = performance.now();
           const results = await this.emotionSession.run({ [inputName]: input });
+          this._latency.record("emotion", performance.now() - t0);
           const outputName = this.emotionSession.outputNames[0];
           const output = results[outputName];
           const data = output.data as Float32Array;
@@ -475,8 +487,19 @@ class LocalMLEngine {
   async detectDream(features: number[]): Promise<DreamPrediction | null> {
     return dreamHeuristic(features, this._lastFs, this._lastSignal);
   }
+
+  /**
+   * Get per-model ONNX inference latency stats.
+   *
+   * Returns avg, p95, min, max (in ms) from a rolling 50-sample buffer
+   * for each model that has been run: "eegnet", "emotion", "userEeg".
+   * Returns empty object if no ONNX inference has occurred yet.
+   */
+  getInferenceStats(): InferenceStats {
+    return this._latency.getStats();
+  }
 }
 
 export const localML = new LocalMLEngine();
 export { extractFeatures };
-export type { SleepPrediction, EmotionPrediction, DreamPrediction };
+export type { SleepPrediction, EmotionPrediction, DreamPrediction, InferenceStats, ModelLatencyStats };
