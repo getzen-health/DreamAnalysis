@@ -14,6 +14,41 @@ const BANDS: Record<string, [number, number]> = {
 };
 
 /**
+ * Spectral band importance weights for emotion-relevant feature extraction.
+ *
+ * Neuroscience rationale (Muse 2 @ AF7/AF8/TP9/TP10):
+ *   - Alpha (8-12 Hz): PRIMARY emotion band. Inversely correlated with cortical
+ *     arousal; Frontal Alpha Asymmetry (FAA) is the most validated valence marker
+ *     (Davidson 1992, 30+ years of replication). Weight: 1.5x
+ *   - Theta (4-8 Hz): Meditation depth, creativity, memory encoding, drowsiness.
+ *     Frontal Midline Theta (FMT) complements FAA for valence. Weight: 1.3x
+ *   - Beta (12-30 Hz): Active cognition, focus, stress/anxiety when elevated.
+ *     Well-validated but noisier than alpha on consumer-grade EEG. Weight: 1.0x
+ *   - Delta (0.5-4 Hz): Deep sleep marker, minimal emotion relevance during
+ *     waking state. Often contaminated by movement artifacts. Weight: 0.8x
+ *   - Gamma (30-50 Hz): At AF7/AF8, gamma is predominantly frontalis EMG noise
+ *     (jaw clenching, forehead tensing), NOT neural gamma. Including it at full
+ *     weight inflates arousal/stress whenever user makes facial movements.
+ *     Weight: 0.3x (strongly suppressed)
+ *
+ * Applied during band power extraction: raw band power is multiplied by the
+ * weight before normalization. This amplifies emotion-carrying frequencies
+ * and suppresses noise-dominated bands, improving signal-to-noise ratio.
+ *
+ * References:
+ *   - Davidson (1992): FAA and approach/withdrawal motivation
+ *   - Zheng & Lu (2015): DE features, alpha/theta most discriminative for emotion
+ *   - Badolato et al. (2024): Muse 2 validation, gamma EMG contamination
+ */
+export const BAND_IMPORTANCE_WEIGHTS: Record<string, number> = {
+  delta: 0.8,
+  theta: 1.3,
+  alpha: 1.5,
+  beta: 1.0,
+  gamma: 0.3,
+};
+
+/**
  * Simple FIR low-pass filter via convolution with a Hanning-window sinc kernel.
  * Cuts frequencies above cutoffHz to match the Muse 2 hardware bandwidth (~50 Hz)
  * and reduce high-frequency noise inflation in band-power estimates.
@@ -141,6 +176,7 @@ export function extractBandPowers(
 
   const bandPowers: Record<string, number> = {};
 
+  // Step 1: Compute raw relative power per band
   for (const [name, [low, high]] of Object.entries(BANDS)) {
     let power = 0;
     for (let i = 1; i < freqs.length; i++) {
@@ -149,6 +185,21 @@ export function extractBandPowers(
       }
     }
     bandPowers[name] = power / totalPower;
+  }
+
+  // Step 2: Apply spectral band importance weights.
+  // Amplifies emotion-carrying bands (alpha 1.5x, theta 1.3x) and suppresses
+  // noise-dominated bands (gamma 0.3x). Re-normalize to maintain sum ≈ 1.
+  let weightedTotal = 0;
+  for (const name of Object.keys(bandPowers)) {
+    const w = BAND_IMPORTANCE_WEIGHTS[name] ?? 1.0;
+    bandPowers[name] *= w;
+    weightedTotal += bandPowers[name];
+  }
+  if (weightedTotal > 0) {
+    for (const name of Object.keys(bandPowers)) {
+      bandPowers[name] /= weightedTotal;
+    }
   }
 
   return bandPowers;

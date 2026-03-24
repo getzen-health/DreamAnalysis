@@ -44,6 +44,30 @@ log = logging.getLogger(__name__)
 # 5-band layout matching DASM/RASM convention
 _BANDS_5 = ["delta", "theta", "alpha", "beta", "gamma"]
 
+# Spectral band importance weights for emotion-relevant feature extraction.
+#
+# Neuroscience rationale (Muse 2 @ AF7/AF8/TP9/TP10):
+#   alpha (1.5x): PRIMARY emotion band. FAA is the most validated valence marker
+#                  (Davidson 1992). Inversely related to cortical arousal.
+#   theta (1.3x): Meditation, creativity, FMT complements FAA for valence.
+#   beta  (1.0x): Active cognition, focus, stress. Neutral weight.
+#   delta (0.8x): Deep sleep marker, minimal waking-state emotion relevance.
+#   gamma (0.3x): At AF7/AF8, dominated by frontalis EMG noise, not neural gamma.
+#                  Strongly suppressed to prevent muscle artifacts inflating features.
+#
+# Applied to DE features: DE_weighted = DE_raw * weight. This amplifies
+# emotion-carrying bands and suppresses noise-dominated bands.
+#
+# These values MUST stay in sync with BAND_IMPORTANCE_WEIGHTS in
+# client/src/lib/eeg-features.ts (TypeScript side).
+BAND_IMPORTANCE_WEIGHTS: Dict[str, float] = {
+    "delta": 0.8,
+    "theta": 1.3,
+    "alpha": 1.5,
+    "beta": 1.0,
+    "gamma": 0.3,
+}
+
 # Muse 2 channel order (BrainFlow board_id 22/38)
 _CHANNEL_NAMES = ["TP9", "AF7", "AF8", "TP10"]
 _N_CHANNELS = 4
@@ -121,10 +145,14 @@ def extract_enhanced_emotion_features(
     processed = np.array([preprocess(signals[ch], fs) for ch in range(n_ch)])
 
     # ---- 20 DE features: per band per channel ----
+    # Apply spectral band importance weights: DE_weighted = DE_raw * weight.
+    # This amplifies emotion-carrying bands (alpha 1.5x, theta 1.3x) and
+    # suppresses noise-dominated bands (gamma 0.3x at AF7/AF8 = EMG artifact).
     for b_idx, band in enumerate(_BANDS_5):
+        w = BAND_IMPORTANCE_WEIGHTS.get(band, 1.0)
         for ch_idx in range(n_ch):
             de = differential_entropy(processed[ch_idx], fs)
-            features[idx] = de.get(band, 0.0)
+            features[idx] = de.get(band, 0.0) * w
             idx += 1
 
     # ---- 5 DASM features: AF8 (ch2) - AF7 (ch1) per band ----
