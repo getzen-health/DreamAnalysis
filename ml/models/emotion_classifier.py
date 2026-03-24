@@ -16,7 +16,7 @@ from processing.eeg_processor import (
     extract_band_powers, differential_entropy, extract_features, preprocess,
     compute_frontal_asymmetry, compute_dasm_rasm,
     compute_frontal_midline_theta, compute_coherence,
-    compute_pairwise_plv,
+    compute_pairwise_plv, compute_ihtt,
     compute_band_hjorth_mobility, compute_hjorth_mobility_ratio,
     EuclideanAligner,
 )
@@ -2196,6 +2196,7 @@ class EmotionClassifier:
                     "plv_mean_alpha": 0.0, "plv_mean_theta": 0.0, "plv_mean_beta": 0.0,
                 },
                 "band_hjorth": {},
+                "ihtt": {},
                 "artifact_detected": True,
                 "explanation": [],
             }
@@ -2355,6 +2356,29 @@ class EmotionClassifier:
                 plv_ft_alpha = plv_data.get("plv_fronto_temporal_alpha", 0.0)
             except Exception:
                 plv_data = {}
+
+        # ── Inter-Hemispheric Transfer Time (IHTT) ───────────────
+        # IHTT = cross-correlation lag between homologous electrode pairs.
+        # Typical healthy adult: 5-25 ms. Faster IHTT correlates with:
+        #   - Better cognitive integration and executive function
+        #   - Higher sustained attention / focus
+        #   - Stronger emotional regulation capacity
+        # Measured via peak cross-correlation lag between AF7<>AF8 (frontal)
+        # and TP9<>TP10 (temporal). Used as a focus modulator: fast IHTT
+        # indicates efficient interhemispheric communication.
+        # Refs: Saron & Davidson (1989), Moes et al. (2007).
+        ihtt: Dict = {}
+        ihtt_focus_boost = 0.0
+        if channels is not None and channels.shape[0] >= 4:
+            try:
+                ihtt = compute_ihtt(channels, fs)
+                # Focus boost: faster IHTT (lower ms) = better focus.
+                # Normalise: 0 ms -> 1.0 boost, 25 ms -> 0.0, >25 ms -> 0.0.
+                # Scale is small (5% weight) to avoid overwhelming proven spectral features.
+                mean_ihtt = ihtt.get("mean_ihtt_ms", 25.0)
+                ihtt_focus_boost = float(np.clip((25.0 - mean_ihtt) / 25.0, 0.0, 1.0))
+            except Exception:
+                ihtt = {}
 
         # ── Band-specific Hjorth Mobility ──────────────────────
         # Hjorth mobility computed on band-filtered signals captures the
@@ -2569,6 +2593,7 @@ class EmotionClassifier:
                     "plv_mean_beta": float(plv_data.get("plv_mean_beta", 0.0)),
                 },
                 "band_hjorth": band_hjorth,
+                "ihtt": ihtt,
                 "artifact_detected": _artifact_now,
                 "model_type": "feature-based",
                 "explanation": [],
@@ -2615,13 +2640,17 @@ class EmotionClassifier:
         # PubMed: Hjorth mobility in beta = best single EEG feature for emotion
         # recognition (83.33% acc, AUC 0.904 on SEED, SVM LOSO).
         # Normalize: ratio 1.0 → 0.5, ratio 2.0 → 1.0, ratio 0.5 → 0.25.
+        # IHTT focus boost (5% weight): faster inter-hemispheric transfer time
+        # indicates more efficient cognitive integration via corpus callosum.
+        # Saron & Davidson (1989): faster IHTT → better sustained attention.
         _beta_mob_focus = float(np.clip(beta_mobility_ratio_ft * 0.5, 0, 1))
         focus_index = float(np.clip(
-            0.40 * min(1, beta * 3.5)
+            0.35 * min(1, beta * 3.5)
             + 0.35 * max(0, 1 - theta_beta_ratio * 0.40)
             + 0.15 * min(1, low_beta * 5)           # low-beta is the primary attentional band
             + 0.05 * plv_frontal_beta                # frontal beta synchrony = cognitive engagement
-            + 0.05 * _beta_mob_focus,                # frontal beta mobility ratio
+            + 0.05 * _beta_mob_focus                 # frontal beta mobility ratio
+            + 0.05 * ihtt_focus_boost,               # fast IHTT = efficient interhemispheric communication
             0, 1
         ))
 
@@ -2705,6 +2734,7 @@ class EmotionClassifier:
             ("plv_frontal_beta", float(plv_frontal_beta)),
             ("plv_fronto_temporal_alpha", float(plv_ft_alpha)),
             ("beta_mobility_ratio_ft", float(beta_mobility_ratio_ft)),
+            ("ihtt_focus_boost", float(ihtt_focus_boost)),
         ]
         heuristic_explanation = self._compute_heuristic_explanation(_contributions)
 
@@ -2740,6 +2770,7 @@ class EmotionClassifier:
                 "plv_mean_beta": float(plv_data.get("plv_mean_beta", 0.0)),
             },
             "band_hjorth": band_hjorth,
+            "ihtt": ihtt,
             "artifact_detected": _artifact_now,
             "model_type": "feature-based",
             "explanation": heuristic_explanation,

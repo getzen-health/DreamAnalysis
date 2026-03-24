@@ -967,6 +967,107 @@ def compute_dasm_rasm(
     return result
 
 
+def compute_ihtt(
+    signals: np.ndarray, fs: float = 256.0,
+    max_lag_ms: float = 50.0,
+) -> Dict[str, float]:
+    """Compute Inter-Hemispheric Transfer Time (IHTT) via cross-correlation.
+
+    IHTT measures the conduction delay between homologous electrode pairs
+    across the corpus callosum.  Typical healthy adult IHTT is 5-25 ms.
+
+    Faster IHTT correlates with:
+      - Better cognitive integration and executive function
+      - Higher emotional regulation capacity
+      - Stronger sustained attention / focus
+      - More efficient interhemispheric communication
+
+    Slower or highly variable IHTT is associated with:
+      - ADHD, age-related cognitive decline
+      - Reduced emotional regulation
+      - Lower callosal integrity (white matter damage)
+
+    Method:
+      1. Bandpass filter each channel to 1-40 Hz (neural range, excludes EMG).
+      2. Compute normalised cross-correlation between homologous pairs
+         (AF7<>AF8 frontal, TP9<>TP10 temporal).
+      3. The lag at maximum cross-correlation = IHTT estimate.
+      4. Take absolute lag (direction is not informative for transfer time).
+      5. Cap at max_lag_ms to reject non-physiological outliers.
+
+    Muse 2 channel order: ch0=TP9, ch1=AF7, ch2=AF8, ch3=TP10.
+
+    Args:
+        signals: EEG data, shape (n_channels, n_samples) or 1D.
+        fs: Sampling rate (Hz).
+        max_lag_ms: Maximum plausible IHTT in milliseconds (default 50 ms).
+
+    Returns:
+        Dict with:
+            frontal_lag_ms:  IHTT between AF7 and AF8 (ms), non-negative.
+            temporal_lag_ms: IHTT between TP9 and TP10 (ms), non-negative.
+            mean_ihtt_ms:    Average of frontal and temporal lags.
+    """
+    _zero = {"frontal_lag_ms": 0.0, "temporal_lag_ms": 0.0, "mean_ihtt_ms": 0.0}
+
+    if signals.ndim < 2 or signals.shape[0] < 4:
+        return _zero
+
+    n_samples = signals.shape[1]
+    max_lag_samples = int(max_lag_ms * fs / 1000.0)
+
+    # Need at least 2x max_lag samples for meaningful cross-correlation
+    if n_samples < max(64, 2 * max_lag_samples):
+        return _zero
+
+    def _xcorr_lag(sig_a: np.ndarray, sig_b: np.ndarray) -> float:
+        """Return absolute lag in ms at peak normalised cross-correlation."""
+        # Bandpass 1-40 Hz to isolate neural activity
+        a = bandpass_filter(sig_a, 1.0, 40.0, fs)
+        b = bandpass_filter(sig_b, 1.0, 40.0, fs)
+
+        # Normalise to zero-mean, unit-variance
+        a_std = np.std(a)
+        b_std = np.std(b)
+        if a_std < 1e-10 or b_std < 1e-10:
+            return 0.0
+        a = (a - np.mean(a)) / a_std
+        b = (b - np.mean(b)) / b_std
+
+        # Full cross-correlation
+        xcorr = np.correlate(a, b, mode="full")
+        # Normalise by signal length
+        xcorr = xcorr / len(a)
+
+        # Restrict to +/- max_lag_samples around centre
+        mid = len(a) - 1  # zero-lag index in "full" mode
+        lo = max(0, mid - max_lag_samples)
+        hi = min(len(xcorr), mid + max_lag_samples + 1)
+        xcorr_window = xcorr[lo:hi]
+
+        if len(xcorr_window) == 0:
+            return 0.0
+
+        peak_idx = int(np.argmax(xcorr_window))
+        lag_samples = abs(peak_idx - (mid - lo))
+        lag_ms = lag_samples / fs * 1000.0
+        return min(lag_ms, max_lag_ms)
+
+    # Frontal pair: AF7 (ch1) <-> AF8 (ch2)
+    frontal_lag = _xcorr_lag(signals[1], signals[2])
+
+    # Temporal pair: TP9 (ch0) <-> TP10 (ch3)
+    temporal_lag = _xcorr_lag(signals[0], signals[3])
+
+    mean_lag = (frontal_lag + temporal_lag) / 2.0
+
+    return {
+        "frontal_lag_ms": float(frontal_lag),
+        "temporal_lag_ms": float(temporal_lag),
+        "mean_ihtt_ms": float(mean_lag),
+    }
+
+
 def compute_frontal_midline_theta(
     eeg: np.ndarray, fs: float = 256.0
 ) -> Dict[str, float]:
@@ -1103,6 +1204,12 @@ def extract_features_multichannel(
             rf = min(right_ch, n_channels - 1)
             dasm_rasm = compute_dasm_rasm(signals, fs, left_ch=lf, right_ch=rf)
             avg_features.update(dasm_rasm)
+
+        # IHTT: inter-hemispheric transfer time (cross-correlation lag).
+        # Requires 4 channels for both frontal (AF7<>AF8) and temporal (TP9<>TP10).
+        if n_channels >= 4:
+            ihtt = compute_ihtt(signals, fs)
+            avg_features.update(ihtt)
 
         return avg_features
 
