@@ -24,6 +24,7 @@ import { getCurrentCyclePhase, getCyclePhaseContext, type CyclePhaseContext } fr
 import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, HelpCircle } from "lucide-react";
 import { recordCorrection } from "@/lib/feedback-sync";
 import { updateModalityAccuracy } from "@/lib/multimodal-fusion";
+import { MoodPicker } from "@/components/mood-picker";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ interface EmotionCheckin {
 }
 
 interface FoodLog {
+  id?: string;
   totalCalories?: number;
   date?: string;
   loggedAt?: string;
@@ -1017,11 +1019,11 @@ export default function Today() {
       const all = [...apiLogs, ...sbLogs, ...localLogs];
       const seen = new Set<string>();
       return all.filter((l) => {
-        const key = l.id ?? l.loggedAt;
+        const key = l.id ?? l.loggedAt ?? String(Math.random());
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
-      }).sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+      }).sort((a, b) => new Date(b.loggedAt ?? 0).getTime() - new Date(a.loggedAt ?? 0).getTime());
     },
     retry: false,
   });
@@ -1526,68 +1528,86 @@ export default function Today() {
             </p>
           </motion.div>
 
-          {/* ── 4b. Log a Feeling ── */}
+          {/* ── 4b. How Are You Feeling — MoodPicker ── */}
           <motion.div
             variants={itemVariants}
-            style={{
-              ...bevelCard,
-              marginBottom: 20,
-            }}
+            className="glass-card mb-5 overflow-hidden"
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginBottom: 10,
+            <MoodPicker
+              userName={undefined}
+              onMoodSelect={(result) => {
+                // Map mood level to valence for the existing system
+                const valenceMap: Record<number, number> = { 1: -0.8, 2: -0.4, 3: 0, 4: 0.4, 5: 0.8 };
+                const stressMap: Record<number, number> = { 1: 0.8, 2: 0.6, 3: 0.4, 4: 0.2, 5: 0.1 };
+                const valence = valenceMap[result.moodLevel] ?? 0;
+                const stressVal = stressMap[result.moodLevel] ?? 0.4;
+
+                // Save to same storage as existing feeling system
+                const emotionResult = {
+                  emotion: result.moodLabel.toLowerCase(),
+                  valence,
+                  arousal: 0.5,
+                  stress: stressVal,
+                  focus: 0.5,
+                  confidence: 0.9,
+                  source: "manual" as const,
+                  timestamp: result.timestamp,
+                };
+                try {
+                  localStorage.setItem("ndw_last_emotion", JSON.stringify({
+                    result: emotionResult,
+                    timestamp: Date.now(),
+                  }));
+                  window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
+                } catch {}
+
+                // Also sync to ML backend if tags/note exist
+                if (result.tags.length > 0 || result.note) {
+                  const noteText = [
+                    result.moodLabel,
+                    ...result.tags,
+                    result.note,
+                  ].filter(Boolean).join(" — ");
+
+                  syncMoodLogToML({
+                    user_id: userId,
+                    mood_score: result.moodLevel * 2,
+                    energy_level: result.moodLevel >= 4 ? 8 : result.moodLevel >= 2 ? 5 : 3,
+                    notes: noteText,
+                  });
+                }
               }}
-            >
-              <PenLine size={13} color="#7c3aed" />
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "#7c3aed",
-                  textTransform: "uppercase" as const,
-                  letterSpacing: "0.5px",
-                }}
-              >
-                Log a Feeling
+            />
+          </motion.div>
+
+          {/* ── 4c. Text Log a Feeling (secondary) ── */}
+          <motion.div
+            variants={itemVariants}
+            className="glass-card mb-5 p-4"
+          >
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <PenLine size={13} className="text-primary" />
+              <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">
+                Or type how you feel
               </span>
             </div>
             <input
               type="text"
               value={feelingText}
               onChange={(e) => setFeelingText(e.target.value)}
-              placeholder="What are you feeling? (e.g. proud of myself, grateful...)"
+              placeholder="proud of myself, grateful, anxious..."
               onKeyDown={(e) => { if (e.key === "Enter") submitFeeling(); }}
-              style={{
-                width: "100%",
-                background: "var(--muted)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
-                padding: "10px 14px",
-                fontSize: 14,
-                color: "var(--foreground)",
-                outline: "none",
-                marginBottom: 10,
-                boxSizing: "border-box",
-              }}
+              className="w-full bg-foreground/[0.03] border border-foreground/8 rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-foreground/30 outline-none focus:border-primary/30 focus:bg-foreground/[0.05] transition-all duration-200 mb-2.5"
             />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <div className="flex items-center justify-end">
               <button
                 onClick={submitFeeling}
                 disabled={!feelingText.trim() || feelingSaving}
+                className="px-4 py-1.5 rounded-2xl border-none text-xs font-semibold transition-all duration-150"
                 style={{
-                  padding: "6px 16px",
-                  borderRadius: 16,
-                  border: "none",
-                  background: feelingText.trim() ? "linear-gradient(135deg, #7c3aed, #e879a8)" : "var(--muted)",
-                  color: feelingText.trim() ? "#fff" : "var(--muted-foreground)",
-                  fontSize: 12,
-                  fontWeight: 600,
+                  background: feelingText.trim() ? "linear-gradient(135deg, #7c3aed, #e879a8)" : "rgba(255,255,255,0.04)",
+                  color: feelingText.trim() ? "#fff" : "rgba(255,255,255,0.35)",
                   cursor: feelingText.trim() ? "pointer" : "default",
-                  transition: "all 0.15s ease",
                   opacity: feelingSaving ? 0.6 : 1,
                 }}
               >
@@ -1598,13 +1618,7 @@ export default function Today() {
               <motion.p
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                style={{
-                  fontSize: 12,
-                  color: "#06b6d4",
-                  fontWeight: 500,
-                  marginTop: 8,
-                  textAlign: "center",
-                }}
+                className="text-xs text-cyan-400 font-medium mt-2 text-center"
               >
                 Feeling logged!
               </motion.p>

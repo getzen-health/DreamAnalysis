@@ -11,7 +11,7 @@ export function initSentry() {
       dsn,
       release: `antarai@${import.meta.env.VITE_APP_VERSION || "1.0.0"}`,
       environment: import.meta.env.MODE,
-      integrations: [SentryReact.browserTracingIntegration()],
+      integrations: [SentryReact.browserTracingIntegration() as any],
       tracesSampleRate: 0.2,
       // Never send PHI in breadcrumbs
       beforeBreadcrumb(breadcrumb) {

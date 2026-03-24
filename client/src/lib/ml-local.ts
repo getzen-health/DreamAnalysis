@@ -380,7 +380,7 @@ class LocalMLEngine {
           this._latency.record("userEeg", performance.now() - t0);
           const outputName = this.userEegSession.outputNames[0];
           const output = results[outputName];
-          const data = output.data as Float32Array | Int64Array;
+          const data = output.data as Float32Array | BigInt64Array;
 
           // skl2onnx outputs class labels (first output) and probabilities (second)
           // If we have a second output, use it for probabilities
@@ -406,7 +406,7 @@ class LocalMLEngine {
             if (Number(data[i]) > maxVal) { maxVal = Number(data[i]); maxIdx = i; }
           }
 
-          const expVals = Array.from(data).map((v) => Math.exp(Number(v) - maxVal));
+          const expVals = Array.from(data as Iterable<number | bigint>).map((v) => Math.exp(Number(v) - maxVal));
           const expSum = expVals.reduce((a, b) => a + b, 0);
           const probs = expVals.map((v) => v / expSum);
 

@@ -522,7 +522,7 @@ async function pullAppleHealth(userId: string): Promise<PullResult> {
 async function pullAndroidHealth(userId: string): Promise<PullResult> {
   // Use @capgo/capacitor-health which supports heartRate, sleep, HRV, weight, etc.
   const capgoModule = await import("@capgo/capacitor-health");
-  const HC = capgoModule.CapgoHealth;
+  const HC = capgoModule.Health;
 
   const payload: BiometricPayload = { user_id: userId };
   const diagnostics: string[] = [];
@@ -567,7 +567,7 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
       const samples = result?.samples ?? [];
       if (samples.length > 0) {
         const latest = samples[samples.length - 1];
-        const val = latest.value ?? latest.quantity ?? 0;
+        const val = latest.value ?? 0;
         diagnostics.push(`${dataType}: ${samples.length} samples, latest=${val}`);
         return val;
       }
@@ -588,10 +588,10 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
         dataType: "heartRate" as any,
         startDate: fmt(new Date(now.getTime() - 4 * 3600000)),
         endDate: fmt(now),
-        bucket: "HOUR",
+        bucket: "hour",
       });
-      if (agg?.aggregatedData?.length > 0) {
-        const latest = agg.aggregatedData[agg.aggregatedData.length - 1];
+      if (agg?.samples?.length > 0) {
+        const latest = agg.samples[agg.samples.length - 1];
         if (latest.value > 0) { hr = latest.value; diagnostics.push(`heartRate(agg): ${latest.value}`); }
       }
     } catch (e) { diagnostics.push(`heartRate(agg): FAILED (${String(e).slice(0, 60)})`); }
@@ -616,10 +616,10 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
       dataType: "steps" as any,
       startDate: fmt(todayStart),
       endDate: fmt(now),
-      bucket: "DAY",
+      bucket: "day",
     });
-    if (stepsResult?.aggregatedData?.length > 0 && stepsResult.aggregatedData[0].value > 0) {
-      payload.steps_today = stepsResult.aggregatedData[0].value;
+    if (stepsResult?.samples?.length > 0 && stepsResult.samples[0].value > 0) {
+      payload.steps_today = stepsResult.samples[0].value;
       diagnostics.push(`steps: ${payload.steps_today}`);
     } else {
       diagnostics.push("steps: 0");
@@ -632,10 +632,10 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
       dataType: "calories" as any,
       startDate: fmt(todayStart),
       endDate: fmt(now),
-      bucket: "DAY",
+      bucket: "day",
     });
-    if (calsResult?.aggregatedData?.length > 0 && calsResult.aggregatedData[0].value > 0) {
-      payload.active_calories = Math.round(calsResult.aggregatedData[0].value);
+    if (calsResult?.samples?.length > 0 && calsResult.samples[0].value > 0) {
+      payload.active_calories = Math.round(calsResult.samples[0].value);
       diagnostics.push(`calories: ${payload.active_calories}`);
     }
   } catch (e) { diagnostics.push(`calories: FAILED (${String(e).slice(0, 80)})`); }
@@ -665,6 +665,17 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
   if (bpSys && bpSys > 0) payload.blood_pressure_systolic = bpSys;
 
   if (payload.active_calories) payload.active_energy_kcal = payload.active_calories;
+
+  // Summary: count how many data types returned data
+  const dataKeys = Object.keys(payload).filter(k => k !== "user_id" && !k.startsWith("_"));
+  diagnostics.push(`--- Summary: ${dataKeys.length} data types with values: ${dataKeys.join(", ") || "NONE"}`);
+  if (dataKeys.length === 0) {
+    diagnostics.push("NO DATA returned from Health Connect. Possible causes:");
+    diagnostics.push("  1. Withings app: Settings > Health Connect > enable ALL data types");
+    diagnostics.push("  2. Withings app: force sync (pull down to refresh in Withings app)");
+    diagnostics.push("  3. Health Connect app: check Withings has read permissions granted");
+    diagnostics.push("  4. No wearable data recorded in the last 24-48 hours");
+  }
 
   // Store diagnostics so UI can show what happened
   (payload as any)._diagnostics = diagnostics;
@@ -709,7 +720,7 @@ async function requestPermissionsIos(): Promise<void> {
 
 async function requestPermissionsAndroid(): Promise<void> {
   const capgoModule = await import("@capgo/capacitor-health");
-  await capgoModule.CapgoHealth.requestAuthorization({
+  await capgoModule.Health.requestAuthorization({
     read: [
       "heartRate",
       "restingHeartRate",
@@ -886,10 +897,10 @@ class HealthSyncManager {
         await requestPermissionsIos();
       } else {
         const capgoModule = await import("@capgo/capacitor-health");
-        const Health = capgoModule.CapgoHealth;
+        const Health = capgoModule.Health;
         let available: { available: boolean };
         try {
-          available = await Health.isHealthAvailable();
+          available = await Health.isAvailable();
         } catch {
           this.set({
             status: "unavailable",

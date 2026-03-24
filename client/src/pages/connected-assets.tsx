@@ -160,14 +160,14 @@ export default function ConnectedAssets() {
     setIsConnectingHealth(true);
     try {
       if (platform === "android") {
-        const capgoModule = await import("@capgo/capacitor-health"); const Health = capgoModule.CapgoHealth;
-        const available = await Health.isHealthAvailable();
+        const capgoModule = await import("@capgo/capacitor-health"); const Health = capgoModule.Health;
+        const available = await Health.isAvailable();
         if (!available.available) {
           toast({ title: "Health Connect Not Available", description: "Install Google Health Connect from the Play Store.", variant: "destructive" });
           return;
         }
-        await Health.requestHealthPermissions({
-          permissions: ["READ_STEPS", "READ_HEART_RATE", "READ_ACTIVE_CALORIES", "READ_WORKOUTS", "READ_MINDFULNESS"],
+        await Health.requestAuthorization({
+          read: ["steps", "heartRate", "calories", "mindfulness"],
         });
         requestHealthWritePermissions().catch(() => {});
         setHealthConnected(true);

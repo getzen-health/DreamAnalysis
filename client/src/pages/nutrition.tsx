@@ -182,7 +182,7 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
         userId,
         mealType: entry.mealType ?? "meal",
         summary: entry.summary ?? (entry.foodItems ?? []).map((fi: any) => fi.name).join(", "),
-        totalCalories: entry.totalCalories ?? entry.calories ?? 0,
+        totalCalories: entry.totalCalories ?? 0,
         dominantMacro: entry.dominantMacro ?? null,
         foodItems: entry.foodItems ?? [],
       }),
@@ -197,7 +197,7 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
         user_id: userId,
         meal_type: entry.mealType ?? "meal",
         summary: entry.summary ?? (entry.foodItems ?? []).map((fi: any) => fi.name).join(", "),
-        calories: entry.totalCalories ?? entry.calories ?? null,
+        calories: entry.totalCalories ?? null,
         protein: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.protein_g ?? 0), 0) || null,
         carbs: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.carbs_g ?? 0), 0) || null,
         fat: (entry.foodItems ?? []).reduce((s: number, fi: any) => s + (fi.fat_g ?? 0), 0) || null,
@@ -206,7 +206,7 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
         vitamins: entry.vitamins ?? null,
         food_quality_score: null,
         created_at: entry.loggedAt ?? new Date().toISOString(),
-      }).then(({ error }) => {
+      }).then(({ error }: { error: { message: string } | null }) => {
         if (error) console.error("[nutrition] Supabase food_logs insert error:", error.message);
         else console.log("[nutrition] Supabase food_logs insert succeeded");
       });

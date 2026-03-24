@@ -1227,7 +1227,7 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
 
       if (!mlRes.ok) {
         const errText = await mlRes.text();
-        logger.warn(`Circadian ML call failed (${mlRes.status}): ${errText}`);
+        logger.warn({ status: mlRes.status, err: errText }, "Circadian ML call failed");
         return res.status(mlRes.status).json({ error: errText });
       }
 
@@ -1250,13 +1250,13 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
           dataDays: profile.data_days,
         });
       } catch (dbErr) {
-        logger.warn("Failed to cache circadian profile:", dbErr);
+        logger.warn({ err: String(dbErr) }, "Failed to cache circadian profile");
         // Non-fatal — still return the computed profile
       }
 
       res.json(profile);
     } catch (error) {
-      logger.error("Circadian profile error:", error);
+      logger.error({ err: String(error) }, "Circadian profile error");
       res.status(500).json({ message: "Failed to compute circadian profile" });
     }
   });

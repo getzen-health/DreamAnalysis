@@ -74,7 +74,7 @@ type SessionPhase = "idle" | "work" | "break" | "done";
 export default function DeepWork() {
   const { state: deviceState } = useDevice();
   const isStreaming = deviceState === "streaming";
-  const fusedState = useFusedState();
+  const { fusedState } = useFusedState();
 
   const [phase, setPhase] = useState<SessionPhase>("idle");
   const [preset, setPreset] = useState<TimerPreset>(TIMER_PRESETS[0]);

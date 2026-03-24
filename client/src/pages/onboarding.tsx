@@ -634,8 +634,8 @@ function StepHealthSync({ onNext }: { onNext: () => void }) {
         });
         setStatus("connected");
       } else if (platform === "android") {
-        const capgoModule = await import("@capgo/capacitor-health"); const Health = capgoModule.CapgoHealth;
-        const available = await Health.isHealthAvailable();
+        const capgoModule = await import("@capgo/capacitor-health"); const Health = capgoModule.Health;
+        const available = await Health.isAvailable();
         if (!available.available) {
           setErrorMsg(
             "Google Health Connect is not installed. Install it from the Play Store to continue."
@@ -643,14 +643,8 @@ function StepHealthSync({ onNext }: { onNext: () => void }) {
           setStatus("error");
           return;
         }
-        await Health.requestHealthPermissions({
-          permissions: [
-            "READ_STEPS",
-            "READ_HEART_RATE",
-            "READ_ACTIVE_CALORIES",
-            "READ_WORKOUTS",
-            "READ_MINDFULNESS",
-          ],
+        await Health.requestAuthorization({
+          read: ["steps", "heartRate", "calories", "mindfulness"],
         });
         setStatus("connected");
       } else {

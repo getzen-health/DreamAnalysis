@@ -662,7 +662,7 @@ export class MuseBleManager {
     // Android 12+ (API 31+): request BLUETOOTH_SCAN + BLUETOOTH_CONNECT at runtime
     // Without this, BLE operations fail silently on Pixel devices
     try {
-      await ble.requestPermissions();
+      await (ble as any).requestPermissions();
     } catch (e) {
       const msg = String(e);
       if (msg.includes("denied") || msg.includes("permission")) {
@@ -732,7 +732,7 @@ export class MuseBleManager {
     this.diag("Discovering services...");
     type BleService = { uuid: string; characteristics: Array<{ uuid: string; properties: Record<string, boolean> }> };
     let services: BleService[] = [];
-    try { services = await ble.getServices(device.deviceId) as BleService[]; } catch { /* ok */ }
+    try { services = await ble.getServices(device.deviceId) as unknown as BleService[]; } catch { /* ok */ }
     await new Promise((r) => setTimeout(r, 500));
 
     const museSvc = services.find((s) => s.uuid.toLowerCase().includes("fe8d"));
@@ -781,7 +781,7 @@ export class MuseBleManager {
 
     // Re-discover after commands (Muse may expose new characteristics)
     this.diag("Re-discovering services...");
-    try { services = await ble.getServices(device.deviceId) as BleService[]; } catch { /* ok */ }
+    try { services = await ble.getServices(device.deviceId) as unknown as BleService[]; } catch { /* ok */ }
     const museSvc2 = services.find((s) => s.uuid.toLowerCase().includes("fe8d"));
     const allChars2 = museSvc2?.characteristics ?? [];
     this.diag(`After commands: ${allChars2.length} chars`);
