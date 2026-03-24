@@ -1337,11 +1337,14 @@ export default function Today() {
                   result.note,
                 ].filter(Boolean).join(" — ");
 
-                syncMoodLogToML({
-                  moodScore: Math.round(result.pleasantness * 10),
-                  energyLevel: Math.round(result.energy * 10),
-                  notes: noteText,
-                }).catch(() => {});
+                try {
+                  syncMoodLogToML({
+                    user_id: userId,
+                    mood_score: Math.round(result.pleasantness * 10),
+                    energy_level: Math.round(result.energy * 10),
+                    notes: noteText,
+                  });
+                } catch {}
               }}
             />
           </motion.div>
