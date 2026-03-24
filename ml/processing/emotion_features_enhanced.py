@@ -1,9 +1,9 @@
-"""Enhanced 80-dim emotion feature extraction for 4-channel consumer EEG.
+"""Enhanced 84-dim emotion feature extraction for 4-channel consumer EEG.
 
 Extracts a compact, interpretable, literature-proven feature set for emotion
 classification from 4-channel EEG (Muse 2: TP9, AF7, AF8, TP10).
 
-Feature breakdown (80 total):
+Feature breakdown (84 total):
     20 DE features:       Differential entropy per band per channel (5 bands x 4 ch)
      8 DE sub-band:       DE per alpha sub-band per channel (2 sub-bands x 4 ch)
      5 DASM features:     DE asymmetry AF8 - AF7 per band (5 main bands)
@@ -20,6 +20,7 @@ Feature breakdown (80 total):
      4 HFD features:      Higuchi fractal dimension per channel (nonlinear complexity)
      4 SampEn features:   Sample entropy per channel (temporal regularity)
      4 LZC features:      Lempel-Ziv complexity per channel (algorithmic complexity)
+     4 PAC features:      Theta-beta phase-amplitude coupling per channel (MI, 0-1)
 
 Alpha sub-band rationale (Klimesch 1999, Bazanova & Vernon 2014):
     Low-alpha  (8-10 Hz):  General alertness, tonic arousal, attentional demands
@@ -42,6 +43,27 @@ Nonlinear complexity rationale:
         LZC = more complex brain activity. Correlates with consciousness level
         and emotional engagement. Fast O(N) computation.
 
+Phase-amplitude coupling rationale:
+    Theta-beta PAC (Tort et al. 2010, Wang 2021, ACCNet 2025):
+        Measures how beta (12-30 Hz) amplitude is modulated by theta (4-8 Hz) phase.
+        Cross-frequency coupling (CFC) captures interactions between slow modulatory
+        rhythms and fast local processing. Wang (2021, Neuroscience Letters) showed
+        CFC-based brain networks outperform synchronization-based networks for emotion
+        classification. ACCNet (2025, Neural Networks) demonstrated adaptive CFC
+        achieves superior performance for EEG emotion recognition.
+
+        Why theta-beta instead of theta-gamma: On Muse 2, gamma (30-100 Hz) at
+        AF7/AF8 is dominated by frontalis EMG noise, not neural gamma. Beta
+        (12-30 Hz) is below the EMG-dominated range and carries genuine cortical
+        information about arousal, stress, and cognitive engagement. Theta-beta
+        PAC captures how slow emotional/memory rhythms modulate faster cortical
+        processing — a direct marker of emotional engagement.
+
+        Computed via Modulation Index (MI): bin beta amplitude by theta phase,
+        measure KL divergence of the amplitude distribution from uniform.
+        MI = 0 means no coupling; MI = 1 means maximal coupling. Normalized
+        by log(n_bins) to bound in [0, 1].
+
 References:
     - CNN-KAN-F2CA (PLOS ONE 2025): DE/PSD/asymmetry features on 4-channel SEED
     - Zheng & Lu (2015): DASM/RASM features (SJTU BCMI Lab, SEED dataset)
@@ -53,6 +75,9 @@ References:
     - Richman & Moorman (2000): Sample entropy for physiological signals
     - Lempel & Ziv (1976): Complexity of finite sequences
     - Ahmadlou et al. (2012): HFD for EEG emotion classification
+    - Tort et al. (2010): Modulation Index for phase-amplitude coupling
+    - Wang (2021): CFC brain networks for emotion recognition
+    - Tian et al. (2025, ACCNet): Adaptive CFC for EEG emotion recognition
 """
 
 from __future__ import annotations
@@ -61,6 +86,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+from scipy.signal import hilbert
 
 from models.neural_complexity import (
     _higuchi_fractal_dimension,
@@ -123,8 +149,8 @@ BAND_IMPORTANCE_WEIGHTS: Dict[str, float] = {
 _CHANNEL_NAMES = ["TP9", "AF7", "AF8", "TP10"]
 _N_CHANNELS = 4
 
-# Expected feature count (53 original + 15 alpha sub-band + 12 nonlinear complexity)
-ENHANCED_FEATURE_DIM = 80
+# Expected feature count (53 original + 15 alpha sub-band + 12 nonlinear + 4 PAC)
+ENHANCED_FEATURE_DIM = 84
 
 # Feature name registry for interpretability
 FEATURE_NAMES: List[str] = []
@@ -189,9 +215,92 @@ for _ch in _CHANNEL_NAMES:
 for _ch in _CHANNEL_NAMES:
     FEATURE_NAMES.append(f"lzc_{_ch}")
 
+# 4 theta-beta PAC: pac_tb_{channel} (Modulation Index, 0-1)
+for _ch in _CHANNEL_NAMES:
+    FEATURE_NAMES.append(f"pac_tb_{_ch}")
+
 assert len(FEATURE_NAMES) == ENHANCED_FEATURE_DIM, (
     f"Expected {ENHANCED_FEATURE_DIM} feature names, got {len(FEATURE_NAMES)}"
 )
+
+
+# Number of phase bins for PAC Modulation Index (Tort et al. 2010)
+_N_PAC_BINS = 18
+
+# Minimum samples for meaningful PAC (need ~2 theta cycles at 4-8 Hz)
+_MIN_PAC_SAMPLES = 128  # 0.5 sec at 256 Hz — 2 theta cycles at 4 Hz
+
+
+def _compute_theta_beta_pac(
+    signal: np.ndarray,
+    fs: int = 256,
+    n_bins: int = _N_PAC_BINS,
+) -> float:
+    """Compute theta-beta phase-amplitude coupling via Modulation Index.
+
+    Measures how beta (12-30 Hz) amplitude is modulated by theta (4-8 Hz) phase.
+    Uses the Tort et al. (2010) MI: bin beta amplitude by theta phase, compute
+    KL divergence from uniform distribution, normalize by log(n_bins).
+
+    Why theta-beta (not theta-gamma): On Muse 2, gamma at AF7/AF8 is dominated
+    by frontalis EMG noise. Beta is below the EMG range and carries genuine
+    cortical arousal/engagement information.
+
+    Args:
+        signal: 1D EEG signal (preprocessed).
+        fs: Sampling rate in Hz.
+        n_bins: Number of phase bins (default 18 = 20-degree bins).
+
+    Returns:
+        Modulation Index in [0, 1]. 0 = no coupling, 1 = maximal coupling.
+        Returns 0.0 for signals too short or too flat.
+    """
+    if len(signal) < _MIN_PAC_SAMPLES:
+        return 0.0
+
+    try:
+        # Extract theta phase (4-8 Hz)
+        theta_filtered = bandpass_filter(signal, 4.0, 8.0, fs)
+        if np.max(np.abs(theta_filtered)) < 1e-10:
+            return 0.0
+        theta_analytic = hilbert(theta_filtered)
+        theta_phase = np.angle(theta_analytic)
+
+        # Extract beta amplitude envelope (12-30 Hz)
+        beta_filtered = bandpass_filter(signal, 12.0, 30.0, fs)
+        if np.max(np.abs(beta_filtered)) < 1e-10:
+            return 0.0
+        beta_analytic = hilbert(beta_filtered)
+        beta_amplitude = np.abs(beta_analytic)
+
+        # Bin beta amplitude by theta phase — Tort et al. (2010)
+        bin_edges = np.linspace(-np.pi, np.pi, n_bins + 1)
+        mean_amp = np.zeros(n_bins)
+        for i in range(n_bins):
+            mask = (theta_phase >= bin_edges[i]) & (theta_phase < bin_edges[i + 1])
+            if np.any(mask):
+                mean_amp[i] = np.mean(beta_amplitude[mask])
+
+        # Normalize to probability distribution
+        total = np.sum(mean_amp)
+        if total <= 0:
+            return 0.0
+        p = mean_amp / total
+
+        # KL divergence from uniform
+        q = np.ones(n_bins) / n_bins
+        eps = 1e-10
+        p_safe = p + eps
+        p_safe = p_safe / np.sum(p_safe)
+
+        kl_div = float(np.sum(p_safe * np.log(p_safe / q)))
+
+        # Normalize by log(n_bins) so MI in [0, 1]
+        mi = kl_div / np.log(n_bins)
+        return float(np.clip(mi, 0.0, 1.0))
+
+    except Exception:
+        return 0.0
 
 
 def _compute_high_alpha_asymmetry(
@@ -240,7 +349,7 @@ def extract_enhanced_emotion_features(
     signals: np.ndarray,
     fs: int = 256,
 ) -> np.ndarray:
-    """Extract the 80-dim enhanced emotion feature vector from 4-channel EEG.
+    """Extract the 84-dim enhanced emotion feature vector from 4-channel EEG.
 
     Args:
         signals: (n_channels, n_samples) raw EEG array. Must have >= 4 channels.
@@ -248,7 +357,7 @@ def extract_enhanced_emotion_features(
         fs: Sampling rate in Hz.
 
     Returns:
-        1D numpy array of shape (80,) with the feature vector.
+        1D numpy array of shape (84,) with the feature vector.
         All values are guaranteed to be finite (NaN/inf replaced with 0).
     """
     signals = np.asarray(signals, dtype=np.float64)
@@ -374,6 +483,17 @@ def extract_enhanced_emotion_features(
         features[idx] = _lempel_ziv_complexity(processed[ch_idx])
         idx += 1
 
+    # ---- 4 PAC features: theta-beta phase-amplitude coupling per channel ----
+    # Measures how beta (12-30 Hz) amplitude is modulated by theta (4-8 Hz)
+    # phase. CFC-based features outperform traditional synchronization for
+    # emotion classification (Wang 2021, ACCNet 2025). Theta-beta used instead
+    # of theta-gamma because gamma at AF7/AF8 on Muse 2 is EMG artifact.
+    # Computed via Tort et al. (2010) Modulation Index: KL divergence of
+    # phase-binned amplitude distribution from uniform.
+    for ch_idx in range(n_ch):
+        features[idx] = _compute_theta_beta_pac(processed[ch_idx], fs)
+        idx += 1
+
     assert idx == ENHANCED_FEATURE_DIM, f"Feature index mismatch: {idx} != {ENHANCED_FEATURE_DIM}"
 
     # Guarantee finite values
@@ -396,15 +516,15 @@ def extract_temporal_features(
     For the first epoch (no history), deltas are zero.
 
     Args:
-        current_features: 1D array of shape (80,) from extract_enhanced_emotion_features.
+        current_features: 1D array of shape (84,) from extract_enhanced_emotion_features.
         history: List of previous feature vectors. Uses the most recent entry.
                  If None or empty, returns zeros for delta features.
         time_interval: Seconds between epochs (e.g. 2.0 for 50% overlap at 4-sec windows).
 
     Returns:
-        1D numpy array of shape (160,):
-            features[0:80]    = instantaneous features (passed through)
-            features[80:160]  = delta features (current - previous) / time_interval
+        1D numpy array of shape (168,):
+            features[0:84]    = instantaneous features (passed through)
+            features[84:168]  = delta features (current - previous) / time_interval
     """
     current_features = np.asarray(current_features, dtype=np.float64)
     assert current_features.shape == (ENHANCED_FEATURE_DIM,), (

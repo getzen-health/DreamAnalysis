@@ -1,10 +1,10 @@
 """Tests for nonlinear complexity features in the enhanced emotion feature vector.
 
 Verifies that Higuchi Fractal Dimension (HFD), Sample Entropy (SampEn), and
-Lempel-Ziv Complexity (LZC) are correctly integrated into the 80-dim emotion
-feature vector (previously 68-dim).
+Lempel-Ziv Complexity (LZC) are correctly integrated into the 84-dim emotion
+feature vector (nonlinear features at indices 68-79, PAC at 80-83).
 
-Feature layout for the 12 new features (indices 68-79):
+Feature layout for the 12 nonlinear features (indices 68-79):
     hfd_TP9, hfd_AF7, hfd_AF8, hfd_TP10      (4 HFD per channel)
     sampen_TP9, sampen_AF7, sampen_AF8, sampen_TP10  (4 SampEn per channel)
     lzc_TP9, lzc_AF7, lzc_AF8, lzc_TP10      (4 LZC per channel)
@@ -57,14 +57,14 @@ def random_noise_eeg():
 class TestNonlinearFeaturesIntegrated:
     """Tests for nonlinear complexity features in the emotion feature vector."""
 
-    def test_feature_dim_is_80(self):
-        """Feature vector should now be 80 dimensions (68 + 12 nonlinear)."""
-        assert ENHANCED_FEATURE_DIM == 80
+    def test_feature_dim_is_84(self):
+        """Feature vector should now be 84 dimensions (68 + 12 nonlinear + 4 PAC)."""
+        assert ENHANCED_FEATURE_DIM == 84
 
     def test_returns_correct_shape(self, four_channel_eeg):
-        """Feature vector must have exactly 80 dimensions."""
+        """Feature vector must have exactly 84 dimensions."""
         features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
-        assert features.shape == (80,)
+        assert features.shape == (84,)
 
     def test_all_features_finite(self, four_channel_eeg):
         """No NaN or inf values in the expanded feature vector."""
@@ -83,8 +83,8 @@ class TestNonlinearFeaturesIntegrated:
         assert len(lzc_names) == 4, f"Expected 4 LZC features, got {len(lzc_names)}"
 
     def test_feature_names_match_dim(self):
-        """Feature name list must match the 80-dim feature vector."""
-        assert len(FEATURE_NAMES) == 80
+        """Feature name list must match the 84-dim feature vector."""
+        assert len(FEATURE_NAMES) == 84
 
     def test_hfd_range_valid(self, four_channel_eeg):
         """HFD values should be in [1.0, 2.0] range."""
@@ -134,8 +134,8 @@ class TestNonlinearFeaturesIntegrated:
         """Flat (DC) signal should not produce NaN/inf for nonlinear features."""
         flat = np.ones((4, 1024)) * 0.001
         features = extract_enhanced_emotion_features(flat, fs=256)
-        # Check the nonlinear features specifically (last 12)
-        nonlinear = features[68:]
+        # Check the nonlinear features specifically (indices 68-79)
+        nonlinear = features[68:80]
         assert np.all(np.isfinite(nonlinear)), (
             f"Non-finite nonlinear features at: {np.where(~np.isfinite(nonlinear))[0]}"
         )
@@ -145,33 +145,33 @@ class TestNonlinearFeaturesIntegrated:
         rng = np.random.default_rng(77)
         short = rng.standard_normal((4, 64)) * 20.0
         features = extract_enhanced_emotion_features(short, fs=256)
-        assert features.shape == (80,)
+        assert features.shape == (84,)
         assert np.all(np.isfinite(features))
 
-    def test_single_channel_produces_80_features(self):
-        """Single-channel input padded to 4 channels should still return 80 features."""
+    def test_single_channel_produces_84_features(self):
+        """Single-channel input padded to 4 channels should still return 84 features."""
         rng = np.random.default_rng(99)
         signal_1d = rng.standard_normal(1024) * 20.0
         features = extract_enhanced_emotion_features(signal_1d, fs=256)
-        assert features.shape == (80,)
+        assert features.shape == (84,)
         assert np.all(np.isfinite(features))
 
 
-class TestTemporalFeaturesWith80Dim:
-    """Tests that temporal features work with the expanded 80-dim vector."""
+class TestTemporalFeaturesWith84Dim:
+    """Tests that temporal features work with the expanded 84-dim vector."""
 
-    def test_temporal_output_shape_is_160(self, four_channel_eeg):
-        """Temporal features should be 160 dims (80 + 80 deltas)."""
+    def test_temporal_output_shape_is_168(self, four_channel_eeg):
+        """Temporal features should be 168 dims (84 + 84 deltas)."""
         features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
         temporal = extract_temporal_features(features, history=None)
-        assert temporal.shape == (160,)
+        assert temporal.shape == (168,)
 
     def test_first_epoch_deltas_are_zero(self, four_channel_eeg):
         """Without history, delta features should all be zero."""
         features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
         temporal = extract_temporal_features(features, history=None)
-        np.testing.assert_array_equal(temporal[:80], features)
-        np.testing.assert_array_equal(temporal[80:], 0.0)
+        np.testing.assert_array_equal(temporal[:84], features)
+        np.testing.assert_array_equal(temporal[84:], 0.0)
 
     def test_subsequent_epoch_has_nonzero_deltas(self, four_channel_eeg):
         """With a different previous epoch, deltas should be non-zero."""
@@ -182,20 +182,20 @@ class TestTemporalFeaturesWith80Dim:
         f2 = extract_enhanced_emotion_features(signals2, fs=256)
 
         temporal = extract_temporal_features(f2, history=[f1])
-        deltas = temporal[80:]
+        deltas = temporal[84:]
         assert np.any(np.abs(deltas) > 1e-10), "Expected non-zero deltas"
 
 
 class TestGetFeatureNamesExpanded:
     """Tests that feature name retrieval includes nonlinear names."""
 
-    def test_base_names_length_80(self):
+    def test_base_names_length_84(self):
         names = get_feature_names(include_temporal=False)
-        assert len(names) == 80
+        assert len(names) == 84
 
-    def test_temporal_names_length_160(self):
+    def test_temporal_names_length_168(self):
         names = get_feature_names(include_temporal=True)
-        assert len(names) == 160
+        assert len(names) == 168
 
     def test_nonlinear_names_present(self):
         names = get_feature_names(include_temporal=False)
