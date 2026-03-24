@@ -255,7 +255,12 @@ Raw Muse 2 EEG (256 Hz, 4 channels, µV)
 predict(eeg, fs=256)  ← receives (4, n_samples) array from Muse 2
     │
     ├── If EEGNet 4ch loaded AND benchmark ≥ 60%:   ← THIS IS THE LIVE PATH
-    │       → _predict_eegnet()   (85.00% CV, highest priority for 4-ch input)
+    │       → _predict_ensemble_eegnet_heuristic()
+    │         Runs BOTH EEGNet + _predict_features, averages their 6-class
+    │         probs (0.6 EEGNet + 0.4 heuristic). Diverse classifiers with
+    │         weakly correlated errors → expected 3-7% accuracy improvement.
+    │         Returns heuristic result dict (band_powers, DE, etc.) with
+    │         ensemble-averaged probabilities. model_type: "ensemble-eegnet-heuristic"
     │
     ├── If mega_lgbm_model loaded AND benchmark ≥ 60%:
     │       → _predict_mega_lgbm()   (71.52% CV, 11 datasets, 187K samples)
@@ -270,7 +275,7 @@ predict(eeg, fs=256)  ← receives (4, n_samples) array from Muse 2
             → _predict_features()   (feature-based heuristics)
 ```
 
-**Active live path**: `_predict_eegnet()` — loads `models/saved/eegnet_emotion_4ch.pt`, a 4-channel EEGNet model at 85.00% CV. The previously documented "74.21% mega LGBM is the active path" was outdated; EEGNet at 85% has been the actual live path since its integration.
+**Active live path**: `_predict_ensemble_eegnet_heuristic()` — runs EEGNet (85.00% CV) and feature-based heuristics in parallel, averages their probability outputs with 0.6/0.4 weighting. Ensemble of CNN on raw waveforms + neuroscience heuristics on band power ratios (FAA, DASM, ABR). Preserves all detailed output fields from the heuristic path (band_powers, differential_entropy, DASM/RASM, FMT).
 
 ### Emotion Output Structure
 
