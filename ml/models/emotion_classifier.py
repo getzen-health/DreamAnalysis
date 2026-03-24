@@ -373,6 +373,11 @@ class EmotionClassifier:
         self._ema_anger: Optional[float] = None
         self._ema_fear: Optional[float] = None
 
+        # Valence trajectory — last 5 EMA-smoothed valence values for trend detection.
+        # Linear regression slope → "improving" / "stable" / "declining".
+        # 5 samples at 2-sec hops = 10-sec lookback window.
+        self._valence_history: deque = deque(maxlen=5)
+
         # Prediction stability — cosine similarity tracker for confidence penalty
         self._stability_tracker = PredictionStabilityTracker()
 
@@ -445,6 +450,72 @@ class EmotionClassifier:
             smoothed = a * raw + (1.0 - a) * prev
         setattr(self, attr, smoothed)
         return smoothed
+
+    # ── Valence trajectory (mood trend) ──────────────────────────────────────
+
+    def _compute_trajectory(self) -> Dict:
+        """Compute emotional trajectory from recent valence history.
+
+        Performs simple linear regression on the last N EMA-smoothed valence
+        values.  Returns direction label, magnitude, and confidence.
+
+        Returns:
+            Dict with:
+            - trajectory: "improving" | "stable" | "declining"
+            - trajectory_magnitude: absolute slope (float >= 0)
+            - trajectory_confidence: R^2 * sample_weight (float 0-1)
+        """
+        n = len(self._valence_history)
+        if n < 2:
+            return {
+                "trajectory": "stable",
+                "trajectory_magnitude": 0.0,
+                "trajectory_confidence": 0.0,
+            }
+
+        y = np.array(self._valence_history)
+        x = np.arange(n, dtype=float)
+
+        # Simple linear regression: slope = cov(x,y) / var(x)
+        x_mean = x.mean()
+        y_mean = y.mean()
+        ss_xx = float(np.sum((x - x_mean) ** 2))
+        ss_xy = float(np.sum((x - x_mean) * (y - y_mean)))
+
+        if ss_xx < 1e-10:
+            slope = 0.0
+        else:
+            slope = ss_xy / ss_xx
+
+        # R^2 — coefficient of determination
+        ss_yy = float(np.sum((y - y_mean) ** 2))
+        if ss_yy < 1e-10:
+            r_squared = 1.0 if abs(slope) < 1e-6 else 0.0
+        else:
+            y_pred = x_mean + slope * (x - x_mean) + y_mean - slope * x_mean
+            # Simpler: y_pred = slope * x + (y_mean - slope * x_mean)
+            ss_res = float(np.sum((y - (slope * x + (y_mean - slope * x_mean))) ** 2))
+            r_squared = float(np.clip(1.0 - ss_res / ss_yy, 0.0, 1.0))
+
+        # Sample weight: scale confidence by how many of 5 samples we have
+        sample_weight = min(n, 5) / 5.0
+        confidence = float(np.clip(r_squared * sample_weight, 0.0, 1.0))
+
+        # Direction: slope threshold at 0.02 per step (~0.01 valence per second
+        # with 2-sec hops). Below threshold = stable.
+        abs_slope = abs(slope)
+        if abs_slope < 0.02:
+            direction = "stable"
+        elif slope > 0:
+            direction = "improving"
+        else:
+            direction = "declining"
+
+        return {
+            "trajectory": direction,
+            "trajectory_magnitude": round(abs_slope, 4),
+            "trajectory_confidence": round(confidence, 4),
+        }
 
     # ── Device-aware gamma masking ─────────────────────────────────────────────
 
@@ -1477,6 +1548,16 @@ class EmotionClassifier:
 
         result["prediction_stability"] = round(stability, 4)
         result["stability_adjusted_confidence"] = round(adjusted_conf, 4)
+
+        # ── Valence trajectory (mood trend) ──────────────────────────────────
+        # Append EMA-smoothed valence to history (skip artifact-frozen epochs
+        # to avoid contaminating the trend with stale repeated values).
+        if not result.get("artifact_detected", False):
+            valence = result.get("valence")
+            if valence is not None:
+                self._valence_history.append(float(valence))
+        result.update(self._compute_trajectory())
+
         return result
 
     def _predict_core(self, eeg: np.ndarray, fs: float = 256.0,
