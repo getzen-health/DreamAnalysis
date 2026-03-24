@@ -1,4 +1,9 @@
 import { sbGetSetting, sbSaveGeneric } from "./supabase-store";
+import {
+  mapToNuancedEmotion,
+  NUANCED_VALENCE_MAP,
+  type NuancedEmotionResult,
+} from "./nuanced-emotion";
 /**
  * Adaptive multimodal emotion fusion — merges EEG, voice, and health signals
  * into a single best estimate using confidence-weighted blending.
@@ -26,6 +31,9 @@ export interface ModalityInput {
 
 export interface FusedResult {
   emotion: string;
+  /** Nuanced compound emotion derived from probability distributions + valence/arousal.
+   *  E.g. "content", "excited", "anxious", "melancholy" instead of just "happy"/"sad". */
+  nuancedEmotion: NuancedEmotionResult;
   valence: number;
   arousal: number;
   stress: number;
@@ -275,8 +283,29 @@ export function fuseModalities(inputs: ModalityInput[]): FusedResult | null {
   // Focus: derived from inverse of stress
   const focus = clip(1 - fusedStress, 0, 1);
 
+  // Derive nuanced compound emotion from fused state.
+  // Aggregate probabilities across modalities (weighted average) if available.
+  const fusedProbabilities: Record<string, number> = {};
+  for (const { input, weight } of weighted) {
+    // Read probabilities from individual modality inputs if they carry them.
+    // Since ModalityInput doesn't have a probabilities field, we build a
+    // simple one from the declared emotion (weight 1.0 on that label).
+    const emotionKey = input.emotion;
+    fusedProbabilities[emotionKey] = (fusedProbabilities[emotionKey] ?? 0) + weight;
+  }
+
+  const nuancedEmotion = mapToNuancedEmotion({
+    emotion: fusedEmotion,
+    probabilities: Object.keys(fusedProbabilities).length > 0 ? fusedProbabilities : undefined,
+    valence: fusedValence,
+    arousal: fusedArousal,
+    stress: fusedStress,
+    confidence: fusedConfidence,
+  });
+
   return {
     emotion: fusedEmotion,
+    nuancedEmotion,
     valence: fusedValence,
     arousal: fusedArousal,
     stress: fusedStress,
@@ -296,6 +325,7 @@ export function fuseModalities(inputs: ModalityInput[]): FusedResult | null {
  * used to determine which modality was "closest" to the user's correction.
  */
 const EMOTION_VALENCE_MAP: Record<string, number> = {
+  // Base emotions
   happy: 0.7,
   excited: 0.6,
   calm: 0.4,
@@ -308,6 +338,8 @@ const EMOTION_VALENCE_MAP: Record<string, number> = {
   fearful: -0.7,
   anxious: -0.4,
   surprise: 0.1,
+  // Nuanced compound emotions (from nuanced-emotion.ts)
+  ...NUANCED_VALENCE_MAP,
 };
 
 /**

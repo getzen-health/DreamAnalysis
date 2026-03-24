@@ -3,28 +3,19 @@
  *
  * Designed for page headers and cards. Shows emoji + label, color-coded
  * by emotion. Pulses when data is stale to encourage a re-check.
+ *
+ * Supports both base emotions (happy, sad, angry) and nuanced compound
+ * emotions (content, excited, anxious, melancholy) via the unified
+ * NUANCED_EMOJI and NUANCED_COLORS maps from nuanced-emotion.ts.
  */
 
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import { cn } from "@/lib/utils";
-
-const EMOTION_EMOJI: Record<string, string> = {
-  happy: "\u{1F60A}",
-  sad: "\u{1F614}",
-  angry: "\u{1F620}",
-  fear: "\u{1F630}",
-  surprise: "\u{1F62E}",
-  neutral: "\u{1F610}",
-};
-
-const EMOTION_COLORS: Record<string, string> = {
-  happy: "bg-cyan-500/15 text-cyan-500 border-cyan-500/30",
-  sad: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
-  angry: "bg-rose-500/15 text-rose-400 border-rose-500/30",
-  fear: "bg-purple-500/15 text-purple-500 border-purple-500/30",
-  surprise: "bg-amber-500/15 text-amber-500 border-amber-500/30",
-  neutral: "bg-muted text-muted-foreground border-border",
-};
+import { NUANCED_EMOJI, NUANCED_COLORS } from "@/lib/nuanced-emotion";
+import {
+  mapToNuancedEmotion,
+  type NuancedEmotionResult,
+} from "@/lib/nuanced-emotion";
 
 interface EmotionBadgeProps {
   /** sm for headers, md for cards */
@@ -33,12 +24,18 @@ interface EmotionBadgeProps {
   showLabel?: boolean;
   /** Callback when tapped (e.g. open voice analysis) */
   onClick?: () => void;
+  /** Optional pre-computed nuanced emotion (from multimodal fusion). */
+  nuanced?: NuancedEmotionResult;
 }
+
+const DEFAULT_EMOJI = "\u{1F9E0}";
+const DEFAULT_COLOR = "bg-muted text-muted-foreground border-border";
 
 export function EmotionBadge({
   size = "sm",
   showLabel = true,
   onClick,
+  nuanced: externalNuanced,
 }: EmotionBadgeProps) {
   const { emotion } = useCurrentEmotion();
 
@@ -57,16 +54,24 @@ export function EmotionBadge({
         )}
       >
         <span className={isSm ? "text-xs" : "text-sm"}>
-          {emotion ? EMOTION_EMOJI[emotion.emotion] ?? "\u{1F9E0}" : "\u{1F3A4}"}
+          {emotion ? NUANCED_EMOJI[emotion.emotion] ?? DEFAULT_EMOJI : "\u{1F3A4}"}
         </span>
         {showLabel && <span className="font-medium">No data yet</span>}
       </button>
     );
   }
 
-  const emoji = EMOTION_EMOJI[emotion.emotion] ?? "\u{1F9E0}";
-  const colorClasses = EMOTION_COLORS[emotion.emotion] ?? EMOTION_COLORS.neutral;
-  const label = emotion.emotion.charAt(0).toUpperCase() + emotion.emotion.slice(1);
+  // Derive nuanced label: use pre-computed if passed, otherwise compute from raw data
+  const nuanced = externalNuanced ?? mapToNuancedEmotion({
+    emotion: emotion.emotion,
+    valence: emotion.valence,
+    arousal: emotion.arousal,
+    stress: emotion.stress,
+    confidence: emotion.confidence,
+  });
+
+  const emoji = NUANCED_EMOJI[nuanced.label] ?? NUANCED_EMOJI[emotion.emotion] ?? DEFAULT_EMOJI;
+  const colorClasses = NUANCED_COLORS[nuanced.label] ?? NUANCED_COLORS[emotion.emotion] ?? DEFAULT_COLOR;
 
   return (
     <button
@@ -79,7 +84,7 @@ export function EmotionBadge({
       )}
     >
       <span className={isSm ? "text-xs" : "text-sm"}>{emoji}</span>
-      {showLabel && <span className="font-semibold">{label}</span>}
+      {showLabel && <span className="font-semibold">{nuanced.displayLabel}</span>}
     </button>
   );
 }
