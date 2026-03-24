@@ -60,6 +60,7 @@
 - [x] mega LGBM now **74.21% CV** on 9 datasets, 163 534 samples
 - [x] **Learned temperature scaling** — `ConfidenceCalibrator.fit_temperature()` learns a single scalar T from validation data (Guo et al., 2017); T > 1 softens overconfident predictions, T < 1 sharpens underconfident ones; reduces ECE by 30-50%; persisted to disk alongside Platt scaling params; `apply_temperature()` for inference-time calibration
 - [x] **Warm-start personalization** — both `auto_retrainer.py` and `retrain_from_user_data.py` now load prior personal model weights via `partial_fit()` instead of training from scratch each time; preserves learned decision boundaries across retraining runs
+- [x] **Focal loss** — `FocalLoss` (Lin et al. 2017) replaces standard CrossEntropyLoss in EEGNet, enhanced emotion, CNN-KAN, and personal model training; (1-p_t)^gamma modulation down-weights easy/well-classified samples to focus on hard cases; gamma=2.0 default; smoke test: +11pp on synthetic data; 21 tests; `--focal-gamma` CLI arg in train_eegnet.py
 
 ### Connection UX & ML Reliability (thursday-launch-ready branch)
 - [x] **useMLConnection hook** (`client/src/hooks/use-ml-connection.tsx`) — state machine tracking ML backend health: idle → connecting → warming → ready | error
