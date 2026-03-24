@@ -752,7 +752,7 @@ export default function Today() {
 
   // Fetch recent brain history for trend comparison
   const { data: recentHistory } = useQuery<any[]>({
-    queryKey: [`/api/brain/history/${userId}?days=7`],
+    queryKey: [`/api/brain/history/${userId}?days=30`],
     staleTime: 5 * 60_000,
   });
 

@@ -826,7 +826,7 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
   app.get("/api/brain/history/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
-      const days = Math.min(Math.max(parseInt((req.query.days as string) || "1", 10), 1), 30);
+      const days = Math.min(Math.max(parseInt((req.query.days as string) || "1", 10), 1), 365);
       const fromTs = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
       // 1. EEG emotion readings (original source)

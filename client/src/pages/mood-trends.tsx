@@ -227,7 +227,55 @@ export default function MoodTrends() {
   const { emotion: currentEmotion } = useCurrentEmotion();
 
   const { data } = useQuery<HistoryEntry[]>({
-    queryKey: [`/api/brain/history/${userId}?days=30`],
+    queryKey: [`/api/brain/history/${userId}?days=90`],
+    queryFn: async () => {
+      let all: HistoryEntry[] = [];
+      // 1. Express API
+      try {
+        const res = await fetch(`/api/brain/history/${userId}?days=90`);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json)) all = json;
+        }
+      } catch { /* API unavailable */ }
+      // 2. Supabase fallback
+      try {
+        const { getSupabase } = await import("@/lib/supabase-browser");
+        const sb = await getSupabase();
+        const since = new Date(Date.now() - 90 * 86400000).toISOString();
+        const { data: rows } = await sb.from("emotion_history").select("*")
+          .eq("user_id", userId).gte("created_at", since)
+          .order("created_at", { ascending: false }).limit(2000);
+        if (rows) {
+          for (const r of rows as any[]) {
+            all.push({
+              stress: r.stress ?? 0,
+              happiness: r.mood ?? 0,
+              focus: r.focus ?? 0,
+              dominantEmotion: r.dominant_emotion ?? "neutral",
+              timestamp: r.created_at,
+            } as HistoryEntry);
+          }
+        }
+      } catch { /* Supabase unavailable */ }
+      // 3. localStorage fallback
+      try {
+        const raw = localStorage.getItem("ndw_emotion_history");
+        if (raw) {
+          const entries = JSON.parse(raw);
+          if (Array.isArray(entries)) all.push(...entries);
+        }
+      } catch { /* ignore */ }
+      // Deduplicate by timestamp (within 3s)
+      all.sort((a: any, b: any) => new Date(a.timestamp ?? a.created_at ?? 0).getTime() - new Date(b.timestamp ?? b.created_at ?? 0).getTime());
+      const deduped: HistoryEntry[] = [];
+      for (const entry of all) {
+        const ts = new Date(entry.timestamp ?? (entry as any).created_at ?? 0).getTime();
+        const lastTs = deduped.length > 0 ? new Date(deduped[deduped.length - 1].timestamp ?? 0).getTime() : 0;
+        if (ts - lastTs > 3000 || deduped.length === 0) deduped.push(entry);
+      }
+      return deduped;
+    },
     retry: false,
     staleTime: 60_000,
   });

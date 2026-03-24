@@ -160,12 +160,12 @@ export default function StressTrends() {
   const { emotion: currentEmotion } = useCurrentEmotion();
 
   const { data } = useQuery<HistoryEntry[]>({
-    queryKey: [`/api/brain/history/${userId}?days=30`],
+    queryKey: [`/api/brain/history/${userId}?days=90`],
     queryFn: async () => {
       let all: HistoryEntry[] = [];
       // 1. Express API
       try {
-        const res = await fetch(`/api/brain/history/${userId}?days=30`);
+        const res = await fetch(`/api/brain/history/${userId}?days=90`);
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json)) all = json;

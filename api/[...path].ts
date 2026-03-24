@@ -942,7 +942,7 @@ async function brainHistory(req: VercelRequest, res: VercelResponse, userId: str
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const db = getDb();
   const url = new URL(req.url ?? '', `http://${req.headers.host}`);
-  const days = Math.min(Math.max(parseInt(url.searchParams.get('days') ?? '7', 10), 1), 30);
+  const days = Math.min(Math.max(parseInt(url.searchParams.get('days') ?? '7', 10), 1), 365);
   const fromTs = new Date(Date.now() - days * 86400000);
 
   // Read from emotionReadings (EEG + voice check-in data)
