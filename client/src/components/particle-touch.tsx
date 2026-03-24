@@ -8,8 +8,7 @@
  *   - Stressed: tight amber spirals
  */
 
-import { useEffect, useRef } from "react";
-import { useCurrentEmotion } from "@/hooks/use-current-emotion";
+import { useEffect, useRef, useState } from "react";
 
 interface TouchParticle {
   x: number;
@@ -37,11 +36,33 @@ const EMOTION_COLORS: Record<string, string> = {
   neutral: "160, 160, 180",
 };
 
+function readEmotion(): { emotion: string; arousal: number } | null {
+  try {
+    const raw = localStorage.getItem("ndw_last_emotion");
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const r = data?.result ?? data;
+    if (!r?.emotion) return null;
+    return { emotion: r.emotion, arousal: r.arousal ?? 0.4 };
+  } catch { return null; }
+}
+
 export function ParticleTouch() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<TouchParticle[]>([]);
   const animRef = useRef<number>(0);
-  const { emotion } = useCurrentEmotion();
+  const emotionRef = useRef(readEmotion());
+
+  // Keep emotion ref updated without re-renders
+  useEffect(() => {
+    const handler = () => { emotionRef.current = readEmotion(); };
+    window.addEventListener("ndw-emotion-update", handler);
+    window.addEventListener("ndw-voice-updated", handler);
+    return () => {
+      window.removeEventListener("ndw-emotion-update", handler);
+      window.removeEventListener("ndw-voice-updated", handler);
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -61,10 +82,11 @@ export function ParticleTouch() {
     window.addEventListener("resize", resize);
 
     const spawnParticles = (x: number, y: number) => {
-      const arousal = emotion?.arousal ?? 0.4;
+      const emo = emotionRef.current;
+      const arousal = emo?.arousal ?? 0.4;
       const count = Math.floor(4 + arousal * 10);
       const speed = 1 + arousal * 3;
-      const colorKey = emotion?.emotion ?? "neutral";
+      const colorKey = emo?.emotion ?? "neutral";
       const rgb = EMOTION_COLORS[colorKey] ?? EMOTION_COLORS.neutral;
 
       for (let i = 0; i < count; i++) {
@@ -134,7 +156,7 @@ export function ParticleTouch() {
       document.removeEventListener("pointerdown", handlePointer);
       window.removeEventListener("resize", resize);
     };
-  }, [emotion]);
+  }, []);
 
   return (
     <canvas

@@ -10,8 +10,7 @@
  *   - Turbulence (stress = chaotic, calm = smooth)
  */
 
-import { useEffect, useRef, useCallback } from "react";
-import { useCurrentEmotion } from "@/hooks/use-current-emotion";
+import { useEffect, useRef, useCallback, useState } from "react";
 
 interface Particle {
   x: number;
@@ -46,11 +45,36 @@ const EMOTION_PALETTES: Record<string, { hue: number; sat: number; light: number
 const DEFAULT_PALETTE = { hue: 260, sat: 25, light: 30 };
 const PARTICLE_COUNT = 35;
 
+/** Read emotion from localStorage directly to avoid hook dependency issues */
+function readEmotion(): { emotion: string; arousal: number; valence: number } | null {
+  try {
+    const raw = localStorage.getItem("ndw_last_emotion");
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const r = data?.result ?? data;
+    if (!r?.emotion) return null;
+    return { emotion: r.emotion, arousal: r.arousal ?? 0.3, valence: r.valence ?? 0 };
+  } catch { return null; }
+}
+
 export function NeuralCanvasBg() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animRef = useRef<number>(0);
-  const { emotion } = useCurrentEmotion();
+  const [emotion, setEmotion] = useState(readEmotion);
+
+  // Listen for emotion updates
+  useEffect(() => {
+    const handler = () => setEmotion(readEmotion());
+    window.addEventListener("ndw-emotion-update", handler);
+    window.addEventListener("ndw-voice-updated", handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("ndw-emotion-update", handler);
+      window.removeEventListener("ndw-voice-updated", handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
 
   // Get target palette from current emotion
   const targetPalette = emotion
