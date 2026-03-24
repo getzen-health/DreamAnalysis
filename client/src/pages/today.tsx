@@ -944,23 +944,38 @@ export default function Today() {
     } catch { /* ignore */ }
   }, [userId, correctFusedEmotion]);
 
-  // Fetch food logs for today — API with localStorage fallback
+  // Fetch food logs — merge API + Supabase + localStorage (same as nutrition page)
   const { data: foodLogs } = useQuery<FoodLog[]>({
     queryKey: ["/api/food/logs", userId],
     queryFn: async () => {
+      let apiLogs: FoodLog[] = [];
       try {
         const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data)) return data;
+          if (Array.isArray(data)) apiLogs = data;
         }
       } catch { /* API unavailable */ }
-      // Fallback: try supabase-store (Supabase -> localStorage)
+      // Supabase
+      let sbLogs: FoodLog[] = [];
       try {
-        return await sbGetFoodLogs(userId);
-      } catch {
-        return [];
-      }
+        sbLogs = await sbGetFoodLogs(userId) ?? [];
+      } catch { /* ok */ }
+      // localStorage
+      let localLogs: FoodLog[] = [];
+      try {
+        const raw = localStorage.getItem(`ndw_food_logs_${userId}`);
+        if (raw) localLogs = JSON.parse(raw);
+      } catch { /* ok */ }
+      // Merge + deduplicate
+      const all = [...apiLogs, ...sbLogs, ...localLogs];
+      const seen = new Set<string>();
+      return all.filter((l) => {
+        const key = l.id ?? l.loggedAt;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
     },
     retry: false,
   });
@@ -1907,7 +1922,7 @@ export default function Today() {
               emptyCta="Sync to see steps"
             />
 
-            {/* Nutrition with food quality score */}
+            {/* Nutrition — show today's calories */}
             <HealthMetricCard
               label="Nutrition"
               value={todayCalories > 0 ? todayCalories.toLocaleString() : "---"}
@@ -1921,27 +1936,8 @@ export default function Today() {
               emptyIcon={UtensilsCrossed}
               emptyCta="Log a meal to start"
             />
-            {/* Food quality score for today */}
-            {todayCalories > 0 && (() => {
-              try {
-                const todayItems = (foodLogs ?? []).filter((l: any) => {
-                  try { return new Date(l.loggedAt).toDateString() === new Date().toDateString(); } catch { return false; }
-                });
-                const totalP = todayItems.reduce((s: number, l: any) => s + ((l.foodItems ?? []).reduce((a: number, f: any) => a + (f.protein_g ?? 0), 0)), 0);
-                const totalC = todayItems.reduce((s: number, l: any) => s + ((l.foodItems ?? []).reduce((a: number, f: any) => a + (f.carbs_g ?? 0), 0)), 0);
-                const totalF = todayItems.reduce((s: number, l: any) => s + ((l.foodItems ?? []).reduce((a: number, f: any) => a + (f.fat_g ?? 0), 0)), 0);
-                if (totalP + totalC + totalF < 1) return null;
-                const score = calculateFoodScore({ calories: todayCalories, protein_g: totalP, carbs_g: totalC, fat_g: totalF });
-                return (
-                  <div onClick={() => navigate("/nutrition")} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 12, background: "var(--card)", border: "1px solid var(--border)", marginTop: -8 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${score.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: score.color }}>{score.score}</div>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: score.color }}>{score.verdictText}</div>
-                      <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{score.brainImpact}</div>
-                    </div>
-                  </div>
-                );
-              } catch { return null; }
+            {false && (() => { // Food score removed from Today — shown on nutrition page when you tap a meal
+              return null;
             })()}
           </motion.div>
 

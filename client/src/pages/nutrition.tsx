@@ -3004,27 +3004,7 @@ export default function Nutrition() {
                 </div>
               </div>
 
-              {/* Yuka-style Food Score for most recent meal */}
-              {todayLogs.length > 0 && (() => {
-                const latest = todayLogs[0];
-                const latestItems = latest.foodItems ?? [];
-                const latestP = latestItems.reduce((s, f) => s + (f.protein_g ?? 0), 0);
-                const latestC = latestItems.reduce((s, f) => s + (f.carbs_g ?? 0), 0);
-                const latestF = latestItems.reduce((s, f) => s + (f.fat_g ?? 0), 0);
-                return (
-                  <div style={{ marginBottom: 16 }}>
-                    <FoodScoreCard
-                      food={{
-                        calories: latest.totalCalories ?? 0,
-                        protein_g: latestP,
-                        carbs_g: latestC,
-                        fat_g: latestF,
-                      }}
-                      mealName={`${getMealLabel(latest.mealType)} Score`}
-                    />
-                  </div>
-                );
-              })()}
+              {/* Food score removed from always-visible area — shows when you tap a meal to expand */}
 
               {/* Daily Running Totals + Food Quality Score (Tasks 1 & 3) */}
               {todayLogs.length > 0 && (
