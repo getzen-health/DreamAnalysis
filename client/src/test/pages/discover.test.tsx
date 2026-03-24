@@ -78,11 +78,13 @@ describe("Discover page", () => {
   });
 
   it("shows chart when localStorage emotion history has data", async () => {
-    // Seed localStorage with emotion history entries across 2 days
+    // Seed localStorage with multiple emotion history entries for TODAY
+    // (the default time range is "today" so entries must be from today)
+    const now = new Date();
     const history = [
-      { stress: 0.3, happiness: 0.7, focus: 0.5, dominantEmotion: "happy", timestamp: new Date(Date.now() - 2 * 86400000).toISOString() },
-      { stress: 0.4, happiness: 0.6, focus: 0.6, dominantEmotion: "happy", timestamp: new Date(Date.now() - 1 * 86400000).toISOString() },
-      { stress: 0.2, happiness: 0.8, focus: 0.7, dominantEmotion: "neutral", timestamp: new Date().toISOString() },
+      { stress: 0.3, happiness: 0.7, focus: 0.5, dominantEmotion: "happy", timestamp: new Date(now.getTime() - 3600000).toISOString() },
+      { stress: 0.4, happiness: 0.6, focus: 0.6, dominantEmotion: "happy", timestamp: new Date(now.getTime() - 1800000).toISOString() },
+      { stress: 0.2, happiness: 0.8, focus: 0.7, dominantEmotion: "neutral", timestamp: now.toISOString() },
     ];
     localStorage.setItem("ndw_emotion_history", JSON.stringify(history));
 
@@ -138,26 +140,19 @@ describe("Discover page", () => {
     });
   });
 
-  it("shows legend labels for Stress, Focus, and Mood when chart data exists", async () => {
-    const history = [
-      { stress: 0.3, happiness: 0.7, focus: 0.5, dominantEmotion: "happy", timestamp: new Date(Date.now() - 2 * 86400000).toISOString() },
-      { stress: 0.5, happiness: 0.5, focus: 0.6, dominantEmotion: "neutral", timestamp: new Date().toISOString() },
-    ];
-    localStorage.setItem("ndw_emotion_history", JSON.stringify(history));
-
+  it("shows legend labels for Stress and Focus", async () => {
     renderWithProviders(<Discover />);
     await waitFor(() => {
-      // Legend items — use getAllByText since "Focus" may appear in recommendation cards too
+      // Legend items — Mood was removed from chart, only Stress and Focus remain
       expect(screen.getAllByText("Stress").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("Focus").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Mood").length).toBeGreaterThanOrEqual(1);
     });
   });
 
   it("shows continuous trend subtitle on emotions card", async () => {
     renderWithProviders(<Discover />);
     await waitFor(() => {
-      expect(screen.getByText("Stress, Focus, Mood — continuous trend")).toBeInTheDocument();
+      expect(screen.getByText("Stress & Focus — continuous trend")).toBeInTheDocument();
     });
   });
 });

@@ -13,6 +13,7 @@ global.ResizeObserver = class {
 vi.mock("framer-motion", () => ({
   motion: {
     div: ({ children, ...rest }: any) => <div {...rest}>{children}</div>,
+    span: ({ children, ...rest }: any) => <span {...rest}>{children}</span>,
     path: (props: any) => <path {...props} />,
     circle: (props: any) => <circle {...props} />,
   },
@@ -346,9 +347,9 @@ describe("Wellness page — CycleTab setup", () => {
     renderWithProviders(<Wellness />);
 
     await waitFor(() => {
-      // Should show current phase label
-      expect(screen.getByText("Current Phase")).toBeInTheDocument();
-      // Should show "Menstrual" — it appears in phase card, legend, and wheel label
+      // CycleOverviewCard shows "Day of Cycle" label
+      expect(screen.getByText("Day of Cycle")).toBeInTheDocument();
+      // Should show "Menstrual" — it appears in overview card badge, wheel label, and phase legend
       const menstrualTexts = screen.getAllByText("Menstrual");
       expect(menstrualTexts.length).toBeGreaterThanOrEqual(1);
     });
@@ -372,7 +373,7 @@ describe("Wellness page — CycleTab setup", () => {
     });
   });
 
-  it("shows predicted period dates in the calendar legend", async () => {
+  it("shows period and fertile labels in the calendar legend", async () => {
     localStorage.setItem("ndw_cycle_data", JSON.stringify({
       lastPeriodStart: "2026-03-01",
       cycleLength: 28,
@@ -382,7 +383,9 @@ describe("Wellness page — CycleTab setup", () => {
     renderWithProviders(<Wellness />);
 
     await waitFor(() => {
-      expect(screen.getByText("Predicted")).toBeInTheDocument();
+      // Calendar legend shows "Period" and "Fertile" labels
+      expect(screen.getByText("Period")).toBeInTheDocument();
+      expect(screen.getByText("Fertile")).toBeInTheDocument();
     });
   });
 });
