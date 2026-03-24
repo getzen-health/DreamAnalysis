@@ -711,8 +711,8 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
                 labelStyle={{ color: "var(--muted-foreground)" }}
                 formatter={(v: number, name: string) => [`${v}%`, name]}
               />
-              <Area type="natural" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2} dot={false} activeDot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-              <Area type="natural" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2} dot={false} activeDot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2} dot={false} activeDot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2} dot={false} activeDot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
               {/* Mood removed from chart — shown as text label at top instead */}
             </AreaChart>
           </ResponsiveContainer>

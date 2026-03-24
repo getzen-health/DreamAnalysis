@@ -320,7 +320,7 @@ export default function FocusTrends() {
 
         {chartData.length >= 2 ? (
           <div style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", marginLeft: -8, marginRight: -8, paddingLeft: 8, paddingRight: 8 }}>
-          <div style={{ width: Math.max(chartData.length * 40, 320), minWidth: "100%" }}>
+          <div style={{ width: Math.max(chartData.length * 60, 600), minWidth: "100%" }}>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart
               data={chartData}
@@ -363,7 +363,7 @@ export default function FocusTrends() {
                 formatter={(v: number) => [`${v}%`, "Focus"]}
               />
               <Area
-                type="natural"
+                type="monotone"
                 dataKey="value"
                 name="Focus"
                 stroke={FOCUS_INDIGO}

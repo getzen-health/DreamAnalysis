@@ -113,10 +113,18 @@ def collect_training_data(min_samples: int = 20) -> Tuple[np.ndarray, List[str],
 def retrain_personal_model(user_id: str = "default") -> dict:
     """Retrain the personal SGD classifier from all accumulated session data.
 
+    Warm-start behavior:
+        If a previously trained personal model exists for this user, loads it
+        and continues training (partial_fit) from the prior weights. This
+        preserves learned decision boundaries and gives better starting
+        accuracy than training from scratch each time.
+
+        On the very first training (no prior model), trains from scratch.
+
     Saves the model + metadata to user_models/{user_id}_personal.pkl/.json.
 
     Returns:
-        Dict describing the training result.
+        Dict describing the training result, including ``warm_started`` flag.
     """
     try:
         import joblib
@@ -132,22 +140,51 @@ def retrain_personal_model(user_id: str = "default") -> dict:
     le = LabelEncoder()
     y = le.fit_transform(y_labels)
     classes = list(le.classes_)
+    all_class_indices = np.arange(len(classes))
 
-    model = SGDClassifier(
-        loss="log_loss",
-        warm_start=True,
-        max_iter=200,
-        random_state=42,
-        n_iter_no_change=10,
-    )
-    model.fit(X, y)
-    train_acc = float(np.mean(model.predict(X) == y))
-
-    # Persist
+    # Warm-start: load prior model if it exists and has compatible shape
     USER_MODELS_DIR.mkdir(exist_ok=True)
     model_path = USER_MODELS_DIR / f"{user_id}_personal.pkl"
     meta_path = USER_MODELS_DIR / f"{user_id}_personal_meta.json"
+    warm_started = False
 
+    if model_path.exists():
+        try:
+            prior_model = joblib.load(model_path)
+            # Verify the prior model is compatible: same number of features
+            # and the classes are a subset (or equal) to current classes.
+            if (hasattr(prior_model, "coef_")
+                    and prior_model.coef_.shape[1] == X.shape[1]
+                    and len(prior_model.classes_) == len(classes)):
+                # Continue training from prior weights via partial_fit.
+                # partial_fit does one SGD pass over the data, preserving
+                # the prior learned weights as the starting point.
+                prior_model.partial_fit(X, y, classes=all_class_indices)
+                model = prior_model
+                warm_started = True
+                logger.info(
+                    "[auto-retrain] warm-started from prior model for user=%s",
+                    user_id,
+                )
+        except Exception as exc:
+            logger.warning(
+                "[auto-retrain] could not load prior model for user=%s: %s",
+                user_id, exc,
+            )
+
+    if not warm_started:
+        model = SGDClassifier(
+            loss="log_loss",
+            warm_start=True,
+            max_iter=200,
+            random_state=42,
+            n_iter_no_change=10,
+        )
+        model.fit(X, y)
+
+    train_acc = float(np.mean(model.predict(X) == y))
+
+    # Persist
     joblib.dump(model, model_path)
     with open(meta_path, "w") as f:
         json.dump(
@@ -156,6 +193,7 @@ def retrain_personal_model(user_id: str = "default") -> dict:
                 "feature_names": feature_names,
                 "n_samples": len(y_labels),
                 "train_accuracy": round(train_acc, 4),
+                "warm_started": warm_started,
             },
             f,
             indent=2,
@@ -163,11 +201,12 @@ def retrain_personal_model(user_id: str = "default") -> dict:
 
     logger.info(
         f"[auto-retrain] user={user_id} samples={len(y_labels)} "
-        f"classes={classes} acc={train_acc:.3f}"
+        f"classes={classes} acc={train_acc:.3f} warm_started={warm_started}"
     )
 
     return {
         "trained": True,
+        "warm_started": warm_started,
         "n_samples": len(y_labels),
         "classes": classes,
         "train_accuracy": round(train_acc, 3),

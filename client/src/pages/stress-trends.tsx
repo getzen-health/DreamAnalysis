@@ -328,7 +328,7 @@ export default function StressTrends() {
 
         {chartData.length >= 2 ? (
           <div style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", marginLeft: -8, marginRight: -8, paddingLeft: 8, paddingRight: 8 }}>
-          <div style={{ width: Math.max(chartData.length * 40, 320), minWidth: "100%" }}>
+          <div style={{ width: Math.max(chartData.length * 60, 600), minWidth: "100%" }}>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart
               data={chartData}
@@ -371,7 +371,7 @@ export default function StressTrends() {
                 formatter={(v: number) => [`${v}%`, "Stress"]}
               />
               <Area
-                type="natural"
+                type="monotone"
                 dataKey="value"
                 name="Stress"
                 stroke={STRESS_ROSE}

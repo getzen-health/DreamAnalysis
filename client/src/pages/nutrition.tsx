@@ -176,7 +176,11 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
   // Also persist to Supabase (fire-and-forget, skip localStorage since we handle it above)
   import("@/lib/supabase-browser").then(({ getSupabase }) =>
     getSupabase().then((sb) => {
-      if (!sb) return;
+      if (!sb) {
+        console.log("[nutrition] Supabase client not available, skipping food_logs insert");
+        return;
+      }
+      console.log("[nutrition] Inserting food log to Supabase:", { userId, calories: entry.totalCalories ?? entry.calories, summary: entry.summary });
       sb.from("food_logs").insert({
         user_id: userId,
         meal_type: entry.mealType ?? "meal",
@@ -190,9 +194,12 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
         vitamins: entry.vitamins ?? null,
         food_quality_score: null,
         created_at: entry.loggedAt ?? new Date().toISOString(),
+      }).then(({ error }) => {
+        if (error) console.error("[nutrition] Supabase food_logs insert error:", error.message);
+        else console.log("[nutrition] Supabase food_logs insert succeeded");
       });
     })
-  ).catch(() => {});
+  ).catch((err) => console.error("[nutrition] Supabase food_logs insert failed:", err));
 }
 
 // ── Nutrition insights generator ──────────────────────────────────────────────

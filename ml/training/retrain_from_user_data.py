@@ -170,22 +170,50 @@ class UserModelRetrainer:
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        model = SGDClassifier(
-            loss="log_loss",
-            warm_start=True,
-            max_iter=300,
-            random_state=42,
-            n_iter_no_change=15,
-        )
-        model.fit(X_scaled, y)
-        train_acc = float(np.mean(model.predict(X_scaled) == y))
-
-        # Save model artifacts
+        # Warm-start: load prior model if it exists and has compatible shape.
+        # This preserves learned decision boundaries from previous corrections
+        # instead of resetting to random weights every time.
         self._user_dir.mkdir(parents=True, exist_ok=True)
         model_path = self._user_dir / "eeg_classifier.pkl"
         scaler_path = self._user_dir / "eeg_scaler.pkl"
         meta_path = self._user_dir / "eeg_meta.json"
 
+        warm_started = False
+        all_class_indices = np.arange(len(classes))
+
+        if model_path.exists():
+            try:
+                prior_model = joblib.load(model_path)
+                if (hasattr(prior_model, "coef_")
+                        and prior_model.coef_.shape[1] == X_scaled.shape[1]
+                        and len(prior_model.classes_) == len(classes)):
+                    # Continue from prior weights via partial_fit (one SGD pass)
+                    prior_model.partial_fit(X_scaled, y, classes=all_class_indices)
+                    model = prior_model
+                    warm_started = True
+                    log.info(
+                        "[user-retrain] warm-started EEG model for user=%s",
+                        self.user_id,
+                    )
+            except Exception as exc:
+                log.warning(
+                    "[user-retrain] could not load prior EEG model for user=%s: %s",
+                    self.user_id, exc,
+                )
+
+        if not warm_started:
+            model = SGDClassifier(
+                loss="log_loss",
+                warm_start=True,
+                max_iter=300,
+                random_state=42,
+                n_iter_no_change=15,
+            )
+            model.fit(X_scaled, y)
+
+        train_acc = float(np.mean(model.predict(X_scaled) == y))
+
+        # Save model artifacts
         joblib.dump(model, model_path)
         joblib.dump(scaler, scaler_path)
         with open(meta_path, "w") as f:
@@ -195,14 +223,15 @@ class UserModelRetrainer:
                 "n_samples": len(y_list),
                 "feature_dim": int(X.shape[1]),
                 "train_accuracy": round(train_acc, 4),
+                "warm_started": warm_started,
                 "retrained_at": datetime.now(timezone.utc).isoformat(),
             }, f, indent=2)
 
         self._update_retrain_meta(len(self.load_corrections()))
 
         log.info(
-            "[user-retrain] EEG user=%s samples=%d classes=%s acc=%.3f",
-            self.user_id, len(y_list), classes, train_acc,
+            "[user-retrain] EEG user=%s samples=%d classes=%s acc=%.3f warm_started=%s",
+            self.user_id, len(y_list), classes, train_acc, warm_started,
         )
 
         # Export ONNX for on-device inference
@@ -210,6 +239,7 @@ class UserModelRetrainer:
 
         return {
             "trained": True,
+            "warm_started": warm_started,
             "modality": "eeg",
             "n_samples": len(y_list),
             "classes": classes,
