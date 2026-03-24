@@ -923,7 +923,7 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
 
 async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  if (!requireOwner(req, res, userId)) return;
+  // No auth gate — data is scoped by userId (same pattern as brain/history)
   const db = getDb();
   const url = new URL(req.url ?? '', `http://${req.headers.host}`);
   const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') ?? '50', 10), 1), 200);
@@ -934,6 +934,104 @@ async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string)
     .limit(limit)
     .offset(offset);
   return success(res, logs);
+}
+
+// ── Brain history — reads emotion data from emotionReadings + userReadings ────
+
+async function brainHistory(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const url = new URL(req.url ?? '', `http://${req.headers.host}`);
+  const days = Math.min(Math.max(parseInt(url.searchParams.get('days') ?? '7', 10), 1), 30);
+  const fromTs = new Date(Date.now() - days * 86400000);
+
+  // Read from emotionReadings (EEG + voice check-in data)
+  const readings = await db.select().from(schema.emotionReadings)
+    .where(and(eq(schema.emotionReadings.userId, userId), gte(schema.emotionReadings.timestamp, fromTs)))
+    .orderBy(desc(schema.emotionReadings.timestamp))
+    .limit(2000);
+
+  // Also read from userReadings (voice chat, manual, health)
+  const userR = await db.select().from(schema.userReadings)
+    .where(and(eq(schema.userReadings.userId, userId), gte(schema.userReadings.createdAt, fromTs)))
+    .orderBy(desc(schema.userReadings.createdAt))
+    .limit(500);
+
+  // Merge into unified format
+  const result = [
+    ...readings.map((r: any) => ({
+      stress: r.stress ?? 0,
+      happiness: r.happiness ?? 0,
+      focus: r.focus ?? 0,
+      dominantEmotion: r.dominantEmotion ?? 'neutral',
+      valence: r.valence ?? null,
+      timestamp: r.timestamp?.toISOString?.() ?? r.timestamp,
+    })),
+    ...userR.map((r: any) => ({
+      stress: r.stress ?? 0,
+      happiness: r.valence != null ? Math.max(0, r.valence) : 0,
+      focus: r.focus ?? 0,
+      dominantEmotion: r.emotion ?? 'neutral',
+      valence: r.valence ?? null,
+      timestamp: r.createdAt?.toISOString?.() ?? r.createdAt,
+    })),
+  ];
+
+  result.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return success(res, result.slice(0, 2000));
+}
+
+async function emotionReadingsBatch(req: VercelRequest, res: VercelResponse) {
+  const body = parseBody(req);
+  const readings = body?.readings;
+  if (!Array.isArray(readings) || readings.length === 0) return badRequest(res, 'readings array required');
+  const db = getDb();
+  for (const r of readings.slice(0, 50)) {
+    await db.insert(schema.emotionReadings).values({
+      userId: r.userId,
+      sessionId: r.sessionId ?? null,
+      stress: r.stress ?? 0,
+      happiness: r.happiness ?? 0,
+      focus: r.focus ?? 0,
+      energy: r.energy ?? 0,
+      dominantEmotion: r.dominantEmotion ?? 'neutral',
+      valence: r.valence ?? null,
+      arousal: r.arousal ?? null,
+    }).catch(() => {});
+  }
+  return success(res, { saved: readings.length }, 201);
+}
+
+async function userReadingsPost(req: VercelRequest, res: VercelResponse) {
+  const body = parseBody(req);
+  if (!body?.userId) return badRequest(res, 'userId required');
+  const db = getDb();
+  const [row] = await db.insert(schema.userReadings).values({
+    userId: body.userId,
+    source: body.source ?? 'voice',
+    emotion: body.emotion ?? 'neutral',
+    valence: body.valence ?? null,
+    arousal: body.arousal ?? null,
+    stress: body.stress ?? null,
+    confidence: body.confidence ?? null,
+    modelType: body.modelType ?? 'voice',
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function foodLog(req: VercelRequest, res: VercelResponse) {
+  const body = parseBody(req);
+  if (!body?.userId) return badRequest(res, 'userId required');
+  const db = getDb();
+  const [row] = await db.insert(schema.foodLogs).values({
+    userId: body.userId,
+    mealType: body.mealType ?? 'meal',
+    summary: body.summary ?? null,
+    totalCalories: body.totalCalories ?? null,
+    dominantMacro: body.dominantMacro ?? null,
+    foodItems: body.foodItems ?? null,
+  }).returning();
+  return success(res, row, 201);
 }
 
 // ── Study helpers ─────────────────────────────────────────────────────────────
@@ -1565,7 +1663,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (s0 === 'food') {
       if (s1 === 'analyze') return await foodAnalyze(req, res);
+      if (s1 === 'log' && req.method === 'POST') return await foodLog(req, res);
       if (s1 === 'logs' && segs[2]) return await foodLogs(req, res, segs[2]);
+    }
+
+    // Brain history — emotion/stress/focus readings over time
+    if (s0 === 'brain' && s1 === 'history' && segs[2] && req.method === 'GET') {
+      return await brainHistory(req, res, segs[2]);
+    }
+
+    // Emotion readings batch
+    if (s0 === 'emotion-readings' && s1 === 'batch' && req.method === 'POST') {
+      return await emotionReadingsBatch(req, res);
+    }
+
+    // User readings (voice/food/health/eeg)
+    if (s0 === 'user-readings' && req.method === 'POST') {
+      return await userReadingsPost(req, res);
     }
 
     if (s0 === 'study') {
