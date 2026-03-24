@@ -13,6 +13,49 @@ export interface OnDeviceEmotionResult {
   model_type: "voice-onnx";
 }
 
+// ─── Speaker Baseline F0 (Pitch Normalization) ─────────────────────────────
+// The first voice check-in establishes the speaker's baseline fundamental
+// frequency (F0).  Subsequent check-ins normalize pitch features as a ratio
+// to this baseline (relative pitch).  This makes the model see *emotional*
+// pitch shifts rather than absolute voice register differences between
+// speakers (male ~120 Hz, female ~220 Hz).
+//
+// Stored in localStorage so it persists across sessions.
+
+const _BASELINE_F0_KEY = "ndw_voice_baseline_f0";
+
+/** Retrieve the stored speaker baseline F0, or null if not yet established. */
+export function getBaselinePitchF0(): number | null {
+  try {
+    const raw = localStorage.getItem(_BASELINE_F0_KEY);
+    if (raw === null) return null;
+    const val = parseFloat(raw);
+    if (!Number.isFinite(val) || val <= 0) return null;
+    return val;
+  } catch {
+    return null;
+  }
+}
+
+/** Store the speaker baseline F0.  Silently ignores non-positive / non-finite values. */
+export function setBaselinePitchF0(f0: number): void {
+  if (!Number.isFinite(f0) || f0 <= 0) return;
+  try {
+    localStorage.setItem(_BASELINE_F0_KEY, String(f0));
+  } catch {
+    /* quota exceeded — ignore */
+  }
+}
+
+/** Clear the stored baseline (e.g. when switching speakers). */
+export function clearBaselinePitchF0(): void {
+  try {
+    localStorage.removeItem(_BASELINE_F0_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 // ─── Emotion Mapping Config ─────────────────────────────────────────────────
 
 export const EMOTION_REGIONS: Array<{
@@ -730,35 +773,39 @@ export function extractEnhancedFeatures(samples: Float32Array, sr: number): Floa
   }
 
   // ── Pitch features (4 features at indices 132-135) ──────────────────────────
+  // After computing raw pitch, normalize to speaker baseline F0 (if available).
+  // First check-in establishes baseline; subsequent check-ins use ratio to
+  // baseline.  This makes the model see relative pitch deviations (emotion
+  // signal) rather than absolute voice register (speaker identity signal).
   const pitchValues = estimatePitchPerFrame(audio, sr);
   const voicedPitches = pitchValues.filter(f => f > 0);
 
   if (voicedPitches.length > 0) {
-    // pitchMean
+    // pitchMean (raw Hz)
     let pitchSum = 0;
     for (const f of voicedPitches) pitchSum += f;
     const pitchMean = pitchSum / voicedPitches.length;
-    features[132] = pitchMean;
 
-    // pitchStd
+    // pitchStd (raw Hz)
+    let pitchStd = 0;
     if (voicedPitches.length > 1) {
       let sumSq = 0;
       for (const f of voicedPitches) sumSq += (f - pitchMean) ** 2;
-      features[133] = Math.sqrt(sumSq / (voicedPitches.length - 1));
+      pitchStd = Math.sqrt(sumSq / (voicedPitches.length - 1));
     }
 
-    // pitchRange
+    // pitchRange (raw Hz)
     let pMin = Infinity;
     let pMax = -Infinity;
     for (const f of voicedPitches) {
       if (f < pMin) pMin = f;
       if (f > pMax) pMax = f;
     }
-    features[134] = pMax - pMin;
+    const pitchRange = pMax - pMin;
 
-    // pitchSlope (linear regression over voiced frame indices)
+    // pitchSlope (raw Hz/frame — linear regression over voiced frame indices)
+    let pitchSlope = 0;
     if (voicedPitches.length >= 2) {
-      // Collect (index, pitch) pairs for voiced frames
       const indices: number[] = [];
       for (let i = 0; i < pitchValues.length; i++) {
         if (pitchValues[i] > 0) indices.push(i);
@@ -774,7 +821,31 @@ export function extractEnhancedFeatures(samples: Float32Array, sr: number): Floa
       }
       const n = indices.length;
       const denom = n * sumXX - sumX * sumX;
-      features[135] = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+      pitchSlope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+    }
+
+    // ── Baseline F0 normalization ──────────────────────────────────────────
+    // On first voiced check-in (no baseline stored), store pitchMean as
+    // baseline and return raw values.  On subsequent check-ins, normalize
+    // all pitch features as ratio to baseline:
+    //   pitchMean  → pitchMean / baseline  (1.0 = normal, >1 = higher than usual)
+    //   pitchStd   → pitchStd / baseline   (relative variability)
+    //   pitchRange → pitchRange / baseline  (relative range)
+    //   pitchSlope → pitchSlope / baseline  (relative slope)
+    const baselineF0 = getBaselinePitchF0();
+    if (baselineF0 !== null && baselineF0 > 0) {
+      // Normalize as ratio to baseline
+      features[132] = pitchMean / baselineF0;
+      features[133] = pitchStd / baselineF0;
+      features[134] = pitchRange / baselineF0;
+      features[135] = pitchSlope / baselineF0;
+    } else {
+      // No baseline yet — store this as baseline, return raw values
+      setBaselinePitchF0(pitchMean);
+      features[132] = pitchMean;
+      features[133] = pitchStd;
+      features[134] = pitchRange;
+      features[135] = pitchSlope;
     }
   }
 

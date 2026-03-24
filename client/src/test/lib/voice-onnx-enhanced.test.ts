@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   extractFeatures92,
   extractEnhancedFeatures,
   extractMFCC,
+  clearBaselinePitchF0,
 } from "@/lib/voice-onnx";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -41,6 +42,10 @@ function makeSpeechLikeSignal(sr: number, durationSec: number): Float32Array {
 // ─── extractEnhancedFeatures ────────────────────────────────────────────────
 
 describe("extractEnhancedFeatures", () => {
+  // Clear speaker baseline F0 before each test so pitch features are raw Hz
+  // (not normalized as ratio to a previously stored baseline).
+  beforeEach(() => clearBaselinePitchF0());
+
   it("returns exactly 140 features", () => {
     const sine = makeSineWave(16000, 1.0);
     const features = extractEnhancedFeatures(sine, 16000);
