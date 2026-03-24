@@ -17,6 +17,7 @@ from processing.eeg_processor import (
     compute_frontal_asymmetry, compute_dasm_rasm,
     compute_frontal_midline_theta, compute_coherence,
     compute_pairwise_plv,
+    compute_band_hjorth_mobility, compute_hjorth_mobility_ratio,
     EuclideanAligner,
 )
 from processing.covariate_shift_detector import CovariateShiftDetector
@@ -1423,6 +1424,17 @@ class EmotionClassifier:
 
         granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
 
+        # Band Hjorth mobility ratio (frontal/temporal)
+        try:
+            _lt = cmap.get("left_temporal", 0)
+            _rt = cmap.get("right_temporal", n_ch - 1)
+            _band_hjorth = compute_hjorth_mobility_ratio(
+                eeg, fs, frontal_chs=[lf, rf], temporal_chs=[_lt, _rt],
+                bands=["beta"],
+            )
+        except Exception:
+            _band_hjorth = {}
+
         top_conf    = float(np.max(smoothed))
         emotion_lbl = EMOTIONS[emotion_idx]
         return {
@@ -1444,6 +1456,7 @@ class EmotionClassifier:
             "dasm_rasm":             dasm_rasm,
             "frontal_midline_theta": fmt,
             "frontal_alpha_coherence": _frontal_coh,
+            "band_hjorth":           _band_hjorth,
             "artifact_detected":     artifact_detected,
             "model_type":            "lgbm-muse",
             "explanation":           explanation if explanation else [],
@@ -2182,6 +2195,7 @@ class EmotionClassifier:
                     "plv_fronto_temporal_alpha": 0.0,
                     "plv_mean_alpha": 0.0, "plv_mean_theta": 0.0, "plv_mean_beta": 0.0,
                 },
+                "band_hjorth": {},
                 "artifact_detected": True,
                 "explanation": [],
             }
@@ -2341,6 +2355,41 @@ class EmotionClassifier:
                 plv_ft_alpha = plv_data.get("plv_fronto_temporal_alpha", 0.0)
             except Exception:
                 plv_data = {}
+
+        # ── Band-specific Hjorth Mobility ──────────────────────
+        # Hjorth mobility computed on band-filtered signals captures the
+        # spectral centroid within each band — a richer feature than raw
+        # band power.  Beta mobility achieved 83.33% accuracy (AUC 0.904)
+        # on SEED dataset as the single best feature among 18 examined
+        # (PubMed, SVM leave-one-subject-out).
+        #
+        # The frontal/temporal mobility ratio indicates WHERE beta
+        # processing is concentrated.  High frontal beta mobility
+        # (ratio > 1) suggests focused cognitive engagement; temporal
+        # dominance may indicate emotional processing or mind-wandering.
+        band_hjorth: Dict = {}
+        beta_mobility_ratio_ft = 1.0  # neutral default
+        if channels is not None and channels.shape[0] >= 4:
+            try:
+                _cmap = get_channel_map(device_type, channels.shape[0])
+                _lf, _rf = _cmap["left_frontal"], _cmap["right_frontal"]
+                _lt, _rt = _cmap.get("left_temporal", 0), _cmap.get("right_temporal", channels.shape[0] - 1)
+                band_hjorth = compute_hjorth_mobility_ratio(
+                    channels, fs,
+                    frontal_chs=[_lf, _rf],
+                    temporal_chs=[_lt, _rt],
+                    bands=["beta"],
+                )
+                beta_mobility_ratio_ft = band_hjorth.get("beta_mobility_ratio_ft", 1.0)
+            except Exception:
+                band_hjorth = {}
+        elif channels is not None and channels.shape[0] >= 2:
+            try:
+                # With 2-3 channels, compute single-channel beta mobility
+                single_mob = compute_band_hjorth_mobility(processed, fs, bands=["beta"])
+                band_hjorth = single_mob
+            except Exception:
+                band_hjorth = {}
 
         # ── Valence (pleasantness) ──────────────────────────────
         # Alpha/beta ratio (ABR) as secondary valence signal.
@@ -2519,6 +2568,7 @@ class EmotionClassifier:
                     "plv_mean_theta": float(plv_data.get("plv_mean_theta", 0.0)),
                     "plv_mean_beta": float(plv_data.get("plv_mean_beta", 0.0)),
                 },
+                "band_hjorth": band_hjorth,
                 "artifact_detected": _artifact_now,
                 "model_type": "feature-based",
                 "explanation": [],
@@ -2560,11 +2610,18 @@ class EmotionClassifier:
         # Gamma excluded — EMG noise at AF7/AF8 produces false focus spikes.
         # PLV frontal beta (5% weight): high AF7-AF8 beta synchrony indicates
         # coordinated cognitive engagement across hemispheres (Sauseng et al. 2005).
+        # Beta mobility ratio (5% weight): frontal-dominant beta mobility
+        # (ratio > 1) indicates focused cognitive engagement in prefrontal cortex.
+        # PubMed: Hjorth mobility in beta = best single EEG feature for emotion
+        # recognition (83.33% acc, AUC 0.904 on SEED, SVM LOSO).
+        # Normalize: ratio 1.0 → 0.5, ratio 2.0 → 1.0, ratio 0.5 → 0.25.
+        _beta_mob_focus = float(np.clip(beta_mobility_ratio_ft * 0.5, 0, 1))
         focus_index = float(np.clip(
-            0.42 * min(1, beta * 3.5)
-            + 0.38 * max(0, 1 - theta_beta_ratio * 0.40)
+            0.40 * min(1, beta * 3.5)
+            + 0.35 * max(0, 1 - theta_beta_ratio * 0.40)
             + 0.15 * min(1, low_beta * 5)           # low-beta is the primary attentional band
-            + 0.05 * plv_frontal_beta,               # frontal beta synchrony = cognitive engagement
+            + 0.05 * plv_frontal_beta                # frontal beta synchrony = cognitive engagement
+            + 0.05 * _beta_mob_focus,                # frontal beta mobility ratio
             0, 1
         ))
 
@@ -2647,6 +2704,7 @@ class EmotionClassifier:
             ("plv_frontal_alpha", float(plv_frontal_alpha)),
             ("plv_frontal_beta", float(plv_frontal_beta)),
             ("plv_fronto_temporal_alpha", float(plv_ft_alpha)),
+            ("beta_mobility_ratio_ft", float(beta_mobility_ratio_ft)),
         ]
         heuristic_explanation = self._compute_heuristic_explanation(_contributions)
 
@@ -2681,6 +2739,7 @@ class EmotionClassifier:
                 "plv_mean_theta": float(plv_data.get("plv_mean_theta", 0.0)),
                 "plv_mean_beta": float(plv_data.get("plv_mean_beta", 0.0)),
             },
+            "band_hjorth": band_hjorth,
             "artifact_detected": _artifact_now,
             "model_type": "feature-based",
             "explanation": heuristic_explanation,

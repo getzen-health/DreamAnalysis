@@ -552,6 +552,122 @@ def compute_hjorth_parameters(eeg: np.ndarray) -> Dict[str, float]:
     }
 
 
+def compute_band_hjorth_mobility(
+    eeg: np.ndarray,
+    fs: float = 256.0,
+    bands: Optional[List[str]] = None,
+) -> Dict[str, float]:
+    """Compute Hjorth mobility on band-filtered signals.
+
+    Standard Hjorth mobility is computed on the broadband signal.  This function
+    first bandpass-filters the EEG into each requested frequency band, then
+    computes Hjorth mobility on the filtered signal.  The result captures
+    *how much* dynamic variation exists within a specific band — a richer
+    feature than spectral power alone.
+
+    Evidence: Hjorth mobility in the beta rhythm achieves 83.33% accuracy
+    (AUC 0.904) on the SEED emotion dataset, the best single feature among
+    18 examined (SVM, leave-one-subject-out).
+
+    Args:
+        eeg:   1-D array of EEG samples.
+        fs:    Sampling frequency in Hz.
+        bands: Which bands to compute.  Defaults to ["theta", "alpha", "beta"].
+               Names must exist in the module-level ``BANDS`` dict.
+
+    Returns:
+        Dict mapping ``"<band>_mobility"`` to the Hjorth mobility value
+        computed on the band-filtered signal.  Values are >= 0.
+    """
+    if bands is None:
+        bands = ["theta", "alpha", "beta"]
+
+    result: Dict[str, float] = {}
+    for band_name in bands:
+        low, high = BANDS.get(band_name, (8.0, 12.0))
+        filtered = bandpass_filter(eeg, low, high, fs, order=4)
+
+        # If the signal was too short for the filter, filtered == eeg (unfiltered).
+        # Compute Hjorth on whatever we got — graceful degradation.
+        activity = float(np.var(filtered))
+        if activity < 1e-15:
+            result[f"{band_name}_mobility"] = 0.0
+            continue
+
+        diff1 = np.diff(filtered)
+        mobility = float(np.sqrt(np.var(diff1) / activity))
+        result[f"{band_name}_mobility"] = mobility
+
+    return result
+
+
+def compute_hjorth_mobility_ratio(
+    signals: np.ndarray,
+    fs: float = 256.0,
+    frontal_chs: Optional[List[int]] = None,
+    temporal_chs: Optional[List[int]] = None,
+    bands: Optional[List[str]] = None,
+) -> Dict[str, float]:
+    """Compute frontal/temporal Hjorth mobility ratio per frequency band.
+
+    For a 4-channel Muse 2 layout (TP9, AF7, AF8, TP10), this computes
+    mean Hjorth mobility in band-filtered frontal channels divided by
+    mean mobility in temporal channels.  A ratio > 1 indicates the
+    frontal cortex is more dynamically active in that band than temporal.
+
+    This ratio indicates *where* neural processing is happening.
+    High frontal-to-temporal beta mobility → focused frontal engagement
+    (attention, cognitive load, working memory).
+
+    Args:
+        signals:      2-D array (n_channels, n_samples).
+        fs:           Sampling frequency in Hz.
+        frontal_chs:  Indices of frontal channels.  Default [1, 2] (AF7, AF8).
+        temporal_chs: Indices of temporal channels.  Default [0, 3] (TP9, TP10).
+        bands:        Bands to compute ratio for.  Default ["beta"].
+
+    Returns:
+        Dict mapping ``"<band>_mobility_ratio_ft"`` to the ratio value.
+        Returns empty dict if fewer than 2 channels.
+    """
+    if signals.ndim != 2 or signals.shape[0] < 2:
+        return {}
+
+    n_ch = signals.shape[0]
+    if frontal_chs is None:
+        frontal_chs = [1, 2] if n_ch >= 3 else [0]
+    if temporal_chs is None:
+        temporal_chs = [0, 3] if n_ch >= 4 else [n_ch - 1]
+    if bands is None:
+        bands = ["beta"]
+
+    # Clamp channel indices to valid range
+    frontal_chs = [min(c, n_ch - 1) for c in frontal_chs]
+    temporal_chs = [min(c, n_ch - 1) for c in temporal_chs]
+
+    result: Dict[str, float] = {}
+    for band_name in bands:
+        # Compute per-channel band mobility, then average per region
+        frontal_mobs = []
+        for ch in frontal_chs:
+            mob = compute_band_hjorth_mobility(signals[ch], fs, bands=[band_name])
+            frontal_mobs.append(mob.get(f"{band_name}_mobility", 0.0))
+
+        temporal_mobs = []
+        for ch in temporal_chs:
+            mob = compute_band_hjorth_mobility(signals[ch], fs, bands=[band_name])
+            temporal_mobs.append(mob.get(f"{band_name}_mobility", 0.0))
+
+        mean_frontal = float(np.mean(frontal_mobs)) if frontal_mobs else 0.0
+        mean_temporal = float(np.mean(temporal_mobs)) if temporal_mobs else 0.0
+
+        # Ratio with epsilon to avoid division by zero
+        ratio = mean_frontal / max(mean_temporal, 1e-10)
+        result[f"{band_name}_mobility_ratio_ft"] = round(ratio, 4)
+
+    return result
+
+
 def spectral_entropy(eeg: np.ndarray, fs: float = 256.0,
                      psd_cache: tuple = None) -> float:
     """Compute normalized spectral entropy of the EEG signal."""
