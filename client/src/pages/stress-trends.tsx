@@ -79,9 +79,10 @@ function filterByRange(entries: HistoryEntry[], range: TimeRange): HistoryEntry[
 function buildChartData(
   entries: HistoryEntry[],
   range: TimeRange,
-): { time: string; value: number }[] {
+): { time: string; value: number | null }[] {
   if (entries.length === 0) return [];
-  return entries
+
+  const points = entries
     .map((e) => {
       const d = new Date(e.timestamp);
       const time = range === "today"
@@ -91,8 +92,30 @@ function buildChartData(
         : d.toLocaleDateString([], { month: "short", day: "numeric" });
       return { time, value: Math.round((e.stress ?? 0) * 100), ts: d.getTime() };
     })
-    .sort((a, b) => a.ts - b.ts)
-    .map(({ time, value }) => ({ time, value }));
+    .sort((a, b) => a.ts - b.ts);
+
+  // For "today" view: pad with hourly markers so X axis spans full day
+  if (range === "today" && points.length > 0) {
+    const now = new Date();
+    const result: { time: string; value: number | null }[] = [];
+    // Add hourly markers from 6 AM to current hour
+    for (let h = 6; h <= now.getHours(); h++) {
+      const label = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      // Check if any real data point is in this hour
+      const inHour = points.filter(p => {
+        const pH = new Date(p.ts).getHours();
+        return pH === h;
+      });
+      if (inHour.length > 0) {
+        for (const p of inHour) result.push({ time: p.time, value: p.value });
+      } else {
+        result.push({ time: label, value: null }); // empty slot
+      }
+    }
+    return result;
+  }
+
+  return points.map(({ time, value }) => ({ time, value }));
 }
 
 function buildPeriodAverages(
@@ -356,6 +379,7 @@ export default function StressTrends() {
                 strokeWidth={2.5}
                 dot={false}
                 activeDot={false}
+                connectNulls
               />
             </AreaChart>
           </ResponsiveContainer>
