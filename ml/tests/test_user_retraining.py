@@ -16,6 +16,7 @@ from training.retrain_from_user_data import (
     AUTO_RETRAIN_INCREMENT,
     MIN_CORRECTIONS_EEG,
     MIN_CORRECTIONS_VOICE,
+    WARM_START_EPOCHS,
     UserModelRetrainer,
 )
 
@@ -241,3 +242,93 @@ class TestGetStatus:
         assert status["eeg_model_exists"] is False
         assert status["voice_model_exists"] is False
         assert status["should_retrain"] is False
+
+
+class TestMultiPassWarmStart:
+    """Tests for multi-epoch warm-start personalization."""
+
+    def test_warm_start_epochs_constant_exists(self):
+        """WARM_START_EPOCHS constant should be defined and >= 2."""
+        assert WARM_START_EPOCHS >= 2
+
+    def test_warm_start_calls_partial_fit_multiple_times(self, tmp_dirs):
+        """When warm-starting from a prior model, partial_fit runs WARM_START_EPOCHS times."""
+        # Train an initial model (cold start)
+        corrections = []
+        for i in range(MIN_CORRECTIONS_EEG):
+            corrections.append(_make_eeg_correction("happy" if i % 2 == 0 else "sad", i))
+        _write_corrections(tmp_dirs, "user1", corrections)
+
+        retrainer = UserModelRetrainer("user1")
+        result1 = retrainer.retrain_eeg()
+        assert result1["trained"] is True
+        assert result1["warm_started"] is False  # first train is cold
+
+        # Add more corrections and retrain — should warm-start with multiple passes
+        more = []
+        for i in range(MIN_CORRECTIONS_EEG, MIN_CORRECTIONS_EEG + 3):
+            more.append(_make_eeg_correction("happy" if i % 2 == 0 else "sad", i))
+        _write_corrections(tmp_dirs, "user1", corrections + more)
+
+        # Patch partial_fit to count calls
+        call_count = {"n": 0}
+        from sklearn.linear_model import SGDClassifier
+        original_partial_fit = SGDClassifier.partial_fit
+
+        def counting_partial_fit(self_model, X, y, classes=None):
+            call_count["n"] += 1
+            return original_partial_fit(self_model, X, y, classes=classes)
+
+        with patch.object(SGDClassifier, "partial_fit", counting_partial_fit):
+            result2 = retrainer.retrain_eeg()
+
+        assert result2["trained"] is True
+        assert result2["warm_started"] is True
+        assert result2["n_epochs"] == WARM_START_EPOCHS
+        # partial_fit called once per epoch
+        assert call_count["n"] == WARM_START_EPOCHS
+
+    def test_metadata_includes_n_epochs(self, tmp_dirs):
+        """Meta JSON file should include n_epochs after training."""
+        corrections = []
+        for i in range(MIN_CORRECTIONS_EEG):
+            corrections.append(_make_eeg_correction("happy" if i % 2 == 0 else "sad", i))
+        _write_corrections(tmp_dirs, "user1", corrections)
+
+        retrainer = UserModelRetrainer("user1")
+        result = retrainer.retrain_eeg()
+        assert result["trained"] is True
+
+        # Check saved metadata
+        meta_path = tmp_dirs / "user_models" / "user1" / "eeg_meta.json"
+        with open(meta_path) as f:
+            meta = json.load(f)
+        assert "n_epochs" in meta
+
+    def test_warm_start_accuracy_not_worse(self, tmp_dirs):
+        """Multi-pass warm start should not degrade accuracy vs cold start."""
+        np.random.seed(42)
+        # Create separable data: happy has positive features, sad has negative
+        corrections = []
+        for i in range(10):
+            emotion = "happy" if i % 2 == 0 else "sad"
+            c = {
+                "corrected_emotion": emotion,
+                "predicted_emotion": "neutral",
+                "eeg_features": list(
+                    (np.random.randn(85) * 0.5 + (1.0 if emotion == "happy" else -1.0)).astype(float)
+                ),
+                "created_at": f"2026-03-23T{10 + i}:00:00Z",
+            }
+            corrections.append(c)
+        _write_corrections(tmp_dirs, "user1", corrections)
+
+        retrainer = UserModelRetrainer("user1")
+        result1 = retrainer.retrain_eeg()
+        acc1 = result1["train_accuracy"]
+
+        # Retrain again (warm start with multi-pass)
+        result2 = retrainer.retrain_eeg()
+        assert result2["warm_started"] is True
+        # Should maintain or improve accuracy
+        assert result2["train_accuracy"] >= acc1 - 0.1  # allow small variance

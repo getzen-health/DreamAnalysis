@@ -44,6 +44,11 @@ MIN_CORRECTIONS_VOICE = 5
 AUTO_RETRAIN_INITIAL = 5  # first retrain after this many total corrections
 AUTO_RETRAIN_INCREMENT = 5  # retrain again every N new corrections after initial
 
+# Multi-pass warm start: with 5-10 samples, a single SGD pass has high gradient
+# noise. Multiple passes over shuffled data converge faster and reduce variance.
+# 3 passes is the sweet spot: enough to stabilize gradients without overfitting.
+WARM_START_EPOCHS = 3
+
 
 class UserModelRetrainer:
     """Fine-tune per-user emotion models from accumulated corrections.
@@ -187,13 +192,22 @@ class UserModelRetrainer:
                 if (hasattr(prior_model, "coef_")
                         and prior_model.coef_.shape[1] == X_scaled.shape[1]
                         and len(prior_model.classes_) == len(classes)):
-                    # Continue from prior weights via partial_fit (one SGD pass)
-                    prior_model.partial_fit(X_scaled, y, classes=all_class_indices)
+                    # Multi-pass warm start: run partial_fit multiple times
+                    # over shuffled data to reduce gradient noise with small
+                    # sample sizes (typically 5-10 corrections).
+                    rng = np.random.RandomState(42)
+                    for epoch in range(WARM_START_EPOCHS):
+                        shuffle_idx = rng.permutation(len(y))
+                        prior_model.partial_fit(
+                            X_scaled[shuffle_idx], y[shuffle_idx],
+                            classes=all_class_indices,
+                        )
                     model = prior_model
                     warm_started = True
                     log.info(
-                        "[user-retrain] warm-started EEG model for user=%s",
-                        self.user_id,
+                        "[user-retrain] warm-started EEG model for user=%s "
+                        "(%d epochs)",
+                        self.user_id, WARM_START_EPOCHS,
                     )
             except Exception as exc:
                 log.warning(
@@ -212,6 +226,7 @@ class UserModelRetrainer:
             model.fit(X_scaled, y)
 
         train_acc = float(np.mean(model.predict(X_scaled) == y))
+        n_epochs = WARM_START_EPOCHS if warm_started else 1
 
         # Save model artifacts
         joblib.dump(model, model_path)
@@ -224,14 +239,16 @@ class UserModelRetrainer:
                 "feature_dim": int(X.shape[1]),
                 "train_accuracy": round(train_acc, 4),
                 "warm_started": warm_started,
+                "n_epochs": n_epochs,
                 "retrained_at": datetime.now(timezone.utc).isoformat(),
             }, f, indent=2)
 
         self._update_retrain_meta(len(self.load_corrections()))
 
         log.info(
-            "[user-retrain] EEG user=%s samples=%d classes=%s acc=%.3f warm_started=%s",
-            self.user_id, len(y_list), classes, train_acc, warm_started,
+            "[user-retrain] EEG user=%s samples=%d classes=%s acc=%.3f "
+            "warm_started=%s epochs=%d",
+            self.user_id, len(y_list), classes, train_acc, warm_started, n_epochs,
         )
 
         # Export ONNX for on-device inference
@@ -242,6 +259,7 @@ class UserModelRetrainer:
             "warm_started": warm_started,
             "modality": "eeg",
             "n_samples": len(y_list),
+            "n_epochs": n_epochs,
             "classes": classes,
             "train_accuracy": round(train_acc, 4),
             "onnx_exported": onnx_path is not None,
