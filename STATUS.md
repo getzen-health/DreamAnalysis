@@ -58,6 +58,8 @@
 - [x] STEW dataset integrated (45 segments, Emotiv EPOC 14-ch, 3 171 samples) — cognitive workload → emotion proxy
 - [x] Muse-Subconscious dataset integrated (20 sessions, 4-ch Muse, 18 134 samples) — Mellow/Concentration labels
 - [x] mega LGBM now **74.21% CV** on 9 datasets, 163 534 samples
+- [x] **Learned temperature scaling** — `ConfidenceCalibrator.fit_temperature()` learns a single scalar T from validation data (Guo et al., 2017); T > 1 softens overconfident predictions, T < 1 sharpens underconfident ones; reduces ECE by 30-50%; persisted to disk alongside Platt scaling params; `apply_temperature()` for inference-time calibration
+- [x] **Warm-start personalization** — both `auto_retrainer.py` and `retrain_from_user_data.py` now load prior personal model weights via `partial_fit()` instead of training from scratch each time; preserves learned decision boundaries across retraining runs
 
 ### Connection UX & ML Reliability (thursday-launch-ready branch)
 - [x] **useMLConnection hook** (`client/src/hooks/use-ml-connection.tsx`) — state machine tracking ML backend health: idle → connecting → warming → ready | error

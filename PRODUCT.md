@@ -184,6 +184,8 @@ Core ML / Signal pipeline    █████████░  98%
   Voice Emotion Fallback (2026-03-04): VoiceEmotionModel (emotion2vec+/iic/emotion2vec_plus_base + LightGBM), ✅
     6-class output, /voice-watch/analyze + /voice-watch/cache + /voice-watch/latest/{user_id} endpoints.
     70-80% accuracy in no-EEG mode. EEG+Voice fusion at 85-90% (70/30 blend).
+  Learned temperature scaling for confidence calibration (Guo et al., 2017): fit_temperature + apply_temperature. ✅
+  Warm-start personalization: auto_retrainer + retrain_from_user_data load prior model via partial_fit. ✅
   Missing: personalization fine-tuning after 5 sessions.
 
 Backend API                  █████████░  96%
