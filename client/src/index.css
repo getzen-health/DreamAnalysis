@@ -166,8 +166,10 @@
 
   .dark .glass-card {
     background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.06);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, calc(0.04 + var(--breath-phase, 0) * 0.03));
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, calc(0.02 + var(--breath-phase, 0) * 0.02));
   }
 
   .glass-card:hover {
@@ -228,8 +230,10 @@
 
   .dark .premium-card {
     background: linear-gradient(160deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
-    border-color: rgba(255, 255, 255, 0.06);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, calc(0.04 + var(--breath-phase, 0) * 0.03));
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, calc(0.03 + var(--breath-phase, 0) * 0.02));
   }
 
   /* Score metric card — colored top accent border */

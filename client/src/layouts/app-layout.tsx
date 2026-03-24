@@ -19,6 +19,9 @@ import { EmotionBadge } from "@/components/emotion-badge";
 import { ScoreHeader } from "@/components/score-header";
 import { getParticipantId } from "@/lib/participant";
 import { sbGetSetting } from "../lib/supabase-store";
+import { NeuralCanvasBg } from "@/components/neural-canvas-bg";
+import { ParticleTouch } from "@/components/particle-touch";
+import { useBreathSync } from "@/hooks/use-breath-sync";
 
 const routeTitles: Record<string, string> = {
   "/": "Today",
@@ -63,6 +66,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
   useHealthSync();
   // On mobile, scroll focused inputs into view when the virtual keyboard opens
   useKeyboardScroll();
+  // Breathing rhythm syncs --breath-phase CSS variable across entire app
+  useBreathSync();
 
   // Register service worker for offline-first caching (PWA)
   useEffect(() => {
@@ -154,17 +159,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
   });
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <main ref={pullRef} className="min-h-screen overflow-x-hidden" role="main">
+    <div className="min-h-screen bg-background text-foreground relative">
+      {/* Living neural background — emotion-reactive particle field */}
+      <NeuralCanvasBg />
+      {/* Touch particles — emotion-colored burst on every tap */}
+      <ParticleTouch />
+
+      <main ref={pullRef} className="min-h-screen overflow-x-hidden relative" style={{ zIndex: 1 }} role="main">
         {/* Mobile top bar with back button — shown on subpages only */}
         {location !== "/" && (
           <header
-            className="sticky top-0 z-30 border-b flex items-center gap-2 px-3 py-2.5"
+            className="sticky top-0 z-30 flex items-center gap-2 px-3 py-2.5"
             style={{
-              background: theme === "dark" ? "hsl(260, 20%, 7%, 0.92)" : "hsl(40, 30%, 97%, 0.92)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              borderColor: theme === "dark" ? "hsl(255, 10%, 18%, 0.5)" : "hsl(40, 15%, 87%, 0.5)",
+              background: theme === "dark" ? "rgba(13, 10, 20, 0.85)" : "rgba(250, 248, 244, 0.92)",
+              backdropFilter: "blur(32px) saturate(1.4)",
+              WebkitBackdropFilter: "blur(32px) saturate(1.4)",
+              borderBottom: theme === "dark" ? "1px solid rgba(255,255,255,0.04)" : "1px solid rgba(0,0,0,0.06)",
               paddingTop: "env(safe-area-inset-top, 0px)",
             }}
           >

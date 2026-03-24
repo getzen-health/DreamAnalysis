@@ -22,8 +22,8 @@ function resolveAutoTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeSetting, setThemeSetting] = useState<ThemeSetting>("light");
-  const [theme, setResolvedTheme] = useState<Theme>("light");
+  const [themeSetting, setThemeSetting] = useState<ThemeSetting>("dark");
+  const [theme, setResolvedTheme] = useState<Theme>("dark");
 
   // Load saved setting
   useEffect(() => {
@@ -58,7 +58,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.toggle("dark", theme === "dark");
     // Update mobile status bar color to match theme
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", theme === "dark" ? "#0f1117" : "#ffffff");
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#0d0a14" : "#ffffff");
   }, [theme]);
 
   return (

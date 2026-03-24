@@ -153,10 +153,12 @@ export function BottomTabs() {
       <nav
         role="navigation"
         aria-label="Main navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t bg-background/95 border-border/60"
+        className="fixed bottom-0 left-0 right-0 z-40 md:hidden"
         style={{
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
+          background: "rgba(13, 10, 20, 0.8)",
+          backdropFilter: "blur(32px) saturate(1.5)",
+          WebkitBackdropFilter: "blur(32px) saturate(1.5)",
+          borderTop: "1px solid rgba(255, 255, 255, 0.04)",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
@@ -172,8 +174,13 @@ export function BottomTabs() {
                 hapticMedium();
                 setShowCheckin(true);
               }}
-              className="absolute -top-5 flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              style={{ width: 44, height: 44 }}
+              className="absolute -top-5 flex items-center justify-center rounded-full text-white active:scale-95 transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              style={{
+                width: 48,
+                height: 48,
+                background: "linear-gradient(135deg, #7C3AED, #C084FC)",
+                boxShadow: "0 4px 20px rgba(124, 58, 237, 0.4), 0 0 40px rgba(124, 58, 237, 0.15)",
+              }}
             >
               <Mic style={{ width: 20, height: 20 }} strokeWidth={2} aria-hidden="true" />
             </button>

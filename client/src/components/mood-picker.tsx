@@ -1,167 +1,148 @@
 /**
- * MoodPicker — beautiful "How are you feeling?" check-in component.
+ * MoodPicker — 2D Mood Meter inspired by How We Feel (Yale/Marc Brackett).
  *
- * Inspired by: How We Feel (2D color field), Daylio (emoji faces),
- * Headspace (bouncy selection), Calm (gradient backgrounds).
+ * A color-coded 2D field where:
+ *   - X axis: Pleasantness (unpleasant ← → pleasant)
+ *   - Y axis: Energy (low ↓ → high ↑)
  *
- * Features:
- * - 5 gradient-filled emoji orbs with spring animations
- * - Background color shifts to match selected mood
- * - Progressive disclosure: mood → optional tags → optional note
- * - Glow effects and particle-like ambiance
- * - Haptic-feel press animations
+ * Four quadrants, each with its own color family:
+ *   - Red (top-left):    High energy + Unpleasant (stressed, angry, anxious)
+ *   - Yellow (top-right): High energy + Pleasant (excited, joyful, energized)
+ *   - Green (bottom-right): Low energy + Pleasant (calm, content, peaceful)
+ *   - Blue (bottom-left):  Low energy + Unpleasant (sad, drained, melancholy)
  *
- * Usage:
- *   <MoodPicker onMoodSelect={(mood, tags, note) => { ... }} />
+ * After placing on the grid, user picks a specific emotion word from that zone.
+ * Then optional context tags and notes.
+ *
+ * References:
+ *   - How We Feel (howwefeel.org) — 2D Mood Meter, 144 emotion words
+ *   - Russell's Circumplex Model of Affect
+ *   - Headspace dark mode: #131313, rgba overlays
+ *   - Finch: weather metaphors, sparkle micro-interactions
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { springs, easings } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 
-interface MoodLevel {
-  id: number;
-  label: string;
-  emoji: string;
-  gradient: [string, string];
-  glow: string;
-  bgTint: string; // subtle page background tint
-  description: string;
-}
+// ── Quadrant emotion words ──────────────────────────────────────────────
 
-const MOOD_LEVELS: MoodLevel[] = [
-  {
-    id: 1,
-    label: "Terrible",
-    emoji: "\u{1F629}",
-    gradient: ["#F87171", "#DC2626"],
-    glow: "rgba(248, 113, 113, 0.4)",
-    bgTint: "rgba(248, 113, 113, 0.06)",
-    description: "Really struggling",
+const QUADRANT_EMOTIONS: Record<string, { words: string[]; emoji: string }> = {
+  "high-unpleasant": {
+    emoji: "\u{1F525}",
+    words: ["Stressed", "Anxious", "Angry", "Frustrated", "Overwhelmed", "Restless", "Irritable", "Tense"],
   },
-  {
-    id: 2,
-    label: "Bad",
-    emoji: "\u{1F61E}",
-    gradient: ["#FB923C", "#EA580C"],
-    glow: "rgba(251, 146, 60, 0.4)",
-    bgTint: "rgba(251, 146, 60, 0.06)",
-    description: "Not great",
+  "high-pleasant": {
+    emoji: "\u{2728}",
+    words: ["Excited", "Joyful", "Energized", "Inspired", "Grateful", "Proud", "Playful", "Hopeful"],
   },
-  {
-    id: 3,
-    label: "Okay",
-    emoji: "\u{1F610}",
-    gradient: ["#FACC15", "#EAB308"],
-    glow: "rgba(250, 204, 21, 0.4)",
-    bgTint: "rgba(250, 204, 21, 0.04)",
-    description: "Getting by",
+  "low-pleasant": {
+    emoji: "\u{1F343}",
+    words: ["Calm", "Content", "Peaceful", "Relaxed", "Serene", "Thoughtful", "Cozy", "Grateful"],
   },
-  {
-    id: 4,
-    label: "Good",
-    emoji: "\u{1F60A}",
-    gradient: ["#A3E635", "#65A30D"],
-    glow: "rgba(163, 230, 53, 0.4)",
-    bgTint: "rgba(163, 230, 53, 0.06)",
-    description: "Feeling positive",
+  "low-unpleasant": {
+    emoji: "\u{1F30A}",
+    words: ["Sad", "Drained", "Lonely", "Melancholy", "Tired", "Numb", "Bored", "Defeated"],
   },
-  {
-    id: 5,
-    label: "Amazing",
-    emoji: "\u{1F929}",
-    gradient: ["#4ADE80", "#16A34A"],
-    glow: "rgba(74, 222, 128, 0.5)",
-    bgTint: "rgba(74, 222, 128, 0.06)",
-    description: "On top of the world",
-  },
-];
+};
+
+// ── Quadrant colors ─────────────────────────────────────────────────────
+
+const QUADRANT_COLORS = {
+  "high-unpleasant": { bg: "#DC2626", light: "#FCA5A5", accent: "#EF4444", label: "High Energy, Unpleasant" },
+  "high-pleasant":   { bg: "#EAB308", light: "#FDE68A", accent: "#FBBF24", label: "High Energy, Pleasant" },
+  "low-pleasant":    { bg: "#16A34A", light: "#86EFAC", accent: "#4ADE80", label: "Low Energy, Pleasant" },
+  "low-unpleasant":  { bg: "#2563EB", light: "#93C5FD", accent: "#60A5FA", label: "Low Energy, Unpleasant" },
+};
+
+// ── Activity tags ───────────────────────────────────────────────────────
 
 const ACTIVITY_TAGS = [
   { emoji: "\u{1F4AA}", label: "Exercise" },
   { emoji: "\u{1F6CC}", label: "Good sleep" },
   { emoji: "\u{1F465}", label: "Social" },
   { emoji: "\u{1F3B5}", label: "Music" },
-  { emoji: "\u{2615}", label: "Coffee" },
   { emoji: "\u{1F9D8}", label: "Meditation" },
-  { emoji: "\u{1F4DA}", label: "Learning" },
   { emoji: "\u{1F333}", label: "Nature" },
   { emoji: "\u{1F37D}\uFE0F", label: "Good food" },
+  { emoji: "\u{1F4DA}", label: "Learning" },
+  { emoji: "\u{2615}", label: "Coffee" },
   { emoji: "\u{2764}\uFE0F", label: "Love" },
 ];
 
+// ── Types ───────────────────────────────────────────────────────────────
+
 export interface MoodPickerResult {
-  moodLevel: number;
-  moodLabel: string;
+  quadrant: string;
+  emotionWord: string;
+  energy: number;       // 0-1 (low to high)
+  pleasantness: number; // 0-1 (unpleasant to pleasant)
   tags: string[];
   note: string;
   timestamp: string;
 }
 
 interface MoodPickerProps {
-  /** Called when user completes mood selection (after any layer) */
   onMoodSelect?: (result: MoodPickerResult) => void;
-  /** Show greeting with user's name */
   userName?: string;
-  /** Compact mode (no tags/notes, just mood selection) */
   compact?: boolean;
 }
 
+type Step = "grid" | "word" | "tags" | "done";
+
+// ── Component ───────────────────────────────────────────────────────────
+
 export function MoodPicker({ onMoodSelect, userName, compact = false }: MoodPickerProps) {
-  const [selected, setSelected] = useState<number | null>(null);
-  const [step, setStep] = useState<"mood" | "tags" | "note" | "done">("mood");
+  const [step, setStep] = useState<Step>("grid");
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [quadrant, setQuadrant] = useState<string | null>(null);
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [note, setNote] = useState("");
+  const gridRef = useRef<HTMLDivElement>(null);
 
-  const selectedMood = MOOD_LEVELS.find(m => m.id === selected);
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  const handleMoodSelect = useCallback((id: number) => {
-    setSelected(id);
+  // Determine quadrant from position
+  const getQuadrant = (x: number, y: number): string => {
+    const isPleasant = x > 0.5;
+    const isHighEnergy = y < 0.5; // y=0 is top (high energy)
+    if (isHighEnergy && !isPleasant) return "high-unpleasant";
+    if (isHighEnergy && isPleasant) return "high-pleasant";
+    if (!isHighEnergy && isPleasant) return "low-pleasant";
+    return "low-unpleasant";
+  };
 
+  // Handle grid tap/touch
+  const handleGridInteraction = useCallback((clientX: number, clientY: number) => {
+    if (!gridRef.current) return;
+    const rect = gridRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    setPosition({ x, y });
+    setQuadrant(getQuadrant(x, y));
+  }, []);
+
+  const handleGridClick = (e: React.MouseEvent) => {
+    handleGridInteraction(e.clientX, e.clientY);
+  };
+
+  const handleGridTouch = (e: React.TouchEvent) => {
+    if (e.touches.length > 0) {
+      handleGridInteraction(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  };
+
+  const handleWordSelect = (word: string) => {
+    setSelectedWord(word);
     if (compact) {
-      const mood = MOOD_LEVELS.find(m => m.id === id)!;
-      onMoodSelect?.({
-        moodLevel: id,
-        moodLabel: mood.label,
-        tags: [],
-        note: "",
-        timestamp: new Date().toISOString(),
-      });
-      setStep("done");
-    }
-  }, [compact, onMoodSelect]);
-
-  const handleContinue = useCallback(() => {
-    if (step === "mood" && selected) {
+      finishSelection(word);
+    } else {
       setStep("tags");
-    } else if (step === "tags") {
-      setStep("note");
-    } else if (step === "note" && selectedMood) {
-      onMoodSelect?.({
-        moodLevel: selected!,
-        moodLabel: selectedMood.label,
-        tags: selectedTags,
-        note,
-        timestamp: new Date().toISOString(),
-      });
-      setStep("done");
     }
-  }, [step, selected, selectedMood, selectedTags, note, onMoodSelect]);
-
-  const handleSkip = useCallback(() => {
-    if (step === "tags") setStep("note");
-    else if (step === "note" && selectedMood) {
-      onMoodSelect?.({
-        moodLevel: selected!,
-        moodLabel: selectedMood.label,
-        tags: selectedTags,
-        note: "",
-        timestamp: new Date().toISOString(),
-      });
-      setStep("done");
-    }
-  }, [step, selected, selectedMood, selectedTags, onMoodSelect]);
+  };
 
   const toggleTag = (tag: string) => {
     setSelectedTags(prev =>
@@ -169,288 +150,346 @@ export function MoodPicker({ onMoodSelect, userName, compact = false }: MoodPick
     );
   };
 
-  // Determine greeting based on time of day
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const finishSelection = (word?: string) => {
+    if (!position || !quadrant) return;
+    onMoodSelect?.({
+      quadrant,
+      emotionWord: word ?? selectedWord ?? "",
+      energy: 1 - position.y,
+      pleasantness: position.x,
+      tags: selectedTags,
+      note,
+      timestamp: new Date().toISOString(),
+    });
+    setStep("done");
+  };
+
+  const qColors = quadrant ? QUADRANT_COLORS[quadrant as keyof typeof QUADRANT_COLORS] : null;
 
   return (
-    <motion.div
-      className="relative rounded-2xl overflow-hidden"
-      animate={{
-        background: selectedMood
-          ? `linear-gradient(160deg, ${selectedMood.bgTint}, transparent 80%)`
-          : "transparent",
-      }}
-      transition={{ duration: 0.6, ease: easings.material }}
-    >
-      {/* Ambient glow for selected mood */}
-      <AnimatePresence>
-        {selectedMood && (
-          <motion.div
-            key={selectedMood.id}
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full blur-3xl"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 0.25, scale: 1.2 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            style={{ background: selectedMood.glow }}
-            transition={{ duration: 0.6 }}
-          />
-        )}
-      </AnimatePresence>
+    <div className="relative p-5 space-y-4">
+      {/* Ambient glow behind grid */}
+      {qColors && (
+        <motion.div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full blur-[80px] pointer-events-none"
+          animate={{ background: qColors.bg, opacity: 0.15 }}
+          transition={{ duration: 0.8 }}
+        />
+      )}
 
-      <div className="relative z-10 p-5 space-y-5">
-        {/* Greeting */}
-        <AnimatePresence mode="wait">
-          {step === "mood" && (
-            <motion.div
-              key="greeting"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="text-center space-y-1"
-            >
-              <p className="text-sm text-foreground/40 font-medium">
+      {/* ── Step: Grid ── */}
+      <AnimatePresence mode="wait">
+        {step === "grid" && (
+          <motion.div
+            key="grid"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -12 }}
+            className="space-y-4 relative z-10"
+          >
+            {/* Greeting */}
+            <div className="text-center space-y-1">
+              <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>
                 {greeting}{userName ? `, ${userName}` : ""}
               </p>
-              <h3 className="text-lg font-semibold text-foreground/90">
+              <h3 className="text-lg font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>
                 How are you feeling?
               </h3>
-            </motion.div>
-          )}
+            </div>
 
-          {step === "tags" && (
-            <motion.div
-              key="tags-heading"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="text-center space-y-1"
-            >
-              <p className="text-lg font-semibold text-foreground/90">
-                What's going on?
-              </p>
-              <p className="text-xs text-foreground/40">Optional — tap to tag</p>
-            </motion.div>
-          )}
+            {/* 2D Mood Meter Grid */}
+            <div className="flex flex-col items-center">
+              {/* Energy label (top) */}
+              <span className="text-[10px] font-medium mb-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                HIGH ENERGY
+              </span>
 
-          {step === "note" && (
-            <motion.div
-              key="note-heading"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="text-center space-y-1"
-            >
-              <p className="text-lg font-semibold text-foreground/90">
-                Anything else?
-              </p>
-              <p className="text-xs text-foreground/40">Optional — add a note</p>
-            </motion.div>
-          )}
+              <div className="flex items-center gap-2">
+                {/* Unpleasant label (left) */}
+                <span className="text-[10px] font-medium writing-mode-vertical"
+                  style={{ color: "rgba(255,255,255,0.3)", writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
+                  UNPLEASANT
+                </span>
 
-          {step === "done" && selectedMood && (
-            <motion.div
-              key="done"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center space-y-2"
-            >
-              <motion.span
-                className="text-4xl block"
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
-                {selectedMood.emoji}
-              </motion.span>
-              <p className="text-sm text-foreground/50">
-                Logged as <span className="font-semibold text-foreground/70">{selectedMood.label}</span>
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Mood orbs */}
-        {(step === "mood" || step === "tags" || step === "note") && (
-          <div className="flex justify-center gap-4">
-            {MOOD_LEVELS.map((mood, i) => {
-              const isSelected = selected === mood.id;
-              const hasSelection = selected !== null;
-
-              return (
-                <motion.button
-                  key={mood.id}
-                  onClick={() => handleMoodSelect(mood.id)}
-                  initial={{ opacity: 0, y: 20, scale: 0.5 }}
-                  animate={{
-                    opacity: hasSelection && !isSelected ? 0.4 : 1,
-                    y: 0,
-                    scale: isSelected ? 1.25 : hasSelection ? 0.85 : 1,
+                {/* The Grid */}
+                <div
+                  ref={gridRef}
+                  onClick={handleGridClick}
+                  onTouchMove={handleGridTouch}
+                  onTouchStart={handleGridTouch}
+                  className="relative w-[260px] h-[260px] rounded-2xl overflow-hidden cursor-crosshair select-none touch-none"
+                  style={{
+                    background: `
+                      conic-gradient(
+                        from 225deg at 50% 50%,
+                        #DC2626 0deg,
+                        #EAB308 90deg,
+                        #16A34A 180deg,
+                        #2563EB 270deg,
+                        #DC2626 360deg
+                      )`,
+                    boxShadow: "inset 0 0 60px rgba(0,0,0,0.4)",
                   }}
-                  whileHover={!isSelected ? { scale: hasSelection ? 0.95 : 1.1 } : {}}
-                  whileTap={{ scale: 0.9 }}
-                  transition={{
-                    ...springs.bouncy,
-                    delay: i * 0.06,
-                    opacity: { duration: 0.3 },
-                  }}
-                  className="relative flex flex-col items-center gap-1.5 outline-none"
                 >
-                  {/* Glow ring behind selected orb */}
-                  {isSelected && (
+                  {/* Soft center fade for depth */}
+                  <div className="absolute inset-0" style={{
+                    background: "radial-gradient(circle at 50% 50%, rgba(0,0,0,0.25) 0%, transparent 70%)",
+                  }} />
+
+                  {/* Grid lines — subtle crosshair */}
+                  <div className="absolute left-1/2 top-0 bottom-0 w-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <div className="absolute top-1/2 left-0 right-0 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+
+                  {/* Quadrant emoji hints */}
+                  <span className="absolute top-3 left-3 text-lg opacity-30">{QUADRANT_EMOTIONS["high-unpleasant"].emoji}</span>
+                  <span className="absolute top-3 right-3 text-lg opacity-30">{QUADRANT_EMOTIONS["high-pleasant"].emoji}</span>
+                  <span className="absolute bottom-3 right-3 text-lg opacity-30">{QUADRANT_EMOTIONS["low-pleasant"].emoji}</span>
+                  <span className="absolute bottom-3 left-3 text-lg opacity-30">{QUADRANT_EMOTIONS["low-unpleasant"].emoji}</span>
+
+                  {/* Selection indicator */}
+                  {position && (
                     <motion.div
-                      className="absolute -inset-2 rounded-full"
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      style={{
-                        background: `radial-gradient(circle, ${mood.glow}, transparent 70%)`,
+                      className="absolute pointer-events-none"
+                      animate={{
+                        left: `${position.x * 100}%`,
+                        top: `${position.y * 100}%`,
                       }}
-                      transition={springs.bouncy}
-                    />
-                  )}
-
-                  {/* Orb */}
-                  <div
-                    className={cn(
-                      "relative w-12 h-12 rounded-full flex items-center justify-center",
-                      "transition-shadow duration-300",
-                    )}
-                    style={{
-                      background: `linear-gradient(135deg, ${mood.gradient[0]}, ${mood.gradient[1]})`,
-                      boxShadow: isSelected
-                        ? `0 0 24px ${mood.glow}, 0 4px 12px rgba(0,0,0,0.3)`
-                        : "0 2px 8px rgba(0,0,0,0.2)",
-                    }}
-                  >
-                    <span className={cn("text-xl", isSelected && "text-2xl")}>
-                      {mood.emoji}
-                    </span>
-                  </div>
-
-                  {/* Label (shown when selected or no selection) */}
-                  <AnimatePresence>
-                    {(isSelected || !hasSelection) && (
-                      <motion.span
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: isSelected ? 1 : 0.5, y: 0 }}
-                        exit={{ opacity: 0, y: 4 }}
-                        className={cn(
-                          "text-[10px] font-medium",
-                          isSelected ? "text-foreground/80" : "text-foreground/40"
-                        )}
-                      >
-                        {mood.label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Activity tags (step 2) */}
-        <AnimatePresence>
-          {step === "tags" && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="space-y-3 overflow-hidden"
-            >
-              <div className="flex flex-wrap justify-center gap-2">
-                {ACTIVITY_TAGS.map((tag, i) => {
-                  const isActive = selectedTags.includes(tag.label);
-                  return (
-                    <motion.button
-                      key={tag.label}
-                      onClick={() => toggleTag(tag.label)}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      whileTap={{ scale: 0.92 }}
-                      transition={{ delay: i * 0.04, ...springs.snappy }}
-                      className={cn(
-                        "px-3 py-1.5 rounded-full text-xs font-medium",
-                        "border transition-all duration-200",
-                        isActive
-                          ? "border-primary/40 bg-primary/15 text-primary"
-                          : "border-foreground/8 bg-foreground/[0.03] text-foreground/50 hover:bg-foreground/[0.06]"
-                      )}
+                      transition={springs.snappy}
+                      style={{ transform: "translate(-50%, -50%)" }}
                     >
-                      <span className="mr-1">{tag.emoji}</span>
-                      {tag.label}
-                    </motion.button>
-                  );
-                })}
+                      {/* Outer glow */}
+                      <motion.div
+                        className="absolute -inset-6 rounded-full"
+                        animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.1, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        style={{ background: `radial-gradient(circle, ${qColors?.accent ?? "#fff"}60, transparent 70%)` }}
+                      />
+                      {/* Dot */}
+                      <motion.div
+                        className="w-6 h-6 rounded-full border-2 border-white relative"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={springs.bouncy}
+                        style={{
+                          background: qColors?.accent ?? "#fff",
+                          boxShadow: `0 0 16px ${qColors?.accent ?? "#fff"}80, 0 0 32px ${qColors?.accent ?? "#fff"}40`,
+                        }}
+                      />
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Pleasant label (right) */}
+                <span className="text-[10px] font-medium"
+                  style={{ color: "rgba(255,255,255,0.3)", writingMode: "vertical-rl" }}>
+                  PLEASANT
+                </span>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Note input (step 3) */}
-        <AnimatePresence>
-          {step === "note" && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <textarea
-                value={note}
-                onChange={e => setNote(e.target.value)}
-                placeholder="How's your day going?"
-                rows={2}
-                className={cn(
-                  "w-full rounded-xl px-4 py-3 text-sm resize-none",
-                  "bg-foreground/[0.03] border border-foreground/8",
-                  "text-foreground placeholder:text-foreground/30",
-                  "focus:outline-none focus:border-primary/30 focus:bg-foreground/[0.05]",
-                  "transition-all duration-200"
-                )}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+              {/* Low energy label (bottom) */}
+              <span className="text-[10px] font-medium mt-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                LOW ENERGY
+              </span>
+            </div>
 
-        {/* Action buttons */}
-        {!compact && step !== "done" && selected && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex justify-center gap-3"
-          >
-            {step !== "mood" && (
-              <motion.button
-                onClick={handleSkip}
-                whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 rounded-xl text-xs font-medium text-foreground/40 hover:text-foreground/60 transition-colors"
+            {/* Quadrant label + Continue */}
+            {quadrant && qColors && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col items-center gap-3"
               >
-                Skip
-              </motion.button>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ background: qColors.accent, boxShadow: `0 0 8px ${qColors.accent}80` }} />
+                  <span className="text-sm font-medium" style={{ color: qColors.accent }}>{qColors.label}</span>
+                </div>
+                <motion.button
+                  onClick={() => setStep("word")}
+                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={springs.snappy}
+                  className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
+                  style={{
+                    background: `linear-gradient(135deg, ${qColors.bg}, ${qColors.accent})`,
+                    boxShadow: `0 4px 20px ${qColors.bg}60`,
+                  }}
+                >
+                  Continue
+                </motion.button>
+              </motion.div>
             )}
-            <motion.button
-              onClick={handleContinue}
-              whileTap={{ scale: 0.95 }}
-              whileHover={{ scale: 1.02 }}
-              transition={springs.snappy}
-              className={cn(
-                "px-6 py-2 rounded-xl text-xs font-semibold text-white",
-                "transition-all duration-200",
-              )}
-              style={{
-                background: selectedMood
-                  ? `linear-gradient(135deg, ${selectedMood.gradient[0]}, ${selectedMood.gradient[1]})`
-                  : "linear-gradient(135deg, #7C3AED, #6366F1)",
-                boxShadow: selectedMood
-                  ? `0 4px 16px ${selectedMood.glow}`
-                  : "0 4px 16px rgba(124, 58, 237, 0.3)",
-              }}
-            >
-              {step === "mood" ? "Continue" : step === "tags" ? "Next" : "Save"}
-            </motion.button>
           </motion.div>
         )}
-      </div>
-    </motion.div>
+
+        {/* ── Step: Word Selection ── */}
+        {step === "word" && quadrant && (
+          <motion.div
+            key="word"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-4 relative z-10"
+          >
+            <div className="text-center space-y-1">
+              <p className="text-lg font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>
+                What best describes it?
+              </p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                Pick the closest word
+              </p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2.5">
+              {QUADRANT_EMOTIONS[quadrant]?.words.map((word, i) => {
+                const isSelected = selectedWord === word;
+                const colors = QUADRANT_COLORS[quadrant as keyof typeof QUADRANT_COLORS];
+                return (
+                  <motion.button
+                    key={word}
+                    onClick={() => handleWordSelect(word)}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={{ delay: i * 0.04, ...springs.snappy }}
+                    className={cn(
+                      "px-4 py-2 rounded-full text-sm font-medium",
+                      "border transition-all duration-200",
+                    )}
+                    style={{
+                      background: isSelected ? `${colors.accent}25` : "rgba(255,255,255,0.04)",
+                      borderColor: isSelected ? `${colors.accent}50` : "rgba(255,255,255,0.08)",
+                      color: isSelected ? colors.accent : "rgba(255,255,255,0.6)",
+                      boxShadow: isSelected ? `0 0 16px ${colors.accent}30` : "none",
+                    }}
+                  >
+                    {word}
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            {/* Back button */}
+            <div className="flex justify-center">
+              <button
+                onClick={() => { setStep("grid"); setSelectedWord(null); }}
+                className="text-xs font-medium px-3 py-1.5"
+                style={{ color: "rgba(255,255,255,0.3)" }}
+              >
+                Back to grid
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Step: Tags ── */}
+        {step === "tags" && quadrant && (
+          <motion.div
+            key="tags"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-4 relative z-10"
+          >
+            <div className="text-center space-y-1">
+              <p className="text-lg font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>
+                What's going on?
+              </p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Optional — tap what applies</p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2">
+              {ACTIVITY_TAGS.map((tag, i) => {
+                const isActive = selectedTags.includes(tag.label);
+                const colors = QUADRANT_COLORS[quadrant as keyof typeof QUADRANT_COLORS];
+                return (
+                  <motion.button
+                    key={tag.label}
+                    onClick={() => toggleTag(tag.label)}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileTap={{ scale: 0.92 }}
+                    transition={{ delay: i * 0.03, ...springs.snappy }}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200"
+                    style={{
+                      background: isActive ? `${colors.accent}18` : "rgba(255,255,255,0.03)",
+                      borderColor: isActive ? `${colors.accent}40` : "rgba(255,255,255,0.06)",
+                      color: isActive ? colors.accent : "rgba(255,255,255,0.45)",
+                    }}
+                  >
+                    <span className="mr-1">{tag.emoji}</span>{tag.label}
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            {/* Note input */}
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="Anything else on your mind?"
+              rows={2}
+              className="w-full rounded-xl px-4 py-3 text-sm resize-none transition-all duration-200"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                color: "rgba(255,255,255,0.85)",
+                outline: "none",
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}
+            />
+
+            {/* Actions */}
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setStep("word")}
+                className="px-4 py-2 rounded-xl text-xs font-medium"
+                style={{ color: "rgba(255,255,255,0.35)" }}
+              >
+                Back
+              </button>
+              <motion.button
+                onClick={() => finishSelection()}
+                whileTap={{ scale: 0.95 }}
+                transition={springs.snappy}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${qColors?.bg}, ${qColors?.accent})`,
+                  boxShadow: `0 4px 20px ${qColors?.bg}60`,
+                }}
+              >
+                Save
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Step: Done ── */}
+        {step === "done" && quadrant && (
+          <motion.div
+            key="done"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center space-y-3 relative z-10 py-4"
+          >
+            <motion.div
+              className="text-4xl"
+              animate={{ scale: [1, 1.3, 1], rotate: [0, 10, -10, 0] }}
+              transition={{ duration: 0.6 }}
+            >
+              {QUADRANT_EMOTIONS[quadrant]?.emoji}
+            </motion.div>
+            <div>
+              <p className="text-base font-semibold" style={{ color: qColors?.accent }}>
+                {selectedWord}
+              </p>
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Logged — take care of yourself
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

@@ -1536,17 +1536,16 @@ export default function Today() {
             <MoodPicker
               userName={undefined}
               onMoodSelect={(result) => {
-                // Map mood level to valence for the existing system
-                const valenceMap: Record<number, number> = { 1: -0.8, 2: -0.4, 3: 0, 4: 0.4, 5: 0.8 };
-                const stressMap: Record<number, number> = { 1: 0.8, 2: 0.6, 3: 0.4, 4: 0.2, 5: 0.1 };
-                const valence = valenceMap[result.moodLevel] ?? 0;
-                const stressVal = stressMap[result.moodLevel] ?? 0.4;
+                // Map 2D grid position to valence/arousal/stress
+                const valence = (result.pleasantness - 0.5) * 2; // -1 to 1
+                const arousal = result.energy; // 0 to 1
+                const stressVal = result.pleasantness < 0.5 ? 0.3 + (1 - result.pleasantness) * 0.5 : Math.max(0, 0.3 - result.pleasantness * 0.3);
 
                 // Save to same storage as existing feeling system
                 const emotionResult = {
-                  emotion: result.moodLabel.toLowerCase(),
+                  emotion: result.emotionWord.toLowerCase(),
                   valence,
-                  arousal: 0.5,
+                  arousal,
                   stress: stressVal,
                   focus: 0.5,
                   confidence: 0.9,
@@ -1561,21 +1560,19 @@ export default function Today() {
                   window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
                 } catch {}
 
-                // Also sync to ML backend if tags/note exist
-                if (result.tags.length > 0 || result.note) {
-                  const noteText = [
-                    result.moodLabel,
-                    ...result.tags,
-                    result.note,
-                  ].filter(Boolean).join(" — ");
+                // Sync to ML backend
+                const noteText = [
+                  result.emotionWord,
+                  `(${result.quadrant})`,
+                  ...result.tags,
+                  result.note,
+                ].filter(Boolean).join(" — ");
 
-                  syncMoodLogToML({
-                    user_id: userId,
-                    mood_score: result.moodLevel * 2,
-                    energy_level: result.moodLevel >= 4 ? 8 : result.moodLevel >= 2 ? 5 : 3,
-                    notes: noteText,
-                  });
-                }
+                syncMoodLogToML({
+                  moodScore: Math.round(result.pleasantness * 10),
+                  energyLevel: Math.round(result.energy * 10),
+                  notes: noteText,
+                }).catch(() => {});
               }}
             />
           </motion.div>
