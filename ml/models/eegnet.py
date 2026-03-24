@@ -60,6 +60,75 @@ import torch.nn.functional as F
 log = logging.getLogger(__name__)
 
 
+# ── Test-Time Augmentation (TTA) ─────────────────────────────────────────────
+
+def _tta_augment_eeg(
+    eeg: np.ndarray,
+    n_augmentations: int = 5,
+    rng_seed: Optional[int] = None,
+) -> list[np.ndarray]:
+    """Create augmented copies of an EEG epoch for test-time augmentation.
+
+    Three augmentation types are applied in rotation:
+    1. **Additive Gaussian noise** — small noise scaled to 5% of channel RMS.
+       Simulates electrode impedance fluctuations and thermal noise.
+    2. **Time shift** — circular shift of 1-10 samples (~4-40 ms at 256 Hz).
+       Simulates Bluetooth jitter and epoch boundary misalignment.
+    3. **Amplitude scaling** — per-channel gain between 0.9x and 1.1x.
+       Simulates headset fit variation and impedance drift.
+
+    All augmentations are small enough that the perceptual content of the EEG is
+    preserved, but diverse enough that averaging predictions across them reduces
+    variance from noise/jitter. Literature shows 1-3% accuracy improvement on
+    EEG classification with no retraining required.
+
+    Parameters
+    ----------
+    eeg : ndarray, shape (n_channels, n_samples) or (n_samples,)
+        Raw EEG epoch.
+    n_augmentations : int
+        Number of augmented copies to create.
+    rng_seed : int or None
+        Seed for reproducibility. None = non-deterministic.
+
+    Returns
+    -------
+    list of ndarray
+        Each element has the same shape as ``eeg``.
+    """
+    rng = np.random.default_rng(rng_seed)
+    augmented: list[np.ndarray] = []
+
+    for i in range(n_augmentations):
+        aug_type = i % 3  # cycle through the 3 augmentation types
+
+        if aug_type == 0:
+            # Additive Gaussian noise (5% of per-channel RMS)
+            if eeg.ndim == 2:
+                ch_rms = np.sqrt(np.mean(eeg ** 2, axis=1, keepdims=True))
+            else:
+                ch_rms = np.sqrt(np.mean(eeg ** 2))
+            noise = rng.standard_normal(eeg.shape) * ch_rms * 0.05
+            augmented.append(eeg + noise)
+
+        elif aug_type == 1:
+            # Circular time shift (1-10 samples)
+            shift = rng.integers(1, 11)
+            if rng.random() < 0.5:
+                shift = -shift
+            augmented.append(np.roll(eeg, shift, axis=-1))
+
+        else:
+            # Per-channel amplitude scaling (0.9x to 1.1x)
+            if eeg.ndim == 2:
+                scales = rng.uniform(0.9, 1.1, size=(eeg.shape[0], 1))
+            else:
+                scales = rng.uniform(0.9, 1.1)
+            augmented.append(eeg * scales)
+
+    return augmented
+
+
 # ── Architecture helpers ───────────────────────────────────────────────────
 
 class _DepthwiseSeparableConv(nn.Module):
