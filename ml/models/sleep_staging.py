@@ -11,7 +11,10 @@ Architecture: Compact CNN (EEGNet variant) optimized for ONNX export.
 Supports three inference paths: ONNX > sklearn > feature-based fallback.
 """
 
+from __future__ import annotations
+
 import numpy as np
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from processing.eeg_processor import extract_features, extract_band_powers, preprocess, detect_sleep_spindles, detect_k_complexes
 
@@ -397,3 +400,115 @@ def compute_so_spindle_coupling(
 
     except Exception:
         return 0.0
+
+
+# -- Sleep onset detection (#sleep-onset) ------------------------------------
+
+# Minimum consecutive non-Wake epochs to confirm true sleep onset.
+# Prevents false positives from brief N1 microsleep blips that revert to Wake.
+# 3 epochs * 30s = 90 seconds sustained sleep = standard clinical criterion.
+_SUSTAINED_SLEEP_EPOCHS = 3
+
+
+def detect_sleep_onset(
+    epochs: List[Dict],
+    epoch_duration_s: float = 30.0,
+    recording_start: Optional[datetime] = None,
+) -> Optional[Dict]:
+    """Detect the exact moment of sleep onset from staged epochs.
+
+    Scans staged epochs for the first Wake -> non-Wake transition that is
+    sustained for at least 3 consecutive epochs (90 seconds at 30s/epoch).
+    This matches the AASM standard for sleep onset: the first epoch of
+    sustained sleep, typically the Wake -> N1 boundary.
+
+    "Non-Wake" includes N1, N2, N3, and REM. A transition directly from
+    Wake to N2 (common in sleep-deprived individuals) also counts.
+
+    Args:
+        epochs: List of epoch dicts, each with at least:
+            - "stage": str ("Wake", "N1", "N2", "N3", "REM")
+            - "stage_index": int (0=Wake, 1=N1, 2=N2, 3=N3, 4=REM)
+            - "confidence": float (0-1)
+        epoch_duration_s: Duration of each epoch in seconds (default 30).
+        recording_start: Optional datetime of recording start. When provided,
+            the result includes an ISO-format onset_time string.
+
+    Returns:
+        None if no sleep onset detected (all Wake, or non-Wake never sustained).
+        Otherwise a dict:
+            onset_epoch: int -- index of the first sustained non-Wake epoch
+            onset_latency_min: float -- minutes from recording start to onset
+            onset_time: str (ISO format) -- only present if recording_start given
+            confidence: float -- mean confidence of the sustained sleep epochs
+            transition: str -- e.g. "Wake -> N1"
+    """
+    if not epochs:
+        return None
+
+    n = len(epochs)
+
+    # Special case: entire recording is non-Wake (user was already asleep)
+    if all(_is_sleep(e) for e in epochs):
+        first_stages = epochs[:min(_SUSTAINED_SLEEP_EPOCHS, n)]
+        mean_conf = float(np.mean([e.get("confidence", 0.5) for e in first_stages]))
+        result: Dict = {
+            "onset_epoch": 0,
+            "onset_latency_min": 0.0,
+            "confidence": round(mean_conf, 3),
+            "transition": f"(recording start) -> {epochs[0]['stage']}",
+        }
+        if recording_start is not None:
+            result["onset_time"] = recording_start.isoformat()
+        return result
+
+    # Scan for first sustained non-Wake run after Wake
+    i = 0
+    while i < n:
+        # Skip Wake epochs
+        if not _is_sleep(epochs[i]):
+            i += 1
+            continue
+
+        # Found a non-Wake epoch -- check if sustained
+        run_start = i
+        run_len = 0
+        while i < n and _is_sleep(epochs[i]):
+            run_len += 1
+            i += 1
+
+        if run_len >= _SUSTAINED_SLEEP_EPOCHS:
+            # This is the onset
+            onset_idx = run_start
+            sustained = epochs[run_start : run_start + _SUSTAINED_SLEEP_EPOCHS]
+            mean_conf = float(np.mean([e.get("confidence", 0.5) for e in sustained]))
+            latency_min = round(onset_idx * epoch_duration_s / 60.0, 1)
+
+            # Determine transition label
+            if onset_idx > 0:
+                prev_stage = epochs[onset_idx - 1]["stage"]
+            else:
+                prev_stage = "(recording start)"
+            curr_stage = epochs[onset_idx]["stage"]
+
+            result = {
+                "onset_epoch": onset_idx,
+                "onset_latency_min": latency_min,
+                "confidence": round(mean_conf, 3),
+                "transition": f"{prev_stage} -> {curr_stage}",
+            }
+
+            if recording_start is not None:
+                onset_dt = recording_start + timedelta(seconds=onset_idx * epoch_duration_s)
+                result["onset_time"] = onset_dt.isoformat()
+
+            return result
+
+    # No sustained sleep found
+    return None
+
+
+def _is_sleep(epoch: Dict) -> bool:
+    """Return True if this epoch is a non-Wake sleep stage."""
+    stage = epoch.get("stage", "Wake")
+    return stage != "Wake" and stage != "W"

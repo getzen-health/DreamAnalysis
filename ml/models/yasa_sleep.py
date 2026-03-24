@@ -112,11 +112,30 @@ def stage_with_yasa(
         hypno_int = hypnogram.as_int().values
         stats = yasa.sleep_statistics(hypno_int, sf_hyp=1 / 30)
 
+        # Detect sleep onset from staged epochs
+        stage_label_map = {"W": "Wake", "WAKE": "Wake", "N1": "N1", "N2": "N2",
+                           "N3": "N3", "R": "REM", "REM": "REM"}
+        stage_idx_map = {"Wake": 0, "N1": 1, "N2": 2, "N3": 3, "REM": 4}
+        epoch_dicts = []
+        for s_label, prob_row in zip(stages, probabilities):
+            normalized = stage_label_map.get(s_label, s_label)
+            s_idx = stage_idx_map.get(normalized, 0)
+            conf = prob_row.get(s_label, 0.5) if prob_row else 0.5
+            epoch_dicts.append({
+                "stage": normalized,
+                "stage_index": s_idx,
+                "confidence": conf,
+            })
+
+        from models.sleep_staging import detect_sleep_onset
+        sleep_onset = detect_sleep_onset(epoch_dicts, epoch_duration_s=30.0)
+
         return {
             "stages": stages,
             "probabilities": probabilities,
             "summary": stats,
             "model_type": "yasa",
+            "sleep_onset": sleep_onset,
         }
 
     except Exception as exc:

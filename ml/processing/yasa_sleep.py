@@ -343,6 +343,20 @@ def _staging_yasa(
             prob_dict[stage_map[stage_idx]] = round(float(row[col]), 4)
         probabilities.append(prob_dict)
 
+    # Build epoch dicts for sleep onset detection
+    epoch_dicts = []
+    for idx, (stage_label, prob_dict) in enumerate(zip(stages, probabilities)):
+        stage_idx = {"Wake": 0, "N1": 1, "N2": 2, "N3": 3, "REM": 4}.get(stage_label, 0)
+        conf = prob_dict.get(stage_label, 0.5) if prob_dict else 0.5
+        epoch_dicts.append({
+            "stage": stage_label,
+            "stage_index": stage_idx,
+            "confidence": conf,
+        })
+
+    from models.sleep_staging import detect_sleep_onset
+    sleep_onset = detect_sleep_onset(epoch_dicts, epoch_duration_s=epoch_length_s)
+
     return {
         "stages": stages,
         "probabilities": probabilities,
@@ -351,6 +365,7 @@ def _staging_yasa(
         "method": "yasa",
         "spindle_summary": detect_spindles(eeg, fs),
         "so_summary": detect_slow_oscillations(eeg, fs),
+        "sleep_onset": sleep_onset,
     }
 
 
@@ -380,6 +395,19 @@ def _staging_fallback(
         probabilities.append(result.get("probabilities", {}))
         hypnogram.append(result.get("stage_index", 0))
 
+    # Build epoch dicts for sleep onset detection
+    epoch_dicts = []
+    for stage_label, prob_dict, stage_idx in zip(stages, probabilities, hypnogram):
+        conf = prob_dict.get(stage_label, 0.5) if prob_dict else 0.5
+        epoch_dicts.append({
+            "stage": stage_label,
+            "stage_index": stage_idx,
+            "confidence": conf,
+        })
+
+    from models.sleep_staging import detect_sleep_onset
+    sleep_onset = detect_sleep_onset(epoch_dicts, epoch_duration_s=epoch_length_s)
+
     return {
         "stages": stages,
         "probabilities": probabilities,
@@ -388,4 +416,5 @@ def _staging_fallback(
         "method": "fallback",
         "spindle_summary": detect_spindles(eeg, fs),
         "so_summary": detect_slow_oscillations(eeg, fs),
+        "sleep_onset": sleep_onset,
     }

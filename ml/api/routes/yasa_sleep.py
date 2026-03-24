@@ -110,6 +110,65 @@ async def detect_slow_waves_yasa_endpoint(data: SleepEEGRequest):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+class SleepOnsetRequest(BaseModel):
+    """Request body for sleep onset detection from pre-staged epochs."""
+
+    stages: List[str] = Field(
+        ..., description="List of sleep stage labels per epoch (Wake, N1, N2, N3, REM)"
+    )
+    confidences: Optional[List[float]] = Field(
+        None, description="Per-epoch confidence scores (0-1). Defaults to 0.5 if absent."
+    )
+    epoch_duration_s: float = Field(
+        30.0, ge=1.0, le=300.0, description="Duration of each epoch in seconds"
+    )
+    recording_start_iso: Optional[str] = Field(
+        None, description="ISO-format datetime of recording start (e.g. 2026-03-23T23:00:00+00:00)"
+    )
+
+
+@router.post("/sleep/onset")
+async def detect_sleep_onset_endpoint(data: SleepOnsetRequest):
+    """Detect the exact moment of sleep onset from staged epoch labels.
+
+    Returns the first sustained Wake -> sleep transition (3+ consecutive
+    non-Wake epochs = 90 seconds at 30s/epoch). Useful for "You fell asleep
+    at 11:23 PM" features.
+
+    If no sleep onset is found (all Wake, or non-Wake never sustained),
+    returns {sleep_onset: null}.
+    """
+    try:
+        from models.sleep_staging import detect_sleep_onset
+        from datetime import datetime
+
+        stage_idx_map = {"Wake": 0, "W": 0, "N1": 1, "N2": 2, "N3": 3, "REM": 4, "R": 4}
+        confs = data.confidences or [0.5] * len(data.stages)
+
+        epochs = []
+        for stage, conf in zip(data.stages, confs):
+            epochs.append({
+                "stage": stage if stage not in ("W", "R") else {"W": "Wake", "R": "REM"}.get(stage, stage),
+                "stage_index": stage_idx_map.get(stage, 0),
+                "confidence": conf,
+            })
+
+        recording_start = None
+        if data.recording_start_iso:
+            recording_start = datetime.fromisoformat(data.recording_start_iso)
+
+        result = detect_sleep_onset(
+            epochs,
+            epoch_duration_s=data.epoch_duration_s,
+            recording_start=recording_start,
+        )
+
+        return _numpy_safe({"sleep_onset": result})
+    except Exception as exc:
+        log.exception("Sleep onset detection endpoint error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.get("/sleep/yasa-status")
 async def yasa_status():
     """Check if YASA is available and return version info."""
@@ -118,7 +177,7 @@ async def yasa_status():
         return {
             "available": True,
             "version": yasa.__version__,
-            "features": ["sleep_staging", "spindle_detection", "slow_wave_detection"],
+            "features": ["sleep_staging", "spindle_detection", "slow_wave_detection", "sleep_onset_detection"],
         }
     except ImportError:
         return {
