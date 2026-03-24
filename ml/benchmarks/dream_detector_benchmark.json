@@ -1,31 +1,33 @@
 {
   "model_name": "dream_detector",
-  "dataset": "enhanced_synthetic",
+  "dataset": "simulated",
   "training_data": "synthetic",
-  "features": "standard_band_powers + eye_movement",
-  "cross_subject_accuracy": 1.0,
-  "cross_subject_accuracy_std": 0.0,
-  "cross_subject_f1_macro": 1.0,
-  "cross_subject_f1_macro_std": 0.0,
-  "accuracy": 1.0,
-  "f1_macro": 1.0,
+  "within_subject_accuracy": 0.5,
+  "within_subject_f1_macro": 0.3333333333333333,
+  "accuracy": 0.5,
+  "f1_macro": 0.3333333333333333,
   "per_class": {
     "not_dreaming": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1": 1.0,
-      "support": 300
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 60.0
     },
     "dreaming": {
-      "precision": 1.0,
+      "precision": 0.5,
       "recall": 1.0,
-      "f1": 1.0,
-      "support": 300
+      "f1": 0.6666666666666666,
+      "support": 60.0
     }
   },
   "confusion_matrix": [
-    [300, 0],
-    [0, 300]
-  ],
-  "channel_note": "Sleep-EDF provides 2 EEG channels (Fpz-Cz, Pz-Oz). Training uses Fpz-Cz only. Muse 2 has 4 channels (TP9, AF7, AF8, TP10) at different positions -- expect a domain gap when deploying on Muse hardware. NOTE: 100% accuracy is on enhanced synthetic data where REM and non-REM are well-separated by design. Expected real-world cross-subject accuracy: 82-88%."
+    [
+      0,
+      60
+    ],
+    [
+      0,
+      60
+    ]
+  ]
 }
