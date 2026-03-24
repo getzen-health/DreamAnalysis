@@ -1,27 +1,39 @@
 """
-Cross-Dataset LGBM Trainer
-===========================
+Cross-Dataset LGBM Trainer (v3 — with Euclidean Alignment)
+===========================================================
 Trains a LightGBM emotion classifier on ALL available datasets using the exact
 same 80-feature extraction as live Muse 2 inference — making it the first model
 that is BOTH high-accuracy AND genuinely deployable in real time.
 
+v3 improvement: Euclidean Alignment (EA) per subject
+  Reference: He & Wu (2020), "Transfer Learning for Brain-Computer Interfaces:
+    A Euclidean Space Data Alignment Approach", IEEE Trans. Biomed. Eng.
+  Confirmed: +4.33% cross-subject accuracy (arXiv:2401.10746, 2024).
+  Revisited: recommended across 13 BCI paradigms (arXiv:2502.09203, 2025).
+
+  EA whitens each subject's multi-channel EEG covariance to identity BEFORE
+  feature extraction, removing inter-subject variability from skull thickness,
+  electrode impedance, and brain geometry. This is done per-subject on raw
+  4-channel epochs, making the extracted features more comparable across subjects.
+
 Key design decisions:
-  - 80 raw features: 5 bands × 4 channels × 4 stats (mean, std, median, IQR)
-    — identical to _extract_muse_live_features() in emotion_classifier.py
+  - 80 raw features: 5 bands x 4 channels x 4 stats (mean, std, median, IQR)
+    -- identical to _extract_muse_live_features() in emotion_classifier.py
   - 4-channel subset from each dataset: ch0=left-temporal, ch1=left-frontal,
     ch2=right-frontal, ch3=right-temporal (Muse 2 equivalent)
   - 3-class output: 0=positive, 1=neutral, 2=negative
-    — compatible with existing 3→6 expansion in _predict_lgbm_muse()
+    -- compatible with existing 3->6 expansion in _predict_lgbm_muse()
   - Single global StandardScaler (no per-dataset scaling, no PCA)
-    — reproducible at inference time
-  - Saves to emotion_lgbm_muse_live.pkl (replaces Muse-Subconscious-only model)
-    — loaded automatically by emotion_classifier.py if accuracy ≥ 60%
+    -- reproducible at inference time
+  - Euclidean Alignment applied per-subject on raw epochs before features
+  - Saves to emotion_lgbm_muse_live.pkl (replaces previous model)
+    -- loaded automatically by emotion_classifier.py if accuracy >= 60%
 
 Datasets loaded:
-  1. DEAP       — 32 subjects, 40 trials, 32-ch gel EEG (4-ch frontal/temporal subset)
-  2. EmoKey     — 45 subjects, real Muse S recordings, 4 channels, CSV format
-  3. DREAMER    — 23 subjects, Emotiv EPOC 14-ch (4-ch subset) — if DREAMER.mat present
-  4. GAMEEMO    — 28 subjects, Emotiv EPOC 14-ch, 4 emotions (if available)
+  1. DEAP       -- 32 subjects, 40 trials, 32-ch gel EEG (4-ch frontal/temporal subset)
+  2. EmoKey     -- 45 subjects, real Muse S recordings, 4 channels, CSV format
+  3. DREAMER    -- 23 subjects, Emotiv EPOC 14-ch (4-ch subset) -- if DREAMER.mat present
+  4. GAMEEMO    -- 28 subjects, Emotiv EPOC 14-ch, 4 emotions (if available)
 
 Usage (run from ml/ directory):
     .venv/bin/python -m training.train_cross_dataset_lgbm
@@ -38,6 +50,8 @@ from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_sample_weight
+
+from processing.eeg_processor import euclidean_align
 
 warnings.filterwarnings("ignore")
 
@@ -203,6 +217,34 @@ def epoch_and_extract(eeg_ch: np.ndarray, fs: float,
     return feats
 
 
+def slice_epochs(eeg_ch: np.ndarray, fs: float,
+                 win_s: float = WIN_S, hop_s: float = HOP_S,
+                 ch_map: list | None = None,
+                 artifact_uv: float = ARTIFACT_UV) -> list[np.ndarray]:
+    """Slice a (n_ch, n_samples) signal into overlapping raw epochs.
+
+    Returns list of (4, win_samples) arrays (raw, not feature-extracted).
+    Used as input to Euclidean Alignment before feature extraction.
+    """
+    n_ch, n_samples = eeg_ch.shape
+    win = int(win_s * fs)
+    hop = int(hop_s * fs)
+
+    if ch_map is None:
+        ch_map = list(range(min(4, n_ch)))
+    ch_map = ch_map[:4]
+    while len(ch_map) < 4:
+        ch_map.append(ch_map[-1])
+
+    epochs = []
+    for start in range(0, n_samples - win + 1, hop):
+        segment = eeg_ch[ch_map, start:start + win]  # (4, win)
+        if np.any(np.abs(segment) > artifact_uv):
+            continue
+        epochs.append(segment)
+    return epochs
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Dataset Loaders
 # ──────────────────────────────────────────────────────────────────────────────
@@ -259,28 +301,41 @@ def load_deap(data_dir: str = "data/deap") -> tuple[np.ndarray, np.ndarray]:
     X, y = [], []
     for data, labels in trials_data:
         # data: (40, 40, 8064) — trials × channels × samples @ 128 Hz
+        # ── Euclidean Alignment: collect all raw epochs from this subject ──
+        subj_epochs = []
+        subj_labels = []
         for trial_idx in range(data.shape[0]):
             eeg = data[trial_idx, :32, :]  # first 32 EEG channels
             valence = float(labels[trial_idx, 0])
-            arousal = float(labels[trial_idx, 1])
 
-            # 2-class only from DEAP — neutral labels are too ambiguous here
-            # (near-median samples are not reliably "neutral" in self-report data)
             if valence >= med_V:
                 label = 0  # positive
             else:
                 label = 2  # negative
 
             eeg_sub = eeg[CH_MAP, :]  # (4, 8064)
-            feats = epoch_and_extract(eeg_sub, FS_DEAP)
-            for f_vec in feats:
-                X.append(f_vec)
-                y.append(label)
+            trial_epochs = slice_epochs(eeg_sub, FS_DEAP)
+            for ep in trial_epochs:
+                subj_epochs.append(ep)
+                subj_labels.append(label)
+
+        if not subj_epochs:
+            continue
+
+        # Apply Euclidean Alignment to this subject's epochs
+        epochs_arr = np.array(subj_epochs)  # (n_epochs, 4, win_samples)
+        aligned_epochs, _ = euclidean_align(epochs_arr)
+
+        # Now extract features from aligned epochs
+        for i, ep in enumerate(aligned_epochs):
+            feat = extract_80_features(ep, FS_DEAP)
+            X.append(feat)
+            y.append(subj_labels[i])
 
     if not X:
         return np.array([]), np.array([])
 
-    log(f"  [DEAP] {len(X)} samples from {len(dat_files)} subjects")
+    log(f"  [DEAP] {len(X)} samples from {len(dat_files)} subjects (EA-aligned)")
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
 
 
@@ -315,8 +370,11 @@ def load_emokey(data_dir: str = "data/emokey") -> tuple[np.ndarray, np.ndarray]:
     # Exact column names from EmoKey CSV
     CH_COLS = ["RAW_TP9", "RAW_AF7", "RAW_AF8", "RAW_TP10"]
 
-    X, y = [], []
-    loaded = 0
+    # Group CSVs by subject ID (first part of filename before emotion tag)
+    # Each subject's recordings are EA-aligned together
+    from collections import defaultdict
+
+    subj_files: dict[str, list[tuple[Path, int]]] = defaultdict(list)
     for csv_path in csv_files:
         emotion_key = None
         for emo in EMOTION_MAP:
@@ -325,28 +383,49 @@ def load_emokey(data_dir: str = "data/emokey") -> tuple[np.ndarray, np.ndarray]:
                 break
         if emotion_key is None:
             continue
-
         label = EMOTION_MAP[emotion_key]
-        try:
-            df = pd.read_csv(csv_path)
-            cols = [c for c in CH_COLS if c in df.columns]
-            if len(cols) < 4:
-                continue
-            eeg = df[cols].values.T.astype(np.float32)  # (4, n)
-            if eeg.shape[1] < int(WIN_S * FS_EMOKEY):
-                continue
-            feats = epoch_and_extract(eeg, FS_EMOKEY)
-            for f_vec in feats:
-                X.append(f_vec)
-                y.append(label)
-            loaded += 1
-        except Exception as e:
-            log(f"    [EmoKey] Error on {csv_path.name}: {e}")
+        # Extract subject ID from filename (e.g., "S01_HAPPINESS" -> "S01")
+        parts = csv_path.stem.split("_")
+        subj_id = parts[0] if len(parts) > 1 else csv_path.stem
+        subj_files[subj_id].append((csv_path, label))
+
+    X, y = [], []
+    loaded = 0
+    for subj_id, file_list in subj_files.items():
+        subj_epochs = []
+        subj_labels = []
+        for csv_path, label in file_list:
+            try:
+                df = pd.read_csv(csv_path)
+                cols = [c for c in CH_COLS if c in df.columns]
+                if len(cols) < 4:
+                    continue
+                eeg = df[cols].values.T.astype(np.float32)  # (4, n)
+                if eeg.shape[1] < int(WIN_S * FS_EMOKEY):
+                    continue
+                raw_eps = slice_epochs(eeg, FS_EMOKEY)
+                for ep in raw_eps:
+                    subj_epochs.append(ep)
+                    subj_labels.append(label)
+                loaded += 1
+            except Exception as e:
+                log(f"    [EmoKey] Error on {csv_path.name}: {e}")
+
+        if not subj_epochs:
+            continue
+
+        # Euclidean Alignment per subject
+        epochs_arr = np.array(subj_epochs)
+        aligned_epochs, _ = euclidean_align(epochs_arr)
+        for i, ep in enumerate(aligned_epochs):
+            feat = extract_80_features(ep, FS_EMOKEY)
+            X.append(feat)
+            y.append(subj_labels[i])
 
     if not X:
         return np.array([]), np.array([])
 
-    log(f"  [EmoKey] {len(X)} samples from {loaded} CSV files")
+    log(f"  [EmoKey] {len(X)} samples from {loaded} CSV files (EA-aligned)")
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
 
 
@@ -401,13 +480,20 @@ def load_dreamer(mat_path: str = "../data/DREAMER.mat") -> tuple[np.ndarray, np.
         med_A = float(np.median(all_A))
         log(f"  [DREAMER] Medians — V={med_V:.2f}  A={med_A:.2f}")
 
-        # Second pass: extract features
+        # Second pass: extract features with per-subject Euclidean Alignment
+        from scipy.signal import butter, filtfilt
+        b_filt, a_filt = butter(4, [1.0, 45.0], btype="band", fs=FS_DREAMER)
+
         for s in range(n_subjects):
             subj = dreamer["Data"][0, s]
             eeg_stim = subj["EEG"][0, 0]["stimuli"][0, 0]  # (18, 1) cell array of trials
             scores_V = subj["ScoreValence"][0, 0]           # (18, 1)
             scores_A = subj["ScoreArousal"][0, 0]           # (18, 1)
             n_trials = eeg_stim.shape[0]
+
+            # Collect all raw epochs from this subject
+            subj_epochs = []
+            subj_labels = []
 
             for trial in range(n_trials):
                 eeg_raw = eeg_stim[trial, 0]  # (n_samples, 14)
@@ -417,26 +503,31 @@ def load_dreamer(mat_path: str = "../data/DREAMER.mat") -> tuple[np.ndarray, np.
                     continue
 
                 val = float(scores_V[trial, 0])
-                aro = float(scores_A[trial, 0])
 
-                # 2-class only from DREAMER — near-median ratings are ambiguous neutrals
                 if val >= med_V:
                     label = 0  # positive
                 else:
                     label = 2  # negative
 
                 eeg_sub = eeg[CH_MAP, :]
-                # DREAMER data is in raw Emotiv ADC counts (~3000-6000), not µV.
-                # Scale to µV (Emotiv EPOC: 0.51 µV/count) + bandpass 1-45 Hz.
                 eeg_sub = eeg_sub * 0.51  # → µV
-                from scipy.signal import butter, filtfilt
-                b, a = butter(4, [1.0, 45.0], btype="band", fs=FS_DREAMER)
                 for ch_i in range(eeg_sub.shape[0]):
-                    eeg_sub[ch_i] = filtfilt(b, a, eeg_sub[ch_i])
-                feats = epoch_and_extract(eeg_sub, FS_DREAMER, artifact_uv=150.0)
-                for f_vec in feats:
-                    X.append(f_vec)
-                    y.append(label)
+                    eeg_sub[ch_i] = filtfilt(b_filt, a_filt, eeg_sub[ch_i])
+                raw_eps = slice_epochs(eeg_sub, FS_DREAMER, artifact_uv=150.0)
+                for ep in raw_eps:
+                    subj_epochs.append(ep)
+                    subj_labels.append(label)
+
+            if not subj_epochs:
+                continue
+
+            # Euclidean Alignment per subject
+            epochs_arr = np.array(subj_epochs)
+            aligned_epochs, _ = euclidean_align(epochs_arr)
+            for i, ep in enumerate(aligned_epochs):
+                feat = extract_80_features(ep, FS_DREAMER)
+                X.append(feat)
+                y.append(subj_labels[i])
 
     except Exception as e:
         log(f"  [DREAMER] Parsing error: {e}")
@@ -445,7 +536,7 @@ def load_dreamer(mat_path: str = "../data/DREAMER.mat") -> tuple[np.ndarray, np.
     if not X:
         return np.array([]), np.array([])
 
-    log(f"  [DREAMER] {len(X)} samples from {n_subjects} subjects")
+    log(f"  [DREAMER] {len(X)} samples from {n_subjects} subjects (EA-aligned)")
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
 
 
@@ -477,33 +568,56 @@ def load_gameemo(data_dir: str = "../data/gameemo") -> tuple[np.ndarray, np.ndar
     ]
     log(f"  [GAMEEMO] Found {len(csv_files)} preprocessed CSV files")
 
-    X, y = [], []
+    # Group by subject (extract S01, S02, ... from filename)
+    from collections import defaultdict
+    import re
+
+    subj_files: dict[str, list[tuple[Path, int]]] = defaultdict(list)
     for f in csv_files:
-        # Extract game label from filename: S01G2AllChannels → G2
         fname = f.stem
         game_id = next((g for g in GAME_LABEL if g in fname), None)
         if game_id is None:
             continue
         label = GAME_LABEL[game_id]
-        try:
-            df = pd.read_csv(f, usecols=[c for c in CH_COLS])
-            # Drop any non-numeric or all-NaN columns
-            df = df[[c for c in CH_COLS if c in df.columns]].dropna(axis=1, how="all")
-            if df.shape[1] < 14:
-                continue
-            eeg = df.to_numpy(dtype=np.float32).T  # (14, n_samples)
-            eeg_sub = eeg[CH_MAP, :]               # (4, n_samples) — already µV
-            feats = epoch_and_extract(eeg_sub, FS_GAMEEMO)
-            for f_vec in feats:
-                X.append(f_vec)
-                y.append(label)
-        except Exception:
-            pass
+        # Extract subject ID: "S01G2AllChannels" -> "S01"
+        m = re.match(r"(S\d+)", fname)
+        subj_id = m.group(1) if m else fname[:3]
+        subj_files[subj_id].append((f, label))
+
+    X, y = [], []
+    for subj_id, file_list in subj_files.items():
+        subj_epochs = []
+        subj_labels = []
+        for f, label in file_list:
+            try:
+                df = pd.read_csv(f, usecols=[c for c in CH_COLS])
+                df = df[[c for c in CH_COLS if c in df.columns]].dropna(axis=1, how="all")
+                if df.shape[1] < 14:
+                    continue
+                eeg = df.to_numpy(dtype=np.float32).T  # (14, n_samples)
+                eeg_sub = eeg[CH_MAP, :]               # (4, n_samples)
+                raw_eps = slice_epochs(eeg_sub, FS_GAMEEMO)
+                for ep in raw_eps:
+                    subj_epochs.append(ep)
+                    subj_labels.append(label)
+            except Exception:
+                pass
+
+        if not subj_epochs:
+            continue
+
+        # Euclidean Alignment per subject
+        epochs_arr = np.array(subj_epochs)
+        aligned_epochs, _ = euclidean_align(epochs_arr)
+        for i, ep in enumerate(aligned_epochs):
+            feat = extract_80_features(ep, FS_GAMEEMO)
+            X.append(feat)
+            y.append(subj_labels[i])
 
     if not X:
         return np.array([]), np.array([])
 
-    log(f"  [GAMEEMO] {len(X)} samples from {len(csv_files)} files")
+    log(f"  [GAMEEMO] {len(X)} samples from {len(subj_files)} subjects (EA-aligned)")
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
 
 
@@ -694,7 +808,8 @@ def save_model(model, scaler, cv_acc: float, cv_f1: float,
 
 def main():
     log("=" * 70)
-    log("  Cross-Dataset LGBM Trainer — 85-feature live-compatible model (v2)")
+    log("  Cross-Dataset LGBM Trainer — 85-feature live-compatible model (v3)")
+    log("  + Euclidean Alignment per subject (He & Wu, IEEE TBME 2020)")
     log("=" * 70)
     t0 = time.time()
 

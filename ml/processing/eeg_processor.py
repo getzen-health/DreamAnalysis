@@ -1462,3 +1462,191 @@ def extract_spectral_microstate_features(
     """
     from processing.spectral_microstates import extract_microstate_features
     return extract_microstate_features(signals, int(fs), window_ms)
+
+
+# ── Euclidean Alignment (He & Wu, 2018, IEEE TBME) ──────────────────────────
+#
+# Reference: "Transfer Learning for Brain-Computer Interfaces: A Euclidean
+#   Space Data Alignment Approach", He & Wu, IEEE Trans. Biomed. Eng., 2020.
+# Confirmed effective: +4.33% cross-subject accuracy (arXiv:2401.10746, 2024).
+# Revisited and recommended across 13 BCI paradigms (arXiv:2502.09203, 2025).
+#
+# The idea: each subject's EEG has a different covariance structure due to
+# skull thickness, electrode impedance, brain geometry, etc. EA removes this
+# by whitening each subject's trials so the mean covariance becomes identity.
+#
+# Algorithm for each subject:
+#   1. Stack all epochs into (n_epochs, n_channels, n_samples) array
+#   2. Compute mean covariance: R = mean(X_i @ X_i.T / n_samples)
+#   3. Compute R^{-1/2} via eigendecomposition
+#   4. Transform each epoch: X_aligned = R^{-1/2} @ X_i
+#
+# After alignment, covariance of each subject's data ≈ identity,
+# removing inter-subject variability and improving cross-subject classifiers.
+
+
+def _matrix_invsqrt(M: np.ndarray, reg: float = 1e-6) -> np.ndarray:
+    """Compute M^{-1/2} via eigendecomposition.
+
+    Args:
+        M: Symmetric positive semi-definite matrix (n, n).
+        reg: Regularization added to eigenvalues (avoids division by zero).
+
+    Returns:
+        M^{-1/2} of shape (n, n).
+    """
+    eigvals, eigvecs = np.linalg.eigh(M)
+    # Clamp eigenvalues to avoid negative values from numerical noise
+    eigvals = np.maximum(eigvals, reg)
+    inv_sqrt_eigvals = 1.0 / np.sqrt(eigvals)
+    return (eigvecs * inv_sqrt_eigvals[np.newaxis, :]) @ eigvecs.T
+
+
+def euclidean_align(
+    epochs: np.ndarray,
+    ref_matrix: Optional[np.ndarray] = None,
+    reg: float = 1e-6,
+) -> tuple:
+    """Apply Euclidean Alignment to a set of EEG epochs from one subject.
+
+    Whitens the data so the mean covariance becomes approximately identity,
+    removing subject-specific spatial patterns caused by skull thickness,
+    electrode impedance, and brain geometry.
+
+    Args:
+        epochs: Array of shape (n_epochs, n_channels, n_samples).
+                Each epoch is a multi-channel EEG segment.
+        ref_matrix: Optional pre-computed reference covariance matrix R
+                    of shape (n_channels, n_channels). If None, computed
+                    from the provided epochs.
+        reg: Regularization for eigenvalue clamping (default 1e-6).
+
+    Returns:
+        Tuple of (aligned_epochs, ref_matrix):
+            aligned_epochs: Same shape as input, EA-transformed.
+            ref_matrix: The reference covariance used (for reuse at inference).
+
+    Example:
+        # During training — align each subject's data
+        aligned, R = euclidean_align(subject_epochs)
+
+        # During live inference — use pre-computed R from calibration
+        aligned, _ = euclidean_align(live_epochs, ref_matrix=R)
+    """
+    n_epochs, n_ch, n_samples = epochs.shape
+
+    if ref_matrix is None:
+        # Compute mean covariance across all epochs
+        cov_sum = np.zeros((n_ch, n_ch))
+        for i in range(n_epochs):
+            X_i = epochs[i]  # (n_ch, n_samples)
+            cov_sum += X_i @ X_i.T / n_samples
+        ref_matrix = cov_sum / n_epochs
+
+    # Compute whitening matrix R^{-1/2}
+    R_invsqrt = _matrix_invsqrt(ref_matrix, reg=reg)
+
+    # Align each epoch
+    aligned = np.empty_like(epochs)
+    for i in range(n_epochs):
+        aligned[i] = R_invsqrt @ epochs[i]
+
+    return aligned, ref_matrix
+
+
+class EuclideanAligner:
+    """Online Euclidean Alignment for live EEG streaming.
+
+    Accumulates covariance from incoming epochs and applies EA transformation.
+    Requires a minimum number of epochs before alignment activates (before that,
+    returns data unchanged).
+
+    Usage:
+        aligner = EuclideanAligner(n_channels=4, min_epochs=10)
+
+        # During calibration phase (first 30-60 seconds):
+        for epoch in calibration_epochs:
+            aligned = aligner.update_and_align(epoch)  # accumulates cov
+
+        # During live session:
+        for epoch in live_epochs:
+            aligned = aligner.align(epoch)  # uses frozen reference
+    """
+
+    def __init__(self, n_channels: int = 4, min_epochs: int = 10, reg: float = 1e-6):
+        self.n_ch = n_channels
+        self.min_epochs = min_epochs
+        self.reg = reg
+        self._cov_sum = np.zeros((n_channels, n_channels))
+        self._n_epochs = 0
+        self._R_invsqrt: Optional[np.ndarray] = None
+        self._ref_matrix: Optional[np.ndarray] = None
+
+    @property
+    def is_ready(self) -> bool:
+        """True once enough epochs have been accumulated for alignment."""
+        return self._n_epochs >= self.min_epochs
+
+    @property
+    def n_epochs_seen(self) -> int:
+        return self._n_epochs
+
+    def add_epoch(self, epoch: np.ndarray) -> None:
+        """Add an epoch to the running covariance estimate.
+
+        Args:
+            epoch: Array of shape (n_channels, n_samples).
+        """
+        if epoch.ndim != 2 or epoch.shape[0] != self.n_ch:
+            return
+        n_samples = epoch.shape[1]
+        if n_samples < 2:
+            return
+        self._cov_sum += epoch @ epoch.T / n_samples
+        self._n_epochs += 1
+        # Recompute whitening matrix
+        self._ref_matrix = self._cov_sum / self._n_epochs
+        self._R_invsqrt = _matrix_invsqrt(self._ref_matrix, reg=self.reg)
+
+    def align(self, epoch: np.ndarray) -> np.ndarray:
+        """Apply Euclidean Alignment to a single epoch.
+
+        Args:
+            epoch: Array of shape (n_channels, n_samples).
+
+        Returns:
+            Aligned epoch (same shape). Returns unchanged if not ready.
+        """
+        if self._R_invsqrt is None or not self.is_ready:
+            return epoch
+        return self._R_invsqrt @ epoch
+
+    def update_and_align(self, epoch: np.ndarray) -> np.ndarray:
+        """Add epoch to covariance estimate AND return aligned version.
+
+        Convenience method for the calibration phase where you want to
+        both update the reference and get aligned output.
+        """
+        self.add_epoch(epoch)
+        return self.align(epoch)
+
+    def get_ref_matrix(self) -> Optional[np.ndarray]:
+        """Return the current reference covariance matrix (for serialization)."""
+        return self._ref_matrix
+
+    def set_ref_matrix(self, R: np.ndarray) -> None:
+        """Load a pre-computed reference matrix (e.g., from a previous session).
+
+        Args:
+            R: Covariance matrix of shape (n_channels, n_channels).
+        """
+        self._ref_matrix = R
+        self._R_invsqrt = _matrix_invsqrt(R, reg=self.reg)
+        self._n_epochs = self.min_epochs  # mark as ready
+
+    def reset(self) -> None:
+        """Clear all accumulated state."""
+        self._cov_sum = np.zeros((self.n_ch, self.n_ch))
+        self._n_epochs = 0
+        self._R_invsqrt = None
+        self._ref_matrix = None

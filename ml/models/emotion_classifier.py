@@ -16,6 +16,7 @@ from processing.eeg_processor import (
     extract_band_powers, differential_entropy, extract_features, preprocess,
     compute_frontal_asymmetry, compute_dasm_rasm,
     compute_frontal_midline_theta, compute_coherence,
+    EuclideanAligner,
 )
 from processing.channel_maps import get_channel_map
 from models.emotion_granularity import map_vad_to_granular_emotions
@@ -387,6 +388,12 @@ class EmotionClassifier:
 
         # Device-aware gamma masking — set via set_device_type() on connect/disconnect
         self.device_type: Optional[str] = None
+
+        # Euclidean Alignment (He & Wu, IEEE TBME 2020) — online session alignment.
+        # Accumulates per-session covariance and whitens incoming epochs to remove
+        # subject-specific spatial patterns. Activates after 10 epochs (~20 sec at
+        # 2-sec hop). Provides +4.33% cross-subject accuracy (arXiv:2401.10746).
+        self._euclidean_aligner = EuclideanAligner(n_channels=4, min_epochs=10)
 
         # EEGNet — device-agnostic CNN, highest priority when trained model exists.
         # Works with 4-ch Muse 2, 8-ch OpenBCI Cyton, 16-ch Cyton+Daisy without retraining.
@@ -1189,8 +1196,17 @@ class EmotionClassifier:
                 eeg, fs, artifact_detected=True, device_type=device_type
             )
 
+        # Euclidean Alignment: accumulate covariance + align when ready.
+        # Feeds the aligner with each incoming 4-channel epoch and, once
+        # min_epochs (10) are accumulated, whitens the epoch to remove
+        # subject-specific covariance structure before feature extraction.
+        if eeg.ndim == 2 and eeg.shape[0] == 4:
+            eeg_for_features = self._euclidean_aligner.update_and_align(eeg)
+        else:
+            eeg_for_features = eeg
+
         # Feature extraction + running normalization + scale
-        feat = self._extract_muse_live_features(eeg, fs)
+        feat = self._extract_muse_live_features(eeg_for_features, fs)
         # Zero gamma features for consumer dry-electrode devices (gamma = EMG)
         if self._is_consumer_device:
             feat[_GAMMA_FEAT_IDX] = 0.0
