@@ -54,6 +54,21 @@ async def get_model_reliability(user_id: Optional[str] = "default"):
     return _get_confidence_cal(user_id).get_all_reliability()
 
 
+@router.get("/confidence/covariate-shift")
+async def get_covariate_shift_status():
+    """Get runtime covariate shift detection status.
+
+    Returns whether the live EEG feature distribution has drifted from the
+    baseline collected at session start. When shift is detected, a confidence
+    penalty is applied and recalibration is recommended.
+
+    Method: per-feature Kolmogorov-Smirnov test with Bonferroni correction.
+    """
+    if emotion_model is None:
+        raise HTTPException(status_code=503, detail="Emotion model not loaded")
+    return _numpy_safe(emotion_model.get_shift_status())
+
+
 @router.post("/confidence/calibrate")
 async def calibrate_confidence(model_name: str, raw_confidence: float, user_id: str):
     """Calibrate a single confidence score."""

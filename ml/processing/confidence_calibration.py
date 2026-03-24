@@ -76,14 +76,30 @@ class ConfidenceCalibrator:
         self._calibration_dir = CALIBRATION_DIR
         self._load_calibrations()
 
+        # Covariate shift detector — optional, activated when
+        # set_shift_detector() is called with a CovariateShiftDetector.
+        self._shift_detector = None
+
+    def set_shift_detector(self, detector) -> None:
+        """Attach a CovariateShiftDetector for runtime distribution monitoring.
+
+        When attached, calibrate() automatically queries the detector and
+        applies its confidence penalty on top of the normal calibration.
+        """
+        self._shift_detector = detector
+
     def calibrate(self, model_name: str, raw_confidence: float,
-                  raw_probs: Optional[np.ndarray] = None) -> Dict:
+                  raw_probs: Optional[np.ndarray] = None,
+                  shift_penalty: Optional[float] = None) -> Dict:
         """Calibrate a model's confidence score.
 
         Args:
             model_name: Name of the model (e.g., "sleep_staging", "emotion").
             raw_confidence: Raw confidence score from model (0-1).
             raw_probs: Optional full probability distribution.
+            shift_penalty: Optional explicit penalty from covariate shift
+                detection (0.5-1.0). If None and a shift detector is attached,
+                the detector is queried automatically.
 
         Returns:
             Dict with calibrated_confidence, is_uncertain, and details.
@@ -118,9 +134,30 @@ class ConfidenceCalibrator:
                 raw_probs, prior["compression"]
             )
 
+        # Apply covariate shift penalty — reduces confidence when the input
+        # distribution has drifted from baseline/training.
+        shift_info = None
+        if shift_penalty is None and self._shift_detector is not None:
+            shift_result = self._shift_detector.detect()
+            shift_penalty = shift_result.get("confidence_penalty", 1.0)
+            if shift_result.get("shift_detected"):
+                shift_info = {
+                    "shift_detected": True,
+                    "fraction_shifted": shift_result["fraction_shifted"],
+                    "mean_ks_statistic": shift_result["mean_ks_statistic"],
+                    "recommendation": shift_result.get("recommendation"),
+                }
+
+        if shift_penalty is not None and shift_penalty < 1.0:
+            calibrated *= shift_penalty
+            if calibrated_probs is not None:
+                # Flatten the distribution toward uniform when shift detected
+                uniform = np.ones_like(calibrated_probs) / len(calibrated_probs)
+                calibrated_probs = shift_penalty * calibrated_probs + (1 - shift_penalty) * uniform
+
         is_uncertain = calibrated < prior["uncertain_threshold"]
 
-        return {
+        result = {
             "calibrated_confidence": round(calibrated, 3),
             "raw_confidence": round(raw_confidence, 3),
             "is_uncertain": is_uncertain,
@@ -133,6 +170,11 @@ class ConfidenceCalibrator:
                 if calibrated_probs is not None else None
             ),
         }
+
+        if shift_info:
+            result["covariate_shift"] = shift_info
+
+        return result
 
     def calibrate_prediction(self, model_name: str, prediction: Dict) -> Dict:
         """Calibrate a full prediction dict in-place.
@@ -362,7 +404,7 @@ class ConfidenceCalibrator:
             method = "conservative_heuristic"
             note = "Using conservative estimates — confidence scores may be pessimistic"
 
-        return {
+        result = {
             "model": model_name,
             "expected_accuracy": prior.get("expected_accuracy", 0.5),
             "is_calibrated": has_platt or has_temperature,
@@ -374,6 +416,17 @@ class ConfidenceCalibrator:
             ),
             "note": note,
         }
+
+        # Include covariate shift status if detector is attached
+        if self._shift_detector is not None:
+            shift_status = self._shift_detector.get_status()
+            if self._shift_detector.is_ready:
+                shift_result = self._shift_detector.detect()
+                shift_status["shift_detected"] = shift_result["shift_detected"]
+                shift_status["confidence_penalty"] = shift_result["confidence_penalty"]
+            result["covariate_shift"] = shift_status
+
+        return result
 
     def get_all_reliability(self) -> Dict:
         """Get reliability for all models."""

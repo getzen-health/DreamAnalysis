@@ -18,6 +18,7 @@ from processing.eeg_processor import (
     compute_frontal_midline_theta, compute_coherence,
     EuclideanAligner,
 )
+from processing.covariate_shift_detector import CovariateShiftDetector
 from processing.channel_maps import get_channel_map
 from models.emotion_granularity import map_vad_to_granular_emotions
 
@@ -381,6 +382,22 @@ class EmotionClassifier:
 
         # Prediction stability — cosine similarity tracker for confidence penalty
         self._stability_tracker = PredictionStabilityTracker()
+
+        # Covariate shift detector — monitors whether live EEG feature
+        # distributions have drifted from the baseline/training distribution.
+        # Feeds 85-dim feature vectors from _extract_muse_live_features().
+        # During baseline calibration, features go to add_reference().
+        # During live inference, features go to add_live().
+        # When shift is detected, confidence is penalized in the output.
+        self._shift_detector = CovariateShiftDetector(
+            n_features=85,
+            reference_window=60,    # ~2 min at 2-sec hops
+            live_window=15,         # ~30 sec at 2-sec hops
+            alpha=0.05,
+            min_reference=30,       # ~1 min before activation
+            min_live=10,            # ~20 sec of live data
+        )
+        self._shift_baseline_complete = False
 
         # SHAP explainers — lazily initialised on first use (one per LGBM model)
         self._shap_explainer_mega: Optional[object] = None
@@ -1210,6 +1227,10 @@ class EmotionClassifier:
         # Zero gamma features for consumer dry-electrode devices (gamma = EMG)
         if self._is_consumer_device:
             feat[_GAMMA_FEAT_IDX] = 0.0
+
+        # Feed features to covariate shift detector
+        self._feed_shift_detector(feat)
+
         # Apply running normalization for session drift correction
         rn = _get_running_normalizer()
         if rn is not None and device_type:
@@ -1446,6 +1467,11 @@ class EmotionClassifier:
         if self._is_consumer_device:
             feat[_GAMMA_FEAT_IDX] = 0.0
 
+        # Feed features to covariate shift detector.
+        # During first ~1 min (before baseline is collected), features build
+        # the reference distribution. After that, features go to the live window.
+        self._feed_shift_detector(feat)
+
         # Apply running normalization for session drift correction
         rn = _get_running_normalizer()
         if rn is not None and user_id:
@@ -1546,6 +1572,37 @@ class EmotionClassifier:
         result = self._predict_core(eeg, fs, device_type, user_id)
         return self._apply_stability_tracking(result)
 
+    def _feed_shift_detector(self, feat: np.ndarray) -> None:
+        """Feed an 85-dim feature vector to the covariate shift detector.
+
+        During the first ~1 min of a session (before baseline is complete),
+        features build the reference distribution. After that, features go
+        to the live sliding window for comparison.
+        """
+        if not self._shift_baseline_complete:
+            self._shift_detector.add_reference(feat)
+            if self._shift_detector.is_ready:
+                self._shift_baseline_complete = True
+        else:
+            self._shift_detector.add_live(feat)
+
+    def get_shift_status(self) -> Dict:
+        """Get current covariate shift detection status.
+
+        Returns dict with shift_detected, confidence_penalty, fraction_shifted,
+        recommendation, and buffer counts.
+        """
+        status = self._shift_detector.get_status()
+        if self._shift_detector.is_ready and self._shift_detector.live_count >= self._shift_detector.min_live:
+            detection = self._shift_detector.detect()
+            status.update(detection)
+        else:
+            status["shift_detected"] = False
+            status["confidence_penalty"] = 1.0
+            status["status"] = "collecting"
+        status["baseline_complete"] = self._shift_baseline_complete
+        return status
+
     def _apply_stability_tracking(self, result: Dict) -> Dict:
         """Feed probability vector to stability tracker and augment result dict.
 
@@ -1571,6 +1628,25 @@ class EmotionClassifier:
 
         result["prediction_stability"] = round(stability, 4)
         result["stability_adjusted_confidence"] = round(adjusted_conf, 4)
+
+        # ── Covariate shift status ────────────────────────────────────────────
+        # When shift is detected, include a warning and penalty in the output
+        # so downstream consumers (dashboard, API) can surface a recalibration
+        # prompt to the user.
+        if self._shift_baseline_complete and self._shift_detector.live_count >= self._shift_detector.min_live:
+            shift_result = self._shift_detector.detect()
+            if shift_result["shift_detected"]:
+                result["covariate_shift"] = {
+                    "shift_detected": True,
+                    "confidence_penalty": shift_result["confidence_penalty"],
+                    "fraction_shifted": shift_result["fraction_shifted"],
+                    "mean_ks_statistic": shift_result["mean_ks_statistic"],
+                    "recommendation": shift_result.get("recommendation"),
+                }
+                # Apply shift penalty to the stability-adjusted confidence
+                result["stability_adjusted_confidence"] = round(
+                    adjusted_conf * shift_result["confidence_penalty"], 4
+                )
 
         # ── Valence trajectory (mood trend) ──────────────────────────────────
         # Append EMA-smoothed valence to history (skip artifact-frozen epochs
