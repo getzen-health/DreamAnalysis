@@ -1268,9 +1268,15 @@ class EmotionClassifier:
         # Works on any channel count (4ch Muse, 8ch OpenBCI, 16ch Cyton+Daisy).
         # Only activates if ml/models/saved/eegnet_emotion_{n_ch}ch.pt exists
         # AND its benchmark accuracy >= 60%.
+        #
+        # ENSEMBLE: When EEGNet is available, run BOTH EEGNet and feature-based
+        # heuristics and average their probability outputs. Diverse classifiers
+        # (CNN on raw waveforms + neuroscience heuristics on band power ratios)
+        # typically beat either alone by 3-7% — a classic ensemble win.
+        # Weights: 0.6 EEGNet (higher CV accuracy) + 0.4 heuristic.
         if (self._eegnet is not None and eeg.ndim == 2
                 and self._eegnet.is_available(eeg.shape[0], min_accuracy=_MIN_MODEL_ACCURACY)):
-            return self._ensure_explanation(self._eegnet.predict(eeg, fs))
+            return self._predict_ensemble_eegnet_heuristic(eeg, fs, device_type)
 
         # Mega cross-dataset LGBM with global PCA — third priority
         if (self.mega_lgbm_model is not None and eeg.ndim == 2 and eeg.shape[0] >= 4
@@ -1444,6 +1450,109 @@ class EmotionClassifier:
             "differential_entropy": de,
             "explanation": [],
         }
+
+    # ────────────────────────────────────────────────────────────────
+    # Ensemble: EEGNet + feature-based heuristics
+    # ────────────────────────────────────────────────────────────────
+
+    # Ensemble weights: EEGNet gets higher weight (higher CV accuracy: 85%)
+    # vs feature-based heuristics (estimated 55-65% real-world accuracy).
+    _ENSEMBLE_W_EEGNET = 0.6
+    _ENSEMBLE_W_HEURISTIC = 0.4
+
+    def _predict_ensemble_eegnet_heuristic(
+        self, eeg: np.ndarray, fs: float, device_type: str = "muse_2"
+    ) -> Dict:
+        """Ensemble of EEGNet CNN + feature-based heuristics.
+
+        Runs both classifiers on the same epoch, averages their 6-class
+        probability vectors (weighted 0.6 EEGNet + 0.4 heuristic), then
+        returns the feature-based result dict (which has all the detailed
+        fields: band_powers, DE, DASM, etc.) with the ensemble-averaged
+        probabilities and emotion label.
+
+        Why this works: EEGNet learns temporal and spatial patterns from
+        raw waveforms. Feature-based heuristics use domain-specific band
+        power ratios (FAA, DASM, ABR). These are fundamentally different
+        representations, so their errors are weakly correlated -- the ideal
+        condition for ensemble gains.
+        """
+        # 1. Get EEGNet prediction (has its own EMA)
+        eegnet_result = self._eegnet.predict(eeg, fs)
+        eegnet_probs_dict = eegnet_result.get("probabilities", {})
+
+        # 2. Get feature-based prediction.
+        # Save and restore _ema_probs to prevent double-EMA: _predict_features
+        # applies its own EMA internally, but we want to apply EMA once on the
+        # ensemble-averaged probabilities, not on the heuristic probs alone.
+        saved_ema_probs = self._ema_probs
+        heuristic_result = self._predict_features(eeg, fs, device_type)
+        self._ema_probs = saved_ema_probs  # restore pre-heuristic state
+        heuristic_probs_dict = heuristic_result.get("probabilities", {})
+
+        # 3. Convert both to aligned numpy arrays (6 classes, same order)
+        eegnet_probs = np.array(
+            [float(eegnet_probs_dict.get(e, 0.0)) for e in EMOTIONS],
+            dtype=float,
+        )
+        heuristic_probs = np.array(
+            [float(heuristic_probs_dict.get(e, 0.0)) for e in EMOTIONS],
+            dtype=float,
+        )
+
+        # 4. Weighted average
+        w_e = self._ENSEMBLE_W_EEGNET
+        w_h = self._ENSEMBLE_W_HEURISTIC
+        ensemble_probs = w_e * eegnet_probs + w_h * heuristic_probs
+
+        # Re-normalize to sum to 1
+        prob_sum = ensemble_probs.sum()
+        if prob_sum > 1e-10:
+            ensemble_probs = ensemble_probs / prob_sum
+
+        # 5. Update _ema_probs with the ensemble probabilities
+        # (overrides what _predict_features set, so EMA tracks the ensemble)
+        if self._ema_probs is None:
+            self._ema_probs = ensemble_probs.copy()
+        else:
+            self._ema_probs = (
+                self._ema_alpha * ensemble_probs
+                + (1 - self._ema_alpha) * self._ema_probs
+            )
+        smoothed = self._ema_probs / (self._ema_probs.sum() + 1e-10)
+        emotion_idx = int(np.argmax(smoothed))
+
+        # 6. Build result from the heuristic base (preserves band_powers, DE, etc.)
+        # but override probabilities, emotion, confidence with ensemble output.
+        result = heuristic_result.copy()
+        result["probabilities"] = {
+            EMOTIONS[i]: round(float(p), 4) for i, p in enumerate(smoothed)
+        }
+
+        _CONFIDENCE_THRESHOLD = 0.25
+        top_conf = float(smoothed[emotion_idx])
+        result["emotion"] = EMOTIONS[emotion_idx] if top_conf >= _CONFIDENCE_THRESHOLD else "neutral"
+        result["emotion_index"] = emotion_idx
+        result["confidence"] = top_conf
+        result["model_type"] = "ensemble-eegnet-heuristic"
+
+        # 7. Blend valence/arousal: weighted average of EEGNet and heuristic
+        # (heuristic values already went through _smooth_index in _predict_features,
+        # EEGNet values are from its own EMA)
+        eegnet_valence = float(eegnet_result.get("valence", 0.0))
+        eegnet_arousal = float(eegnet_result.get("arousal", 0.5))
+        result["valence"] = float(np.clip(
+            w_e * eegnet_valence + w_h * result["valence"], -1, 1
+        ))
+        result["arousal"] = float(np.clip(
+            w_e * eegnet_arousal + w_h * result["arousal"], 0, 1
+        ))
+
+        # Re-apply EMA smoothing on the blended valence/arousal
+        result["valence"] = self._smooth_index("_ema_valence", result["valence"])
+        result["arousal"] = self._smooth_index("_ema_arousal", result["arousal"])
+
+        return result
 
     # ────────────────────────────────────────────────────────────────
     # Feature-based classifier (primary path for Muse 2)
