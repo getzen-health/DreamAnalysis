@@ -72,7 +72,6 @@
     "@types/spotify-web-api-node": "^5.0.11",
     "@vercel/node": "^5.5.4",
     "bcryptjs": "^3.0.3",
-    "capacitor-health": "^8.0.1",
     "chart.js": "^4.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

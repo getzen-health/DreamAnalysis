@@ -20,8 +20,7 @@ let package = Package(
         .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
         .package(name: "CapacitorShare", path: "../../../node_modules/@capacitor/share"),
         .package(name: "CapgoCapacitorHealth", path: "../../../node_modules/@capgo/capacitor-health"),
-        .package(name: "SentryCapacitor", path: "../../../node_modules/@sentry/capacitor"),
-        .package(name: "CapacitorHealth", path: "../../../node_modules/capacitor-health")
+        .package(name: "SentryCapacitor", path: "../../../node_modules/@sentry/capacitor")
     ],
     targets: [
         .target(
@@ -37,8 +36,7 @@ let package = Package(
                 .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
                 .product(name: "CapacitorShare", package: "CapacitorShare"),
                 .product(name: "CapgoCapacitorHealth", package: "CapgoCapacitorHealth"),
-                .product(name: "SentryCapacitor", package: "SentryCapacitor"),
-                .product(name: "CapacitorHealth", package: "CapacitorHealth")
+                .product(name: "SentryCapacitor", package: "SentryCapacitor")
             ]
         )
     ]
