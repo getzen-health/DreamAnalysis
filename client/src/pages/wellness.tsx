@@ -132,6 +132,111 @@ const PHASE_INFO: Record<string, { label: string; color: string; bg: string; des
   unknown: { label: "Unknown", color: "text-muted-foreground", bg: "bg-muted border-border", description: "Log more data to predict phases" },
 };
 
+/* ---------- Fertility + Hormone constants ---------- */
+
+interface FertilityInfo {
+  ovulationDay: number;
+  ovulationDate: string;
+  fertilityLevel: "high" | "medium" | "low" | "none";
+  daysUntilOvulation: number;
+  fertileWindowStart: number;
+  fertileWindowEnd: number;
+}
+
+function computeFertility(cycleInfo: ComputedCycleInfo, lastPeriodStart: string): FertilityInfo {
+  const { dayOfCycle, cycleLength } = cycleInfo;
+  const ovulationDay = cycleLength - 14;
+
+  // Compute ovulation date
+  const start = new Date(lastPeriodStart + "T12:00:00");
+  const ovDate = new Date(start);
+  ovDate.setDate(ovDate.getDate() + ovulationDay - 1);
+  const ovulationDate = ovDate.toISOString().slice(0, 10);
+
+  const daysUntilOvulation = ovulationDay - dayOfCycle;
+  const diff = Math.abs(dayOfCycle - ovulationDay);
+
+  let fertilityLevel: FertilityInfo["fertilityLevel"] = "none";
+  if (diff <= 1) fertilityLevel = "high";
+  else if (diff <= 3) fertilityLevel = "medium";
+  else if (diff <= 5) fertilityLevel = "low";
+
+  return {
+    ovulationDay,
+    ovulationDate,
+    fertilityLevel,
+    daysUntilOvulation,
+    fertileWindowStart: Math.max(1, ovulationDay - 5),
+    fertileWindowEnd: Math.min(cycleLength, ovulationDay + 5),
+  };
+}
+
+const FERTILITY_COLORS: Record<FertilityInfo["fertilityLevel"], { bg: string; text: string; border: string; label: string }> = {
+  high: { bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30", label: "High Fertility" },
+  medium: { bg: "bg-amber-500/15", text: "text-amber-400", border: "border-amber-500/30", label: "Medium Fertility" },
+  low: { bg: "bg-rose-500/10", text: "text-rose-400", border: "border-rose-500/20", label: "Low Fertility" },
+  none: { bg: "bg-muted/30", text: "text-muted-foreground", border: "border-border", label: "Not Fertile" },
+};
+
+const PHASE_EMOJIS: Record<string, string> = {
+  menstrual: "\uD83E\uDE78",
+  follicular: "\uD83C\uDF31",
+  ovulation: "\uD83C\uDF38",
+  luteal: "\uD83C\uDF19",
+};
+
+const PHASE_DISPLAY_COLORS: Record<string, string> = {
+  menstrual: "#e879a8",
+  follicular: "#0891b2",
+  ovulation: "#d4a017",
+  luteal: "#7c3aed",
+};
+
+interface HormoneLevel {
+  name: string;
+  level: number; // 0-100
+  color: string;
+}
+
+const HORMONE_DATA: Record<string, { hormones: HormoneLevel[]; summary: string }> = {
+  menstrual: {
+    hormones: [
+      { name: "Estrogen", level: 15, color: "#ec4899" },
+      { name: "Progesterone", level: 10, color: "#a855f7" },
+      { name: "LH", level: 10, color: "#f59e0b" },
+      { name: "FSH", level: 25, color: "#06b6d4" },
+    ],
+    summary: "All hormones at baseline. Energy may be lower -- rest and gentle movement recommended.",
+  },
+  follicular: {
+    hormones: [
+      { name: "Estrogen", level: 55, color: "#ec4899" },
+      { name: "Progesterone", level: 10, color: "#a855f7" },
+      { name: "LH", level: 15, color: "#f59e0b" },
+      { name: "FSH", level: 50, color: "#06b6d4" },
+    ],
+    summary: "Estrogen and FSH rising. Energy increasing -- great time for new activities and social plans.",
+  },
+  ovulation: {
+    hormones: [
+      { name: "Estrogen", level: 90, color: "#ec4899" },
+      { name: "Progesterone", level: 20, color: "#a855f7" },
+      { name: "LH", level: 95, color: "#f59e0b" },
+      { name: "FSH", level: 60, color: "#06b6d4" },
+    ],
+    summary: "Estrogen peaks, LH surges to trigger ovulation. Peak energy and confidence.",
+  },
+  luteal: {
+    hormones: [
+      { name: "Estrogen", level: 40, color: "#ec4899" },
+      { name: "Progesterone", level: 80, color: "#a855f7" },
+      { name: "LH", level: 10, color: "#f59e0b" },
+      { name: "FSH", level: 10, color: "#06b6d4" },
+    ],
+    summary: "Progesterone dominant, then drops before period. Cravings may increase. Self-care is key.",
+  },
+};
+
 const MOOD_FACES = [
   { min: 1, max: 2, icon: Angry, label: "Awful" },
   { min: 3, max: 4, icon: Frown, label: "Bad" },
@@ -542,6 +647,271 @@ function CycleSetupPrompt({ onComplete, initialData }: { onComplete: (data: Loca
   );
 }
 
+/* ---------- Cycle Overview Card ---------- */
+
+function CycleOverviewCard({
+  cycleInfo,
+  fertility,
+  lastPeriodStart,
+}: {
+  cycleInfo: ComputedCycleInfo;
+  fertility: FertilityInfo;
+  lastPeriodStart: string;
+}) {
+  const phaseColor = PHASE_DISPLAY_COLORS[cycleInfo.currentPhase] ?? "#888";
+  const phaseEmoji = PHASE_EMOJIS[cycleInfo.currentPhase] ?? "";
+  const phaseLabel = CYCLE_PHASES.find(p => p.key === cycleInfo.currentPhase)?.label ?? "Unknown";
+  const daysUntilPeriod = cycleInfo.cycleLength - cycleInfo.dayOfCycle + 1;
+
+  return (
+    <motion.div
+      className="rounded-2xl border bg-card overflow-hidden"
+      style={{ borderColor: phaseColor + "33", boxShadow: `0 4px 24px ${phaseColor}12` }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      {/* Phase color bar at top */}
+      <div className="h-1" style={{ background: `linear-gradient(90deg, ${phaseColor}66, ${phaseColor})` }} />
+
+      <div className="p-5">
+        {/* Day of cycle -- hero number */}
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+              Day of Cycle
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <motion.span
+                className="text-5xl font-bold"
+                style={{ color: phaseColor }}
+                key={cycleInfo.dayOfCycle}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                {cycleInfo.dayOfCycle}
+              </motion.span>
+              <span className="text-sm text-muted-foreground font-medium">/ {cycleInfo.cycleLength}</span>
+            </div>
+          </div>
+
+          {/* Phase badge */}
+          <div
+            className="px-3 py-1.5 rounded-full flex items-center gap-1.5"
+            style={{ backgroundColor: phaseColor + "18", border: `1px solid ${phaseColor}30` }}
+          >
+            <span className="text-sm">{phaseEmoji}</span>
+            <span className="text-xs font-semibold" style={{ color: phaseColor }}>{phaseLabel}</span>
+          </div>
+        </div>
+
+        {/* Period prediction + cycle length */}
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-muted/20 px-3 py-2.5">
+            <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-medium">Next Period</p>
+            {daysUntilPeriod > 0 ? (
+              <>
+                <p className="text-lg font-bold text-foreground mt-0.5">
+                  {daysUntilPeriod} <span className="text-xs font-medium text-muted-foreground">days</span>
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {new Date(cycleInfo.nextPeriodDate + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm font-semibold text-rose-400 mt-0.5">Expected today</p>
+            )}
+          </div>
+          <div className="rounded-xl bg-muted/20 px-3 py-2.5">
+            <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-medium">Cycle Length</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">
+              {cycleInfo.cycleLength} <span className="text-xs font-medium text-muted-foreground">days</span>
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              Period: {cycleInfo.periodLength} days
+            </p>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ---------- Fertility Window Card ---------- */
+
+function FertilityCard({
+  fertility,
+  cycleInfo,
+}: {
+  fertility: FertilityInfo;
+  cycleInfo: ComputedCycleInfo;
+}) {
+  const fc = FERTILITY_COLORS[fertility.fertilityLevel];
+
+  // Build fertility band data for the visual bar
+  const { cycleLength, dayOfCycle } = cycleInfo;
+  const ovDay = fertility.ovulationDay;
+
+  return (
+    <motion.div
+      className={`rounded-xl border p-4 ${fc.bg} ${fc.border}`}
+      style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.1 }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Fertility Window</p>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${fc.bg} ${fc.text}`} style={{ border: `1px solid currentColor` }}>
+          {fc.label}
+        </span>
+      </div>
+
+      {/* Fertility timeline bar */}
+      <div className="relative h-6 rounded-full bg-muted/20 overflow-hidden mb-2">
+        {/* Low fertility band (5 days each side) */}
+        <div
+          className="absolute top-0 h-full rounded-full opacity-30"
+          style={{
+            left: `${((Math.max(1, ovDay - 5) - 1) / cycleLength) * 100}%`,
+            width: `${(Math.min(10, cycleLength - Math.max(1, ovDay - 5) + 1) / cycleLength) * 100}%`,
+            background: "linear-gradient(90deg, #f43f5e33, #f43f5e55, #f43f5e33)",
+          }}
+        />
+        {/* Medium fertility band (3 days each side) */}
+        <div
+          className="absolute top-0 h-full rounded-full opacity-50"
+          style={{
+            left: `${((Math.max(1, ovDay - 3) - 1) / cycleLength) * 100}%`,
+            width: `${(Math.min(6, cycleLength - Math.max(1, ovDay - 3) + 1) / cycleLength) * 100}%`,
+            background: "linear-gradient(90deg, #f59e0b44, #f59e0b77, #f59e0b44)",
+          }}
+        />
+        {/* High fertility band (1 day each side of ovulation) */}
+        <div
+          className="absolute top-0 h-full rounded-full"
+          style={{
+            left: `${((Math.max(1, ovDay - 1) - 1) / cycleLength) * 100}%`,
+            width: `${(3 / cycleLength) * 100}%`,
+            background: "linear-gradient(90deg, #10b98166, #10b981aa, #10b98166)",
+          }}
+        />
+        {/* Current day marker */}
+        <motion.div
+          className="absolute top-0 h-full w-[3px] rounded-full bg-foreground"
+          style={{ left: `${((dayOfCycle - 1) / cycleLength) * 100}%` }}
+          initial={{ scaleY: 0 }}
+          animate={{ scaleY: 1 }}
+          transition={{ delay: 0.3, duration: 0.3 }}
+        />
+      </div>
+
+      {/* Labels under bar */}
+      <div className="flex justify-between text-[8px] text-muted-foreground/60 mb-3">
+        <span>Day 1</span>
+        <span>Day {ovDay} (Ov.)</span>
+        <span>Day {cycleLength}</span>
+      </div>
+
+      {/* Ovulation prediction */}
+      <div className="flex items-center gap-2 text-xs">
+        {fertility.daysUntilOvulation > 0 ? (
+          <p className="text-muted-foreground">
+            Ovulation expected on{" "}
+            <span className="font-semibold text-foreground">
+              {new Date(fertility.ovulationDate + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </span>
+            {" "}({fertility.daysUntilOvulation} days)
+          </p>
+        ) : fertility.daysUntilOvulation === 0 ? (
+          <p className={`font-semibold ${fc.text}`}>Ovulation expected today</p>
+        ) : (
+          <p className="text-muted-foreground">
+            Ovulation was ~{Math.abs(fertility.daysUntilOvulation)} days ago
+          </p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+/* ---------- Hormone Insights Card ---------- */
+
+function HormoneInsightsCard({ phase }: { phase: CyclePhaseKey }) {
+  const hormoneKey = phase === "ovulation" ? "ovulation" : phase;
+  const data = HORMONE_DATA[hormoneKey] ?? HORMONE_DATA.menstrual;
+  const phaseColor = PHASE_DISPLAY_COLORS[phase] ?? "#888";
+
+  return (
+    <motion.div
+      className="rounded-xl border border-border bg-card p-4"
+      style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.15 }}
+    >
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-3">
+        Hormone Levels
+      </p>
+
+      <div className="space-y-2.5">
+        {data.hormones.map((h) => (
+          <div key={h.name} className="flex items-center gap-2.5">
+            <span className="text-[10px] font-medium text-foreground w-[80px] shrink-0">{h.name}</span>
+            <div className="flex-1 h-3 rounded-full bg-muted/25 overflow-hidden">
+              <motion.div
+                className="h-full rounded-full"
+                style={{ backgroundColor: h.color }}
+                initial={{ width: 0 }}
+                animate={{ width: `${h.level}%` }}
+                transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
+              />
+            </div>
+            <span className="text-[9px] text-muted-foreground w-[28px] text-right">
+              {h.level <= 20 ? "Low" : h.level <= 50 ? "Mid" : h.level <= 75 ? "High" : "Peak"}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
+        {data.summary}
+      </p>
+    </motion.div>
+  );
+}
+
+/* ---------- Today's Symptoms Compact ---------- */
+
+function TodaySymptomsCompact({ symptoms }: { symptoms: string[] }) {
+  if (symptoms.length === 0) return null;
+
+  return (
+    <motion.div
+      className="rounded-xl border border-border bg-card p-3"
+      style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: 0.2 }}
+    >
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+        Today's Symptoms
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {symptoms.map((s) => (
+          <span
+            key={s}
+            className="inline-block px-2.5 py-1 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20"
+          >
+            {formatSymptom(s)}
+          </span>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 /* ---------- helpers ---------- */
 
 function getToday(): string {
@@ -808,19 +1178,6 @@ function CycleTab() {
     setSymptomSeverity(prev => ({ ...prev, [s]: level }));
   }
 
-  // Computed cycle insights
-  const cycleInsights = useMemo(() => {
-    if (!phaseInfo) return null;
-    const avgLen = phaseInfo.avgCycleLength || 28;
-    const dayOfCycle = phaseInfo.dayOfCycle || 0;
-    const ovulationDay = Math.round(avgLen - 14); // ~14 days before next period
-    const daysUntilOvulation = Math.max(0, ovulationDay - dayOfCycle);
-    const fertileWindowStart = Math.max(1, ovulationDay - 5);
-    const fertileWindowEnd = ovulationDay + 1;
-    const inFertileWindow = dayOfCycle >= fertileWindowStart && dayOfCycle <= fertileWindowEnd;
-    return { avgLen, ovulationDay, daysUntilOvulation, fertileWindowStart, fertileWindowEnd, inFertileWindow };
-  }, [phaseInfo]);
-
   // Basal body temperature from cycle entries
   const tempChartData = useMemo(() => {
     return cycleData
@@ -857,8 +1214,6 @@ function CycleTab() {
     year: "numeric",
     month: "long",
   });
-
-  const phase = phaseInfo ? PHASE_INFO[phaseInfo.currentPhase] ?? PHASE_INFO.unknown : PHASE_INFO.unknown;
 
   // Auto-derive cycle data from logged entries or Supabase when localStorage is empty
   useEffect(() => {
@@ -931,14 +1286,50 @@ function CycleTab() {
     return null;
   }, [phaseInfo, localCycleInfo, supabaseCycleData, cycleData]);
 
+  // Compute fertility info from local data
+  const fertilityInfo = useMemo(() => {
+    if (!localCycleInfo || !localCycleData) return null;
+    return computeFertility(localCycleInfo, localCycleData.lastPeriodStart);
+  }, [localCycleInfo, localCycleData]);
+
+  // Today's logged symptoms
+  const todaySymptoms = useMemo(() => {
+    const todayEntry = cycleByDate.get(today);
+    return todayEntry?.symptoms ?? [];
+  }, [cycleByDate, today]);
+
+  // Compute predicted fertility dates for calendar highlighting
+  const predictedFertilityDates = useMemo(() => {
+    const dates = new Map<string, "high" | "medium" | "low">();
+    if (!localCycleData) return dates;
+    const { lastPeriodStart, cycleLength } = localCycleData;
+    const start = new Date(lastPeriodStart + "T12:00:00");
+    for (let cycle = 0; cycle <= 6; cycle++) {
+      const cycleStart = new Date(start);
+      cycleStart.setDate(cycleStart.getDate() + cycle * cycleLength);
+      const ovDay = cycleLength - 14;
+      // Mark fertility window days
+      for (let d = Math.max(1, ovDay - 5); d <= Math.min(cycleLength, ovDay + 5); d++) {
+        const dayDate = new Date(cycleStart);
+        dayDate.setDate(dayDate.getDate() + d - 1);
+        const dateStr = dayDate.toISOString().slice(0, 10);
+        const diff = Math.abs(d - ovDay);
+        if (diff <= 1) dates.set(dateStr, "high");
+        else if (diff <= 3 && !dates.has(dateStr)) dates.set(dateStr, "medium");
+        else if (!dates.has(dateStr)) dates.set(dateStr, "low");
+      }
+    }
+    return dates;
+  }, [localCycleData]);
+
   return (
-    <div className="space-y-5">
-      {/* Setup prompt — show ONLY when no cycle data exists AND no logs at all */}
+    <div className="space-y-4">
+      {/* Setup prompt -- show ONLY when no cycle data exists AND no logs at all */}
       {!effectiveCycleInfo && !showSettings && cycleData.length === 0 && (
         <CycleSetupPrompt onComplete={handleCycleSetup} initialData={localCycleData} />
       )}
 
-      {/* Settings edit dialog — re-enter cycle data */}
+      {/* Settings edit dialog -- re-enter cycle data */}
       <AnimatePresence>
         {showSettings && (
           <motion.div
@@ -952,22 +1343,9 @@ function CycleTab() {
         )}
       </AnimatePresence>
 
-      {/* Menstrual Cycle header + settings toggle */}
-      {effectiveCycleInfo && (
-        <motion.div
-          className="flex items-center justify-between"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
-              Menstrual Cycle
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Day {effectiveCycleInfo.dayOfCycle} of {effectiveCycleInfo.cycleLength}
-            </p>
-          </div>
+      {/* Settings toggle */}
+      {effectiveCycleInfo && !showSettings && (
+        <div className="flex justify-end">
           <Button
             variant="ghost"
             size="sm"
@@ -977,150 +1355,74 @@ function CycleTab() {
           >
             <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
-        </motion.div>
+        </div>
       )}
 
-      {/* Cycle Wheel — Withings-style circular phase visualization */}
+      {/* 1. Cycle Overview Card -- hero card */}
+      {localCycleInfo && localCycleData && fertilityInfo && (
+        <CycleOverviewCard
+          cycleInfo={localCycleInfo}
+          fertility={fertilityInfo}
+          lastPeriodStart={localCycleData.lastPeriodStart}
+        />
+      )}
+
+      {/* 2. Fertility Window Card */}
+      {localCycleInfo && fertilityInfo && (
+        <FertilityCard fertility={fertilityInfo} cycleInfo={localCycleInfo} />
+      )}
+
+      {/* 3. Cycle Phase Visualization -- Withings-style wheel */}
       {localCycleInfo && effectiveCycleInfo && (
         <motion.div
           className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
         >
           <CycleWheel cycleInfo={localCycleInfo} />
-        </motion.div>
-      )}
 
-      {/* Phase details + next period card */}
-      {effectiveCycleInfo && (
-        <motion.div
-          className="rounded-xl border p-4"
-          style={{
-            borderColor: CYCLE_PHASES.find(p => p.key === effectiveCycleInfo.currentPhase)?.color + "33",
-            backgroundColor: CYCLE_PHASES.find(p => p.key === effectiveCycleInfo.currentPhase)?.color + "0a",
-          }}
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.1 }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
-                Current Phase
-              </p>
-              <p className="text-lg font-bold" style={{ color: CYCLE_PHASES.find(p => p.key === effectiveCycleInfo.currentPhase)?.color }}>
-                {CYCLE_PHASES.find(p => p.key === effectiveCycleInfo.currentPhase)?.label}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {HORMONE_PHASES[effectiveCycleInfo.currentPhase]?.description
-                  ?? HORMONE_PHASES[effectiveCycleInfo.currentPhase === "ovulation" ? "ovulatory" : effectiveCycleInfo.currentPhase]?.description
-                  ?? ""}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-3xl font-bold text-foreground">Day {effectiveCycleInfo.dayOfCycle}</p>
-              <p className="text-[10px] text-muted-foreground">
-                of {effectiveCycleInfo.cycleLength} days
-              </p>
-              {effectiveCycleInfo.nextPeriodDate && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Next period:{" "}
-                  {new Date(effectiveCycleInfo.nextPeriodDate + "T12:00:00").toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </p>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Hormone Phase Indicator */}
-      {effectiveCycleInfo && (() => {
-        const phaseKey = effectiveCycleInfo.currentPhase === "ovulation" ? "ovulatory" : effectiveCycleInfo.currentPhase;
-        const hp = HORMONE_PHASES[phaseKey] ?? HORMONE_PHASES.unknown;
-        return (
-          <motion.div
-            className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.15 }}
-          >
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">Hormone Phase</p>
-            <div className="flex items-start gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">{hp.hormones}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">{hp.description}</p>
-              </div>
-            </div>
-          </motion.div>
-        );
-      })()}
-
-      {/* Cycle Insights + Fertility Window */}
-      {cycleInsights && phaseInfo && phaseInfo.periodStartCount >= 2 && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-border bg-card p-3.5" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Avg Cycle</p>
-            <span className="text-2xl font-bold text-foreground">{cycleInsights.avgLen}</span>
-            <span className="text-xs text-muted-foreground ml-1">days</span>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-3.5" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Ovulation In</p>
-            <span className="text-2xl font-bold text-foreground">{cycleInsights.daysUntilOvulation}</span>
-            <span className="text-xs text-muted-foreground ml-1">days</span>
-          </div>
-          {cycleInsights.inFertileWindow && (
-            <div className="col-span-2 rounded-xl border border-ndw-stress/30 bg-ndw-stress/5 p-3.5 flex items-center gap-2">
-              <div>
-                <p className="text-xs font-semibold text-ndw-stress">Fertile Window</p>
-                <p className="text-[10px] text-muted-foreground">
-                  Days {cycleInsights.fertileWindowStart}--{cycleInsights.fertileWindowEnd} of your cycle
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Phase Legend — horizontal row of all 4 phases */}
-      {effectiveCycleInfo && (
-        <div className="grid grid-cols-4 gap-2">
-          {CYCLE_PHASES.map((p) => {
-            const isActive = p.key === effectiveCycleInfo.currentPhase;
-            return (
-              <motion.div
-                key={p.key}
-                className={`rounded-lg border p-2 text-center transition-colors ${
-                  isActive ? "border-opacity-100" : "border-border opacity-50"
-                }`}
-                style={{
-                  borderColor: isActive ? p.color : undefined,
-                  backgroundColor: isActive ? p.color + "15" : undefined,
-                }}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: isActive ? 1 : 0.5, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.2 }}
-              >
+          {/* Phase Legend inline below wheel */}
+          <div className="grid grid-cols-4 gap-2 mt-3">
+            {CYCLE_PHASES.map((p) => {
+              const isActive = p.key === effectiveCycleInfo.currentPhase;
+              return (
                 <div
-                  className="w-2.5 h-2.5 rounded-full mx-auto mb-1"
-                  style={{ backgroundColor: p.color }}
-                />
-                <p className="text-[9px] font-semibold" style={{ color: isActive ? p.color : "var(--muted-foreground)" }}>
-                  {p.label}
-                </p>
-              </motion.div>
-            );
-          })}
-        </div>
+                  key={p.key}
+                  className={`rounded-lg border p-1.5 text-center transition-colors ${
+                    isActive ? "" : "border-border opacity-40"
+                  }`}
+                  style={{
+                    borderColor: isActive ? p.color : undefined,
+                    backgroundColor: isActive ? p.color + "15" : undefined,
+                  }}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full mx-auto mb-0.5"
+                    style={{ backgroundColor: p.color }}
+                  />
+                  <p className="text-[8px] font-semibold" style={{ color: isActive ? p.color : "var(--muted-foreground)" }}>
+                    {p.label}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
       )}
+
+      {/* 4. Hormone Insights */}
+      {effectiveCycleInfo && (
+        <HormoneInsightsCard phase={effectiveCycleInfo.currentPhase} />
+      )}
+
+      {/* 5. Today's Symptoms (compact pills) */}
+      <TodaySymptomsCompact symptoms={todaySymptoms} />
 
       {/* Basal Body Temperature Chart */}
       {tempChartData.length > 3 && (
         <div className="rounded-xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-3">
             Basal Body Temperature
           </p>
           <div className="h-36">
@@ -1225,12 +1527,17 @@ function CycleTab() {
             const flow = entry?.flowLevel;
             const isToday = date === today;
             const isPredictedPeriod = !flow && predictedPeriodDates.has(date);
+            const fertilityLevel = predictedFertilityDates.get(date);
+            const isFertile = !flow && !isPredictedPeriod && fertilityLevel;
 
             let bgColor = "";
             if (flow === "heavy") bgColor = "bg-rose-600/80";
             else if (flow === "medium") bgColor = "bg-pink-500/70";
             else if (flow === "light") bgColor = "bg-pink-300/60";
             else if (isPredictedPeriod) bgColor = "bg-pink-200/40";
+            else if (fertilityLevel === "high") bgColor = "bg-emerald-500/25";
+            else if (fertilityLevel === "medium") bgColor = "bg-amber-500/20";
+            else if (fertilityLevel === "low") bgColor = "bg-rose-500/10";
 
             return (
               <button
@@ -1239,8 +1546,9 @@ function CycleTab() {
                 className={`aspect-square rounded-lg flex items-center justify-center text-xs font-medium transition-colors
                   ${!inMonth ? "opacity-30" : ""}
                   ${bgColor || "hover:bg-muted/50"}
-                  ${isToday && !bgColor ? "ring-1 ring-primary" : ""}
+                  ${isToday ? "ring-2 ring-primary font-bold" : ""}
                   ${isPredictedPeriod ? "ring-1 ring-pink-300/50 ring-dashed text-pink-400" : ""}
+                  ${isFertile && fertilityLevel === "high" ? "ring-1 ring-emerald-500/40" : ""}
                   ${flow && flow !== "none" ? "text-white" : isPredictedPeriod ? "" : "text-foreground"}
                 `}
               >
@@ -1263,6 +1571,18 @@ function CycleTab() {
               <div className="w-2.5 h-2.5 rounded-full bg-pink-200/40 ring-1 ring-pink-300/50" />
               <span className="text-[9px] text-muted-foreground">Predicted</span>
             </div>
+          )}
+          {predictedFertilityDates.size > 0 && (
+            <>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/25 ring-1 ring-emerald-500/40" />
+                <span className="text-[9px] text-muted-foreground">Fertile</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20" />
+                <span className="text-[9px] text-muted-foreground">Maybe</span>
+              </div>
+            </>
           )}
         </div>
       </div>
