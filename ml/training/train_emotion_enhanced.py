@@ -39,6 +39,7 @@ from processing.emotion_features_enhanced import (
     extract_enhanced_emotion_features,
     extract_temporal_features,
 )
+from processing.mixup_augmentation import mixup_batch, mixup_cross_entropy, to_one_hot
 from training.pretrain_eeg_ssl import _BAND_CENTERS, _generate_epoch
 
 log = logging.getLogger(__name__)
@@ -180,6 +181,7 @@ def train(
     save_dir: str | None = None,
     export_onnx: bool = True,
     seed: int = 42,
+    mixup_alpha: float = 0.4,
 ) -> dict:
     """Train the enhanced emotion classifier.
 
@@ -193,6 +195,7 @@ def train(
         save_dir: Directory to save models. Defaults to models/saved/.
         export_onnx: Whether to export ONNX after training.
         seed: Random seed.
+        mixup_alpha: Mixup interpolation strength. 0 disables. 0.2-0.4 recommended.
 
     Returns:
         Dict with training stats.
@@ -249,14 +252,16 @@ def train(
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.Adam(trainable_params, lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)  # for validation + non-mixup training
+    use_mixup = mixup_alpha > 0.0
 
     best_val_acc = 0.0
     loss_history = []
     val_acc_history = []
 
-    log.info("Training enhanced classifier: %d epochs, %d trainable params",
-             n_epochs, sum(p.numel() for p in trainable_params))
+    log.info("Training enhanced classifier: %d epochs, %d trainable params, mixup=%s",
+             n_epochs, sum(p.numel() for p in trainable_params),
+             f"alpha={mixup_alpha}" if use_mixup else "disabled")
 
     for epoch in range(n_epochs):
         # Train
@@ -266,8 +271,25 @@ def train(
         n_total_train = 0
 
         for batch_eeg, batch_feat, batch_labels in train_dl:
-            logits = model(batch_eeg, batch_feat)
-            loss = criterion(logits, batch_labels)
+            if use_mixup:
+                # For dual-input model: apply same mixup permutation to both inputs
+                bs = batch_eeg.shape[0]
+                if bs > 1:
+                    lam = float(np.random.beta(mixup_alpha, mixup_alpha))
+                    lam = max(lam, 1.0 - lam)
+                    idx = torch.randperm(bs)
+                    batch_eeg_mix = lam * batch_eeg + (1.0 - lam) * batch_eeg[idx]
+                    batch_feat_mix = lam * batch_feat + (1.0 - lam) * batch_feat[idx]
+                    y_onehot = F.one_hot(batch_labels, num_classes=len(EMOTIONS)).float()
+                    y_mix = lam * y_onehot + (1.0 - lam) * y_onehot[idx]
+                    logits = model(batch_eeg_mix, batch_feat_mix)
+                    loss = mixup_cross_entropy(logits, y_mix)
+                else:
+                    logits = model(batch_eeg, batch_feat)
+                    loss = criterion(logits, batch_labels)
+            else:
+                logits = model(batch_eeg, batch_feat)
+                loss = criterion(logits, batch_labels)
 
             optimizer.zero_grad()
             loss.backward()
@@ -275,6 +297,7 @@ def train(
             optimizer.step()
 
             epoch_loss += loss.item() * len(batch_labels)
+            # For accuracy tracking, use argmax of logits vs original hard labels
             n_correct += (logits.argmax(dim=1) == batch_labels).sum().item()
             n_total_train += len(batch_labels)
 

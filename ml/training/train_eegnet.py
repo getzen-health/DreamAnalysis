@@ -35,6 +35,7 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset, random_split
@@ -231,7 +232,12 @@ def train(
 
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
-    criterion = nn.CrossEntropyLoss(weight=weights)
+    # Standard CE for validation; mixup uses soft-label CE for training
+    val_criterion = nn.CrossEntropyLoss(weight=weights)
+    use_mixup = mixup_alpha > 0.0
+
+    if use_mixup:
+        log.info("Mixup enabled (alpha=%.2f) — using soft-label cross-entropy for training", mixup_alpha)
 
     best_val_acc = 0.0
     best_state = None
@@ -244,7 +250,20 @@ def train(
         for xb, yb in train_loader:
             xb, yb = xb.to(device), yb.to(device)
             optimizer.zero_grad()
-            loss = criterion(model(xb), yb)
+
+            if use_mixup:
+                # Apply mixup: interpolate signal pairs and create soft labels
+                yb_onehot = F.one_hot(yb, num_classes=N_CLASSES).float()
+                xb_mix_np, yb_mix_np = mixup_signal_batch(
+                    xb.cpu().numpy(), yb_onehot.cpu().numpy(), alpha=mixup_alpha
+                )
+                xb_mix = torch.from_numpy(xb_mix_np).to(device)
+                yb_mix = torch.from_numpy(yb_mix_np).to(device)
+                logits = model(xb_mix)
+                loss = mixup_cross_entropy(logits, yb_mix, class_weights=weights)
+            else:
+                loss = val_criterion(model(xb), yb)
+
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
@@ -325,6 +344,7 @@ def main() -> None:
     parser.add_argument("--patience",    type=int, default=20,    help="Early stopping patience")
     parser.add_argument("--fs",          type=float, default=256.0, help="EEG sampling rate Hz")
     parser.add_argument("--epoch-sec",   type=float, default=4.0,   help="Seconds per epoch")
+    parser.add_argument("--mixup-alpha", type=float, default=0.4,   help="Mixup alpha (0=disabled, 0.2-0.4=recommended)")
     args = parser.parse_args()
 
     n_samples = int(args.epoch_sec * args.fs)
@@ -384,6 +404,7 @@ def main() -> None:
         lr=args.lr,
         patience=args.patience,
         device=device,
+        mixup_alpha=args.mixup_alpha,
     )
 
     save_model(model, accuracy, args.channels)
