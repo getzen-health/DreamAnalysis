@@ -85,8 +85,8 @@ class TestLoadCorrections:
 
 class TestShouldRetrain:
     def test_below_threshold(self, tmp_dirs):
-        """No retrain when below AUTO_RETRAIN_INITIAL."""
-        corrections = [_make_eeg_correction("happy", i) for i in range(5)]
+        """No retrain when below AUTO_RETRAIN_INITIAL (5)."""
+        corrections = [_make_eeg_correction("happy", i) for i in range(3)]
         _write_corrections(tmp_dirs, "user1", corrections)
 
         retrainer = UserModelRetrainer("user1")
@@ -115,7 +115,7 @@ class TestShouldRetrain:
         # Simulate a retrain having happened at AUTO_RETRAIN_INITIAL
         retrainer._update_retrain_meta(AUTO_RETRAIN_INITIAL)
 
-        # Only 3 new — need AUTO_RETRAIN_INCREMENT (10)
+        # Only 3 new — need AUTO_RETRAIN_INCREMENT (5)
         assert retrainer.should_retrain() is False
 
 

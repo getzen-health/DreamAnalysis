@@ -483,9 +483,13 @@ interface HistoryRow {
   timestamp: string;
 }
 
+type DiscoverTimeRange = "today" | "week" | "month";
+
 function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navigate: (p: string) => void; checkin: CheckinData | null }) {
+  const [range, setRange] = useState<DiscoverTimeRange>("today");
+
   const { data } = useQuery<HistoryRow[]>({
-    queryKey: [`/api/brain/history/${userId}?days=7`],
+    queryKey: [`/api/brain/history/${userId}?days=30`],
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
@@ -516,7 +520,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
     return { stressDelta, focusDelta };
   }, [sessions]);
 
-  const chartData = useMemo(() => {
+  const allPoints = useMemo(() => {
     // Continuous data points — every reading as an individual point, not daily averages
     const points: { time: string; ts: number; stress: number; focus: number; mood: number }[] = [];
 
@@ -537,10 +541,10 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
 
     // From session history
     if (sessions && sessions.length > 0) {
-      const weekAgo = Date.now() / 1000 - 7 * 86400;
+      const monthAgo = Date.now() / 1000 - 30 * 86400;
       for (const s of sessions) {
         if (!s.summary || s.summary.avg_focus == null) continue;
-        if ((s.start_time ?? 0) < weekAgo) continue;
+        if ((s.start_time ?? 0) < monthAgo) continue;
         const d = new Date((s.start_time ?? 0) * 1000);
         points.push({
           time: d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
@@ -556,6 +560,35 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
     points.sort((a, b) => a.ts - b.ts);
     return points;
   }, [data, sessions]);
+
+  // Filter by selected time range and reformat time labels
+  const chartData = useMemo(() => {
+    const now = Date.now();
+    const filtered = allPoints.filter((p) => {
+      switch (range) {
+        case "today":
+          return new Date(p.ts).toDateString() === new Date().toDateString();
+        case "week":
+          return now - p.ts < 7 * 86_400_000;
+        case "month":
+        default:
+          return true;
+      }
+    });
+    // Reformat time labels based on range
+    return filtered.map((p) => {
+      const d = new Date(p.ts);
+      let time: string;
+      if (range === "today") {
+        time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } else if (range === "week") {
+        time = d.toLocaleDateString([], { weekday: "short", hour: "2-digit" });
+      } else {
+        time = d.toLocaleDateString([], { month: "short", day: "numeric" });
+      }
+      return { ...p, time };
+    });
+  }, [allPoints, range]);
 
   // Current values from checkin data (reactive via useCheckinData hook)
   const current = useMemo(() => {
@@ -633,6 +666,30 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
             </div>
           </div>
         )}
+      </div>
+
+      {/* Time range tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }} onClick={(e) => e.stopPropagation()}>
+        {(["today", "week", "month"] as DiscoverTimeRange[]).map((r) => (
+          <button
+            key={r}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRange(r); }}
+            style={{
+              flex: 1,
+              padding: "6px 0",
+              borderRadius: 10,
+              fontSize: 11,
+              fontWeight: 600,
+              border: "none",
+              cursor: "pointer",
+              transition: "background 0.2s, color 0.2s",
+              background: range === r ? "var(--primary)" : "rgba(255,255,255,0.06)",
+              color: range === r ? "var(--primary-foreground)" : "var(--muted-foreground)",
+            }}
+          >
+            {r === "today" ? "Today" : r === "week" ? "Week" : "Month"}
+          </button>
+        ))}
       </div>
 
       {chartData.length > 1 ? (

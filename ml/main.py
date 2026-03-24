@@ -111,12 +111,12 @@ async def _load_models_and_routes():
         logger.error(f"[startup] ML model loading failed: {exc}", exc_info=True)
 
 
-# ─── Twice-daily personal model retraining ──────────────────────────
-_RETRAIN_INTERVAL_SEC = 12 * 3600  # every 12 hours = twice daily
+# ─── Personal model retraining every 4 hours ────────────────────────
+_RETRAIN_INTERVAL_SEC = 4 * 3600  # every 4 hours = 6 times daily
 
 
 async def _auto_train_loop():
-    """Background task: retrain models every 12 hours.
+    """Background task: retrain models every 4 hours.
 
     Two retrain paths:
       1. Per-user UserModelRetrainer: fine-tunes from accumulated corrections.

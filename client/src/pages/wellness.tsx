@@ -656,6 +656,26 @@ function CycleTab() {
     staleTime: 60_000,
   });
 
+  // Fetch Supabase cycle_data as fallback (fire once, cache)
+  const { data: supabaseCycleData } = useQuery<LocalCycleData | null>({
+    queryKey: ["supabase-cycle-data", user?.id ?? "local"],
+    queryFn: async () => {
+      try {
+        const result = await sbGetCycleData(user?.id ?? "local");
+        if (result && result.last_period_start) {
+          return {
+            lastPeriodStart: result.last_period_start,
+            cycleLength: result.cycle_length ?? 28,
+            periodLength: result.period_length ?? 5,
+          };
+        }
+      } catch { /* Supabase unavailable */ }
+      return null;
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+
   // Map cycle data by date
   const cycleByDate = useMemo(() => {
     const map = new Map<string, CycleEntry>();
@@ -840,7 +860,28 @@ function CycleTab() {
 
   const phase = phaseInfo ? PHASE_INFO[phaseInfo.currentPhase] ?? PHASE_INFO.unknown : PHASE_INFO.unknown;
 
-  // Determine which cycle info source to use: prefer server data, fall back to local
+  // Auto-derive cycle data from logged entries or Supabase when localStorage is empty
+  useEffect(() => {
+    if (localCycleData) return; // already have local data, nothing to do
+    // Try Supabase cycle_data first
+    if (supabaseCycleData && supabaseCycleData.lastPeriodStart) {
+      setLocalCycleData(supabaseCycleData);
+      setLocalCycleData_(supabaseCycleData);
+      return;
+    }
+    // Fall back to deriving from logged cycle entries
+    if (cycleData.length > 0) {
+      const periodEntries = cycleData.filter(e => e.flowLevel && e.flowLevel !== "none");
+      if (periodEntries.length > 0) {
+        const lastPeriod = periodEntries.sort((a, b) => b.date.localeCompare(a.date))[0];
+        const autoData: LocalCycleData = { lastPeriodStart: lastPeriod.date, cycleLength: 28, periodLength: 5 };
+        setLocalCycleData(autoData);
+        setLocalCycleData_(autoData);
+      }
+    }
+  }, [localCycleData, supabaseCycleData, cycleData]);
+
+  // Determine which cycle info source to use: prefer server data, fall back to local/supabase
   const effectiveCycleInfo = useMemo(() => {
     if (phaseInfo && phaseInfo.currentPhase !== "unknown") {
       return {
@@ -860,14 +901,23 @@ function CycleTab() {
         nextPeriodDate: localCycleInfo.nextPeriodDate,
       };
     }
+    // Supabase data loaded but not yet synced to localCycleData — compute directly
+    if (supabaseCycleData && supabaseCycleData.lastPeriodStart) {
+      const info = computeCycleInfo(supabaseCycleData);
+      return {
+        source: "local" as const,
+        currentPhase: info.currentPhase,
+        dayOfCycle: info.dayOfCycle,
+        cycleLength: info.cycleLength,
+        nextPeriodDate: info.nextPeriodDate,
+      };
+    }
     // Auto-derive from logged cycle entries if setup was lost but logs exist
     if (cycleData.length > 0) {
       const periodEntries = cycleData.filter(e => e.flowLevel && e.flowLevel !== "none");
       if (periodEntries.length > 0) {
         const lastPeriod = periodEntries.sort((a, b) => b.date.localeCompare(a.date))[0];
         const autoData: LocalCycleData = { lastPeriodStart: lastPeriod.date, cycleLength: 28, periodLength: 5 };
-        setLocalCycleData(autoData);
-        setLocalCycleData_(autoData);
         const info = computeCycleInfo(autoData);
         return {
           source: "local" as const,
@@ -879,7 +929,7 @@ function CycleTab() {
       }
     }
     return null;
-  }, [phaseInfo, localCycleInfo, cycleData]);
+  }, [phaseInfo, localCycleInfo, supabaseCycleData, cycleData]);
 
   return (
     <div className="space-y-5">

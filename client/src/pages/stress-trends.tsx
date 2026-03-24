@@ -144,7 +144,7 @@ function PeriodIcon({ name }: { name: string }) {
 
 export default function StressTrends() {
   const userId = getParticipantId();
-  const [range, setRange] = useState<TimeRange>("week");
+  const [range, setRange] = useState<TimeRange>("today");
   const { emotion: currentEmotion } = useCurrentEmotion();
 
   const { data } = useQuery<HistoryEntry[]>({
@@ -328,6 +328,7 @@ export default function StressTrends() {
                 tick={{ fontSize: 9, fill: "hsl(220,12%,42%)" }}
                 axisLine={false}
                 tickLine={false}
+                interval="preserveStartEnd"
               />
               <YAxis
                 domain={[0, 100]}

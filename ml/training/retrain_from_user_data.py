@@ -205,12 +205,16 @@ class UserModelRetrainer:
             self.user_id, len(y_list), classes, train_acc,
         )
 
+        # Export ONNX for on-device inference
+        onnx_path = self.export_eeg_onnx()
+
         return {
             "trained": True,
             "modality": "eeg",
             "n_samples": len(y_list),
             "classes": classes,
             "train_accuracy": round(train_acc, 4),
+            "onnx_exported": onnx_path is not None,
         }
 
     def retrain_voice(self, force: bool = False) -> Dict[str, Any]:
@@ -331,6 +335,9 @@ class UserModelRetrainer:
             self.user_id, len(y_list), classes, train_acc, model_type,
         )
 
+        # Export ONNX for on-device inference
+        onnx_path = self.export_voice_onnx()
+
         return {
             "trained": True,
             "modality": "voice",
@@ -338,6 +345,7 @@ class UserModelRetrainer:
             "classes": classes,
             "model_type": model_type,
             "train_accuracy": round(train_acc, 4),
+            "onnx_exported": onnx_path is not None,
         }
 
     def retrain_all(self, force: bool = False) -> Dict[str, Any]:
@@ -432,6 +440,209 @@ class UserModelRetrainer:
         except Exception as exc:
             log.warning("[user-retrain] Failed to load voice model for %s: %s", self.user_id, exc)
             return None
+
+    # ---- ONNX export for on-device deployment --------------------------------
+
+    def export_eeg_onnx(self) -> Optional[str]:
+        """Export per-user fine-tuned EEG model to ONNX for on-device use.
+
+        Converts the sklearn SGDClassifier to ONNX format using skl2onnx.
+        Falls back to a manual ONNX graph if skl2onnx is unavailable.
+
+        Returns the ONNX file path on success, None on failure.
+        """
+        model_tuple = self.load_eeg_model()
+        if model_tuple is None:
+            log.debug("[onnx-export] No EEG model to export for user=%s", self.user_id)
+            return None
+
+        model, scaler, meta = model_tuple
+        feature_dim = meta.get("feature_dim", 170)
+
+        try:
+            return self._export_sklearn_onnx(
+                model, scaler, feature_dim,
+                "eeg_emotion_user.onnx", "eeg_features",
+            )
+        except Exception as exc:
+            log.warning(
+                "[onnx-export] EEG ONNX export failed for user=%s: %s",
+                self.user_id, exc,
+            )
+            return None
+
+    def export_voice_onnx(self) -> Optional[str]:
+        """Export per-user fine-tuned voice model to ONNX for on-device use.
+
+        Returns the ONNX file path on success, None on failure.
+        """
+        model_tuple = self.load_voice_model()
+        if model_tuple is None:
+            log.debug("[onnx-export] No voice model to export for user=%s", self.user_id)
+            return None
+
+        model, scaler, meta = model_tuple
+        feature_dim = meta.get("feature_dim", 40)
+
+        try:
+            return self._export_sklearn_onnx(
+                model, scaler, feature_dim,
+                "voice_emotion_user.onnx", "voice_features",
+            )
+        except Exception as exc:
+            log.warning(
+                "[onnx-export] Voice ONNX export failed for user=%s: %s",
+                self.user_id, exc,
+            )
+            return None
+
+    def _export_sklearn_onnx(
+        self,
+        model: Any,
+        scaler: Any,
+        feature_dim: int,
+        filename: str,
+        input_name: str,
+    ) -> Optional[str]:
+        """Export an sklearn model (with optional scaler) to ONNX.
+
+        Handles both sklearn classifiers (via skl2onnx) and LightGBM
+        classifiers (via onnxmltools). Falls back to manual numpy-based
+        ONNX construction for simple linear models.
+        """
+        self._user_dir.mkdir(parents=True, exist_ok=True)
+        onnx_path = self._user_dir / filename
+
+        # Check if model is a LightGBM classifier — needs onnxmltools
+        is_lgbm = False
+        try:
+            import lightgbm as lgb
+            is_lgbm = isinstance(model, lgb.LGBMClassifier)
+        except ImportError:
+            pass
+
+        try:
+            from skl2onnx import convert_sklearn, update_registered_converter
+            from skl2onnx.common.data_types import FloatTensorType
+            from sklearn.pipeline import Pipeline
+
+            # Register LightGBM converter if needed
+            if is_lgbm:
+                try:
+                    from onnxmltools.convert.lightgbm.operator_converters.LightGbm import (
+                        convert_lightgbm,
+                    )
+                    from skl2onnx.common.shape_calculator import (
+                        calculate_linear_classifier_output_shapes,
+                    )
+                    import lightgbm as lgb
+
+                    update_registered_converter(
+                        lgb.LGBMClassifier,
+                        "LightGbmLGBMClassifier",
+                        calculate_linear_classifier_output_shapes,
+                        convert_lightgbm,
+                        options={"zipmap": False},
+                    )
+                except ImportError:
+                    log.info("[onnx-export] onnxmltools not available for LightGBM, using manual export")
+                    if hasattr(model, "coef_"):
+                        return self._export_manual_onnx(model, scaler, feature_dim, onnx_path, input_name)
+                    return None
+
+            if scaler is not None:
+                pipeline = Pipeline([("scaler", scaler), ("clf", model)])
+            else:
+                pipeline = Pipeline([("clf", model)])
+
+            initial_type = [(input_name, FloatTensorType([None, feature_dim]))]
+            onnx_model = convert_sklearn(
+                pipeline, initial_types=initial_type, target_opset=17,
+                options={id(model): {"zipmap": False}} if is_lgbm else None,
+            )
+            with open(onnx_path, "wb") as f:
+                f.write(onnx_model.SerializeToString())
+
+            log.info(
+                "[onnx-export] Exported %s for user=%s (%d bytes)",
+                filename, self.user_id, onnx_path.stat().st_size,
+            )
+            return str(onnx_path)
+
+        except ImportError:
+            log.info("[onnx-export] skl2onnx not available, using manual ONNX export")
+            return self._export_manual_onnx(model, scaler, feature_dim, onnx_path, input_name)
+
+    def _export_manual_onnx(
+        self,
+        model: Any,
+        scaler: Any,
+        feature_dim: int,
+        onnx_path: Path,
+        input_name: str,
+    ) -> Optional[str]:
+        """Manual ONNX export for SGDClassifier using numpy weights.
+
+        Creates a simple linear model: logits = (X - mean) / scale @ W + b
+        """
+        try:
+            import onnx
+            from onnx import numpy_helper, TensorProto
+            from onnx.helper import (
+                make_model, make_graph, make_node, make_tensor_value_info,
+                make_opsetid,
+            )
+        except ImportError:
+            log.warning("[onnx-export] onnx package not available, cannot export")
+            return None
+
+        # Extract weights from SGDClassifier
+        if not hasattr(model, "coef_"):
+            log.warning("[onnx-export] Model has no coef_ attribute, cannot export")
+            return None
+
+        W = model.coef_.astype(np.float32)  # (n_classes, feature_dim)
+        b = model.intercept_.astype(np.float32) if hasattr(model, "intercept_") else np.zeros(W.shape[0], dtype=np.float32)
+
+        nodes = []
+        initializers = []
+        curr_input = input_name
+
+        # If scaler exists, add normalization: (X - mean) / scale
+        if scaler is not None and hasattr(scaler, "mean_"):
+            mean = scaler.mean_.astype(np.float32)
+            scale = scaler.scale_.astype(np.float32)
+            scale = np.where(scale == 0, 1.0, scale).astype(np.float32)
+
+            initializers.append(numpy_helper.from_array(mean, name="scaler_mean"))
+            initializers.append(numpy_helper.from_array(scale, name="scaler_scale"))
+
+            nodes.append(make_node("Sub", [curr_input, "scaler_mean"], ["centered"]))
+            nodes.append(make_node("Div", ["centered", "scaler_scale"], ["scaled"]))
+            curr_input = "scaled"
+
+        # Linear: logits = X @ W^T + b
+        initializers.append(numpy_helper.from_array(W.T, name="weights"))
+        initializers.append(numpy_helper.from_array(b, name="bias"))
+
+        nodes.append(make_node("MatMul", [curr_input, "weights"], ["pre_bias"]))
+        nodes.append(make_node("Add", ["pre_bias", "bias"], ["logits"]))
+
+        input_info = make_tensor_value_info(input_name, TensorProto.FLOAT, [None, feature_dim])
+        output_info = make_tensor_value_info("logits", TensorProto.FLOAT, [None, W.shape[0]])
+
+        graph = make_graph(nodes, "user_emotion_classifier", [input_info], [output_info], initializer=initializers)
+        onnx_model = make_model(graph, opset_imports=[make_opsetid("", 17)])
+        onnx_model.ir_version = 8
+
+        with open(onnx_path, "wb") as f:
+            f.write(onnx_model.SerializeToString())
+
+        log.info(
+            "[onnx-export] Manual ONNX exported %s for user=%s (%d bytes)",
+            onnx_path.name, self.user_id, onnx_path.stat().st_size,
+        )
+        return str(onnx_path)
 
     # ---- private helpers ---------------------------------------------------
 

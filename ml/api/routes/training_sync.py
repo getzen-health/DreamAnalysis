@@ -1,9 +1,12 @@
 """Training sync — pull corrections from Supabase for ML retraining.
 
-GET  /training/corrections/{user_id} — fetch corrections from Supabase
-POST /training/sync/{user_id}        — sync Supabase corrections to local store + trigger retrain
-POST /training/retrain/{user_id}     — force retrain from all available data
-GET  /training/status/{user_id}      — training data stats
+GET  /training/corrections/{user_id}      — fetch corrections from Supabase
+POST /training/sync/{user_id}             — sync Supabase corrections to local store + trigger retrain
+POST /training/retrain/{user_id}          — force retrain from all available data
+GET  /training/status/{user_id}           — training data stats
+GET  /training/model/{user_id}/eeg.onnx   — download per-user EEG ONNX model
+GET  /training/model/{user_id}/voice.onnx — download per-user voice ONNX model
+GET  /training/model/{user_id}/version    — check model availability + timestamps
 """
 from __future__ import annotations
 
@@ -15,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -245,3 +249,61 @@ async def training_status(user_id: str):
         last_sync=last_sync,
         retrain_available=total >= 5,
     )
+
+
+# ─── Per-user ONNX model serving ─────────────────────────────────────────────
+
+USER_MODELS_DIR = Path(__file__).parent.parent.parent / "user_models"
+
+
+@router.get("/model/{user_id}/eeg.onnx")
+async def get_user_eeg_onnx(user_id: str):
+    """Serve per-user fine-tuned EEG ONNX model for on-device use."""
+    onnx_path = USER_MODELS_DIR / user_id / "eeg_emotion_user.onnx"
+    if not onnx_path.exists():
+        return {"error": "No personalized model yet", "status": "generic"}
+    return FileResponse(
+        str(onnx_path),
+        media_type="application/octet-stream",
+        filename=f"eeg_emotion_{user_id}.onnx",
+    )
+
+
+@router.get("/model/{user_id}/voice.onnx")
+async def get_user_voice_onnx(user_id: str):
+    """Serve per-user fine-tuned voice ONNX model for on-device use."""
+    onnx_path = USER_MODELS_DIR / user_id / "voice_emotion_user.onnx"
+    if not onnx_path.exists():
+        return {"error": "No personalized model yet", "status": "generic"}
+    return FileResponse(
+        str(onnx_path),
+        media_type="application/octet-stream",
+        filename=f"voice_emotion_{user_id}.onnx",
+    )
+
+
+@router.get("/model/{user_id}/version")
+async def get_model_version(user_id: str):
+    """Check if a newer model is available than what the client has.
+
+    Returns availability flags and modification timestamps (seconds since epoch)
+    so the client can compare against its locally cached version.
+    """
+    eeg_path = USER_MODELS_DIR / user_id / "eeg_emotion_user.onnx"
+    voice_path = USER_MODELS_DIR / user_id / "voice_emotion_user.onnx"
+
+    result: Dict[str, Any] = {
+        "eeg_available": False,
+        "voice_available": False,
+        "eeg_updated": None,
+        "voice_updated": None,
+    }
+
+    if eeg_path.exists():
+        result["eeg_available"] = True
+        result["eeg_updated"] = eeg_path.stat().st_mtime
+    if voice_path.exists():
+        result["voice_available"] = True
+        result["voice_updated"] = voice_path.stat().st_mtime
+
+    return result
