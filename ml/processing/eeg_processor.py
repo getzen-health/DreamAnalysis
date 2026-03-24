@@ -20,6 +20,10 @@ _trapezoid = getattr(np, 'trapezoid', None) or getattr(np, 'trapz', None)
 
 
 # EEG frequency band definitions (Hz)
+# low_alpha (8-10 Hz): general alertness, tonic arousal (Klimesch 1999)
+# high_alpha (10-12 Hz): task-specific cortical processing, semantic memory,
+#   MORE emotion-specific than full-band alpha (Bazanova & Vernon 2014,
+#   2025 Scientific Reports). High-alpha suppression indexes emotional engagement.
 # low_beta (12-20 Hz): active cognition, focus, motor planning
 # high_beta (20-30 Hz): anxiety, stress, fear — strongest marker for fearful/anxious states
 # gamma upper bound: capped at 50 Hz to match the preprocessing bandpass filter (1-50 Hz).
@@ -29,6 +33,8 @@ BANDS = {
     "delta": (0.5, 4.0),
     "theta": (4.0, 8.0),
     "alpha": (8.0, 12.0),
+    "low_alpha": (8.0, 10.0),
+    "high_alpha": (10.0, 12.0),
     "beta": (12.0, 30.0),
     "low_beta": (12.0, 20.0),
     "high_beta": (20.0, 30.0),
@@ -778,7 +784,7 @@ def compute_frontal_asymmetry(
 
 
 # Frequency bands used for DASM/RASM (5 core emotion bands, SJTU BCMI Lab convention)
-_DASM_RASM_BANDS = ["delta", "theta", "alpha", "beta", "gamma"]
+_DASM_RASM_BANDS = ["delta", "theta", "alpha", "low_alpha", "high_alpha", "beta", "gamma"]
 
 
 def compute_dasm_rasm(

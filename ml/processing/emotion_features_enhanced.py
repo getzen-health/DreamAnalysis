@@ -1,22 +1,37 @@
-"""Enhanced 53-dim emotion feature extraction for 4-channel consumer EEG.
+"""Enhanced 68-dim emotion feature extraction for 4-channel consumer EEG.
 
 Extracts a compact, interpretable, literature-proven feature set for emotion
 classification from 4-channel EEG (Muse 2: TP9, AF7, AF8, TP10).
 
-Feature breakdown (53 total):
+Feature breakdown (68 total):
     20 DE features:       Differential entropy per band per channel (5 bands x 4 ch)
-     5 DASM features:     DE asymmetry AF8 - AF7 per band
-     5 RASM features:     DE ratio AF8 / AF7 per band
-     5 DCAU features:     DE asymmetry TP10 - TP9 per band (temporal asymmetry)
+     8 DE sub-band:       DE per alpha sub-band per channel (2 sub-bands x 4 ch)
+     5 DASM features:     DE asymmetry AF8 - AF7 per band (5 main bands)
+     2 DASM sub-band:     DE asymmetry AF8 - AF7 per alpha sub-band
+     5 RASM features:     DE ratio AF8 / AF7 per band (5 main bands)
+     2 RASM sub-band:     DE ratio AF8 / AF7 per alpha sub-band
+     5 DCAU features:     DE asymmetry TP10 - TP9 per band (5 main bands)
+     2 DCAU sub-band:     DE asymmetry TP10 - TP9 per alpha sub-band
      1 FAA feature:       Frontal alpha asymmetry log(AF8_alpha) - log(AF7_alpha)
+     1 HAA feature:       High-alpha asymmetry (10-12 Hz, more emotion-specific)
      1 FMT feature:       Frontal midline theta relative power
     12 Hjorth features:   Activity, mobility, complexity per channel (3 x 4 ch)
      4 Spectral entropy:  Normalized spectral entropy per channel
+
+Alpha sub-band rationale (Klimesch 1999, Bazanova & Vernon 2014):
+    Low-alpha  (8-10 Hz):  General alertness, tonic arousal, attentional demands
+    High-alpha (10-12 Hz): Task-specific cortical processing, semantic memory,
+                           emotional engagement. MORE emotion-specific than full-band
+                           alpha. High-alpha suppression indexes active emotional
+                           processing. High-alpha asymmetry (HAA) is a more precise
+                           valence indicator than standard FAA for emotional states.
 
 References:
     - CNN-KAN-F2CA (PLOS ONE 2025): DE/PSD/asymmetry features on 4-channel SEED
     - Zheng & Lu (2015): DASM/RASM features (SJTU BCMI Lab, SEED dataset)
     - Davidson (1992): Frontal alpha asymmetry for valence
+    - Klimesch (1999): Alpha sub-bands and cognitive processing
+    - Bazanova & Vernon (2014): High-alpha specificity for emotional states
     - Hjorth (1970): Time-domain EEG descriptors
 """
 
@@ -41,14 +56,23 @@ from processing.eeg_processor import (
 
 log = logging.getLogger(__name__)
 
-# 5-band layout matching DASM/RASM convention
+# 5-band layout matching DASM/RASM convention (original bands)
 _BANDS_5 = ["delta", "theta", "alpha", "beta", "gamma"]
+
+# Alpha sub-bands for finer-grained emotion features
+_ALPHA_SUB_BANDS = ["low_alpha", "high_alpha"]
 
 # Spectral band importance weights for emotion-relevant feature extraction.
 #
 # Neuroscience rationale (Muse 2 @ AF7/AF8/TP9/TP10):
 #   alpha (1.5x): PRIMARY emotion band. FAA is the most validated valence marker
 #                  (Davidson 1992). Inversely related to cortical arousal.
+#   low_alpha (1.2x): General alertness / tonic arousal. Less emotion-specific
+#                      than high_alpha (Klimesch 1999). Moderate weight.
+#   high_alpha (1.8x): Task-specific processing, emotional engagement. MORE
+#                       emotion-specific than full-band alpha (Bazanova & Vernon 2014).
+#                       High-alpha suppression = active emotional processing.
+#                       Highest weight of all bands.
 #   theta (1.3x): Meditation, creativity, FMT complements FAA for valence.
 #   beta  (1.0x): Active cognition, focus, stress. Neutral weight.
 #   delta (0.8x): Deep sleep marker, minimal waking-state emotion relevance.
@@ -64,6 +88,8 @@ BAND_IMPORTANCE_WEIGHTS: Dict[str, float] = {
     "delta": 0.8,
     "theta": 1.3,
     "alpha": 1.5,
+    "low_alpha": 1.2,
+    "high_alpha": 1.8,
     "beta": 1.0,
     "gamma": 0.3,
 }
@@ -72,31 +98,49 @@ BAND_IMPORTANCE_WEIGHTS: Dict[str, float] = {
 _CHANNEL_NAMES = ["TP9", "AF7", "AF8", "TP10"]
 _N_CHANNELS = 4
 
-# Expected feature count
-ENHANCED_FEATURE_DIM = 53
+# Expected feature count (53 original + 15 alpha sub-band features)
+ENHANCED_FEATURE_DIM = 68
 
 # Feature name registry for interpretability
 FEATURE_NAMES: List[str] = []
 
-# 20 DE features: de_{band}_{channel}
+# 20 DE features: de_{band}_{channel} (5 main bands x 4 channels)
 for _band in _BANDS_5:
     for _ch in _CHANNEL_NAMES:
         FEATURE_NAMES.append(f"de_{_band}_{_ch}")
 
-# 5 DASM: dasm_{band} (AF8 - AF7)
+# 8 DE sub-band features: de_{sub_band}_{channel} (2 alpha sub-bands x 4 channels)
+for _band in _ALPHA_SUB_BANDS:
+    for _ch in _CHANNEL_NAMES:
+        FEATURE_NAMES.append(f"de_{_band}_{_ch}")
+
+# 5 DASM: dasm_{band} (AF8 - AF7) for main bands
 for _band in _BANDS_5:
     FEATURE_NAMES.append(f"dasm_{_band}")
 
-# 5 RASM: rasm_{band} (AF8 / AF7)
+# 2 DASM sub-band: dasm_{sub_band} (AF8 - AF7) for alpha sub-bands
+for _band in _ALPHA_SUB_BANDS:
+    FEATURE_NAMES.append(f"dasm_{_band}")
+
+# 5 RASM: rasm_{band} (AF8 / AF7) for main bands
 for _band in _BANDS_5:
     FEATURE_NAMES.append(f"rasm_{_band}")
 
-# 5 DCAU: dcau_{band} (TP10 - TP9)
+# 2 RASM sub-band: rasm_{sub_band} (AF8 / AF7) for alpha sub-bands
+for _band in _ALPHA_SUB_BANDS:
+    FEATURE_NAMES.append(f"rasm_{_band}")
+
+# 5 DCAU: dcau_{band} (TP10 - TP9) for main bands
 for _band in _BANDS_5:
     FEATURE_NAMES.append(f"dcau_{_band}")
 
-# 1 FAA + 1 FMT
+# 2 DCAU sub-band: dcau_{sub_band} (TP10 - TP9) for alpha sub-bands
+for _band in _ALPHA_SUB_BANDS:
+    FEATURE_NAMES.append(f"dcau_{_band}")
+
+# 1 FAA + 1 HAA + 1 FMT
 FEATURE_NAMES.append("faa")
+FEATURE_NAMES.append("haa")
 FEATURE_NAMES.append("fmt_relative")
 
 # 12 Hjorth: hjorth_{param}_{channel}
@@ -113,11 +157,53 @@ assert len(FEATURE_NAMES) == ENHANCED_FEATURE_DIM, (
 )
 
 
+def _compute_high_alpha_asymmetry(
+    signals: np.ndarray, fs: int, left_ch: int = 1, right_ch: int = 2
+) -> float:
+    """Compute High-Alpha Asymmetry (HAA) in the 10-12 Hz sub-band.
+
+    HAA = log(right_high_alpha_power) - log(left_high_alpha_power)
+
+    High-alpha (10-12 Hz) is more emotion-specific than full-band alpha (8-12 Hz).
+    It indexes task-specific cortical processing and emotional engagement rather
+    than general alertness (Bazanova & Vernon 2014).
+
+    Positive HAA = right-dominant high-alpha = approach motivation / positive affect.
+    Negative HAA = left-dominant high-alpha = withdrawal / negative affect.
+
+    Args:
+        signals: (n_channels, n_samples) EEG array.
+        fs: Sampling rate in Hz.
+        left_ch: Left frontal channel (AF7 = ch1 for Muse 2).
+        right_ch: Right frontal channel (AF8 = ch2 for Muse 2).
+
+    Returns:
+        HAA value (float). 0.0 if channels unavailable.
+    """
+    if signals.ndim < 2 or signals.shape[0] <= max(left_ch, right_ch):
+        return 0.0
+
+    left_sig = preprocess(signals[left_ch], fs)
+    right_sig = preprocess(signals[right_ch], fs)
+
+    # Bandpass to high-alpha (10-12 Hz)
+    left_ha = bandpass_filter(left_sig, 10.0, 12.0, fs)
+    right_ha = bandpass_filter(right_sig, 10.0, 12.0, fs)
+
+    left_power = float(np.var(left_ha))
+    right_power = float(np.var(right_ha))
+
+    # log(right) - log(left), same convention as FAA
+    return float(
+        np.log(max(right_power, 1e-12)) - np.log(max(left_power, 1e-12))
+    )
+
+
 def extract_enhanced_emotion_features(
     signals: np.ndarray,
     fs: int = 256,
 ) -> np.ndarray:
-    """Extract the 53-dim enhanced emotion feature vector from 4-channel EEG.
+    """Extract the 68-dim enhanced emotion feature vector from 4-channel EEG.
 
     Args:
         signals: (n_channels, n_samples) raw EEG array. Must have >= 4 channels.
@@ -125,7 +211,7 @@ def extract_enhanced_emotion_features(
         fs: Sampling rate in Hz.
 
     Returns:
-        1D numpy array of shape (53,) with the feature vector.
+        1D numpy array of shape (68,) with the feature vector.
         All values are guaranteed to be finite (NaN/inf replaced with 0).
     """
     signals = np.asarray(signals, dtype=np.float64)
@@ -144,7 +230,7 @@ def extract_enhanced_emotion_features(
     # Preprocess each channel once
     processed = np.array([preprocess(signals[ch], fs) for ch in range(n_ch)])
 
-    # ---- 20 DE features: per band per channel ----
+    # ---- 20 DE features: per main band per channel ----
     # Apply spectral band importance weights: DE_weighted = DE_raw * weight.
     # This amplifies emotion-carrying bands (alpha 1.5x, theta 1.3x) and
     # suppresses noise-dominated bands (gamma 0.3x at AF7/AF8 = EMG artifact).
@@ -155,26 +241,58 @@ def extract_enhanced_emotion_features(
             features[idx] = de.get(band, 0.0) * w
             idx += 1
 
-    # ---- 5 DASM features: AF8 (ch2) - AF7 (ch1) per band ----
+    # ---- 8 DE alpha sub-band features: per sub-band per channel ----
+    # High-alpha (10-12 Hz) is more emotion-specific than full-band alpha.
+    # Low-alpha (8-10 Hz) tracks general alertness/arousal.
+    # Splitting provides finer-grained discrimination for valence detection.
+    for band in _ALPHA_SUB_BANDS:
+        w = BAND_IMPORTANCE_WEIGHTS.get(band, 1.0)
+        for ch_idx in range(n_ch):
+            de = differential_entropy(processed[ch_idx], fs)
+            features[idx] = de.get(band, 0.0) * w
+            idx += 1
+
+    # ---- 5 DASM features: AF8 (ch2) - AF7 (ch1) per main band ----
     dasm_rasm = compute_dasm_rasm(signals, fs, left_ch=1, right_ch=2)
     for band in _BANDS_5:
         features[idx] = dasm_rasm.get(f"dasm_{band}", 0.0)
         idx += 1
 
-    # ---- 5 RASM features: AF8 / AF7 per band ----
+    # ---- 2 DASM alpha sub-band features ----
+    for band in _ALPHA_SUB_BANDS:
+        features[idx] = dasm_rasm.get(f"dasm_{band}", 0.0)
+        idx += 1
+
+    # ---- 5 RASM features: AF8 / AF7 per main band ----
     for band in _BANDS_5:
         features[idx] = dasm_rasm.get(f"rasm_{band}", 0.0)
         idx += 1
 
-    # ---- 5 DCAU features: temporal asymmetry TP10 (ch3) - TP9 (ch0) per band ----
+    # ---- 2 RASM alpha sub-band features ----
+    for band in _ALPHA_SUB_BANDS:
+        features[idx] = dasm_rasm.get(f"rasm_{band}", 0.0)
+        idx += 1
+
+    # ---- 5 DCAU features: temporal asymmetry TP10 (ch3) - TP9 (ch0) per main band ----
     dcau = compute_dasm_rasm(signals, fs, left_ch=0, right_ch=3)
     for band in _BANDS_5:
+        features[idx] = dcau.get(f"dasm_{band}", 0.0)
+        idx += 1
+
+    # ---- 2 DCAU alpha sub-band features ----
+    for band in _ALPHA_SUB_BANDS:
         features[idx] = dcau.get(f"dasm_{band}", 0.0)
         idx += 1
 
     # ---- 1 FAA feature ----
     faa = compute_frontal_asymmetry(signals, fs, left_ch=1, right_ch=2)
     features[idx] = faa.get("frontal_asymmetry", 0.0)
+    idx += 1
+
+    # ---- 1 HAA feature (High-Alpha Asymmetry) ----
+    # More emotion-specific than full-band FAA (Bazanova & Vernon 2014).
+    # High-alpha (10-12 Hz) indexes emotional engagement, not just alertness.
+    features[idx] = _compute_high_alpha_asymmetry(signals, fs, left_ch=1, right_ch=2)
     idx += 1
 
     # ---- 1 FMT feature (use AF7 channel = ch1) ----
@@ -217,15 +335,15 @@ def extract_temporal_features(
     For the first epoch (no history), deltas are zero.
 
     Args:
-        current_features: 1D array of shape (53,) from extract_enhanced_emotion_features.
+        current_features: 1D array of shape (68,) from extract_enhanced_emotion_features.
         history: List of previous feature vectors. Uses the most recent entry.
                  If None or empty, returns zeros for delta features.
         time_interval: Seconds between epochs (e.g. 2.0 for 50% overlap at 4-sec windows).
 
     Returns:
-        1D numpy array of shape (106,):
-            features[0:53]   = instantaneous features (passed through)
-            features[53:106] = delta features (current - previous) / time_interval
+        1D numpy array of shape (136,):
+            features[0:68]   = instantaneous features (passed through)
+            features[68:136] = delta features (current - previous) / time_interval
     """
     current_features = np.asarray(current_features, dtype=np.float64)
     assert current_features.shape == (ENHANCED_FEATURE_DIM,), (

@@ -2113,13 +2113,15 @@ class EmotionClassifier:
         bands = extract_band_powers(processed, fs)
         de = differential_entropy(processed, fs)
 
-        alpha_raw     = bands.get("alpha",     0)
-        beta_raw      = bands.get("beta",      0)
-        theta_raw     = bands.get("theta",     0)
-        gamma_raw     = bands.get("gamma",     0)
-        delta_raw     = bands.get("delta",     0)
-        high_beta_raw = bands.get("high_beta", 0)
-        low_beta_raw  = bands.get("low_beta",  0)
+        alpha_raw      = bands.get("alpha",      0)
+        beta_raw       = bands.get("beta",       0)
+        theta_raw      = bands.get("theta",      0)
+        gamma_raw      = bands.get("gamma",      0)
+        delta_raw      = bands.get("delta",      0)
+        high_beta_raw  = bands.get("high_beta",  0)
+        low_beta_raw   = bands.get("low_beta",   0)
+        low_alpha_raw  = bands.get("low_alpha",  0)
+        high_alpha_raw = bands.get("high_alpha", 0)
 
         # Normalize to relative fractions that sum to 1.
         # Without this the absolute power values from BrainFlow (sum often 0.4-0.8)
@@ -2127,17 +2129,24 @@ class EmotionClassifier:
         total_power = alpha_raw + beta_raw + theta_raw + gamma_raw + delta_raw
         if total_power < 1e-6:
             total_power = 1.0
-        alpha     = alpha_raw     / total_power
-        beta      = beta_raw      / total_power
-        theta     = theta_raw     / total_power
-        gamma     = gamma_raw     / total_power
-        delta     = delta_raw     / total_power
-        high_beta = high_beta_raw / total_power
-        low_beta  = low_beta_raw  / total_power
+        alpha      = alpha_raw      / total_power
+        beta       = beta_raw       / total_power
+        theta      = theta_raw      / total_power
+        gamma      = gamma_raw      / total_power
+        delta      = delta_raw      / total_power
+        high_beta  = high_beta_raw  / total_power
+        low_beta   = low_beta_raw   / total_power
+        low_alpha  = low_alpha_raw  / total_power
+        high_alpha = high_alpha_raw / total_power
 
         # high_beta_frac: fraction of beta that is 20-30 Hz (fear/anxiety marker).
         # Fearful/anxious states skew beta distribution toward high-beta.
         high_beta_frac = high_beta_raw / max(beta_raw, 1e-10)
+
+        # high_alpha_frac: fraction of alpha that is 10-12 Hz (emotion-specific).
+        # High-alpha is more emotion-relevant than low-alpha (Bazanova & Vernon 2014).
+        # High fraction = emotional engagement; low fraction = general alertness only.
+        high_alpha_frac = high_alpha_raw / max(alpha_raw, 1e-10)
 
         # Store snapshot for temporal analysis
         self._history.append(bands)
@@ -2153,6 +2162,26 @@ class EmotionClassifier:
             _lf, _rf = _cmap["left_frontal"], _cmap["right_frontal"]
             asym = compute_frontal_asymmetry(channels, fs, left_ch=_lf, right_ch=_rf)
             faa_valence = asym.get("asymmetry_valence", 0.0)
+
+        # ── High-Alpha Asymmetry (HAA) ────────────────────────
+        # HAA = ln(R_high_alpha) - ln(L_high_alpha) in the 10-12 Hz sub-band.
+        # High-alpha is MORE emotion-specific than full-band alpha (8-12 Hz):
+        #   - Low-alpha (8-10 Hz) indexes general alertness/arousal (Klimesch 1999)
+        #   - High-alpha (10-12 Hz) indexes task-specific processing, emotional engagement
+        # HAA provides a more precise valence signal than FAA for active emotional states.
+        # Bazanova & Vernon (2014): high-alpha specificity for emotional states.
+        haa_valence = 0.0
+        if channels is not None and channels.shape[0] >= 2:
+            _cmap = get_channel_map(device_type, channels.shape[0])
+            _lf, _rf = _cmap["left_frontal"], _cmap["right_frontal"]
+            # Compute HAA directly from high-alpha band power
+            from processing.eeg_processor import bandpass_filter as _bp_filter
+            _left_ha = _bp_filter(preprocess(channels[_lf], fs), 10.0, 12.0, fs)
+            _right_ha = _bp_filter(preprocess(channels[_rf], fs), 10.0, 12.0, fs)
+            _lp = float(np.var(_left_ha))
+            _rp = float(np.var(_right_ha))
+            _haa_raw = float(np.log(max(_rp, 1e-12)) - np.log(max(_lp, 1e-12)))
+            haa_valence = float(np.clip(np.tanh(_haa_raw * 2.0), -1, 1))
 
         # ── DASM Alpha (DE-based asymmetry complement to FAA) ────
         # DASM_alpha = DE(AF8_alpha) - DE(AF7_alpha). Same directional meaning as FAA
@@ -2207,22 +2236,31 @@ class EmotionClassifier:
 
         # ── Valence (pleasantness) ──────────────────────────────
         # Alpha/beta ratio (ABR) as secondary valence signal.
-        # Reference ratio 0.7: eyes-open resting naturally has beta > alpha (ratio ~0.5-0.8).
+        # Use high_alpha (10-12 Hz) instead of full alpha for the ratio term:
+        # high-alpha is more emotion-specific (Bazanova & Vernon 2014), while
+        # low-alpha tracks general arousal. This makes ABR more responsive to
+        # emotional state changes rather than general alertness fluctuations.
         alpha_beta_ratio = alpha / max(beta, 1e-10)
+        high_alpha_beta_ratio = high_alpha / max(beta, 1e-10)
         valence_abr = (
-            0.65 * np.tanh((alpha_beta_ratio - 0.7) * 2.0)
-            + 0.35 * np.tanh((alpha - 0.15) * 4)
+            0.45 * np.tanh((alpha_beta_ratio - 0.7) * 2.0)           # full alpha/beta (general)
+            + 0.20 * np.tanh((high_alpha_beta_ratio - 0.3) * 3.0)    # high-alpha/beta (emotion-specific)
+            + 0.35 * np.tanh((alpha - 0.15) * 4)                     # absolute alpha level
         )
         if channels is not None and channels.shape[0] >= 3 and dasm_rasm:
-            # 3-signal blend: ABR + FAA + DASM_alpha (all three available).
-            # DASM_alpha provides an independent DE-based asymmetry estimate.
+            # 4-signal blend: ABR + FAA + HAA + DASM_alpha.
+            # HAA (high-alpha asymmetry) is more emotion-specific than FAA.
+            # Splitting FAA weight: 20% full-band FAA + 15% HAA.
             valence = float(np.clip(
-                0.40 * valence_abr + 0.35 * faa_valence + 0.25 * dasm_alpha_valence,
+                0.35 * valence_abr + 0.20 * faa_valence + 0.15 * haa_valence + 0.30 * dasm_alpha_valence,
                 -1, 1
             ))
         elif channels is not None and channels.shape[0] >= 2:
-            # 2-signal blend: ABR + FAA
-            valence = float(np.clip(0.50 * valence_abr + 0.50 * faa_valence, -1, 1))
+            # 3-signal blend: ABR + FAA + HAA
+            valence = float(np.clip(
+                0.40 * valence_abr + 0.30 * faa_valence + 0.30 * haa_valence,
+                -1, 1
+            ))
         else:
             valence = float(np.clip(valence_abr, -1, 1))
 
@@ -2392,12 +2430,16 @@ class EmotionClassifier:
             0, 1
         ))
 
-        # Relaxation: high alpha, low beta, theta welcome, coherence boosts.
+        # Relaxation: high alpha (especially high-alpha), low beta, theta welcome.
+        # High-alpha (10-12 Hz) is more specific to relaxed-engaged states than
+        # low-alpha (general drowsiness/alertness). Split alpha contribution:
+        # 32% full-band alpha + 15% high-alpha bonus for emotional relaxation.
         # Frontal alpha coherence (5% weight): high coherence between AF7-AF8
         # indicates integrated, synchronized brain state — validated marker of
         # deep relaxation and meditation (Tass 1998, Fingelkurts 2006).
         relaxation_index = float(np.clip(
-            0.47 * min(1, alpha * 2.5)
+            0.32 * min(1, alpha * 2.5)
+            + 0.15 * min(1, high_alpha * 5.0)            # high-alpha bonus for emotional relaxation
             + 0.28 * max(0, 1 - beta_alpha_ratio * 0.3)
             + 0.20 * min(1, theta * 1.5)
             + 0.05 * frontal_alpha_coh,
@@ -2455,11 +2497,13 @@ class EmotionClassifier:
         _contributions = [
             ("alpha_beta_ratio", float(valence_abr)),
             ("frontal_asymmetry", float(faa_valence)),
+            ("high_alpha_asymmetry", float(haa_valence)),
             ("dasm_alpha", float(dasm_alpha_valence)),
             ("beta_activation", float(arousal)),
             ("high_beta_stress", float(stress_index)),
             ("theta_relaxation", float(relaxation_index)),
             ("beta_alpha_ratio", float(beta_alpha_ratio)),
+            ("high_alpha_frac", float(high_alpha_frac)),
             ("dasm_beta_stress", float(dasm_beta_stress)),
             ("frontal_alpha_coherence", float(frontal_alpha_coh)),
         ]
@@ -2486,6 +2530,8 @@ class EmotionClassifier:
             "dasm_rasm": dasm_rasm,
             "frontal_midline_theta": fmt,
             "frontal_alpha_coherence": frontal_alpha_coh,
+            "high_alpha_asymmetry": float(haa_valence),
+            "high_alpha_fraction": float(high_alpha_frac),
             "artifact_detected": _artifact_now,
             "model_type": "feature-based",
             "explanation": heuristic_explanation,

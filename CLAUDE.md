@@ -173,6 +173,8 @@ Data type: float32, microvolts (µV)
 | **Delta** | 0.5 – 4 Hz | Deep sleep, unconscious processing |
 | **Theta** | 4 – 8 Hz | Drowsiness, meditation, creativity, memory encoding |
 | **Alpha** | 8 – 12 Hz | Relaxation, eyes-closed, calm focus, mind wandering |
+| Low-alpha | 8 – 10 Hz | General alertness, tonic arousal (Klimesch 1999) |
+| High-alpha | 10 – 12 Hz | Task-specific processing, emotional engagement (Bazanova & Vernon 2014) |
 | **Beta** | 12 – 30 Hz | Active thinking, concentration, anxiety, stress |
 | Low-beta | 12 – 20 Hz | Task focus (non-anxious) |
 | High-beta | 20 – 30 Hz | Anxiety, stress, fight-or-flight |
@@ -455,6 +457,7 @@ else:
 - [x] **4-second sliding epoch buffer in `/analyze-eeg`** — `_EpochBuffer` accumulates frames into 4-sec windows (50% overlap, 2-sec hop); response includes `epoch_ready` flag (commit `19e74d7`)
 - [x] **BaselineCalibrator exposed via API** — three endpoints: `POST /calibration/baseline/add-frame`, `GET /calibration/baseline/status`, `POST /calibration/baseline/reset` (commit `87e0c56`)
 - [x] **FMT added to emotion output** — `compute_frontal_midline_theta()` called on AF7 channel and returned as `frontal_midline_theta` key in all `_predict_features()` return paths (commit `378af43`)
+- [x] **Alpha sub-band splitting** — Split alpha (8-12 Hz) into low-alpha (8-10 Hz, general alertness) and high-alpha (10-12 Hz, emotion-specific processing). Added to BANDS dict, enhanced feature extractor (53->68 dim), emotion classifier heuristics. High-Alpha Asymmetry (HAA) added as more precise valence indicator. Valence blend updated to 4-signal: ABR + FAA + HAA + DASM_alpha. References: Klimesch 1999, Bazanova & Vernon 2014.
 
 ### Known Remaining Issues
 - [x] ~~**97.79% LGBM model not integrated**~~: Deleted — inflated score (per-dataset PCA + one-hot dataset indicators, 100% SEED within-subject contamination). Replaced by `emotion_mega_lgbm.pkl` (single global PCA, honest cross-subject CV, active live path).
@@ -873,11 +876,13 @@ Chance level for binary classification = 50%. The best cross-subject FAA-based v
 
 **Why arousal is always ~10 points better than valence**: Arousal has large, bilateral, consistent neural correlates (alpha ERD, beta increase). Valence requires detecting small hemispheric asymmetry differences — an order of magnitude harder.
 
-#### Alpha Subband: 8-13 Hz vs High Alpha (11-13 Hz)
+#### Alpha Subband: 8-13 Hz vs High Alpha (10-12 Hz)
 
 Standard: 8-13 Hz (use this for FAA — confirmed by Cannard 2021, Zhang 2023 finding IAF adds no benefit).
 
-High alpha (11-13 Hz) shows greater specificity for emotional states than low alpha (8-10 Hz) per 2025 Scientific Reports paper. Could be worth extracting separately as an additional feature, but adds complexity.
+High alpha (10-12 Hz) shows greater specificity for emotional states than low alpha (8-10 Hz) per Bazanova & Vernon 2014 and 2025 Scientific Reports.
+
+**NOW IMPLEMENTED**: Alpha sub-band splitting added to BANDS dict (low_alpha: 8-10 Hz, high_alpha: 10-12 Hz). Enhanced feature extractor expanded from 53-dim to 68-dim with sub-band DE, DASM, RASM, DCAU features. High-Alpha Asymmetry (HAA) computed in the emotion classifier and blended into the valence signal alongside FAA. HAA provides a more emotion-specific valence estimate than full-band FAA.
 
 #### FAA Caveats Summary
 

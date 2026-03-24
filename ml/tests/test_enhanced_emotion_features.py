@@ -1,12 +1,14 @@
-"""Tests for enhanced 53-dim emotion feature extraction.
+"""Tests for enhanced 68-dim emotion feature extraction.
 
 Verifies:
-1. extract_enhanced_emotion_features returns 53 features for 4-channel input
+1. extract_enhanced_emotion_features returns 68 features for 4-channel input
 2. All features are finite (no NaN/inf)
 3. DASM features change sign when channels are swapped
 4. DE features are finite (non-negative for Gaussian assumption)
 5. Temporal features are zero for first epoch (no history)
 6. Temporal features are non-zero for subsequent epochs
+7. Alpha sub-band features (low_alpha, high_alpha) are extracted
+8. High-Alpha Asymmetry (HAA) changes sign when channels are swapped
 """
 
 import sys
@@ -57,10 +59,10 @@ class TestExtractEnhancedEmotionFeatures:
     """Tests for the main feature extractor."""
 
     def test_returns_correct_shape(self, four_channel_eeg):
-        """Feature vector must have exactly 53 dimensions."""
+        """Feature vector must have exactly 68 dimensions."""
         features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
         assert features.shape == (ENHANCED_FEATURE_DIM,)
-        assert features.shape == (53,)
+        assert features.shape == (68,)
 
     def test_all_features_finite(self, four_channel_eeg):
         """No NaN or inf values allowed."""
@@ -74,13 +76,9 @@ class TestExtractEnhancedEmotionFeatures:
         assert len(FEATURE_NAMES) == ENHANCED_FEATURE_DIM
 
     def test_de_features_present(self, four_channel_eeg):
-        """DE features (first 20) should be finite real numbers.
-
-        DE = 0.5 * ln(2*pi*e*sigma^2) can be negative when sigma^2 < 1/(2*pi*e),
-        but should always be finite.
-        """
+        """DE features (first 20 main + 8 sub-band = 28) should be finite real numbers."""
         features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
-        de_features = features[:20]
+        de_features = features[:28]
         assert np.all(np.isfinite(de_features))
 
     def test_dasm_changes_sign_on_channel_swap(self, asymmetric_eeg):
@@ -92,16 +90,17 @@ class TestExtractEnhancedEmotionFeatures:
         swapped[1], swapped[2] = asymmetric_eeg[2].copy(), asymmetric_eeg[1].copy()
         features_swapped = extract_enhanced_emotion_features(swapped, fs=256)
 
-        # DASM features are at indices 20-24
-        dasm_normal = features_normal[20:25]
-        dasm_swapped = features_swapped[20:25]
+        # DASM features for main bands are at indices 28-32
+        dasm_start = 28
+        dasm_normal = features_normal[dasm_start:dasm_start + 5]
+        dasm_swapped = features_swapped[dasm_start:dasm_start + 5]
 
         # Signs should be opposite (or both zero)
         for i in range(5):
             if abs(dasm_normal[i]) > 1e-6 and abs(dasm_swapped[i]) > 1e-6:
                 assert np.sign(dasm_normal[i]) != np.sign(dasm_swapped[i]), (
                     f"DASM band {i}: normal={dasm_normal[i]:.4f}, "
-                    f"swapped={dasm_swapped[i]:.4f} — expected opposite signs"
+                    f"swapped={dasm_swapped[i]:.4f} -- expected opposite signs"
                 )
 
     def test_single_channel_input_padded(self):
@@ -109,7 +108,7 @@ class TestExtractEnhancedEmotionFeatures:
         rng = np.random.default_rng(99)
         signal_1d = rng.standard_normal(1024) * 20.0
         features = extract_enhanced_emotion_features(signal_1d, fs=256)
-        assert features.shape == (53,)
+        assert features.shape == (68,)
         assert np.all(np.isfinite(features))
 
     def test_short_signal_does_not_crash(self):
@@ -117,15 +116,56 @@ class TestExtractEnhancedEmotionFeatures:
         rng = np.random.default_rng(77)
         short = rng.standard_normal((4, 64)) * 20.0
         features = extract_enhanced_emotion_features(short, fs=256)
-        assert features.shape == (53,)
+        assert features.shape == (68,)
         assert np.all(np.isfinite(features))
 
     def test_flat_signal_produces_finite_features(self):
         """Flat (DC) signal should not produce NaN/inf."""
         flat = np.ones((4, 1024)) * 0.001
         features = extract_enhanced_emotion_features(flat, fs=256)
-        assert features.shape == (53,)
+        assert features.shape == (68,)
         assert np.all(np.isfinite(features))
+
+    def test_alpha_sub_band_features_present(self, four_channel_eeg):
+        """Low-alpha and high-alpha DE features should be extracted."""
+        features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
+        # Alpha sub-band DE features are at indices 20-27 (8 features: 2 bands x 4 ch)
+        sub_band_features = features[20:28]
+        assert len(sub_band_features) == 8
+        assert np.all(np.isfinite(sub_band_features))
+
+    def test_alpha_sub_band_feature_names(self):
+        """Feature names should include low_alpha and high_alpha DE features."""
+        low_alpha_names = [n for n in FEATURE_NAMES if "low_alpha" in n]
+        high_alpha_names = [n for n in FEATURE_NAMES if "high_alpha" in n]
+        # 4 DE + 1 DASM + 1 RASM + 1 DCAU = 7 per sub-band
+        assert len(low_alpha_names) == 7, f"Expected 7 low_alpha features, got {len(low_alpha_names)}"
+        assert len(high_alpha_names) == 7, f"Expected 7 high_alpha features, got {len(high_alpha_names)}"
+
+    def test_haa_feature_present(self, four_channel_eeg):
+        """High-Alpha Asymmetry (HAA) feature should be present."""
+        assert "haa" in FEATURE_NAMES
+        haa_idx = FEATURE_NAMES.index("haa")
+        features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
+        assert np.isfinite(features[haa_idx])
+
+    def test_haa_changes_sign_on_channel_swap(self, asymmetric_eeg):
+        """HAA should flip sign when AF7/AF8 channels are swapped."""
+        features_normal = extract_enhanced_emotion_features(asymmetric_eeg, fs=256)
+        haa_idx = FEATURE_NAMES.index("haa")
+
+        # Swap AF7 (ch1) and AF8 (ch2)
+        swapped = asymmetric_eeg.copy()
+        swapped[1], swapped[2] = asymmetric_eeg[2].copy(), asymmetric_eeg[1].copy()
+        features_swapped = extract_enhanced_emotion_features(swapped, fs=256)
+
+        haa_normal = features_normal[haa_idx]
+        haa_swapped = features_swapped[haa_idx]
+
+        if abs(haa_normal) > 1e-6 and abs(haa_swapped) > 1e-6:
+            assert np.sign(haa_normal) != np.sign(haa_swapped), (
+                f"HAA: normal={haa_normal:.4f}, swapped={haa_swapped:.4f} -- expected opposite signs"
+            )
 
 
 class TestExtractTemporalFeatures:
@@ -165,10 +205,10 @@ class TestExtractTemporalFeatures:
         assert np.any(np.abs(deltas) > 1e-10), "Expected non-zero deltas between different epochs"
 
     def test_temporal_output_shape(self, four_channel_eeg):
-        """Output should be exactly 106 dimensions (53 + 53)."""
+        """Output should be exactly 136 dimensions (68 + 68)."""
         features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
         temporal = extract_temporal_features(features, history=None)
-        assert temporal.shape == (106,)
+        assert temporal.shape == (136,)
 
     def test_temporal_features_are_finite(self, four_channel_eeg):
         """All temporal features must be finite."""
@@ -187,13 +227,13 @@ class TestGetFeatureNames:
 
     def test_base_names_length(self):
         names = get_feature_names(include_temporal=False)
-        assert len(names) == 53
+        assert len(names) == 68
 
     def test_temporal_names_length(self):
         names = get_feature_names(include_temporal=True)
-        assert len(names) == 106
+        assert len(names) == 136
 
     def test_temporal_names_prefixed(self):
         names = get_feature_names(include_temporal=True)
-        for name in names[53:]:
+        for name in names[68:]:
             assert name.startswith("delta_"), f"Expected 'delta_' prefix, got: {name}"

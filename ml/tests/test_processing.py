@@ -11,10 +11,12 @@ class TestFeatureExtraction:
             assert band in bands
             assert bands[band] >= 0
 
-    def test_extract_features_returns_17(self, sample_eeg, fs):
+    def test_extract_features_returns_expected_count(self, sample_eeg, fs):
         from processing.eeg_processor import extract_features
         features = extract_features(sample_eeg, fs)
-        assert len(features) == 31
+        # 9 band_power (7 BANDS + low_alpha + high_alpha) + 9 log_bp + 3 hjorth
+        # + 1 spectral_entropy + 9 DE + 3 ratios + 3 extra ratios = 37
+        assert len(features) == 37
 
     def test_preprocess_preserves_length(self, sample_eeg, fs):
         from processing.eeg_processor import preprocess

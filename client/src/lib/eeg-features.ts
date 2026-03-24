@@ -9,6 +9,8 @@ const BANDS: Record<string, [number, number]> = {
   delta: [0.5, 4.0],
   theta: [4.0, 8.0],
   alpha: [8.0, 12.0],
+  low_alpha: [8.0, 10.0],   // general alertness, tonic arousal (Klimesch 1999)
+  high_alpha: [10.0, 12.0], // task-specific processing, MORE emotion-specific (Bazanova & Vernon 2014)
   beta: [12.0, 30.0],
   gamma: [30.0, 50.0],  // cap at 50 Hz — Muse 2 hardware bandwidth limit; above 50 Hz is aliasing
 };
@@ -44,6 +46,8 @@ export const BAND_IMPORTANCE_WEIGHTS: Record<string, number> = {
   delta: 0.8,
   theta: 1.3,
   alpha: 1.5,
+  low_alpha: 1.2,    // general alertness — less emotion-specific
+  high_alpha: 1.8,   // emotional engagement — highest emotion specificity
   beta: 1.0,
   gamma: 0.3,
 };
