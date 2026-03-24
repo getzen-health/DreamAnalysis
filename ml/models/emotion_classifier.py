@@ -1477,8 +1477,8 @@ class EmotionClassifier:
         representations, so their errors are weakly correlated -- the ideal
         condition for ensemble gains.
         """
-        # 1. Get EEGNet prediction (has its own EMA)
-        eegnet_result = self._eegnet.predict(eeg, fs)
+        # 1. Get EEGNet prediction with MC Dropout uncertainty (has its own EMA)
+        eegnet_result = self._eegnet.predict_with_uncertainty(eeg, fs, n_forward=5)
         eegnet_probs_dict = eegnet_result.get("probabilities", {})
 
         # 2. Get feature-based prediction.
@@ -1533,8 +1533,20 @@ class EmotionClassifier:
         top_conf = float(smoothed[emotion_idx])
         result["emotion"] = EMOTIONS[emotion_idx] if top_conf >= _CONFIDENCE_THRESHOLD else "neutral"
         result["emotion_index"] = emotion_idx
-        result["confidence"] = top_conf
         result["model_type"] = "ensemble-eegnet-heuristic"
+
+        # 6b. MC Dropout uncertainty — more principled than max(softmax).
+        # Use MC confidence when available; fall back to top_conf (max prob) if not.
+        mc_confidence = eegnet_result.get("mc_confidence")
+        if mc_confidence is not None:
+            result["confidence"] = round(float(mc_confidence), 4)
+            result["mc_uncertainty"] = eegnet_result.get("mc_uncertainty", 0.0)
+            result["mc_confidence"] = round(float(mc_confidence), 4)
+            result["mc_pred_std"] = eegnet_result.get("mc_pred_std", {})
+            result["mc_predictive_entropy"] = eegnet_result.get("mc_predictive_entropy", 0.0)
+            result["confidence_label"] = eegnet_result.get("confidence_label", "medium")
+        else:
+            result["confidence"] = top_conf
 
         # 7. Blend valence/arousal: weighted average of EEGNet and heuristic
         # (heuristic values already went through _smooth_index in _predict_features,

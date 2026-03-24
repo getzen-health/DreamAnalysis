@@ -34,7 +34,7 @@ class TestEnsembleEEGNetHeuristic:
         # Mock EEGNet to be available and return valid probabilities
         mock_eegnet = MagicMock()
         mock_eegnet.is_available.return_value = True
-        mock_eegnet.predict.return_value = {
+        mock_eegnet.predict_with_uncertainty.return_value = {
             "emotion": "happy",
             "probabilities": {
                 "happy": 0.4, "sad": 0.1, "angry": 0.1,
@@ -64,7 +64,7 @@ class TestEnsembleEEGNetHeuristic:
         mock_eegnet = MagicMock()
         mock_eegnet.is_available.return_value = True
         # EEGNet strongly favors happy
-        mock_eegnet.predict.return_value = {
+        mock_eegnet.predict_with_uncertainty.return_value = {
             "emotion": "happy",
             "probabilities": {
                 "happy": 0.8, "sad": 0.05, "angry": 0.02,
@@ -92,7 +92,7 @@ class TestEnsembleEEGNetHeuristic:
 
         # The ensemble should not be identical to the raw EEGNet output
         # (because heuristic probs are blended in)
-        eegnet_probs = mock_eegnet.predict.return_value["probabilities"]
+        eegnet_probs = mock_eegnet.predict_with_uncertainty.return_value["probabilities"]
         at_least_one_diff = any(
             abs(probs[e] - eegnet_probs[e]) > 0.01
             for e in probs
@@ -105,7 +105,7 @@ class TestEnsembleEEGNetHeuristic:
         """Ensemble result must have all keys the API contract requires."""
         mock_eegnet = MagicMock()
         mock_eegnet.is_available.return_value = True
-        mock_eegnet.predict.return_value = {
+        mock_eegnet.predict_with_uncertainty.return_value = {
             "emotion": "relaxed",
             "probabilities": {
                 "happy": 0.1, "sad": 0.1, "angry": 0.1,
@@ -138,7 +138,7 @@ class TestEnsembleEEGNetHeuristic:
         """Ensemble valence and arousal must be in valid ranges."""
         mock_eegnet = MagicMock()
         mock_eegnet.is_available.return_value = True
-        mock_eegnet.predict.return_value = {
+        mock_eegnet.predict_with_uncertainty.return_value = {
             "emotion": "angry",
             "probabilities": {
                 "happy": 0.05, "sad": 0.1, "angry": 0.5,
@@ -184,7 +184,7 @@ class TestEnsembleEEGNetHeuristic:
 
         mock_eegnet = MagicMock()
         mock_eegnet.is_available.return_value = True
-        mock_eegnet.predict.return_value = {
+        mock_eegnet.predict_with_uncertainty.return_value = {
             "emotion": "happy",
             "probabilities": {
                 "happy": 0.3, "sad": 0.2, "angry": 0.1,
@@ -218,7 +218,7 @@ class TestEnsembleEEGNetHeuristic:
         mock_eegnet = MagicMock()
         mock_eegnet.is_available.return_value = True
         # EEGNet says 100% happy (extreme case)
-        mock_eegnet.predict.return_value = {
+        mock_eegnet.predict_with_uncertainty.return_value = {
             "emotion": "happy",
             "probabilities": {
                 "happy": 1.0, "sad": 0.0, "angry": 0.0,

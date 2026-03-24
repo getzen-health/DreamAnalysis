@@ -198,6 +198,62 @@ class EEGNet(nn.Module):
             logits = self(x)
             return F.softmax(logits, dim=-1).cpu().numpy()
 
+    def predict_proba_mc(
+        self, x: torch.Tensor, n_forward: int = 5
+    ) -> Tuple[np.ndarray, np.ndarray, float]:
+        """MC Dropout: run N forward passes with dropout ON, return uncertainty.
+
+        Gal & Ghahramani (2016) showed that dropout at inference time
+        approximates Bayesian inference. Multiple stochastic passes produce
+        a distribution over predictions whose spread measures epistemic
+        uncertainty -- how uncertain the model is about its own knowledge.
+
+        Parameters
+        ----------
+        x         : input tensor (batch, n_channels, n_samples) or (batch, 1, n_channels, n_samples)
+        n_forward : number of stochastic forward passes (default 5; >10 gives diminishing returns)
+
+        Returns
+        -------
+        mean_probs : np.ndarray, shape (batch, n_classes)
+            Mean softmax probabilities across all passes.
+        std_probs  : np.ndarray, shape (batch, n_classes)
+            Standard deviation of softmax probabilities per class.
+        predictive_entropy : float
+            H[E[p]] -- entropy of the mean prediction. High = uncertain overall.
+            Range: [0, log(n_classes)]. Normalized to [0, 1] in the caller.
+        """
+        # Enable dropout layers while keeping BatchNorm in eval mode.
+        # model.train() would also set BN to use batch stats, which is wrong
+        # for single-sample inference. Instead, only enable Dropout modules.
+        self.eval()
+        for m in self.modules():
+            if isinstance(m, nn.Dropout):
+                m.train()
+
+        all_probs = []
+        with torch.no_grad():
+            for _ in range(n_forward):
+                logits = self(x)
+                probs = F.softmax(logits, dim=-1).cpu().numpy()
+                all_probs.append(probs)
+
+        # Restore full eval mode
+        self.eval()
+
+        # Stack: (n_forward, batch, n_classes)
+        stacked = np.stack(all_probs, axis=0)
+        mean_probs = stacked.mean(axis=0)   # (batch, n_classes)
+        std_probs = stacked.std(axis=0)      # (batch, n_classes)
+
+        # Predictive entropy: H[E[p]] = -sum(p_mean * log(p_mean))
+        eps = 1e-10
+        predictive_entropy = float(
+            -np.sum(mean_probs * np.log(mean_probs + eps), axis=-1).mean()
+        )
+
+        return mean_probs, std_probs, predictive_entropy
+
     # ── Serialisation helpers ─────────────────────────────────────────────
 
     def save(self, path: str | Path) -> None:
@@ -377,4 +433,107 @@ class EEGNetEmotionClassifier:
             "focus_index":        round(focus_index, 3),
             "relaxation_index":   round(relax_index, 3),
             "model_type":         f"eegnet_{n_channels}ch",
+        }
+
+    def predict_with_uncertainty(
+        self, eeg: np.ndarray, fs: float = 256.0, n_forward: int = 5
+    ) -> dict:
+        """Predict emotion with MC Dropout uncertainty estimation.
+
+        Runs EEGNet N times with dropout enabled (stochastic forward passes).
+        The variance across passes reflects epistemic uncertainty -- how unsure
+        the model is about its own prediction. This is more principled than raw
+        softmax confidence, which is known to be overconfident on out-of-
+        distribution inputs.
+
+        Returns the same dict as predict(), plus:
+          mc_uncertainty     : float in [0, 1] -- 0 = fully certain, 1 = max uncertain
+          mc_confidence      : float in [0, 1] -- 1 - mc_uncertainty (for UI display)
+          mc_pred_std        : dict   -- per-class prediction std across passes
+          mc_predictive_entropy : float -- raw entropy before normalization
+          confidence_label   : str    -- "high" / "medium" / "low"
+        """
+        n_channels, n_samples = eeg.shape
+        model = self._models[n_channels]
+
+        # Normalise each channel to zero-mean unit-variance
+        eeg_norm = (eeg - eeg.mean(axis=1, keepdims=True)) / (
+            eeg.std(axis=1, keepdims=True) + 1e-7
+        )
+
+        # Pad or trim to model's expected n_samples
+        target = model.n_samples
+        if n_samples < target:
+            pad = target - n_samples
+            eeg_norm = np.pad(eeg_norm, ((0, 0), (0, pad)), mode="edge")
+        elif n_samples > target:
+            eeg_norm = eeg_norm[:, :target]
+
+        x = torch.from_numpy(eeg_norm.astype(np.float32)).unsqueeze(0)  # (1, ch, t)
+
+        # MC Dropout forward passes
+        mean_probs_batch, std_probs_batch, pred_entropy = model.predict_proba_mc(
+            x, n_forward=n_forward
+        )
+        mean_probs = mean_probs_batch[0]  # single sample: (n_classes,)
+        std_probs = std_probs_batch[0]
+
+        # EMA smoothing on the MC mean probs (same as regular predict)
+        ema = self._ema.get(n_channels)
+        if ema is None:
+            ema = mean_probs
+        else:
+            ema = self._EMA_ALPHA * mean_probs + (1 - self._EMA_ALPHA) * ema
+        self._ema[n_channels] = ema
+        smoothed = ema / (ema.sum() + 1e-10)
+
+        emotion_idx = int(np.argmax(smoothed))
+        emotion = self.EMOTIONS[emotion_idx]
+
+        # Derive valence / arousal (same mapping as predict())
+        valence = (
+            smoothed[0] * 0.9 + smoothed[4] * 0.4 + smoothed[5] * 0.2
+            - smoothed[1] * 0.9 - smoothed[2] * 0.7 - smoothed[3] * 0.8
+        )
+        arousal = (
+            smoothed[0] * 0.7 + smoothed[2] * 0.9 + smoothed[3] * 0.8
+            + smoothed[5] * 0.7 - smoothed[1] * 0.5 - smoothed[4] * 0.8
+        )
+        arousal = float(np.clip(arousal + 0.5, 0.0, 1.0))
+        valence = float(np.clip(valence, -1.0, 1.0))
+
+        stress_index = float(np.clip(
+            smoothed[2] * 0.85 + smoothed[3] * 0.8 - smoothed[4] * 0.7, 0.0, 1.0
+        ))
+        focus_index = float(np.clip(smoothed[5] * 0.9 + smoothed[0] * 0.3, 0.0, 1.0))
+        relax_index = float(np.clip(smoothed[4] * 0.9 + smoothed[1] * 0.2, 0.0, 1.0))
+
+        # Normalize predictive entropy to [0, 1]
+        # Max entropy for 6 classes = log(6) ~ 1.791
+        max_entropy = float(np.log(len(self.EMOTIONS)))
+        mc_uncertainty = min(pred_entropy / max_entropy, 1.0) if max_entropy > 0 else 0.0
+        mc_confidence = 1.0 - mc_uncertainty
+
+        # Confidence label for UI
+        if mc_confidence >= 0.70:
+            confidence_label = "high"
+        elif mc_confidence >= 0.40:
+            confidence_label = "medium"
+        else:
+            confidence_label = "low"
+
+        return {
+            "emotion":              emotion,
+            "probabilities":        {e: round(float(p), 4) for e, p in zip(self.EMOTIONS, smoothed)},
+            "valence":              round(valence, 3),
+            "arousal":              round(arousal, 3),
+            "stress_index":         round(stress_index, 3),
+            "focus_index":          round(focus_index, 3),
+            "relaxation_index":     round(relax_index, 3),
+            "model_type":           f"eegnet_{n_channels}ch",
+            "mc_uncertainty":       round(mc_uncertainty, 4),
+            "mc_confidence":        round(mc_confidence, 4),
+            "mc_pred_std":          {e: round(float(s), 4) for e, s in zip(self.EMOTIONS, std_probs)},
+            "mc_predictive_entropy": round(pred_entropy, 4),
+            "confidence_label":     confidence_label,
         }
