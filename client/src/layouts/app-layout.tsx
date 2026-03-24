@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, ReactNode, Component } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { InterventionBanner } from "@/components/intervention-banner";
@@ -22,6 +22,12 @@ import { sbGetSetting } from "../lib/supabase-store";
 import { NeuralCanvasBg } from "@/components/neural-canvas-bg";
 import { ParticleTouch } from "@/components/particle-touch";
 import { useBreathSync } from "@/hooks/use-breath-sync";
+/** Error boundary — if canvas components crash, silently hide them */
+class SafeCanvas extends Component<{ children: ReactNode }, { error: boolean }> {
+  state = { error: false };
+  static getDerivedStateFromError() { return { error: true }; }
+  render() { return this.state.error ? null : this.props.children; }
+}
 
 const routeTitles: Record<string, string> = {
   "/": "Today",
@@ -160,10 +166,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground relative">
-      {/* Living neural background — emotion-reactive particle field */}
-      <NeuralCanvasBg />
-      {/* Touch particles — emotion-colored burst on every tap */}
-      <ParticleTouch />
+      {/* Living neural background + touch particles — wrapped in error boundary */}
+      <SafeCanvas><NeuralCanvasBg /></SafeCanvas>
+      <SafeCanvas><ParticleTouch /></SafeCanvas>
 
       <main ref={pullRef} className="min-h-screen overflow-x-hidden relative" style={{ zIndex: 1 }} role="main">
         {/* Mobile top bar with back button — shown on subpages only */}
