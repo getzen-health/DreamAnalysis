@@ -42,6 +42,9 @@ from torch.utils.data import DataLoader, TensorDataset, random_split
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.eegnet import EEGNet
+from processing.mixup_augmentation import (
+    mixup_signal_batch, mixup_cross_entropy, to_one_hot,
+)
 
 log = logging.getLogger(__name__)
 
@@ -184,8 +187,15 @@ def train(
     val_split: float = 0.2,
     patience: int = 20,
     device: str = "cpu",
+    mixup_alpha: float = 0.4,
 ) -> Tuple[EEGNet, float]:
-    """Train EEGNet and return (model, test_accuracy)."""
+    """Train EEGNet and return (model, test_accuracy).
+
+    Args:
+        mixup_alpha: Mixup interpolation strength. 0 disables mixup.
+            0.2-0.4 is recommended for EEG data (conservative mixing).
+            Higher values mix more aggressively. Default 0.4.
+    """
 
     log.info(
         "Training EEGNet — channels=%d, samples_per_epoch=%d, n_epochs=%d",

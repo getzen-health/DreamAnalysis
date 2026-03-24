@@ -578,8 +578,23 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
     }
   }
 
-  // Heart rate
-  const hr = await readLatest("heartRate", 4);
+  // Heart rate — try readSamples first, then queryAggregated
+  let hr = await readLatest("heartRate", 4);
+  if (!hr) {
+    // Fallback: try queryAggregated
+    try {
+      const agg = await HC.queryAggregated({
+        dataType: "heartRate" as any,
+        startDate: fmt(new Date(now.getTime() - 4 * 3600000)),
+        endDate: fmt(now),
+        bucket: "HOUR",
+      });
+      if (agg?.aggregatedData?.length > 0) {
+        const latest = agg.aggregatedData[agg.aggregatedData.length - 1];
+        if (latest.value > 0) { hr = latest.value; diagnostics.push(`heartRate(agg): ${latest.value}`); }
+      }
+    } catch (e) { diagnostics.push(`heartRate(agg): FAILED (${String(e).slice(0, 60)})`); }
+  }
   if (hr && hr > 0) payload.current_heart_rate = Math.round(hr);
 
   // Resting heart rate

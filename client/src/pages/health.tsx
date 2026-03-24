@@ -401,6 +401,23 @@ export default function Health() {
           onSyncNow={syncNow}
           platform={platform}
         />
+        {/* Health sync diagnostics */}
+        {(() => {
+          try {
+            const diag = JSON.parse(localStorage.getItem("ndw_health_diagnostics") || "[]");
+            if (diag.length > 0) {
+              return (
+                <div className="mt-2 p-2 rounded bg-black/30 max-h-32 overflow-y-auto">
+                  <p className="text-[10px] font-mono text-muted-foreground mb-1">Sync Diagnostics</p>
+                  {diag.map((line: string, i: number) => (
+                    <p key={i} className="text-[9px] font-mono text-green-400/80 leading-tight">{line}</p>
+                  ))}
+                </div>
+              );
+            }
+          } catch { /* ok */ }
+          return null;
+        })()}
       </div>
 
       <Tabs defaultValue="body" className="w-full">
