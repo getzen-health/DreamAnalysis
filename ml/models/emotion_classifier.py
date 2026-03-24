@@ -483,16 +483,35 @@ class EmotionClassifier:
         except Exception:
             return []
 
-    @staticmethod
-    def _ensure_explanation(result: Dict) -> Dict:
+    def _ensure_explanation(self, result: Dict) -> Dict:
         """Guarantee the result dict contains explanation, dominance, and granular_emotions.
 
         External model paths (EEGNet, REVE, TSception) do not compute SHAP
         explanations or granularity fields. This method injects defaults so
         the API contract is always satisfied.
+
+        Also applies EMA smoothing to continuous indices — without this,
+        external model paths return raw per-frame values that jitter on every
+        2-second epoch hop, while only the feature-based path was smoothed.
         """
         if "explanation" not in result:
             result["explanation"] = []
+        # EMA smooth continuous indices for external model paths (EEGNet, REVE, TSception).
+        # _smooth_index is a no-op on first call (seeds EMA), then blends on subsequent calls.
+        if "valence" in result:
+            result["valence"] = self._smooth_index("_ema_valence", result["valence"])
+        if "arousal" in result:
+            result["arousal"] = self._smooth_index("_ema_arousal", result["arousal"])
+        if "stress_index" in result:
+            result["stress_index"] = self._smooth_index("_ema_stress", result["stress_index"])
+        if "focus_index" in result:
+            result["focus_index"] = self._smooth_index("_ema_focus", result["focus_index"])
+        if "relaxation_index" in result:
+            result["relaxation_index"] = self._smooth_index("_ema_relaxation", result["relaxation_index"])
+        if "anger_index" in result:
+            result["anger_index"] = self._smooth_index("_ema_anger", result["anger_index"])
+        if "fear_index" in result:
+            result["fear_index"] = self._smooth_index("_ema_fear", result["fear_index"])
         # Ensure dominance + granular_emotions for external model paths
         if "dominance" not in result:
             # Default dominance when band power ratios unavailable from external models
@@ -1025,6 +1044,32 @@ class EmotionClassifier:
             + 0.25 * max(0, 1 - alpha * 5)
             + 0.10 * max(0, arousal - 0.45), 0, 1))
 
+        # EMA smooth continuous indices to reduce frame-to-frame jitter.
+        # Same _smooth_index() used in _predict_features() — ensures all model
+        # paths (LGBM, EEGNet via _build_muse_result) produce temporally stable
+        # dashboard readings.  Without this, valence/arousal/stress/focus jump
+        # on every 2-second epoch hop.
+        # SKIP smoothing on artifact epochs — the band powers are garbage
+        # (from a blink/EMG burst), so blending them into the EMA would
+        # contaminate the running average.  Instead, return frozen values.
+        if not artifact_detected:
+            valence          = self._smooth_index("_ema_valence", valence)
+            arousal          = self._smooth_index("_ema_arousal", arousal)
+            stress_index     = self._smooth_index("_ema_stress", stress_index)
+            focus_index      = self._smooth_index("_ema_focus", focus_index)
+            relaxation_index = self._smooth_index("_ema_relaxation", relaxation_index)
+            anger_index      = self._smooth_index("_ema_anger", anger_index)
+            fear_index       = self._smooth_index("_ema_fear", fear_index)
+        else:
+            # Return frozen EMA values when available, else keep raw
+            valence          = self._ema_valence if self._ema_valence is not None else valence
+            arousal          = self._ema_arousal if self._ema_arousal is not None else arousal
+            stress_index     = self._ema_stress if self._ema_stress is not None else stress_index
+            focus_index      = self._ema_focus if self._ema_focus is not None else focus_index
+            relaxation_index = self._ema_relaxation if self._ema_relaxation is not None else relaxation_index
+            anger_index      = self._ema_anger if self._ema_anger is not None else anger_index
+            fear_index       = self._ema_fear if self._ema_fear is not None else fear_index
+
         granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
 
         top_conf    = float(np.max(smoothed))
@@ -1369,6 +1414,15 @@ class EmotionClassifier:
         fear_index = float(np.clip(
             0.35 * min(1, max(0, beta_alpha_ratio - 1.5) * 0.6) + 0.30 * min(1, high_beta * 5)
             + 0.25 * max(0, 1 - alpha * 5) + 0.10 * max(0, arousal - 0.45), 0, 1))
+
+        # EMA smooth continuous indices (same as _build_muse_result and _predict_features)
+        valence          = self._smooth_index("_ema_valence", valence)
+        arousal          = self._smooth_index("_ema_arousal", arousal)
+        stress_index     = self._smooth_index("_ema_stress", stress_index)
+        focus_index      = self._smooth_index("_ema_focus", focus_index)
+        relaxation_index = self._smooth_index("_ema_relaxation", relaxation_index)
+        anger_index      = self._smooth_index("_ema_anger", anger_index)
+        fear_index       = self._smooth_index("_ema_fear", fear_index)
 
         granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
 
@@ -1879,6 +1933,15 @@ class EmotionClassifier:
             0.35 * min(1, max(0, beta_alpha_ratio - 1.5) * 0.6) + 0.30 * min(1, high_beta * 5)
             + 0.25 * max(0, 1 - alpha * 5) + 0.10 * max(0, arousal - 0.45), 0, 1))
 
+        # EMA smooth continuous indices (same as all other paths)
+        valence          = self._smooth_index("_ema_valence", valence)
+        arousal          = self._smooth_index("_ema_arousal", arousal)
+        stress_index     = self._smooth_index("_ema_stress", stress_index)
+        focus_index      = self._smooth_index("_ema_focus", focus_index)
+        relaxation_index = self._smooth_index("_ema_relaxation", relaxation_index)
+        anger_index      = self._smooth_index("_ema_anger", anger_index)
+        fear_index       = self._smooth_index("_ema_fear", fear_index)
+
         granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
 
         return {
@@ -1991,6 +2054,15 @@ class EmotionClassifier:
         fear_index = float(np.clip(
             0.35 * min(1, max(0, beta_alpha_ratio - 1.5) * 0.6) + 0.30 * min(1, high_beta * 5)
             + 0.25 * max(0, 1 - alpha * 5) + 0.10 * max(0, arousal - 0.45), 0, 1))
+
+        # EMA smooth continuous indices (same as all other paths)
+        valence          = self._smooth_index("_ema_valence", valence)
+        arousal          = self._smooth_index("_ema_arousal", arousal)
+        stress_index     = self._smooth_index("_ema_stress", stress_index)
+        focus_index      = self._smooth_index("_ema_focus", focus_index)
+        relaxation_index = self._smooth_index("_ema_relaxation", relaxation_index)
+        anger_index      = self._smooth_index("_ema_anger", anger_index)
+        fear_index       = self._smooth_index("_ema_fear", fear_index)
 
         granular_emotions = map_vad_to_granular_emotions(valence, arousal, dominance)
 

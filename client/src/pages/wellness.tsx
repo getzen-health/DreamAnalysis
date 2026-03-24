@@ -1531,25 +1531,20 @@ function CycleTab() {
             const isFertile = !flow && !isPredictedPeriod && fertilityLevel;
 
             let bgColor = "";
-            if (flow === "heavy") bgColor = "bg-rose-600/80";
-            else if (flow === "medium") bgColor = "bg-pink-500/70";
-            else if (flow === "light") bgColor = "bg-pink-300/60";
-            else if (isPredictedPeriod) bgColor = "bg-pink-200/40";
-            else if (fertilityLevel === "high") bgColor = "bg-emerald-500/25";
-            else if (fertilityLevel === "medium") bgColor = "bg-amber-500/20";
-            else if (fertilityLevel === "low") bgColor = "bg-rose-500/10";
+            if (flow === "heavy" || flow === "medium" || flow === "light") bgColor = "bg-rose-500/60";
+            else if (isPredictedPeriod) bgColor = "bg-rose-500/25";
+            else if (fertilityLevel === "high" || fertilityLevel === "medium") bgColor = "bg-emerald-500/25";
 
             return (
               <button
                 key={date}
-                onClick={() => openLogDialog(date)}
+                onClick={() => setSelectedDate(date)}
                 className={`aspect-square rounded-lg flex items-center justify-center text-xs font-medium transition-colors
                   ${!inMonth ? "opacity-30" : ""}
                   ${bgColor || "hover:bg-muted/50"}
                   ${isToday ? "ring-2 ring-primary font-bold" : ""}
-                  ${isPredictedPeriod ? "ring-1 ring-pink-300/50 ring-dashed text-pink-400" : ""}
-                  ${isFertile && fertilityLevel === "high" ? "ring-1 ring-emerald-500/40" : ""}
-                  ${flow && flow !== "none" ? "text-white" : isPredictedPeriod ? "" : "text-foreground"}
+                  ${selectedDate === date ? "ring-2 ring-foreground" : ""}
+                  ${flow && flow !== "none" ? "text-white" : "text-foreground"}
                 `}
               >
                 {day}
@@ -1558,33 +1553,55 @@ function CycleTab() {
           })}
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-3 mt-3 justify-center flex-wrap">
-          {FLOW_LEVELS.filter(f => f.value !== "none").map(f => (
-            <div key={f.value} className="flex items-center gap-1">
-              <div className={`w-2.5 h-2.5 rounded-full ${f.color}`} />
-              <span className="text-[9px] text-muted-foreground">{f.label}</span>
-            </div>
-          ))}
-          {predictedPeriodDates.size > 0 && (
-            <div className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-full bg-pink-200/40 ring-1 ring-pink-300/50" />
-              <span className="text-[9px] text-muted-foreground">Predicted</span>
-            </div>
-          )}
-          {predictedFertilityDates.size > 0 && (
-            <>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/25 ring-1 ring-emerald-500/40" />
-                <span className="text-[9px] text-muted-foreground">Fertile</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20" />
-                <span className="text-[9px] text-muted-foreground">Maybe</span>
-              </div>
-            </>
-          )}
+        {/* Legend — simplified: Period + Fertile only */}
+        <div className="flex items-center gap-4 mt-3 justify-center">
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+            <span className="text-[9px] text-muted-foreground">Period</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/50" />
+            <span className="text-[9px] text-muted-foreground">Fertile</span>
+          </div>
         </div>
+
+        {/* Selected day detail — shows when you tap a date */}
+        {selectedDate && (() => {
+          const entry = cycleByDate.get(selectedDate);
+          const fl = predictedFertilityDates.get(selectedDate);
+          const isPeriod = entry?.flowLevel && entry.flowLevel !== "none";
+          const isPredPeriod = predictedPeriodDates.has(selectedDate);
+          const dateLabel = new Date(selectedDate + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
+          let description = "";
+          if (isPeriod) {
+            description = `Period day — ${entry?.flowLevel} flow.`;
+          } else if (isPredPeriod) {
+            description = "Your period is expected around this date.";
+          } else if (fl === "high") {
+            description = "High chance of getting pregnant. Ovulation is happening around now.";
+          } else if (fl === "medium") {
+            description = "Moderate chance of getting pregnant. You're in the fertile window.";
+          } else if (fl === "low") {
+            description = "Low chance of getting pregnant. Outside the main fertile window.";
+          } else {
+            description = "No special events on this day. Tap to log symptoms.";
+          }
+
+          return (
+            <div className="mt-3 p-3 rounded-lg bg-muted/30 border border-border/30">
+              <p className="text-xs font-semibold text-foreground">{dateLabel}</p>
+              <p className="text-[11px] text-muted-foreground mt-1">{description}</p>
+              {entry?.symptoms && entry.symptoms.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {entry.symptoms.map((s) => (
+                    <span key={s} className="text-[9px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{s.replace(/_/g, " ")}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Quick log button for today */}
