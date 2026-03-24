@@ -15,7 +15,7 @@ from collections import deque
 from processing.eeg_processor import (
     extract_band_powers, differential_entropy, extract_features, preprocess,
     compute_frontal_asymmetry, compute_dasm_rasm,
-    compute_frontal_midline_theta,
+    compute_frontal_midline_theta, compute_coherence,
 )
 from processing.channel_maps import get_channel_map
 from models.emotion_granularity import map_vad_to_granular_emotions
@@ -1310,6 +1310,12 @@ class EmotionClassifier:
             faa_valence = float(asym.get("asymmetry_valence", 0.0))
         except Exception:
             faa_valence = 0.0
+        # Frontal alpha coherence (AF7-AF8)
+        try:
+            frontal_pair = eeg[np.array([lf, rf])]
+            _frontal_coh = float(np.clip(compute_coherence(frontal_pair, fs, "alpha"), 0.0, 1.0))
+        except Exception:
+            _frontal_coh = 0.0
 
         beta_alpha = beta / max(alpha, 1e-6)
         dasm_alpha_val = float(dasm_rasm.get("dasm_alpha", 0.0)) * 0.5
@@ -1399,6 +1405,7 @@ class EmotionClassifier:
             "differential_entropy":  de,
             "dasm_rasm":             dasm_rasm,
             "frontal_midline_theta": fmt,
+            "frontal_alpha_coherence": _frontal_coh,
             "artifact_detected":     artifact_detected,
             "model_type":            "lgbm-muse",
             "explanation":           explanation if explanation else [],
@@ -2075,7 +2082,9 @@ class EmotionClassifier:
                 "anger_index": self._ema_anger if self._ema_anger is not None else 0.0,
                 "fear_index": self._ema_fear if self._ema_fear is not None else 0.0,
                 "band_powers": {}, "differential_entropy": {},
-                "dasm_rasm": {}, "frontal_midline_theta": {}, "artifact_detected": True,
+                "dasm_rasm": {}, "frontal_midline_theta": {},
+                "frontal_alpha_coherence": 0.0,
+                "artifact_detected": True,
                 "explanation": [],
             }
 
@@ -2160,6 +2169,25 @@ class EmotionClassifier:
                 fmt = compute_frontal_midline_theta(channels[1], fs)  # AF7 channel
             except Exception:
                 fmt = {}
+
+        # ── Frontal Alpha Coherence ──────────────────────────────
+        # Inter-channel coherence in the alpha band between AF7-AF8.
+        # High frontal alpha coherence → integrated emotional processing,
+        # deep relaxation, coherent brain state → emotion reading is more
+        # trustworthy. Low coherence → dissociated/fragmented states.
+        # Research: Tass et al. (1998), Fingelkurts & Fingelkurts (2006).
+        frontal_alpha_coh = 0.0
+        if channels is not None and channels.shape[0] >= 3:
+            try:
+                _cmap = get_channel_map(device_type, channels.shape[0])
+                _lf, _rf = _cmap["left_frontal"], _cmap["right_frontal"]
+                # Compute coherence on just the frontal pair
+                frontal_pair = channels[np.array([_lf, _rf])]
+                frontal_alpha_coh = float(compute_coherence(frontal_pair, fs, "alpha"))
+                # Clamp to [0, 1] for safety
+                frontal_alpha_coh = float(np.clip(frontal_alpha_coh, 0.0, 1.0))
+            except Exception:
+                frontal_alpha_coh = 0.0
 
         # ── Valence (pleasantness) ──────────────────────────────
         # Alpha/beta ratio (ABR) as secondary valence signal.
@@ -2301,6 +2329,7 @@ class EmotionClassifier:
                 "differential_entropy": de,
                 "dasm_rasm": dasm_rasm,
                 "frontal_midline_theta": fmt,
+                "frontal_alpha_coherence": frontal_alpha_coh,
                 "artifact_detected": _artifact_now,
                 "model_type": "feature-based",
                 "explanation": [],
@@ -2347,11 +2376,15 @@ class EmotionClassifier:
             0, 1
         ))
 
-        # Relaxation: high alpha, low beta, theta welcome
+        # Relaxation: high alpha, low beta, theta welcome, coherence boosts.
+        # Frontal alpha coherence (5% weight): high coherence between AF7-AF8
+        # indicates integrated, synchronized brain state — validated marker of
+        # deep relaxation and meditation (Tass 1998, Fingelkurts 2006).
         relaxation_index = float(np.clip(
-            0.50 * min(1, alpha * 2.5)
-            + 0.30 * max(0, 1 - beta_alpha_ratio * 0.3)
-            + 0.20 * min(1, theta * 1.5),
+            0.47 * min(1, alpha * 2.5)
+            + 0.28 * max(0, 1 - beta_alpha_ratio * 0.3)
+            + 0.20 * min(1, theta * 1.5)
+            + 0.05 * frontal_alpha_coh,
             0, 1
         ))
 
@@ -2412,6 +2445,7 @@ class EmotionClassifier:
             ("theta_relaxation", float(relaxation_index)),
             ("beta_alpha_ratio", float(beta_alpha_ratio)),
             ("dasm_beta_stress", float(dasm_beta_stress)),
+            ("frontal_alpha_coherence", float(frontal_alpha_coh)),
         ]
         heuristic_explanation = self._compute_heuristic_explanation(_contributions)
 
@@ -2435,6 +2469,7 @@ class EmotionClassifier:
             "differential_entropy": de,
             "dasm_rasm": dasm_rasm,
             "frontal_midline_theta": fmt,
+            "frontal_alpha_coherence": frontal_alpha_coh,
             "artifact_detected": _artifact_now,
             "model_type": "feature-based",
             "explanation": heuristic_explanation,
