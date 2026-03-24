@@ -1597,8 +1597,9 @@ def extract_spectral_microstate_features(
 
     Delegates to ``processing.spectral_microstates.extract_microstate_features``.
     Defines 4 microstates by dominant frequency band (delta/theta/alpha/beta)
-    per 250ms window, then computes coverage, duration, occurrence, and
-    transition probabilities.
+    per 250ms window, then computes coverage, duration, occurrence,
+    transition probabilities, and transition entropy features (entropy rate,
+    excess entropy, Lempel-Ziv complexity).
 
     Args:
         signals: EEG data, shape (n_channels, n_samples) or (n_samples,).
@@ -1607,8 +1608,8 @@ def extract_spectral_microstate_features(
 
     Returns:
         Dict with coverage, avg_duration, occurrence, transition_matrix,
-        dominant_state, state_diversity, feature_vector (28 elements),
-        n_features, sequence_length.
+        transition_entropy, dominant_state, state_diversity,
+        feature_vector (31 elements), n_features, sequence_length.
     """
     from processing.spectral_microstates import extract_microstate_features
     return extract_microstate_features(signals, int(fs), window_ms)

@@ -593,10 +593,11 @@ async def analyze_microstates(input_data: EEGInput):
 
     Defines 4 microstates by dominant frequency band per 250ms window
     (D=delta, T=theta, A=alpha, B=beta), then computes temporal dynamics:
-    coverage, average duration, occurrence rate, and 4x4 transition
-    probability matrix.
+    coverage, average duration, occurrence rate, 4x4 transition probability
+    matrix, and transition entropy features (entropy rate, excess entropy,
+    Lempel-Ziv complexity).
 
-    Returns a 28-element feature vector suitable for ML pipelines alongside
+    Returns a 31-element feature vector suitable for ML pipelines alongside
     human-readable breakdowns of the microstate dynamics.
     """
     try:

@@ -123,13 +123,13 @@ class TestExtractMicrostateFeatures:
         }
         assert expected_keys.issubset(result.keys())
 
-    def test_feature_vector_length_is_28(self, multichannel_eeg, fs):
-        """Feature vector should have exactly 28 elements."""
+    def test_feature_vector_length_is_31(self, multichannel_eeg, fs):
+        """Feature vector should have exactly 31 elements (28 base + 3 entropy)."""
         from processing.spectral_microstates import extract_microstate_features
 
         result = extract_microstate_features(multichannel_eeg, fs)
-        assert result["n_features"] == 28
-        assert len(result["feature_vector"]) == 28
+        assert result["n_features"] == 31
+        assert len(result["feature_vector"]) == 31
 
     def test_coverage_sums_to_one(self, multichannel_eeg, fs):
         """State coverages should sum to 1.0."""
@@ -213,8 +213,8 @@ class TestExtractMicrostateFeatures:
         signals = np.random.randn(4, 10)  # Only 10 samples
         result = extract_microstate_features(signals, fs)
         assert result["sequence_length"] == 0
-        assert result["n_features"] == 28
-        assert len(result["feature_vector"]) == 28
+        assert result["n_features"] == 31
+        assert len(result["feature_vector"]) == 31
 
 
 class TestEegProcessorWrapper:
@@ -227,4 +227,4 @@ class TestEegProcessorWrapper:
         result = extract_spectral_microstate_features(multichannel_eeg, fs)
         assert "coverage" in result
         assert "feature_vector" in result
-        assert result["n_features"] == 28
+        assert result["n_features"] == 31
