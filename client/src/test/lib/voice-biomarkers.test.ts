@@ -107,6 +107,7 @@ describe("extractVoiceBiomarkers", () => {
 
       expect(isFinite(result.jitter)).toBe(true);
       expect(isFinite(result.shimmer)).toBe(true);
+      expect(isFinite(result.hnr)).toBe(true);
       expect(isFinite(result.pitchMean)).toBe(true);
       expect(isFinite(result.pitchStd)).toBe(true);
       expect(isFinite(result.speechRate)).toBe(true);
@@ -173,5 +174,51 @@ describe("extractVoiceBiomarkers", () => {
 
     expect(result.timestamp).toBeGreaterThanOrEqual(before);
     expect(result.timestamp).toBeLessThanOrEqual(after);
+  });
+
+  // ─── HNR (Harmonic-to-Noise Ratio) tests ────────────────────────────────
+
+  it("pure sine wave produces high HNR (> 15 dB)", () => {
+    // A pure tone is entirely harmonic — HNR should be very high
+    const samples = sineWave(200, SR, 2);
+    const result = extractVoiceBiomarkers(samples, SR);
+
+    expect(result.hnr).toBeGreaterThan(15);
+  });
+
+  it("white noise produces low or zero HNR", () => {
+    // Noise has no harmonic structure — HNR should be low
+    const samples = whiteNoise(SR, 2);
+    const result = extractVoiceBiomarkers(samples, SR);
+
+    // HNR should be near 0 dB (equal energy) or 0 (no pitch found)
+    expect(result.hnr).toBeLessThan(5);
+  });
+
+  it("silence produces HNR of 0", () => {
+    const samples = silence(SR, 2);
+    const result = extractVoiceBiomarkers(samples, SR);
+
+    expect(result.hnr).toBe(0);
+  });
+
+  it("HNR is finite for all signal types", () => {
+    const signals = [
+      sineWave(200, SR, 2),
+      whiteNoise(SR, 2),
+      silence(SR, 2),
+    ];
+
+    for (const samples of signals) {
+      const result = extractVoiceBiomarkers(samples, SR);
+      expect(isFinite(result.hnr)).toBe(true);
+    }
+  });
+
+  it("short audio returns HNR of 0", () => {
+    const samples = new Float32Array(100);
+    const result = extractVoiceBiomarkers(samples, SR);
+
+    expect(result.hnr).toBe(0);
   });
 });
