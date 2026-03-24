@@ -5,7 +5,7 @@
 
 ---
 
-## Last updated: 2026-03-20
+## Last updated: 2026-03-23
 
 | Date | Topic | Finding | Action |
 |---|---|---|---|
@@ -143,4 +143,5 @@
 | 2026-03-21 | impl-revenuecat | **@revenuecat/purchases-capacitor.** Platform-specific API keys. Offerings → Packages → purchasePackage(). Free trials configured in App Store Connect / Play Console, not in code. Check `entitlements.active['premium']` for access. **iOS**: enable In-App Purchase capability. **Android**: launchMode="singleTop". | Copy-paste setup in cycle 17 output. Ready to implement freemium. |
 | 2026-03-21 | impl-edf-export | **EDF+ format**: 256-byte header + ns×256 signal headers + int16 little-endian data. No good JS write libraries exist — need custom TypeScript writer. Skeleton code in cycle 17 output. BIDS-recommended format. Apple Health has NO EEG type. FHIR adoption negligible (1.4%). | Use skeleton TypeScript EDF+ writer from cycle 17. Add to data export page. |
 | 2026-03-21 | impl-posthog | **@capawesome/capacitor-posthog + posthog-js.** Config in capacitor.config.ts. capture() for events, screen() for page views, identify() for users. Feature flags, session replay, consent management (optOut/optIn). Mask all text inputs + images in replay for privacy. | Copy-paste setup in cycle 17 output. Install + instrument key events. |
+| 2026-03-23 | eeg-brain | **EMA smoothing was only applied in the feature-based heuristic path** (`_predict_features()`), not in the LGBM, EEGNet, ONNX, sklearn, or multichannel DEAP model paths. Continuous indices (valence, arousal, stress_index, focus_index, relaxation_index, anger_index, fear_index) jumped raw on every 2-second epoch hop in all primary inference paths. The feature-based path used `_smooth_index()` with alpha=0.4 (effective time constant ~3.9 sec) per the CLAUDE.md recommendation of 3-5 sec decay. Additionally, the centralized artifact detection path called `_build_muse_result()` which computed band powers from garbage artifact signals -- these contaminated the EMA running average. CLAUDE.md explicitly states: "Apply EMA with 3-5 second decay constant to output emotion labels to reduce noise" but this was only done on the lowest-priority fallback path. | Added `_smooth_index()` calls to `_build_muse_result()` (covers both LGBM paths), `_predict_multichannel()`, `_predict_onnx()`, `_predict_sklearn()`, and `_ensure_explanation()` (covers EEGNet, REVE, TSception). Added artifact guard: skip EMA update on artifact-detected epochs, return frozen values instead. Added 9 tests in `test_ema_smoothing.py`. All 45 existing tests + 9 new pass. Expected dashboard jitter reduction: 20-30% on live Muse 2 sessions. |
 <!-- Entries will be appended below by the research agent -->
