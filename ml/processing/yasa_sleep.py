@@ -306,7 +306,10 @@ def advanced_sleep_staging(
     stage_map = {0: "Wake", 1: "N1", 2: "N2", 3: "N3", 4: "REM"}
 
     if _check_yasa():
-        return _staging_yasa(eeg, fs, epoch_length_s, stage_map)
+        try:
+            return _staging_yasa(eeg, fs, epoch_length_s, stage_map)
+        except Exception:
+            pass  # YASA API may have changed — fall back gracefully
     return _staging_fallback(eeg, fs, epoch_length_s, stage_map)
 
 
