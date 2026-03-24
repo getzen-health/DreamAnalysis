@@ -12,6 +12,7 @@ import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
 import { syncMoodLogToML } from "@/lib/ml-api";
+import { calculateFoodScore } from "@/lib/food-score";
 import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
 import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
 import { useFusedState } from "@/hooks/use-fused-state";
@@ -1923,7 +1924,6 @@ export default function Today() {
             {/* Food quality score for today */}
             {todayCalories > 0 && (() => {
               try {
-                const { calculateFoodScore } = require("@/lib/food-score");
                 const todayItems = (foodLogs ?? []).filter((l: any) => {
                   try { return new Date(l.loggedAt).toDateString() === new Date().toDateString(); } catch { return false; }
                 });
