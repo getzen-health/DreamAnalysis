@@ -1838,7 +1838,7 @@ export default function Today() {
               emptyCta="Sync to see steps"
             />
 
-            {/* Nutrition */}
+            {/* Nutrition with food quality score */}
             <HealthMetricCard
               label="Nutrition"
               value={todayCalories > 0 ? todayCalories.toLocaleString() : "---"}
@@ -1852,6 +1852,29 @@ export default function Today() {
               emptyIcon={UtensilsCrossed}
               emptyCta="Log a meal to start"
             />
+            {/* Food quality score for today */}
+            {todayCalories > 0 && (() => {
+              try {
+                const { calculateFoodScore } = require("@/lib/food-score");
+                const todayItems = (foodLogs ?? []).filter((l: any) => {
+                  try { return new Date(l.loggedAt).toDateString() === new Date().toDateString(); } catch { return false; }
+                });
+                const totalP = todayItems.reduce((s: number, l: any) => s + ((l.foodItems ?? []).reduce((a: number, f: any) => a + (f.protein_g ?? 0), 0)), 0);
+                const totalC = todayItems.reduce((s: number, l: any) => s + ((l.foodItems ?? []).reduce((a: number, f: any) => a + (f.carbs_g ?? 0), 0)), 0);
+                const totalF = todayItems.reduce((s: number, l: any) => s + ((l.foodItems ?? []).reduce((a: number, f: any) => a + (f.fat_g ?? 0), 0)), 0);
+                if (totalP + totalC + totalF < 1) return null;
+                const score = calculateFoodScore({ calories: todayCalories, protein_g: totalP, carbs_g: totalC, fat_g: totalF });
+                return (
+                  <div onClick={() => navigate("/nutrition")} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 12, background: "var(--card)", border: "1px solid var(--border)", marginTop: -8 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${score.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: score.color }}>{score.score}</div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: score.color }}>{score.verdictText}</div>
+                      <div style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{score.brainImpact}</div>
+                    </div>
+                  </div>
+                );
+              } catch { return null; }
+            })()}
           </motion.div>
 
           {/* ── Quick Listen — Spotify Music Section ── */}
