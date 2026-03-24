@@ -542,7 +542,10 @@ class UserModelRetrainer:
                         "LightGbmLGBMClassifier",
                         calculate_linear_classifier_output_shapes,
                         convert_lightgbm,
-                        options={"zipmap": False},
+                        options={
+                            "zipmap": [True, False, "columns"],
+                            "nocl": [True, False],
+                        },
                     )
                 except ImportError:
                     log.info("[onnx-export] onnxmltools not available for LightGBM, using manual export")
@@ -556,8 +559,11 @@ class UserModelRetrainer:
                 pipeline = Pipeline([("clf", model)])
 
             initial_type = [(input_name, FloatTensorType([None, feature_dim]))]
+
+            # LightGBM needs ai.onnx.ml opset pinned to 3 for onnxmltools compat
+            target_opset = {"": 17, "ai.onnx.ml": 3} if is_lgbm else 17
             onnx_model = convert_sklearn(
-                pipeline, initial_types=initial_type, target_opset=17,
+                pipeline, initial_types=initial_type, target_opset=target_opset,
                 options={id(model): {"zipmap": False}} if is_lgbm else None,
             )
             with open(onnx_path, "wb") as f:
