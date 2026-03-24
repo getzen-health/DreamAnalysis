@@ -26,6 +26,7 @@ import { museBle } from "@/lib/muse-ble";
 import { BrainAgeCard } from "@/components/brain-age-card";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
+import { EnsembleExplanation } from "@/components/ensemble-explanation";
 import { emgDetector, type EMGDetectionResult } from "@/lib/emg-detector";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 import { computeBlinkStats, type BlinkStats } from "@/lib/blink-detector";
@@ -752,6 +753,17 @@ export default function BrainMonitor() {
                   <p className="text-[10px] text-muted-foreground/70 leading-relaxed pt-1">
                     Not enough data to determine your emotional state. Try adjusting the headband.
                   </p>
+                );
+              })()}
+              {/* Ensemble model contribution breakdown */}
+              {epochReady && stableAnalysis.emotions && (() => {
+                const emo = stableAnalysis.emotions as Record<string, unknown>;
+                return (
+                  <EnsembleExplanation
+                    eegnetContribution={emo.eegnet_contribution as number | undefined}
+                    heuristicContribution={emo.heuristic_contribution as number | undefined}
+                    epochQuality={emo.epoch_quality as number | undefined}
+                  />
                 );
               })()}
               {/* Top emotion probabilities */}

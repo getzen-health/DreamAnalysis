@@ -159,6 +159,14 @@ interface EEGAnalysisResult {
     focus_index: number;
     relaxation_index: number;
     band_powers: Record<string, number>;
+    /** How much EEGNet CNN contributed to the ensemble prediction (0-1). Only present when ensemble model is active. */
+    eegnet_contribution?: number;
+    /** How much feature-based heuristics contributed to the ensemble prediction (0-1). Only present when ensemble model is active. */
+    heuristic_contribution?: number;
+    /** Signal quality of the epoch (0-1). Only present when ensemble model is active. */
+    epoch_quality?: number;
+    /** Which model produced this result */
+    model_type?: string;
   };
   dream_detection: {
     is_dreaming: boolean;
