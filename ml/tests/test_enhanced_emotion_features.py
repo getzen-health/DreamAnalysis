@@ -1,7 +1,7 @@
-"""Tests for enhanced 68-dim emotion feature extraction.
+"""Tests for enhanced 80-dim emotion feature extraction.
 
 Verifies:
-1. extract_enhanced_emotion_features returns 68 features for 4-channel input
+1. extract_enhanced_emotion_features returns 80 features for 4-channel input
 2. All features are finite (no NaN/inf)
 3. DASM features change sign when channels are swapped
 4. DE features are finite (non-negative for Gaussian assumption)
@@ -9,6 +9,7 @@ Verifies:
 6. Temporal features are non-zero for subsequent epochs
 7. Alpha sub-band features (low_alpha, high_alpha) are extracted
 8. High-Alpha Asymmetry (HAA) changes sign when channels are swapped
+9. Nonlinear complexity features (HFD, SampEn, LZC) are extracted
 """
 
 import sys
@@ -59,10 +60,10 @@ class TestExtractEnhancedEmotionFeatures:
     """Tests for the main feature extractor."""
 
     def test_returns_correct_shape(self, four_channel_eeg):
-        """Feature vector must have exactly 68 dimensions."""
+        """Feature vector must have exactly 80 dimensions."""
         features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
         assert features.shape == (ENHANCED_FEATURE_DIM,)
-        assert features.shape == (68,)
+        assert features.shape == (80,)
 
     def test_all_features_finite(self, four_channel_eeg):
         """No NaN or inf values allowed."""
@@ -108,7 +109,7 @@ class TestExtractEnhancedEmotionFeatures:
         rng = np.random.default_rng(99)
         signal_1d = rng.standard_normal(1024) * 20.0
         features = extract_enhanced_emotion_features(signal_1d, fs=256)
-        assert features.shape == (68,)
+        assert features.shape == (80,)
         assert np.all(np.isfinite(features))
 
     def test_short_signal_does_not_crash(self):
@@ -116,14 +117,14 @@ class TestExtractEnhancedEmotionFeatures:
         rng = np.random.default_rng(77)
         short = rng.standard_normal((4, 64)) * 20.0
         features = extract_enhanced_emotion_features(short, fs=256)
-        assert features.shape == (68,)
+        assert features.shape == (80,)
         assert np.all(np.isfinite(features))
 
     def test_flat_signal_produces_finite_features(self):
         """Flat (DC) signal should not produce NaN/inf."""
         flat = np.ones((4, 1024)) * 0.001
         features = extract_enhanced_emotion_features(flat, fs=256)
-        assert features.shape == (68,)
+        assert features.shape == (80,)
         assert np.all(np.isfinite(features))
 
     def test_alpha_sub_band_features_present(self, four_channel_eeg):
@@ -205,10 +206,10 @@ class TestExtractTemporalFeatures:
         assert np.any(np.abs(deltas) > 1e-10), "Expected non-zero deltas between different epochs"
 
     def test_temporal_output_shape(self, four_channel_eeg):
-        """Output should be exactly 136 dimensions (68 + 68)."""
+        """Output should be exactly 160 dimensions (80 + 80)."""
         features = extract_enhanced_emotion_features(four_channel_eeg, fs=256)
         temporal = extract_temporal_features(features, history=None)
-        assert temporal.shape == (136,)
+        assert temporal.shape == (160,)
 
     def test_temporal_features_are_finite(self, four_channel_eeg):
         """All temporal features must be finite."""
@@ -227,13 +228,13 @@ class TestGetFeatureNames:
 
     def test_base_names_length(self):
         names = get_feature_names(include_temporal=False)
-        assert len(names) == 68
+        assert len(names) == 80
 
     def test_temporal_names_length(self):
         names = get_feature_names(include_temporal=True)
-        assert len(names) == 136
+        assert len(names) == 160
 
     def test_temporal_names_prefixed(self):
         names = get_feature_names(include_temporal=True)
-        for name in names[68:]:
+        for name in names[80:]:
             assert name.startswith("delta_"), f"Expected 'delta_' prefix, got: {name}"

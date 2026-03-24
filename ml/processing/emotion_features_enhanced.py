@@ -1,9 +1,9 @@
-"""Enhanced 68-dim emotion feature extraction for 4-channel consumer EEG.
+"""Enhanced 80-dim emotion feature extraction for 4-channel consumer EEG.
 
 Extracts a compact, interpretable, literature-proven feature set for emotion
 classification from 4-channel EEG (Muse 2: TP9, AF7, AF8, TP10).
 
-Feature breakdown (68 total):
+Feature breakdown (80 total):
     20 DE features:       Differential entropy per band per channel (5 bands x 4 ch)
      8 DE sub-band:       DE per alpha sub-band per channel (2 sub-bands x 4 ch)
      5 DASM features:     DE asymmetry AF8 - AF7 per band (5 main bands)
@@ -17,6 +17,9 @@ Feature breakdown (68 total):
      1 FMT feature:       Frontal midline theta relative power
     12 Hjorth features:   Activity, mobility, complexity per channel (3 x 4 ch)
      4 Spectral entropy:  Normalized spectral entropy per channel
+     4 HFD features:      Higuchi fractal dimension per channel (nonlinear complexity)
+     4 SampEn features:   Sample entropy per channel (temporal regularity)
+     4 LZC features:      Lempel-Ziv complexity per channel (algorithmic complexity)
 
 Alpha sub-band rationale (Klimesch 1999, Bazanova & Vernon 2014):
     Low-alpha  (8-10 Hz):  General alertness, tonic arousal, attentional demands
@@ -26,6 +29,19 @@ Alpha sub-band rationale (Klimesch 1999, Bazanova & Vernon 2014):
                            processing. High-alpha asymmetry (HAA) is a more precise
                            valence indicator than standard FAA for emotional states.
 
+Nonlinear complexity rationale:
+    HFD (Higuchi 1988): Measures waveform fractal dimension [1.0-2.0]. Arousal
+        increases neural complexity, producing higher HFD. Ahmadlou et al. (2012)
+        showed HFD discriminates emotional states. HFD + band powers improves
+        emotion accuracy by 3-8% vs band powers alone on DEAP.
+    SampEn (Richman & Moorman 2000): Measures temporal regularity/predictability.
+        Complements spectral entropy (frequency domain) by capturing time-domain
+        regularity. Higher SampEn = more complex/unpredictable temporal dynamics.
+        Emotional engagement increases temporal complexity.
+    LZC (Lempel & Ziv 1976): Binary sequence complexity measure [0-1]. Higher
+        LZC = more complex brain activity. Correlates with consciousness level
+        and emotional engagement. Fast O(N) computation.
+
 References:
     - CNN-KAN-F2CA (PLOS ONE 2025): DE/PSD/asymmetry features on 4-channel SEED
     - Zheng & Lu (2015): DASM/RASM features (SJTU BCMI Lab, SEED dataset)
@@ -33,6 +49,10 @@ References:
     - Klimesch (1999): Alpha sub-bands and cognitive processing
     - Bazanova & Vernon (2014): High-alpha specificity for emotional states
     - Hjorth (1970): Time-domain EEG descriptors
+    - Higuchi (1988): Fractal dimension of irregular time series
+    - Richman & Moorman (2000): Sample entropy for physiological signals
+    - Lempel & Ziv (1976): Complexity of finite sequences
+    - Ahmadlou et al. (2012): HFD for EEG emotion classification
 """
 
 from __future__ import annotations
@@ -42,6 +62,11 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from models.neural_complexity import (
+    _higuchi_fractal_dimension,
+    _lempel_ziv_complexity,
+    _sample_entropy,
+)
 from processing.eeg_processor import (
     BANDS,
     bandpass_filter,
@@ -98,8 +123,8 @@ BAND_IMPORTANCE_WEIGHTS: Dict[str, float] = {
 _CHANNEL_NAMES = ["TP9", "AF7", "AF8", "TP10"]
 _N_CHANNELS = 4
 
-# Expected feature count (53 original + 15 alpha sub-band features)
-ENHANCED_FEATURE_DIM = 68
+# Expected feature count (53 original + 15 alpha sub-band + 12 nonlinear complexity)
+ENHANCED_FEATURE_DIM = 80
 
 # Feature name registry for interpretability
 FEATURE_NAMES: List[str] = []
@@ -152,6 +177,18 @@ for _ch in _CHANNEL_NAMES:
 for _ch in _CHANNEL_NAMES:
     FEATURE_NAMES.append(f"se_{_ch}")
 
+# 4 Higuchi fractal dimension: hfd_{channel}
+for _ch in _CHANNEL_NAMES:
+    FEATURE_NAMES.append(f"hfd_{_ch}")
+
+# 4 sample entropy: sampen_{channel}
+for _ch in _CHANNEL_NAMES:
+    FEATURE_NAMES.append(f"sampen_{_ch}")
+
+# 4 Lempel-Ziv complexity: lzc_{channel}
+for _ch in _CHANNEL_NAMES:
+    FEATURE_NAMES.append(f"lzc_{_ch}")
+
 assert len(FEATURE_NAMES) == ENHANCED_FEATURE_DIM, (
     f"Expected {ENHANCED_FEATURE_DIM} feature names, got {len(FEATURE_NAMES)}"
 )
@@ -203,7 +240,7 @@ def extract_enhanced_emotion_features(
     signals: np.ndarray,
     fs: int = 256,
 ) -> np.ndarray:
-    """Extract the 68-dim enhanced emotion feature vector from 4-channel EEG.
+    """Extract the 80-dim enhanced emotion feature vector from 4-channel EEG.
 
     Args:
         signals: (n_channels, n_samples) raw EEG array. Must have >= 4 channels.
@@ -211,7 +248,7 @@ def extract_enhanced_emotion_features(
         fs: Sampling rate in Hz.
 
     Returns:
-        1D numpy array of shape (68,) with the feature vector.
+        1D numpy array of shape (80,) with the feature vector.
         All values are guaranteed to be finite (NaN/inf replaced with 0).
     """
     signals = np.asarray(signals, dtype=np.float64)
@@ -313,6 +350,30 @@ def extract_enhanced_emotion_features(
         features[idx] = spectral_entropy(processed[ch_idx], fs)
         idx += 1
 
+    # ---- 4 HFD features: Higuchi fractal dimension per channel ----
+    # HFD measures waveform complexity [1.0-2.0]. Higher HFD = more complex
+    # neural activity. Arousal increases neural complexity (Ahmadlou et al. 2012).
+    # HFD + band powers improves emotion accuracy by 3-8% vs band powers alone.
+    for ch_idx in range(n_ch):
+        features[idx] = _higuchi_fractal_dimension(processed[ch_idx])
+        idx += 1
+
+    # ---- 4 SampEn features: sample entropy per channel ----
+    # SampEn measures temporal regularity/predictability. Complements spectral
+    # entropy (frequency domain) with time-domain regularity information.
+    # Higher SampEn = more complex/unpredictable temporal dynamics.
+    for ch_idx in range(n_ch):
+        features[idx] = _sample_entropy(processed[ch_idx])
+        idx += 1
+
+    # ---- 4 LZC features: Lempel-Ziv complexity per channel ----
+    # LZC is a binary sequence complexity measure [0-1]. Higher LZC = more
+    # complex brain activity. Fast O(N) computation. Correlates with
+    # consciousness level and emotional engagement.
+    for ch_idx in range(n_ch):
+        features[idx] = _lempel_ziv_complexity(processed[ch_idx])
+        idx += 1
+
     assert idx == ENHANCED_FEATURE_DIM, f"Feature index mismatch: {idx} != {ENHANCED_FEATURE_DIM}"
 
     # Guarantee finite values
@@ -335,15 +396,15 @@ def extract_temporal_features(
     For the first epoch (no history), deltas are zero.
 
     Args:
-        current_features: 1D array of shape (68,) from extract_enhanced_emotion_features.
+        current_features: 1D array of shape (80,) from extract_enhanced_emotion_features.
         history: List of previous feature vectors. Uses the most recent entry.
                  If None or empty, returns zeros for delta features.
         time_interval: Seconds between epochs (e.g. 2.0 for 50% overlap at 4-sec windows).
 
     Returns:
-        1D numpy array of shape (136,):
-            features[0:68]   = instantaneous features (passed through)
-            features[68:136] = delta features (current - previous) / time_interval
+        1D numpy array of shape (160,):
+            features[0:80]    = instantaneous features (passed through)
+            features[80:160]  = delta features (current - previous) / time_interval
     """
     current_features = np.asarray(current_features, dtype=np.float64)
     assert current_features.shape == (ENHANCED_FEATURE_DIM,), (
