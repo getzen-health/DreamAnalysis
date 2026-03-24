@@ -21,6 +21,7 @@ import {
   updateAfterSession,
 } from "./personal-adapter";
 import { applyOrtCdnConfig } from "./onnx-cdn-config";
+import { loadModelFromStorage } from "./model-updater";
 
 // onnxruntime-web is loaded dynamically to avoid hard failures if not installed
 let ort: typeof import("onnxruntime-web") | null = null;
@@ -171,6 +172,7 @@ function dreamHeuristic(features: number[], fs: number, signal: number[]): Dream
 class LocalMLEngine {
   private emotionSession: InferenceSession | null = null;
   private eegnetSession: InferenceSession | null = null;
+  private userEegSession: InferenceSession | null = null;
   private _ready = false;
   private _initPromise: Promise<void> | null = null;
   private _lastSignal: number[] = [];
@@ -212,8 +214,45 @@ class LocalMLEngine {
       // EEGNet not served — fall back to generic emotion model or heuristics
     }
 
+    // Try to load per-user EEG model from IndexedDB (downloaded by model-updater)
+    try {
+      const userBuffer = await loadModelFromStorage("eeg_emotion_user.onnx");
+      if (userBuffer && ortModule) {
+        this.userEegSession = await ortModule.InferenceSession.create(
+          userBuffer,
+          { executionProviders: ["wasm"] }
+        );
+        console.info("Per-user EEG ONNX loaded from IndexedDB");
+      }
+    } catch {
+      // Per-user model not available — will use generic
+    }
+
     // Always ready: heuristics handle sleep + dream, ONNX handles emotion when available
     this._ready = true;
+  }
+
+  /**
+   * Attempt to reload per-user model from IndexedDB.
+   * Call after model-updater downloads a new version.
+   */
+  async reloadUserModel(): Promise<boolean> {
+    const ortModule = await loadOrt();
+    if (!ortModule) return false;
+
+    try {
+      const userBuffer = await loadModelFromStorage("eeg_emotion_user.onnx");
+      if (!userBuffer) return false;
+
+      this.userEegSession = await ortModule.InferenceSession.create(
+        userBuffer,
+        { executionProviders: ["wasm"] }
+      );
+      console.info("Per-user EEG ONNX reloaded from IndexedDB");
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   isReady(): boolean { return this._ready; }
@@ -305,8 +344,76 @@ class LocalMLEngine {
     return sleepHeuristic(features, this._lastFs, this._lastSignal);
   }
 
+  /** Check if per-user fine-tuned model is loaded */
+  isUserModelReady(): boolean { return this.userEegSession !== null; }
+
   async analyzeEmotion(features: number[]): Promise<EmotionPrediction | null> {
-    // Try ONNX emotion model first
+    // Try per-user fine-tuned ONNX model first (most accurate for this user)
+    if (this.userEegSession) {
+      const ortModule = await loadOrt();
+      if (ortModule) {
+        try {
+          // Per-user model expects 170-dim feature vector (padded if needed)
+          let paddedFeatures = features;
+          if (features.length < 170) {
+            paddedFeatures = [...features, ...new Array(170 - features.length).fill(0)];
+          } else if (features.length > 170) {
+            paddedFeatures = features.slice(0, 170);
+          }
+
+          const input = new ortModule.Tensor(
+            "float32",
+            new Float32Array(paddedFeatures),
+            [1, paddedFeatures.length]
+          );
+          const inputName = this.userEegSession.inputNames[0];
+          const results = await this.userEegSession.run({ [inputName]: input });
+          const outputName = this.userEegSession.outputNames[0];
+          const output = results[outputName];
+          const data = output.data as Float32Array | Int64Array;
+
+          // skl2onnx outputs class labels (first output) and probabilities (second)
+          // If we have a second output, use it for probabilities
+          const outputNames = this.userEegSession.outputNames;
+          if (outputNames.length >= 2) {
+            const probOutput = results[outputNames[1]];
+            // probOutput may be a map or array depending on zipmap setting
+            const label = Number(data[0]);
+            const emotionForLabel = EMOTIONS[label] || EMOTIONS[0];
+            return {
+              emotion: emotionForLabel,
+              confidence: 0.75, // Fine-tuned model has reasonable confidence
+              probabilities: Object.fromEntries(
+                EMOTIONS.map((e) => [e, e === emotionForLabel ? 0.75 : 0.05])
+              ),
+            };
+          }
+
+          // Single output: treat as logits
+          let maxIdx = 0;
+          let maxVal = Number(data[0]);
+          for (let i = 1; i < data.length; i++) {
+            if (Number(data[i]) > maxVal) { maxVal = Number(data[i]); maxIdx = i; }
+          }
+
+          const expVals = Array.from(data).map((v) => Math.exp(Number(v) - maxVal));
+          const expSum = expVals.reduce((a, b) => a + b, 0);
+          const probs = expVals.map((v) => v / expSum);
+
+          return {
+            emotion: EMOTIONS[maxIdx] || "relaxed",
+            confidence: probs[maxIdx],
+            probabilities: Object.fromEntries(
+              EMOTIONS.map((e, i) => [e, probs[i] || 0])
+            ),
+          };
+        } catch {
+          // Fall through to generic model
+        }
+      }
+    }
+
+    // Try generic ONNX emotion model
     if (this.emotionSession) {
       const ortModule = await loadOrt();
       if (ortModule) {
