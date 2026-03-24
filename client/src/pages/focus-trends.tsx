@@ -80,38 +80,30 @@ function filterByRange(entries: HistoryEntry[], range: TimeRange): HistoryEntry[
 function buildChartData(
   entries: HistoryEntry[],
   range: TimeRange,
-): { time: string; value: number | null }[] {
+): { time: string; value: number }[] {
   if (entries.length === 0) return [];
 
-  const points = entries
-    .map((e) => {
-      const d = new Date(e.timestamp);
-      const time = range === "today"
-        ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : range === "week"
-        ? d.toLocaleDateString([], { weekday: "short", hour: "2-digit" })
-        : d.toLocaleDateString([], { month: "short", day: "numeric" });
-      return { time, value: Math.round((e.focus ?? 0) * 100), ts: d.getTime() };
-    })
+  const sorted = entries
+    .map((e) => ({ value: Math.round((e.focus ?? 0) * 100), ts: new Date(e.timestamp).getTime() }))
     .sort((a, b) => a.ts - b.ts);
 
-  // For "today" view: pad with hourly markers so X axis spans full day
-  if (range === "today" && points.length > 0) {
-    const now = new Date();
-    const result: { time: string; value: number | null }[] = [];
-    for (let h = 6; h <= now.getHours(); h++) {
-      const label = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      const inHour = points.filter(p => new Date(p.ts).getHours() === h);
-      if (inHour.length > 0) {
-        for (const p of inHour) result.push({ time: p.time, value: p.value });
-      } else {
-        result.push({ time: label, value: null });
-      }
+  // Thin: max 1 point per minute
+  const thinned: typeof sorted = [];
+  for (const p of sorted) {
+    if (thinned.length === 0 || p.ts - thinned[thinned.length - 1].ts > 60000) {
+      thinned.push(p);
     }
-    return result;
   }
 
-  return points.map(({ time, value }) => ({ time, value }));
+  return thinned.map((p) => {
+    const d = new Date(p.ts);
+    const time = range === "today"
+      ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+      : range === "week"
+      ? d.toLocaleDateString([], { weekday: "short" }) + " " + d.toLocaleTimeString([], { hour: "numeric" })
+      : d.toLocaleDateString([], { month: "short", day: "numeric" });
+    return { time, value: p.value };
+  });
 }
 
 function buildPeriodAverages(
@@ -319,8 +311,6 @@ export default function FocusTrends() {
         </div>
 
         {chartData.length >= 2 ? (
-          <div style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", marginLeft: -8, marginRight: -8, paddingLeft: 8, paddingRight: 8 }}>
-          <div style={{ width: Math.max(chartData.length * 60, 600), minWidth: "100%" }}>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart
               data={chartData}
@@ -375,8 +365,6 @@ export default function FocusTrends() {
               />
             </AreaChart>
           </ResponsiveContainer>
-          </div>
-          </div>
         ) : (
           <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
             Not enough data to show a trend yet
