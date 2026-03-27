@@ -37,6 +37,8 @@ import { EnergyTimeline } from "@/components/energy-timeline";
 import { useScores } from "@/hooks/use-scores";
 import { generateInsights, type CorrelationInput } from "@/lib/cross-modal-insights";
 import { PersonalInsightsCard } from "@/components/personal-insights-card";
+import { DreamFusionCard } from "@/components/dream-fusion-card";
+import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics } from "@/lib/dream-biometric-fusion";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -762,6 +764,32 @@ export default function Today() {
     staleTime: 30_000,
   });
 
+  // Fetch latest dream analysis for Dream + Biometric Fusion
+  interface DreamAnalysisRow {
+    id: string;
+    dreamText: string;
+    emotions?: { emotion: string; intensity: number }[] | null;
+    lucidityScore?: number | null;
+    sleepQuality?: number | null;
+    timestamp: string;
+  }
+  const { data: latestDreamArr } = useQuery<DreamAnalysisRow[]>({
+    queryKey: ["dream-analysis-latest", userId],
+    queryFn: async () => {
+      try {
+        const res = await fetch(resolveUrl(`/api/dream-analysis/${userId}`));
+        if (res.ok) {
+          const all: DreamAnalysisRow[] = await res.json();
+          // Return only the most recent one
+          return all.length > 0 ? [all[all.length - 1]] : [];
+        }
+      } catch { /* API unavailable */ }
+      return [];
+    },
+    staleTime: 5 * 60_000,
+    enabled: !!userId,
+  });
+
   // ── Log a feeling state ──
   const [feelingText, setFeelingText] = useState("");
   const [feelingSaving, setFeelingSaving] = useState(false);
@@ -1089,6 +1117,39 @@ export default function Today() {
       steps: stepsArr,
     });
   }, [recentHistory, foodLogs, latestPayload]);
+
+  // ── Dream + Biometric Fusion ───────────────────────────────────────────────
+  const dreamFusionInsight = useMemo(() => {
+    const row = latestDreamArr?.[0];
+    if (!row?.dreamText) return null;
+
+    const dream: DreamEntry = {
+      dreamText: row.dreamText,
+      emotions: Array.isArray(row.emotions)
+        ? row.emotions.map((e) => (typeof e === "string" ? e : e.emotion))
+        : [],
+      lucidityScore: row.lucidityScore != null ? row.lucidityScore / 100 : undefined,
+      sleepQuality: row.sleepQuality ?? undefined,
+      timestamp: row.timestamp,
+    };
+
+    const bio: OvernightBiometrics = {};
+    if (latestPayload) {
+      if (latestPayload.resting_heart_rate != null) bio.avgHeartRate = latestPayload.resting_heart_rate;
+      if (latestPayload.current_heart_rate != null && bio.avgHeartRate == null) bio.avgHeartRate = latestPayload.current_heart_rate;
+      if (latestPayload.hrv_sdnn != null) bio.hrvSdnn = latestPayload.hrv_sdnn;
+      if (latestPayload.sleep_total_hours != null) bio.sleepDuration = latestPayload.sleep_total_hours;
+      if (latestPayload.sleep_efficiency != null) bio.sleepEfficiency = latestPayload.sleep_efficiency;
+      if (latestPayload.sleep_deep_hours != null && latestPayload.sleep_total_hours) {
+        bio.deepSleepPct = Math.round((latestPayload.sleep_deep_hours / latestPayload.sleep_total_hours) * 100);
+      }
+      if (latestPayload.sleep_rem_hours != null && latestPayload.sleep_total_hours) {
+        bio.remSleepPct = Math.round((latestPayload.sleep_rem_hours / latestPayload.sleep_total_hours) * 100);
+      }
+    }
+
+    return fuseDreamBiometrics(dream, bio);
+  }, [latestDreamArr, latestPayload]);
 
   // Persist inner score to DB (fire-and-forget)
   useEffect(() => {
@@ -1431,6 +1492,11 @@ export default function Today() {
           {/* ── 2b. Personal Insights (cross-modal correlations) ── */}
           <motion.div variants={itemVariants} className="mb-4">
             <PersonalInsightsCard insights={personalInsights} />
+          </motion.div>
+
+          {/* ── 2c. Dream + Biometric Fusion ── */}
+          <motion.div variants={itemVariants} className="mb-4">
+            <DreamFusionCard insight={dreamFusionInsight} />
           </motion.div>
 
           {/* ── 3. Stress & Energy Row (mini cards) ── */}
