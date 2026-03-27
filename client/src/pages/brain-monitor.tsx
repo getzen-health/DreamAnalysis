@@ -465,8 +465,8 @@ export default function BrainMonitor() {
               (isStreaming ? "eeg" : voiceResult ? "voice" : "health");
 
             const config: Record<string, { label: string; className: string }> = {
-              "eeg":       { label: "EEG",          className: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
-              "voice":     { label: "Voice",         className: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30" },
+              "eeg":       { label: "EEG",          className: "bg-emerald-500/20 text-emerald-500 border-emerald-500/30" },
+              "voice":     { label: "Voice",         className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" },
               "health":    { label: "Health Est.",   className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
               "eeg+voice": { label: "EEG + Voice",   className: "bg-cyan-600/20 text-cyan-400 border-cyan-500/30" },
               "eeg+bio":   { label: "EEG + Bio",     className: "bg-cyan-600/20 text-cyan-400 border-cyan-500/30" },
@@ -619,7 +619,7 @@ export default function BrainMonitor() {
       {isStreaming && <BrainAgeCard />}
 
       {/* ---- 3. EEG Waveform (350px tall, clean) ---- */}
-      <div className="glass-card p-4 sm:p-6 rounded-xl hover-glow overflow-hidden">
+      <div className="rounded-[14px] bg-card border border-border p-4 sm:p-6 overflow-hidden">
         <h3 className="text-lg font-semibold mb-4">
           EEG Brain Wave Activity
         </h3>
@@ -678,7 +678,7 @@ export default function BrainMonitor() {
 
       {/* ---- 4. Band Powers (horizontal bars) ---- */}
       {isStreaming && analysis?.band_powers && (
-        <Card className="glass-card p-6 rounded-xl hover-glow">
+        <Card className="rounded-[14px] bg-card border border-border p-6">
           <h3 className="text-lg font-semibold mb-4">Band Powers</h3>
           <div className="space-y-3">
             {ALL_BANDS.map(({ key, label, range }) => {
@@ -690,7 +690,7 @@ export default function BrainMonitor() {
                     <span className="text-[9px] text-muted-foreground block">{range}</span>
                   </div>
                   <div className="flex-1">
-                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "hsl(220,22%,12%)" }}>
+                    <div className="h-2 rounded-full overflow-hidden bg-muted/40">
                       <div
                         className="h-full rounded-full transition-all duration-300"
                         style={{
@@ -722,7 +722,7 @@ export default function BrainMonitor() {
       })()}
 
       {/* ---- 5. Brain State summary (4 cards: Emotion, Stress, Focus, Flow) ---- */}
-      <div className="glass-card p-6 rounded-xl hover-glow">
+      <div className="rounded-[14px] bg-card border border-border p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Brain State</h3>
           <Brain className="text-primary" />
@@ -790,7 +790,7 @@ export default function BrainMonitor() {
                       <div key={emo} className="flex items-center gap-2 text-[11px]">
                         <span className="w-14 capitalize text-muted-foreground">{emo}</span>
                         <div className="flex-1 h-1 rounded-full overflow-hidden bg-muted/40">
-                          <div className="h-full rounded-full" style={{ width: `${Math.round(prob * 100)}%`, background: "hsl(340,70%,55%)" }} />
+                          <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.round(prob * 100)}%` }} />
                         </div>
                         <span className="w-6 text-right font-mono text-muted-foreground">{Math.round(prob * 100)}%</span>
                       </div>
@@ -859,7 +859,7 @@ export default function BrainMonitor() {
       })()}
 
       {/* ---- 6. ML Models (collapsed/expandable) ---- */}
-      <Card className="glass-card rounded-xl hover-glow">
+      <Card className="rounded-[14px] bg-card border border-border">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">ML Models</CardTitle>
@@ -952,7 +952,7 @@ export default function BrainMonitor() {
 
       {/* ---- 7. Diagnostic log (at bottom, small text) ---- */}
       {museBle.diagLog.length > 0 && (
-        <div className="p-3 rounded-lg bg-black/30 max-h-40 overflow-y-auto">
+        <div className="p-3 rounded-[14px] bg-card border border-border max-h-40 overflow-y-auto">
           <p className="text-[10px] font-mono text-muted-foreground mb-1">Diagnostic Log</p>
           {museBle.diagLog.map((line, i) => (
             <p key={i} className="text-[9px] font-mono text-green-400/80 leading-tight">{line}</p>
@@ -983,7 +983,7 @@ function getBrainStateNarrative(analysis: Record<string, unknown>): { headline: 
   const drowsiness = (analysis.drowsiness  as { drowsiness_index?: number })?.drowsiness_index ?? 0;
 
   if (sleep && sleep !== "wake" && sleep !== "Wake" && sleep !== "\u2014") {
-    return { headline: `${sleep} Sleep`, story: `Your brain is in ${sleep} sleep. Delta waves dominate, signaling deep restorative rest. Models continue running passively.`, color: "text-indigo-400" };
+    return { headline: `${sleep} Sleep`, story: `Your brain is in ${sleep} sleep. Delta waves dominate, signaling deep restorative rest. Models continue running passively.`, color: "text-emerald-400" };
   }
   if (flow > 0.7) {
     return { headline: "Flow State", story: "Alpha and theta are balanced with engaged beta -- you're in the zone. Focus is sharp without anxiety. Don't break the session.", color: "text-cyan-400" };
@@ -992,7 +992,7 @@ function getBrainStateNarrative(analysis: Record<string, unknown>): { headline: 
     return { headline: "Elevated Stress", story: "High-beta activity is dominant, signaling mental tension. Try 4-7-8 breathing or step away briefly. Your nervous system needs a reset.", color: "text-rose-400" };
   }
   if (meditation > 0.7) {
-    return { headline: "Meditative State", story: "Alpha waves are dominant and theta is rising -- your mind is calm and inward. Excellent state for creative insight or visualization.", color: "text-violet-400" };
+    return { headline: "Meditative State", story: "Alpha waves are dominant and theta is rising -- your mind is calm and inward. Excellent state for creative insight or visualization.", color: "text-emerald-500" };
   }
   if (creativity > 0.7) {
     return { headline: "Creative Flow", story: "Theta and alpha are elevated -- the hallmark of divergent thinking and creative incubation. Great time to brainstorm or explore new ideas.", color: "text-amber-400" };
