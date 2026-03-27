@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
 import { SessionControls } from "@/components/session-controls";
@@ -76,6 +77,9 @@ export default function BrainMonitor() {
   const isStreaming = deviceState === "streaming";
   const { cachedEmotion: voiceResult } = useVoiceCache();
 
+  const { data: user } = useQuery<{ id: string }>({ queryKey: ["/api/user"] });
+  const userId = (user as any)?.id ?? "anonymous";
+
   const anomaly = (latestFrame?.analysis as { anomaly?: AnomalyResult } | undefined)?.anomaly ?? null;
   const [_isRecording, setIsRecording] = useState(false);
 
@@ -93,8 +97,10 @@ export default function BrainMonitor() {
   const [, navigate] = useLocation();
 
   useEffect(() => {
-    engineRef.current = new InsightEngine("anonymous");
-  }, []);
+    if (userId) {
+      engineRef.current = new InsightEngine(userId);
+    }
+  }, [userId]);
 
   // ---- EMG artifact detection ----
   const [emgResult, setEmgResult] = useState<EMGDetectionResult | null>(null);
