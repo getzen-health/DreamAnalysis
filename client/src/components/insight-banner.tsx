@@ -39,6 +39,8 @@ export function InsightBanner({ events, onDismiss, onCTA, suggestedLabel }: Prop
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 80, opacity: 0 }}
         transition={{ type: "spring", damping: 20 }}
+        role="status"
+        aria-label={`${metricLabel} deviation detected`}
         className="fixed bottom-20 left-4 right-4 z-50 rounded-xl bg-card border border-border/30 shadow-xl p-4 flex items-center gap-3"
       >
         <Zap className="h-4 w-4 text-primary shrink-0" />
@@ -52,6 +54,7 @@ export function InsightBanner({ events, onDismiss, onCTA, suggestedLabel }: Prop
         </div>
         <button
           onClick={() => onCTA(cta.href)}
+          aria-label={`${cta.label} for ${metricLabel}`}
           className="text-xs font-medium text-primary whitespace-nowrap hover:underline"
         >
           {cta.label}
