@@ -5452,16 +5452,18 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
 
       if (!anthropic) return res.status(503).json({ error: "ANTHROPIC_API_KEY not configured" });
 
-      // Rate limit: 1 per user per UTC calendar day (DB-backed)
+      // Rate limit: 1 per user per UTC calendar day (DB-backed, atomic insert)
       const dateKey = new Date().toISOString().slice(0, 10); // UTC YYYY-MM-DD
       const rateLimitKey = `morning_briefing:${userId}:${dateKey}`;
       try {
-        const existing = await db.select().from(rateLimitEntries).where(eq(rateLimitEntries.key, rateLimitKey)).limit(1);
-        if (existing.length > 0 && existing[0].count >= 1) {
+        // Atomic: only the first insert wins; concurrent requests get zero rows back and are rejected.
+        const inserted = await db.insert(rateLimitEntries)
+          .values({ key: rateLimitKey, count: 1, windowStart: new Date() })
+          .onConflictDoNothing()
+          .returning();
+        if (inserted.length === 0) {
           return res.status(429).json({ error: "Already generated today", date: dateKey });
         }
-        await db.insert(rateLimitEntries).values({ key: rateLimitKey, count: 1, windowStart: new Date() })
-          .onConflictDoUpdate({ target: rateLimitEntries.key, set: { count: 1 } });
       } catch (err) {
         logger.error({ err }, "Rate limit check failed for morning briefing");
         // Fail open — allow the request
