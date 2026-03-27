@@ -10,7 +10,7 @@
  */
 
 import { type ReactNode } from "react";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, HelpCircle } from "lucide-react";
 import { ScoreGauge, type ScoreColor, SCORE_COLORS } from "./score-gauge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -24,6 +24,7 @@ export interface ScoreCardProps {
   subtitle?: string;    // e.g., "67ms HRV - 58 RHR"
   trend?: "up" | "down" | "stable";
   trendValue?: string;  // e.g., "+5% from yesterday"
+  onInfoClick?: () => void;  // Opens Learn More overlay
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -37,16 +38,27 @@ export function ScoreCard({
   subtitle,
   trend,
   trendValue,
+  onInfoClick,
 }: ScoreCardProps) {
   const accentColor = SCORE_COLORS[color].from;
 
   return (
     <div
-      className="relative group rounded-2xl p-4 transition-all duration-200 hover:brightness-110 bg-card border border-border"
+      className="relative group rounded-2xl p-4 transition-all duration-200 hover:brightness-110 active:scale-[0.98] bg-card border border-border"
       style={{
         borderLeft: `3px solid ${accentColor}`,
       }}
     >
+      {/* Learn More button */}
+      {onInfoClick && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onInfoClick(); }}
+          className="absolute top-2 right-2 p-1 rounded-full opacity-0 group-hover:opacity-60 transition-opacity"
+          aria-label={`Learn more about ${title}`}
+        >
+          <HelpCircle className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+      )}
       <div className="flex items-center justify-between gap-3">
         {/* Left: title + subtitle + icon */}
         <div className="flex-1 min-w-0">

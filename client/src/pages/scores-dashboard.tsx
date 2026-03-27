@@ -9,7 +9,7 @@
  * 5. Trend Alerts: dismissable list
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Heart,
@@ -36,6 +36,7 @@ import { getMLApiUrl, listSessions, type SessionSummary } from "@/lib/ml-api";
 import { EmotionStrip } from "@/components/emotion-strip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getParticipantId } from "@/lib/participant";
+import { LearnMoreOverlay } from "@/components/learn-more-overlay";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,7 @@ export default function ScoresDashboard() {
   const { scores, loading: scoresLoading } = useScores(userId);
 
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+  const [learnMoreMetric, setLearnMoreMetric] = useState<string | null>(null);
 
   // Fetch today's summary
   const { data: todaySummary } = useQuery<TodaySummary>({
@@ -354,6 +356,7 @@ export default function ScoresDashboard() {
                 icon={card.icon}
                 trend={trendForStress?.trend}
                 trendValue={trendForStress?.trendValue}
+                onInfoClick={() => setLearnMoreMetric(card.title.toLowerCase())}
               />
             </motion.div>
           );
@@ -372,7 +375,7 @@ export default function ScoresDashboard() {
           value={scores?.nutritionScore ?? null}
           color="nutrition"
           icon={<Apple className="h-3.5 w-3.5 text-ndw-nutrition" />}
-          // Nutrition has no session-level proxy, no trend arrow
+          onInfoClick={() => setLearnMoreMetric("nutrition")}
         />
         {/* Cardio Load status card (uses strain color for visual grouping) */}
         <div
@@ -548,6 +551,13 @@ export default function ScoresDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Learn More overlay for any metric */}
+      <LearnMoreOverlay
+        metric={learnMoreMetric ?? ""}
+        open={!!learnMoreMetric}
+        onClose={() => setLearnMoreMetric(null)}
+      />
     </div>
   );
 }
