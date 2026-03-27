@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { Button } from "@/components/ui/button";
@@ -12,9 +13,13 @@ import {
   RefreshCw,
   Smartphone,
   TrendingUp,
+  Plus,
+  BookOpen,
+  LayoutGrid,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { EmotionStrip } from "@/components/emotion-strip";
+import { loadActiveWorkout } from "@/lib/workout-types";
 
 /* ---------- types ---------- */
 
@@ -48,7 +53,6 @@ function formatDurationMin(minutes: number): string {
 }
 
 function formatWorkoutType(type: string): string {
-  // Clean up HealthKit workout types like "HKWorkoutActivityTypeRunning"
   const cleaned = type
     .replace(/^HKWorkoutActivityType/, "")
     .replace(/([A-Z])/g, " $1")
@@ -200,8 +204,10 @@ function WorkoutCard({ workout }: { workout: Workout }) {
 export default function WorkoutPage() {
   const { user } = useAuth();
   const { lastSyncAt, syncNow, status, isAvailable } = useHealthSync();
+  const [, setLocation] = useLocation();
 
   const isSyncing = status === "syncing";
+  const inProgressWorkout = loadActiveWorkout();
 
   /* ---- Query workout history ---- */
   const { data: workoutHistory = [] } = useQuery<Workout[]>({
@@ -233,7 +239,7 @@ export default function WorkoutPage() {
   }, [thisWeekWorkouts]);
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-4 pb-24">
+    <div className="max-w-lg mx-auto px-4 py-6 space-y-4 pb-32">
       {/* Header */}
       <motion.div
         className="space-y-2 mb-2"
@@ -247,11 +253,62 @@ export default function WorkoutPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground">Workouts</h1>
-            <p className="text-xs text-muted-foreground">Imported from your health app</p>
+            <p className="text-xs text-muted-foreground">Track and log your training</p>
           </div>
         </div>
         <EmotionStrip />
       </motion.div>
+
+      {/* Quick Actions */}
+      <motion.div
+        className="grid grid-cols-2 gap-2"
+        {...fadeInUp}
+        transition={{ ...fadeInUp.transition, delay: 0.02 }}
+      >
+        <Button
+          variant="outline"
+          className="h-12 gap-2 text-sm font-medium"
+          onClick={() => setLocation("/exercises")}
+        >
+          <BookOpen className="h-4 w-4" />
+          Exercise Library
+        </Button>
+        <Button
+          variant="outline"
+          className="h-12 gap-2 text-sm font-medium"
+          onClick={() => setLocation("/workout-templates")}
+        >
+          <LayoutGrid className="h-4 w-4" />
+          Templates
+        </Button>
+      </motion.div>
+
+      {/* Resume In-Progress Workout Banner */}
+      {inProgressWorkout && (
+        <motion.div
+          className="rounded-2xl p-4 bg-primary/10 border border-primary/20 shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
+          {...fadeInUp}
+          transition={{ ...fadeInUp.transition, delay: 0.04 }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Workout in progress
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {inProgressWorkout.exercises.length} exercises added
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="gap-1"
+              onClick={() => setLocation("/active-workout")}
+            >
+              Resume
+            </Button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Sync Status + Button */}
       <motion.div
@@ -354,7 +411,7 @@ export default function WorkoutPage() {
               No workouts yet
             </p>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Your workouts are automatically imported from Google Health or Apple Health
+              Start a workout or sync from your health app
             </p>
           </div>
         ) : (
@@ -368,6 +425,23 @@ export default function WorkoutPage() {
           </div>
         )}
       </motion.div>
+
+      {/* Start Workout FAB */}
+      <div className="fixed bottom-20 right-4 z-40">
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.5, type: "spring", stiffness: 300, damping: 20 }}
+        >
+          <Button
+            size="lg"
+            className="h-14 w-14 rounded-full shadow-lg shadow-primary/25 p-0"
+            onClick={() => setLocation("/active-workout")}
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
+        </motion.div>
+      </div>
     </div>
   );
 }
