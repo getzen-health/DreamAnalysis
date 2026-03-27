@@ -39,6 +39,8 @@ import { generateInsights, type CorrelationInput } from "@/lib/cross-modal-insig
 import { PersonalInsightsCard } from "@/components/personal-insights-card";
 import { DreamFusionCard } from "@/components/dream-fusion-card";
 import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics } from "@/lib/dream-biometric-fusion";
+import { predictNextDay, type PredictionInput } from "@/lib/predictive-alerts";
+import { PredictiveAlertCard } from "@/components/predictive-alert-card";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1151,6 +1153,72 @@ export default function Today() {
     return fuseDreamBiometrics(dream, bio);
   }, [latestDreamArr, latestPayload]);
 
+  // ── Predictive Alerts ─────────────────────────────────────────────────────
+  const predictiveAlert = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Check for late eating (any foodLog with loggedAt after 9pm today)
+    let lateEating = false;
+    if (foodLogs) {
+      lateEating = foodLogs.some((l) => {
+        const loggedAt = l.loggedAt ?? l.date;
+        if (!loggedAt) return false;
+        if (!loggedAt.startsWith(today)) return false;
+        try {
+          const hour = new Date(loggedAt).getHours();
+          return hour >= 21;
+        } catch {
+          return false;
+        }
+      });
+    }
+
+    // Build recent stress/sleep arrays from recentHistory (aggregated by day)
+    const stressByDay = new Map<string, number[]>();
+    const sleepDays: number[] = [];
+    const scoresByDay: (number | null)[] = [];
+
+    if (recentHistory) {
+      for (const r of recentHistory) {
+        const ts = (r as any).timestamp ?? (r as any).created_at;
+        if (!ts) continue;
+        const d = new Date(ts).toISOString().slice(0, 10);
+        if (!stressByDay.has(d)) stressByDay.set(d, []);
+        stressByDay.get(d)!.push(r.stress ?? 0.5);
+      }
+    }
+
+    // Convert stress map to last-7-day averages
+    const recentStress: number[] = [];
+    const sortedDates = [...stressByDay.keys()].sort();
+    const last7dates = sortedDates.slice(-7);
+    for (const d of last7dates) {
+      const vals = stressByDay.get(d)!;
+      recentStress.push(vals.reduce((s, v) => s + v, 0) / vals.length);
+    }
+
+    // Sleep from health payload — only today available from latestPayload
+    if (latestPayload?.sleep_total_hours) {
+      sleepDays.push(latestPayload.sleep_total_hours);
+    }
+
+    const predictionInput: PredictionInput = {
+      todayStress: brainTotals?.avgStress ?? null,
+      todayValence: brainTotals?.avgValence ?? null,
+      todayFocus: brainTotals?.avgFocus ?? null,
+      todaySleepHours: latestPayload?.sleep_total_hours ?? null,
+      todaySleepQuality: latestPayload?.sleep_efficiency ?? null,
+      todaySteps: latestPayload?.steps_today ?? null,
+      todayInnerScore: innerScore.score,
+      lateEating,
+      recentScores: scoresByDay,
+      recentStress,
+      recentSleep: sleepDays,
+    };
+
+    return predictNextDay(predictionInput);
+  }, [brainTotals, latestPayload, innerScore.score, foodLogs, recentHistory]);
+
   // Persist inner score to DB (fire-and-forget)
   useEffect(() => {
     if (innerScore.score != null && userId) {
@@ -1497,6 +1565,11 @@ export default function Today() {
           {/* ── 2c. Dream + Biometric Fusion ── */}
           <motion.div variants={itemVariants} className="mb-4">
             <DreamFusionCard insight={dreamFusionInsight} />
+          </motion.div>
+
+          {/* ── 2d. Predictive Alerts (tomorrow's forecast) ── */}
+          <motion.div variants={itemVariants} className="mb-4">
+            <PredictiveAlertCard alert={predictiveAlert} />
           </motion.div>
 
           {/* ── 3. Stress & Energy Row (mini cards) ── */}
