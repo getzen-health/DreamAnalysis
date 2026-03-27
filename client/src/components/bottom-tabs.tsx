@@ -114,21 +114,21 @@ export function BottomTabs() {
         onClick={() => hapticLight()}
         aria-current={isActive ? "page" : undefined}
         aria-label={tab.label}
-        className="relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
+        className="relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#1C1C1E] rounded-md"
       >
         {/* Active indicator pill above icon */}
         {isActive && (
           <span
-            className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full bg-primary"
-            style={{ width: 24, height: 2, borderRadius: 1 }}
+            className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full"
+            style={{ width: 20, height: 3, borderRadius: 2, background: "#10B981" }}
           />
         )}
 
         <Icon
           className={`transition-colors ${
             isActive
-              ? "text-primary"
-              : "text-muted-foreground"
+              ? "text-emerald-500"
+              : "text-gray-400 dark:text-gray-500"
           }`}
           style={{ width: 24, height: 24 }}
           aria-hidden="true"
@@ -138,8 +138,8 @@ export function BottomTabs() {
         <span
           className={`text-[11px] leading-none tracking-tight transition-colors ${
             isActive
-              ? "text-primary font-semibold"
-              : "text-muted-foreground font-normal"
+              ? "text-emerald-500 font-semibold"
+              : "text-gray-400 dark:text-gray-500 font-normal"
           }`}
         >
           {tab.label}
@@ -153,12 +153,10 @@ export function BottomTabs() {
       <nav
         role="navigation"
         aria-label="Main navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/90 dark:bg-[#1C1C1E]/95 border-t border-gray-200/60 dark:border-white/[0.06]"
         style={{
-          background: "rgba(13, 10, 20, 0.8)",
-          backdropFilter: "blur(32px) saturate(1.5)",
-          WebkitBackdropFilter: "blur(32px) saturate(1.5)",
-          borderTop: "1px solid rgba(255, 255, 255, 0.04)",
+          backdropFilter: "blur(24px) saturate(1.3)",
+          WebkitBackdropFilter: "blur(24px) saturate(1.3)",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
@@ -174,12 +172,12 @@ export function BottomTabs() {
                 hapticMedium();
                 setShowCheckin(true);
               }}
-              className="absolute -top-5 flex items-center justify-center rounded-full text-white active:scale-95 transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="absolute -top-5 flex items-center justify-center rounded-full text-white active:scale-95 transition-all focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#1C1C1E]"
               style={{
                 width: 48,
                 height: 48,
-                background: "linear-gradient(135deg, #7C3AED, #C084FC)",
-                boxShadow: "0 4px 20px rgba(124, 58, 237, 0.4), 0 0 40px rgba(124, 58, 237, 0.15)",
+                background: "linear-gradient(135deg, #10B981, #34D399)",
+                boxShadow: "0 4px 20px rgba(16, 185, 129, 0.35), 0 0 40px rgba(16, 185, 129, 0.12)",
               }}
             >
               <Mic style={{ width: 20, height: 20 }} strokeWidth={2} aria-hidden="true" />

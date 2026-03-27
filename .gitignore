@@ -52,3 +52,4 @@ benchmarks-dashboard.html
 android/keystore.properties
 android/*.keystore
 android/*.jks
+.env.vercel

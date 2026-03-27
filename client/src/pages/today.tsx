@@ -463,30 +463,43 @@ const itemVariants = {
 };
 
 // ── Card classes ─────────────────────────────────────────────────────────
-// All cards now use Tailwind `glass-card p-5` class from index.css.
-// premiumCard / bevelCard style objects have been removed.
+// All cards now use Bevel-style: `rounded-[14px] bg-card border border-border`.
+// No glass-card or premiumCard style objects — clean Tailwind only.
 
-// ── Hero Wellness Gauge ──────────────────────────────────────────────────
+// ── Score Circle (Bevel-style) ───────────────────────────────────────────
+// Reusable SVG arc circle: 120px diameter, 270-degree sweep, gradient stroke.
+// Big number in center (32px bold), label below (12px, muted).
 
-function WellnessGauge({ score }: { score: number }) {
-  const size = 160;
-  const strokeWidth = 10;
+function ScoreCircle({
+  score,
+  label,
+  colorFrom,
+  colorTo,
+  id,
+}: {
+  score: number;
+  label: string;
+  colorFrom: string;
+  colorTo: string;
+  id: string;
+}) {
+  const size = 120;
+  const strokeWidth = 8;
   const r = (size - strokeWidth) / 2;
   const cx = size / 2;
   const cy = size / 2;
   const circumference = 2 * Math.PI * r;
-  // Use 270 degrees of arc
   const arcLength = (270 / 360) * circumference;
   const filled = (score / 100) * arcLength;
-  const gradientId = "gaugeGrad";
+  const gradientId = `scoreGrad-${id}`;
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-1.5">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <defs>
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="var(--primary)" />
-            <stop offset="100%" stopColor="var(--secondary)" />
+            <stop offset="0%" stopColor={colorFrom} />
+            <stop offset="100%" stopColor={colorTo} />
           </linearGradient>
         </defs>
         {/* Background arc */}
@@ -500,6 +513,7 @@ function WellnessGauge({ score }: { score: number }) {
           strokeDasharray={`${arcLength} ${circumference - arcLength}`}
           strokeLinecap="round"
           transform={`rotate(135 ${cx} ${cy})`}
+          opacity={0.4}
         />
         {/* Filled arc */}
         <circle
@@ -514,33 +528,21 @@ function WellnessGauge({ score }: { score: number }) {
           transform={`rotate(135 ${cx} ${cy})`}
           className="transition-all duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
         />
-        {/* Percentage text */}
+        {/* Score number */}
         <text
           x={cx}
-          y={cy - 6}
+          y={cy + 2}
           textAnchor="middle"
+          dominantBaseline="central"
           fill="var(--foreground)"
-          fontSize={36}
+          fontSize={32}
           fontWeight={700}
           className="font-sans"
         >
           {score}
         </text>
-        <text
-          x={cx}
-          y={cy + 16}
-          textAnchor="middle"
-          fill="var(--muted-foreground)"
-          fontSize={12}
-          className="font-sans"
-          letterSpacing="0.5"
-        >
-          Wellness
-        </text>
       </svg>
-      <p className={`text-sm m-0 text-center leading-normal max-w-[220px] ${score === 0 ? "text-muted-foreground" : "text-primary"}`}>
-        {getEmotionScoreLabel(score)}
-      </p>
+      <span className="text-xs text-muted-foreground font-medium">{label}</span>
     </div>
   );
 }
@@ -566,12 +568,12 @@ function ScoreCard({
     <motion.div
       variants={itemVariants}
       onClick={onClick}
-      className={`glass-card p-5 flex flex-col items-center gap-1.5 ${onClick ? "cursor-pointer" : "cursor-default"}`}
+      className={`rounded-[14px] bg-card border border-border p-4 flex flex-col items-center gap-1.5 transition-colors ${onClick ? "cursor-pointer hover:border-foreground/15" : "cursor-default"}`}
     >
       <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
         {label}
       </span>
-      <span className="text-[28px] font-bold text-foreground leading-none">
+      <span className="text-2xl font-bold text-foreground leading-none">
         {value}
       </span>
       <div className="flex items-center gap-1.5">
@@ -635,10 +637,10 @@ function HealthMetricCard({
     <motion.div
       variants={itemVariants}
       onClick={onClick}
-      className={`glass-card p-5 flex flex-col gap-3.5 ${onClick ? "cursor-pointer" : "cursor-default"}`}
+      className={`rounded-[14px] bg-card border border-border p-4 flex flex-col gap-3 transition-colors ${onClick ? "cursor-pointer hover:border-foreground/15" : "cursor-default"}`}
       style={isEmpty && accentColor ? {
-        borderLeft: `3px solid ${accentColor}`,
-        background: `linear-gradient(135deg, ${accentColor}08 0%, var(--card) 40%)`,
+        borderLeftWidth: 3,
+        borderLeftColor: accentColor,
       } : undefined}
     >
       <div className="flex justify-between items-start">
@@ -1132,6 +1134,9 @@ export default function Today() {
 
   const heartRate = latestPayload?.current_heart_rate ?? latestPayload?.resting_heart_rate;
   const steps = latestPayload?.steps_today ?? 0;
+  const hrvSdnn = latestPayload?.hrv_sdnn;
+  const spo2 = latestPayload?.spo2;
+  const respiratoryRate = latestPayload?.respiratory_rate;
 
   const sleepTotal = latestPayload?.sleep_total_hours ?? 0;
   const sleepEfficiency = latestPayload?.sleep_efficiency ?? 0;
@@ -1246,16 +1251,16 @@ export default function Today() {
           animate="visible"
           className="max-w-[480px] mx-auto"
         >
-          {/* ── 1. Header ── */}
+          {/* ── 1. Header (Bevel-style: date + greeting left, avatar right) ── */}
           <motion.div
             variants={itemVariants}
-            className="flex items-center justify-between mb-6"
+            className="flex items-center justify-between mb-5"
           >
             <div>
-              <p className="text-[11px] text-muted-foreground m-0 mb-1 tracking-wide">
+              <p className="text-xs text-muted-foreground m-0 mb-0.5 font-medium">
                 {formatDate()}
               </p>
-              <p className="text-[22px] font-bold text-gradient m-0 leading-tight">
+              <p className="text-xl font-bold text-foreground m-0 leading-tight">
                 {(() => {
                   const h = new Date().getHours();
                   const timeGreet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
@@ -1267,7 +1272,7 @@ export default function Today() {
                 })()}
               </p>
             </div>
-            <div className="w-[38px] h-[38px] rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-[15px] font-bold text-white shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-sm font-bold text-white shrink-0">
               S
             </div>
           </motion.div>
@@ -1277,7 +1282,7 @@ export default function Today() {
           {weatherCtx && (
             <motion.div
               variants={itemVariants}
-              className="glass-card mb-3.5 flex items-center gap-2.5 px-4 py-2.5"
+              className="rounded-[14px] bg-card border border-border mb-3.5 flex items-center gap-2.5 px-4 py-2.5"
             >
               {weatherCtx.condition === "sunny" || weatherCtx.condition === "mostly_clear" ? (
                 <Sun className="w-[18px] h-[18px] text-amber-400 shrink-0" />
@@ -1311,7 +1316,7 @@ export default function Today() {
           {cycleCtx && (
             <motion.div
               variants={itemVariants}
-              className="glass-card mb-3.5 flex items-center gap-2.5 px-4 py-2.5 border-secondary/15"
+              className="rounded-[14px] bg-card border border-border mb-3.5 flex items-center gap-2.5 px-4 py-2.5"
             >
               <div className="w-7 h-7 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
                 <Moon className="w-3.5 h-3.5 text-secondary" />
@@ -1327,47 +1332,57 @@ export default function Today() {
             </motion.div>
           )}
 
-          {/* ── 2. Hero Wellness Circle ── */}
+          {/* ── 2. Score Circles Row (Bevel-style: Recovery, Sleep, Strain) ── */}
           <motion.div
             variants={itemVariants}
-            className="flex justify-center mb-6 relative"
+            className="flex justify-center items-start gap-4 mb-6"
           >
-            {/* Ambient glow behind gauge */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[200px] rounded-full blur-[30px] pointer-events-none bg-[radial-gradient(circle,_var(--primary)_0%,_var(--secondary)_50%,_transparent_70%)] opacity-15" />
-            <WellnessGauge score={readiness} />
+            <ScoreCircle
+              score={readiness}
+              label="Recovery"
+              colorFrom="#22c55e"
+              colorTo="#4ade80"
+              id="recovery"
+            />
+            <ScoreCircle
+              score={sleepTotal > 0 ? Math.round((sleepTotal / 8) * 100) : 0}
+              label="Sleep"
+              colorFrom="#3b82f6"
+              colorTo="#60a5fa"
+              id="sleep"
+            />
+            <ScoreCircle
+              score={userScores?.strainScore ?? (steps > 0 ? Math.min(100, Math.round((steps / stepsGoal) * 100)) : 0)}
+              label="Strain"
+              colorFrom="#f97316"
+              colorTo="#fb923c"
+              id="strain"
+            />
           </motion.div>
 
-          {/* ── 2b. Share Wellness Score ── */}
-          {readiness > 0 && (
-            <motion.div
-              variants={itemVariants}
-              className="flex justify-center mb-5 -mt-3"
-            >
+          {/* ── 2b. Score subtitle + Share ── */}
+          <motion.div variants={itemVariants} className="flex justify-center items-center gap-3 mb-5 -mt-3">
+            <p className={`text-xs m-0 text-center ${readiness === 0 ? "text-muted-foreground" : "text-foreground/70"}`}>
+              {getEmotionScoreLabel(readiness)}
+            </p>
+            {readiness > 0 && (
               <button
                 onClick={() => shareWellnessScore(readiness, emotion, aiInsight.headline + " " + aiInsight.action)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[20px] border border-primary/25 bg-primary/[0.08] text-violet-400 text-sm font-semibold cursor-pointer transition-all duration-200 tracking-wide active:scale-[0.96]"
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-border bg-card text-muted-foreground text-xs font-medium cursor-pointer transition-all duration-200 active:scale-[0.96] hover:text-foreground"
               >
-                <Share2 size={13} />
-                Share Score
+                <Share2 size={11} />
+                Share
               </button>
-            </motion.div>
-          )}
+            )}
+          </motion.div>
 
-          {/* ── 3. Score Row (Mood / Stress / Focus) ── */}
+          {/* ── 3. Stress & Energy Row (Bevel-style mini cards) ── */}
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-3 gap-3.5 mb-5"
+            className="grid grid-cols-2 gap-3 mb-4"
           >
-            <ScoreCard
-              label="Mood"
-              value={moodDisplay}
-              statusLabel={moodStatusLabel}
-              dotColor={moodDotColor}
-              onClick={() => navigate("/mood")}
-              delta={moodDelta}
-            />
             <ScoreCard
               label="Stress"
               value={stressDisplay}
@@ -1386,6 +1401,18 @@ export default function Today() {
             />
           </motion.div>
 
+          {/* ── 3b. Mood card (full width) ── */}
+          <motion.div variants={itemVariants} className="mb-4">
+            <ScoreCard
+              label="Mood"
+              value={moodDisplay}
+              statusLabel={moodStatusLabel}
+              dotColor={moodDotColor}
+              onClick={() => navigate("/mood")}
+              delta={moodDelta}
+            />
+          </motion.div>
+
           {/* ── Last analysis timestamp ── */}
           {checkinTimestamp && (
             <p className="text-[11px] text-muted-foreground text-center -mt-3 mb-3.5 opacity-70">
@@ -1401,38 +1428,26 @@ export default function Today() {
             </p>
           )}
 
-          {/* ── 4. Today's Top Story (Oura-style 3-layer insight) ── */}
+          {/* ── 4. AI Insight Card (Bevel-style: green border, sparkle icon) ── */}
           <motion.div
             variants={itemVariants}
-            className="mb-5"
-            style={{
-              borderRadius: 20,
-              background: "linear-gradient(135deg, rgba(167,139,250,0.1), rgba(129,140,248,0.06))",
-              border: "1px solid rgba(167,139,250,0.2)",
-              padding: 18,
-            }}
+            className="mb-5 rounded-[14px] bg-card border border-emerald-500/20 p-4"
           >
-            <div className="flex items-center gap-1.5 mb-2.5">
-              <Sparkles size={12} style={{ color: "#a78bfa" }} />
-              <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#a78bfa" }}>
-                Today&apos;s Story
+            <div className="flex items-center gap-1.5 mb-2">
+              <Sparkles size={13} className="text-emerald-500" />
+              <span className="text-[11px] font-semibold text-emerald-500 uppercase tracking-wider">
+                AI Insight
               </span>
             </div>
-            {/* Headline */}
-            <p className="text-sm font-semibold text-foreground leading-snug mb-2">
+            <p className="text-sm font-semibold text-foreground leading-snug mb-1.5">
               {aiInsight.headline}
             </p>
-            {/* Body / Context */}
-            <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+            <p className="text-xs text-muted-foreground leading-relaxed mb-2.5">
               {aiInsight.body}
             </p>
-            {/* Action */}
-            <div
-              className="flex items-start gap-2 rounded-xl px-3 py-2.5"
-              style={{ background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.2)" }}
-            >
-              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#a78bfa", marginTop: 1 }}>→</span>
-              <p className="text-xs font-medium" style={{ color: "#a78bfa" }}>{aiInsight.action}</p>
+            <div className="flex items-start gap-2 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/15 px-3 py-2">
+              <span className="text-xs font-bold text-emerald-500 mt-px">-&gt;</span>
+              <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 m-0">{aiInsight.action}</p>
             </div>
           </motion.div>
 
@@ -1440,7 +1455,7 @@ export default function Today() {
           {weekTrendData.chartRows.some(r => r.stress !== null) && (
             <motion.div
               variants={itemVariants}
-              className="glass-card mb-5 p-4"
+              className="rounded-[14px] bg-card border border-border mb-5 p-4"
             >
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -1480,11 +1495,12 @@ export default function Today() {
                   <YAxis domain={[0, 100]} hide />
                   <Tooltip
                     contentStyle={{
-                      background: "rgba(15,15,25,0.92)", border: "1px solid rgba(255,255,255,0.1)",
+                      background: "hsl(var(--card))", border: "1px solid hsl(var(--border))",
                       borderRadius: 8, fontSize: 11, padding: "4px 8px",
+                      color: "hsl(var(--foreground))",
                     }}
                     formatter={(v: number, name: string) => [`${v}%`, name]}
-                    labelStyle={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: 10 }}
                   />
                   {weekTrendData.baseline && (
                     <>
@@ -1505,7 +1521,7 @@ export default function Today() {
           {/* ── 4b. How Are You Feeling — MoodPicker ── */}
           <motion.div
             variants={itemVariants}
-            className="glass-card mb-5 overflow-hidden"
+            className="rounded-[14px] bg-card border border-border mb-5 overflow-hidden"
           >
             <MoodPicker
               userName={undefined}
@@ -1557,7 +1573,7 @@ export default function Today() {
           {/* ── 4c. Text Log a Feeling (secondary) ── */}
           <motion.div
             variants={itemVariants}
-            className="glass-card mb-5 p-4"
+            className="rounded-[14px] bg-card border border-border mb-5 p-4"
           >
             <div className="flex items-center gap-1.5 mb-2.5">
               <PenLine size={13} className="text-primary" />
@@ -1631,7 +1647,7 @@ export default function Today() {
           {checkin?.emotion && checkin.emotion !== "---" && (
             <motion.div
               variants={itemVariants}
-              className="glass-card p-5 mb-5 border-l-[3px] border-l-primary"
+              className="rounded-[14px] bg-card border border-border p-4 mb-5 border-l-[3px] border-l-primary"
             >
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-[22px]">
@@ -1780,7 +1796,7 @@ export default function Today() {
           {(checkin?.stress_index ?? 0) > 0.6 && (
             <motion.div
               variants={itemVariants}
-              className="glass-card p-5 mb-5 border-secondary/20"
+              className="rounded-[14px] bg-card border border-border p-4 mb-5"
             >
               <div className="flex items-start gap-3 mb-3">
                 <AlertTriangle className="w-[22px] h-[22px] text-rose-400 shrink-0" />
@@ -1853,19 +1869,24 @@ export default function Today() {
           )}
 
           {/* ── 4e. Energy Timeline Forecast ── */}
-          <motion.div variants={itemVariants} className="glass-card p-4 rounded-2xl">
+          <motion.div variants={itemVariants} className="rounded-[14px] bg-card border border-border p-4">
             <EnergyTimeline
               sleepHours={sleepTotal}
               recovery={scores?.recovery}
             />
           </motion.div>
 
-          {/* ── 5. Health Metrics (2x2 grid) ── */}
+          {/* ── 5. Health Monitor (Bevel-style 2-column grid) ── */}
+          <motion.div variants={itemVariants} className="mb-3 mt-1">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Health Monitor
+            </span>
+          </motion.div>
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-2 gap-3.5"
+            className="grid grid-cols-2 gap-3"
           >
             {/* Sleep */}
             <HealthMetricCard
@@ -1899,6 +1920,30 @@ export default function Today() {
               emptyCta="Connect Health to track"
             />
 
+            {/* HRV */}
+            <HealthMetricCard
+              label="HRV"
+              value={hrvSdnn ? `${Math.round(hrvSdnn)}` : "---"}
+              unit={hrvSdnn ? "ms" : ""}
+              statusLabel={hrvSdnn ? (hrvSdnn >= 50 ? "Good" : hrvSdnn >= 30 ? "Fair" : "Low") : "No data"}
+              dotColor={hrvSdnn ? (hrvSdnn >= 50 ? "var(--emotion-calm-to, #06b6d4)" : hrvSdnn >= 30 ? "var(--warning, #d4a017)" : "var(--secondary, #e879a8)") : "var(--muted-foreground)"}
+              accentColor="var(--emotion-calm-to)"
+              emptyIcon={Activity}
+              emptyCta="Sync to see HRV"
+            />
+
+            {/* SpO2 */}
+            <HealthMetricCard
+              label="SpO2"
+              value={spo2 ? `${Math.round(spo2)}` : "---"}
+              unit={spo2 ? "%" : ""}
+              statusLabel={spo2 ? (spo2 >= 95 ? "Normal" : "Low") : "No data"}
+              dotColor={spo2 ? (spo2 >= 95 ? "var(--emotion-calm-to, #06b6d4)" : "var(--secondary, #e879a8)") : "var(--muted-foreground)"}
+              accentColor="var(--primary)"
+              emptyIcon={Heart}
+              emptyCta="Sync to see SpO2"
+            />
+
             {/* Steps */}
             <HealthMetricCard
               label="Steps"
@@ -1914,23 +1959,56 @@ export default function Today() {
               emptyCta="Sync to see steps"
             />
 
-            {/* Nutrition — show today's calories */}
+            {/* Respiratory Rate */}
             <HealthMetricCard
-              label="Nutrition"
-              value={todayCalories > 0 ? todayCalories.toLocaleString() : "---"}
-              unit={todayCalories > 0 ? "kcal" : ""}
-              statusLabel={nutritionStatus.label}
-              dotColor={nutritionStatus.color}
-              onClick={() => navigate("/nutrition")}
-              barPercent={todayCalories > 0 ? calPct : undefined}
-              barGradient="linear-gradient(90deg, var(--warning), var(--destructive))"
+              label="Resp. Rate"
+              value={respiratoryRate ? `${Math.round(respiratoryRate)}` : "---"}
+              unit={respiratoryRate ? "br/min" : ""}
+              statusLabel={respiratoryRate ? (respiratoryRate >= 12 && respiratoryRate <= 20 ? "Normal" : "Abnormal") : "No data"}
+              dotColor={respiratoryRate ? (respiratoryRate >= 12 && respiratoryRate <= 20 ? "var(--emotion-calm-to, #06b6d4)" : "var(--secondary, #e879a8)") : "var(--muted-foreground)"}
               accentColor="var(--warning)"
-              emptyIcon={UtensilsCrossed}
-              emptyCta="Log a meal to start"
+              emptyIcon={Wind}
+              emptyCta="Sync to see rate"
             />
+
             {false && (() => { // Food score removed from Today — shown on nutrition page when you tap a meal
               return null;
             })()}
+          </motion.div>
+
+          {/* ── 6. Nutrition Summary (Bevel-style calorie progress bar) ── */}
+          <motion.div
+            variants={itemVariants}
+            onClick={() => navigate("/nutrition")}
+            className="rounded-[14px] bg-card border border-border p-4 mt-3 cursor-pointer hover:border-foreground/15 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <UtensilsCrossed className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Nutrition
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {todayCalories > 0 ? `${todayCalories.toLocaleString()} / ${calGoal.toLocaleString()} kcal` : "No meals logged"}
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-muted/40 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${todayCalories > 0 ? calPct : 0}%`,
+                  background: todayCalories > 0
+                    ? "linear-gradient(90deg, hsl(var(--warning)), hsl(var(--destructive)))"
+                    : "transparent",
+                }}
+              />
+            </div>
+            {todayCalories > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1.5 text-right">
+                {calPct}% of daily goal
+              </p>
+            )}
           </motion.div>
 
           {/* ── Quick Listen -- Spotify Music Section ── */}
@@ -1956,7 +2034,7 @@ export default function Today() {
                 <button
                   key={card.title}
                   onClick={() => window.open(card.url, "_blank")}
-                  className="flex-none w-[90px] glass-card px-2 py-3 text-center cursor-pointer transition-transform duration-200 active:scale-[0.96]"
+                  className="flex-none w-[90px] rounded-[14px] bg-card border border-border px-2 py-3 text-center cursor-pointer transition-all duration-200 active:scale-[0.96] hover:border-foreground/15"
                 >
                   <div className="flex justify-center mb-1">
                     <IconComp className={`w-6 h-6 ${card.colorClass}`} />
