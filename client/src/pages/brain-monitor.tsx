@@ -21,7 +21,9 @@ import {
   type AnomalyResult,
 } from "@/lib/ml-api";
 import { assessSignalQuality, type SignalQualityResult as SQResult } from "@/lib/signal-quality";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { InsightEngine, type DeviationEvent } from "@/lib/insight-engine";
+import { InsightBanner } from "@/components/insight-banner";
 import { museBle } from "@/lib/muse-ble";
 import { BrainAgeCard } from "@/components/brain-age-card";
 import { EEGCoherenceCard } from "@/components/eeg-coherence-card";
@@ -83,6 +85,16 @@ export default function BrainMonitor() {
   const isSynthetic = deviceStatus?.device_type === "synthetic" || selectedDevice === "synthetic";
   const [sqResult, setSqResult] = useState<SQResult | null>(null);
   const sqTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ---- InsightEngine — real-time deviation detection ----
+  const engineRef = useRef<InsightEngine | null>(null);
+  const [insightEvents, setInsightEvents] = useState<DeviationEvent[]>([]);
+  const [bannerVisible, setBannerVisible] = useState(false);
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    engineRef.current = new InsightEngine("anonymous");
+  }, []);
 
   // ---- EMG artifact detection ----
   const [emgResult, setEmgResult] = useState<EMGDetectionResult | null>(null);
@@ -251,6 +263,27 @@ export default function BrainMonitor() {
     if (now - modelCardTimerRef.current < MODEL_CARD_THROTTLE && stableAnalysis) return;
     modelCardTimerRef.current = now;
     setStableAnalysis(analysis);
+    // InsightEngine: ingest normalized metrics from live EEG frame
+    if (engineRef.current && (analysis as Record<string, unknown>)?.emotions) {
+      const emotions = (analysis as Record<string, unknown>).emotions as Record<string, number>;
+      const attn = (analysis as Record<string, unknown>).attention as Record<string, number> | undefined;
+      const focus = attn?.attention_score ?? emotions.focus_index ?? 0.55;
+      engineRef.current.ingest({
+        stress: emotions.stress_index ?? 0.4,
+        focus,
+        valence: ((emotions.valence ?? 0) + 1) / 2,  // convert −1..1 → 0..1
+        arousal: emotions.arousal ?? 0.5,
+        source: "eeg",
+        timestamp: new Date().toISOString(),
+      });
+      const events = engineRef.current.getRealTimeInsights();
+      const sustained = events.filter(e => e.durationMinutes > 2);
+      if (sustained.length > 0 && engineRef.current.isBannerAllowed()) {
+        setInsightEvents(sustained);
+        setBannerVisible(true);
+        engineRef.current.recordBannerShown();
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestFrame?.timestamp]);
 
@@ -965,6 +998,13 @@ export default function BrainMonitor() {
         <InterventionTriggerToast
           trigger={activeTrigger}
           onDismiss={dismissTrigger}
+        />
+      )}
+      {bannerVisible && (
+        <InsightBanner
+          events={insightEvents}
+          onDismiss={() => setBannerVisible(false)}
+          onCTA={(href) => { setBannerVisible(false); navigate(href); }}
         />
       )}
     </main>
