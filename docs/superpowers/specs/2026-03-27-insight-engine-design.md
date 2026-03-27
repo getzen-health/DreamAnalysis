@@ -108,6 +108,7 @@ Minimum `sampleCount` before a cell is used: **7**. Cells with fewer samples fal
 | hrv (normalized) | 0.42 | 0.15 | 50ms raw ≈ 0.42 normalized |
 | sleep | 0.65 | 0.15 | Population sleep score estimate |
 | steps (normalized) | 0.35 | 0.20 | ~5k steps/day ≈ 0.35 of 15k cap |
+| energy | 0.50 | 0.18 | Neutral default (already 0–1, no transform) |
 
 **Persistence:** `localStorage("ndw_baseline_map")` only. Not written to Supabase. The baseline is a derived aggregate — it can be recomputed from raw readings if needed. Storing it in `alertThresholds` JSONB would conflict with existing production usage of that column.
 
@@ -229,6 +230,11 @@ interface EmotionFingerprint {
 
 Minimum 3 confirmed readings (sampleCount ≥ 3) before a fingerprint triggers recognition suggestions.
 
+**Quadrant assignment boundaries** (used for both Layer 2 display and fingerprint storage):
+- High vs Low Arousal: normalized arousal ≥ 0.5 → High; < 0.5 → Low
+- Positive vs Negative Valence: normalized valence ≥ 0.5 → Positive; < 0.5 → Negative
+  (normalized valence 0.5 = raw valence 0.0 = neutral — slightly negative raw → Negative quadrant)
+
 **Privacy gate:** All `emotion_fingerprints` Supabase writes gated by `getSupabaseIfAllowed()`. Personal vocabulary falls back to localStorage(`ndw_emotion_fingerprints`) when privacy mode is active.
 
 ---
@@ -240,8 +246,12 @@ Minimum 3 confirmed readings (sampleCount ≥ 3) before a fingerprint triggers r
 Inputs: current reading from EEG/health sync + BaselineStore snapshot.
 
 ```typescript
+// Canonical metric keys — used as BaselineStore cell keys, deviation timer keys, and intervention trigger keys.
+// Note: HRV Supabase column is "hrv_sdnn" but the canonical key here is always "hrv".
+type DeviationMetric = "stress" | "focus" | "valence" | "arousal" | "hrv" | "sleep" | "steps" | "energy";
+
 interface DeviationEvent {
-  metric: string;              // "stress" | "focus" | "valence" | "arousal" | "hrv"
+  metric: DeviationMetric;
   currentValue: number;        // normalized 0-1
   baselineMean: number;        // normalized 0-1
   zScore: number;
@@ -298,7 +308,7 @@ Format: `{personal emotion label if fingerprint matched, else metric name} + dev
 **API:** `POST /api/morning-briefing` → Express → Claude API (`claude-haiku-4-5-20251001` for cost)
 **Rate limit:** Express route enforces 1 request per userId per calendar day using the existing `rate_limit_entries` table in `shared/schema.ts`. Key: `morning_briefing:${userId}:${YYYY-MM-DD}`. On-hit: return 429 with the cached briefing date. This works correctly on Vercel serverless because state is DB-backed, not in-memory.
 
-**Cache:** Stored in `localStorage("ndw_morning_briefing_${userId}")` — user-scoped to prevent cross-user bleed on shared devices. Value: `{ date: "YYYY-MM-DD", content: BriefingResponse }`. On app open: if `date === today`, render from cache without calling API. If stale, call API and update cache.
+**Cache:** Stored in `localStorage("ndw_morning_briefing_${userId}")` — user-scoped to prevent cross-user bleed on shared devices. Value: `{ date: "YYYY-MM-DD", content: BriefingResponse }`. The `date` field is always UTC (`new Date().toISOString().slice(0,10)`). On app open: if `date === today's UTC date`, render from cache without calling API. If stale, call API and update cache. Client and server must use the same UTC date string for the cache key and rate limit key to stay consistent.
 
 **Request body:**
 ```typescript
@@ -339,6 +349,8 @@ interface BriefingResponse {
   actions: [string, string, string]; // exactly 3
   forecast: { label: string; probability: number; reason: string };
 }
+```
+**Structured output:** The Claude API call uses `response_format: { type: "json_object" }` (JSON mode) with the prompt instructing it to return valid JSON matching `BriefingResponse`. Server parses with `JSON.parse()` and validates that `actions.length === 3`. On parse failure or validation error: return a 500 with a hardcoded fallback briefing derived from the raw metrics (no LLM), so the user always gets a morning card.
 ```
 
 ---
@@ -428,9 +440,13 @@ interface NormalizedReading {
   timestamp: string;
 }
 
+// Shared union — use this exact type for both StoredInsight.category and user_patterns.passType
+// to guarantee upsert key alignment. Never use raw string literals in either location.
+type PassType = "time_bucket" | "food_lag" | "sleep_cascade" | "hrv_valence" | "weekly_rhythm";
+
 interface StoredInsight {
   id: string;
-  category: "time_bucket" | "food_lag" | "sleep_cascade" | "hrv_valence" | "weekly_rhythm";
+  category: PassType;
   priority: "high" | "medium" | "low";
   headline: string;
   context: string;
@@ -492,7 +508,7 @@ The `onConflict` value is a comma-separated string of column names matching the 
 ```
 POST /api/morning-briefing
 Auth: required (getAuthUserId)
-Rate limit: 1 call per userId per calendar day (in-memory, resets at midnight UTC)
+Rate limit: 1 call per userId per UTC calendar date (DB-backed via rate_limit_entries; key: morning_briefing:${userId}:${YYYY-MM-DD-UTC})
 Body: BriefingRequest (see above)
 Response: BriefingResponse (see above)
 Model: claude-haiku-4-5-20251001 (fast + cheap; briefing is ~300 tokens)
