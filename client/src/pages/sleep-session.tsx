@@ -10,6 +10,7 @@ import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import { backgroundEeg } from "@/lib/background-eeg";
 import CGMSleepOverlay from "@/components/cgm-sleep-overlay";
+import { SleepHypnogram, type StageEvent } from "@/components/sleep-hypnogram";
 import {
   Moon,
   BrainCircuit,
@@ -127,6 +128,7 @@ export default function SleepSession() {
   const [dreamCount, setDreamCount] = useState(0);
   const [dreamFlash, setDreamFlash] = useState(false);
   const [dreamsDetected, setDreamsDetected] = useState(0); // final summary count
+  const [stageHistory, setStageHistory] = useState<StageEvent[]>([]);
 
   // Screen dim state — activates when recording starts, tap anywhere to peek
   const [dimmed, setDimmed] = useState(false);
@@ -140,6 +142,8 @@ export default function SleepSession() {
   const dreamCountRef    = useRef<number>(0);
   const lastDreamRef     = useRef<boolean>(false);
   const intervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stageHistoryRef  = useRef<StageEvent[]>([]);
+  const prevStageRef     = useRef<SleepStage | null>(null);
 
   // Real sleep stats from DB
   const { data: healthMetrics } = useQuery<HealthMetric[]>({
@@ -216,6 +220,12 @@ export default function SleepSession() {
       }
       setCurrentStage(stage);
 
+      // Record stage transitions for hypnogram
+      if (stage !== prevStageRef.current) {
+        stageHistoryRef.current.push({ stage, t: elapsedRef.current });
+        prevStageRef.current = stage;
+      }
+
       // Tally time in stage
       tallyRef.current = { ...tallyRef.current, [stage]: tallyRef.current[stage] + 1 };
       setTally({ ...tallyRef.current });
@@ -265,6 +275,9 @@ export default function SleepSession() {
     dreamCountRef.current = 0;
     lastDreamRef.current = false;
     stageTimeRef.current = 0;
+    stageHistoryRef.current = [];
+    prevStageRef.current = null;
+    setStageHistory([]);
     setElapsed(0);
     setTally({ Wake: 0, N1: 0, N2: 0, N3: 0, REM: 0 });
     setDreamCount(0);
@@ -287,6 +300,7 @@ export default function SleepSession() {
     setPeekVisible(false);
     hapticSuccess(); // session complete
     setDreamsDetected(dreamCountRef.current);
+    setStageHistory([...stageHistoryRef.current]);
     setPhase("summary");
     stopSession(CURRENT_USER).catch(() => {});
     backgroundEeg.stopSleepRecording().catch(() => {});
@@ -597,6 +611,16 @@ export default function SleepSession() {
             );
           })}
         </div>
+      </Card>
+
+      {/* Hypnogram */}
+      <Card className="glass-card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <BrainCircuit className="h-3.5 w-3.5 text-violet-400" />
+          <h3 className="text-sm font-medium">Sleep Architecture</h3>
+          <span className="text-[10px] font-mono text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded-full ml-auto">EEG</span>
+        </div>
+        <SleepHypnogram stageHistory={stageHistory} totalSeconds={elapsed} height={72} />
       </Card>
 
       {/* Stats row */}
