@@ -141,7 +141,7 @@ describe("Discover page", () => {
       // "Sleep" appears in both EEG Music fallback and nav grid, so use getAllByText
       expect(screen.getAllByText("Sleep").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Brain")).toBeInTheDocument();
-      expect(screen.getByText("Health")).toBeInTheDocument();
+      expect(screen.getByText("Health Scores")).toBeInTheDocument();
       expect(screen.getByText("Inner Energy")).toBeInTheDocument();
       expect(screen.getByText("Wellness")).toBeInTheDocument();
     });

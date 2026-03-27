@@ -419,10 +419,12 @@ interface NavCard {
 const NAV_CARDS: NavCard[] = [
   { icon: BedDouble,  title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#7c3aed" },
   { icon: Brain,      title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor",  accentColor: "#6366f1" },
-  { icon: Heart,      title: "Health",       subtitle: "Body metrics, workouts, scores",      route: "/health",         accentColor: "#e879a8" },
-  { icon: Sparkles,   title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#4ade80" },
-  { icon: Wind,       title: "Wellness",     subtitle: "Habits, menstrual cycle tracking",    route: "/wellness",       accentColor: "#ea580c" },
-  { icon: HeartHandshake, title: "Couples Meditation", subtitle: "Brain synchrony with your partner", route: "/couples-meditation", accentColor: "#e879a8" },
+  { icon: Heart,      title: "Health Scores",subtitle: "Recovery, strain, sleep, stress",    route: "/scores",         accentColor: "#0891b2" },
+  { icon: Dumbbell,   title: "Workout",      subtitle: "Exercises, templates, history",       route: "/workout",        accentColor: "#e879a8" },
+  { icon: Target,     title: "Habits",       subtitle: "Streaks, heatmap, analytics",         route: "/habits",         accentColor: "#4ade80" },
+  { icon: Sparkles,   title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#a78bfa" },
+  { icon: Wind,       title: "Wellness",     subtitle: "Body metrics, menstrual, supplements",route: "/wellness",       accentColor: "#ea580c" },
+  { icon: HeartHandshake, title: "Couples Meditation", subtitle: "Brain synchrony with your partner", route: "/couples-meditation", accentColor: "#f472b6" },
 ];
 
 // Sample sparkline points (normalized 0-40 in Y space, 0-280 in X)
