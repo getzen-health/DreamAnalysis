@@ -24,6 +24,7 @@ import {
   Activity,
   TrendingUp,
   TrendingDown,
+  Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
@@ -37,6 +38,8 @@ import { EmotionStrip } from "@/components/emotion-strip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getParticipantId } from "@/lib/participant";
 import { LearnMoreOverlay } from "@/components/learn-more-overlay";
+import { SharePanel } from "@/components/share-panel";
+import type { ShareData } from "@/components/share-card-generator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -122,6 +125,16 @@ export default function ScoresDashboard() {
 
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [learnMoreMetric, setLearnMoreMetric] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+
+  const shareData: ShareData = useMemo(() => ({
+    recoveryScore: scores?.recoveryScore ?? null,
+    sleepScore: scores?.sleepScore ?? null,
+    strainScore: scores?.strainScore ?? null,
+    stressScore: scores?.stressScore ?? null,
+    nutritionScore: scores?.nutritionScore ?? null,
+    energyBank: scores?.energyBank ?? null,
+  }), [scores]);
 
   // Fetch today's summary
   const { data: todaySummary } = useQuery<TodaySummary>({
@@ -300,9 +313,18 @@ export default function ScoresDashboard() {
         animate={pageTransition.animate}
         transition={pageTransition.transition}
       >
-        <h1 className="text-xl font-bold tracking-tight text-foreground">
-          Health Scores
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Health Scores
+          </h1>
+          <button
+            onClick={() => setShareOpen(true)}
+            className="p-2 rounded-xl hover:bg-muted/60 transition-colors"
+            aria-label="Share scores"
+          >
+            <Share2 className="h-4.5 w-4.5 text-muted-foreground" />
+          </button>
+        </div>
         <p className="text-sm mt-1 text-muted-foreground">
           {scores?.computedAt
             ? `Updated ${new Date(scores.computedAt).toLocaleTimeString([], {
@@ -557,6 +579,14 @@ export default function ScoresDashboard() {
         metric={learnMoreMetric ?? ""}
         open={!!learnMoreMetric}
         onClose={() => setLearnMoreMetric(null)}
+      />
+
+      {/* Share panel */}
+      <SharePanel
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        data={shareData}
+        defaultTemplate="daily-overview"
       />
     </div>
   );
