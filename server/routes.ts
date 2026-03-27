@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -5446,6 +5447,28 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
   });
 
   // ── POST /api/morning-briefing ────────────────────────────────────────────
+    const morningBriefingSchema = z.object({
+      sleepData: z.object({
+        totalHours: z.number().nullable(),
+        deepHours: z.number().nullable(),
+        remHours: z.number().nullable(),
+        efficiency: z.number().nullable(),
+        dataAvailability: z.enum(["none", "partial", "full"]),
+      }),
+      morningHrv: z.number().nullable(),
+      hrvRange: z.object({ min: z.number(), max: z.number() }).nullable(),
+      emotionSummary: z.object({
+        readingCount: z.number().int().nonnegative(),
+        avgStress: z.number().min(0).max(1),
+        avgFocus: z.number().min(0).max(1),
+        avgValence: z.number().min(0).max(1),
+        dominantLabel: z.string().max(50),
+        dominantMinutes: z.number().nonnegative(),
+      }),
+      patternSummaries: z.array(z.string().max(200)).max(10),
+      yesterdaySummary: z.string().max(500),
+    });
+
     app.post("/api/morning-briefing", async (req, res) => {
       const userId = getAuthUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -5469,14 +5492,11 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
         // Fail open — allow the request
       }
 
-      const body = req.body as {
-        sleepData: { totalHours: number | null; deepHours: number | null; remHours: number | null; efficiency: number | null; dataAvailability: "full" | "total_only" | "none" };
-        morningHrv: number | null;
-        hrvRange: { min: number; max: number } | null;
-        emotionSummary: { readingCount: number; avgStress: number; avgFocus: number; avgValence: number; dominantLabel: string; dominantMinutes: number };
-        patternSummaries: string[];
-        yesterdaySummary: string;
-      };
+      const parsed = morningBriefingSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+      }
+      const body = parsed.data;
 
       // Build sleep section of prompt
       let sleepSection = "";
@@ -5517,11 +5537,21 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
           messages: [{ role: "user", content: prompt }],
         });
         const rawText = message.content[0].type === "text" ? message.content[0].text : "";
-        const parsed = JSON.parse(rawText);
-        if (!Array.isArray(parsed.actions) || parsed.actions.length !== 3) {
+        const llmParsed = JSON.parse(rawText);
+        const isValidBriefing = (
+          llmParsed.stateSummary && typeof llmParsed.stateSummary === "string" &&
+          Array.isArray(llmParsed.actions) && llmParsed.actions.length === 3 &&
+          llmParsed.actions.every((a: unknown) => typeof (a as any).text === "string" || typeof a === "string") &&
+          llmParsed.forecast &&
+          typeof llmParsed.forecast.label === "string" &&
+          typeof llmParsed.forecast.probability === "number" &&
+          llmParsed.forecast.probability >= 0 && llmParsed.forecast.probability <= 1 &&
+          typeof llmParsed.forecast.reason === "string"
+        );
+        if (!isValidBriefing) {
           return res.json(fallback);
         }
-        return res.json(parsed);
+        return res.json(llmParsed);
       } catch (err) {
         logger.warn({ err }, "Morning briefing LLM failed — returning fallback");
         return res.json(fallback);
