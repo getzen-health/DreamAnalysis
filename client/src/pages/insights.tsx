@@ -1,7 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { InsightEngine, type StoredInsight } from "@/lib/insight-engine";
+import { MorningBriefingCard } from "@/components/morning-briefing-card";
+import { Card } from "@/components/ui/card";
 import {
   Sparkles, Brain, Moon, Heart, Zap, UtensilsCrossed,
   TrendingUp, TrendingDown, Minus, ChevronRight, ArrowRight,
@@ -471,6 +474,49 @@ export default function Insights() {
   const [foodLogs, setFoodLogs] = useState<FoodLogEntry[]>([]);
   const [trendPeriod, setTrendPeriod] = useState<"7d" | "30d">("7d");
 
+  // InsightEngine integration
+  const { data: user } = useQuery<{ id: string }>({ queryKey: ["/api/user"] });
+  const userId = (user as any)?.id ?? "anonymous";
+  const engineRef = useRef(new InsightEngine(userId));
+  const [engineInsights, setEngineInsights] = useState<StoredInsight[]>([]);
+  const [briefing, setBriefing] = useState(engineRef.current.getMorningBriefing());
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    engineRef.current.getStoredInsights().then(setEngineInsights);
+  }, [userId]);
+
+  const handleGenerateBriefing = async () => {
+    setBriefingLoading(true);
+    try {
+      const emotionHistoryRaw = JSON.parse(localStorage.getItem("ndw_emotion_history") || "[]");
+      const yesterday = emotionHistoryRaw.filter((e: any) => {
+        const d = new Date(e.timestamp);
+        const now = new Date();
+        return d.toISOString().slice(0, 10) < now.toISOString().slice(0, 10);
+      });
+      const avgStress = yesterday.length > 0
+        ? yesterday.reduce((a: number, e: any) => a + (e.stress || 0.4), 0) / yesterday.length
+        : 0.4;
+      const newBriefing = await engineRef.current.generateMorningBriefing({
+        sleepData: { totalHours: null, deepHours: null, remHours: null, efficiency: null, dataAvailability: "none" },
+        morningHrv: null, hrvRange: null,
+        emotionSummary: {
+          readingCount: yesterday.length, avgStress, avgFocus: 0.55,
+          avgValence: 0.55, dominantLabel: "neutral", dominantMinutes: 60,
+        },
+        patternSummaries: engineInsights.map(i => i.headline),
+        yesterdaySummary: `${yesterday.length} readings. Avg stress ${(avgStress * 100).toFixed(0)}%.`,
+      });
+      setBriefing(newBriefing);
+    } catch (e) {
+      console.warn("Briefing generation failed", e);
+    } finally {
+      setBriefingLoading(false);
+    }
+  };
+
   // Fetch emotion history from Express API (persisted DB data)
   const { data: apiHistory } = useQuery<any[]>({
     queryKey: [`/api/brain/history/${PARTICIPANT}?days=30`],
@@ -597,6 +643,13 @@ export default function Insights() {
             : "Start a voice check-in to build your insight engine"}
         </p>
       </div>
+
+      {/* Morning Briefing */}
+      <MorningBriefingCard
+        loading={briefingLoading}
+        briefing={briefing}
+        onGenerate={handleGenerateBriefing}
+      />
 
       {/* No data state */}
       {!hasData && (
@@ -816,6 +869,32 @@ export default function Insights() {
                 </div>
               </div>
             </motion.div>
+          )}
+
+          {/* InsightEngine pattern-discovered insights */}
+          {engineInsights.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Discovered Patterns</p>
+              {engineInsights.map(insight => (
+                <Card key={insight.id} className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                      insight.priority === "high" ? "bg-red-400" : insight.priority === "medium" ? "bg-amber-400" : "bg-green-400"
+                    }`} />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{insight.headline}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{insight.context}</p>
+                      <button
+                        onClick={() => navigate(insight.actionHref)}
+                        className="text-xs text-primary mt-2 hover:underline"
+                      >
+                        {insight.action} →
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           )}
 
           {/* Insight cards */}
