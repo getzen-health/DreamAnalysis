@@ -242,7 +242,7 @@ export default function ScoresDashboard() {
         </div>
 
         {/* Energy Bank hero skeleton */}
-        <div className="flex justify-center py-6 rounded-2xl bg-card/80 border border-border">
+        <div className="flex justify-center py-6 rounded-[14px] bg-card border border-border">
           <Skeleton className="h-28 w-28 rounded-full" />
         </div>
 
@@ -251,7 +251,7 @@ export default function ScoresDashboard() {
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="rounded-2xl p-4 bg-card border border-border"
+              className="rounded-[14px] p-4 bg-card border border-border"
               style={{ borderLeft: "3px solid var(--border)" }}
             >
               <div className="flex items-center justify-between gap-3">
@@ -270,7 +270,7 @@ export default function ScoresDashboard() {
         {/* Secondary row skeleton */}
         <div className="grid grid-cols-2 gap-3">
           <div
-            className="rounded-2xl p-4 bg-card border border-border"
+            className="rounded-[14px] p-4 bg-card border border-border"
             style={{ borderLeft: "3px solid var(--border)" }}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -280,7 +280,7 @@ export default function ScoresDashboard() {
             <Skeleton className="h-14 w-14 rounded-full ml-auto" />
           </div>
           <div
-            className="rounded-2xl p-4 bg-card border border-border"
+            className="rounded-[14px] p-4 bg-card border border-border"
             style={{ borderLeft: "3px solid var(--border)" }}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -292,7 +292,7 @@ export default function ScoresDashboard() {
         </div>
 
         {/* Today's Summary skeleton */}
-        <div className="rounded-2xl p-5 bg-card border border-border">
+        <div className="rounded-[14px] p-5 bg-card border border-border">
           <Skeleton className="h-4 w-12 mb-4" />
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -352,7 +352,7 @@ export default function ScoresDashboard() {
 
       {/* ── Hero: Energy Bank ──────────────────────────────────────────── */}
       <motion.div
-        className="flex justify-center py-4 rounded-2xl backdrop-blur-sm bg-card/80 border border-border animate-heartbeat shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
+        className="flex justify-center py-4 rounded-[14px] bg-card border border-border"
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -413,13 +413,12 @@ export default function ScoresDashboard() {
         />
         {/* Cardio Load status card (uses strain color for visual grouping) */}
         <div
-          className="rounded-2xl p-4 flex flex-col justify-center bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
-          style={{ borderLeft: "3px solid #e879a8" }}
+          className="rounded-[14px] p-4 flex flex-col justify-center bg-card border border-border"
+          style={{ borderLeft: "3px solid #10b981" }}
         >
           <div className="flex items-center gap-2 mb-2">
             <span
-              className="flex items-center justify-center w-7 h-7 rounded-lg"
-              style={{ background: "#e879a820" }}
+              className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/10"
             >
               <Activity className="h-3.5 w-3.5 text-ndw-strain" />
             </span>
@@ -446,11 +445,11 @@ export default function ScoresDashboard() {
         transition={{ duration: 0.4, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="flex items-center gap-2 mb-3">
-          <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-violet-500/10">
-            <Cpu className="h-3.5 w-3.5 text-violet-400" />
+          <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-emerald-500/10">
+            <Cpu className="h-3.5 w-3.5 text-emerald-500" />
           </div>
           <h2 className="text-sm font-semibold text-foreground">Brain Scores</h2>
-          <span className="text-[10px] font-mono text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded-full">
+          <span className="text-[10px] font-mono text-emerald-500/70 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
             EEG
           </span>
         </div>
@@ -468,7 +467,7 @@ export default function ScoresDashboard() {
                 title="Focus"
                 value={brainTotals.avgFocus !== null ? Math.round(brainTotals.avgFocus * 100) : null}
                 color="recovery"
-                icon={<Zap className="h-3.5 w-3.5 text-cyan-400" />}
+                icon={<Zap className="h-3.5 w-3.5 text-emerald-500" />}
                 onInfoClick={() => setLearnMoreMetric("focus")}
               />
             </motion.div>
@@ -486,7 +485,7 @@ export default function ScoresDashboard() {
                   ? Math.round((brainTotals.avgValence + 1) * 50)
                   : null}
                 color="sleep"
-                icon={<Smile className="h-3.5 w-3.5 text-violet-400" />}
+                icon={<Smile className="h-3.5 w-3.5 text-emerald-500" />}
                 onInfoClick={() => setLearnMoreMetric("mood")}
               />
             </motion.div>
@@ -502,13 +501,13 @@ export default function ScoresDashboard() {
                 title="Energy"
                 value={brainTotals.avgEnergy !== null ? Math.round(brainTotals.avgEnergy * 100) : null}
                 color="energy"
-                icon={<BatteryCharging className="h-3.5 w-3.5 text-fuchsia-400" />}
+                icon={<BatteryCharging className="h-3.5 w-3.5 text-emerald-500" />}
                 onInfoClick={() => setLearnMoreMetric("brain-energy")}
               />
             </motion.div>
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-border/60 p-5 text-center bg-card/40">
+          <div className="rounded-[14px] border border-dashed border-border p-5 text-center bg-card">
             <Cpu className="h-6 w-6 text-muted-foreground/40 mx-auto mb-2" />
             <p className="text-xs text-muted-foreground/60">
               Connect your EEG headset to see brain scores
@@ -522,7 +521,7 @@ export default function ScoresDashboard() {
 
       {/* ── Today's Summary Card ──────────────────────────────────────── */}
       <motion.div
-        className="rounded-2xl p-5 bg-card border border-border animate-fade-in-up shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
+        className="rounded-[14px] p-5 bg-card border border-border"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -537,14 +536,14 @@ export default function ScoresDashboard() {
             icon={Footprints}
             label="Steps"
             value={summary.steps !== null ? summary.steps.toLocaleString() : null}
-            color="#0891b2"
+            color="#10b981"
           />
           {summary.steps !== null && (
             <div className="ml-6 mt-1">
               <ProgressBar
                 value={summary.steps}
                 max={summary.stepsGoal}
-                color="#0891b2"
+                color="#10b981"
               />
               <p className="text-[10px] mt-1 text-right text-muted-foreground/50">
                 {summary.stepsGoal.toLocaleString()} goal
@@ -559,7 +558,7 @@ export default function ScoresDashboard() {
             label="Active calories"
             value={summary.activeCalories}
             unit="kcal"
-            color="#d4a017"
+            color="#10b981"
           />
         </div>
 
@@ -569,7 +568,7 @@ export default function ScoresDashboard() {
             label="Weight"
             value={summary.weight !== null ? summary.weight.toFixed(1) : null}
             unit="kg"
-            color="#7c3aed"
+            color="#10b981"
           />
         </div>
 
@@ -588,13 +587,13 @@ export default function ScoresDashboard() {
                       style={{
                         background:
                           z.zone === "Zone 5"
-                            ? "#be185d"
+                            ? "#047857"
                             : z.zone === "Zone 4"
-                            ? "#ea580c"
+                            ? "#059669"
                             : z.zone === "Zone 3"
-                            ? "#d4a017"
+                            ? "#10b981"
                             : z.zone === "Zone 2"
-                            ? "#0891b2"
+                            ? "#34d399"
                             : "var(--muted-foreground)",
                       }}
                       initial={{ height: 0 }}
@@ -632,11 +631,11 @@ export default function ScoresDashboard() {
             {visibleAlerts.map((alert) => (
               <motion.div
                 key={alert.id}
-                className={`flex items-start gap-3 rounded-2xl p-3 bg-card border shadow-[0_2px_16px_rgba(0,0,0,0.06)] ${
+                className={`flex items-start gap-3 rounded-[14px] p-3 bg-card border ${
                   alert.type === "negative"
-                    ? "border-rose-500/30"
+                    ? "border-red-500/30"
                     : alert.type === "positive"
-                    ? "border-cyan-500/30"
+                    ? "border-emerald-500/30"
                     : "border-border"
                 }`}
                 initial={{ opacity: 0, x: -8 }}
@@ -645,11 +644,11 @@ export default function ScoresDashboard() {
                 transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               >
                 {alert.type === "positive" ? (
-                  <TrendingUp className="h-4 w-4 shrink-0 mt-0.5 text-cyan-400" />
+                  <TrendingUp className="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
                 ) : alert.type === "negative" ? (
-                  <TrendingDown className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
+                  <TrendingDown className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
                 ) : (
-                  <Activity className="h-4 w-4 shrink-0 mt-0.5 text-indigo-400" />
+                  <Activity className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
                 )}
                 <p className="text-xs flex-1 text-foreground">
                   {alert.message}
