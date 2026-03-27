@@ -1,5 +1,5 @@
 // client/src/components/emotion-picker.tsx
-import { useState, useMemo, KeyboardEvent } from "react";
+import { useState, useMemo, useEffect, KeyboardEvent } from "react";
 import { EmotionTaxonomy, type Quadrant } from "@/lib/insight-engine/emotion-taxonomy";
 
 interface Props {
@@ -25,6 +25,12 @@ export function EmotionPicker({ valence, arousal, onSelect, personalFingerprints
   const [custom, setCustom] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
 
+  // Fix 1: Sync activeQ when valence/arousal props change
+  useEffect(() => {
+    const newQ = taxonomy.getQuadrant(valence, arousal);
+    setActiveQ(newQ);
+  }, [valence, arousal, taxonomy]);
+
   const presets = taxonomy.getPresetsForQuadrant(activeQ);
   const personal = personalFingerprints.filter(f => f.quadrant === activeQ).map(f => f.label);
 
@@ -42,14 +48,16 @@ export function EmotionPicker({ valence, arousal, onSelect, personalFingerprints
 
   return (
     <div className="space-y-3">
-      {/* Quadrant tabs */}
-      <div className="flex gap-1 flex-wrap" role="tablist">
+      {/* Quadrant tabs — Fix 3: aria-label on tablist */}
+      <div className="flex gap-1 flex-wrap" role="tablist" aria-label="Emotion quadrants">
         {(["ha_pos", "ha_neg", "la_pos", "la_neg"] as Quadrant[]).map(q => (
           <button
             key={q}
             role="tab"
             aria-selected={activeQ === q}
-            onClick={() => setActiveQ(q)}
+            id={`tab-${q}`}
+            aria-controls={`panel-${activeQ}`}
+            onClick={() => { setActiveQ(q); setSelected([]); }}
             className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
               activeQ === q
                 ? "bg-primary text-primary-foreground"
@@ -61,51 +69,57 @@ export function EmotionPicker({ valence, arousal, onSelect, personalFingerprints
         ))}
       </div>
 
-      {/* Personal vocabulary first */}
-      {personal.length > 0 && (
-        <div>
-          <p className="text-xs text-muted-foreground mb-1.5">Your words</p>
-          <div className="flex flex-wrap gap-1.5">
-            {personal.map(label => (
-              <button
-                key={label}
-                onClick={() => handleSelect(label)}
-                className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
-                  selected.includes(label)
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-primary/30 text-primary hover:bg-primary/10"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+      {/* Fix 3: tabpanel wrapper for personal + preset sections */}
+      <div role="tabpanel" id={`panel-${activeQ}`} aria-labelledby={`tab-${activeQ}`}>
+        {/* Personal vocabulary first */}
+        {personal.length > 0 && (
+          <div className="mb-3">
+            <p className="text-xs text-muted-foreground mb-1.5">Your words</p>
+            <div className="flex flex-wrap gap-1.5">
+              {personal.map(label => (
+                <button
+                  key={label}
+                  onClick={() => handleSelect(label)}
+                  aria-pressed={selected.includes(label)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    selected.includes(label)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-primary/30 text-primary hover:bg-primary/10"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Preset vocabulary */}
-      <div className="flex flex-wrap gap-1.5">
-        {presets.map(label => (
-          <button
-            key={label}
-            onClick={() => handleSelect(label)}
-            className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
-              selected.includes(label)
-                ? "bg-primary/20 border-primary text-primary font-medium"
-                : "border-border/40 text-foreground/70 hover:border-primary/40 hover:text-foreground"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        {/* Preset vocabulary */}
+        <div className="flex flex-wrap gap-1.5">
+          {presets.map(label => (
+            <button
+              key={label}
+              onClick={() => handleSelect(label)}
+              aria-pressed={selected.includes(label)}
+              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                selected.includes(label)
+                  ? "bg-primary/20 border-primary text-primary font-medium"
+                  : "border-border/40 text-foreground/70 hover:border-primary/40 hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Custom label input */}
+      {/* Custom label input — Fix 5: aria-label */}
       <input
         value={custom}
         onChange={e => setCustom(e.target.value)}
         onKeyDown={handleCustomKey}
         placeholder="Type your own word and press Enter..."
+        aria-label="Custom emotion label"
         className="w-full px-3 py-2 text-sm rounded-lg bg-muted/30 border border-border/30 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
       />
     </div>
