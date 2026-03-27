@@ -33,9 +33,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { listItemVariants, pageTransition } from "@/lib/animations";
+import { listItemVariants, pageTransition, staggerContainer, staggerChild } from "@/lib/animations";
 import { useToast } from "@/hooks/use-toast";
 import { EmotionStrip } from "@/components/emotion-strip";
+import { HabitStreakCard } from "@/components/habit-streak-card";
+import { HabitHeatmap } from "@/components/habit-heatmap";
+import { HabitAnalytics } from "@/components/habit-analytics";
 
 /* ---------- types ---------- */
 
@@ -140,12 +143,20 @@ export default function Habits() {
     staleTime: 30_000,
   });
 
-  // Fetch habit logs (last 30 days)
+  // Fetch habit logs (last 30 days — for habit list 7-day tracker)
   const { data: habitLogData = [] } = useQuery<HabitLog[]>({
     queryKey: [`/api/habit-logs/${user?.id}`],
     enabled: !!user?.id,
     retry: false,
     staleTime: 30_000,
+  });
+
+  // Fetch habit logs (last 90 days — for heatmap + analytics)
+  const { data: extendedLogData = [] } = useQuery<HabitLog[]>({
+    queryKey: [`/api/habit-logs/${user?.id}?days=90`],
+    enabled: !!user?.id,
+    retry: false,
+    staleTime: 60_000,
   });
 
   // Fetch streaks
@@ -414,6 +425,44 @@ export default function Habits() {
         </div>
         <EmotionStrip />
       </motion.div>
+
+      {/* Streaks section — horizontal scrollable cards */}
+      {userHabits.length > 0 && (
+        <motion.div
+          className="space-y-2"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="show"
+        >
+          <motion.h2
+            className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
+            variants={staggerChild}
+          >
+            Streaks
+          </motion.h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+            {userHabits.map((habit, idx) => (
+              <HabitStreakCard
+                key={habit.id}
+                habit={habit}
+                currentStreak={streaks[habit.id] ?? 0}
+                logs={extendedLogData}
+                index={idx}
+              />
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Activity heatmap */}
+      {userHabits.length > 0 && (
+        <HabitHeatmap habits={userHabits} logs={extendedLogData} />
+      )}
+
+      {/* Analytics */}
+      {userHabits.length > 0 && (
+        <HabitAnalytics habits={userHabits} logs={extendedLogData} />
+      )}
 
       {/* Habits list */}
       {userHabits.length === 0 ? (
