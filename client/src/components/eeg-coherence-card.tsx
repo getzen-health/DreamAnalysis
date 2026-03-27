@@ -1,7 +1,7 @@
 /**
  * EEGCoherenceCard — Brain region connectivity visualization.
  *
- * Shows the 4 Muse 2 electrode positions (TP9, AF7, AF8, TP10) as nodes
+ * Shows the 4 BCI device electrode positions (TP9, AF7, AF8, TP10) as nodes
  * in a head silhouette and draws arcs between them proportional to the
  * Phase Locking Value (PLV) or coherence strength.
  *
@@ -25,10 +25,8 @@ export interface EEGCoherenceCardProps {
   frontalPlv?: number | null;
   /** TP9 ↔ TP10 inter-hemispheric temporal PLV (0–1) */
   temporalPlv?: number | null;
-  /** AF7 ↔ TP9 left fronto-temporal PLV (0–1) */
+  /** AF7↔TP9 + AF8↔TP10 fronto-temporal PLV mean (0–1) */
   leftFrontotemporalPlv?: number | null;
-  /** AF8 ↔ TP10 right fronto-temporal PLV (0–1) */
-  rightFrontotemporalPlv?: number | null;
   /** Is EEG currently streaming? */
   isStreaming?: boolean;
 }
@@ -57,8 +55,9 @@ function strengthColor(v: number): string {
 }
 
 function strengthLabel(v: number): string {
-  if (v >= 0.7) return "Strong";
-  if (v >= 0.4) return "Moderate";
+  // Thresholds match strengthColor: 0.3 and 0.6
+  if (v >= 0.6) return "Strong";
+  if (v >= 0.3) return "Moderate";
   return "Weak";
 }
 
@@ -103,18 +102,19 @@ export function EEGCoherenceCard({
   frontalPlv,
   temporalPlv,
   leftFrontotemporalPlv,
-  rightFrontotemporalPlv,
   isStreaming = false,
 }: EEGCoherenceCardProps) {
   const hasData =
-    frontalPlv != null || temporalPlv != null ||
-    leftFrontotemporalPlv != null || rightFrontotemporalPlv != null;
+    frontalPlv != null || temporalPlv != null || leftFrontotemporalPlv != null;
 
   const pairs: { from: keyof typeof NODES; to: keyof typeof NODES; strength: number }[] = [];
   if (frontalPlv != null)            pairs.push({ from: "AF7", to: "AF8",  strength: frontalPlv });
   if (temporalPlv != null)           pairs.push({ from: "TP9", to: "TP10", strength: temporalPlv });
-  if (leftFrontotemporalPlv != null) pairs.push({ from: "AF7", to: "TP9",  strength: leftFrontotemporalPlv });
-  if (rightFrontotemporalPlv != null) pairs.push({ from: "AF8", to: "TP10", strength: rightFrontotemporalPlv });
+  // fronto-temporal PLV is the mean of AF7↔TP9 and AF8↔TP10 — draw both arcs at the same strength
+  if (leftFrontotemporalPlv != null) {
+    pairs.push({ from: "AF7", to: "TP9",  strength: leftFrontotemporalPlv });
+    pairs.push({ from: "AF8", to: "TP10", strength: leftFrontotemporalPlv });
+  }
 
   return (
     <div
@@ -228,23 +228,12 @@ export function EEGCoherenceCard({
               )}
               {leftFrontotemporalPlv != null && (
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-muted-foreground truncate">L. Fronto-temporal</span>
+                  <span className="text-[10px] text-muted-foreground truncate">Fronto-temporal</span>
                   <span
                     className="text-[10px] font-semibold font-mono"
                     style={{ color: strengthColor(leftFrontotemporalPlv) }}
                   >
                     {strengthLabel(leftFrontotemporalPlv)}
-                  </span>
-                </div>
-              )}
-              {rightFrontotemporalPlv != null && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-muted-foreground truncate">R. Fronto-temporal</span>
-                  <span
-                    className="text-[10px] font-semibold font-mono"
-                    style={{ color: strengthColor(rightFrontotemporalPlv) }}
-                  >
-                    {strengthLabel(rightFrontotemporalPlv)}
                   </span>
                 </div>
               )}

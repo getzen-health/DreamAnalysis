@@ -233,23 +233,26 @@ export async function saveEmotionHistory(userId: string, entry: EmotionHistoryEn
   safeLocalSet(key, pruned);
 
   // 2. POST to Express /api/emotion-readings → persists to Supabase via Drizzle
+  //    Only write when energy is present — schema requires notNull, no fabricated defaults.
   //    Fire-and-forget: never block the caller, never throw
-  fetch(`/api/emotion-readings`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userId,
-      stress: entry.stress,
-      happiness: entry.mood,
-      focus: entry.focus,
-      energy: entry.energy ?? 0.5,
-      dominantEmotion: entry.dominantEmotion ?? "neutral",
-      valence: entry.valence ?? null,
-      arousal: entry.arousal ?? null,
-      sessionId: entry.sessionId ?? null,
-      timestamp,
-    }),
-  }).catch(() => {}); // non-fatal
+  if (entry.energy !== undefined) {
+    fetch(`/api/emotion-readings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        stress: entry.stress,
+        happiness: entry.mood,
+        focus: entry.focus,
+        energy: entry.energy,
+        dominantEmotion: entry.dominantEmotion ?? "neutral",
+        valence: entry.valence ?? null,
+        arousal: entry.arousal ?? null,
+        sessionId: entry.sessionId ?? null,
+        timestamp,
+      }),
+    }).catch(() => {}); // non-fatal
+  }
 
   // 3. Write to Supabase emotion_history table (analytics / quick reads)
   const sb = await getSupabaseIfAllowed();
@@ -260,6 +263,8 @@ export async function saveEmotionHistory(userId: string, entry: EmotionHistoryEn
       stress: entry.stress,
       focus: entry.focus,
       mood: entry.mood,
+      valence: entry.valence ?? null,
+      arousal: entry.arousal ?? null,
       source: entry.source ?? null,
       created_at: timestamp,
     });

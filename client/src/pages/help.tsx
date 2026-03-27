@@ -41,7 +41,7 @@ const faqs: FAQ[] = [
   {
     question: "Do I need an EEG headband to use this app?",
     answer:
-      "No. Voice analysis is the primary input method and works on any device. An EEG / BCI headband (Muse 2, Muse S, or any compatible device) adds hardware-based brain wave data for more detailed analysis, but it is entirely optional.",
+      "No. Voice analysis is the primary input method and works on any device. An EEG headband or compatible BCI device adds hardware-based brain wave data for more detailed analysis, but it is entirely optional.",
     icon: Brain,
   },
   {

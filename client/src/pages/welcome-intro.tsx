@@ -289,7 +289,7 @@ function DeviceStep() {
     {
       id: "muse",
       icon: Brain,
-      name: "EEG Headband (Muse 2 / Muse S)",
+      name: "EEG Headband",
       desc: "EEG headband for brain monitoring",
     },
     {

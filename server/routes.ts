@@ -1659,8 +1659,13 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
 
   // POST /api/emotion-readings — insert a single real-time emotion reading (from EEG or voice)
   app.post("/api/emotion-readings", async (req, res) => {
+    const authUserId = getAuthUserId(req);
+    if (!authUserId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
     try {
-      const parsed = insertEmotionReadingSchema.parse(req.body);
+      // Always use the authenticated user — never trust userId from the request body
+      const parsed = insertEmotionReadingSchema.parse({ ...req.body, userId: authUserId });
       const reading = await storage.createEmotionReading(parsed);
       res.json(reading);
     } catch (error: any) {

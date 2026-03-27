@@ -422,8 +422,8 @@ function useDeviceInternal(): UseDeviceReturn {
   // headband they own. Muse devices connect via Web Bluetooth even without BrainFlow.
   const ALL_EEG_DEVICES: DeviceInfo[] = [
     // Muse
-    { type: "muse_2", name: "Muse 2 (BCI)", channels: 4, sample_rate: 256, available: true },
-    { type: "muse_s", name: "Muse S (BCI)", channels: 4, sample_rate: 256, available: true },
+    { type: "muse_2", name: "Muse 2 EEG Headband", channels: 4, sample_rate: 256, available: true },
+    { type: "muse_s", name: "Muse S EEG Headband", channels: 4, sample_rate: 256, available: true },
     // OpenBCI
     { type: "openbci_cyton", name: "OpenBCI Cyton", channels: 8, sample_rate: 250, available: true },
     { type: "openbci_ganglion", name: "OpenBCI Ganglion", channels: 4, sample_rate: 200, available: true },
@@ -525,12 +525,14 @@ function useDeviceInternal(): UseDeviceReturn {
                   }));
                   window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
                   // Fire-and-forget: sync EEG emotion → localStorage + Supabase + Express DB
+                  // valence is -1 to 1; mood is 0-1 — convert by shifting and scaling
+                  const rawValence = Number(emotions.valence ?? 0);
                   saveEmotionHistory(userIdRef.current, {
                     stress: Number(emotions.stress_index ?? 0.5),
                     focus: Number(emotions.focus_index ?? 0.5),
-                    mood: Number(emotions.valence ?? 0),
+                    mood: (rawValence + 1) / 2,
                     energy: Number(emotions.arousal ?? 0.5),
-                    valence: Number(emotions.valence ?? 0),
+                    valence: rawValence,
                     arousal: Number(emotions.arousal ?? 0.5),
                     source: "eeg",
                     dominantEmotion: String(emotions.emotion),

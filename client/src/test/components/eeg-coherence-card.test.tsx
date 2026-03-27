@@ -50,14 +50,9 @@ describe("EEGCoherenceCard", () => {
     expect(screen.getByText(/temporal/i)).toBeInTheDocument();
   });
 
-  it("shows L. Fronto-temporal row when leftFrontotemporalPlv is provided", () => {
+  it("shows Fronto-temporal row when leftFrontotemporalPlv is provided", () => {
     renderWithProviders(<EEGCoherenceCard leftFrontotemporalPlv={0.6} />);
-    expect(screen.getByText(/L\. Fronto-temporal/i)).toBeInTheDocument();
-  });
-
-  it("shows R. Fronto-temporal row when rightFrontotemporalPlv is provided", () => {
-    renderWithProviders(<EEGCoherenceCard rightFrontotemporalPlv={0.3} />);
-    expect(screen.getByText(/R\. Fronto-temporal/i)).toBeInTheDocument();
+    expect(screen.getByText("Fronto-temporal")).toBeInTheDocument();
   });
 
   it("does not show empty state when any PLV data is present", () => {
@@ -78,6 +73,26 @@ describe("EEGCoherenceCard", () => {
   it("shows Weak label for low PLV", () => {
     renderWithProviders(<EEGCoherenceCard frontalPlv={0.2} />);
     expect(screen.getByText("Weak")).toBeInTheDocument();
+  });
+
+  it("shows Moderate at the 0.3 boundary", () => {
+    renderWithProviders(<EEGCoherenceCard frontalPlv={0.3} />);
+    expect(screen.getByText("Moderate")).toBeInTheDocument();
+  });
+
+  it("shows Strong at the 0.6 boundary", () => {
+    renderWithProviders(<EEGCoherenceCard frontalPlv={0.6} />);
+    expect(screen.getByText("Strong")).toBeInTheDocument();
+  });
+
+  it("shows Weak just below 0.3", () => {
+    renderWithProviders(<EEGCoherenceCard frontalPlv={0.29} />);
+    expect(screen.getByText("Weak")).toBeInTheDocument();
+  });
+
+  it("shows Moderate just below 0.6", () => {
+    renderWithProviders(<EEGCoherenceCard frontalPlv={0.59} />);
+    expect(screen.getByText("Moderate")).toBeInTheDocument();
   });
 
   it("renders all four electrode labels in the SVG", () => {
