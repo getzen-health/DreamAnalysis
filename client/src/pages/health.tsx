@@ -16,6 +16,7 @@ import { Scale, Heart as HeartIcon, Footprints, Dumbbell } from "lucide-react";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
+import { getSupabase } from "@/lib/supabase-browser";
 import { HealthSyncStatusBar } from "@/components/health-sync-status-bar";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -83,15 +84,45 @@ function HeartTab() {
   const { latestPayload } = useHealthSync();
   const userId = useMemo(() => getParticipantId(), []);
 
-  // Fetch 7-day heart rate history from Supabase health samples
+  // Fetch 7-day history directly from Supabase health_samples table
+  const since7d = useMemo(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), []);
+
   const { data: hrHistory } = useQuery<Array<{ value: number; recorded_at: string }>>({
-    queryKey: [`/api/health-samples/${userId}?metric=heart_rate&days=7`],
+    queryKey: ["supabase-health-samples", userId, "heart_rate"],
+    queryFn: async () => {
+      const sb = await getSupabase();
+      if (!sb) return [];
+      const { data, error } = await sb
+        .from("health_samples")
+        .select("value, recorded_at")
+        .eq("user_id", userId)
+        .eq("metric", "heart_rate")
+        .gte("recorded_at", since7d)
+        .order("recorded_at", { ascending: true })
+        .limit(200);
+      if (error) throw error;
+      return data ?? [];
+    },
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: hrvHistory } = useQuery<Array<{ value: number; recorded_at: string }>>({
-    queryKey: [`/api/health-samples/${userId}?metric=hrv_rmssd&days=7`],
+    queryKey: ["supabase-health-samples", userId, "hrv_rmssd"],
+    queryFn: async () => {
+      const sb = await getSupabase();
+      if (!sb) return [];
+      const { data, error } = await sb
+        .from("health_samples")
+        .select("value, recorded_at")
+        .eq("user_id", userId)
+        .eq("metric", "hrv_rmssd")
+        .gte("recorded_at", since7d)
+        .order("recorded_at", { ascending: true })
+        .limit(200);
+      if (error) throw error;
+      return data ?? [];
+    },
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
@@ -230,9 +261,25 @@ function ActivityTab() {
   const { latestPayload } = useHealthSync();
   const userId = useMemo(() => getParticipantId(), []);
 
-  // Weekly activity summary
+  // Weekly activity — steps from Supabase health_samples
+  const since7dActivity = useMemo(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), []);
+
   const { data: stepsHistory } = useQuery<Array<{ value: number; recorded_at: string }>>({
-    queryKey: [`/api/health-samples/${userId}?metric=steps&days=7`],
+    queryKey: ["supabase-health-samples", userId, "steps"],
+    queryFn: async () => {
+      const sb = await getSupabase();
+      if (!sb) return [];
+      const { data, error } = await sb
+        .from("health_samples")
+        .select("value, recorded_at")
+        .eq("user_id", userId)
+        .eq("metric", "steps")
+        .gte("recorded_at", since7dActivity)
+        .order("recorded_at", { ascending: true })
+        .limit(200);
+      if (error) throw error;
+      return data ?? [];
+    },
     retry: false,
     staleTime: 5 * 60 * 1000,
   });

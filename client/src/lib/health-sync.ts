@@ -986,11 +986,6 @@ class HealthSyncManager {
       const samples = buildSupabaseSamples(payload, workouts, source);
       try { await postToSupabase(userId, samples); } catch { /* Supabase unavailable — ok */ }
 
-      // Persist to Express/Neon health_samples so historical charts can render (best-effort)
-      try {
-        await apiRequest("POST", "/api/health-samples", { user_id: userId, samples });
-      } catch { /* Express unavailable on native APK — ok, Supabase is fallback */ }
-
       // Persist body metrics to body_metrics table (best-effort)
       if (payload.weight_kg || payload.body_fat_pct) {
         try {
