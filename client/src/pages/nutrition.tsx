@@ -3233,6 +3233,86 @@ export default function Nutrition() {
               exit="exit"
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
+              {/* ── Brain-Food Story card ─────────────────────────────────── */}
+              {(() => {
+                // Compute brain-food headline from today's data
+                const hasLogs = todayLogs.length > 0;
+                const proteinPct = hasLogs ? Math.round((totalProtein / 130) * 100) : 0;
+                const stressHigh = (voiceData?.stress_index ?? 0) > 0.5;
+                const focusFromFood = mealCogInsight;
+
+                let headline = "Log a meal to see your brain-food story";
+                let body = "Every meal affects your focus, stress, and mood for the next 2-4 hours. We track the connection so you can optimize.";
+                let action = "Tap 'Log' and scan or describe your next meal.";
+
+                if (hasLogs) {
+                  if (focusFromFood && focusFromFood.includes("dip")) {
+                    headline = "Post-meal focus dip detected in your pattern";
+                    body = `${focusFromFood} High-carb meals spike blood sugar then crash it — this is likely the culprit.`;
+                    action = "Add 10g protein to your next meal to flatten the focus curve.";
+                  } else if (focusFromFood && focusFromFood.includes("boost")) {
+                    headline = "Your meals are fueling sharp focus";
+                    body = `${focusFromFood} This pattern suggests your meal timing and composition are working well.`;
+                    action = "Keep logging to confirm this pattern over the next 3 days.";
+                  } else if (stressHigh) {
+                    headline = "Stress is high — your food can help or hurt";
+                    body = `At ${Math.round((voiceData?.stress_index ?? 0) * 100)}% stress, your body craves quick energy (sugar). Magnesium-rich foods calm the nervous system instead.`;
+                    action = "Try dark chocolate, nuts, or leafy greens with your next meal.";
+                  } else if (proteinPct >= 80) {
+                    headline = "Strong protein day — focus window is open";
+                    body = `${Math.round(totalProtein)}g protein gives your brain steady dopamine and norepinephrine precursors. Your cognitive peak window is now.`;
+                    action = "Use the next 2 hours for your hardest mental work.";
+                  } else if (proteinPct < 40) {
+                    headline = "Protein below target — focus may feel flat";
+                    body = `${Math.round(totalProtein)}g so far (${proteinPct}% of 130g goal). Low protein means fewer neurotransmitter precursors — this shows up as brain fog.`;
+                    action = "Add eggs, Greek yogurt, or fish to your next meal.";
+                  } else {
+                    headline = `${todayLogs.length} meal${todayLogs.length > 1 ? "s" : ""} tracked — brain impact computed`;
+                    body = `${Math.round(totalCalories)} kcal, ${Math.round(totalProtein)}g protein today. Your food quality score is ${foodQualityScore}/100 — ${foodQualityScore >= 70 ? "excellent brain fuel" : foodQualityScore >= 40 ? "decent, with room to optimize" : "below optimal — your focus and mood will reflect this"}.`;
+                    action = foodQualityScore >= 70 ? "Maintain this pattern through dinner." : "Boost quality: add vegetables and reduce processed carbs at your next meal.";
+                  }
+                }
+
+                return (
+                  <div
+                    style={{
+                      borderRadius: 20,
+                      background: "linear-gradient(135deg, rgba(124,58,237,0.10), rgba(6,182,212,0.06))",
+                      border: "1px solid rgba(124,58,237,0.22)",
+                      padding: 18,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                      <BrainIcon style={{ width: 12, height: 12, color: "#7c3aed" }} />
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                        letterSpacing: "0.08em", color: "#7c3aed",
+                      }}>
+                        Brain-Food Story
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.35, margin: "0 0 8px" }}>
+                      {headline}
+                    </p>
+                    <p style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.55, margin: "0 0 12px" }}>
+                      {body}
+                    </p>
+                    <div style={{
+                      display: "flex", alignItems: "flex-start", gap: 8,
+                      borderRadius: 12, padding: "10px 12px",
+                      background: "rgba(124,58,237,0.10)",
+                      border: "1px solid rgba(124,58,237,0.18)",
+                    }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: "#7c3aed", marginTop: 1, letterSpacing: "0.04em" }}>→</span>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", margin: 0, lineHeight: 1.4 }}>
+                        {action}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Nutrition Score + Food Quality */}
               <div style={{
                 background: "var(--card)", border: "1px solid var(--border)",
@@ -3367,53 +3447,102 @@ export default function Nutrition() {
                 );
               })()}
 
-              {/* AI Nutrition Insights */}
+              {/* AI Nutrition Insights — glass-card chips */}
               {insights.length > 0 && (
-                <div style={{
-                  background: "var(--card)", border: "1px solid var(--border)",
-                  borderRadius: 16, padding: 14, marginBottom: 16,
-                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-                }}>
+                <div style={{ marginBottom: 16 }}>
                   <div style={{
                     fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
                     textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8,
                   }}>
-                    Nutrition Insights
+                    Personalized Insights
                   </div>
-                  {insights.map((insight, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        fontSize: 12, color: "var(--foreground)", lineHeight: 1.5,
-                        padding: "6px 0",
-                        borderBottom: i < insights.length - 1 ? "1px solid var(--border)" : "none",
-                      }}
-                    >
-                      {insight}
-                    </div>
-                  ))}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {insights.map((insight, i) => {
+                      // Assign category color based on content keywords
+                      const isProtein = /protein/i.test(insight);
+                      const isHydration = /water|hydrat/i.test(insight);
+                      const isVeg = /vegetable|veg|plant|fiber/i.test(insight);
+                      const isMacro = /carb|fat|calori/i.test(insight);
+                      const color = isProtein ? "#e879a8" : isHydration ? "#06b6d4" : isVeg ? "#22c55e" : isMacro ? "#e8b94a" : "#a78bfa";
+                      const label = isProtein ? "Protein" : isHydration ? "Hydration" : isVeg ? "Plants" : isMacro ? "Macros" : "Pattern";
+                      return (
+                        <div key={i} style={{
+                          borderRadius: 14,
+                          background: "var(--card)",
+                          border: `1px solid ${color}28`,
+                          padding: "10px 14px",
+                          display: "flex", alignItems: "flex-start", gap: 10,
+                        }}>
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+                            letterSpacing: "0.06em", color, padding: "2px 7px",
+                            borderRadius: 6, background: `${color}18`,
+                            flexShrink: 0, marginTop: 1,
+                          }}>
+                            {label}
+                          </span>
+                          <span style={{ fontSize: 12, color: "var(--foreground)", lineHeight: 1.5 }}>
+                            {insight}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
-              {/* Weekly Nutrition Score placeholder */}
+              {/* Brain Macro Summary */}
               <div style={{
-                background: "var(--card)", border: "1px solid var(--border)",
-                borderRadius: 16, padding: 14,
+                borderRadius: 16,
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                padding: 14,
                 boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
                 <div style={{
                   fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
-                  textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8,
+                  textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 12,
                 }}>
-                  Weekly Summary
+                  Today vs Goals
                 </div>
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-                  {todayLogs.length > 0
-                    ? `Today: ${todayLogs.length} meal${todayLogs.length > 1 ? "s" : ""} logged, ${totalCalories} kcal total. ${
-                        totalProtein >= PROTEIN_GOAL ? "Protein goal met." : `${Math.round(PROTEIN_GOAL - totalProtein)}g protein to go.`
-                      }`
-                    : "Start logging meals to build your weekly nutrition profile."}
-                </div>
+                {todayLogs.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {[
+                      { label: "Calories", value: totalCalories, goal: 2000, unit: "kcal", color: "#e8b94a" },
+                      { label: "Protein", value: Math.round(totalProtein), goal: PROTEIN_GOAL, unit: "g", color: "#e879a8" },
+                      { label: "Carbs", value: Math.round(totalCarbs), goal: 250, unit: "g", color: "#06b6d4" },
+                      { label: "Fat", value: Math.round(totalFat), goal: 65, unit: "g", color: "#7c3aed" },
+                    ].map(({ label, value, goal, unit, color }) => {
+                      const pct = Math.min(Math.round((value / goal) * 100), 100);
+                      return (
+                        <div key={label}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--foreground)" }}>{label}</span>
+                            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+                              <span style={{ color, fontWeight: 700 }}>{value}</span>
+                              {" / "}{goal}{unit}
+                            </span>
+                          </div>
+                          <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{
+                              height: "100%", width: `${pct}%`, background: color,
+                              borderRadius: 3, transition: "width 0.5s ease",
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+                      {totalProtein >= PROTEIN_GOAL
+                        ? "Protein goal met — your brain has sufficient amino acid supply."
+                        : `${Math.round(PROTEIN_GOAL - totalProtein)}g protein remaining — add a protein source to your next meal.`}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+                    Start logging meals to track your daily nutrition against goals.
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
