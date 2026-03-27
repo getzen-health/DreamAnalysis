@@ -30,6 +30,9 @@
 - [x] **EEG Brain Scores section** on scores dashboard — Focus (avgFocus×100), Mood (valence→0-100), Brain Energy (avgEnergy×100) with EEG badge; empty state when no headset connected
 - [x] **Brain Coach card** (`client/src/components/brain-coach-card.tsx`) — 7-rule engine fusing EEG focus/valence/stress + health scores; outputs 1-3 personalized recommendations; wired into Today page
 - [x] **Sleep Hypnogram** (`client/src/components/sleep-hypnogram.tsx`) — SVG hypnogram rendered in sleep-session summary; tracks stage transitions during recording with stageHistoryRef; shows Sleep Architecture section with EEG badge
+- [x] **EEG Week Compare card** (`client/src/components/eeg-week-compare-card.tsx`) — 7-day week-over-week comparison of Focus/Stress/Mood with sparklines and trend arrows; wired into Today page
+- [x] **EEG Peak Hours card** (`client/src/components/eeg-peak-hours.tsx`) — 24-hour bar chart of focus by hour of day, highlights top 3 peak focus windows; wired into Insights page
+- [x] **EEG Brain Connectivity card** (`client/src/components/eeg-coherence-card.tsx`) — SVG head diagram with Muse 2 electrode nodes (TP9/AF7/AF8/TP10) and bezier arcs colored by PLV coherence strength; wired into Brain Monitor page reading live `plv_connectivity` from ML API
 
 ### ML Backend (100+ endpoints, 95+ models)
 - [x] Emotion classifier (LightGBM mega, 74.21% CV on 9 datasets, 163 534 samples — cross-subject)

@@ -214,7 +214,10 @@ Frontend                     ██████████  97%
   Vite bundle splitting + React.lazy() on 14 pages (faster load). ✅
   Session history 24-hour timeline strip (Today view — green/orange/cyan session blocks). ✅
   Push notification service worker + Settings subscribe UI (morning reminder to /brain-report). ✅
-  401 Vitest tests across 43 files; all passing. ✅
+  2003 Vitest tests across 152 files; all passing. ✅
+  EEG Week Compare card: 7-day focus/stress/mood vs prior week with sparklines. ✅
+  EEG Peak Hours card: 24-hour bar chart of focus by time of day. ✅
+  EEG Brain Connectivity card: Muse 2 electrode PLV coherence visualization with bezier arcs. ✅
   Voice Emotion Fallback UI (2026-03-04): useVoiceEmotion hook (7s MediaRecorder + backend), ✅
     Emotion Lab amber panel shown when no EEG, Dashboard voice emotion card, Brain Monitor
     signal source badge (EEG/Voice/Health/EEG+Voice). Intervention engine triggers on voice
