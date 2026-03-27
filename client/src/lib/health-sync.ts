@@ -826,12 +826,17 @@ function buildSupabaseSamples(
 
 async function postToSupabase(userId: string, samples: SupabaseHealthSample[]): Promise<void> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  if (!supabaseUrl || samples.length === 0) return;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey || samples.length === 0) return;
 
   try {
     const res = await fetch(`${supabaseUrl}/functions/v1/ingest-health-data`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${anonKey}`,
+        "apikey": anonKey,
+      },
       body: JSON.stringify({ user_id: userId, samples }),
     });
     if (!res.ok) {

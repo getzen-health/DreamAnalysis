@@ -7,6 +7,10 @@ const VALID_METRICS = [
   'sleep_awake_min', 'sleep_efficiency', 'steps', 'active_calories',
   'weight_kg', 'body_fat_pct', 'lean_mass_kg', 'height_cm', 'vo2_max',
   'workout_strain', 'glucose_mgdl', 'basal_calories', 'exercise_minutes',
+  // Extended metrics from Apple Health / Google Health Connect
+  'walking_distance_km', 'flights_climbed', 'standing_hours',
+  'blood_pressure_systolic', 'blood_pressure_diastolic',
+  'body_temperature', 'water_intake_ml',
 ]
 
 interface HealthSample {
