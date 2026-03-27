@@ -24,6 +24,8 @@ vi.mock("@/hooks/use-device", () => ({
 
 describe("Insights page", () => {
   beforeEach(() => {
+    // Insights reads from localStorage, not fetch
+    localStorage.clear();
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({}),
@@ -35,101 +37,127 @@ describe("Insights page", () => {
     await waitFor(() => expect(document.body).toBeTruthy());
   });
 
-  it("shows connection banner when device is disconnected", async () => {
+  it("shows Insights heading", () => {
+    renderWithProviders(<Insights />);
+    expect(screen.getByText("Insights")).toBeInTheDocument();
+  });
+
+  it("shows empty state when no emotion history in localStorage", async () => {
+    renderWithProviders(<Insights />);
+    await waitFor(() => {
+      expect(screen.getByText("Your insight engine is waiting")).toBeInTheDocument();
+    });
+  });
+
+  it("shows CTA button to start check-in in empty state", async () => {
+    renderWithProviders(<Insights />);
+    await waitFor(() => {
+      expect(screen.getByText("Go to Today's check-in")).toBeInTheDocument();
+    });
+  });
+
+  it("shows start a check-in subtitle in empty state", async () => {
     renderWithProviders(<Insights />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Showing voice-based insights\. Health and watch signals can refine this further, and EEG is optional later\./)
+        screen.getByText(/Start a voice check-in to build your insight engine/)
       ).toBeInTheDocument();
     });
   });
 
-  it("shows empty state prompt when no voice data and not streaming", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => null,
-    }) as unknown as typeof fetch;
+  it("shows emotion history data when localStorage has readings", async () => {
+    const fakeHistory = [
+      {
+        stress: 0.4,
+        happiness: 0.7,
+        focus: 0.6,
+        dominantEmotion: "happy",
+        timestamp: new Date().toISOString(),
+        valence: 0.5,
+        arousal: 0.6,
+      },
+      {
+        stress: 0.3,
+        happiness: 0.8,
+        focus: 0.7,
+        dominantEmotion: "happy",
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+        valence: 0.6,
+        arousal: 0.5,
+      },
+    ];
+    localStorage.setItem("ndw_emotion_history", JSON.stringify(fakeHistory));
     renderWithProviders(<Insights />);
     await waitFor(() => {
-      expect(
-        screen.getByText("Complete a voice analysis to unlock your first insights")
-      ).toBeInTheDocument();
+      expect(screen.getByText(/readings · personal baseline active/)).toBeInTheDocument();
     });
   });
 
-  it("shows Brain State Narrative feature preview in empty state", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => null,
-    }) as unknown as typeof fetch;
+  it("shows Explore Patterns section when data is present", async () => {
+    const fakeHistory = [
+      {
+        stress: 0.4,
+        happiness: 0.7,
+        focus: 0.6,
+        dominantEmotion: "happy",
+        timestamp: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem("ndw_emotion_history", JSON.stringify(fakeHistory));
     renderWithProviders(<Insights />);
     await waitFor(() => {
-      expect(screen.getByText("Brain State Narrative")).toBeInTheDocument();
+      expect(screen.getByText("Explore Patterns")).toBeInTheDocument();
     });
   });
 
-  it("shows AI-Generated Insights feature preview in empty state", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => null,
-    }) as unknown as typeof fetch;
+  it("shows Emotion Trends link when data is present", async () => {
+    const fakeHistory = [
+      {
+        stress: 0.4,
+        happiness: 0.7,
+        focus: 0.6,
+        dominantEmotion: "neutral",
+        timestamp: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem("ndw_emotion_history", JSON.stringify(fakeHistory));
     renderWithProviders(<Insights />);
     await waitFor(() => {
-      expect(screen.getByText("AI-Generated Insights")).toBeInTheDocument();
+      expect(screen.getByText("Emotion Trends")).toBeInTheDocument();
     });
   });
 
-  it("shows Recommended Actions feature preview in empty state", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => null,
-    }) as unknown as typeof fetch;
+  it("shows Brain States link when data is present", async () => {
+    const fakeHistory = [
+      {
+        stress: 0.5,
+        happiness: 0.5,
+        focus: 0.5,
+        dominantEmotion: "neutral",
+        timestamp: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem("ndw_emotion_history", JSON.stringify(fakeHistory));
     renderWithProviders(<Insights />);
     await waitFor(() => {
-      expect(screen.getByText("Recommended Actions")).toBeInTheDocument();
+      expect(screen.getByText("Brain States")).toBeInTheDocument();
     });
   });
 
-  it("shows Trends Over Time feature preview in empty state", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => null,
-    }) as unknown as typeof fetch;
+  it("does not show empty state when emotion history exists", async () => {
+    const fakeHistory = [
+      {
+        stress: 0.3,
+        happiness: 0.8,
+        focus: 0.7,
+        dominantEmotion: "happy",
+        timestamp: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem("ndw_emotion_history", JSON.stringify(fakeHistory));
     renderWithProviders(<Insights />);
     await waitFor(() => {
-      expect(screen.getByText("Trends Over Time")).toBeInTheDocument();
-    });
-  });
-
-  it("shows Brain Wave Trends chart card", async () => {
-    renderWithProviders(<Insights />);
-    await waitFor(() => {
-      expect(screen.getByText("Brain Wave Trends")).toBeInTheDocument();
-    });
-  });
-
-  it("shows Cognitive Profile chart card", async () => {
-    renderWithProviders(<Insights />);
-    await waitFor(() => {
-      expect(screen.getByText("Cognitive Profile")).toBeInTheDocument();
-    });
-  });
-
-  it("shows connect device message in Brain Wave Trends when not streaming", async () => {
-    renderWithProviders(<Insights />);
-    await waitFor(() => {
-      expect(
-        screen.getByText("Live trends appear when optional EEG is connected")
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("shows connect device message in Cognitive Profile when not streaming", async () => {
-    renderWithProviders(<Insights />);
-    await waitFor(() => {
-      expect(
-        screen.getByText("Add EEG later to see the live cognitive profile")
-      ).toBeInTheDocument();
+      expect(screen.queryByText("Your insight engine is waiting")).not.toBeInTheDocument();
     });
   });
 });
