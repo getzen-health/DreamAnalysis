@@ -82,18 +82,17 @@ export class PatternDiscovery {
 
     // Persist cache
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ computed: nowIso, insights }));
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ computed: new Date().toISOString(), insights }));
     } catch {}
 
     // Persist to Supabase (privacy-gated)
     if (!isPrivacyModeEnabled()) {
       const supabase = await getSupabase();
       if (supabase && insights.length > 0) {
-        for (const insight of insights) {
-          // sample_count: extract from context string "across N ..." if present, else 0
+        const rows = insights.map(insight => {
           const match = insight.context.match(/across (\d+)/);
           const sampleCount = match ? parseInt(match[1], 10) : 0;
-          await supabase.from("user_patterns").upsert({
+          return {
             user_id: this.userId,
             pass_type: insight.category,
             pattern_data: { headline: insight.headline, context: insight.context },
@@ -101,8 +100,11 @@ export class PatternDiscovery {
             sample_count: sampleCount,
             last_computed: new Date().toISOString(),
             is_active: true,
-          }, { onConflict: "user_id,pass_type" });
-        }
+          };
+        });
+        supabase.from("user_patterns")
+          .upsert(rows, { onConflict: "user_id,pass_type" })
+          .then(({ error }) => { if (error) console.warn("[PatternDiscovery] upsert error:", error.message); });
       }
     }
 
@@ -156,14 +158,14 @@ export class PatternDiscovery {
     for (const entry of history) {
       const dt = new Date(entry.timestamp);
       const day = dt.getUTCDay();
-      if (isNaN(day)) continue; // skip invalid timestamps
+      // isNaN guard: if entry.timestamp is malformed, getUTCDay() returns NaN — skip these entries
+      if (isNaN(day)) continue;
       byDay[day] = byDay[day] || [];
       byDay[day].push(entry.stress);
     }
     // Require at least 5 valid entries total across all days
     const totalValid = Object.values(byDay).reduce((a, v) => a + v.length, 0);
     if (totalValid < 5) return [];
-    const overallMean = mean(Object.values(byDay).flat());
     const insights: StoredInsight[] = [];
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     for (const [dayStr, values] of Object.entries(byDay)) {
@@ -214,7 +216,8 @@ export class PatternDiscovery {
       const nightMs = new Date(nightDate).getTime();
       const nextDay = history.filter(e => {
         const eMs = new Date(e.timestamp).getTime();
-        return eMs >= nightMs && eMs <= nightMs + 24 * 60 * 60 * 1000;
+        // Start at 6AM the next day to avoid including nocturnal readings on the same night
+        return eMs >= nightMs + 6 * 60 * 60 * 1000 && eMs <= nightMs + 30 * 60 * 60 * 1000;
       });
       if (nextDay.length === 0) continue;
       pairs.push({
@@ -258,18 +261,27 @@ export class PatternDiscovery {
 
     let bestR = 0;
     let bestLagMin = 60;
+    let bestPairs: Array<[number, number]> = [];
     for (const lagMs of LAGS_MS) {
       const pairs: Array<[number, number]> = [];
+      // Meal-preceded readings: x=1
       for (const food of foodLogs) {
         const foodMs = new Date(food.loggedAt).getTime();
-        // Find emotion reading closest to food+lag within ±15 min window
         const window = history.filter(e => {
           const eMs = new Date(e.timestamp).getTime();
           return Math.abs(eMs - (foodMs + lagMs)) < 15 * 60 * 1000;
         });
         if (window.length === 0) continue;
-        const stressAtLag = mean(window.map(e => e.stress));
-        pairs.push([1, stressAtLag]); // presence/absence (1 = ate)
+        pairs.push([1, mean(window.map(e => e.stress))]);
+      }
+      // Non-meal control readings: x=0 (emotion readings not within lag of any meal)
+      for (const e of history) {
+        const eMs = new Date(e.timestamp).getTime();
+        const nearMeal = foodLogs.some(f => {
+          const foodMs = new Date(f.loggedAt).getTime();
+          return Math.abs(eMs - (foodMs + lagMs)) < 15 * 60 * 1000;
+        });
+        if (!nearMeal) pairs.push([0, e.stress]);
       }
       if (pairs.length < 10) continue;
       const xs = pairs.map(p => p[0]);
@@ -278,6 +290,7 @@ export class PatternDiscovery {
       if (Math.abs(r) > Math.abs(bestR)) {
         bestR = r;
         bestLagMin = lagMs / 60000;
+        bestPairs = pairs;
       }
     }
 
@@ -293,7 +306,7 @@ export class PatternDiscovery {
       category: "food_lag",
       priority: Math.abs(bestR) > 0.6 ? "high" : "medium",
       headline: `${macroLabel.charAt(0).toUpperCase() + macroLabel.slice(1)} predicts a ${direction} ~${bestLagMin} minutes later`,
-      context: `Pattern found across ${foodLogs.length} food+emotion paired readings (r=${bestR.toFixed(2)})`,
+      context: `Pattern found across ${bestPairs.filter(p => p[0] === 1).length} food+emotion paired readings (r=${bestR.toFixed(2)})`,
       action: "Log your next meal and check how you feel 90 minutes later",
       actionHref: "/nutrition",
       correlationStrength: Math.abs(bestR),
