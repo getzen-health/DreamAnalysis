@@ -1004,13 +1004,13 @@ export type InsertMoodLog = z.infer<typeof insertMoodLogSchema>;
 
 export const userPatterns = pgTable("user_patterns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   passType: text("pass_type").notNull(), // "time_bucket"|"food_lag"|"sleep_cascade"|"hrv_valence"|"weekly_rhythm"
   patternData: jsonb("pattern_data").notNull(),
   correlationStrength: real("correlation_strength").notNull(),
   sampleCount: integer("sample_count").notNull(),
   lastComputed: timestamp("last_computed").defaultNow().notNull(),
-  isActive: boolean("is_active").default(true),
+  isActive: boolean("is_active").default(true).notNull(),
 }, (table) => [
   uniqueIndex("user_patterns_user_pass_idx").on(table.userId, table.passType),
 ]);
@@ -1021,13 +1021,13 @@ export type UserPattern = typeof userPatterns.$inferSelect;
 
 export const emotionFingerprints = pgTable("emotion_fingerprints", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   label: text("label").notNull(),
   quadrant: text("quadrant").notNull(), // "ha_pos"|"ha_neg"|"la_pos"|"la_neg"
   centroid: jsonb("centroid").notNull(), // EEGSnapshot — band powers may be null
   sampleCount: integer("sample_count").notNull().default(0),
-  lastSeen: timestamp("last_seen").defaultNow(),
-  isPersonal: boolean("is_personal").default(false),
+  lastSeen: timestamp("last_seen").defaultNow().notNull(),
+  isPersonal: boolean("is_personal").default(false).notNull(),
 }, (table) => [
   uniqueIndex("emotion_fingerprints_user_label_idx").on(table.userId, table.label),
 ]);
