@@ -7,6 +7,10 @@ import {
   Wind, Target, Activity, Lightbulb, Sun, AlertCircle,
   BarChart3, Flame, Droplets, Leaf,
 } from "lucide-react";
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, ReferenceLine,
+} from "recharts";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
 
@@ -468,6 +472,7 @@ const PARTICIPANT = getParticipantId();
 export default function Insights() {
   const [emotionHistory, setEmotionHistory] = useState<EmotionEntry[]>([]);
   const [foodLogs, setFoodLogs] = useState<FoodLogEntry[]>([]);
+  const [trendPeriod, setTrendPeriod] = useState<"7d" | "30d">("7d");
 
   // Load data from localStorage
   useEffect(() => {
@@ -509,6 +514,38 @@ export default function Insights() {
   const insights = useMemo(() => generateInsights(emotionHistory, baseline, foodLogs), [emotionHistory, baseline, foodLogs]);
   const weeklyStats = useMemo(() => computeWeeklyStats(emotionHistory), [emotionHistory]);
   const latest = emotionHistory[emotionHistory.length - 1] ?? null;
+
+  // Daily-bucketed trend data for chart — average all readings within each calendar day
+  const trendChartData = useMemo(() => {
+    const daysBack = trendPeriod === "7d" ? 7 : 30;
+    const now = new Date();
+    const days: { date: string; label: string; ms: number }[] = [];
+    for (let i = daysBack - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      days.push({
+        date: d.toDateString(),
+        label: daysBack <= 7
+          ? d.toLocaleDateString([], { weekday: "short" })
+          : d.toLocaleDateString([], { month: "short", day: "numeric" }),
+        ms: d.getTime(),
+      });
+    }
+    const cutoff = now.getTime() - daysBack * 86_400_000;
+    const inRange = emotionHistory.filter(e => new Date(e.timestamp).getTime() >= cutoff);
+
+    return days.map(day => {
+      const entries = inRange.filter(e => new Date(e.timestamp).toDateString() === day.date);
+      if (entries.length === 0) return { label: day.label, stress: null, focus: null, happiness: null };
+      const n = entries.length;
+      return {
+        label: day.label,
+        stress: Math.round(entries.reduce((s, e) => s + e.stress, 0) / n * 100),
+        focus: Math.round(entries.reduce((s, e) => s + e.focus, 0) / n * 100),
+        happiness: Math.round(entries.reduce((s, e) => s + e.happiness, 0) / n * 100),
+      };
+    });
+  }, [emotionHistory, trendPeriod]);
 
   const hasData = emotionHistory.length > 0;
 
@@ -606,6 +643,121 @@ export default function Insights() {
                   color="#4ade80"
                 />
               </div>
+            </motion.div>
+          )}
+
+          {/* ── Oura-style Trends Chart ──────────────────────────────────── */}
+          {trendChartData.some(d => d.stress !== null) && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08 }}
+              className="rounded-2xl p-4"
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
+            >
+              {/* Header + period switcher */}
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Trends</p>
+                  <p className="text-[10px] text-muted-foreground">Daily averages · personal baseline</p>
+                </div>
+                <div
+                  className="flex gap-1 rounded-xl p-1"
+                  style={{ background: "rgba(255,255,255,0.06)" }}
+                >
+                  {(["7d", "30d"] as const).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setTrendPeriod(p)}
+                      className="text-[11px] font-semibold px-3 py-1 rounded-lg border-none cursor-pointer transition-all duration-150"
+                      style={{
+                        background: trendPeriod === p ? "rgba(167,139,250,0.25)" : "transparent",
+                        color: trendPeriod === p ? "#a78bfa" : "var(--muted-foreground)",
+                      }}
+                    >
+                      {p.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div className="flex gap-4 mb-3">
+                {[
+                  { label: "Stress", color: "#f87171" },
+                  { label: "Focus", color: "#60a5fa" },
+                  { label: "Happiness", color: "#4ade80" },
+                ].map(({ label, color }) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                    <span className="text-[10px] text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Chart */}
+              <ResponsiveContainer width="100%" height={140}>
+                <AreaChart
+                  data={trendChartData}
+                  margin={{ left: -28, right: 4, top: 4, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="insGradStress" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f87171" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="insGradFocus" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="insGradHappy" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4ade80" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 2" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={trendPeriod === "30d" ? 4 : 0}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickCount={3}
+                    tickFormatter={v => `${v}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(15,15,25,0.92)", border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 10, fontSize: 11, padding: "6px 10px",
+                    }}
+                    formatter={(v: number, name: string) => [`${v}%`, name]}
+                    labelStyle={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}
+                  />
+                  {/* Personal baseline lines */}
+                  {baseline && (
+                    <>
+                      <ReferenceLine y={Math.round(baseline.avgStress * 100)} stroke="#f87171" strokeDasharray="4 3" strokeOpacity={0.4} strokeWidth={1.5} />
+                      <ReferenceLine y={Math.round(baseline.avgFocus * 100)} stroke="#60a5fa" strokeDasharray="4 3" strokeOpacity={0.4} strokeWidth={1.5} />
+                      <ReferenceLine y={Math.round(baseline.avgHappiness * 100)} stroke="#4ade80" strokeDasharray="4 3" strokeOpacity={0.3} strokeWidth={1.5} />
+                    </>
+                  )}
+                  <Area type="monotone" dataKey="stress" name="Stress" stroke="#f87171" strokeWidth={1.5} fill="url(#insGradStress)" dot={false} connectNulls />
+                  <Area type="monotone" dataKey="focus" name="Focus" stroke="#60a5fa" strokeWidth={1.5} fill="url(#insGradFocus)" dot={false} connectNulls />
+                  <Area type="monotone" dataKey="happiness" name="Happiness" stroke="#4ade80" strokeWidth={1.5} fill="url(#insGradHappy)" dot={false} connectNulls />
+                </AreaChart>
+              </ResponsiveContainer>
+
+              {baseline && (
+                <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                  Dashed lines = your personal baseline · {baseline.sampleCount} total readings
+                </p>
+              )}
             </motion.div>
           )}
 

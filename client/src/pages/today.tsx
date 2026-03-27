@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
+} from "recharts";
 import { motion } from "framer-motion";
 import { pageTransition } from "@/lib/animations";
 import { resolveUrl, apiRequest } from "@/lib/queryClient";
@@ -1013,6 +1016,37 @@ export default function Today() {
   const readiness = useMemo(() => computeReadiness(checkin), [checkin]);
   const aiInsight = useMemo(() => getAIInsight(checkin), [checkin]);
 
+  // 7-day daily-average trend chart data (for "This Week" mini chart)
+  const weekTrendData = useMemo(() => {
+    let history: Array<{ stress: number; focus: number; happiness: number; timestamp: string }> = [];
+    try {
+      const raw = localStorage.getItem("ndw_emotion_history");
+      if (raw) history = JSON.parse(raw);
+    } catch { /* ignore */ }
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return { label: d.toLocaleDateString([], { weekday: "short" }), date: d.toDateString() };
+    });
+    const baselineAll = history.length >= 3
+      ? {
+          stress: history.reduce((s, e) => s + e.stress, 0) / history.length,
+          focus: history.reduce((s, e) => s + e.focus, 0) / history.length,
+        }
+      : null;
+    const chartRows = days.map(day => {
+      const entries = history.filter(e => new Date(e.timestamp).toDateString() === day.date);
+      if (entries.length === 0) return { label: day.label, stress: null, focus: null };
+      const n = entries.length;
+      return {
+        label: day.label,
+        stress: Math.round(entries.reduce((s, e) => s + e.stress, 0) / n * 100),
+        focus: Math.round(entries.reduce((s, e) => s + e.focus, 0) / n * 100),
+      };
+    });
+    return { chartRows, baseline: baselineAll };
+  }, []);
+
   // Map scores for recovery interventions & energy timeline
   const scores = useMemo(() => ({
     recovery: userScores?.recoveryScore ?? undefined,
@@ -1391,6 +1425,72 @@ export default function Today() {
               <p className="text-xs font-medium" style={{ color: "#a78bfa" }}>{aiInsight.action}</p>
             </div>
           </motion.div>
+
+          {/* ── This Week mini trend chart ── */}
+          {weekTrendData.chartRows.some(r => r.stress !== null) && (
+            <motion.div
+              variants={itemVariants}
+              className="glass-card mb-5 p-4"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-[11px] font-semibold text-foreground">This Week</p>
+                  <p className="text-[10px] text-muted-foreground">Daily averages</p>
+                </div>
+                <div className="flex gap-3">
+                  {[{ label: "Stress", color: "#f87171" }, { label: "Focus", color: "#60a5fa" }].map(({ label, color }) => (
+                    <div key={label} className="flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+                      <span className="text-[10px] text-muted-foreground">{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={100}>
+                <AreaChart
+                  data={weekTrendData.chartRows}
+                  margin={{ left: -30, right: 0, top: 2, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="twStress" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f87171" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="twFocus" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis domain={[0, 100]} hide />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(15,15,25,0.92)", border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 8, fontSize: 11, padding: "4px 8px",
+                    }}
+                    formatter={(v: number, name: string) => [`${v}%`, name]}
+                    labelStyle={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}
+                  />
+                  {weekTrendData.baseline && (
+                    <>
+                      <ReferenceLine y={Math.round(weekTrendData.baseline.stress * 100)} stroke="#f87171" strokeDasharray="3 2" strokeOpacity={0.35} strokeWidth={1} />
+                      <ReferenceLine y={Math.round(weekTrendData.baseline.focus * 100)} stroke="#60a5fa" strokeDasharray="3 2" strokeOpacity={0.35} strokeWidth={1} />
+                    </>
+                  )}
+                  <Area type="monotone" dataKey="stress" name="Stress" stroke="#f87171" strokeWidth={1.5} fill="url(#twStress)" dot={false} connectNulls />
+                  <Area type="monotone" dataKey="focus" name="Focus" stroke="#60a5fa" strokeWidth={1.5} fill="url(#twFocus)" dot={false} connectNulls />
+                </AreaChart>
+              </ResponsiveContainer>
+              {weekTrendData.baseline && (
+                <p className="text-[10px] text-muted-foreground text-center mt-1.5">Dashed = your baseline</p>
+              )}
+            </motion.div>
+          )}
 
           {/* ── 4b. How Are You Feeling — MoodPicker ── */}
           <motion.div

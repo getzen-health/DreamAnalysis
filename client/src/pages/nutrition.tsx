@@ -31,6 +31,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2141,6 +2142,23 @@ export default function Nutrition() {
     return days;
   }, [logs]);
 
+  // 7-day protein trend (combined with calorie trend for dual-line chart)
+  const nutritionTrendData = useMemo(() => {
+    const allLogs = logs ?? [];
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (6 - i));
+      const dateStr = d.toDateString();
+      const label = i === 6 ? "Today" : i === 5 ? "Yest" : d.toLocaleDateString([], { weekday: "short" });
+      const dayLogs = allLogs.filter(l => new Date(l.loggedAt).toDateString() === dateStr);
+      const cal = dayLogs.reduce((s, l) => s + (l.totalCalories ?? 0), 0);
+      const prot = dayLogs.reduce((s, l) =>
+        s + (l.foodItems ?? []).reduce((sp, fi) => sp + (fi.protein_g ?? 0), 0), 0);
+      return { label, cal: cal || null, prot: prot ? Math.round(prot) : null };
+    });
+  }, [logs]);
+
   // Group logs by date for the meal timeline (last 7 days)
   const timelineByDate = useMemo(() => {
     const allLogs = logs ?? [];
@@ -3312,6 +3330,62 @@ export default function Nutrition() {
                   </div>
                 );
               })()}
+
+              {/* ── 7-day nutrition trend chart ────────────────────────── */}
+              {nutritionTrendData.some(d => d.cal !== null) && (
+                <div style={{
+                  background: "var(--card)", border: "1px solid var(--border)",
+                  borderRadius: 16, padding: 14, marginBottom: 16,
+                  boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>7-Day Nutrition Trend</div>
+                      <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>Calories & protein · daily totals</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      {[{ label: "Calories", color: "#e8b94a" }, { label: "Protein g", color: "#e879a8" }].map(({ label, color }) => (
+                        <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
+                          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <AreaChart data={nutritionTrendData} margin={{ left: -20, right: 4, top: 4, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="nutGradCal" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#e8b94a" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#e8b94a" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="nutGradProt" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#e879a8" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#e879a8" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="label" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="cal" orientation="left" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} tickCount={3} />
+                      <YAxis yAxisId="prot" orientation="right" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} tickCount={3} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(15,15,25,0.92)", border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: 8, fontSize: 11, padding: "4px 10px",
+                        }}
+                        formatter={(v: number, name: string) => [name === "cal" ? `${v} kcal` : `${v}g`, name === "cal" ? "Calories" : "Protein"]}
+                        labelStyle={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}
+                      />
+                      <ReferenceLine yAxisId="cal" y={2000} stroke="#e8b94a" strokeDasharray="4 3" strokeOpacity={0.35} strokeWidth={1} />
+                      <ReferenceLine yAxisId="prot" y={PROTEIN_GOAL} stroke="#e879a8" strokeDasharray="4 3" strokeOpacity={0.35} strokeWidth={1} />
+                      <Area yAxisId="cal" type="monotone" dataKey="cal" name="cal" stroke="#e8b94a" strokeWidth={1.5} fill="url(#nutGradCal)" dot={false} connectNulls />
+                      <Area yAxisId="prot" type="monotone" dataKey="prot" name="prot" stroke="#e879a8" strokeWidth={1.5} fill="url(#nutGradProt)" dot={false} connectNulls />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", textAlign: "center", marginTop: 4 }}>
+                    Dashed lines = goals · 2000 kcal · {PROTEIN_GOAL}g protein
+                  </div>
+                </div>
+              )}
 
               {/* Nutrition Score + Food Quality */}
               <div style={{
