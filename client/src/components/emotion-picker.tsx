@@ -56,7 +56,7 @@ export function EmotionPicker({ valence, arousal, onSelect, personalFingerprints
             role="tab"
             aria-selected={activeQ === q}
             id={`tab-${q}`}
-            aria-controls={`panel-${activeQ}`}
+            aria-controls={`panel-${q}`}
             onClick={() => { setActiveQ(q); setSelected([]); }}
             className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
               activeQ === q
