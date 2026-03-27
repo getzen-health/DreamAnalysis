@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import { BrainCoachCard, buildRecommendations } from "@/components/brain-coach-card";
+import type { DeviationEvent } from "@/lib/insight-engine";
 
 const nullProps = {
   recoveryScore: null,
@@ -10,7 +11,6 @@ const nullProps = {
   strainScore: null,
   avgFocus: null,
   avgValence: null,
-  avgStress: null,
 };
 
 describe("BrainCoachCard", () => {
@@ -97,8 +97,80 @@ describe("buildRecommendations (unit)", () => {
       stressScore: 80,
       strainScore: null,
       avgValence: -0.5,
-      avgStress: 0.8,
     });
     expect(recs.length).toBeLessThanOrEqual(3);
+  });
+});
+
+// ── Deviation event tests ───────────────────────────────────────────────────
+
+function makeEvent(overrides: Partial<DeviationEvent> = {}): DeviationEvent {
+  return {
+    metric: "stress" as const,
+    zScore: 2.0,
+    direction: "high" as const,
+    durationMinutes: 0,
+    currentValue: 0.7,
+    baselineMean: 0.4,
+    baselineQuality: 1,
+    ...overrides,
+  };
+}
+
+describe("deviation events", () => {
+  it("shows deviation card when zScore > 1.5", () => {
+    renderWithProviders(
+      <BrainCoachCard {...nullProps} deviationEvents={[makeEvent({ zScore: 2.0 })]} />,
+    );
+    expect(screen.getByText(/stress deviation detected/i)).toBeInTheDocument();
+    expect(screen.getByText(/elevated/i)).toBeInTheDocument();
+    expect(screen.getByText(/2\.0 SD/i)).toBeInTheDocument();
+  });
+
+  it("shows duration when durationMinutes > 2", () => {
+    renderWithProviders(
+      <BrainCoachCard
+        {...nullProps}
+        deviationEvents={[makeEvent({ zScore: 2.0, durationMinutes: 5 })]}
+      />,
+    );
+    expect(screen.getByText(/5 minutes/i)).toBeInTheDocument();
+  });
+
+  it("omits duration when durationMinutes <= 2", () => {
+    renderWithProviders(
+      <BrainCoachCard
+        {...nullProps}
+        deviationEvents={[makeEvent({ zScore: 2.0, durationMinutes: 1 })]}
+      />,
+    );
+    expect(screen.queryByText(/minutes/i)).not.toBeInTheDocument();
+  });
+
+  it("skips events below threshold", () => {
+    renderWithProviders(
+      <BrainCoachCard {...nullProps} deviationEvents={[makeEvent({ zScore: 1.0 })]} />,
+    );
+    expect(screen.queryByText(/deviation detected/i)).not.toBeInTheDocument();
+  });
+
+  it("HRV renders as 'HRV' not 'Hrv'", () => {
+    renderWithProviders(
+      <BrainCoachCard
+        {...nullProps}
+        deviationEvents={[makeEvent({ metric: "hrv" as const, zScore: 2.0 })]}
+      />,
+    );
+    expect(screen.getByText(/HRV deviation detected/)).toBeInTheDocument();
+  });
+
+  it("deviationEvents=[] behaves same as undefined", () => {
+    const { container: withEmpty } = renderWithProviders(
+      <BrainCoachCard {...nullProps} deviationEvents={[]} />,
+    );
+    const { container: withUndefined } = renderWithProviders(
+      <BrainCoachCard {...nullProps} deviationEvents={undefined} />,
+    );
+    expect(withEmpty.innerHTML).toBe(withUndefined.innerHTML);
   });
 });

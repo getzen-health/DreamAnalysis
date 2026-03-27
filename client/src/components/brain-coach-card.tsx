@@ -12,6 +12,41 @@ import { cardVariants } from "@/lib/animations";
 import type { LucideIcon } from "lucide-react";
 import type { DeviationEvent } from "@/lib/insight-engine";
 
+// ── Module-level constants ──────────────────────────────────────────────────
+
+const METRIC_DISPLAY_NAMES: Record<string, string> = {
+  hrv: "HRV",
+  stress: "Stress",
+  focus: "Focus",
+  valence: "Valence",
+  arousal: "Arousal",
+  sleep: "Sleep",
+  steps: "Steps",
+  energy: "Energy",
+};
+
+const METRIC_ICON_MAP: Record<string, LucideIcon> = {
+  stress: Zap,
+  focus: Brain,
+  valence: Heart,
+  arousal: Zap,
+  energy: Zap,
+  hrv: Heart,
+  sleep: Moon,
+  steps: Zap,
+};
+
+const METRIC_GRADIENT_MAP: Record<string, string> = {
+  stress: "from-amber-500/10 to-orange-600/5",
+  focus: "from-violet-500/10 to-violet-600/5",
+  valence: "from-pink-500/10 to-rose-600/5",
+  arousal: "from-cyan-500/10 to-sky-600/5",
+  energy: "from-emerald-500/10 to-green-600/5",
+  hrv: "from-pink-500/10 to-rose-600/5",
+  sleep: "from-indigo-500/10 to-violet-600/5",
+  steps: "from-emerald-500/10 to-green-600/5",
+};
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface BrainCoachProps {
@@ -67,34 +102,17 @@ export function buildRecommendations(props: BrainCoachProps): Recommendation[] {
         `Your ${primaryEvent.metric} is ${directionLabel} your baseline by ${sdAmount} SD.${durationSuffix}`;
 
       // Pick an icon and gradient based on which metric deviated
-      const metricIconMap: Record<string, LucideIcon> = {
-        stress: Zap,
-        focus: Brain,
-        valence: Heart,
-        arousal: Zap,
-        energy: Zap,
-        hrv: Heart,
-        sleep: Moon,
-        steps: Zap,
-      };
-      const metricGradientMap: Record<string, string> = {
-        stress: "from-amber-500/10 to-orange-600/5",
-        focus: "from-violet-500/10 to-violet-600/5",
-        valence: "from-pink-500/10 to-rose-600/5",
-        arousal: "from-cyan-500/10 to-sky-600/5",
-        energy: "from-emerald-500/10 to-green-600/5",
-        hrv: "from-pink-500/10 to-rose-600/5",
-        sleep: "from-indigo-500/10 to-violet-600/5",
-        steps: "from-emerald-500/10 to-green-600/5",
-      };
+      const metricDisplayName =
+        METRIC_DISPLAY_NAMES[primaryEvent.metric] ??
+        (primaryEvent.metric.charAt(0).toUpperCase() + primaryEvent.metric.slice(1));
 
       recs.push({
-        icon: metricIconMap[primaryEvent.metric] ?? Brain,
-        title: `${primaryEvent.metric.charAt(0).toUpperCase() + primaryEvent.metric.slice(1)} deviation detected`,
+        icon: METRIC_ICON_MAP[primaryEvent.metric] ?? Brain,
+        title: `${metricDisplayName} deviation detected`,
         body: coachingMessage,
         actionLabel: "View insights",
         actionHref: "/insights",
-        gradientClass: metricGradientMap[primaryEvent.metric] ?? "from-violet-500/10 to-violet-600/5",
+        gradientClass: METRIC_GRADIENT_MAP[primaryEvent.metric] ?? "from-violet-500/10 to-violet-600/5",
       });
     }
   }
