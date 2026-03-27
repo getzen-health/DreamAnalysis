@@ -91,6 +91,10 @@ const SleepMusic             = lazy(() => import("@/components/sleep-stories"));
 const CbtiModule             = lazy(() => import("@/pages/cbti-module"));
 const BodyMetrics            = lazy(() => import("@/pages/body-metrics"));
 const WorkoutPage            = lazy(() => import("@/pages/workout"));
+const ExerciseLibrary        = lazy(() => import("@/pages/exercise-library"));
+const ActiveWorkout          = lazy(() => import("@/pages/active-workout"));
+const WorkoutTemplatesPage   = lazy(() => import("@/pages/workout-templates"));
+const ExerciseDetail         = lazy(() => import("@/pages/exercise-detail"));
 const HabitsPage             = lazy(() => import("@/pages/habits"));
 const WellnessPage           = lazy(() => import("@/pages/wellness"));
 const ScoresDashboard        = lazy(() => import("@/pages/scores-dashboard"));
@@ -403,6 +407,34 @@ function AppRoutes() {
         <ProtectedRoute>
           <Suspense fallback={<PageLoader />}>
             <AppLayout><WorkoutPage /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/exercises/:id">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><ExerciseDetail /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/exercises">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><ExerciseLibrary /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/active-workout">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><ActiveWorkout /></AppLayout>
+          </Suspense>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/workout-templates">
+        <ProtectedRoute>
+          <Suspense fallback={<PageLoader />}>
+            <AppLayout><WorkoutTemplatesPage /></AppLayout>
           </Suspense>
         </ProtectedRoute>
       </Route>
