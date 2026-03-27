@@ -33,6 +33,10 @@
 - [x] **EEG Week Compare card** (`client/src/components/eeg-week-compare-card.tsx`) — 7-day week-over-week comparison of Focus/Stress/Mood with sparklines and trend arrows; wired into Today page
 - [x] **EEG Peak Hours card** (`client/src/components/eeg-peak-hours.tsx`) — 24-hour bar chart of focus by hour of day, highlights top 3 peak focus windows; wired into Insights page
 - [x] **EEG Brain Connectivity card** (`client/src/components/eeg-coherence-card.tsx`) — SVG head diagram with Muse 2 electrode nodes (TP9/AF7/AF8/TP10) and bezier arcs colored by PLV coherence strength; wired into Brain Monitor page reading live `plv_connectivity` from ML API
+- [x] **InsightEngine** (`client/src/lib/insight-engine/`) — 6 pure TypeScript modules: BaselineStore (rolling 7-day z-score per 2h bucket), DeviationDetector (sustained anomaly tracking), PatternDiscovery (5 statistical passes + Supabase upsert), EmotionTaxonomy (64-item preset + personal EEG fingerprints), InterventionLibrary (timed interventions + effectiveness), InsightEngine (barrel API). Wired into brain-monitor (real-time deviation banner), insights page (StoredInsight cards + MorningBriefingCard), and brain-coach-card (deviation-aware recommendations). 2195 tests passing.
+- [x] **InsightBanner** (`client/src/components/insight-banner.tsx`) — bottom-slide real-time deviation alert, 5-min cooldown, dismiss + CTA navigation
+- [x] **EmotionPicker** (`client/src/components/emotion-picker.tsx`) — 64-item WCAG-compliant quadrant picker (4 tabs, 16 presets each) + personal vocabulary input, prop-synced activeQ via useEffect
+- [x] **MorningBriefingCard** (`client/src/components/morning-briefing-card.tsx`) — 3-state card (loading/generate/filled) calling Claude Haiku via POST /api/morning-briefing
 
 ### ML Backend (100+ endpoints, 95+ models)
 - [x] Emotion classifier (LightGBM mega, 74.21% CV on 9 datasets, 163 534 samples — cross-subject)

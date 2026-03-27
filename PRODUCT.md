@@ -198,7 +198,7 @@ Backend API                  █████████░  96%
   Just-in-time push notification trigger (POST /api/notifications/brain-state-trigger). ✅
   Yesterday's Insights endpoint (GET /api/brain/yesterday-insights/:userId). ✅
 
-Frontend                     ██████████  97%
+Frontend                     ██████████  98%
   25 pages exist. All core user flows built and working.
   Daily Brain Report (/brain-report): sleep summary, forecast, yesterday's insight,
     weekly 7-day avg card, recommended action.
@@ -222,6 +222,13 @@ Frontend                     ██████████  97%
     Emotion Lab amber panel shown when no EEG, Dashboard voice emotion card, Brain Monitor
     signal source badge (EEG/Voice/Health/EEG+Voice). Intervention engine triggers on voice
     emotion (arousal >= 0.7 or valence <= -0.3).
+  InsightEngine (2026-03-27): 6 pure TS modules (BaselineStore, DeviationDetector, ✅
+    PatternDiscovery, EmotionTaxonomy, InterventionLibrary, InsightEngine barrel).
+    Personal-baseline deviation detection wired into brain-monitor (real-time banner),
+    insights page (StoredInsight cards + MorningBriefingCard via Claude Haiku),
+    and brain-coach-card (deviation-aware recommendations with SD + duration context).
+    EmotionPicker (64 presets + personal vocabulary) + InsightBanner (5-min cooldown).
+    2195 Vitest tests passing.
 
 Mobile (Capacitor)           █████████░  88%
   Capacitor 8.1.0 installed. capacitor.config.ts created. ✅
