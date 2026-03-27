@@ -320,8 +320,10 @@ interface BriefingRequest {
     dominantLabel: string;
     dominantMinutes: number;
   };
-  patternSummaries: string[];        // plain-text summaries from PatternDiscovery
-  yesterdaySummary: string;
+  patternSummaries: string[];        // plain-text summaries from PatternDiscovery (empty array if none)
+  yesterdaySummary: string;          // plain-text: "{dominant emotion} for {N}min, avg stress {s}, avg focus {f}. {N} interventions completed."
+                                     // Generated client-side from localStorage emotion history filtered to previous calendar day.
+                                     // Empty string if no prior-day data exists.
 }
 ```
 
@@ -475,7 +477,13 @@ export const emotionFingerprints = pgTable("emotion_fingerprints", {
 ]);
 ```
 
-**Upsert pattern for both tables:** Use `onConflictDoUpdate` on the unique index — never plain insert.
+**Upsert pattern for both tables:**
+Client-side writes use the Supabase JS client (returned by `getSupabaseIfAllowed()`):
+```typescript
+await supabase.from("user_patterns").upsert(data, { onConflict: "user_id,pass_type" });
+await supabase.from("emotion_fingerprints").upsert(data, { onConflict: "user_id,label" });
+```
+The `onConflict` value is a comma-separated string of column names matching the unique index. This is Supabase JS syntax — **not** Drizzle's `.onConflictDoUpdate()` which is server-only. Never use plain `.insert()` for these tables.
 
 ---
 
