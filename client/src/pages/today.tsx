@@ -14,7 +14,8 @@ import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
-import { syncMoodLogToML } from "@/lib/ml-api";
+import { syncMoodLogToML, getTodayTotals } from "@/lib/ml-api";
+import { BrainCoachCard } from "@/components/brain-coach-card";
 import { calculateFoodScore } from "@/lib/food-score";
 import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
 import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
@@ -726,6 +727,14 @@ export default function Today() {
       }
     }).catch(() => {});
   }, [userId]);
+
+  // Fetch today's EEG totals for Brain Coach
+  const { data: brainTotals } = useQuery({
+    queryKey: ["brain-totals-today", userId],
+    queryFn: () => getTodayTotals(userId!),
+    enabled: !!userId,
+    staleTime: 5 * 60_000,
+  });
 
   // Fetch recent brain history for trend comparison
   const { data: recentHistory } = useQuery<any[]>({
@@ -1823,7 +1832,20 @@ export default function Today() {
             />
           </motion.div>
 
-          {/* ── 4c. Energy Timeline Forecast ── */}
+          {/* ── 4c. Brain Coach — EEG + health fusion ── */}
+          <motion.div variants={itemVariants}>
+            <BrainCoachCard
+              recoveryScore={userScores?.recoveryScore ?? null}
+              sleepScore={userScores?.sleepScore ?? null}
+              stressScore={userScores?.stressScore ?? null}
+              strainScore={userScores?.strainScore ?? null}
+              avgFocus={brainTotals?.avgFocus ?? null}
+              avgValence={brainTotals?.avgValence ?? null}
+              avgStress={brainTotals?.avgStress ?? null}
+            />
+          </motion.div>
+
+          {/* ── 4d. Energy Timeline Forecast ── */}
           <motion.div variants={itemVariants} className="glass-card p-4 rounded-2xl">
             <EnergyTimeline
               sleepHours={sleepTotal}

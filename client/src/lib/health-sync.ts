@@ -239,20 +239,24 @@ async function pullAppleHealth(userId: string): Promise<PullResult> {
     });
 
     if (sleepResult.resultData.length > 0) {
-      let totalMin = 0, remMin = 0, deepMin = 0;
+      let totalMin = 0, remMin = 0, deepMin = 0, inBedMin = 0;
       for (const s of sleepResult.resultData) {
         const durMin = s.duration / 60;
         const state = s.sleepState?.toLowerCase() ?? "";
         // HealthKit sleep states: inBed, awake, core/light, deep, rem
-        if (state !== "awake" && state !== "inbed") totalMin += durMin;
+        if (state === "inbed") { inBedMin += durMin; continue; }
+        if (state !== "awake") totalMin += durMin;
         if (state === "rem") remMin += durMin;
         if (state === "deep") deepMin += durMin;
       }
       payload.sleep_total_hours = totalMin / 60;
       payload.sleep_rem_hours   = remMin / 60;
       payload.sleep_deep_hours  = deepMin / 60;
+      // True sleep efficiency = time actually asleep / time in bed × 100
+      // Falls back to duration-vs-target only when HealthKit has no inBed samples
+      const bedMin = inBedMin > 0 ? inBedMin : Math.max(totalMin, 480);
       if (totalMin > 0) {
-        payload.sleep_efficiency = Math.min(1, totalMin / 480) * 100; // 8h = 100%
+        payload.sleep_efficiency = Math.min(100, Math.round((totalMin / bedMin) * 100));
       }
     }
   } catch { /* ok */ }
@@ -829,22 +833,18 @@ async function postToSupabase(userId: string, samples: SupabaseHealthSample[]): 
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !anonKey || samples.length === 0) return;
 
-  try {
-    const res = await fetch(`${supabaseUrl}/functions/v1/ingest-health-data`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${anonKey}`,
-        "apikey": anonKey,
-      },
-      body: JSON.stringify({ user_id: userId, samples }),
-    });
-    if (!res.ok) {
-      console.warn(`[health-sync] Supabase ingest failed: ${res.status}`);
-    }
-  } catch (e) {
-    // Supabase ingest is best-effort; don't fail the sync
-    console.warn("[health-sync] Supabase ingest error:", e);
+  const res = await fetch(`${supabaseUrl}/functions/v1/ingest-health-data`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${anonKey}`,
+      "apikey": anonKey,
+    },
+    body: JSON.stringify({ user_id: userId, samples }),
+  });
+  if (!res.ok) {
+    // Throw so callers can catch and surface the error in HealthSyncState
+    throw new Error(`Supabase ingest failed: ${res.status}`);
   }
 }
 
@@ -986,10 +986,16 @@ class HealthSyncManager {
       // Post to ML backend (best-effort — not available on native APK)
       try { await postToBackend(payload); } catch { /* ML backend unavailable — ok */ }
 
-      // Post to Supabase health pipeline (best-effort)
+      // Post to Supabase health pipeline (best-effort — errors are logged but don't block sync)
       const source = os === "ios" ? "apple_health" as const : "google_fit" as const;
       const samples = buildSupabaseSamples(payload, workouts, source);
-      try { await postToSupabase(userId, samples); } catch { /* Supabase unavailable — ok */ }
+      try {
+        await postToSupabase(userId, samples);
+      } catch (e) {
+        // Non-fatal: ML backend and localStorage still have the data.
+        // Surface to console so it's visible in dev, but don't flip sync state to error.
+        console.warn("[health-sync] Supabase ingest failed (non-fatal):", e);
+      }
 
       // Persist body metrics to body_metrics table (best-effort)
       if (payload.weight_kg || payload.body_fat_pct) {

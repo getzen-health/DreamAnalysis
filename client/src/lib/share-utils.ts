@@ -53,10 +53,15 @@ export async function shareImage(dataUrl: string, filename: string): Promise<voi
       directory: Directory.Cache,
     });
 
-    await Share.share({
-      title: "Share Card",
-      url: written.uri,
-    });
+    try {
+      await Share.share({
+        title: "Share Card",
+        url: written.uri,
+      });
+    } finally {
+      // Clean up temp file regardless of whether share succeeded or was cancelled
+      await Filesystem.deleteFile({ path: filename, directory: Directory.Cache }).catch(() => {});
+    }
     return;
   } catch {
     // Not on native — fall through

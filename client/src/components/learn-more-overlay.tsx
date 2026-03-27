@@ -124,6 +124,19 @@ const METRICS: Record<string, MetricInfo> = {
     ],
     sources: ["Davidson (1992) — Frontal alpha asymmetry and emotion", "Russell (1980) — Circumplex model of affect"],
   },
+  "brain-energy": {
+    title: "Brain Energy",
+    icon: Battery,
+    description: "Your neural arousal level — how energised and activated your brain is right now. Distinct from physical energy: you can feel bodily tired but mentally alert, or vice versa.",
+    howCalculated: "Derived from EEG arousal index: beta/(alpha+beta) ratio across all 4 channels. High beta relative to alpha indicates an activated, energised brain state. Averaged across the current session.",
+    tips: [
+      "Caffeine boosts beta power — take it 30 min before focus work",
+      "Bright light exposure in the morning elevates neural arousal",
+      "Cold water face splash causes an immediate arousal spike",
+      "High brain energy + low stress = flow state — use it for hard problems",
+    ],
+    sources: ["Barry et al. (2007) — EEG differences in eyes-open vs closed", "Oken et al. (2006) — Vigilance, sleep deprivation and EEG"],
+  },
 };
 
 interface Props {

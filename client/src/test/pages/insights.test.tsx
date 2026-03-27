@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import Insights from "@/pages/insights";
+
+const originalFetch = global.fetch;
 
 beforeAll(() => {
   global.ResizeObserver = class ResizeObserver {
@@ -32,9 +34,13 @@ describe("Insights page", () => {
     }) as unknown as typeof fetch;
   });
 
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
   it("renders without crashing", async () => {
     renderWithProviders(<Insights />);
-    await waitFor(() => expect(document.body).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Insights")).toBeInTheDocument());
   });
 
   it("shows Insights heading", () => {

@@ -503,7 +503,7 @@ export default function ScoresDashboard() {
                 value={brainTotals.avgEnergy !== null ? Math.round(brainTotals.avgEnergy * 100) : null}
                 color="energy"
                 icon={<BatteryCharging className="h-3.5 w-3.5 text-fuchsia-400" />}
-                onInfoClick={() => setLearnMoreMetric("energy")}
+                onInfoClick={() => setLearnMoreMetric("brain-energy")}
               />
             </motion.div>
           </div>

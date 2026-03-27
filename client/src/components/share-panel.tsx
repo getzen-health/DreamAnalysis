@@ -5,7 +5,7 @@
  * Template selector, format toggle, and 3 action buttons.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Sheet,
   SheetContent,
@@ -24,6 +24,7 @@ import {
   Flame,
   Loader2,
   Check,
+  X,
 } from "lucide-react";
 import {
   generateShareCard,
@@ -70,13 +71,14 @@ export function SharePanel({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-  const canvasPreviewRef = useRef<HTMLDivElement>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   // Reset when opened with a new default template
   useEffect(() => {
     if (open) {
       setTemplate(defaultTemplate);
       setCopySuccess(false);
+      setCopyFailed(false);
     }
   }, [open, defaultTemplate]);
 
@@ -109,7 +111,11 @@ export function SharePanel({
     const ok = await copyImageToClipboard(imageUrl);
     if (ok) {
       setCopySuccess(true);
+      setCopyFailed(false);
       setTimeout(() => setCopySuccess(false), 2000);
+    } else {
+      setCopyFailed(true);
+      setTimeout(() => setCopyFailed(false), 3000);
     }
   }, [imageUrl]);
 
@@ -141,10 +147,7 @@ export function SharePanel({
         </SheetHeader>
 
         {/* Canvas preview */}
-        <div
-          ref={canvasPreviewRef}
-          className="relative w-full flex justify-center py-3"
-        >
+        <div className="relative w-full flex justify-center py-3">
           {generating ? (
             <div
               className="flex items-center justify-center rounded-xl bg-muted/30 border border-border/30"
@@ -231,10 +234,12 @@ export function SharePanel({
           >
             {copySuccess ? (
               <Check className="h-4 w-4 text-green-400" />
+            ) : copyFailed ? (
+              <X className="h-4 w-4 text-red-400" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
-            {copySuccess ? "Copied" : "Copy"}
+            {copySuccess ? "Copied!" : copyFailed ? "Copy failed" : "Copy"}
           </button>
 
           <button
