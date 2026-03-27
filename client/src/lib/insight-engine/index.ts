@@ -54,6 +54,7 @@ export class InsightEngine {
   private taxonomy: EmotionTaxonomy;
   private interventions: InterventionLibrary;
   private lastEvents: DeviationEvent[] = [];
+  private lastReading: NormalizedReading | undefined = undefined;
 
   constructor(private userId: string) {
     this.baseline     = new BaselineStore();
@@ -65,6 +66,7 @@ export class InsightEngine {
 
   ingest(reading: NormalizedReading): void {
     const ts = reading.timestamp || new Date().toISOString();
+    this.lastReading = reading;
     this.baseline.update(reading, ts);
     this.lastEvents = this.detector.detect(reading, ts);
     // Check intervention effectiveness for any recovered metrics
@@ -89,7 +91,9 @@ export class InsightEngine {
   }
 
   async getStoredInsights(nowIso?: string): Promise<StoredInsight[]> {
-    return this.discovery.run(nowIso || new Date().toISOString());
+    // Pass lastReading as current so timeBucketPass can compare against live state.
+    // If ingest() has not been called yet, timeBucketPass gracefully returns [].
+    return this.discovery.run(nowIso || new Date().toISOString(), this.lastReading);
   }
 
   getMorningBriefing(): BriefingResponse | null {
@@ -129,7 +133,8 @@ export class InsightEngine {
 
   recordInterventionTap(interventionId: string, metric: DeviationMetric): void {
     const lastEvent = this.lastEvents.find(e => e.metric === metric);
-    const zScore = lastEvent?.zScore ?? 1.5;
-    this.interventions.recordTap(interventionId, metric, zScore);
+    // Only record when an active deviation exists — avoids storing a fake baseline zScore.
+    if (!lastEvent) return;
+    this.interventions.recordTap(interventionId, metric, lastEvent.zScore);
   }
 }

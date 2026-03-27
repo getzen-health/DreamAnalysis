@@ -47,10 +47,20 @@ describe("InsightEngine.getMorningBriefing", () => {
 });
 
 describe("InsightEngine.recordInterventionTap", () => {
-  it("records tap in localStorage via InterventionLibrary", () => {
+  it("records tap in localStorage via InterventionLibrary when active deviation exists", () => {
     const engine = new InsightEngine("user1");
+    // Must have an active deviation before a tap can be recorded
+    engine.ingest({ stress: 0.90, focus: 0.55, valence: 0.55, arousal: 0.5, source: "eeg", timestamp: new Date().toISOString() });
     engine.recordInterventionTap("box_breathing", "stress");
     const pending = JSON.parse(localStorage.getItem("ndw_intervention_pending") || "{}");
     expect(pending["box_breathing"]).toBeDefined();
+  });
+
+  it("does not record tap when no active deviation exists for the metric", () => {
+    const engine = new InsightEngine("user1");
+    // No ingest — no active deviation
+    engine.recordInterventionTap("box_breathing", "stress");
+    const pending = JSON.parse(localStorage.getItem("ndw_intervention_pending") || "{}");
+    expect(pending["box_breathing"]).toBeUndefined();
   });
 });
