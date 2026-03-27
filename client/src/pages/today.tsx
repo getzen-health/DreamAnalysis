@@ -16,6 +16,8 @@ import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
 import { syncMoodLogToML, getTodayTotals, type StoredEmotionReading } from "@/lib/ml-api";
 import { BrainCoachCard } from "@/components/brain-coach-card";
+import { InnerScoreCard } from "@/components/inner-score-card";
+import { computeScore, computeNarrative, type ScoreInputs } from "@/lib/inner-score";
 import { EEGWeekCompareCard } from "@/components/eeg-week-compare-card";
 import { calculateFoodScore } from "@/lib/food-score";
 import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
@@ -1028,6 +1030,33 @@ export default function Today() {
   const readiness = useMemo(() => computeReadiness(checkin), [checkin]);
   const aiInsight = useMemo(() => getAIInsight(checkin), [checkin]);
 
+  // ── Inner Score computation ──────────────────────────────────────────────
+  const innerScore = useMemo(() => {
+    const inputs: ScoreInputs = {
+      stress: brainTotals?.avgStress ?? null,
+      valence: brainTotals?.avgValence ?? null,
+      sleepQuality: latestPayload?.sleep_efficiency ?? null,
+      hrvTrend: latestPayload?.hrv_sdnn ?? null,
+      activity: latestPayload?.steps_today ? Math.min(100, Math.round((latestPayload.steps_today / 10000) * 100)) : null,
+    };
+    const result = computeScore(inputs);
+    const narrative = result.score != null
+      ? computeNarrative(result.factors, result.score, null)
+      : "";
+    return { ...result, narrative };
+  }, [brainTotals, latestPayload]);
+
+  // Persist inner score to DB (fire-and-forget)
+  useEffect(() => {
+    if (innerScore.score != null && userId) {
+      fetch(`/api/inner-score/${userId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ score: innerScore.score, tier: innerScore.tier, factors: innerScore.factors, narrative: innerScore.narrative }),
+      }).catch(() => {});
+    }
+  }, [innerScore.score, innerScore.tier, userId]);
+
   // 7-day daily-average trend chart data (for "This Week" mini chart)
   const weekTrendData = useMemo(() => {
     let history: Array<{ stress: number; focus: number; happiness: number; timestamp: string }> = [];
@@ -1343,48 +1372,16 @@ export default function Today() {
             </motion.div>
           )}
 
-          {/* ── 2. Score Circles Row (Recovery, Sleep, Strain) ── */}
-          <motion.div
-            variants={itemVariants}
-            className="flex justify-center items-start gap-4 mb-6"
-          >
-            <ScoreCircle
-              score={readiness}
-              label="Recovery"
-              colorFrom="#22c55e"
-              colorTo="#4ade80"
-              id="recovery"
+          {/* ── 2. Inner Score Hero ── */}
+          <motion.div variants={itemVariants} className="mb-4">
+            <InnerScoreCard
+              score={innerScore.score}
+              tier={innerScore.tier}
+              factors={innerScore.factors}
+              narrative={innerScore.narrative}
+              delta={null}
+              trend={[]}
             />
-            <ScoreCircle
-              score={sleepTotal > 0 ? Math.round((sleepTotal / 8) * 100) : 0}
-              label="Sleep"
-              colorFrom="#3b82f6"
-              colorTo="#60a5fa"
-              id="sleep"
-            />
-            <ScoreCircle
-              score={userScores?.strainScore ?? (steps > 0 ? Math.min(100, Math.round((steps / stepsGoal) * 100)) : 0)}
-              label="Strain"
-              colorFrom="#f97316"
-              colorTo="#fb923c"
-              id="strain"
-            />
-          </motion.div>
-
-          {/* ── 2b. Score subtitle + Share ── */}
-          <motion.div variants={itemVariants} className="flex justify-center items-center gap-3 mb-5 -mt-3">
-            <p className={`text-xs m-0 text-center ${readiness === 0 ? "text-muted-foreground" : "text-foreground/70"}`}>
-              {getEmotionScoreLabel(readiness)}
-            </p>
-            {readiness > 0 && (
-              <button
-                onClick={() => shareWellnessScore(readiness, emotion, aiInsight.headline + " " + aiInsight.action)}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-border bg-card text-muted-foreground text-xs font-medium cursor-pointer transition-all duration-200 active:scale-[0.96] hover:text-foreground"
-              >
-                <Share2 size={11} />
-                Share
-              </button>
-            )}
           </motion.div>
 
           {/* ── 3. Stress & Energy Row (mini cards) ── */}
