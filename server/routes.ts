@@ -4977,7 +4977,7 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
               },
-              body: JSON.stringify({ userId, samples }),
+              body: JSON.stringify({ user_id: userId, samples }),
             });
           } catch (e) {
             logger.error({ error: e instanceof Error ? e.message : String(e), provider }, "Failed to ingest initial sync data");
@@ -5081,7 +5081,7 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify({ userId, samples }),
+          body: JSON.stringify({ user_id: userId, samples }),
         });
       }
 

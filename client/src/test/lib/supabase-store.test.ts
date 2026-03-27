@@ -155,8 +155,8 @@ describe("getVoiceHistory", () => {
 
 describe("saveEmotionHistory", () => {
   it("writes to localStorage and prunes old entries", async () => {
-    // Add an old entry that should be pruned
-    const oldDate = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    // Add an old entry that should be pruned (>30 days retention)
+    const oldDate = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
     localStorage.setItem("ndw_emotion_history", JSON.stringify([
       { stress: 0.5, happiness: 0.5, focus: 0.5, dominantEmotion: "neutral", timestamp: oldDate },
     ]));
@@ -164,7 +164,7 @@ describe("saveEmotionHistory", () => {
     await saveEmotionHistory("user1", { stress: 0.3, focus: 0.7, mood: 0.8, source: "voice" });
 
     const stored = JSON.parse(localStorage.getItem("ndw_emotion_history") || "[]");
-    // Old entry should be pruned (>7 days), only new entry remains
+    // Old entry should be pruned (>30 days), only new entry remains
     expect(stored.length).toBe(1);
     expect(stored[0].stress).toBe(0.3);
   });

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import {
@@ -470,16 +471,18 @@ export default function Insights() {
   const [foodLogs, setFoodLogs] = useState<FoodLogEntry[]>([]);
   const [trendPeriod, setTrendPeriod] = useState<"7d" | "30d">("7d");
 
-  // Load data from localStorage
+  // Fetch emotion history from Express API (persisted DB data)
+  const { data: apiHistory } = useQuery<any[]>({
+    queryKey: [`/api/brain/history/${PARTICIPANT}?days=30`],
+    staleTime: 5 * 60_000,
+  });
+
+  // Load data from localStorage + merge with API data
   useEffect(() => {
+    let local: EmotionEntry[] = [];
     try {
       const raw = localStorage.getItem("ndw_emotion_history");
-      if (raw) setEmotionHistory(JSON.parse(raw));
-    } catch { /* ignore */ }
-
-    try {
-      const raw = localStorage.getItem("ndw_food_logs");
-      if (raw) setFoodLogs(JSON.parse(raw));
+      if (raw) local = JSON.parse(raw);
     } catch { /* ignore */ }
 
     // Also try last emotion
@@ -497,12 +500,40 @@ export default function Insights() {
             valence: last.result.valence,
             arousal: last.result.arousal,
           };
-          setEmotionHistory(prev => {
-            if (prev.some(e => e.timestamp === entry.timestamp)) return prev;
-            return [...prev, entry].slice(-200);
-          });
+          if (!local.some(e => e.timestamp === entry.timestamp)) {
+            local = [...local, entry];
+          }
         }
       }
+    } catch { /* ignore */ }
+
+    // Merge API data (deduplicate by timestamp)
+    if (apiHistory && apiHistory.length > 0) {
+      const localTimestamps = new Set(local.map(e => e.timestamp));
+      const apiEntries: EmotionEntry[] = apiHistory
+        .filter((r: any) => !localTimestamps.has(r.timestamp ?? r.created_at))
+        .map((r: any) => ({
+          stress: r.stress ?? 0.5,
+          happiness: r.happiness ?? r.mood ?? 0.5,
+          focus: r.focus ?? 0.5,
+          dominantEmotion: r.dominantEmotion ?? r.dominant_emotion ?? r.emotion ?? "neutral",
+          timestamp: r.timestamp ?? r.created_at,
+          valence: r.valence,
+          arousal: r.arousal,
+        }));
+      local = [...local, ...apiEntries];
+    }
+
+    // Sort by timestamp and deduplicate
+    local.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    setEmotionHistory(local.slice(-1000));
+  }, [apiHistory]);
+
+  // Load food logs from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("ndw_food_logs");
+      if (raw) setFoodLogs(JSON.parse(raw));
     } catch { /* ignore */ }
   }, []);
 

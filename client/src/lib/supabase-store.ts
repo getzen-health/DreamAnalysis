@@ -226,25 +226,30 @@ export async function saveEmotionHistory(userId: string, entry: EmotionHistoryEn
     dominantEmotion: entry.dominantEmotion ?? "neutral",
     timestamp,
   });
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const pruned = existing
     .filter((e: any) => new Date(e.timestamp).getTime() > cutoff)
-    .slice(-200);
+    .slice(-1000);
   safeLocalSet(key, pruned);
 
   // 2. POST to Express /api/emotion-readings → persists to Supabase via Drizzle
-  //    Only write when energy is present — schema requires notNull, no fabricated defaults.
   //    Fire-and-forget: never block the caller, never throw
-  if (entry.energy !== undefined) {
+  {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    try {
+      const token = localStorage.getItem("auth_token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    } catch { /* localStorage unavailable */ }
     fetch(`/api/emotion-readings`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
+      credentials: "include",
       body: JSON.stringify({
         userId,
         stress: entry.stress,
         happiness: entry.mood,
         focus: entry.focus,
-        energy: entry.energy,
+        energy: entry.energy ?? 0.5,
         dominantEmotion: entry.dominantEmotion ?? "neutral",
         valence: entry.valence ?? null,
         arousal: entry.arousal ?? null,
@@ -291,7 +296,7 @@ export async function getEmotionHistory(userId: string, days = 7): Promise<any[]
           stress: r.stress,
           happiness: r.mood,
           focus: r.focus,
-          dominantEmotion: r.source ?? "neutral",
+          dominantEmotion: r.dominant_emotion ?? r.emotion ?? "neutral",
           timestamp: r.created_at,
         }));
         safeLocalSet("ndw_emotion_history", mapped);

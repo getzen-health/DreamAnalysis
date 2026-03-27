@@ -107,6 +107,7 @@ Minimum `sampleCount` before a cell is used: **7**. Cells with fewer samples fal
 | arousal (normalized) | 0.50 | 0.18 | Neutral default |
 | hrv (normalized) | 0.42 | 0.15 | 50ms raw ≈ 0.42 normalized |
 | sleep | 0.65 | 0.15 | Population sleep score estimate |
+| steps (normalized) | 0.35 | 0.20 | ~5k steps/day ≈ 0.35 of 15k cap |
 
 **Persistence:** `localStorage("ndw_baseline_map")` only. Not written to Supabase. The baseline is a derived aggregate — it can be recomputed from raw readings if needed. Storing it in `alertThresholds` JSONB would conflict with existing production usage of that column.
 
@@ -295,9 +296,9 @@ Format: `{personal emotion label if fingerprint matched, else metric name} + dev
 **Component:** `client/src/components/morning-briefing-card.tsx`
 **Trigger:** First app open after 6AM local time; generated once per calendar date
 **API:** `POST /api/morning-briefing` → Express → Claude API (`claude-haiku-4-5-20251001` for cost)
-**Rate limit:** Express route enforces 1 request per userId per calendar day (in-memory Map, resets at midnight UTC)
+**Rate limit:** Express route enforces 1 request per userId per calendar day using the existing `rate_limit_entries` table in `shared/schema.ts`. Key: `morning_briefing:${userId}:${YYYY-MM-DD}`. On-hit: return 429 with the cached briefing date. This works correctly on Vercel serverless because state is DB-backed, not in-memory.
 
-**Cache:** Stored in `localStorage("ndw_morning_briefing")` as `{ date: "YYYY-MM-DD", content: BriefingResponse }`. On app open: if `date === today`, render from cache. If stale, call API. Never hits Supabase.
+**Cache:** Stored in `localStorage("ndw_morning_briefing_${userId}")` — user-scoped to prevent cross-user bleed on shared devices. Value: `{ date: "YYYY-MM-DD", content: BriefingResponse }`. On app open: if `date === today`, render from cache without calling API. If stale, call API and update cache.
 
 **Request body:**
 ```typescript
@@ -415,10 +416,12 @@ export class InsightEngine {
 interface NormalizedReading {
   stress: number;       // 0-1
   focus: number;        // 0-1
-  valence: number;      // 0-1 (normalized)
+  valence: number;      // 0-1 (normalized via (raw+1)/2)
   arousal: number;      // 0-1
   energy?: number;      // 0-1
-  hrv?: number;         // raw ms, normalized internally
+  hrv?: number;         // raw ms — BaselineStore normalizes internally
+  sleep?: number;       // raw score 0-100 — BaselineStore normalizes internally
+  steps?: number;       // raw step count — BaselineStore normalizes internally
   source: "eeg" | "health" | "voice";
   timestamp: string;
 }
@@ -431,7 +434,7 @@ interface StoredInsight {
   context: string;
   action: string;
   actionHref: string;
-  confidence: number;   // correlationStrength from pattern
+  correlationStrength: number; // Pearson r from PatternDiscovery (same field as user_patterns.correlationStrength)
   discoveredAt: string;
 }
 ```

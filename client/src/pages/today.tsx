@@ -1031,10 +1031,21 @@ export default function Today() {
   // 7-day daily-average trend chart data (for "This Week" mini chart)
   const weekTrendData = useMemo(() => {
     let history: Array<{ stress: number; focus: number; happiness: number; timestamp: string }> = [];
-    try {
-      const raw = localStorage.getItem("ndw_emotion_history");
-      if (raw) history = JSON.parse(raw);
-    } catch { /* ignore */ }
+    // Use already-fetched recentHistory from TanStack Query (DB data) when available
+    if (recentHistory && recentHistory.length > 0) {
+      history = recentHistory.map(r => ({
+        stress: r.stress ?? 0.5,
+        focus: r.focus ?? 0.5,
+        happiness: r.happiness ?? 0.5,
+        timestamp: (r as any).timestamp ?? (r as any).created_at ?? new Date().toISOString(),
+      }));
+    } else {
+      // Fallback to localStorage if API data not available
+      try {
+        const raw = localStorage.getItem("ndw_emotion_history");
+        if (raw) history = JSON.parse(raw);
+      } catch { /* ignore */ }
+    }
     const days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (6 - i));
@@ -1057,7 +1068,7 @@ export default function Today() {
       };
     });
     return { chartRows, baseline: baselineAll };
-  }, []);
+  }, [recentHistory]);
 
   // Map scores for recovery interventions & energy timeline
   const scores = useMemo(() => ({

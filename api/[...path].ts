@@ -1051,6 +1051,82 @@ async function brainHistory(req: VercelRequest, res: VercelResponse, userId: str
   return success(res, result.slice(0, 2000));
 }
 
+// ── Brain today-totals — avg stress/focus/emotion since midnight ──────────────
+
+async function brainTodayTotals(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+
+  const readings = await db.select().from(schema.emotionReadings)
+    .where(and(eq(schema.emotionReadings.userId, userId), gte(schema.emotionReadings.timestamp, midnight)))
+    .orderBy(desc(schema.emotionReadings.timestamp))
+    .limit(2000);
+
+  if (readings.length === 0) {
+    return success(res, { userId, count: 0, avgStress: null, avgFocus: null, avgHappiness: null, avgEnergy: null, dominantEmotion: null });
+  }
+
+  const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+  const emotionCounts: Record<string, number> = {};
+  readings.forEach((r: any) => {
+    const emo = r.dominantEmotion ?? 'neutral';
+    emotionCounts[emo] = (emotionCounts[emo] || 0) + 1;
+  });
+  const dominantEmotion = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+  return success(res, {
+    userId,
+    count: readings.length,
+    avgStress: avg(readings.map((r: any) => r.stress ?? 0)),
+    avgFocus: avg(readings.map((r: any) => r.focus ?? 0)),
+    avgHappiness: avg(readings.map((r: any) => r.happiness ?? 0)),
+    avgEnergy: avg(readings.map((r: any) => r.energy ?? 0)),
+    avgValence: avg(readings.filter((r: any) => r.valence != null).map((r: any) => r.valence)),
+    avgArousal: avg(readings.filter((r: any) => r.arousal != null).map((r: any) => r.arousal)),
+    dominantEmotion,
+  });
+}
+
+// ── Brain at-this-time-yesterday — ±30 min window same time yesterday ────────
+
+async function brainAtThisTimeYesterday(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const windowMs = 30 * 60 * 1000; // ±30 min
+  const fromTs = new Date(now - oneDayMs - windowMs);
+  const toTs = new Date(now - oneDayMs + windowMs);
+
+  const readings = await db.select().from(schema.emotionReadings)
+    .where(and(
+      eq(schema.emotionReadings.userId, userId),
+      gte(schema.emotionReadings.timestamp, fromTs),
+      lt(schema.emotionReadings.timestamp, toTs),
+    ))
+    .orderBy(desc(schema.emotionReadings.timestamp))
+    .limit(200);
+
+  if (readings.length === 0) {
+    return success(res, { userId, count: 0, avgStress: null, avgFocus: null, avgHappiness: null });
+  }
+
+  const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+  return success(res, {
+    userId,
+    count: readings.length,
+    windowStart: fromTs.toISOString(),
+    windowEnd: toTs.toISOString(),
+    avgStress: avg(readings.map((r: any) => r.stress ?? 0)),
+    avgFocus: avg(readings.map((r: any) => r.focus ?? 0)),
+    avgHappiness: avg(readings.map((r: any) => r.happiness ?? 0)),
+    avgEnergy: avg(readings.map((r: any) => r.energy ?? 0)),
+    avgValence: avg(readings.filter((r: any) => r.valence != null).map((r: any) => r.valence)),
+  });
+}
+
 async function emotionReadingsBatch(req: VercelRequest, res: VercelResponse) {
   const body = await parseRequestBody(req) as any;
   const readings = body?.readings;
@@ -1745,6 +1821,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Brain history — emotion/stress/focus readings over time
     if (s0 === 'brain' && s1 === 'history' && segs[2] && req.method === 'GET') {
       return await brainHistory(req, res, segs[2]);
+    }
+
+    // Brain today-totals — avg stress/focus/emotion since midnight
+    if (s0 === 'brain' && s1 === 'today-totals' && segs[2] && req.method === 'GET') {
+      return await brainTodayTotals(req, res, segs[2]);
+    }
+
+    // Brain at-this-time-yesterday — ±30 min window same time yesterday
+    if (s0 === 'brain' && s1 === 'at-this-time-yesterday' && segs[2] && req.method === 'GET') {
+      return await brainAtThisTimeYesterday(req, res, segs[2]);
     }
 
     // Emotion readings batch

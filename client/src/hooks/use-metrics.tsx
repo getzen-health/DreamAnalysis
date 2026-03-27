@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
 import { resolveUrl } from "@/lib/queryClient";
+import { useHealthSync } from "@/hooks/use-health-sync";
 
 export interface HealthMetrics {
   heartRate: number;
@@ -29,14 +30,42 @@ export interface NeuralActivity {
 const USER_ID = getParticipantId();
 
 export function useMetrics() {
-  const [currentMetrics, setCurrentMetrics] = useState<HealthMetrics>({
+  const { latestPayload, isAvailable: hasHealthData } = useHealthSync();
+
+  // Derive current metrics from real health data when available, fall back to simulated
+  const [simulatedMetrics, setSimulatedMetrics] = useState<HealthMetrics>({
     heartRate: 72,
     stressLevel: 34,
     sleepQuality: 87,
     neuralActivity: 92,
     dailySteps: 8247,
-    sleepDuration: 7.38
+    sleepDuration: 7.38,
   });
+
+  const currentMetrics = useMemo<HealthMetrics>(() => {
+    if (!latestPayload) return simulatedMetrics;
+
+    const hr = latestPayload.current_heart_rate ?? latestPayload.resting_heart_rate;
+    // Derive stress from HRV: lower HRV = higher stress (inverted, scaled 0-100)
+    const stressFromHrv = latestPayload.hrv_sdnn != null
+      ? Math.max(0, Math.min(100, Math.round(100 - latestPayload.hrv_sdnn)))
+      : null;
+    // Derive sleep quality from sleep efficiency or total hours
+    const sleepQual = latestPayload.sleep_efficiency != null
+      ? Math.round(latestPayload.sleep_efficiency * 100)
+      : latestPayload.sleep_total_hours != null
+        ? Math.round(Math.min(100, (latestPayload.sleep_total_hours / 8) * 100))
+        : null;
+
+    return {
+      heartRate: hr ?? simulatedMetrics.heartRate,
+      stressLevel: stressFromHrv ?? simulatedMetrics.stressLevel,
+      sleepQuality: sleepQual ?? simulatedMetrics.sleepQuality,
+      neuralActivity: simulatedMetrics.neuralActivity, // no wearable source for this
+      dailySteps: latestPayload.steps_today ?? simulatedMetrics.dailySteps,
+      sleepDuration: latestPayload.sleep_total_hours ?? simulatedMetrics.sleepDuration,
+    };
+  }, [latestPayload, simulatedMetrics]);
 
   const [eegData, setEegData] = useState<EEGData>({
     alphaWaves: Array.from({length: 50}, () => Math.sin(Math.random() * Math.PI * 2) * 50 + Math.random() * 20),
@@ -62,18 +91,20 @@ export function useMetrics() {
     }
   });
 
-  // Update metrics simulation
+  // Update simulated metrics only when no real health data is available
   const updateMetrics = useCallback(() => {
-    setCurrentMetrics(prev => ({
-      heartRate: Math.max(60, Math.min(100, prev.heartRate + Math.floor(Math.random() * 6) - 3)),
-      stressLevel: Math.max(0, Math.min(100, prev.stressLevel + Math.floor(Math.random() * 10) - 5)),
-      sleepQuality: Math.max(0, Math.min(100, prev.sleepQuality + Math.floor(Math.random() * 6) - 3)),
-      neuralActivity: Math.max(0, Math.min(100, prev.neuralActivity + Math.floor(Math.random() * 8) - 4)),
-      dailySteps: prev.dailySteps ? prev.dailySteps + Math.floor(Math.random() * 50) : 8247,
-      sleepDuration: prev.sleepDuration
-    }));
+    if (!latestPayload) {
+      setSimulatedMetrics(prev => ({
+        heartRate: Math.max(60, Math.min(100, prev.heartRate + Math.floor(Math.random() * 6) - 3)),
+        stressLevel: Math.max(0, Math.min(100, prev.stressLevel + Math.floor(Math.random() * 10) - 5)),
+        sleepQuality: Math.max(0, Math.min(100, prev.sleepQuality + Math.floor(Math.random() * 6) - 3)),
+        neuralActivity: Math.max(0, Math.min(100, prev.neuralActivity + Math.floor(Math.random() * 8) - 4)),
+        dailySteps: prev.dailySteps ? prev.dailySteps + Math.floor(Math.random() * 50) : 8247,
+        sleepDuration: prev.sleepDuration,
+      }));
+    }
 
-    // Update EEG data
+    // EEG and neural activity always use simulation (no wearable source)
     setEegData(prev => ({
       alphaWaves: [
         ...prev.alphaWaves.slice(1),
@@ -86,7 +117,6 @@ export function useMetrics() {
       timestamp: Date.now()
     }));
 
-    // Update neural activity
     setNeuralActivity(prev => ({
       frontal: Math.max(20, Math.min(100, prev.frontal + Math.floor(Math.random() * 10) - 5)),
       temporal: Math.max(20, Math.min(100, prev.temporal + Math.floor(Math.random() * 8) - 4)),
@@ -94,7 +124,7 @@ export function useMetrics() {
       occipital: Math.max(20, Math.min(100, prev.occipital + Math.floor(Math.random() * 12) - 6)),
       brainstem: Math.max(20, Math.min(100, prev.brainstem + Math.floor(Math.random() * 4) - 2))
     }));
-  }, []);
+  }, [latestPayload]);
 
   useEffect(() => {
     const interval = setInterval(updateMetrics, 2000);
