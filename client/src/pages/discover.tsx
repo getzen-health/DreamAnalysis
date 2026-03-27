@@ -33,8 +33,8 @@ interface CheckinData {
 }
 
 const EMOTION_COLOR: Record<string, string> = {
-  happy: "#0891b2", sad: "#6366f1", angry: "#ea580c", fear: "#7c3aed",
-  surprise: "#d4a017", neutral: "#94a3b8",
+  happy: "#10b981", sad: "#6b7280", angry: "#ef4444", fear: "#6b7280",
+  surprise: "#10b981", neutral: "#94a3b8",
 };
 
 // ── localStorage emotion history ────────────────────────────────────────
@@ -143,8 +143,8 @@ function useCheckinData(): CheckinData | null {
 // ── Emotion Timeline Component ─────────────────────────────────────────────
 
 const TIMELINE_COLORS: Record<string, string> = {
-  happy: "#0891b2", sad: "#6366f1", angry: "#ea580c", fear: "#7c3aed",
-  surprise: "#d4a017", neutral: "#94a3b8",
+  happy: "#10b981", sad: "#6b7280", angry: "#ef4444", fear: "#6b7280",
+  surprise: "#10b981", neutral: "#94a3b8",
 };
 
 function EmotionTimeline({ userId }: { userId: string }) {
@@ -172,8 +172,8 @@ function EmotionTimeline({ userId }: { userId: string }) {
   if (days.length === 0) return null;
 
   return (
-    <div className="glass-card p-4 mb-3.5">
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-2.5">
+    <div className="rounded-[14px] bg-card border border-border p-4 mb-3.5">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
         Your week in emotions
       </div>
       <div className="flex justify-between items-center">
@@ -218,16 +218,16 @@ interface Recommendation {
 
 // All possible features for progressive discovery
 const ALL_FEATURES = [
-  { route: "/biofeedback", title: "Breathing Exercise", icon: Wind as LucideIcon, iconColor: "#0891b2", category: "calm" },
-  { route: "/sleep-session", title: "Sleep Music", icon: Moon as LucideIcon, iconColor: "#7c3aed", category: "calm" },
-  { route: "/inner-energy", title: "Inner Energy", icon: Sparkles as LucideIcon, iconColor: "#4ade80", category: "energy" },
-  { route: "/neurofeedback", title: "Neurofeedback", icon: Target as LucideIcon, iconColor: "#6366f1", category: "focus" },
-  { route: "/dreams", title: "Dream Journal", icon: BookOpen as LucideIcon, iconColor: "#a78bfa", category: "insight" },
-  { route: "/workout", title: "Workout", icon: Dumbbell as LucideIcon, iconColor: "#ea580c", category: "energy" },
-  { route: "/brain-monitor", title: "Brain Monitor", icon: Brain as LucideIcon, iconColor: "#6366f1", category: "insight" },
-  { route: "/habits", title: "Habit Tracker", icon: BarChart3 as LucideIcon, iconColor: "#d4a017", category: "insight" },
-  { route: "/ai-companion", title: "AI Companion", icon: MessageCircle as LucideIcon, iconColor: "#0891b2", category: "support" },
-  { route: "/insights", title: "Wellness Insights", icon: Lightbulb as LucideIcon, iconColor: "#d4a017", category: "insight" },
+  { route: "/biofeedback", title: "Breathing Exercise", icon: Wind as LucideIcon, iconColor: "#10b981", category: "calm" },
+  { route: "/sleep-session", title: "Sleep Music", icon: Moon as LucideIcon, iconColor: "#10b981", category: "calm" },
+  { route: "/inner-energy", title: "Inner Energy", icon: Sparkles as LucideIcon, iconColor: "#10b981", category: "energy" },
+  { route: "/neurofeedback", title: "Neurofeedback", icon: Target as LucideIcon, iconColor: "#10b981", category: "focus" },
+  { route: "/dreams", title: "Dream Journal", icon: BookOpen as LucideIcon, iconColor: "#10b981", category: "insight" },
+  { route: "/workout", title: "Workout", icon: Dumbbell as LucideIcon, iconColor: "#10b981", category: "energy" },
+  { route: "/brain-monitor", title: "Brain Monitor", icon: Brain as LucideIcon, iconColor: "#10b981", category: "insight" },
+  { route: "/habits", title: "Habit Tracker", icon: BarChart3 as LucideIcon, iconColor: "#10b981", category: "insight" },
+  { route: "/ai-companion", title: "AI Companion", icon: MessageCircle as LucideIcon, iconColor: "#10b981", category: "support" },
+  { route: "/insights", title: "Wellness Insights", icon: Lightbulb as LucideIcon, iconColor: "#10b981", category: "insight" },
 ];
 
 function getUsedFeatures(): Set<string> {
@@ -256,33 +256,33 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
 
   // Emotion-based (highest priority)
   if (stress > 0.5) {
-    recs.push({ icon: Wind, iconColor: "#0891b2", title: "Breathing Exercise", reason: "Your stress is elevated", route: "/biofeedback" });
+    recs.push({ icon: Wind, iconColor: "#10b981", title: "Breathing Exercise", reason: "Your stress is elevated", route: "/biofeedback" });
     if (isEvening) {
-      recs.push({ icon: Moon, iconColor: "#7c3aed", title: "Sleep Music", reason: "Wind down before bed", route: "/sleep-session" });
+      recs.push({ icon: Moon, iconColor: "#10b981", title: "Sleep Music", reason: "Wind down before bed", route: "/sleep-session" });
     }
   }
   if (valence < -0.1) {
-    recs.push({ icon: MessageCircle, iconColor: "#0891b2", title: "AI Companion", reason: "Talk through how you're feeling", route: "/ai-companion" });
-    recs.push({ icon: Sparkles, iconColor: "#4ade80", title: "Inner Energy", reason: "Rebalance your energy centers", route: "/inner-energy" });
+    recs.push({ icon: MessageCircle, iconColor: "#10b981", title: "AI Companion", reason: "Talk through how you're feeling", route: "/ai-companion" });
+    recs.push({ icon: Sparkles, iconColor: "#10b981", title: "Inner Energy", reason: "Rebalance your energy centers", route: "/inner-energy" });
   }
   if (focus < 0.4) {
-    recs.push({ icon: Target, iconColor: "#6366f1", title: "Neurofeedback", reason: "Train your focus", route: "/neurofeedback" });
+    recs.push({ icon: Target, iconColor: "#10b981", title: "Neurofeedback", reason: "Train your focus", route: "/neurofeedback" });
   }
   if (valence > 0.3 && stress < 0.3) {
     if (isMorning) {
-      recs.push({ icon: Dumbbell, iconColor: "#ea580c", title: "Workout", reason: "Ride this morning energy", route: "/workout" });
+      recs.push({ icon: Dumbbell, iconColor: "#10b981", title: "Workout", reason: "Ride this morning energy", route: "/workout" });
     }
-    recs.push({ icon: BookOpen, iconColor: "#a78bfa", title: "Dream Journal", reason: "Great mood -- capture your dreams", route: "/dreams" });
+    recs.push({ icon: BookOpen, iconColor: "#10b981", title: "Dream Journal", reason: "Great mood -- capture your dreams", route: "/dreams" });
   }
 
   // Time-of-day suggestions (if we don't have enough yet)
   if (recs.length < 2) {
     if (isMorning) {
-      recs.push({ icon: Lightbulb, iconColor: "#d4a017", title: "Wellness Insights", reason: "Start your day with awareness", route: "/insights" });
+      recs.push({ icon: Lightbulb, iconColor: "#10b981", title: "Wellness Insights", reason: "Start your day with awareness", route: "/insights" });
     } else if (isEvening) {
-      recs.push({ icon: Moon, iconColor: "#7c3aed", title: "Sleep Music", reason: "Prepare for a restful night", route: "/sleep-session" });
+      recs.push({ icon: Moon, iconColor: "#10b981", title: "Sleep Music", reason: "Prepare for a restful night", route: "/sleep-session" });
     } else {
-      recs.push({ icon: Smile, iconColor: "#0891b2", title: "Wellness", reason: "See your patterns", route: "/wellness" });
+      recs.push({ icon: Smile, iconColor: "#10b981", title: "Wellness", reason: "See your patterns", route: "/wellness" });
     }
   }
 
@@ -306,7 +306,7 @@ function getRecommendations(stress: number, valence: number, focus: number): Rec
 
   // Fallback
   if (recs.length === 0) {
-    recs.push({ icon: Brain, iconColor: "#6366f1", title: "Brain Monitor", reason: "Explore your brainwaves", route: "/brain-monitor" });
+    recs.push({ icon: Brain, iconColor: "#10b981", title: "Brain Monitor", reason: "Explore your brainwaves", route: "/brain-monitor" });
   }
 
   return recs.slice(0, 3);
@@ -320,7 +320,7 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
 
   return (
     <div className="mb-4">
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-2">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
         Recommended for you
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -329,7 +329,7 @@ function RecommendedSection({ stress, valence, focus, navigate }: {
             key={rec.route}
             onClick={() => { trackFeatureUsage(rec.route); navigate(rec.route); }}
             aria-label={`${rec.title}: ${rec.reason}`}
-            className="glass-card p-3 min-w-[150px] shrink-0 text-left cursor-pointer"
+            className="rounded-[14px] bg-card border border-border p-3 min-w-[150px] shrink-0 text-left cursor-pointer"
           >
             <rec.icon className="w-[22px] h-[22px]" style={{ color: rec.iconColor }} aria-hidden="true" />
             <div className="text-xs font-semibold text-foreground mt-1.5">{rec.title}</div>
@@ -356,26 +356,26 @@ function MoodInsightsCard({ userId }: { userId: string }) {
   if (insights.length === 0) return null;
 
   const borderColors: Record<string, string> = {
-    positive: "rgba(74, 222, 128, 0.2)",
-    warning: "rgba(232, 185, 74, 0.2)",
+    positive: "var(--border)",
+    warning: "var(--border)",
     neutral: "var(--border)",
   };
 
   const INSIGHT_ICONS: Record<string, { Icon: LucideIcon; color: string }> = {
-    "star": { Icon: Star, color: "#d4a017" },
-    "heart": { Icon: Heart, color: "#6366f1" },
-    "waves": { Icon: Waves, color: "#0891b2" },
-    "trending-down": { Icon: TrendingDown, color: "#4ade80" },
-    "trending-up": { Icon: TrendingUp, color: "#e879a8" },
-    "sunrise": { Icon: Sunrise, color: "#d4a017" },
-    "cloud-moon": { Icon: CloudMoonIcon, color: "#7c3aed" },
-    "palette": { Icon: Palette, color: "#4ade80" },
+    "star": { Icon: Star, color: "#10b981" },
+    "heart": { Icon: Heart, color: "#10b981" },
+    "waves": { Icon: Waves, color: "#10b981" },
+    "trending-down": { Icon: TrendingDown, color: "#10b981" },
+    "trending-up": { Icon: TrendingUp, color: "#10b981" },
+    "sunrise": { Icon: Sunrise, color: "#10b981" },
+    "cloud-moon": { Icon: CloudMoonIcon, color: "#10b981" },
+    "palette": { Icon: Palette, color: "#10b981" },
     "refresh": { Icon: RefreshCw, color: "#94a3b8" },
   };
 
   return (
     <div className="mb-3.5">
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-2">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
         Mood insights
       </div>
       <div className="flex flex-col gap-2">
@@ -417,14 +417,14 @@ interface NavCard {
 // ── Data -- 8 main navigation cards (2x4 grid) ─────────────────────────────
 
 const NAV_CARDS: NavCard[] = [
-  { icon: BedDouble,  title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#7c3aed" },
-  { icon: Brain,      title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor",  accentColor: "#6366f1" },
-  { icon: Heart,      title: "Health Scores",subtitle: "Recovery, strain, sleep, stress",    route: "/scores",         accentColor: "#0891b2" },
-  { icon: Dumbbell,   title: "Workout",      subtitle: "Exercises, templates, history",       route: "/workout",        accentColor: "#e879a8" },
-  { icon: Target,     title: "Habits",       subtitle: "Streaks, heatmap, analytics",         route: "/habits",         accentColor: "#4ade80" },
-  { icon: Sparkles,   title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#a78bfa" },
-  { icon: Wind,       title: "Wellness",     subtitle: "Body metrics, menstrual, supplements",route: "/wellness",       accentColor: "#ea580c" },
-  { icon: HeartHandshake, title: "Couples Meditation", subtitle: "Brain synchrony with your partner", route: "/couples-meditation", accentColor: "#f472b6" },
+  { icon: BedDouble,  title: "Sleep",        subtitle: "Sleep data, dreams, music",           route: "/sleep",          accentColor: "#10b981" },
+  { icon: Brain,      title: "Brain",        subtitle: "EEG, neurofeedback, connectivity",   route: "/brain-monitor",  accentColor: "#10b981" },
+  { icon: Heart,      title: "Health Scores",subtitle: "Recovery, strain, sleep, stress",    route: "/scores",         accentColor: "#10b981" },
+  { icon: Dumbbell,   title: "Workout",      subtitle: "Exercises, templates, history",       route: "/workout",        accentColor: "#10b981" },
+  { icon: Target,     title: "Habits",       subtitle: "Streaks, heatmap, analytics",         route: "/habits",         accentColor: "#10b981" },
+  { icon: Sparkles,   title: "Inner Energy", subtitle: "Energy centers, spiritual wellness",  route: "/inner-energy",   accentColor: "#10b981" },
+  { icon: Wind,       title: "Wellness",     subtitle: "Body metrics, menstrual, supplements",route: "/wellness",       accentColor: "#10b981" },
+  { icon: HeartHandshake, title: "Couples Meditation", subtitle: "Brain synchrony with your partner", route: "/couples-meditation", accentColor: "#10b981" },
 ];
 
 // Sample sparkline points (normalized 0-40 in Y space, 0-280 in X)
@@ -592,7 +592,7 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
       onClick={() => navigate("/mood")}
       aria-label="View Emotions: Stress & Focus trends"
       role="link"
-      className="glass-card w-full p-4 mb-3.5 cursor-pointer text-left transition-all duration-200 ease-out"
+      className="rounded-[14px] bg-card border border-border w-full p-4 mb-3.5 cursor-pointer text-left transition-all duration-200 ease-out"
     >
       <div className="flex justify-between items-center mb-3">
         <div>
@@ -604,40 +604,40 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
         {current && (
           <div className="flex gap-2.5">
             <div className="text-center">
-              <div className="text-base font-bold text-[#e879a8]">{current.stress}%</div>
-              <div className="text-[9px] text-foreground/35">Stress</div>
+              <div className="text-base font-bold text-emerald-500">{current.stress}%</div>
+              <div className="text-[9px] text-muted-foreground">Stress</div>
               {baseline ? (
                 <div className="flex items-center justify-center gap-0.5 mt-0.5">
                   {current.stress > baseline.avgStress ? (
-                    <TrendingUp className="w-3 h-3 text-[#e879a8]" />
+                    <TrendingUp className="w-3 h-3 text-emerald-500" />
                   ) : (
-                    <TrendingDown className="w-3 h-3 text-[#4ade80]" />
+                    <TrendingDown className="w-3 h-3 text-emerald-500" />
                   )}
-                  <span className="text-[8px] text-foreground/35">avg {baseline.avgStress}%</span>
+                  <span className="text-[8px] text-muted-foreground">avg {baseline.avgStress}%</span>
                 </div>
               ) : trends?.stressDelta != null && Math.abs(trends.stressDelta) > 2 ? (
                 <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                  {trends.stressDelta > 0 ? <TrendingUp className="w-3 h-3 text-[#e879a8]" /> : <TrendingDown className="w-3 h-3 text-[#0891b2]" />}
-                  <span className="text-[8px] text-foreground/35">{Math.abs(Math.round(trends.stressDelta))}% vs last</span>
+                  {trends.stressDelta > 0 ? <TrendingUp className="w-3 h-3 text-emerald-500" /> : <TrendingDown className="w-3 h-3 text-emerald-500" />}
+                  <span className="text-[8px] text-muted-foreground">{Math.abs(Math.round(trends.stressDelta))}% vs last</span>
                 </div>
               ) : null}
             </div>
             <div className="text-center">
-              <div className="text-base font-bold text-[#6366f1]">{current.focus}%</div>
-              <div className="text-[9px] text-foreground/35">Focus</div>
+              <div className="text-base font-bold text-emerald-500">{current.focus}%</div>
+              <div className="text-[9px] text-muted-foreground">Focus</div>
               {baseline ? (
                 <div className="flex items-center justify-center gap-0.5 mt-0.5">
                   {current.focus > baseline.avgFocus ? (
-                    <TrendingUp className="w-3 h-3 text-[#4ade80]" />
+                    <TrendingUp className="w-3 h-3 text-emerald-500" />
                   ) : (
-                    <TrendingDown className="w-3 h-3 text-[#e879a8]" />
+                    <TrendingDown className="w-3 h-3 text-emerald-500" />
                   )}
-                  <span className="text-[8px] text-foreground/35">avg {baseline.avgFocus}%</span>
+                  <span className="text-[8px] text-muted-foreground">avg {baseline.avgFocus}%</span>
                 </div>
               ) : trends?.focusDelta != null && Math.abs(trends.focusDelta) > 2 ? (
                 <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                  {trends.focusDelta > 0 ? <TrendingUp className="w-3 h-3 text-[#0891b2]" /> : <TrendingDown className="w-3 h-3 text-[#e879a8]" />}
-                  <span className="text-[8px] text-foreground/35">{Math.abs(Math.round(trends.focusDelta))}% vs last</span>
+                  {trends.focusDelta > 0 ? <TrendingUp className="w-3 h-3 text-emerald-500" /> : <TrendingDown className="w-3 h-3 text-emerald-500" />}
+                  <span className="text-[8px] text-muted-foreground">{Math.abs(Math.round(trends.focusDelta))}% vs last</span>
                 </div>
               ) : null}
             </div>
@@ -669,33 +669,33 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
             <AreaChart data={chartData} margin={{ left: 0, right: 4, top: 4, bottom: 0 }}>
               <defs>
                 <linearGradient id="discStressG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#e879a8" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#e879a8" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="discFocusG" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#6b7280" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="#6b7280" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="discMoodG" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#0891b2" stopOpacity={0.3} />
                   <stop offset="100%" stopColor="#0891b2" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" strokeOpacity={0.5} />
-              <XAxis dataKey="time" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
+              <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={28} tickFormatter={(v) => `${v}`} />
               <Tooltip
-                contentStyle={{ background: "var(--card)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, fontSize: 11 }}
-                labelStyle={{ color: "rgba(255,255,255,0.55)" }}
+                contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, fontSize: 11 }}
+                labelStyle={{ color: "var(--muted-foreground)" }}
                 formatter={(v: number, name: string) => [`${v}%`, name]}
               />
-              <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2} dot={false} activeDot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
-              <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2} dot={false} activeDot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="stress" stroke="#10b981" fill="url(#discStressG)" strokeWidth={2} dot={false} activeDot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="focus" stroke="#6b7280" fill="url(#discFocusG)" strokeWidth={2} dot={false} activeDot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
               {/* Personal baseline reference lines — your average vs today (Oura-style) */}
               {baseline && (
                 <>
-                  <ReferenceLine y={baseline.avgStress} stroke="#e879a8" strokeDasharray="4 3" strokeOpacity={0.5} strokeWidth={1.5} label={{ value: `avg ${baseline.avgStress}%`, position: "insideTopRight", fontSize: 8, fill: "#e879a880" }} />
-                  <ReferenceLine y={baseline.avgFocus} stroke="#6366f1" strokeDasharray="4 3" strokeOpacity={0.5} strokeWidth={1.5} label={{ value: `avg ${baseline.avgFocus}%`, position: "insideBottomRight", fontSize: 8, fill: "#6366f180" }} />
+                  <ReferenceLine y={baseline.avgStress} stroke="#10b981" strokeDasharray="4 3" strokeOpacity={0.5} strokeWidth={1.5} label={{ value: `avg ${baseline.avgStress}%`, position: "insideTopRight", fontSize: 8, fill: "#10b98180" }} />
+                  <ReferenceLine y={baseline.avgFocus} stroke="#6b7280" strokeDasharray="4 3" strokeOpacity={0.5} strokeWidth={1.5} label={{ value: `avg ${baseline.avgFocus}%`, position: "insideBottomRight", fontSize: 8, fill: "#6b728080" }} />
                 </>
               )}
               {/* Mood removed from chart -- shown as text label at top instead */}
@@ -712,12 +712,12 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
       {/* Legend */}
       <div className="flex gap-3.5 mt-2">
         <div className="flex items-center gap-1">
-          <div className="w-2 h-[3px] rounded-sm bg-[#e879a8]" />
-          <span className="text-[9px] text-foreground/35">Stress</span>
+          <div className="w-2 h-[3px] rounded-sm bg-emerald-500" />
+          <span className="text-[9px] text-muted-foreground">Stress</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-2 h-[3px] rounded-sm bg-[#6366f1]" />
-          <span className="text-[9px] text-foreground/35">Focus</span>
+          <div className="w-2 h-[3px] rounded-sm bg-gray-500" />
+          <span className="text-[9px] text-muted-foreground">Focus</span>
         </div>
       </div>
     </button>
@@ -799,7 +799,7 @@ export default function Discover() {
       <MoodInsightsCard userId={userId} />
 
       {/* ── Section label ── */}
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
         Explore
       </div>
 
@@ -818,7 +818,7 @@ export default function Discover() {
             animate="visible"
             onClick={() => navigate(card.route)}
             aria-label={`${card.title}: ${card.subtitle}`}
-            className="glass-card p-4 text-left cursor-pointer w-full"
+            className="rounded-[14px] bg-card border border-border p-4 text-left cursor-pointer w-full"
             style={{
               borderLeft: `3px solid ${card.accentColor}`,
               WebkitTapHighlightColor: "transparent",
