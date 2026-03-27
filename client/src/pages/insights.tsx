@@ -117,14 +117,16 @@ export default function Insights() {
 
   // InsightEngine integration
   const { data: user } = useQuery<{ id: string }>({ queryKey: ["/api/user"] });
-  const userId = (user as any)?.id ?? "anonymous";
-  const engineRef = useRef(new InsightEngine(userId));
+  const userId = user?.id ?? "anonymous";
+  const engineRef = useRef<InsightEngine | null>(null);
   const [insights, setInsights] = useState<StoredInsight[]>([]);
-  const [briefing, setBriefing] = useState(engineRef.current.getMorningBriefing());
+  const [briefing, setBriefing] = useState<import("@/lib/insight-engine").BriefingResponse | null>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [, navigate] = useLocation();
 
   useEffect(() => {
+    engineRef.current = new InsightEngine(userId);
+    setBriefing(engineRef.current.getMorningBriefing());
     engineRef.current.getStoredInsights().then(setInsights);
   }, [userId]);
 
@@ -140,12 +142,15 @@ export default function Insights() {
       const avgStress = yesterday.length > 0
         ? yesterday.reduce((a: number, e: any) => a + (e.stress || 0.4), 0) / yesterday.length
         : 0.4;
+      const avgFocus = yesterday.length > 0 ? yesterday.reduce((a: number, e: any) => a + (e.focus || 0.55), 0) / yesterday.length : 0.55;
+      const avgValence = yesterday.length > 0 ? yesterday.reduce((a: number, e: any) => a + (e.valence || 0.55), 0) / yesterday.length : 0.55;
+      if (!engineRef.current) return;
       const newBriefing = await engineRef.current.generateMorningBriefing({
         sleepData: { totalHours: null, deepHours: null, remHours: null, efficiency: null, dataAvailability: "none" },
         morningHrv: null, hrvRange: null,
         emotionSummary: {
-          readingCount: yesterday.length, avgStress, avgFocus: 0.55,
-          avgValence: 0.55, dominantLabel: "neutral", dominantMinutes: 60,
+          readingCount: yesterday.length, avgStress, avgFocus,
+          avgValence, dominantLabel: "neutral", dominantMinutes: 60,
         },
         patternSummaries: insights.map(i => i.headline),
         yesterdaySummary: `${yesterday.length} readings. Avg stress ${(avgStress * 100).toFixed(0)}%.`,
