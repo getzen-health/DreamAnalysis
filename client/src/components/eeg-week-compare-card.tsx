@@ -69,7 +69,8 @@ export function buildSparkline(
   field: keyof Pick<StoredEmotionReading, "focus" | "stress" | "happiness" | "energy">,
 ): (number | null)[] {
   const now = Date.now();
-  const days: (number | null)[] = Array(7).fill(null);
+  const sums: number[] = Array(7).fill(0);
+  const counts: number[] = Array(7).fill(0);
 
   for (const r of history) {
     const t = new Date(r.timestamp).getTime();
@@ -78,10 +79,11 @@ export function buildSparkline(
     const val = r[field] as number | null;
     if (typeof val !== "number") continue;
     const slot = 6 - dayIndex; // reverse so [0]=oldest, [6]=today
-    days[slot] = days[slot] === null ? val : (days[slot]! + val) / 2;
+    sums[slot] += val;
+    counts[slot]++;
   }
 
-  return days;
+  return sums.map((sum, i) => counts[i] > 0 ? sum / counts[i] : null);
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────

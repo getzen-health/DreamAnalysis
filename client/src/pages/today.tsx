@@ -14,7 +14,7 @@ import { ScoreSplash } from "@/components/score-splash";
 import { hapticWarning } from "@/lib/haptics";
 import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
-import { syncMoodLogToML, getTodayTotals } from "@/lib/ml-api";
+import { syncMoodLogToML, getTodayTotals, type StoredEmotionReading } from "@/lib/ml-api";
 import { BrainCoachCard } from "@/components/brain-coach-card";
 import { EEGWeekCompareCard } from "@/components/eeg-week-compare-card";
 import { calculateFoodScore } from "@/lib/food-score";
@@ -738,7 +738,7 @@ export default function Today() {
   });
 
   // Fetch recent brain history for trend comparison
-  const { data: recentHistory } = useQuery<any[]>({
+  const { data: recentHistory } = useQuery<StoredEmotionReading[]>({
     queryKey: [`/api/brain/history/${userId}?days=30`],
     staleTime: 5 * 60_000,
   });
@@ -1842,14 +1842,13 @@ export default function Today() {
               strainScore={userScores?.strainScore ?? null}
               avgFocus={brainTotals?.avgFocus ?? null}
               avgValence={brainTotals?.avgValence ?? null}
-              avgStress={brainTotals?.avgStress ?? null}
             />
           </motion.div>
 
           {/* ── 4d. EEG Brain Trends — 7-day week-over-week comparison ── */}
           {recentHistory && recentHistory.length > 0 && (
             <motion.div variants={itemVariants}>
-              <EEGWeekCompareCard history={recentHistory as any[]} />
+              <EEGWeekCompareCard history={recentHistory} />
             </motion.div>
           )}
 

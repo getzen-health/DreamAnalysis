@@ -20,7 +20,6 @@ export interface BrainCoachProps {
   strainScore: number | null;
   avgFocus: number | null;   // 0-1 scale from EEG
   avgValence: number | null; // -1 to 1 from EEG
-  avgStress: number | null;  // 0-1 from EEG
 }
 
 interface Recommendation {

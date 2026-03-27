@@ -843,7 +843,6 @@ async function postToSupabase(userId: string, samples: SupabaseHealthSample[]): 
     body: JSON.stringify({ user_id: userId, samples }),
   });
   if (!res.ok) {
-    // Throw so callers can catch and surface the error in HealthSyncState
     throw new Error(`Supabase ingest failed: ${res.status}`);
   }
 }
