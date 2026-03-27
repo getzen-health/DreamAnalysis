@@ -1,4 +1,4 @@
-import { BaselineStore, type DeviationMetric, type NormalizedReading } from "./baseline-store";
+import { BaselineStore, normalize, type DeviationMetric, type NormalizedReading } from "./baseline-store";
 
 export interface DeviationEvent {
   metric: DeviationMetric;
@@ -62,10 +62,7 @@ export class DeviationDetector {
       if (rawValue === undefined || rawValue === null) continue;
 
       // Normalize for hrv/sleep/steps
-      let normalized = rawValue;
-      if (metric === "hrv")   normalized = Math.min(rawValue / 120, 1);
-      if (metric === "sleep") normalized = Math.min(rawValue / 100, 1);
-      if (metric === "steps") normalized = Math.min(rawValue / 15000, 1);
+      const normalized = normalize(metric, rawValue);
 
       const z = this.baseline.getZScore(metric, normalized, bucket);
       const absZ = Math.abs(z);
@@ -75,13 +72,20 @@ export class DeviationDetector {
         continue;
       }
 
+      // Hysteresis band: 1.0 < |z| <= 1.5 — timer preserved but no event fired.
+      // Duration accumulates across this band; this is intentional to avoid
+      // false recoveries when signal briefly dips below the fire threshold.
       if (absZ > Z_THRESHOLD) {
         if (!timers[metric]) {
           timers[metric] = { startedAt: ts, zScore: z };
         }
         const started = new Date(timers[metric].startedAt).getTime();
         const now = new Date(ts).getTime();
-        const durationMinutes = (now - started) / 60000;
+        if (isNaN(started)) {
+          // Corrupted timer entry — reset and treat as fresh start
+          timers[metric] = { startedAt: ts, zScore: z };
+        }
+        const durationMinutes = Math.max(0, (new Date(ts).getTime() - new Date(timers[metric].startedAt).getTime()) / 60000);
 
         const cell = this.baseline.getCell(metric, bucket);
         events.push({

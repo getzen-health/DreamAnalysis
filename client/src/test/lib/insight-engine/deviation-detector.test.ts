@@ -3,6 +3,7 @@ import { DeviationDetector } from "@/lib/insight-engine/deviation-detector";
 import { BaselineStore } from "@/lib/insight-engine/baseline-store";
 
 beforeEach(() => localStorage.clear());
+afterEach(() => vi.useRealTimers());
 
 describe("DeviationDetector.detect", () => {
   it("returns no events when reading is within baseline", () => {
@@ -47,7 +48,6 @@ describe("DeviationDetector.detect", () => {
     const events = detector.detect({ stress: 0.70, focus: 0.55, valence: 0.55, arousal: 0.50 });
     const stressEvent = events.find(e => e.metric === "stress");
     expect(stressEvent!.durationMinutes).toBeGreaterThanOrEqual(4.9);
-    vi.useRealTimers();
   });
 
   it("clears timer when deviation recovers (|z| <= 1.0)", () => {

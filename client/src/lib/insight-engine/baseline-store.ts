@@ -39,7 +39,7 @@ export interface NormalizedReading {
   timestamp?: string;
 }
 
-function normalize(metric: DeviationMetric, rawValue: number): number {
+export function normalize(metric: DeviationMetric, rawValue: number): number {
   switch (metric) {
     case "hrv":   return Math.min(rawValue / 120, 1);
     case "sleep": return Math.min(rawValue / 100, 1);
