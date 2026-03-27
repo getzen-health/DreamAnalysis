@@ -463,10 +463,10 @@ const itemVariants = {
 };
 
 // ── Card classes ─────────────────────────────────────────────────────────
-// All cards now use Bevel-style: `rounded-[14px] bg-card border border-border`.
+// All cards now use premium style: `rounded-[14px] bg-card border border-border`.
 // No glass-card or premiumCard style objects — clean Tailwind only.
 
-// ── Score Circle (Bevel-style) ───────────────────────────────────────────
+// ── Score Circle (premium style) ─────────────────────────────────────────
 // Reusable SVG arc circle: 120px diameter, 270-degree sweep, gradient stroke.
 // Big number in center (32px bold), label below (12px, muted).
 
@@ -1251,7 +1251,7 @@ export default function Today() {
           animate="visible"
           className="max-w-[480px] mx-auto"
         >
-          {/* ── 1. Header (Bevel-style: date + greeting left, avatar right) ── */}
+          {/* ── 1. Header (date + greeting left, avatar right) ── */}
           <motion.div
             variants={itemVariants}
             className="flex items-center justify-between mb-5"
@@ -1332,7 +1332,7 @@ export default function Today() {
             </motion.div>
           )}
 
-          {/* ── 2. Score Circles Row (Bevel-style: Recovery, Sleep, Strain) ── */}
+          {/* ── 2. Score Circles Row (Recovery, Sleep, Strain) ── */}
           <motion.div
             variants={itemVariants}
             className="flex justify-center items-start gap-4 mb-6"
@@ -1376,7 +1376,7 @@ export default function Today() {
             )}
           </motion.div>
 
-          {/* ── 3. Stress & Energy Row (Bevel-style mini cards) ── */}
+          {/* ── 3. Stress & Energy Row (mini cards) ── */}
           <motion.div
             variants={containerVariants}
             initial="hidden"
@@ -1428,7 +1428,7 @@ export default function Today() {
             </p>
           )}
 
-          {/* ── 4. AI Insight Card (Bevel-style: green border, sparkle icon) ── */}
+          {/* ── 4. AI Insight Card (green border, sparkle icon) ── */}
           <motion.div
             variants={itemVariants}
             className="mb-5 rounded-[14px] bg-card border border-emerald-500/20 p-4"
@@ -1838,7 +1838,7 @@ export default function Today() {
           {/* Inline breathing exercise */}
           {showBreathe && <InlineBreathe onClose={() => setShowBreathe(false)} />}
 
-          {/* ── 4b. Recovery Interventions (Bevel-style) ── */}
+          {/* ── 4b. Recovery Interventions ── */}
           <motion.div variants={itemVariants}>
             <RecoveryInterventions
               recovery={scores?.recovery}
@@ -1876,7 +1876,7 @@ export default function Today() {
             />
           </motion.div>
 
-          {/* ── 5. Health Monitor (Bevel-style 2-column grid) ── */}
+          {/* ── 5. Health Monitor (2-column grid) ── */}
           <motion.div variants={itemVariants} className="mb-3 mt-1">
             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Health Monitor
@@ -1976,7 +1976,7 @@ export default function Today() {
             })()}
           </motion.div>
 
-          {/* ── 6. Nutrition Summary (Bevel-style calorie progress bar) ── */}
+          {/* ── 6. Nutrition Summary (calorie progress bar) ── */}
           <motion.div
             variants={itemVariants}
             onClick={() => navigate("/nutrition")}

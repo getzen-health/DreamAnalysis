@@ -234,7 +234,7 @@ function filterForHeadband(
   return interventions.filter((i) => !i.requiresHeadband);
 }
 
-// ── Recovery-aware interventions (Bevel-style) ───────────────────────────
+// ── Recovery-aware interventions ──────────────────────────────────────────
 
 export interface RecoveryContext {
   recovery?: number;       // 0-100
@@ -254,7 +254,7 @@ export interface RecoveryIntervention {
 
 /**
  * Returns recovery-specific interventions based on health scores.
- * Bevel-style: actionable suggestions when the body needs attention.
+ * Actionable suggestions when the body needs attention.
  */
 export function suggestRecoveryInterventions(ctx: RecoveryContext): RecoveryIntervention[] {
   const interventions: RecoveryIntervention[] = [];

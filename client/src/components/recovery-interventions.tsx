@@ -1,5 +1,5 @@
 /**
- * RecoveryInterventions — Bevel-style actionable suggestions when recovery is low.
+ * RecoveryInterventions — Actionable suggestions when recovery is low.
  * Shows horizontally scrollable cards with contextual health advice.
  * Only renders when there are interventions to show.
  */

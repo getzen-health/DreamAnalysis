@@ -1,7 +1,7 @@
 /**
  * BrainCoachCard — Daily AI-synthesized brief fusing EEG brain data + health scores.
  *
- * Differentiates NDW from Bevel: Bevel has recovery coaching but no EEG brain coaching.
+ * Differentiates NDW: recovery coaching enhanced with EEG brain coaching.
  * Generates 1-3 personalized recommendations from a rule engine that combines
  * physiological health scores with EEG-derived focus, valence, and stress.
  */

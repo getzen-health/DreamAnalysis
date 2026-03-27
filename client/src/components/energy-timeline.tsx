@@ -1,5 +1,5 @@
 /**
- * EnergyTimeline — Bevel-style hourly energy forecast for the remaining day.
+ * EnergyTimeline — Premium hourly energy forecast for the remaining day.
  * Shows color-coded bars for each hour with peak focus windows highlighted.
  */
 

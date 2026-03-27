@@ -1,8 +1,8 @@
-# Bevel Feature Replication — Implementation Plan
+# Premium UI Redesign — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replicate Bevel's core UX (strength builder, habit streaks, social sharing, recovery interventions, energy timeline, UI polish) while preserving NDW's EEG/voice/emotion differentiators.
+**Goal:** Build a premium UX (strength builder, habit streaks, social sharing, recovery interventions, energy timeline, UI polish) while preserving NDW's EEG/voice/emotion differentiators.
 
 **Architecture:** Frontend-heavy — backend already has exercises/workouts/sets/habits/streaks endpoints (113 API routes, 40+ tables). Plan focuses on building rich UI pages that wire to existing API, plus new sharing/intervention components.
 
@@ -24,7 +24,7 @@
 ```tsx
 // client/src/components/exercise-card.tsx
 // Card showing exercise name, muscle groups as badges, equipment icon
-// Uses existing bevel-card class + shadcn Badge
+// Uses existing premium-card class + shadcn Badge
 // Props: exercise (from GET /api/exercises), onSelect callback
 ```
 
@@ -76,7 +76,7 @@ git commit -m "feat: add exercise library browser with search and muscle group f
 // Circular countdown timer (60s/90s/120s/custom)
 // Auto-starts after logging a set
 // Haptic feedback on completion (Capacitor Haptics)
-// Bevel-style: large number in center, progress ring around it
+// Premium style: large number in center, progress ring around it
 ```
 
 - [ ] **Step 3: Create WorkoutSetRow component**
@@ -303,7 +303,7 @@ git commit -m "feat: add social sharing cards with 5 templates and native share 
 
 ```tsx
 // client/src/components/recovery-interventions.tsx
-// Horizontal scrollable card list (Bevel-style)
+// Horizontal scrollable card list (premium style)
 // Each card: icon + title + short description + optional "Start" CTA
 // CTAs: "Start Breathing" → navigates to neurofeedback, "Log Sleep" → sleep page
 // Only shows when there are actionable interventions (not when everything is green)
@@ -373,7 +373,7 @@ git commit -m "feat: add predicted energy timeline with peak focus hour forecast
 
 ---
 
-## Phase 6: Bevel UI Polish
+## Phase 6: Premium UI Polish
 
 ### Task 9: Card Animations & Micro-interactions
 
@@ -383,20 +383,20 @@ git commit -m "feat: add predicted energy timeline with peak focus hour forecast
 - Modify: `client/src/pages/today.tsx` (apply stagger animations)
 - Modify: `client/src/pages/scores-dashboard.tsx` (apply card press effects)
 
-- [ ] **Step 1: Add Bevel-specific animation variants**
+- [ ] **Step 1: Add premium animation variants**
 
 ```tsx
 // animations.ts additions:
-// bevelCardVariants: scale(0.98) on tap, 0.2s spring
-// bevelStagger: 0.06s delay, fadeInUp from 12px
-// bevelScoreReveal: countUp animation for numbers
-// bevelPageTransition: slide from right with spring
+// premiumCardVariants: scale(0.98) on tap, 0.2s spring
+// premiumStagger: 0.06s delay, fadeInUp from 12px
+// premiumScoreReveal: countUp animation for numbers
+// premiumPageTransition: slide from right with spring
 ```
 
 - [ ] **Step 2: Apply to Today page**
 
 ```tsx
-// Wrap score cards in motion.div with bevelStagger
+// Wrap score cards in motion.div with premiumStagger
 // Add press effect to all tappable cards (whileTap={{ scale: 0.98 }})
 // AnimatedNumber for all score values
 // Smooth section transitions
@@ -405,7 +405,7 @@ git commit -m "feat: add predicted energy timeline with peak focus hour forecast
 - [ ] **Step 3: Apply to Scores Dashboard**
 
 ```tsx
-// Score cards: bevelCardVariants with stagger
+// Score cards: premiumCardVariants with stagger
 // Energy battery: animated fill on mount
 // Trend arrows: animated entrance
 ```
@@ -413,7 +413,7 @@ git commit -m "feat: add predicted energy timeline with peak focus hour forecast
 - [ ] **Step 4: Commit**
 
 ```bash
-git commit -m "feat: add Bevel-style card animations and micro-interactions across dashboard"
+git commit -m "feat: add premium card animations and micro-interactions across dashboard"
 ```
 
 ### Task 10: Learn More Contextual Overlays

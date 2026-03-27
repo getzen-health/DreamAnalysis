@@ -239,7 +239,7 @@ export function HabitAnalytics({ habits, logs }: HabitAnalyticsProps) {
 
   return (
     <motion.div
-      className="bevel-card p-4 space-y-4"
+      className="premium-card p-4 space-y-4"
       custom={2}
       initial="hidden"
       animate="visible"

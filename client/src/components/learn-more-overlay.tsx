@@ -1,5 +1,5 @@
 /**
- * LearnMoreOverlay — Bevel-style contextual bottom sheet explaining health metrics.
+ * LearnMoreOverlay — Premium contextual bottom sheet explaining health metrics.
  * Each metric has: title, description, how it's calculated, tips to improve.
  */
 

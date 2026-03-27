@@ -5,7 +5,7 @@
 
 :root {
   /*
-   * Bevel-inspired light theme — clean white, emerald green accent,
+   * Premium light theme — clean white, emerald green accent,
    * minimalist flat design. Light mode is primary.
    */
   --background: hsl(0 0% 98%);           /* #FAFAFA — warm off-white */
@@ -56,12 +56,12 @@
 
 .dark {
   /*
-   * Bevel-inspired dark theme — neutral dark gray (not purple),
+   * Premium dark theme — neutral dark gray (not purple),
    * emerald green accent retained from light mode.
    */
-  --background: #222326;                 /* Bevel dark bg */
+  --background: #222326;                 /* Premium dark bg */
   --foreground: rgba(255, 255, 255, 0.95);
-  --card: #2A2A2E;                       /* Bevel dark card */
+  --card: #2A2A2E;                       /* Premium dark card */
   --card-foreground: rgba(255, 255, 255, 0.92);
   --popover: #2A2A2E;
   --popover-foreground: rgba(255, 255, 255, 0.95);
@@ -357,19 +357,19 @@
     z-index: -1;
   }
 
-  /* Bevel-style card — ultra clean */
-  .bevel-card {
+  /* Premium card — ultra clean */
+  .premium-card {
     border-radius: 18px;
     border: 1px solid var(--border);
     background: var(--card);
     transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .bevel-card:active {
+  .premium-card:active {
     transform: scale(0.98);
   }
 
-  .dark .bevel-card {
+  .dark .premium-card {
     background: var(--card);
     border-color: rgba(255, 255, 255, 0.10);
     box-shadow: none;
@@ -591,7 +591,7 @@
   }
 }
 
-/* Bevel-style stagger reveal — smooth child entry */
+/* Premium stagger reveal — smooth child entry */
 @keyframes staggerReveal {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }

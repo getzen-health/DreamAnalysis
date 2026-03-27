@@ -1,7 +1,7 @@
 /**
  * ScoreHeader -- compact horizontal strip showing current emotion + health scores.
  *
- * Bevel pattern: scores first, content second. This component sits at the top
+ * Premium pattern: scores first, content second. This component sits at the top
  * of every page via app-layout.tsx, below the nav bar but above page content.
  */
 

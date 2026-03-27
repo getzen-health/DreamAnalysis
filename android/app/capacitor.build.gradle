@@ -18,7 +18,6 @@ dependencies {
     implementation project(':capacitor-share')
     implementation project(':capgo-capacitor-health')
     implementation project(':sentry-capacitor')
-    implementation project(':capacitor-health')
 
 }
 

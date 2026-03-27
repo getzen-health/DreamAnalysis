@@ -162,7 +162,7 @@ export function HabitStreakCard({
 
   return (
     <motion.div
-      className={`bevel-card p-3 min-w-[140px] max-w-[160px] shrink-0 border ${colors.border} space-y-2`}
+      className={`premium-card p-3 min-w-[140px] max-w-[160px] shrink-0 border ${colors.border} space-y-2`}
       custom={index}
       initial="hidden"
       animate="visible"

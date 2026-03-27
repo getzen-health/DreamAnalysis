@@ -167,7 +167,7 @@ export function HabitHeatmap({ habits, logs }: HabitHeatmapProps) {
   return (
     <TooltipProvider delayDuration={100}>
       <motion.div
-        className="bevel-card p-4 space-y-2"
+        className="premium-card p-4 space-y-2"
         custom={0}
         initial="hidden"
         animate="visible"
