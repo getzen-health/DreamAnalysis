@@ -350,7 +350,7 @@ interface BriefingResponse {
   forecast: { label: string; probability: number; reason: string };
 }
 ```
-**Structured output:** The Claude API call uses `response_format: { type: "json_object" }` (JSON mode) with the prompt instructing it to return valid JSON matching `BriefingResponse`. Server parses with `JSON.parse()` and validates that `actions.length === 3`. On parse failure or validation error: return a 500 with a hardcoded fallback briefing derived from the raw metrics (no LLM), so the user always gets a morning card.
+**Structured output:** The Anthropic SDK (`messages.create`) does not use `response_format`. Instead, the prompt ends with an explicit JSON instruction ("Return ONLY valid JSON matching exactly: {...}"). Server parses the response text with `JSON.parse()` and validates that `actions.length === 3`. On parse failure or validation error: return the fallback briefing derived from raw metrics (no LLM call), so the user always gets a morning card.
 ```
 
 ---
