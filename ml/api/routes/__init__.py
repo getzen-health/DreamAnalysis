@@ -87,6 +87,7 @@ from .brain_health import router as _brain_health
 from .brain_maturation import router as _brain_maturation
 from .neuroadaptive import router as _neuroadaptive
 from .domain_adapt import router as _domain_adapt
+from .coral_adaptation import router as _coral_adaptation
 from .few_shot import router as _few_shot
 from .preictal import router as _preictal
 from .sleep_quality import router as _sleep_quality
@@ -225,6 +226,7 @@ from .pilot_validation import router as _pilot_validation
 from .user_data_sync import router as _user_data_sync
 from .training_sync import router as _training_sync
 from .yasa_sleep import router as _yasa_sleep
+from .temporal_emotion import router as _temporal_emotion
 
 router = APIRouter()
 
@@ -283,6 +285,7 @@ router.include_router(_brain_health)
 router.include_router(_brain_maturation)
 router.include_router(_neuroadaptive)
 router.include_router(_domain_adapt)
+router.include_router(_coral_adaptation)
 router.include_router(_few_shot)
 router.include_router(_preictal)
 router.include_router(_sleep_quality)
@@ -419,3 +422,4 @@ router.include_router(_pilot_validation)
 router.include_router(_user_data_sync)
 router.include_router(_training_sync)
 router.include_router(_yasa_sleep)
+router.include_router(_temporal_emotion)

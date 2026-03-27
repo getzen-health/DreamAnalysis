@@ -2210,6 +2210,11 @@ class EmotionClassifier:
         bands = extract_band_powers(processed, fs)
         de = differential_entropy(processed, fs)
 
+        # TODO(#541): Apply CORALAdapter.transform() here when a fitted adapter
+        # is available.  CORAL aligns research-EEG (DEAP) feature distributions
+        # to consumer Muse 2 distributions via covariance whitening + re-coloring.
+        # See processing/domain_adaptation.py for the implementation.
+
         alpha_raw      = bands.get("alpha",      0)
         beta_raw       = bands.get("beta",       0)
         theta_raw      = bands.get("theta",      0)
