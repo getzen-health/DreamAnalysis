@@ -55,13 +55,100 @@ The system selects the highest available tier automatically:
 - If only voice check-in or manual mood → Tier 1
 - If no data at all → "Building" state (no score computed)
 
+## Migration / Deprecation
+
+Inner Score **replaces** the existing Emotional Fitness Score (EFS) system. The `emotionalFitnessScores` table in `shared/schema.ts` is deprecated — no new data will be written to it. The `efs-hero-score.tsx` component is deprecated and will not be used directly; the building animation pattern is adapted into the new `inner-score-card.tsx`.
+
+The existing `ScoreCircle` components (Recovery/Sleep/Strain) on the Today page are removed and replaced by the single Inner Score hero gauge. The sub-scores become factor bars inside the tap-to-expand breakdown.
+
+No data migration is needed — the `inner_scores` table starts fresh. Old EFS data remains in the DB but is not read by any active UI.
+
+## Partial Data Within a Tier
+
+Each tier has **required** and **optional** factors:
+
+**Tier 1 — Voice Only:**
+- Required: at least one of stress or valence (from voice check-in or manual mood)
+- Optional: self-reported energy
+- If energy missing: redistribute its 20% equally to stress and valence (each becomes 50%)
+
+**Tier 2 — Health + Voice:**
+- Required: sleep quality AND at least one of stress/valence
+- Optional: HRV trend, activity
+- If optional factors missing: redistribute their weight proportionally among present factors
+- If sleep quality missing: fall back to Tier 1
+
+**Tier 3 — EEG + Health + Voice:**
+- Required: brain health score AND sleep quality
+- Optional: HRV trend, stress, valence, activity
+- If brain health missing: fall back to Tier 2
+- If sleep quality missing: fall back to Tier 2
+
+**Redistribution rule:** When optional factors are absent, their weight is distributed proportionally among the remaining factors. Example: Tier 2 without HRV (20%) → sleep becomes 35/80×100=43.75%, stress 25%, valence 18.75%, activity 12.5%.
+
+## Tier Detection Rules
+
+- Tier detection uses the user's **local date** (midnight to midnight based on browser timezone)
+- "Today or yesterday" for EEG means: the current local calendar day or the one before it
+- Data staleness: health data older than 48 hours is ignored for tier detection
+- Tier is recomputed on each score calculation, not cached separately
+
+## Score Recomputation
+
+The score is recomputed (not just cached for 24h) when:
+- A new voice check-in is recorded
+- New health data syncs from Health Connect / Oura
+- A new EEG session completes
+- The user manually requests a refresh (pull-to-refresh on Today page)
+
+Between triggers, the cached score is served. Cache TTL is 4 hours maximum — after that, recompute even without a trigger.
+
+## Normalization Rules
+
+**Self-reported energy** (Tier 1):
+- Mood log scale 1-5 → multiply by 20 → 0-100
+- Mood log scale 1-10 → multiply by 10 → 0-100
+- Voice arousal 0.0-1.0 → multiply by 100 → 0-100
+- If both exist: voice arousal takes priority (physiological > self-report)
+- If neither exists: use 50 as neutral default
+
+**Stress inverse:** `(1 - stress_index) * 100` where stress_index is 0.0-1.0
+
+**Valence:** `(valence + 1) / 2 * 100` where valence is -1.0 to +1.0 → maps to 0-100
+
+## Error & Edge Cases
+
+**API error responses:**
+- No data (building state): `{ "score": null, "state": "building", "cta": "Do a voice check-in to get your Inner Score" }`
+- User not found: `404 { "error": "User not found" }`
+- Computation failure: `500 { "error": "Score computation failed" }`
+
+**Trend computation:**
+- Delta = `today.score - yesterday.score` (null if no yesterday score)
+- Sparkline: 7-element array, null for missing days, component renders gaps gracefully
+- Fewer than 7 days of history: pad leading positions with null
+
+## Accessibility
+
+- SVG gauge has `aria-label="Inner Score: 72 out of 100, Good"`
+- Factor bars have `role="progressbar"` with `aria-valuenow`, `aria-valuemin`, `aria-valuemax`
+- Tap-to-expand is keyboard accessible (Enter/Space to toggle)
+- Score range labels ("Thriving"/"Good"/"Steady"/"Low") provide color-blind-safe indication
+- All colors use CSS variables, never hardcoded hex in components
+
+## Gauge Animation
+
+- On mount: arc animates from 0 to score value over 1.2s with `cubic-bezier(0.34, 1.56, 0.64, 1)` (spring overshoot)
+- On score change: arc transitions smoothly over 0.8s
+- Building state: pulsing opacity animation (0.4 → 1.0, 2s infinite)
+
 ## UI Design
 
 ### Today Page Layout Change
 
 Remove the 3 score circles (Recovery/Sleep/Strain) from the top of today.tsx. Replace with:
 
-1. **Inner Score hero gauge** — 160px diameter SVG arc (270-degree sweep), emerald gradient stroke matching the premium design system. Score number centered (42px bold Public Sans), "Inner Score" label below (12px muted).
+1. **Inner Score hero gauge** — 220px diameter SVG arc (270-degree sweep), emerald gradient stroke using `var(--primary)`. Score number centered (52px bold, `font-family: var(--font-sans)`), "Inner Score" label below (12px muted).
 
 2. **Tier confidence label** — below the gauge, 10px muted text showing data source tier.
 
@@ -73,10 +160,10 @@ Remove the 3 score circles (Recovery/Sleep/Strain) from the top of today.tsx. Re
 
 | Range | Color | Label |
 |-------|-------|-------|
-| 80-100 | Emerald green (`#34D399`) | Thriving |
-| 60-79 | Teal (`#2DD4BF`) | Good |
-| 40-59 | Amber (`#F59E0B`) | Steady |
-| 0-39 | Red (`#F87171`) | Low |
+| 80-100 | `var(--success)` / emerald green | Thriving |
+| 60-79 | `var(--primary)` / teal | Good |
+| 40-59 | `var(--warning)` / amber | Steady |
+| 0-39 | `var(--destructive)` / red | Low |
 
 ### Building State (No Data)
 
