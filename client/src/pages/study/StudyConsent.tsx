@@ -23,7 +23,7 @@ an academic research paper.
 
 WHAT DATA IS COLLECTED
 During each session, we record:
-  - EEG brain wave patterns (alpha, beta, theta, delta, gamma band powers) via Muse 2 headband
+  - EEG brain wave patterns (alpha, beta, theta, delta, gamma band powers) via EEG headband
   - Self-report survey responses (numeric ratings only)
   - Session metadata (block type, timestamps)
 
@@ -41,7 +41,7 @@ All data stored in our database is linked to this code only. The mapping between
 codes and real identities is never stored.
 
 RISKS AND BENEFITS
-There are no known risks from EEG recording with the Muse 2 headband. The device
+There are no known risks from EEG recording with the headband. The device
 does not deliver any electrical signal to your brain. Participation may contribute
 to scientific understanding of brain-body relationships, which is the primary benefit.
 

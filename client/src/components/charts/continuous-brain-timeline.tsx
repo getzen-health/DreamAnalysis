@@ -212,7 +212,7 @@ export function ContinuousBrainTimeline({
         </div>
       ) : !hasData ? (
         <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border/30 rounded-lg">
-          No data for this period — connect Muse 2 to start recording
+          No data for this period — connect your EEG headband to start recording
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={240}>

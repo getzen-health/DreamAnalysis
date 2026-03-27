@@ -711,7 +711,7 @@ export function AICompanion({ userId }: AICompanionProps) {
             <div className="bg-card border-l-2 border-primary/40 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%]">
               <p className="text-sm leading-relaxed">
                 {isStreaming
-                  ? "Hello! I'm reading your Muse 2 brain activity live. Ask me anything -- breathing exercises, meditation, stress tips, or just have a conversation."
+                  ? "Hello! I'm reading your EEG brain activity live. Ask me anything -- breathing exercises, meditation, stress tips, or just have a conversation."
                   : "Hello! I'm your AI wellness companion. Use the quick actions or type anything -- I'm here to help with focus, stress, sleep, or wellness."}
               </p>
               <span className="text-[10px] text-muted-foreground mt-1 block">

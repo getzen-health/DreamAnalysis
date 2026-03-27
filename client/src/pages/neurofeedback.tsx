@@ -207,7 +207,7 @@ export default function Neurofeedback() {
   const startEvalLoop = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(async () => {
-      // Use real band powers from live Muse 2 data
+      // Use real band powers from live EEG data
       const liveBands = bandPowers ?? {
         delta: 0,
         theta: 0,
@@ -410,7 +410,7 @@ export default function Neurofeedback() {
           <Card className="glass-card p-6 rounded-xl hover-glow">
             <h3 className="text-lg font-semibold mb-4">How It Works</h3>
             <div className="space-y-3 text-sm text-foreground/70">
-              <p>1. <strong>Connect Muse 2</strong> from EEG Setup and start streaming</p>
+              <p>1. <strong>Connect EEG headband</strong> from EEG Setup and start streaming</p>
               <p>2. <strong>Calibration</strong> (30s): Measure your baseline brain activity</p>
               <p>3. <strong>Training</strong>: Watch the gauge and try to increase your score</p>
               <p>4. <strong>Rewards</strong>: Audio/visual feedback when you hit the target</p>
@@ -437,7 +437,7 @@ export default function Neurofeedback() {
         <Card className="glass-card p-8 rounded-xl hover-glow max-w-lg mx-auto text-center" aria-live="polite">
           <h3 className="text-lg font-semibold mb-4">Calibrating Baseline</h3>
           <p className="text-sm text-foreground/60 mb-6">
-            Relax and breathe normally. Measuring your baseline brain activity from your Muse 2...
+            Relax and breathe normally. Measuring your baseline brain activity from your EEG headband...
           </p>
           <Progress value={calibrationProgress} className="h-3 mb-4" />
           <p className="text-xs font-mono text-foreground/50">

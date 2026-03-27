@@ -233,7 +233,7 @@ const SETUP_OPTIONS: SetupOption[] = [
     id: "eeg",
     icon: Brain,
     title: "EEG headband",
-    description: "Connect a Muse 2 for brain monitoring",
+    description: "Connect an EEG headband for brain monitoring",
     color: "hsl(270 40% 60%)",
   },
   {

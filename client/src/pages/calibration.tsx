@@ -193,7 +193,7 @@ export default function CalibrationPage() {
               }`}
             >
               <Radio className="h-3.5 w-3.5" />
-              Muse 2 device
+              EEG headband
             </button>
             <button
               onClick={() => setSimulateMode(true)}
@@ -214,7 +214,7 @@ export default function CalibrationPage() {
           <div className="w-full p-4 rounded-xl border border-warning/30 bg-warning/5 flex items-start gap-3">
             <Radio className="h-4 w-4 text-warning shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-warning">Muse 2 not connected</p>
+              <p className="text-sm font-medium text-warning">EEG headband not connected</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Connect your headset from the sidebar, or switch to Simulation mode.
               </p>
@@ -225,7 +225,7 @@ export default function CalibrationPage() {
         {/* Simulation mode info */}
         {simulateMode && phase === "idle" && (
           <div className="w-full p-3 rounded-xl border border-purple-500/20 bg-purple-500/5 text-xs text-purple-300 leading-relaxed">
-            Simulation generates synthetic resting-state EEG to demonstrate the calibration process. For real accuracy improvements, run with your Muse 2 headset.
+            Simulation generates synthetic resting-state EEG to demonstrate the calibration process. For real accuracy improvements, run with your EEG headband.
           </div>
         )}
 
@@ -337,7 +337,7 @@ export default function CalibrationPage() {
                     "Press Start — synthetic resting-state EEG is generated automatically",
                     "The system builds a simulated personal baseline over 2 minutes",
                     "Demonstrates the calibration flow without hardware",
-                    "For real +29% accuracy gains, run with your Muse 2 headset",
+                    "For real +29% accuracy gains, run with your EEG headband",
                   ].map((step, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="text-purple-400 font-semibold shrink-0">{i + 1}.</span>
@@ -345,7 +345,7 @@ export default function CalibrationPage() {
                     </li>
                   ))
                 : [
-                    "Connect Muse 2 and press Start",
+                    "Connect EEG headband and press Start",
                     "Sit comfortably and close your eyes",
                     "Breathe naturally — avoid jaw clenching or blinking",
                     "Wait 2 minutes for best results (exit early at 30s minimum)",

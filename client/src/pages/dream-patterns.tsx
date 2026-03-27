@@ -456,7 +456,7 @@ export default function DreamPatterns() {
               <div className="h-[220px] flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
                 <Moon className="h-8 w-8 text-muted-foreground/30" />
                 <p>No sessions in this period</p>
-                <p className="text-xs text-muted-foreground/60">Log dreams manually or connect Muse 2 for automatic detection</p>
+                <p className="text-xs text-muted-foreground/60">Log dreams manually or connect your EEG headband for automatic detection</p>
               </div>
             ) : (
               <>

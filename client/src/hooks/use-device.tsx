@@ -422,8 +422,8 @@ function useDeviceInternal(): UseDeviceReturn {
   // headband they own. Muse devices connect via Web Bluetooth even without BrainFlow.
   const ALL_EEG_DEVICES: DeviceInfo[] = [
     // Muse
-    { type: "muse_2", name: "Muse 2", channels: 4, sample_rate: 256, available: true },
-    { type: "muse_s", name: "Muse S", channels: 4, sample_rate: 256, available: true },
+    { type: "muse_2", name: "Muse 2 (BCI)", channels: 4, sample_rate: 256, available: true },
+    { type: "muse_s", name: "Muse S (BCI)", channels: 4, sample_rate: 256, available: true },
     // OpenBCI
     { type: "openbci_cyton", name: "OpenBCI Cyton", channels: 8, sample_rate: 250, available: true },
     { type: "openbci_ganglion", name: "OpenBCI Ganglion", channels: 4, sample_rate: 200, available: true },

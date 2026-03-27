@@ -243,7 +243,7 @@ function StepChoosePath({ onChoose }: { onChoose: (path: "voice" | "eeg") => voi
             <h2 className="text-base font-semibold">Full Setup</h2>
           </div>
           <p className="text-sm text-muted-foreground">
-            Muse 2 EEG. Live neural signals from day one.
+            EEG Headband. Live neural signals from day one.
           </p>
           <ul className="text-xs space-y-1.5 text-foreground/80">
             <li className="flex items-center gap-2">
@@ -453,7 +453,7 @@ function StepEeg({ onNext }: { onNext: () => void }) {
           </div>
           <h1 className="text-2xl font-semibold">EEG Baseline Calibration</h1>
           <p className="text-sm text-muted-foreground">
-            Muse 2 only · 2 minutes · Done once
+            EEG headband · 2 minutes · Done once
           </p>
         </div>
 
@@ -468,7 +468,7 @@ function StepEeg({ onNext }: { onNext: () => void }) {
           </p>
           {isStreaming && (
             <p className="text-xs text-cyan-400 font-medium">
-              Muse 2 connected — will use live EEG
+              EEG headband connected — will use live EEG
             </p>
           )}
           {!isStreaming && (

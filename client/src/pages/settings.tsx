@@ -703,7 +703,7 @@ function BaselineCalibrationCard({ userId }: { userId: string }) {
         {statusBadge}
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        If you use Muse 2, record 30 seconds of resting-state EEG so the ML backend can normalize live headset signals.
+        If you use an EEG headband, record 30 seconds of resting-state EEG so the ML backend can normalize live headset signals.
         This only affects the optional EEG layer.
       </p>
 

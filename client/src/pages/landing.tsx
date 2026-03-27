@@ -27,7 +27,7 @@ const features = [
   {
     icon: Brain,
     title: "Optional EEG Upgrade",
-    description: "Add Muse 2 later for live neural sensing, calibration, neurofeedback, and advanced brain-state tools.",
+    description: "Add EEG headband later for live neural sensing, calibration, neurofeedback, and advanced brain-state tools.",
     color: "accent",
   },
   {
@@ -88,7 +88,7 @@ export default function Landing() {
 
           <p className="text-lg md:text-xl text-foreground/60 max-w-2xl mx-auto mb-8 leading-relaxed">
             A daily readiness app built around voice analyses, health signals, sleep, and dream tracking.
-            Add Muse 2 later if you want live EEG and deeper neural features.
+            Add EEG headband later if you want live EEG and deeper neural features.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

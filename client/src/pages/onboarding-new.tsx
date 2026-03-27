@@ -129,7 +129,7 @@ export default function OnboardingNew() {
               <div className="flex items-start gap-3">
                 <Waves className="h-4 w-4 text-primary mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium">Add Muse 2 later</p>
+                  <p className="text-sm font-medium">Add EEG headband later</p>
                   <p className="text-xs text-muted-foreground">
                     EEG unlocks live neural features and calibration, but it is a later upgrade.
                   </p>
@@ -144,7 +144,7 @@ export default function OnboardingNew() {
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
             <Button variant="outline" className="w-full" onClick={() => navigate("/onboarding")}>
-              I have a Muse 2
+              I have an EEG headband
             </Button>
           </div>
         </div>
@@ -161,7 +161,7 @@ export default function OnboardingNew() {
           </Badge>
           <h1 className="text-4xl font-semibold">Choose your setup path</h1>
           <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-            The main product starts with voice and health inputs. Add Muse 2 only if you want live EEG and deeper neural tools.
+            The main product starts with voice and health inputs. Add EEG headband only if you want live EEG and deeper neural tools.
           </p>
         </div>
 
@@ -190,7 +190,7 @@ export default function OnboardingNew() {
           <Card className="glass-card p-6 space-y-4">
             <div className="flex items-center gap-3">
               <Brain className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-semibold">Muse 2 EEG</h2>
+              <h2 className="text-xl font-semibold">EEG Headband</h2>
             </div>
             <p className="text-sm text-muted-foreground">
               Use the EEG setup only if you already have a headset and want live neural features from day one.
@@ -202,7 +202,7 @@ export default function OnboardingNew() {
             </ul>
             <Link href="/onboarding">
               <Button variant="outline" className="w-full">
-                I have a Muse 2
+                I have an EEG headband
               </Button>
             </Link>
           </Card>

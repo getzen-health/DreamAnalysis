@@ -425,7 +425,7 @@ export default function StudySession() {
             <CardContent className="pt-5 space-y-4">
               <div className="flex items-center gap-2">
                 <Bluetooth className="h-5 w-5 text-primary" />
-                <p className="font-semibold text-sm">Muse 2 EEG Headband</p>
+                <p className="font-semibold text-sm">EEG Headband</p>
               </div>
 
               {backendReady === null && (
@@ -463,7 +463,7 @@ export default function StudySession() {
                       toast({ title: "Muse connection failed", description: msg, variant: "destructive" });
                     }
                   }}>
-                  {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting…</> : <><Bluetooth className="mr-2 h-4 w-4" />Pair Muse 2</>}
+                  {isConnecting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Connecting…</> : <><Bluetooth className="mr-2 h-4 w-4" />Pair EEG headband</>}
                 </Button>
               )}
 

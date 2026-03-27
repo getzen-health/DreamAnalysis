@@ -71,7 +71,7 @@ const SOURCE_META: Record<
     color: "text-orange-400",
   },
   muse_eeg: {
-    label: "Muse 2 EEG",
+    label: "EEG Headband",
     icon: <Brain className="h-5 w-5" />,
     color: "text-indigo-400",
   },

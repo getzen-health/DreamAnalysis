@@ -82,7 +82,7 @@ export default function StudyLanding() {
                   <Headphones className="h-4 w-4 text-primary" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">Wear the Muse 2 headband</p>
+                  <p className="font-medium text-sm">Wear the EEG headband</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     A consumer EEG device that measures brain wave patterns non-invasively.
                     No gels, no discomfort.
@@ -97,7 +97,7 @@ export default function StudyLanding() {
                 <div>
                   <p className="font-medium text-sm">Complete a stress session — 20 min</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Connect your Muse 2, a 20-minute EEG recording, and a short survey.
+                    Connect your EEG headband, a 20-minute EEG recording, and a short survey.
                   </p>
                 </div>
               </div>
@@ -109,7 +109,7 @@ export default function StudyLanding() {
                 <div>
                   <p className="font-medium text-sm">Complete a food session — 20 min</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Connect your Muse 2, a 20-minute EEG recording, and a food survey.
+                    Connect your EEG headband, a 20-minute EEG recording, and a food survey.
                   </p>
                 </div>
               </div>
