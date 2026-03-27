@@ -323,8 +323,8 @@ export default function Neurofeedback() {
         </div>
         {phase !== "idle" && phase !== "summary" && (
           <div className="flex items-center gap-3">
-            <Timer className="h-4 w-4 text-foreground/50" />
-            <span className="text-sm font-mono text-foreground/70">{formatTime(elapsed)}</span>
+            <Timer className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-mono text-muted-foreground">{formatTime(elapsed)}</span>
             <Button
               size="sm"
               variant="destructive"
@@ -358,11 +358,11 @@ export default function Neurofeedback() {
       {/* Idle: Protocol Selection */}
       {phase === "idle" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="glass-card p-6 rounded-xl hover-glow">
-            <h3 className="text-lg font-semibold mb-4">Select Protocol</h3>
+          <Card className="rounded-[14px] bg-card border border-border p-6">
+            <h3 className="text-lg font-semibold mb-4 text-foreground">Select Protocol</h3>
             <div className="space-y-4">
               <Select value={selectedProtocol} onValueChange={setSelectedProtocol}>
-                <SelectTrigger className="w-full bg-card/50 border border-primary/30">
+                <SelectTrigger className="w-full bg-card border border-border">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -383,7 +383,7 @@ export default function Neurofeedback() {
               </Select>
 
               {protocols[selectedProtocol] && (
-                <p className="text-sm text-foreground/60">
+                <p className="text-sm text-muted-foreground">
                   {protocols[selectedProtocol].description}
                 </p>
               )}
@@ -391,7 +391,7 @@ export default function Neurofeedback() {
               <div className="flex items-center justify-between">
                 <Label className="text-sm">Audio Feedback</Label>
                 <div className="flex items-center gap-2">
-                  {audioEnabled ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4 text-foreground/50" />}
+                  {audioEnabled ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
                   <Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} />
                 </div>
               </div>
@@ -407,9 +407,9 @@ export default function Neurofeedback() {
             </div>
           </Card>
 
-          <Card className="glass-card p-6 rounded-xl hover-glow">
-            <h3 className="text-lg font-semibold mb-4">How It Works</h3>
-            <div className="space-y-3 text-sm text-foreground/70">
+          <Card className="rounded-[14px] bg-card border border-border p-6">
+            <h3 className="text-lg font-semibold mb-4 text-foreground">How It Works</h3>
+            <div className="space-y-3 text-sm text-muted-foreground">
               <p>1. <strong>Connect EEG headband</strong> from EEG Setup and start streaming</p>
               <p>2. <strong>Calibration</strong> (30s): Measure your baseline brain activity</p>
               <p>3. <strong>Training</strong>: Watch the gauge and try to increase your score</p>
@@ -434,13 +434,13 @@ export default function Neurofeedback() {
 
       {/* Calibrating */}
       {phase === "calibrating" && (
-        <Card className="glass-card p-8 rounded-xl hover-glow max-w-lg mx-auto text-center" aria-live="polite">
-          <h3 className="text-lg font-semibold mb-4">Calibrating Baseline</h3>
-          <p className="text-sm text-foreground/60 mb-6">
+        <Card className="rounded-[14px] bg-card border border-border p-8 max-w-lg mx-auto text-center" aria-live="polite">
+          <h3 className="text-lg font-semibold mb-4 text-foreground">Calibrating Baseline</h3>
+          <p className="text-sm text-muted-foreground mb-6">
             Relax and breathe normally. Measuring your baseline brain activity from your EEG headband...
           </p>
           <Progress value={calibrationProgress} className="h-3 mb-4" />
-          <p className="text-xs font-mono text-foreground/50">
+          <p className="text-xs font-mono text-muted-foreground">
             {calibrationProgress.toFixed(0)}%
           </p>
         </Card>
@@ -452,12 +452,12 @@ export default function Neurofeedback() {
           {/* Score Gauge */}
           <div className="lg:col-span-2 flex justify-center" aria-live="polite" aria-label="Neurofeedback score">
             <Card
-              className={`glass-card p-8 rounded-xl hover-glow w-full flex flex-col items-center transition-colors duration-300 ${
+              className={`rounded-[14px] bg-card border border-border p-8 w-full flex flex-col items-center transition-colors duration-300 ${
                 reward ? "bg-success/5 border-success/30" : ""
               }`}
             >
               <svg width="200" height="200" viewBox="0 0 200 200">
-                <circle cx="100" cy="100" r="80" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="12" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="currentColor" strokeWidth="12" className="text-border" />
                 <circle
                   cx="100"
                   cy="100"
@@ -471,10 +471,10 @@ export default function Neurofeedback() {
                   transform="rotate(-90 100 100)"
                   className="transition-all duration-300"
                 />
-                <text x="100" y="95" textAnchor="middle" fill="white" fontSize="36" fontFamily="monospace" fontWeight="bold">
+                <text x="100" y="95" textAnchor="middle" fill="currentColor" fontSize="36" fontFamily="monospace" fontWeight="bold" className="text-foreground">
                   {score.toFixed(0)}
                 </text>
-                <text x="100" y="120" textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize="12" fontFamily="monospace">
+                <text x="100" y="120" textAnchor="middle" fill="currentColor" fontSize="12" fontFamily="monospace" className="text-muted-foreground">
                   SCORE
                 </text>
               </svg>
@@ -483,28 +483,28 @@ export default function Neurofeedback() {
 
           {/* Stats Panel */}
           <div className="space-y-4">
-            <Card className="glass-card p-4 rounded-xl">
+            <Card className="rounded-[14px] bg-card border border-border p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Trophy className="h-4 w-4 text-warning" />
-                <span className="text-sm font-medium">Rewards</span>
+                <span className="text-sm font-medium text-foreground">Rewards</span>
               </div>
               <p className="text-2xl font-mono font-bold text-warning">{rewardCount}</p>
             </Card>
 
-            <Card className="glass-card p-4 rounded-xl">
+            <Card className="rounded-[14px] bg-card border border-border p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Target className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Streak</span>
+                <span className="text-sm font-medium text-foreground">Streak</span>
               </div>
               <p className="text-2xl font-mono font-bold text-primary">{streak}</p>
             </Card>
 
-            <Card className="glass-card p-4 rounded-xl">
+            <Card className="rounded-[14px] bg-card border border-border p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Timer className="h-4 w-4 text-foreground/60" />
-                <span className="text-sm font-medium">Session</span>
+                <Timer className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground">Session</span>
               </div>
-              <p className="text-2xl font-mono font-bold">{formatTime(elapsed)}</p>
+              <p className="text-2xl font-mono font-bold text-foreground">{formatTime(elapsed)}</p>
             </Card>
           </div>
         </div>
@@ -512,28 +512,28 @@ export default function Neurofeedback() {
 
       {/* Summary */}
       {phase === "summary" && stats && (
-        <Card className="glass-card p-8 rounded-xl hover-glow max-w-lg mx-auto">
+        <Card className="rounded-[14px] bg-card border border-border p-8 max-w-lg mx-auto">
           <div className="text-center space-y-6">
             <Trophy className="h-12 w-12 text-warning mx-auto" />
-            <h3 className="text-xl font-semibold">Session Complete</h3>
+            <h3 className="text-xl font-semibold text-foreground">Session Complete</h3>
 
             <div className="grid grid-cols-2 gap-4 text-center">
               <div>
-                <p className="text-xs text-foreground/50">Total Rewards</p>
+                <p className="text-xs text-muted-foreground">Total Rewards</p>
                 <p className="text-2xl font-mono font-bold text-warning">{stats.total_rewards}</p>
               </div>
               <div>
-                <p className="text-xs text-foreground/50">Reward Rate</p>
+                <p className="text-xs text-muted-foreground">Reward Rate</p>
                 <p className="text-2xl font-mono font-bold text-primary">
                   {(stats.reward_rate * 100).toFixed(0)}%
                 </p>
               </div>
               <div>
-                <p className="text-xs text-foreground/50">Avg Score</p>
-                <p className="text-2xl font-mono font-bold">{stats.avg_score.toFixed(0)}</p>
+                <p className="text-xs text-muted-foreground">Avg Score</p>
+                <p className="text-2xl font-mono font-bold text-foreground">{stats.avg_score.toFixed(0)}</p>
               </div>
               <div>
-                <p className="text-xs text-foreground/50">Best Streak</p>
+                <p className="text-xs text-muted-foreground">Best Streak</p>
                 <p className="text-2xl font-mono font-bold text-success">{stats.max_streak}</p>
               </div>
             </div>

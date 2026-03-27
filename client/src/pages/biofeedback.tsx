@@ -552,7 +552,7 @@ export default function Biofeedback() {
         </div>
         {activeTab === "breathing" && sessionPhase === "active" && (
           <div className="flex items-center gap-4">
-            <span className="text-sm font-mono text-foreground/50">{formatTime(elapsed)}</span>
+            <span className="text-sm font-mono text-muted-foreground">{formatTime(elapsed)}</span>
             <Button
               size="sm"
               variant="ghost"
@@ -628,7 +628,7 @@ export default function Biofeedback() {
           {/* Playlist cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {PLAYLISTS.filter(p => p.mood === musicMood).map(playlist => (
-              <Card key={playlist.id} className="glass-card p-5 rounded-xl space-y-3">
+              <Card key={playlist.id} className="rounded-[14px] bg-card border border-border p-5 space-y-3">
                 <div className="flex items-start justify-between">
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -678,7 +678,7 @@ export default function Biofeedback() {
           </div>
 
           {/* Effectiveness note */}
-          <Card className="glass-card p-4 rounded-xl">
+          <Card className="rounded-[14px] bg-card border border-border p-4">
             <p className="text-xs text-muted-foreground leading-relaxed">
               <span className="text-foreground font-medium">How it works: </span>
               After you listen, go back to the Brain Monitor — if your stress dropped, it worked.
@@ -766,7 +766,7 @@ export default function Biofeedback() {
           </div>
 
           {/* Selected exercise detail card */}
-          <Card className="glass-card p-6 rounded-xl">
+          <Card className="rounded-[14px] bg-card border border-border p-6">
             <div className="flex flex-col md:flex-row md:items-center gap-6">
               <div className="flex-1 space-y-3">
                 <div>
@@ -802,7 +802,7 @@ export default function Biofeedback() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* Breathing circle */}
-          <Card className="glass-card p-6 rounded-xl flex flex-col items-center gap-4">
+          <Card className="rounded-[14px] bg-card border border-border p-6 flex flex-col items-center gap-4">
             <svg width="224" height="224" viewBox="0 0 224 224">
               <defs>
                 <radialGradient id="breath-fill" cx="50%" cy="50%" r="50%">
@@ -811,7 +811,7 @@ export default function Biofeedback() {
                 </radialGradient>
               </defs>
               {/* outer guide ring */}
-              <circle cx="112" cy="112" r={MAX_R + 14} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+              <circle cx="112" cy="112" r={MAX_R + 14} fill="none" stroke="currentColor" strokeWidth="1" className="text-border" />
               {/* expanding fill blob */}
               <circle
                 cx="112" cy="112" r={circleR}
@@ -843,10 +843,11 @@ export default function Biofeedback() {
               <text
                 x="112" y="106"
                 textAnchor="middle"
-                fill="white"
+                fill="currentColor"
                 fontSize="15"
                 fontFamily="system-ui, sans-serif"
                 fontWeight="500"
+                className="text-foreground"
               >
                 {currentPhase?.label}
               </text>
@@ -872,7 +873,7 @@ export default function Biofeedback() {
                   style={
                     i === breathPhaseIdx
                       ? { color: exercise.color, fontWeight: 600 }
-                      : { color: "rgba(255,255,255,0.25)" }
+                      : { color: "var(--muted-foreground, rgba(255,255,255,0.25))" }
                   }
                 >
                   {p.label}
@@ -887,7 +888,7 @@ export default function Biofeedback() {
           </Card>
 
           {/* Stress chart — live when EEG connected, simulated estimate otherwise */}
-          <Card className="glass-card p-6 rounded-xl flex flex-col">
+          <Card className="rounded-[14px] bg-card border border-border p-6 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium">
                 {isStreaming ? "Live Stress Response" : "Estimated Stress Response"}
@@ -944,9 +945,9 @@ export default function Biofeedback() {
                   </defs>
                   {/* grid lines */}
                   <line x1="0" y1={CHART_H * 0.5} x2={CHART_W} y2={CHART_H * 0.5}
-                    stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4 4" />
+                    stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" className="text-border" />
                   <line x1="0" y1={CHART_H} x2={CHART_W} y2={CHART_H}
-                    stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+                    stroke="currentColor" strokeWidth="1" className="text-border" />
                   {/* area fill */}
                   <path d={stressArea} fill="url(#stress-area-grad)" />
                   {/* stress line */}
@@ -990,7 +991,7 @@ export default function Biofeedback() {
       {/* ── DONE ── summary ── */}
       {sessionPhase === "done" && (
         <div className="max-w-lg mx-auto space-y-4">
-          <Card className="glass-card p-8 rounded-xl text-center space-y-6">
+          <Card className="rounded-[14px] bg-card border border-border p-8 text-center space-y-6">
             {/* Icon */}
             <div
               className="w-16 h-16 rounded-full mx-auto flex items-center justify-center"

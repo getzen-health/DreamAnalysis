@@ -206,7 +206,7 @@ function generateInsights(
         sad: {
           context: "Sadness has dominated recent readings. This emotion signals a need for rest or reconnection — not a flaw to fix, but information to act on.",
           action: "Identify one small thing you can look forward to today. Future-positive thinking is the most effective short-term mood intervention.",
-          color: "#818cf8",
+          color: "#6b7280",
         },
         angry: {
           context: "Anger is showing up frequently. It's an approach emotion — your brain is primed to act. Channel this toward something meaningful.",
@@ -300,7 +300,7 @@ function generateInsights(
         action: trend > 0
           ? "Identify what changed in the last 48h (sleep, exercise, social contact) — that's the variable to protect."
           : "Prioritize sleep tonight. Even 30 extra minutes of sleep reduces next-day stress by 18–23% on average.",
-        color: trend > 0 ? "#a78bfa" : "#fbbf24",
+        color: trend > 0 ? "#10b981" : "#fbbf24",
       });
     }
   }
@@ -342,11 +342,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  emotion: "rgba(168, 85, 247, 0.15)",
-  energy: "rgba(96, 165, 250, 0.15)",
-  nutrition: "rgba(74, 222, 128, 0.15)",
-  pattern: "rgba(251, 191, 36, 0.15)",
-  prediction: "rgba(167, 139, 250, 0.15)",
+  emotion: "rgba(16, 185, 129, 0.12)",
+  energy: "rgba(96, 165, 250, 0.12)",
+  nutrition: "rgba(74, 222, 128, 0.12)",
+  pattern: "rgba(251, 191, 36, 0.12)",
+  prediction: "rgba(16, 185, 129, 0.10)",
 };
 
 // ── Metric chip ───────────────────────────────────────────────────────────
@@ -364,7 +364,7 @@ function MetricChip({
 }) {
   const DeltaIcon = delta === undefined ? Minus : delta > 0.02 ? TrendingUp : delta < -0.02 ? TrendingDown : Minus;
   return (
-    <div className="flex flex-col gap-1 p-3 rounded-2xl" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+    <div className="flex flex-col gap-1 p-3 rounded-[14px] bg-card border border-border">
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className="text-lg font-bold" style={{ color }}>{value}</p>
       {delta !== undefined && (
@@ -396,12 +396,7 @@ function InsightCardComponent({
       animate="visible"
       custom={index}
       onClick={() => setExpanded(p => !p)}
-      className="rounded-2xl cursor-pointer transition-all duration-200 active:scale-[0.98]"
-      style={{
-        background: "var(--glass-bg)",
-        border: `1px solid ${card.color}22`,
-        backdropFilter: "blur(20px)",
-      }}
+      className="rounded-[14px] bg-card border border-border cursor-pointer transition-all duration-200 active:scale-[0.98]"
     >
       <div className="p-4">
         {/* Header */}
@@ -444,7 +439,7 @@ function InsightCardComponent({
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="mt-3 pt-3 space-y-3 border-t border-white/5">
+              <div className="mt-3 pt-3 space-y-3 border-t border-border">
                 <p className="text-xs leading-relaxed text-muted-foreground">{card.context}</p>
                 <div
                   className="flex items-start gap-2 p-3 rounded-xl"
@@ -559,12 +554,11 @@ export default function Insights() {
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
           <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #a78bfa, #818cf8)" }}
+            className="w-8 h-8 rounded-xl flex items-center justify-center bg-emerald-500/15"
           >
-            <Sparkles className="h-4 w-4 text-white" />
+            <Sparkles className="h-4 w-4 text-emerald-500" />
           </div>
-          <h1 className="text-xl font-bold gradient-text">Insights</h1>
+          <h1 className="text-xl font-bold text-foreground">Insights</h1>
         </div>
         <p className="text-xs text-muted-foreground ml-10">
           {hasData
@@ -581,10 +575,9 @@ export default function Insights() {
           className="text-center py-16 px-4"
         >
           <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: "linear-gradient(135deg, #a78bfa22, #818cf822)" }}
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-emerald-500/10"
           >
-            <Brain className="h-8 w-8 text-primary" />
+            <Brain className="h-8 w-8 text-emerald-500" />
           </div>
           <p className="text-base font-semibold text-foreground mb-2">Your insight engine is waiting</p>
           <p className="text-sm text-muted-foreground mb-6 leading-relaxed max-w-xs mx-auto">
@@ -592,8 +585,7 @@ export default function Insights() {
           </p>
           <Link href="/">
             <button
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-              style={{ background: "linear-gradient(135deg, #a78bfa, #818cf8)" }}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
             >
               Go to Today's check-in
             </button>
@@ -608,20 +600,16 @@ export default function Insights() {
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl p-4"
-              style={{
-                background: "linear-gradient(135deg, rgba(167,139,250,0.12), rgba(129,140,248,0.08))",
-                border: "1px solid rgba(167,139,250,0.2)",
-              }}
+              className="rounded-[14px] bg-card border border-border p-4"
             >
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="text-xs font-medium text-purple-300 uppercase tracking-wider">This Week</p>
+                  <p className="text-xs font-medium text-emerald-500 uppercase tracking-wider">This Week</p>
                   <p className="text-sm text-muted-foreground">{weeklyStats.checkIns} readings · top emotion: <span className="text-foreground font-medium capitalize">{weeklyStats.topEmotion}</span></p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-muted-foreground">Personal baseline</p>
-                  <p className="text-xs text-purple-300 font-medium">{baseline ? `${baseline.sampleCount} data points` : "Building..."}</p>
+                  <p className="text-xs text-emerald-500 font-medium">{baseline ? `${baseline.sampleCount} data points` : "Building..."}</p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -653,8 +641,7 @@ export default function Insights() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.08 }}
-              className="rounded-2xl p-4"
-              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
+              className="rounded-[14px] bg-card border border-border p-4"
             >
               {/* Header + period switcher */}
               <div className="flex items-center justify-between mb-3">
@@ -663,18 +650,17 @@ export default function Insights() {
                   <p className="text-[10px] text-muted-foreground">Daily averages · personal baseline</p>
                 </div>
                 <div
-                  className="flex gap-1 rounded-xl p-1"
-                  style={{ background: "rgba(255,255,255,0.06)" }}
+                  className="flex gap-1 rounded-xl p-1 bg-muted/30"
                 >
                   {(["7d", "30d"] as const).map(p => (
                     <button
                       key={p}
                       onClick={() => setTrendPeriod(p)}
-                      className="text-[11px] font-semibold px-3 py-1 rounded-lg border-none cursor-pointer transition-all duration-150"
-                      style={{
-                        background: trendPeriod === p ? "rgba(167,139,250,0.25)" : "transparent",
-                        color: trendPeriod === p ? "#a78bfa" : "var(--muted-foreground)",
-                      }}
+                      className={`text-[11px] font-semibold px-3 py-1 rounded-lg border-none cursor-pointer transition-all duration-150 ${
+                        trendPeriod === p
+                          ? "bg-emerald-500/20 text-emerald-500"
+                          : "text-muted-foreground"
+                      }`}
                     >
                       {p.toUpperCase()}
                     </button>
@@ -716,7 +702,7 @@ export default function Insights() {
                       <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 2" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 2" stroke="hsl(var(--border))" strokeOpacity={0.5} vertical={false} />
                   <XAxis
                     dataKey="label"
                     tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
@@ -734,11 +720,11 @@ export default function Insights() {
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "rgba(15,15,25,0.92)", border: "1px solid rgba(255,255,255,0.1)",
+                      background: "hsl(var(--card))", border: "1px solid hsl(var(--border))",
                       borderRadius: 10, fontSize: 11, padding: "6px 10px",
                     }}
                     formatter={(v: number, name: string) => [`${v}%`, name]}
-                    labelStyle={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: 10 }}
                   />
                   {/* Personal baseline lines */}
                   {baseline && (
@@ -768,17 +754,12 @@ export default function Insights() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="rounded-2xl p-4"
-              style={{
-                background: "var(--glass-bg)",
-                border: "1px solid var(--glass-border)",
-              }}
+              className="rounded-[14px] bg-card border border-border p-4"
             >
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Latest Reading</p>
               <div className="flex items-center gap-4">
                 <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center text-lg"
-                  style={{ background: "rgba(167,139,250,0.15)" }}
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center text-lg bg-emerald-500/10"
                 >
                   {latest.dominantEmotion === "happy" ? "😊" :
                    latest.dominantEmotion === "sad" ? "😔" :
@@ -791,7 +772,7 @@ export default function Insights() {
                   <p className="text-xs text-muted-foreground">
                     Stress {pct(latest.stress)} · Focus {pct(latest.focus)}
                     {baseline && (
-                      <span className="ml-1 text-purple-400">
+                      <span className="ml-1 text-emerald-500">
                         · {latest.stress < baseline.avgStress ? "↓ below" : "↑ above"} your avg stress
                       </span>
                     )}
@@ -827,11 +808,7 @@ export default function Insights() {
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl p-4"
-            style={{
-              background: "var(--glass-bg)",
-              border: "1px solid var(--glass-border)",
-            }}
+            className="rounded-[14px] bg-card border border-border p-4"
           >
             {emotionHistory.length > 0 && (
               <div className="mb-4">

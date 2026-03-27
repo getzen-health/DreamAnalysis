@@ -28,19 +28,19 @@ const CURRENT_USER = getParticipantId();
 type SleepStage = "Wake" | "N1" | "N2" | "N3" | "REM";
 
 const STAGE_COLORS: Record<SleepStage, string> = {
-  Wake:  "hsl(30, 90%, 55%)",
-  N1:    "hsl(48, 90%, 55%)",
-  N2:    "hsl(210, 80%, 55%)",
-  N3:    "hsl(240, 65%, 55%)",
-  REM:   "hsl(270, 75%, 60%)",
+  Wake:  "hsl(30, 80%, 55%)",
+  N1:    "hsl(48, 80%, 55%)",
+  N2:    "hsl(210, 70%, 55%)",
+  N3:    "hsl(220, 65%, 50%)",
+  REM:   "hsl(200, 75%, 55%)",
 };
 
 const STAGE_BG: Record<SleepStage, string> = {
-  Wake:  "hsl(30, 90%, 55%, 0.12)",
-  N1:    "hsl(48, 90%, 55%, 0.12)",
-  N2:    "hsl(210, 80%, 55%, 0.12)",
-  N3:    "hsl(240, 65%, 55%, 0.12)",
-  REM:   "hsl(270, 75%, 60%, 0.12)",
+  Wake:  "hsl(30, 80%, 55%, 0.08)",
+  N1:    "hsl(48, 80%, 55%, 0.08)",
+  N2:    "hsl(210, 70%, 55%, 0.08)",
+  N3:    "hsl(220, 65%, 50%, 0.08)",
+  REM:   "hsl(200, 75%, 55%, 0.08)",
 };
 
 const STAGE_DESCRIPTION: Record<SleepStage, string> = {
@@ -339,14 +339,14 @@ export default function SleepSession() {
 
         {/* No-device notice */}
         {!isStreaming && (
-          <div className="flex items-center gap-3 p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5 text-sm text-yellow-500">
+          <div className="flex items-center gap-3 p-3 rounded-[14px] border border-border bg-card text-sm text-muted-foreground">
             <Moon className="h-4 w-4 shrink-0 opacity-60" />
             No EEG connected — this page still works from recent sleep and health data. Live stages shown here use a preview cycle until EEG is added.
           </div>
         )}
 
         {/* Recent sleep stats */}
-        <Card className="glass-card p-5">
+        <Card className="rounded-[14px] bg-card border border-border p-5">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-medium">Recent Sleep</h3>
@@ -461,8 +461,8 @@ export default function SleepSession() {
 
         {/* Current sleep stage — large display */}
         <Card
-          className="glass-card p-8 rounded-2xl flex flex-col items-center gap-4"
-          style={{ borderColor: stageColor + "40", background: stageBg }}
+          className="rounded-[14px] bg-card border border-border p-8 flex flex-col items-center gap-4"
+          style={{ borderColor: stageColor + "30", background: stageBg }}
         >
           <BrainCircuit className="h-8 w-8" style={{ color: stageColor }} />
 
@@ -486,7 +486,7 @@ export default function SleepSession() {
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
               In this stage
             </p>
-            <p className="text-lg font-mono text-foreground/70">
+            <p className="text-lg font-mono text-muted-foreground">
               {fmtDuration(stageTimeSec)}
             </p>
           </div>
@@ -496,9 +496,9 @@ export default function SleepSession() {
             <div
               className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium animate-pulse"
               style={{
-                background: "hsl(270, 75%, 60%, 0.15)",
-                border: "1px solid hsl(270, 75%, 60%, 0.4)",
-                color: "hsl(270, 75%, 70%)",
+                background: "hsl(200, 75%, 55%, 0.10)",
+                border: "1px solid hsl(200, 75%, 55%, 0.3)",
+                color: "hsl(200, 75%, 60%)",
               }}
             >
               <Sparkles className="h-4 w-4" />
@@ -508,16 +508,16 @@ export default function SleepSession() {
         </Card>
 
         {/* Dream count */}
-        <Card className="glass-card p-5 flex items-center gap-4">
+        <Card className="rounded-[14px] bg-card border border-border p-5 flex items-center gap-4">
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: "hsl(270, 75%, 60%, 0.12)" }}
+            style={{ background: "hsl(200, 75%, 55%, 0.08)" }}
           >
-            <Sparkles className="h-6 w-6" style={{ color: "hsl(270, 75%, 60%)" }} />
+            <Sparkles className="h-6 w-6" style={{ color: "hsl(200, 75%, 55%)" }} />
           </div>
           <div>
-            <p className="text-sm font-medium">Dreams detected this session</p>
-            <p className="text-2xl font-mono font-bold" style={{ color: "hsl(270, 75%, 60%)" }}>
+            <p className="text-sm font-medium text-foreground">Dreams detected this session</p>
+            <p className="text-2xl font-mono font-bold" style={{ color: "hsl(200, 75%, 55%)" }}>
               {dreamCount}
             </p>
           </div>
@@ -558,7 +558,7 @@ export default function SleepSession() {
       </div>
 
       {/* Score card */}
-      <Card className="glass-card p-8 rounded-2xl text-center space-y-3">
+      <Card className="rounded-[14px] bg-card border border-border p-8 text-center space-y-3">
         <div
           className="w-20 h-20 rounded-full mx-auto flex items-center justify-center"
           style={{
@@ -585,7 +585,7 @@ export default function SleepSession() {
       </Card>
 
       {/* Stage breakdown */}
-      <Card className="glass-card p-5">
+      <Card className="rounded-[14px] bg-card border border-border p-5">
         <h3 className="text-sm font-medium mb-4">Stage Breakdown</h3>
         <div className="space-y-3">
           {(["Wake", "N1", "N2", "N3", "REM"] as SleepStage[]).map(stage => {
@@ -614,28 +614,28 @@ export default function SleepSession() {
       </Card>
 
       {/* Hypnogram */}
-      <Card className="glass-card p-5">
+      <Card className="rounded-[14px] bg-card border border-border p-5">
         <div className="flex items-center gap-2 mb-3">
-          <BrainCircuit className="h-3.5 w-3.5 text-violet-400" />
-          <h3 className="text-sm font-medium">Sleep Architecture</h3>
-          <span className="text-[10px] font-mono text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded-full ml-auto">EEG</span>
+          <BrainCircuit className="h-3.5 w-3.5 text-primary" />
+          <h3 className="text-sm font-medium text-foreground">Sleep Architecture</h3>
+          <span className="text-[10px] font-mono text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded-full ml-auto">EEG</span>
         </div>
         <SleepHypnogram stageHistory={stageHistory} totalSeconds={elapsed} height={72} />
       </Card>
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="glass-card p-4 text-center">
+        <Card className="rounded-[14px] bg-card border border-border p-4 text-center">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Duration</p>
-          <p className="text-xl font-mono font-bold">{fmtDuration(elapsed)}</p>
+          <p className="text-xl font-mono font-bold text-foreground">{fmtDuration(elapsed)}</p>
         </Card>
-        <Card className="glass-card p-4 text-center">
+        <Card className="rounded-[14px] bg-card border border-border p-4 text-center">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Dreams</p>
-          <p className="text-xl font-mono font-bold" style={{ color: "hsl(270, 75%, 60%)" }}>
+          <p className="text-xl font-mono font-bold" style={{ color: "hsl(200, 75%, 55%)" }}>
             {dreamsDetected}
           </p>
         </Card>
-        <Card className="glass-card p-4 text-center">
+        <Card className="rounded-[14px] bg-card border border-border p-4 text-center">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">REM</p>
           <p className="text-xl font-mono font-bold" style={{ color: STAGE_COLORS.REM }}>
             {totalSeconds > 0 ? Math.round((tally.REM / totalSeconds) * 100) : 0}%
