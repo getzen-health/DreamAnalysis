@@ -26,7 +26,7 @@ export interface EmotionFingerprint {
 
 const PRESETS: Record<Quadrant, string[]> = {
   ha_pos: ["excited", "inspired", "euphoric", "motivated", "awe", "flow", "electric", "energized",
-           "playful", "confident", "fierce", "bold", "grateful", "proud", "radiant", "joyful"],
+           "playful", "confident", "fierce", "bold", "vibrant", "proud", "radiant", "joyful"],
   ha_neg: ["overwhelmed", "anxious", "scattered", "wired", "dread", "rage", "panicked", "frantic",
            "irritated", "restless", "tense", "on-edge", "desperate", "trapped", "chaotic", "alarmed"],
   la_pos: ["calm", "content", "grateful", "nostalgic", "tender", "serene", "fulfilled", "peaceful",
@@ -113,6 +113,9 @@ export class EmotionTaxonomy {
     let fp: EmotionFingerprint;
     if (existing) {
       const newCount = existing.sampleCount + 1;
+      // Quadrant is immutable after first creation — it reflects the user's first observed
+      // EEG state for this label. Downstream callers should use getQuadrant() live, not
+      // rely on the stored quadrant for accuracy over time.
       fp = {
         ...existing,
         centroid: runningAverageCentroid(existing.centroid, snapshot, newCount),
