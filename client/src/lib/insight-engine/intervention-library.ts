@@ -35,7 +35,7 @@ const EFFECTIVENESS_TIMEOUT_MS  =  2 * 60 * 60 * 1000;
 
 interface PendingEntry {
   tappedAt: string;
-  metric: string;
+  metric: DeviationMetric;
   baselineZScore: number;
 }
 
@@ -50,8 +50,10 @@ export class InterventionLibrary {
     return LIBRARY.find((i) => i.id === id);
   }
 
-  recordTap(interventionId: string, metric: string, baselineZScore: number): void {
+  recordTap(interventionId: string, metric: DeviationMetric, baselineZScore: number): void {
     const pending = this.loadPending();
+    // Intentional: re-tapping the same intervention resets the clock and baseline.
+    // The prior tap's window is abandoned — the new tap is the measurement anchor.
     pending[interventionId] = {
       tappedAt: new Date().toISOString(),
       metric,
@@ -60,7 +62,7 @@ export class InterventionLibrary {
     this.savePending(pending);
   }
 
-  checkEffectiveness(metric: string, currentZScore: number): EffectivenessResult[] {
+  checkEffectiveness(metric: DeviationMetric, currentZScore: number): EffectivenessResult[] {
     const pending = this.loadPending();
     const results: EffectivenessResult[] = [];
     const now = Date.now();
@@ -77,6 +79,9 @@ export class InterventionLibrary {
       const age = now - new Date(entry.tappedAt).getTime();
       if (age < EFFECTIVENESS_MIN_WAIT_MS) continue;
 
+      // effective = recovered within the measurement window.
+      // When age >= TIMEOUT: effective is false — the window has closed regardless
+      // of current z-score, so recovery cannot be attributed to the intervention.
       const effective =
         age < EFFECTIVENESS_TIMEOUT_MS &&
         entry.baselineZScore - currentZScore > EFFECTIVENESS_RECOVERY_Z;
