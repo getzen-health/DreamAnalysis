@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { logger } from "./logger";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import webpush from "web-push";
 import cron from "node-cron";
 import bcrypt from "bcryptjs";
@@ -40,6 +41,7 @@ import {
   userReadings,
   innerScores,
   streaks,
+  rateLimitEntries,
 } from "@shared/schema";
 import { wearableAdapters } from "../lib/wearables";
 import { computeCardioLoad } from "@shared/cardio";
@@ -57,6 +59,10 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
+
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
 
 // ── Auth helpers (Express) ────────────────────────────────────────────────
@@ -5438,6 +5444,87 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
       res.status(500).json({ error: "Failed to get streak status" });
     }
   });
+
+  // ── POST /api/morning-briefing ────────────────────────────────────────────
+    app.post("/api/morning-briefing", async (req, res) => {
+      const userId = getAuthUserId(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      if (!anthropic) return res.status(503).json({ error: "ANTHROPIC_API_KEY not configured" });
+
+      // Rate limit: 1 per user per UTC calendar day (DB-backed)
+      const dateKey = new Date().toISOString().slice(0, 10); // UTC YYYY-MM-DD
+      const rateLimitKey = `morning_briefing:${userId}:${dateKey}`;
+      try {
+        const existing = await db.select().from(rateLimitEntries).where(eq(rateLimitEntries.key, rateLimitKey)).limit(1);
+        if (existing.length > 0 && existing[0].count >= 1) {
+          return res.status(429).json({ error: "Already generated today", date: dateKey });
+        }
+        await db.insert(rateLimitEntries).values({ key: rateLimitKey, count: 1, windowStart: new Date() })
+          .onConflictDoUpdate({ target: rateLimitEntries.key, set: { count: 1 } });
+      } catch (err) {
+        logger.error({ err }, "Rate limit check failed for morning briefing");
+        // Fail open — allow the request
+      }
+
+      const body = req.body as {
+        sleepData: { totalHours: number | null; deepHours: number | null; remHours: number | null; efficiency: number | null; dataAvailability: "full" | "total_only" | "none" };
+        morningHrv: number | null;
+        hrvRange: { min: number; max: number } | null;
+        emotionSummary: { readingCount: number; avgStress: number; avgFocus: number; avgValence: number; dominantLabel: string; dominantMinutes: number };
+        patternSummaries: string[];
+        yesterdaySummary: string;
+      };
+
+      // Build sleep section of prompt
+      let sleepSection = "";
+      if (body.sleepData.dataAvailability === "full") {
+        sleepSection = `Sleep: ${body.sleepData.totalHours}h total, ${body.sleepData.deepHours}h deep, ${body.sleepData.remHours}h REM, ${body.sleepData.efficiency}% efficiency.`;
+      } else if (body.sleepData.dataAvailability === "total_only") {
+        sleepSection = `Sleep duration: ${body.sleepData.totalHours}h (stage data unavailable — health platform not connected).`;
+      } else {
+        sleepSection = ""; // no sleep data
+      }
+
+      const patternText = body.patternSummaries.length > 0
+        ? `Patterns discovered: ${body.patternSummaries.join("; ")}.`
+        : "";
+
+      const prompt = [
+        "You are a personal wellness AI. Analyze today's morning data and provide a concise, actionable briefing.",
+        sleepSection,
+        body.morningHrv != null
+          ? `Morning HRV: ${body.morningHrv}ms (your range: ${body.hrvRange?.min ?? "?"}-${body.hrvRange?.max ?? "?"}ms).`
+          : "",
+        `Yesterday: ${body.yesterdaySummary || "No prior data."}`,
+        `Emotion summary (last 24h): ${body.emotionSummary.readingCount} readings, avg stress ${(body.emotionSummary.avgStress * 100).toFixed(0)}%, avg focus ${(body.emotionSummary.avgFocus * 100).toFixed(0)}%, avg valence ${(body.emotionSummary.avgValence * 100).toFixed(0)}%, dominant emotion: ${body.emotionSummary.dominantLabel} for ${body.emotionSummary.dominantMinutes}min.`,
+        patternText,
+        'Return ONLY valid JSON matching exactly: {"stateSummary": "<3 sentences>", "actions": ["<action1>", "<action2>", "<action3>"], "forecast": {"label": "<short label>", "probability": <0-1>, "reason": "<one sentence>"}}',
+      ].filter(Boolean).join("\n");
+
+      const fallback = {
+        stateSummary: `Your stress is at ${(body.emotionSummary.avgStress * 100).toFixed(0)}% and focus at ${(body.emotionSummary.avgFocus * 100).toFixed(0)}%. Start the day with intention.`,
+        actions: ["Take 5 deep breaths", "Set one clear goal for today", "Move your body for 10 minutes"] as [string, string, string],
+        forecast: { label: "Steady", probability: 0.6, reason: "Based on your recent patterns" },
+      };
+
+      try {
+        const message = await anthropic.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 400,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const rawText = message.content[0].type === "text" ? message.content[0].text : "";
+        const parsed = JSON.parse(rawText);
+        if (!Array.isArray(parsed.actions) || parsed.actions.length !== 3) {
+          return res.json(fallback);
+        }
+        return res.json(parsed);
+      } catch (err) {
+        logger.warn({ err }, "Morning briefing LLM failed — returning fallback");
+        return res.json(fallback);
+      }
+    });
 
   const httpServer = createServer(app);
   return httpServer;
