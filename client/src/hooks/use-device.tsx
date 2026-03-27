@@ -524,11 +524,14 @@ function useDeviceInternal(): UseDeviceReturn {
                     timestamp: now,
                   }));
                   window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
-                  // Fire-and-forget: sync EEG emotion to Supabase emotion_history
+                  // Fire-and-forget: sync EEG emotion → localStorage + Supabase + Express DB
                   saveEmotionHistory(userIdRef.current, {
                     stress: Number(emotions.stress_index ?? 0.5),
                     focus: Number(emotions.focus_index ?? 0.5),
                     mood: Number(emotions.valence ?? 0),
+                    energy: Number(emotions.arousal ?? 0.5),
+                    valence: Number(emotions.valence ?? 0),
+                    arousal: Number(emotions.arousal ?? 0.5),
                     source: "eeg",
                     dominantEmotion: String(emotions.emotion),
                   }).catch(() => {});

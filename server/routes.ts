@@ -1657,6 +1657,20 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
     }
   });
 
+  // POST /api/emotion-readings — insert a single real-time emotion reading (from EEG or voice)
+  app.post("/api/emotion-readings", async (req, res) => {
+    try {
+      const parsed = insertEmotionReadingSchema.parse(req.body);
+      const reading = await storage.createEmotionReading(parsed);
+      res.json(reading);
+    } catch (error: any) {
+      const detail = error?.issues
+        ? error.issues.map((i: any) => `${i.path?.join(".")}: ${i.message}`).join("; ")
+        : error?.message;
+      res.status(400).json({ message: "Invalid emotion reading", detail });
+    }
+  });
+
   // POST /api/emotion-readings/batch — bulk insert from ML backend on session stop
   app.post("/api/emotion-readings/batch", async (req, res) => {
     try {

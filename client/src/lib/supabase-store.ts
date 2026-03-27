@@ -204,12 +204,19 @@ export interface EmotionHistoryEntry {
   stress: number;
   focus: number;
   mood: number;
+  energy?: number;      // 0-1, from EEG or health data
+  valence?: number;     // -1 to 1, from EEG FAA
+  arousal?: number;     // 0-1, from EEG beta/alpha ratio
   source?: string;
   dominantEmotion?: string;
+  sessionId?: string;
   created_at?: string;
 }
 
 export async function saveEmotionHistory(userId: string, entry: EmotionHistoryEntry): Promise<void> {
+  const timestamp = entry.created_at ?? new Date().toISOString();
+
+  // 1. Write to localStorage cache (immediate, offline-capable)
   const key = "ndw_emotion_history";
   const existing = safeLocalGet<any[]>(key, []);
   existing.push({
@@ -217,15 +224,34 @@ export async function saveEmotionHistory(userId: string, entry: EmotionHistoryEn
     happiness: entry.mood,
     focus: entry.focus,
     dominantEmotion: entry.dominantEmotion ?? "neutral",
-    timestamp: entry.created_at ?? new Date().toISOString(),
+    timestamp,
   });
-  // Cap at 200, prune older than 7 days
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const pruned = existing
     .filter((e: any) => new Date(e.timestamp).getTime() > cutoff)
     .slice(-200);
   safeLocalSet(key, pruned);
 
+  // 2. POST to Express /api/emotion-readings → persists to Supabase via Drizzle
+  //    Fire-and-forget: never block the caller, never throw
+  fetch(`/api/emotion-readings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userId,
+      stress: entry.stress,
+      happiness: entry.mood,
+      focus: entry.focus,
+      energy: entry.energy ?? 0.5,
+      dominantEmotion: entry.dominantEmotion ?? "neutral",
+      valence: entry.valence ?? null,
+      arousal: entry.arousal ?? null,
+      sessionId: entry.sessionId ?? null,
+      timestamp,
+    }),
+  }).catch(() => {}); // non-fatal
+
+  // 3. Write to Supabase emotion_history table (analytics / quick reads)
   const sb = await getSupabaseIfAllowed();
   if (!sb) return;
   try {
@@ -235,7 +261,7 @@ export async function saveEmotionHistory(userId: string, entry: EmotionHistoryEn
       focus: entry.focus,
       mood: entry.mood,
       source: entry.source ?? null,
-      created_at: entry.created_at ?? new Date().toISOString(),
+      created_at: timestamp,
     });
   } catch (err) {
     console.warn("[supabase-store] saveEmotionHistory failed:", err);
