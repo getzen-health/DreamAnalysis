@@ -1052,7 +1052,7 @@ async function brainHistory(req: VercelRequest, res: VercelResponse, userId: str
 }
 
 async function emotionReadingsBatch(req: VercelRequest, res: VercelResponse) {
-  const body = parseBody(req);
+  const body = await parseRequestBody(req) as any;
   const readings = body?.readings;
   if (!Array.isArray(readings) || readings.length === 0) return badRequest(res, 'readings array required');
   const db = getDb();
@@ -1073,7 +1073,7 @@ async function emotionReadingsBatch(req: VercelRequest, res: VercelResponse) {
 }
 
 async function userReadingsPost(req: VercelRequest, res: VercelResponse) {
-  const body = parseBody(req);
+  const body = await parseRequestBody(req) as any;
   if (!body?.userId) return badRequest(res, 'userId required');
   const db = getDb();
   const [row] = await db.insert(schema.userReadings).values({
@@ -1090,7 +1090,7 @@ async function userReadingsPost(req: VercelRequest, res: VercelResponse) {
 }
 
 async function foodLog(req: VercelRequest, res: VercelResponse) {
-  const body = parseBody(req);
+  const body = await parseRequestBody(req) as any;
   if (!body?.userId) return badRequest(res, 'userId required');
   const db = getDb();
   const [row] = await db.insert(schema.foodLogs).values({
