@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,10 +16,13 @@ import {
   Plus,
   BookOpen,
   LayoutGrid,
+  Share2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { EmotionStrip } from "@/components/emotion-strip";
 import { loadActiveWorkout } from "@/lib/workout-types";
+import { SharePanel } from "@/components/share-panel";
+import type { ShareData } from "@/components/share-card-generator";
 
 /* ---------- types ---------- */
 
@@ -208,6 +211,7 @@ export default function WorkoutPage() {
 
   const isSyncing = status === "syncing";
   const inProgressWorkout = loadActiveWorkout();
+  const [shareOpen, setShareOpen] = useState(false);
 
   /* ---- Query workout history ---- */
   const { data: workoutHistory = [] } = useQuery<Workout[]>({
@@ -238,6 +242,15 @@ export default function WorkoutPage() {
     return { totalMin, totalCal, count };
   }, [thisWeekWorkouts]);
 
+  const shareData: ShareData = useMemo(() => {
+    const latest = todayWorkouts[0];
+    return {
+      workoutName: latest?.name || (latest ? formatWorkoutType(latest.workoutType) : "Workout"),
+      durationMin: latest?.durationMin ? Math.round(parseFloat(latest.durationMin)) : undefined,
+      caloriesBurned: latest?.caloriesBurned ? Math.round(parseFloat(latest.caloriesBurned)) : undefined,
+    };
+  }, [todayWorkouts]);
+
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4 pb-32">
       {/* Header */}
@@ -251,10 +264,17 @@ export default function WorkoutPage() {
           <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-ndw-recovery to-ndw-stress">
             <Dumbbell className="h-5 w-5 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-bold tracking-tight text-foreground">Workouts</h1>
             <p className="text-xs text-muted-foreground">Track and log your training</p>
           </div>
+          <button
+            onClick={() => setShareOpen(true)}
+            className="p-2 rounded-xl hover:bg-muted/60 transition-colors"
+            aria-label="Share workout"
+          >
+            <Share2 className="h-4.5 w-4.5 text-muted-foreground" />
+          </button>
         </div>
         <EmotionStrip />
       </motion.div>
@@ -442,6 +462,14 @@ export default function WorkoutPage() {
           </Button>
         </motion.div>
       </div>
+
+      {/* Share panel */}
+      <SharePanel
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        data={shareData}
+        defaultTemplate="workout-summary"
+      />
     </div>
   );
 }
