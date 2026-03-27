@@ -35,6 +35,8 @@ import { MoodPicker } from "@/components/mood-picker";
 import { RecoveryInterventions } from "@/components/recovery-interventions";
 import { EnergyTimeline } from "@/components/energy-timeline";
 import { useScores } from "@/hooks/use-scores";
+import { generateInsights, type CorrelationInput } from "@/lib/cross-modal-insights";
+import { PersonalInsightsCard } from "@/components/personal-insights-card";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1046,6 +1048,48 @@ export default function Today() {
     return { ...result, narrative };
   }, [brainTotals, latestPayload]);
 
+  // ── Cross-modal personal insights ────────────────────────────────────────
+  const personalInsights = useMemo(() => {
+    // Build CorrelationInput from available data sources
+    const emotionHistory: CorrelationInput["emotionHistory"] = (recentHistory ?? []).map((r) => ({
+      stress: r.stress ?? 0.5,
+      focus: r.focus ?? 0.5,
+      valence: r.valence ?? 0,
+      energy: r.energy ?? 0.5,
+      timestamp: (r as any).timestamp ?? (r as any).created_at ?? new Date().toISOString(),
+    }));
+
+    const foodLogEntries: CorrelationInput["foodLogs"] = (foodLogs ?? []).map((l) => ({
+      mealType: "meal",
+      totalCalories: l.totalCalories ?? 0,
+      loggedAt: l.loggedAt ?? l.date ?? "",
+    }));
+
+    // Sleep and steps from health sync payload — build single-day entries when available
+    const sleepDataArr: CorrelationInput["sleepData"] = [];
+    const stepsArr: CorrelationInput["steps"] = [];
+    if (latestPayload) {
+      const todayDate = new Date().toISOString().slice(0, 10);
+      if (latestPayload.sleep_total_hours || latestPayload.sleep_efficiency) {
+        sleepDataArr.push({
+          quality: latestPayload.sleep_efficiency ?? 0,
+          duration: latestPayload.sleep_total_hours ?? 0,
+          date: todayDate,
+        });
+      }
+      if (latestPayload.steps_today) {
+        stepsArr.push({ count: latestPayload.steps_today, date: todayDate });
+      }
+    }
+
+    return generateInsights({
+      emotionHistory,
+      foodLogs: foodLogEntries,
+      sleepData: sleepDataArr,
+      steps: stepsArr,
+    });
+  }, [recentHistory, foodLogs, latestPayload]);
+
   // Persist inner score to DB (fire-and-forget)
   useEffect(() => {
     if (innerScore.score != null && userId) {
@@ -1382,6 +1426,11 @@ export default function Today() {
               delta={null}
               trend={[]}
             />
+          </motion.div>
+
+          {/* ── 2b. Personal Insights (cross-modal correlations) ── */}
+          <motion.div variants={itemVariants} className="mb-4">
+            <PersonalInsightsCard insights={personalInsights} />
           </motion.div>
 
           {/* ── 3. Stress & Energy Row (mini cards) ── */}
