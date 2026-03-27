@@ -63,43 +63,43 @@ describe("BottomTabs", () => {
     currentLocation = "/";
     renderWithProviders(<BottomTabs />);
     const todayLabel = screen.getByText("Today");
-    expect(todayLabel.className).toContain("text-primary");
+    expect(todayLabel.className).toContain("text-emerald-500");
   });
 
   it("does not highlight non-active tabs when on Today", () => {
     currentLocation = "/";
     renderWithProviders(<BottomTabs />);
     const discoverLabel = screen.getByText("Discover");
-    expect(discoverLabel.className).not.toContain("text-primary");
+    expect(discoverLabel.className).not.toContain("text-emerald-500");
   });
 
   it("highlights Discover tab when location is /discover", () => {
     currentLocation = "/discover";
     renderWithProviders(<BottomTabs />);
     const discoverLabel = screen.getByText("Discover");
-    expect(discoverLabel.className).toContain("text-primary");
+    expect(discoverLabel.className).toContain("text-emerald-500");
     const todayLabel = screen.getByText("Today");
-    expect(todayLabel.className).not.toContain("text-primary");
+    expect(todayLabel.className).not.toContain("text-emerald-500");
   });
 
   it("highlights Discover tab when location is /nutrition (alias)", () => {
     currentLocation = "/nutrition";
     renderWithProviders(<BottomTabs />);
     const discoverLabel = screen.getByText("Discover");
-    expect(discoverLabel.className).toContain("text-primary");
+    expect(discoverLabel.className).toContain("text-emerald-500");
   });
 
   it("highlights You tab when location is /you", () => {
     currentLocation = "/you";
     renderWithProviders(<BottomTabs />);
     const youLabel = screen.getByText("You");
-    expect(youLabel.className).toContain("text-primary");
+    expect(youLabel.className).toContain("text-emerald-500");
   });
 
   it("highlights You tab when location is /settings (alias path)", () => {
     currentLocation = "/settings";
     renderWithProviders(<BottomTabs />);
     const youLabel = screen.getByText("You");
-    expect(youLabel.className).toContain("text-primary");
+    expect(youLabel.className).toContain("text-emerald-500");
   });
 });

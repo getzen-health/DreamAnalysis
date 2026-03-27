@@ -75,24 +75,24 @@ export default {
           purple: "var(--neural-purple)",
           green: "var(--neural-green)",
         },
-        // Premium score colors
-        'ndw-bg': '#0a0e17',
-        'ndw-card': '#111827',
-        'ndw-border': '#1f2937',
-        'ndw-text': '#e8e0d4',
-        'ndw-muted': '#8b8578',
-        'ndw-recovery': '#0891b2',
-        'ndw-sleep': '#7c3aed',
-        'ndw-strain': '#e879a8',
-        'ndw-stress': '#ea580c',
-        'ndw-nutrition': '#d4a017',
-        'ndw-energy': '#d946ef',
+        // Bevel-style score colors
+        'ndw-bg': '#FAFAFA',
+        'ndw-card': '#FFFFFF',
+        'ndw-border': '#E5E7EB',
+        'ndw-text': '#131313',
+        'ndw-muted': '#6B7280',
+        'ndw-recovery': '#34D399',
+        'ndw-sleep': '#60A5FA',
+        'ndw-strain': '#FB923C',
+        'ndw-stress': '#F87171',
+        'ndw-nutrition': '#F59E0B',
+        'ndw-energy': '#34D399',
       },
       fontFamily: {
-        sans: ["var(--font-sans)"],
+        sans: ["'Public Sans'", "system-ui", "-apple-system", "sans-serif"],
         serif: ["Georgia", "serif"],
         mono: ["var(--font-mono)"],
-        futuristic: ["var(--font-futuristic)"],
+        futuristic: ["'Public Sans'", "system-ui", "-apple-system", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {
@@ -112,12 +112,12 @@ export default {
           },
         },
         'pulse-glow': {
-          '0%, 100%': { 
-            boxShadow: '0 0 20px rgba(0, 217, 255, 0.3)',
+          '0%, 100%': {
+            boxShadow: '0 0 20px rgba(52, 211, 153, 0.2)',
             transform: 'scale(1)'
           },
-          '50%': { 
-            boxShadow: '0 0 30px rgba(0, 217, 255, 0.6)',
+          '50%': {
+            boxShadow: '0 0 30px rgba(52, 211, 153, 0.4)',
             transform: 'scale(1.02)'
           },
         },
