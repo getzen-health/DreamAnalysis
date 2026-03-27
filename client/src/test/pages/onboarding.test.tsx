@@ -192,7 +192,7 @@ describe("Onboarding — Step 3b (EEG calibration)", () => {
 
   it("shows the 2 minutes tagline", () => {
     renderEegStep();
-    expect(screen.getByText(/Muse 2 only · 2 minutes · Done once/)).toBeInTheDocument();
+    expect(screen.getByText(/EEG headband · 2 minutes · Done once/)).toBeInTheDocument();
   });
 
   it("shows the no-headset simulation notice when device not connected", () => {

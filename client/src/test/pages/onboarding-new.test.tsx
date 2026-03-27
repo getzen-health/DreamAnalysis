@@ -51,7 +51,7 @@ describe("OnboardingNew page", () => {
     renderWithProviders(<OnboardingNew />);
     expect(screen.getByText("Choose your setup path")).toBeInTheDocument();
     expect(screen.getByText("Voice + Health")).toBeInTheDocument();
-    expect(screen.getByText("Muse 2 EEG")).toBeInTheDocument();
+    expect(screen.getByText("EEG Headband")).toBeInTheDocument();
   });
 
   it("opens the voice stage and starts recording", () => {

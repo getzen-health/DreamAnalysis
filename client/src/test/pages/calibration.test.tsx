@@ -46,17 +46,17 @@ describe("CalibrationPage", () => {
 
   it("shows mode selector with both options", () => {
     renderWithProviders(<CalibrationPage />);
-    // Use exact button names to avoid ambiguity with other "Muse 2" text on page
-    expect(screen.getByRole("button", { name: /Muse 2 device/ })).toBeInTheDocument();
+    // Use exact button names to avoid ambiguity with other text on page
+    expect(screen.getByRole("button", { name: /EEG headband/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Simulation \(no device\)/ })).toBeInTheDocument();
   });
 
   it("shows device not connected warning after switching to real-device mode", () => {
     renderWithProviders(<CalibrationPage />);
     // Page auto-enables simulation mode on mount (no device). Switch to real-device.
-    const museBtn = screen.getByRole("button", { name: /Muse 2 device/ });
+    const museBtn = screen.getByRole("button", { name: /EEG headband/ });
     fireEvent.click(museBtn);
-    expect(screen.getByText("Muse 2 not connected")).toBeInTheDocument();
+    expect(screen.getByText("EEG headband not connected")).toBeInTheDocument();
   });
 
   it("shows 'Not started' ring label in idle state", () => {

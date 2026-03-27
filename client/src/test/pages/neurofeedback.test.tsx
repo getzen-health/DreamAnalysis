@@ -115,7 +115,7 @@ describe("Neurofeedback page", () => {
   it("shows step-by-step instructions in How It Works", async () => {
     renderWithProviders(<Neurofeedback />);
     await waitFor(() => {
-      expect(screen.getByText(/Connect Muse 2/)).toBeInTheDocument();
+      expect(screen.getByText(/Connect EEG headband/)).toBeInTheDocument();
       expect(screen.getByText(/Calibration/)).toBeInTheDocument();
     });
   });

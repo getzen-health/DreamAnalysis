@@ -270,6 +270,6 @@ describe("HealthSyncDashboard", () => {
     expect(screen.getByText("Oura Ring")).toBeInTheDocument();
     expect(screen.getByText("Garmin")).toBeInTheDocument();
     expect(screen.getByText("Whoop")).toBeInTheDocument();
-    expect(screen.getByText("Muse 2 EEG")).toBeInTheDocument();
+    expect(screen.getByText("EEG Headband")).toBeInTheDocument();
   });
 });

@@ -160,7 +160,7 @@ describe("WelcomeIntro — Step 3: Device selection", () => {
 
   it("shows Muse and Fitness Tracker device options", () => {
     goToStep3();
-    expect(screen.getByText("Muse 2 / Muse S")).toBeInTheDocument();
+    expect(screen.getByText("EEG Headband (Muse 2 / Muse S)")).toBeInTheDocument();
     expect(screen.getByText("Fitness Tracker / Smartwatch")).toBeInTheDocument();
   });
 
@@ -175,7 +175,7 @@ describe("WelcomeIntro — Step 3: Device selection", () => {
 
   it("shows Muse info card when Muse is selected", () => {
     goToStep3();
-    fireEvent.click(screen.getByText("Muse 2 / Muse S"));
+    fireEvent.click(screen.getByText("EEG Headband (Muse 2 / Muse S)"));
     expect(
       screen.getByText(/connect your Muse headband from the Settings page/)
     ).toBeInTheDocument();
@@ -183,7 +183,7 @@ describe("WelcomeIntro — Step 3: Device selection", () => {
 
   it("hides no-device reassurance when a device is selected", () => {
     goToStep3();
-    fireEvent.click(screen.getByText("Muse 2 / Muse S"));
+    fireEvent.click(screen.getByText("EEG Headband (Muse 2 / Muse S)"));
     expect(
       screen.queryByText(
         /Voice analyses and manual logging work great on their own/
@@ -193,13 +193,13 @@ describe("WelcomeIntro — Step 3: Device selection", () => {
 
   it("toggles device selection off when clicked again", () => {
     goToStep3();
-    fireEvent.click(screen.getByText("Muse 2 / Muse S"));
+    fireEvent.click(screen.getByText("EEG Headband (Muse 2 / Muse S)"));
     // Muse info card visible
     expect(
       screen.getByText(/connect your Muse headband from the Settings page/)
     ).toBeInTheDocument();
     // Deselect
-    fireEvent.click(screen.getByText("Muse 2 / Muse S"));
+    fireEvent.click(screen.getByText("EEG Headband (Muse 2 / Muse S)"));
     // Back to no-device reassurance
     expect(
       screen.getByText(
