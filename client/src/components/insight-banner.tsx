@@ -56,7 +56,7 @@ export function InsightBanner({ events, onDismiss, onCTA, suggestedLabel }: Prop
             {metricLabel.charAt(0).toUpperCase() + metricLabel.slice(1)} is {dir} — {durationText}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {(event.currentValue * 100).toFixed(0)}% vs your usual {(event.baselineValue * 100).toFixed(0)}%
+            {(event.currentValue * 100).toFixed(0)}% vs your usual {(event.baselineMean * 100).toFixed(0)}%
           </p>
         </div>
         <button
