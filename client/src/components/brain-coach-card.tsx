@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import { Zap, Brain, Moon, Heart } from "lucide-react";
 import { cardVariants } from "@/lib/animations";
 import type { LucideIcon } from "lucide-react";
+import type { DeviationEvent } from "@/lib/insight-engine";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ export interface BrainCoachProps {
   strainScore: number | null;
   avgFocus: number | null;   // 0-1 scale from EEG
   avgValence: number | null; // -1 to 1 from EEG
+  deviationEvents?: DeviationEvent[];
 }
 
 interface Recommendation {
@@ -35,7 +37,7 @@ interface Recommendation {
 // ── Rule engine ────────────────────────────────────────────────────────────
 
 export function buildRecommendations(props: BrainCoachProps): Recommendation[] {
-  const { recoveryScore, sleepScore, stressScore, avgFocus, avgValence } = props;
+  const { recoveryScore, sleepScore, stressScore, avgFocus, avgValence, deviationEvents } = props;
 
   // No data at all — return empty (caller renders empty state)
   const hasAnyData =
@@ -43,11 +45,59 @@ export function buildRecommendations(props: BrainCoachProps): Recommendation[] {
     sleepScore !== null ||
     stressScore !== null ||
     avgFocus !== null ||
-    avgValence !== null;
+    avgValence !== null ||
+    (deviationEvents !== undefined && deviationEvents.length > 0);
 
   if (!hasAnyData) return [];
 
   const recs: Recommendation[] = [];
+
+  // Deviation-aware recommendations — run first, highest priority.
+  // Only fires when a deviation event exceeds 1.5 SD from the user's own baseline.
+  if (deviationEvents && deviationEvents.length > 0) {
+    const primaryEvent = deviationEvents.find(e => Math.abs(e.zScore) > 1.5);
+    if (primaryEvent) {
+      const directionLabel = primaryEvent.direction === "high" ? "elevated" : "below";
+      const sdAmount = Math.abs(primaryEvent.zScore).toFixed(1);
+      const durationSuffix =
+        primaryEvent.durationMinutes > 2
+          ? ` This has been sustained for ${Math.round(primaryEvent.durationMinutes)} minutes.`
+          : "";
+      const coachingMessage =
+        `Your ${primaryEvent.metric} is ${directionLabel} your baseline by ${sdAmount} SD.${durationSuffix}`;
+
+      // Pick an icon and gradient based on which metric deviated
+      const metricIconMap: Record<string, LucideIcon> = {
+        stress: Zap,
+        focus: Brain,
+        valence: Heart,
+        arousal: Zap,
+        energy: Zap,
+        hrv: Heart,
+        sleep: Moon,
+        steps: Zap,
+      };
+      const metricGradientMap: Record<string, string> = {
+        stress: "from-amber-500/10 to-orange-600/5",
+        focus: "from-violet-500/10 to-violet-600/5",
+        valence: "from-pink-500/10 to-rose-600/5",
+        arousal: "from-cyan-500/10 to-sky-600/5",
+        energy: "from-emerald-500/10 to-green-600/5",
+        hrv: "from-pink-500/10 to-rose-600/5",
+        sleep: "from-indigo-500/10 to-violet-600/5",
+        steps: "from-emerald-500/10 to-green-600/5",
+      };
+
+      recs.push({
+        icon: metricIconMap[primaryEvent.metric] ?? Brain,
+        title: `${primaryEvent.metric.charAt(0).toUpperCase() + primaryEvent.metric.slice(1)} deviation detected`,
+        body: coachingMessage,
+        actionLabel: "View insights",
+        actionHref: "/insights",
+        gradientClass: metricGradientMap[primaryEvent.metric] ?? "from-violet-500/10 to-violet-600/5",
+      });
+    }
+  }
 
   // Rule 1: Both brain fog and poor recovery
   if (avgFocus !== null && recoveryScore !== null && avgFocus < 0.4 && recoveryScore < 50) {
