@@ -11,7 +11,7 @@ import { detectMoodPatterns, type EmotionReading, type MoodInsight } from "@/lib
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { getEmotionHistory as sbGetEmotionHistory, saveEmotionHistory as sbSaveEmotionHistory, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from "recharts";
 import {
   BedDouble, Brain, Heart, Sparkles, Wind, Moon, Target, BookOpen, Dumbbell,
@@ -566,6 +566,15 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
     });
   }, [allPoints, range]);
 
+  // Personal baseline — computed from ALL historical points (not just current range)
+  // This mirrors Oura's "relative to your own average" approach
+  const baseline = useMemo(() => {
+    if (allPoints.length < 5) return null;
+    const avgStress = Math.round(allPoints.reduce((s, p) => s + p.stress, 0) / allPoints.length);
+    const avgFocus = Math.round(allPoints.reduce((s, p) => s + p.focus, 0) / allPoints.length);
+    return { avgStress, avgFocus };
+  }, [allPoints]);
+
   // Current values from checkin data (reactive via useCheckinData hook)
   const current = useMemo(() => {
     if (!checkin) return null;
@@ -595,34 +604,40 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
             <div className="text-center">
               <div className="text-base font-bold text-[#e879a8]">{current.stress}%</div>
               <div className="text-[9px] text-foreground/35">Stress</div>
-              {trends?.stressDelta != null && Math.abs(trends.stressDelta) > 2 && (
+              {baseline ? (
                 <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                  {trends.stressDelta > 0 ? (
+                  {current.stress > baseline.avgStress ? (
                     <TrendingUp className="w-3 h-3 text-[#e879a8]" />
                   ) : (
-                    <TrendingDown className="w-3 h-3 text-[#0891b2]" />
+                    <TrendingDown className="w-3 h-3 text-[#4ade80]" />
                   )}
-                  <span className="text-[8px] text-foreground/35">
-                    {Math.abs(Math.round(trends.stressDelta))}% vs last
-                  </span>
+                  <span className="text-[8px] text-foreground/35">avg {baseline.avgStress}%</span>
                 </div>
-              )}
+              ) : trends?.stressDelta != null && Math.abs(trends.stressDelta) > 2 ? (
+                <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                  {trends.stressDelta > 0 ? <TrendingUp className="w-3 h-3 text-[#e879a8]" /> : <TrendingDown className="w-3 h-3 text-[#0891b2]" />}
+                  <span className="text-[8px] text-foreground/35">{Math.abs(Math.round(trends.stressDelta))}% vs last</span>
+                </div>
+              ) : null}
             </div>
             <div className="text-center">
               <div className="text-base font-bold text-[#6366f1]">{current.focus}%</div>
               <div className="text-[9px] text-foreground/35">Focus</div>
-              {trends?.focusDelta != null && Math.abs(trends.focusDelta) > 2 && (
+              {baseline ? (
                 <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                  {trends.focusDelta > 0 ? (
-                    <TrendingUp className="w-3 h-3 text-[#0891b2]" />
+                  {current.focus > baseline.avgFocus ? (
+                    <TrendingUp className="w-3 h-3 text-[#4ade80]" />
                   ) : (
                     <TrendingDown className="w-3 h-3 text-[#e879a8]" />
                   )}
-                  <span className="text-[8px] text-foreground/35">
-                    {Math.abs(Math.round(trends.focusDelta))}% vs last
-                  </span>
+                  <span className="text-[8px] text-foreground/35">avg {baseline.avgFocus}%</span>
                 </div>
-              )}
+              ) : trends?.focusDelta != null && Math.abs(trends.focusDelta) > 2 ? (
+                <div className="flex items-center justify-center gap-0.5 mt-0.5">
+                  {trends.focusDelta > 0 ? <TrendingUp className="w-3 h-3 text-[#0891b2]" /> : <TrendingDown className="w-3 h-3 text-[#e879a8]" />}
+                  <span className="text-[8px] text-foreground/35">{Math.abs(Math.round(trends.focusDelta))}% vs last</span>
+                </div>
+              ) : null}
             </div>
           </div>
         )}
@@ -674,6 +689,13 @@ function EmotionsOverview({ userId, navigate, checkin }: { userId: string; navig
               />
               <Area type="monotone" dataKey="stress" stroke="#e879a8" fill="url(#discStressG)" strokeWidth={2} dot={false} activeDot={false} name="Stress" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
               <Area type="monotone" dataKey="focus" stroke="#6366f1" fill="url(#discFocusG)" strokeWidth={2} dot={false} activeDot={false} name="Focus" isAnimationActive={true} animationDuration={1200} animationEasing="ease-out" />
+              {/* Personal baseline reference lines — your average vs today (Oura-style) */}
+              {baseline && (
+                <>
+                  <ReferenceLine y={baseline.avgStress} stroke="#e879a8" strokeDasharray="4 3" strokeOpacity={0.5} strokeWidth={1.5} label={{ value: `avg ${baseline.avgStress}%`, position: "insideTopRight", fontSize: 8, fill: "#e879a880" }} />
+                  <ReferenceLine y={baseline.avgFocus} stroke="#6366f1" strokeDasharray="4 3" strokeOpacity={0.5} strokeWidth={1.5} label={{ value: `avg ${baseline.avgFocus}%`, position: "insideBottomRight", fontSize: 8, fill: "#6366f180" }} />
+                </>
+              )}
               {/* Mood removed from chart -- shown as text label at top instead */}
             </AreaChart>
           </ResponsiveContainer>

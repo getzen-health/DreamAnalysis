@@ -112,29 +112,93 @@ function getMoodDotColor(valence: number): string {
   return "var(--secondary, #e879a8)";
 }
 
-function getAIInsight(checkin: EmotionCheckin | null): string {
-  if (!checkin) return "Record a voice note to get your personalized AI insight.";
+function getAIInsight(checkin: EmotionCheckin | null): { headline: string; body: string; action: string } {
+  if (!checkin) return {
+    headline: "No reading yet today",
+    body: "Tap the mic to do a voice check-in. The more you log, the smarter your insights get.",
+    action: "Start your first check-in",
+  };
   const stress = checkin.stress_index ?? 0.5;
   const focus = checkin.focus_index ?? 0.5;
   const valence = checkin.valence ?? 0;
   const emotion = checkin.emotion ?? "neutral";
 
+  // Read personal baseline from emotion history
+  let baselineStress = 0.5;
+  let baselineFocus = 0.5;
+  let baselineN = 0;
+  try {
+    const raw = localStorage.getItem("ndw_emotion_history");
+    if (raw) {
+      const hist = JSON.parse(raw) as Array<{ stress: number; focus: number }>;
+      if (hist.length >= 3) {
+        baselineStress = hist.reduce((s: number, e) => s + e.stress, 0) / hist.length;
+        baselineFocus = hist.reduce((s: number, e) => s + e.focus, 0) / hist.length;
+        baselineN = hist.length;
+      }
+    }
+  } catch { /* ignore */ }
+
+  const hasBaseline = baselineN >= 5;
+  const stressVsBaseline = hasBaseline ? stress - baselineStress : 0;
+  const focusVsBaseline = hasBaseline ? focus - baselineFocus : 0;
+
+  // State: flow (low stress + high focus)
   if (stress < 0.3 && focus > 0.6) {
-    return "Your stress is low and focus is high — great conditions for deep creative or analytical work.";
+    return {
+      headline: "You're primed for deep work",
+      body: hasBaseline
+        ? `Your stress (${Math.round(stress*100)}%) is ${Math.round(Math.abs(stressVsBaseline)*100)}pts below your usual — and focus is elevated. This combination is rare and won't last forever.`
+        : "Low stress and high focus are the neural signature of a flow state. Your prefrontal cortex is firing at full capacity.",
+      action: "Start your hardest task now — silence notifications and work for 45 minutes.",
+    };
   }
-  if (valence > 0.3 && stress < 0.4) {
-    return "Positive mood detected. This is a good window for collaborative tasks or learning something new.";
-  }
+  // State: high stress
   if (stress > 0.65) {
-    return "Elevated stress detected. Consider a 5-minute breathing exercise before your next task.";
+    return {
+      headline: hasBaseline && stressVsBaseline > 0.1
+        ? `Stress is ${Math.round(stressVsBaseline*100)}pts above your average`
+        : "Your stress is elevated",
+      body: "High-beta activity is suppressing prefrontal function — you're spending cognitive resources on threat detection instead of creative thinking.",
+      action: "Try 4-7-8 breathing (4s inhale, 7s hold, 8s exhale). Two cycles measurably lower cortisol.",
+    };
   }
+  // State: positive
+  if (valence > 0.3 && stress < 0.4) {
+    return {
+      headline: "Positive emotional state detected",
+      body: hasBaseline
+        ? `Your mood is ${Math.round(valence*100)}% positive — above your usual baseline. Positive affect enhances cognitive flexibility and memory consolidation.`
+        : "Positive mood enhances working memory, creative thinking, and social engagement. A window worth using.",
+      action: "Great time for learning, collaborative tasks, or connecting with someone important.",
+    };
+  }
+  // State: low mood
   if (emotion === "sad" || valence < -0.2) {
-    return "Your mood is leaning negative. Light movement or social connection may help shift your state.";
+    return {
+      headline: "Your mood is leaning low today",
+      body: "Negative valence narrows attentional focus — you may notice rumination or difficulty with complex decisions. This is your nervous system asking for recovery.",
+      action: "5 minutes of brisk walking or natural light exposure resets the cortisol cycle faster than any other intervention.",
+    };
   }
+  // State: low focus
   if (focus < 0.35) {
-    return "Focus is low right now. Short focused sprints (25-min Pomodoro) may help re-engage your attention.";
+    return {
+      headline: hasBaseline && focusVsBaseline < -0.1
+        ? `Focus is ${Math.round(Math.abs(focusVsBaseline)*100)}pts below your usual`
+        : "Focus is diffuse right now",
+      body: "Low beta activity and elevated alpha suggest mind-wandering mode. This often follows sustained cognitive effort or insufficient sleep last night.",
+      action: "5-min walk before your next task, or a 25-min Pomodoro to re-engage attention circuits.",
+    };
   }
-  return "Your brain state looks balanced. Stay consistent with your routines today.";
+  // Default: balanced
+  return {
+    headline: "Your brain state is balanced",
+    body: hasBaseline
+      ? `Stress at ${Math.round(stress*100)}% (your avg: ${Math.round(baselineStress*100)}%) and focus at ${Math.round(focus*100)}% (avg: ${Math.round(baselineFocus*100)}%) — you're tracking close to your baseline.`
+      : "A balanced state across stress, focus, and mood — your brain is in a receptive, general-purpose mode.",
+    action: "Good conditions for planning, reflection, or taking in new information.",
+  };
 }
 
 function getMoodLogTone(moodScore: number): { label: string; color: string } {
@@ -1236,7 +1300,7 @@ export default function Today() {
               className="flex justify-center mb-5 -mt-3"
             >
               <button
-                onClick={() => shareWellnessScore(readiness, emotion, aiInsight)}
+                onClick={() => shareWellnessScore(readiness, emotion, aiInsight.headline + " " + aiInsight.action)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[20px] border border-primary/25 bg-primary/[0.08] text-violet-400 text-sm font-semibold cursor-pointer transition-all duration-200 tracking-wide active:scale-[0.96]"
               >
                 <Share2 size={13} />
@@ -1293,20 +1357,39 @@ export default function Today() {
             </p>
           )}
 
-          {/* ── 4. AI Insight ── */}
+          {/* ── 4. Today's Top Story (Oura-style 3-layer insight) ── */}
           <motion.div
             variants={itemVariants}
-            className="glass-card p-5 mb-5"
+            className="mb-5"
+            style={{
+              borderRadius: 20,
+              background: "linear-gradient(135deg, rgba(167,139,250,0.1), rgba(129,140,248,0.06))",
+              border: "1px solid rgba(167,139,250,0.2)",
+              padding: 18,
+            }}
           >
-            <div className="flex items-center gap-1.5 mb-2">
-              <Sparkles size={13} className="text-primary" />
-              <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">
-                AI Insight
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <Sparkles size={12} style={{ color: "#a78bfa" }} />
+              <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#a78bfa" }}>
+                Today&apos;s Story
               </span>
             </div>
-            <p className="text-sm text-foreground m-0 leading-relaxed">
-              {aiInsight}
+            {/* Headline */}
+            <p className="text-sm font-semibold text-foreground leading-snug mb-2">
+              {aiInsight.headline}
             </p>
+            {/* Body / Context */}
+            <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+              {aiInsight.body}
+            </p>
+            {/* Action */}
+            <div
+              className="flex items-start gap-2 rounded-xl px-3 py-2.5"
+              style={{ background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.2)" }}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#a78bfa", marginTop: 1 }}>→</span>
+              <p className="text-xs font-medium" style={{ color: "#a78bfa" }}>{aiInsight.action}</p>
+            </div>
           </motion.div>
 
           {/* ── 4b. How Are You Feeling — MoodPicker ── */}
