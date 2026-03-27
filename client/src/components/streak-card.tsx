@@ -10,7 +10,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { getMLApiUrl } from "@/lib/ml-api";
+import { resolveUrl } from "@/lib/queryClient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,13 +60,36 @@ export function StreakCard({ userId }: StreakCardProps) {
   const { data, isLoading, isError } = useQuery<StreakStatus>({
     queryKey: ["streak-status", userId],
     queryFn: async () => {
-      const baseUrl = getMLApiUrl();
       const res = await fetch(
-        `${baseUrl}/api/streaks/status/${encodeURIComponent(userId)}`,
+        resolveUrl(`/api/streaks/${encodeURIComponent(userId)}`),
         { headers: { "Content-Type": "application/json" } }
       );
       if (!res.ok) throw new Error(`Streak status error: ${res.status}`);
-      return res.json() as Promise<StreakStatus>;
+      const raw = await res.json();
+      // Map Express response fields to the StreakStatus interface
+      const milestones = [3, 7, 14, 30, 60, 90, 100];
+      const currentStreak: number = raw.currentStreak ?? 0;
+      const longestStreak: number = raw.longestStreak ?? 0;
+      const todayCheckedIn: boolean = raw.todayCheckedIn ?? false;
+      const milestonesAchieved = milestones.filter(m => longestStreak >= m).map(m => `${m}d`);
+      const nextMilestone = milestones.find(m => m > currentStreak) ?? null;
+      // Map unlocked features based on streak length
+      const unlockedFeatures: string[] = [];
+      if (longestStreak >= 7) unlockedFeatures.push("weekly_patterns");
+      if (longestStreak >= 14) unlockedFeatures.push("supplement_correlations");
+      if (longestStreak >= 30) unlockedFeatures.push("monthly_report");
+      if (longestStreak >= 90) unlockedFeatures.push("personal_model");
+      return {
+        user_id: userId,
+        streak_days: currentStreak,
+        longest_streak: longestStreak,
+        today_checked_in: todayCheckedIn,
+        flexible_days_used: 0,
+        milestones_achieved: milestonesAchieved,
+        next_milestone: nextMilestone,
+        unlocked_features: unlockedFeatures,
+        last_checkin_date: raw.lastCheckinDate ?? null,
+      } satisfies StreakStatus;
     },
     staleTime: 60_000,
     retry: 1,

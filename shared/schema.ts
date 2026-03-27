@@ -864,6 +864,18 @@ export const insertInnerScoreSchema = createInsertSchema(innerScores).omit({
 export type EmotionalFitnessScore = typeof emotionalFitnessScores.$inferSelect;
 export type InsertEmotionalFitnessScore = z.infer<typeof insertEmotionalFitnessScoreSchema>;
 
+export const streaks = pgTable("streaks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull(),
+  currentStreak: integer("current_streak").notNull().default(0),
+  longestStreak: integer("longest_streak").notNull().default(0),
+  lastCheckinDate: text("last_checkin_date"),
+  checkinDates: jsonb("checkin_dates").notNull().default([]),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("streaks_user_idx").on(table.userId),
+]);
+
 export const moodLogs = pgTable("mood_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),

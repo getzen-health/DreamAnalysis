@@ -39,6 +39,7 @@ import {
   circadianProfiles,
   userReadings,
   innerScores,
+  streaks,
 } from "@shared/schema";
 import { wearableAdapters } from "../lib/wearables";
 import { computeCardioLoad } from "@shared/cardio";
@@ -5304,6 +5305,137 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to save reading correction");
       res.status(500).json({ error: "Failed to save correction" });
+    }
+  });
+
+  // ── Streak endpoints ──────────────────────────────────────────────────────
+
+  const STREAK_MILESTONES = [3, 7, 14, 30, 60, 90, 100];
+
+  function computeCurrentStreak(dates: string[], today: string): number {
+    const sorted = [...new Set(dates)].sort().reverse();
+    if (sorted.length === 0) return 0;
+    // Start counting from today backward
+    let streak = 0;
+    let expected = today;
+    for (const d of sorted) {
+      if (d === expected) {
+        streak++;
+        // Move expected to previous day
+        const prev = new Date(expected + "T00:00:00Z");
+        prev.setUTCDate(prev.getUTCDate() - 1);
+        expected = prev.toISOString().slice(0, 10);
+      } else if (d < expected) {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  app.post("/api/streaks/checkin", async (req, res) => {
+    try {
+      const { userId, user_id } = req.body || {};
+      const uid = userId || user_id;
+      if (!uid) return res.status(400).json({ error: "userId required" });
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Get or create streak row
+      const [existing] = await db.select().from(streaks)
+        .where(eq(streaks.userId, uid)).limit(1);
+
+      if (existing) {
+        const dates = (existing.checkinDates as string[]) || [];
+        if (!dates.includes(today)) {
+          dates.push(today);
+        }
+        const currentStreak = computeCurrentStreak(dates, today);
+        const longestStreak = Math.max(existing.longestStreak, currentStreak);
+
+        await db.update(streaks)
+          .set({
+            checkinDates: dates,
+            currentStreak,
+            longestStreak,
+            lastCheckinDate: today,
+            updatedAt: new Date(),
+          })
+          .where(eq(streaks.id, existing.id));
+
+        const milestonesAchieved = STREAK_MILESTONES.filter(m => longestStreak >= m);
+        const nextMilestone = STREAK_MILESTONES.find(m => m > currentStreak) ?? null;
+
+        return res.json({
+          currentStreak,
+          longestStreak,
+          lastCheckinDate: today,
+          milestones: milestonesAchieved,
+          nextMilestone,
+          todayCheckedIn: true,
+        });
+      } else {
+        // Create new row
+        const dates = [today];
+        const [row] = await db.insert(streaks).values({
+          userId: uid,
+          currentStreak: 1,
+          longestStreak: 1,
+          lastCheckinDate: today,
+          checkinDates: dates,
+        }).returning();
+
+        return res.json({
+          currentStreak: 1,
+          longestStreak: 1,
+          lastCheckinDate: today,
+          milestones: [],
+          nextMilestone: 3,
+          todayCheckedIn: true,
+        });
+      }
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to record streak check-in");
+      res.status(500).json({ error: "Failed to record streak check-in" });
+    }
+  });
+
+  app.get("/api/streaks/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const today = new Date().toISOString().slice(0, 10);
+
+      const [existing] = await db.select().from(streaks)
+        .where(eq(streaks.userId, userId)).limit(1);
+
+      if (!existing) {
+        return res.json({
+          currentStreak: 0,
+          longestStreak: 0,
+          lastCheckinDate: null,
+          milestones: [],
+          nextMilestone: 3,
+          todayCheckedIn: false,
+        });
+      }
+
+      const dates = (existing.checkinDates as string[]) || [];
+      const currentStreak = computeCurrentStreak(dates, today);
+      const longestStreak = Math.max(existing.longestStreak, currentStreak);
+      const todayCheckedIn = dates.includes(today);
+      const milestonesAchieved = STREAK_MILESTONES.filter(m => longestStreak >= m);
+      const nextMilestone = STREAK_MILESTONES.find(m => m > currentStreak) ?? null;
+
+      return res.json({
+        currentStreak,
+        longestStreak,
+        lastCheckinDate: existing.lastCheckinDate,
+        milestones: milestonesAchieved,
+        nextMilestone,
+        todayCheckedIn,
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "Failed to get streak status");
+      res.status(500).json({ error: "Failed to get streak status" });
     }
   });
 

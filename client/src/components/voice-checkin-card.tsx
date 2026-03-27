@@ -757,11 +757,11 @@ export function VoiceCheckinCard({
         writeEmotionToHealth(checkinResult.emotion, checkinResult.valence).catch(() => {});
 
         // Fire-and-forget: record a streak check-in so the StreakCard updates
-        fetch(`${getMLApiUrl()}/api/streaks/checkin`, {
+        fetch(resolveUrl("/api/streaks/checkin"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: resolvedUserId, checkin_type: "voice" }),
-        }).catch((err) => console.error("Failed to save streak check-in:", err));
+          body: JSON.stringify({ userId: resolvedUserId }),
+        }).catch(() => {});
 
         // Save emotion reading to Express DB so Daily Report + Session History see it
         fetch(resolveUrl("/api/emotion-readings/batch"), {

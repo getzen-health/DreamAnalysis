@@ -53,3 +53,4 @@ android/keystore.properties
 android/*.keystore
 android/*.jks
 .env.vercel
+.agent-comms/

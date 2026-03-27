@@ -1840,6 +1840,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (req.method === 'GET') return await innerScoreGet(req, res, s1);
     }
 
+    // Streaks
+    if (s0 === 'streaks') {
+      if (s1 === 'checkin' && req.method === 'POST') return await streaksCheckin(req, res);
+      if (s1 && req.method === 'GET') return await streaksGet(req, res, s1);
+    }
+
     // Emotion readings batch
     if (s0 === 'emotion-readings' && s1 === 'batch' && req.method === 'POST') {
       return await emotionReadingsBatch(req, res);
@@ -1970,4 +1976,123 @@ async function innerScoreHistory(req: VercelRequest, res: VercelResponse, userId
     .where(and(eq(schema.innerScores.userId, userId), gte(schema.innerScores.createdAt, since)))
     .orderBy(desc(schema.innerScores.createdAt));
   return success(res, { scores: rows.map(r => ({ date: r.createdAt.toISOString().slice(0, 10), score: r.score, tier: r.tier })) });
+}
+
+// ── Streak handlers ──────────────────────────────────────────────────────────
+
+const STREAK_MILESTONES = [3, 7, 14, 30, 60, 90, 100];
+
+function computeCurrentStreak(dates: string[], today: string): number {
+  const sorted = [...new Set(dates)].sort().reverse();
+  if (sorted.length === 0) return 0;
+  let streak = 0;
+  let expected = today;
+  for (const d of sorted) {
+    if (d === expected) {
+      streak++;
+      const prev = new Date(expected + "T00:00:00Z");
+      prev.setUTCDate(prev.getUTCDate() - 1);
+      expected = prev.toISOString().slice(0, 10);
+    } else if (d < expected) {
+      break;
+    }
+  }
+  return streak;
+}
+
+async function streaksCheckin(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const body = await parseRequestBody(req) as any;
+  const uid = body?.userId || body?.user_id;
+  if (!uid) return badRequest(res, 'userId required');
+
+  const today = new Date().toISOString().slice(0, 10);
+  const db = getDb();
+
+  const [existing] = await db.select().from(schema.streaks)
+    .where(eq(schema.streaks.userId, uid)).limit(1);
+
+  if (existing) {
+    const dates = (existing.checkinDates as string[]) || [];
+    if (!dates.includes(today)) {
+      dates.push(today);
+    }
+    const currentStreak = computeCurrentStreak(dates, today);
+    const longestStreak = Math.max(existing.longestStreak, currentStreak);
+
+    await db.update(schema.streaks)
+      .set({
+        checkinDates: dates,
+        currentStreak,
+        longestStreak,
+        lastCheckinDate: today,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.streaks.id, existing.id));
+
+    const milestonesAchieved = STREAK_MILESTONES.filter(m => longestStreak >= m);
+    const nextMilestone = STREAK_MILESTONES.find(m => m > currentStreak) ?? null;
+
+    return success(res, {
+      currentStreak,
+      longestStreak,
+      lastCheckinDate: today,
+      milestones: milestonesAchieved,
+      nextMilestone,
+      todayCheckedIn: true,
+    });
+  } else {
+    await db.insert(schema.streaks).values({
+      userId: uid,
+      currentStreak: 1,
+      longestStreak: 1,
+      lastCheckinDate: today,
+      checkinDates: [today],
+    });
+
+    return success(res, {
+      currentStreak: 1,
+      longestStreak: 1,
+      lastCheckinDate: today,
+      milestones: [],
+      nextMilestone: 3,
+      todayCheckedIn: true,
+    }, 201);
+  }
+}
+
+async function streaksGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const today = new Date().toISOString().slice(0, 10);
+  const db = getDb();
+
+  const [existing] = await db.select().from(schema.streaks)
+    .where(eq(schema.streaks.userId, userId)).limit(1);
+
+  if (!existing) {
+    return success(res, {
+      currentStreak: 0,
+      longestStreak: 0,
+      lastCheckinDate: null,
+      milestones: [],
+      nextMilestone: 3,
+      todayCheckedIn: false,
+    });
+  }
+
+  const dates = (existing.checkinDates as string[]) || [];
+  const currentStreak = computeCurrentStreak(dates, today);
+  const longestStreak = Math.max(existing.longestStreak, currentStreak);
+  const todayCheckedIn = dates.includes(today);
+  const milestonesAchieved = STREAK_MILESTONES.filter(m => longestStreak >= m);
+  const nextMilestone = STREAK_MILESTONES.find(m => m > currentStreak) ?? null;
+
+  return success(res, {
+    currentStreak,
+    longestStreak,
+    lastCheckinDate: existing.lastCheckinDate,
+    milestones: milestonesAchieved,
+    nextMilestone,
+    todayCheckedIn,
+  });
 }
