@@ -15,7 +15,7 @@ describe("BaselineStore.update", () => {
     expect(cell!.mean).toBeCloseTo(0.4);
   });
 
-  it("normalizes valence from raw -1..1 to 0..1", () => {
+  it("stores valence as-is (must be passed pre-normalized 0-1)", () => {
     const store = new BaselineStore();
     // valence already normalized (NormalizedReading uses 0-1)
     store.update({ stress: 0.5, focus: 0.5, valence: 0.3, arousal: 0.5 }, "2026-03-27T10:00:00Z");
@@ -32,11 +32,12 @@ describe("BaselineStore.update", () => {
 
   it("caps at 7 days — drops entries older than 7 days", () => {
     const store = new BaselineStore();
-    const old = "2026-03-19T14:00:00Z"; // 8 days ago
+    const old = new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString();
     store.update({ stress: 0.8, focus: 0.5, valence: 0.5, arousal: 0.5 }, old);
-    const fresh = "2026-03-27T14:00:00Z";
+    const fresh = new Date().toISOString();
+    const freshBucket = new Date(fresh).getUTCHours();
     store.update({ stress: 0.3, focus: 0.5, valence: 0.5, arousal: 0.5 }, fresh);
-    const cell = store.getCell("stress", 14);
+    const cell = store.getCell("stress", freshBucket);
     // old entry dropped; only fresh entry remains
     expect(cell!.sampleCount).toBe(1);
     expect(cell!.mean).toBeCloseTo(0.3);
@@ -48,6 +49,20 @@ describe("BaselineStore.update", () => {
     const store2 = new BaselineStore(); // loads from localStorage
     const cell = store2.getCell("stress", 16);
     expect(cell!.mean).toBeCloseTo(0.6);
+  });
+});
+
+describe("BaselineStore.getBaselineQuality", () => {
+  it("returns 0 when no data", () => {
+    const store = new BaselineStore();
+    expect(store.getBaselineQuality("stress", 10)).toBe(0);
+  });
+
+  it("returns partial quality for few samples", () => {
+    const store = new BaselineStore();
+    store.update({ stress: 0.4, focus: 0.5, valence: 0.5, arousal: 0.5 }, "2026-03-27T10:00:00Z");
+    const q = store.getBaselineQuality("stress", 10);
+    expect(q).toBeCloseTo(1 / 30, 3); // 1 sample out of 30
   });
 });
 

@@ -127,6 +127,10 @@ export class BaselineStore {
     return this.map[cellKey(metric, bucket)] ?? null;
   }
 
+  /**
+   * @param normalizedValue - must be pre-normalized to 0-1 range. Callers
+   *   are responsible for converting raw hrv/sleep/steps before calling.
+   */
   getZScore(metric: DeviationMetric, normalizedValue: number, bucket: number): number {
     const cell = this.getCell(metric, bucket);
     const usable = cell && cell.sampleCount >= MIN_SAMPLES;
