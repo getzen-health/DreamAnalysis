@@ -78,7 +78,7 @@ export default function BrainMonitor() {
   const { cachedEmotion: voiceResult } = useVoiceCache();
 
   const { data: user } = useQuery<{ id: string }>({ queryKey: ["/api/user"] });
-  const userId = (user as any)?.id ?? "anonymous";
+  const userId = user?.id;
 
   const anomaly = (latestFrame?.analysis as { anomaly?: AnomalyResult } | undefined)?.anomaly ?? null;
   const [_isRecording, setIsRecording] = useState(false);
