@@ -485,6 +485,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Health samples — time-series store for HealthKit / Health Connect data.
+  // POST: ingest a batch after each device sync.
+  // GET /:userId?metric=heart_rate&days=7: retrieve history for charts.
+  app.post("/api/health-samples", async (req, res) => {
+    try {
+      const { user_id, samples } = req.body as {
+        user_id: string;
+        samples: Array<{
+          source: string;
+          metric: string;
+          value: number;
+          unit?: string;
+          recorded_at: string;
+          metadata?: Record<string, unknown>;
+        }>;
+      };
+      if (!user_id || !Array.isArray(samples) || samples.length === 0) {
+        return res.status(400).json({ message: "user_id and samples[] required" });
+      }
+      const rows = samples
+        .filter((s) => typeof s.value === "number" && !isNaN(s.value))
+        .map((s) => ({
+          userId: user_id,
+          source: s.source,
+          metric: s.metric,
+          value: s.value,
+          unit: s.unit ?? null,
+          metadata: (s.metadata ?? null) as Record<string, unknown> | null,
+          recordedAt: new Date(s.recorded_at),
+        }));
+      if (rows.length > 0) {
+        await db.insert(healthSamples).values(rows).onConflictDoNothing();
+      }
+      return res.json({ inserted: rows.length });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "health-samples POST failed");
+      return res.status(500).json({ message: "Failed to ingest health samples" });
+    }
+  });
+
+  app.get("/api/health-samples/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const metric = (req.query.metric as string) || "heart_rate";
+      const days = parseInt((req.query.days as string) || "7", 10);
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const rows = await db
+        .select({ value: healthSamples.value, recordedAt: healthSamples.recordedAt })
+        .from(healthSamples)
+        .where(and(
+          eq(healthSamples.userId, userId),
+          eq(healthSamples.metric, metric),
+          gte(healthSamples.recordedAt, since),
+        ))
+        .orderBy(asc(healthSamples.recordedAt))
+        .limit(200);
+
+      return res.json(rows.map((r) => ({
+        value: r.value,
+        recorded_at: r.recordedAt.toISOString(),
+      })));
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "health-samples GET failed");
+      return res.status(500).json({ message: "Failed to fetch health samples" });
+    }
+  });
+
   // Dream analysis endpoints
   // No auth gate — data scoped by userId. Native APK uses localStorage IDs without JWT.
   app.get("/api/dream-analysis/:userId", async (req, res) => {

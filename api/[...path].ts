@@ -21,6 +21,8 @@
  *   GET    /api/emotions/history
  *   POST   /api/health-metrics
  *   GET    /api/health-metrics/:userId
+ *   POST   /api/health-samples              (ingest HealthKit / Health Connect time-series)
+ *   GET    /api/health-samples/:userId      (?metric=heart_rate&days=7)
  *   GET    /api/settings/:userId
  *   POST   /api/settings/:userId
  *   PUT    /api/settings/:userId
@@ -554,6 +556,74 @@ async function healthMetricsGet(req: VercelRequest, res: VercelResponse, userId:
   const rows = await db.select().from(schema.healthMetrics)
     .where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp)).limit(50);
   return success(res, rows);
+}
+
+async function healthSamplesPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  try {
+    const db = getDb();
+    const { user_id, samples } = req.body as {
+      user_id: string;
+      samples: Array<{
+        source: string;
+        metric: string;
+        value: number;
+        unit?: string;
+        recorded_at: string;
+        metadata?: Record<string, unknown>;
+      }>;
+    };
+    if (!user_id || !Array.isArray(samples) || samples.length === 0) {
+      return badRequest(res, 'user_id and samples[] required');
+    }
+    const rows = samples
+      .filter((s) => typeof s.value === 'number' && !isNaN(s.value))
+      .map((s) => ({
+        userId: user_id,
+        source: s.source,
+        metric: s.metric,
+        value: s.value,
+        unit: s.unit ?? null,
+        metadata: (s.metadata ?? null) as Record<string, unknown> | null,
+        recordedAt: new Date(s.recorded_at),
+      }));
+    if (rows.length > 0) {
+      await db.insert(schema.healthSamples).values(rows).onConflictDoNothing();
+    }
+    return success(res, { inserted: rows.length }, 201);
+  } catch (e) {
+    console.error('health-samples POST failed:', e);
+    return error(res, 'Failed to ingest health samples');
+  }
+}
+
+async function healthSamplesGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  try {
+    const db = getDb();
+    const metric = (req.query.metric as string) || 'heart_rate';
+    const days = parseInt((req.query.days as string) || '7', 10);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const rows = await db
+      .select({ value: schema.healthSamples.value, recordedAt: schema.healthSamples.recordedAt })
+      .from(schema.healthSamples)
+      .where(and(
+        eq(schema.healthSamples.userId, userId),
+        eq(schema.healthSamples.metric, metric),
+        gte(schema.healthSamples.recordedAt, since),
+      ))
+      .orderBy(asc(schema.healthSamples.recordedAt))
+      .limit(200);
+
+    return res.json(rows.map((r: { value: number; recordedAt: Date }) => ({
+      value: r.value,
+      recorded_at: r.recordedAt.toISOString(),
+    })));
+  } catch (e) {
+    console.error('health-samples GET failed:', e);
+    return error(res, 'Failed to fetch health samples');
+  }
 }
 
 async function settingsHandler(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -1648,6 +1718,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'health-metrics') {
       if (!s1) return await healthMetricsPost(req, res);
       return await healthMetricsGet(req, res, s1);
+    }
+
+    if (s0 === 'health-samples') {
+      if (!s1 && req.method === 'POST') return await healthSamplesPost(req, res);
+      if (s1 && req.method === 'GET') return await healthSamplesGet(req, res, s1);
     }
 
     if (s0 === 'settings' && s1) return await settingsHandler(req, res, s1);
