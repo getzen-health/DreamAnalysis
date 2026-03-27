@@ -27,6 +27,9 @@
 - [x] Research beta signup (`/research/enroll` — rewritten as beta program, IRB language removed)
 - [x] 49 shadcn/ui components, 5 chart components, dark theme, responsive layout
 - [x] Vite vendor bundle splitting + React.lazy() code-splitting across 14 pages
+- [x] **EEG Brain Scores section** on scores dashboard — Focus (avgFocus×100), Mood (valence→0-100), Brain Energy (avgEnergy×100) with EEG badge; empty state when no headset connected
+- [x] **Brain Coach card** (`client/src/components/brain-coach-card.tsx`) — 7-rule engine fusing EEG focus/valence/stress + health scores; outputs 1-3 personalized recommendations; wired into Today page
+- [x] **Sleep Hypnogram** (`client/src/components/sleep-hypnogram.tsx`) — SVG hypnogram rendered in sleep-session summary; tracks stage transitions during recording with stageHistoryRef; shows Sleep Architecture section with EEG badge
 
 ### ML Backend (100+ endpoints, 95+ models)
 - [x] Emotion classifier (LightGBM mega, 74.21% CV on 9 datasets, 163 534 samples — cross-subject)

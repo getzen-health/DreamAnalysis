@@ -16,6 +16,7 @@ import { useVoiceData, type VoiceCheckinData } from "@/hooks/use-voice-data";
 import { InlineBreathe } from "@/components/inline-breathe";
 import { syncMoodLogToML, getTodayTotals } from "@/lib/ml-api";
 import { BrainCoachCard } from "@/components/brain-coach-card";
+import { EEGWeekCompareCard } from "@/components/eeg-week-compare-card";
 import { calculateFoodScore } from "@/lib/food-score";
 import { getStoredChronotype, getBaselineAdjustment } from "@/lib/chronotype";
 import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
@@ -1845,7 +1846,14 @@ export default function Today() {
             />
           </motion.div>
 
-          {/* ── 4d. Energy Timeline Forecast ── */}
+          {/* ── 4d. EEG Brain Trends — 7-day week-over-week comparison ── */}
+          {recentHistory && recentHistory.length > 0 && (
+            <motion.div variants={itemVariants}>
+              <EEGWeekCompareCard history={recentHistory as any[]} />
+            </motion.div>
+          )}
+
+          {/* ── 4e. Energy Timeline Forecast ── */}
           <motion.div variants={itemVariants} className="glass-card p-4 rounded-2xl">
             <EnergyTimeline
               sleepHours={sleepTotal}
