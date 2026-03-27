@@ -24,6 +24,7 @@ import { assessSignalQuality, type SignalQualityResult as SQResult } from "@/lib
 import { Link } from "wouter";
 import { museBle } from "@/lib/muse-ble";
 import { BrainAgeCard } from "@/components/brain-age-card";
+import { EEGCoherenceCard } from "@/components/eeg-coherence-card";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { InterventionSuggestion } from "@/components/intervention-suggestion";
 import { EnsembleExplanation } from "@/components/ensemble-explanation";
@@ -706,6 +707,19 @@ export default function BrainMonitor() {
           </div>
         </Card>
       )}
+
+      {/* ---- 4b. EEG Brain Connectivity (PLV coherence arcs) ---- */}
+      {(() => {
+        const plv = (analysis as Record<string, unknown> | undefined)?.plv_connectivity as Record<string, number> | undefined;
+        return (
+          <EEGCoherenceCard
+            frontalPlv={plv?.plv_frontal_alpha ?? null}
+            temporalPlv={plv?.plv_mean_theta ?? null}
+            leftFrontotemporalPlv={plv?.plv_fronto_temporal_alpha ?? null}
+            isStreaming={isStreaming}
+          />
+        );
+      })()}
 
       {/* ---- 5. Brain State summary (4 cards: Emotion, Stress, Focus, Flow) ---- */}
       <div className="glass-card p-6 rounded-xl hover-glow">
