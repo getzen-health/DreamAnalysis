@@ -842,6 +842,25 @@ export const insertEmotionalFitnessScoreSchema = createInsertSchema(emotionalFit
   id: true,
   computedAt: true,
 });
+
+// ─── Inner Score (adaptive composite 0-100) ──────────────────────────────────
+
+export const innerScores = pgTable("inner_scores", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull(),
+  score: integer("score").notNull(),
+  tier: text("tier").notNull(),
+  factors: jsonb("factors").notNull().default({}),
+  narrative: text("narrative"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("inner_scores_user_date_idx").on(table.userId, table.createdAt),
+]);
+
+export const insertInnerScoreSchema = createInsertSchema(innerScores).omit({
+  id: true,
+  createdAt: true,
+});
 export type EmotionalFitnessScore = typeof emotionalFitnessScores.$inferSelect;
 export type InsertEmotionalFitnessScore = z.infer<typeof insertEmotionalFitnessScoreSchema>;
 

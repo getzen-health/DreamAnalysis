@@ -38,6 +38,7 @@ import {
   deviceConnections,
   circadianProfiles,
   userReadings,
+  innerScores,
 } from "@shared/schema";
 import { wearableAdapters } from "../lib/wearables";
 import { computeCardioLoad } from "@shared/cardio";
@@ -1015,6 +1016,73 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch yesterday comparison" });
+    }
+  });
+
+  // ── Inner Score ────────────────────────────────────────────────────────────
+
+  // GET /api/inner-score/:userId — return cached today's score or building state
+  app.get("/api/inner-score/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+      const [cached] = await db.select().from(innerScores)
+        .where(and(eq(innerScores.userId, userId), gte(innerScores.createdAt, fourHoursAgo)))
+        .orderBy(desc(innerScores.createdAt)).limit(1);
+
+      if (!cached) {
+        return res.json({ score: null, state: "building", cta: "Do a voice check-in to get your Inner Score" });
+      }
+
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const history = await db.select().from(innerScores)
+        .where(and(eq(innerScores.userId, userId), gte(innerScores.createdAt, sevenDaysAgo)))
+        .orderBy(asc(innerScores.createdAt));
+      const trend = history.map(h => h.score);
+      const yesterday = history.length >= 2 ? history[history.length - 2].score : null;
+      const delta = yesterday != null ? cached.score - yesterday : null;
+
+      const scoreLabel = cached.score >= 80 ? "Thriving" : cached.score >= 60 ? "Good" : cached.score >= 40 ? "Steady" : "Low";
+      const tierLabel = cached.tier === "eeg_health_voice" ? "Based on your brain, body, and mood"
+        : cached.tier === "health_voice" ? "Based on your sleep, body, and mood"
+        : "Based on how you sound today";
+
+      res.json({
+        score: cached.score, label: scoreLabel, tier: cached.tier, confidence: tierLabel,
+        factors: cached.factors, narrative: cached.narrative, delta, trend,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch inner score" });
+    }
+  });
+
+  // POST /api/inner-score/:userId — persist a computed score
+  app.post("/api/inner-score/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { score, tier, factors, narrative } = req.body;
+      if (score == null || !tier) return res.status(400).json({ error: "score and tier required" });
+      const [row] = await db.insert(innerScores).values({
+        userId, score, tier, factors: factors ?? {}, narrative: narrative ?? null,
+      }).returning();
+      res.status(201).json(row);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to save inner score" });
+    }
+  });
+
+  // GET /api/inner-score/:userId/history?days=30
+  app.get("/api/inner-score/:userId/history", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const days = parseInt(req.query.days as string) || 30;
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const rows = await db.select().from(innerScores)
+        .where(and(eq(innerScores.userId, userId), gte(innerScores.createdAt, since)))
+        .orderBy(desc(innerScores.createdAt));
+      res.json({ scores: rows.map(r => ({ date: r.createdAt.toISOString().slice(0, 10), score: r.score, tier: r.tier })) });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch inner score history" });
     }
   });
 

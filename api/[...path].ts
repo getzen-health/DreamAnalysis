@@ -1833,6 +1833,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return await brainAtThisTimeYesterday(req, res, segs[2]);
     }
 
+    // Inner Score
+    if (s0 === 'inner-score' && s1) {
+      if (segs[2] === 'history' && req.method === 'GET') return await innerScoreHistory(req, res, s1);
+      if (req.method === 'POST') return await innerScorePost(req, res, s1);
+      if (req.method === 'GET') return await innerScoreGet(req, res, s1);
+    }
+
     // Emotion readings batch
     if (s0 === 'emotion-readings' && s1 === 'batch' && req.method === 'POST') {
       return await emotionReadingsBatch(req, res);
@@ -1923,4 +1930,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error(`[api/[...path]] ${req.method} ${req.url}:`, err);
     return error(res, 'Internal server error');
   }
+}
+
+// ── Inner Score handlers ─────────────────────────────────────────────────────
+
+async function innerScoreGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  const db = getDb();
+  const fourHoursAgo = new Date(Date.now() - 4 * 3600_000);
+  const [cached] = await db.select().from(schema.innerScores)
+    .where(and(eq(schema.innerScores.userId, userId), gte(schema.innerScores.createdAt, fourHoursAgo)))
+    .orderBy(desc(schema.innerScores.createdAt)).limit(1);
+  if (!cached) return success(res, { score: null, state: 'building', cta: 'Do a voice check-in to get your Inner Score' });
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000);
+  const history = await db.select().from(schema.innerScores)
+    .where(and(eq(schema.innerScores.userId, userId), gte(schema.innerScores.createdAt, sevenDaysAgo)))
+    .orderBy(asc(schema.innerScores.createdAt));
+  const trend = history.map(h => h.score);
+  const yesterday = history.length >= 2 ? history[history.length - 2].score : null;
+  const delta = yesterday != null ? cached.score - yesterday : null;
+  const label = cached.score >= 80 ? 'Thriving' : cached.score >= 60 ? 'Good' : cached.score >= 40 ? 'Steady' : 'Low';
+  const confidence = cached.tier === 'eeg_health_voice' ? 'Based on your brain, body, and mood' : cached.tier === 'health_voice' ? 'Based on your sleep, body, and mood' : 'Based on how you sound today';
+  return success(res, { score: cached.score, label, tier: cached.tier, confidence, factors: cached.factors, narrative: cached.narrative, delta, trend });
+}
+
+async function innerScorePost(req: VercelRequest, res: VercelResponse, userId: string) {
+  const body = await parseRequestBody(req) as any;
+  if (body?.score == null || !body?.tier) return badRequest(res, 'score and tier required');
+  const db = getDb();
+  const [row] = await db.insert(schema.innerScores).values({ userId, score: body.score, tier: body.tier, factors: body.factors ?? {}, narrative: body.narrative ?? null }).returning();
+  return success(res, row, 201);
+}
+
+async function innerScoreHistory(req: VercelRequest, res: VercelResponse, userId: string) {
+  const url = new URL(req.url!, `http://${req.headers.host}`);
+  const days = parseInt(url.searchParams.get('days') ?? '30');
+  const since = new Date(Date.now() - days * 86400_000);
+  const db = getDb();
+  const rows = await db.select().from(schema.innerScores)
+    .where(and(eq(schema.innerScores.userId, userId), gte(schema.innerScores.createdAt, since)))
+    .orderBy(desc(schema.innerScores.createdAt));
+  return success(res, { scores: rows.map(r => ({ date: r.createdAt.toISOString().slice(0, 10), score: r.score, tier: r.tier })) });
 }
