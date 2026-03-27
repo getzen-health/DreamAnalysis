@@ -233,3 +233,109 @@ function filterForHeadband(
   if (hasHeadband) return interventions;
   return interventions.filter((i) => !i.requiresHeadband);
 }
+
+// ── Recovery-aware interventions (Bevel-style) ───────────────────────────
+
+export interface RecoveryContext {
+  recovery?: number;       // 0-100
+  sleepHours?: number;     // total hours slept
+  strain?: number;         // 0-100
+  stress?: number;         // 0-100
+  hrvTrend?: "up" | "down" | "stable";
+}
+
+export interface RecoveryIntervention {
+  title: string;
+  description: string;
+  icon: string;
+  priority: "high" | "medium" | "low";
+  action?: { label: string; route: string };
+}
+
+/**
+ * Returns recovery-specific interventions based on health scores.
+ * Bevel-style: actionable suggestions when the body needs attention.
+ */
+export function suggestRecoveryInterventions(ctx: RecoveryContext): RecoveryIntervention[] {
+  const interventions: RecoveryIntervention[] = [];
+  const recovery = ctx.recovery ?? 50;
+  const sleep = ctx.sleepHours ?? 7;
+  const strain = ctx.strain ?? 50;
+  const stress = ctx.stress ?? 50;
+
+  // Overtraining: high strain + low recovery
+  if (strain > 75 && recovery < 45) {
+    interventions.push({
+      title: "Active recovery only today",
+      description: "Your strain is high and recovery is low. Skip intense workouts — try a walk, yoga, or stretching instead.",
+      icon: "heart-pulse",
+      priority: "high",
+      action: { label: "Log a walk", route: "/workout" },
+    });
+  }
+
+  // Low recovery
+  if (recovery < 40) {
+    interventions.push({
+      title: "Rest day recommended",
+      description: "Your recovery score is low. Prioritize hydration, nutrition, and an earlier bedtime tonight.",
+      icon: "battery-low",
+      priority: "high",
+    });
+  }
+
+  // Sleep deficit
+  if (sleep < 6) {
+    interventions.push({
+      title: "Go to bed 30 min earlier tonight",
+      description: `You got ${sleep.toFixed(1)}h of sleep. Even 30 extra minutes can significantly improve recovery.`,
+      icon: "moon",
+      priority: "high",
+      action: { label: "Set reminder", route: "/sleep" },
+    });
+  }
+
+  // HRV declining
+  if (ctx.hrvTrend === "down") {
+    interventions.push({
+      title: "HRV trending down",
+      description: "Your heart rate variability has been declining. This can signal accumulated stress or insufficient recovery.",
+      icon: "trending-down",
+      priority: "medium",
+      action: { label: "View HRV", route: "/health" },
+    });
+  }
+
+  // High stress
+  if (stress > 70) {
+    interventions.push({
+      title: "Try 5-min box breathing",
+      description: "Your stress level is elevated. A short breathing exercise can activate your parasympathetic nervous system.",
+      icon: "wind",
+      priority: "medium",
+      action: { label: "Start breathing", route: "/biofeedback" },
+    });
+  }
+
+  // Low focus (derived from stress — moderate stress = moderate focus)
+  if (stress > 50 && recovery < 60) {
+    interventions.push({
+      title: "Take a 10-min walk outside",
+      description: "Fresh air and movement can reset your focus and reduce cortisol levels.",
+      icon: "tree-pine",
+      priority: "low",
+    });
+  }
+
+  // Good recovery — encourage maintaining
+  if (recovery >= 80 && interventions.length === 0) {
+    interventions.push({
+      title: "Great recovery — go for it",
+      description: "Your body is well-recovered. Today is a good day for a challenging workout or deep work.",
+      icon: "zap",
+      priority: "low",
+    });
+  }
+
+  return interventions;
+}

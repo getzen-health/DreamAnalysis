@@ -25,6 +25,9 @@ import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, H
 import { recordCorrection } from "@/lib/feedback-sync";
 import { updateModalityAccuracy } from "@/lib/multimodal-fusion";
 import { MoodPicker } from "@/components/mood-picker";
+import { RecoveryInterventions } from "@/components/recovery-interventions";
+import { EnergyTimeline } from "@/components/energy-timeline";
+import { useScores } from "@/hooks/use-scores";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -627,6 +630,7 @@ function HealthMetricCard({
 export default function Today() {
   const { latestPayload, lastSyncAt } = useHealthSync();
   const userId = useMemo(() => getParticipantId(), []);
+  const { scores: userScores } = useScores(userId);
   const [, navigate] = useLocation();
   const voiceData = useVoiceData();
   const { emotion: fusedEmotion, correctEmotion: correctFusedEmotion } = useMultimodalEmotion();
@@ -944,6 +948,14 @@ export default function Today() {
 
   const readiness = useMemo(() => computeReadiness(checkin), [checkin]);
   const aiInsight = useMemo(() => getAIInsight(checkin), [checkin]);
+
+  // Map scores for recovery interventions & energy timeline
+  const scores = useMemo(() => ({
+    recovery: userScores?.recoveryScore ?? undefined,
+    strain: userScores?.strainScore ?? undefined,
+    stress: userScores?.stressScore ?? undefined,
+  }), [userScores]);
+  const hrvTrend: "up" | "down" | "stable" | undefined = undefined; // TODO: derive from HRV history
 
   // Derived values (raw from model)
   const emotion = checkin?.emotion ?? "---";
@@ -1616,6 +1628,25 @@ export default function Today() {
 
           {/* Inline breathing exercise */}
           {showBreathe && <InlineBreathe onClose={() => setShowBreathe(false)} />}
+
+          {/* ── 4b. Recovery Interventions (Bevel-style) ── */}
+          <motion.div variants={itemVariants}>
+            <RecoveryInterventions
+              recovery={scores?.recovery}
+              sleepHours={sleepTotal}
+              strain={scores?.strain}
+              stress={scores?.stress}
+              hrvTrend={hrvTrend}
+            />
+          </motion.div>
+
+          {/* ── 4c. Energy Timeline Forecast ── */}
+          <motion.div variants={itemVariants} className="glass-card p-4 rounded-2xl">
+            <EnergyTimeline
+              sleepHours={sleepTotal}
+              recovery={scores?.recovery}
+            />
+          </motion.div>
 
           {/* ── 5. Health Metrics (2x2 grid) ── */}
           <motion.div
