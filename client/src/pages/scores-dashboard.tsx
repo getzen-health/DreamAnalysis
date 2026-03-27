@@ -25,6 +25,9 @@ import {
   TrendingUp,
   TrendingDown,
   Share2,
+  Cpu,
+  Smile,
+  BatteryCharging,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
@@ -33,7 +36,7 @@ import { useScores } from "@/hooks/use-scores";
 import { ScoreCard } from "@/components/score-card";
 import { ScoreGauge } from "@/components/score-gauge";
 import { EnergyBattery } from "@/components/energy-battery";
-import { getMLApiUrl, listSessions, type SessionSummary } from "@/lib/ml-api";
+import { getMLApiUrl, listSessions, getTodayTotals, type SessionSummary, type TodayTotals } from "@/lib/ml-api";
 import { EmotionStrip } from "@/components/emotion-strip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getParticipantId } from "@/lib/participant";
@@ -177,6 +180,15 @@ export default function ScoresDashboard() {
     queryKey: ["sessions", participantId],
     queryFn: () => listSessions(participantId),
     staleTime: 30_000,
+    retry: false,
+  });
+
+  // Fetch brain totals (EEG-derived scores for today)
+  const { data: brainTotals } = useQuery<TodayTotals>({
+    queryKey: ["brain-totals-today", userId],
+    queryFn: () => getTodayTotals(userId!),
+    enabled: !!userId,
+    staleTime: 2 * 60_000,
     retry: false,
   });
 
@@ -425,6 +437,87 @@ export default function ScoresDashboard() {
               : "No data"}
           </p>
         </div>
+      </motion.div>
+
+      {/* ── Brain Scores (EEG-powered) ────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-violet-500/10">
+            <Cpu className="h-3.5 w-3.5 text-violet-400" />
+          </div>
+          <h2 className="text-sm font-semibold text-foreground">Brain Scores</h2>
+          <span className="text-[10px] font-mono text-violet-400/70 bg-violet-500/10 px-1.5 py-0.5 rounded-full">
+            EEG
+          </span>
+        </div>
+
+        {brainTotals && brainTotals.count > 0 ? (
+          <div className="grid grid-cols-3 gap-2">
+            {/* Focus Index */}
+            <motion.div
+              custom={0}
+              initial="hidden"
+              animate="visible"
+              variants={cardVariants}
+            >
+              <ScoreCard
+                title="Focus"
+                value={brainTotals.avgFocus !== null ? Math.round(brainTotals.avgFocus * 100) : null}
+                color="recovery"
+                icon={<Zap className="h-3.5 w-3.5 text-cyan-400" />}
+                onInfoClick={() => setLearnMoreMetric("focus")}
+              />
+            </motion.div>
+
+            {/* Emotional Wellness (valence -1..1 → 0..100) */}
+            <motion.div
+              custom={1}
+              initial="hidden"
+              animate="visible"
+              variants={cardVariants}
+            >
+              <ScoreCard
+                title="Mood"
+                value={brainTotals.avgValence !== null
+                  ? Math.round((brainTotals.avgValence + 1) * 50)
+                  : null}
+                color="sleep"
+                icon={<Smile className="h-3.5 w-3.5 text-violet-400" />}
+                onInfoClick={() => setLearnMoreMetric("mood")}
+              />
+            </motion.div>
+
+            {/* Brain Energy */}
+            <motion.div
+              custom={2}
+              initial="hidden"
+              animate="visible"
+              variants={cardVariants}
+            >
+              <ScoreCard
+                title="Energy"
+                value={brainTotals.avgEnergy !== null ? Math.round(brainTotals.avgEnergy * 100) : null}
+                color="energy"
+                icon={<BatteryCharging className="h-3.5 w-3.5 text-fuchsia-400" />}
+                onInfoClick={() => setLearnMoreMetric("energy")}
+              />
+            </motion.div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border/60 p-5 text-center bg-card/40">
+            <Cpu className="h-6 w-6 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground/60">
+              Connect your EEG headset to see brain scores
+            </p>
+            <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+              Focus · Mood · Brain Energy
+            </p>
+          </div>
+        )}
       </motion.div>
 
       {/* ── Today's Summary Card ──────────────────────────────────────── */}
