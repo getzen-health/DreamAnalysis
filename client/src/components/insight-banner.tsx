@@ -5,62 +5,75 @@
  * 5-minute cooldown between banners. Dismiss or tap CTA to navigate.
  */
 
-import { motion } from "framer-motion";
-import { AlertTriangle, X, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Zap } from "lucide-react";
 import type { DeviationEvent } from "@/lib/insight-engine";
 
-export interface InsightBannerProps {
+interface Props {
   events: DeviationEvent[];
   onDismiss: () => void;
-  onCTA?: (href: string) => void;
+  onCTA: (href: string) => void;
+  suggestedLabel?: string;
 }
 
-export function InsightBanner({ events, onDismiss, onCTA }: InsightBannerProps) {
-  if (events.length === 0) return null;
+const METRIC_LABELS: Record<string, string> = {
+  stress: "stress", focus: "focus", valence: "mood", arousal: "arousal",
+  hrv: "HRV", sleep: "sleep", steps: "activity", energy: "energy",
+};
 
-  // Show the most significant event (highest absolute z-score)
-  const primary = events.reduce((a, b) =>
-    Math.abs(b.zScore) > Math.abs(a.zScore) ? b : a,
-  );
+const CTA_MAP: Record<string, { label: string; href: string }> = {
+  stress:  { label: "Box breathing", href: "/biofeedback" },
+  focus:   { label: "Neurofeedback", href: "/neurofeedback" },
+  valence: { label: "AI Companion", href: "/ai-companion" },
+  arousal: { label: "Breathing", href: "/biofeedback" },
+};
+
+export function InsightBanner({ events, onDismiss, onCTA, suggestedLabel }: Props) {
+  const event = events[0];
+  if (!event) return null;
+
+  const metricLabel = suggestedLabel || METRIC_LABELS[event.metric] || event.metric;
+  const dir = event.direction === "high" ? "elevated" : "low";
+  const durationText = event.durationMinutes >= 1 ? `${Math.round(event.durationMinutes)} min` : "just now";
+  const cta = CTA_MAP[event.metric] || { label: "See insights", href: "/insights" };
 
   return (
-    <motion.div
-      data-testid="insight-banner"
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 100, opacity: 0 }}
-      transition={{ type: "spring", stiffness: 300, damping: 25 }}
-      className="fixed bottom-20 left-4 right-4 z-50 rounded-[14px] bg-card border border-warning/30 p-4 shadow-lg"
-    >
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+    <AnimatePresence>
+      <motion.div
+        key="insight-banner"
+        data-testid="insight-banner"
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 80, opacity: 0 }}
+        transition={{ type: "spring", damping: 20 }}
+        role="status"
+        aria-label={`${metricLabel} deviation detected`}
+        className="fixed bottom-20 left-4 right-4 z-50 rounded-xl bg-card border border-border/30 shadow-xl p-4 flex items-center gap-3"
+      >
+        <Zap className="h-4 w-4 text-primary shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground">
-            {primary.message}
+          <p className="text-sm font-medium leading-tight">
+            {metricLabel.charAt(0).toUpperCase() + metricLabel.slice(1)} is {dir} — {durationText}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {primary.durationMinutes > 0
-              ? `${primary.durationMinutes} min · z=${primary.zScore}`
-              : `z=${primary.zScore}`}
+            {(event.currentValue * 100).toFixed(0)}% vs your usual {(event.baselineValue * 100).toFixed(0)}%
           </p>
-          {primary.cta && primary.ctaHref && onCTA && (
-            <button
-              onClick={() => onCTA(primary.ctaHref!)}
-              className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-emerald-500 hover:text-emerald-400"
-            >
-              {primary.cta}
-              <ChevronRight className="h-3 w-3" />
-            </button>
-          )}
         </div>
         <button
-          onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground p-1"
-          aria-label="Dismiss"
+          onClick={() => onCTA(cta.href)}
+          aria-label={`${cta.label} for ${metricLabel}`}
+          className="text-xs font-medium text-primary whitespace-nowrap hover:underline"
         >
-          <X className="h-4 w-4" />
+          {cta.label}
         </button>
-      </div>
-    </motion.div>
+        <button
+          onClick={onDismiss}
+          aria-label="dismiss"
+          className="p-1 rounded hover:bg-muted/50 text-muted-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -1,4 +1,3 @@
-// client/src/test/components/insight-banner.test.tsx
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { InsightBanner } from "@/components/insight-banner";
@@ -16,7 +15,7 @@ const mockEvent = {
 describe("InsightBanner", () => {
   it("renders nothing when events array is empty", () => {
     const { container } = render(<InsightBanner events={[]} onDismiss={vi.fn()} onCTA={vi.fn()} />);
-    expect(container.firstChild).toBeNull();
+    expect(container.querySelector("[data-testid='insight-banner']")).toBeNull();
   });
 
   it("renders deviation context for stress event", () => {
@@ -25,7 +24,7 @@ describe("InsightBanner", () => {
     expect(screen.getByText(/8 min/i)).toBeInTheDocument();
   });
 
-  it("calls onDismiss when × button clicked", () => {
+  it("calls onDismiss when dismiss button clicked", () => {
     const onDismiss = vi.fn();
     render(<InsightBanner events={[mockEvent]} onDismiss={onDismiss} onCTA={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
@@ -37,6 +36,6 @@ describe("InsightBanner", () => {
     render(<InsightBanner events={[mockEvent]} onDismiss={vi.fn()} onCTA={onCTA} />);
     const ctaBtn = screen.getByRole("button", { name: /breathing/i });
     fireEvent.click(ctaBtn);
-    expect(onCTA).toHaveBeenCalledWith(expect.stringContaining("/biofeedback"));
+    expect(onCTA).toHaveBeenCalledWith("/biofeedback");
   });
 });
