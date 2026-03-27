@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
+import { EEGPeakHours } from "@/components/eeg-peak-hours";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -832,6 +833,11 @@ export default function Insights() {
               border: "1px solid var(--glass-border)",
             }}
           >
+            {emotionHistory.length > 0 && (
+              <div className="mb-4">
+                <EEGPeakHours history={emotionHistory} />
+              </div>
+            )}
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Explore Patterns</p>
             <div className="grid grid-cols-2 gap-2">
               {[
