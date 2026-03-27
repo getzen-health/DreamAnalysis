@@ -397,6 +397,10 @@ class MultimodalEmotionFusion:
         )
 
         if combined_probs is not None:
+            # TODO: Replace fixed 70/30 blend with AttentionFusion.fuse()
+            # from processing.multimodal_fusion (issue #543). The new attention-
+            # based fusion computes dynamic weights from signal quality,
+            # confidence, and cross-modality agreement instead of fixed ratios.
             # Feature-level fusion: blend 70% combined model + 30% EEG-only
             # (gives the combined model primacy while keeping EEG stability)
             fused   = 0.70 * combined_probs + 0.30 * eeg_probs

@@ -281,6 +281,11 @@ class MultimodalEmotionFusion:
 
         # ── 8. Voice layer — adaptive quality-weighted fusion ──────────────
         #
+        # TODO: Replace fixed 70/30 blend with AttentionFusion.fuse()
+        # from processing.multimodal_fusion (issue #543). The new attention-
+        # based fusion computes dynamic weights from signal quality,
+        # confidence, and cross-modality agreement instead of fixed ratios.
+        #
         # Instead of a fixed 70/30 blend, voice weight scales with its
         # confidence (which already incorporates SNR penalty from the voice
         # model).  EEG confidence comes from the classifier output.

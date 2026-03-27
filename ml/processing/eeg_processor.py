@@ -284,6 +284,9 @@ def preprocess(
     filtered = wavelet_denoise_channel(filtered, fs=int(fs))
     filtered = adaptive_blink_filter(filtered, fs=int(fs))
 
+    # TODO: Replace simple threshold with MultiMethodArtifactDetector
+    #       from processing.artifact_rejection (6-method: amplitude, gradient,
+    #       spectral, flat channel, kurtosis, channel correlation).
     if clean_artifacts:
         filtered = clean_artifacts_easr(filtered, fs=fs, easr_instance=easr_instance)
 
