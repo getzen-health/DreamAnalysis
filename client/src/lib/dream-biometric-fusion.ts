@@ -73,14 +73,14 @@ function hrStatus(hr: number, baseline: number): "normal" | "elevated" | "low" {
 
 function hrvStatus(hrv: number): "normal" | "elevated" | "low" {
   if (hrv >= 50) return "normal";
-  if (hrv >= 30) return "low";
-  return "low";
+  if (hrv >= 30) return "elevated"; // reduced recovery — amber
+  return "low";                      // poor recovery — red
 }
 
 function deepSleepStatus(pct: number): "normal" | "elevated" | "low" {
   if (pct >= 20) return "normal";
-  if (pct >= 13) return "low";
-  return "low";
+  if (pct >= 13) return "elevated"; // below ideal — amber
+  return "low";                      // poor deep sleep — red
 }
 
 function remSleepStatus(pct: number): "normal" | "elevated" | "low" {

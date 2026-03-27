@@ -58,8 +58,10 @@ function checkSleepDebt(input: PredictionInput): PredictiveAlert | null {
   if (avgSleep >= 6.5) return null;
 
   const factors: string[] = ["Today: less than 6 hours sleep"];
-  if (input.recentSleep.length > 0) {
-    factors.push(`7-day avg: ${avgSleep.toFixed(1)}h`);
+  if (input.recentSleep.length > 1) {
+    factors.push(`${input.recentSleep.length}-day avg: ${avgSleep.toFixed(1)}h`);
+  } else if (input.recentSleep.length === 1) {
+    factors.push(`Today's sleep: ${avgSleep.toFixed(1)}h`);
   }
 
   return {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
@@ -716,6 +716,7 @@ export default function Today() {
   const { fusedState } = useFusedState(); // Data fusion bus: auto-updates from EEG/voice/health
   const queryClient = useQueryClient();
   const [showBreathe, setShowBreathe] = useState(false);
+  const innerScorePostedRef = useRef<string | null>(null);
 
   // ── Weather context (Issue #508) ──
   const [weatherCtx, setWeatherCtx] = useState<WeatherMoodContext | null>(null);
@@ -790,6 +791,14 @@ export default function Today() {
     },
     staleTime: 5 * 60_000,
     enabled: !!userId,
+  });
+
+  // Fetch inner score history for predictive alerts (score-declining detection)
+  const { data: innerScoreHistory } = useQuery({
+    queryKey: ["inner-score-history", userId],
+    queryFn: () => fetch(resolveUrl(`/api/inner-score/${userId}/history?days=7`)).then(r => r.json()),
+    enabled: !!userId,
+    staleTime: 5 * 60_000,
   });
 
   // ── Log a feeling state ──
@@ -1176,7 +1185,7 @@ export default function Today() {
     // Build recent stress/sleep arrays from recentHistory (aggregated by day)
     const stressByDay = new Map<string, number[]>();
     const sleepDays: number[] = [];
-    const scoresByDay: (number | null)[] = [];
+    const scoresByDay: (number | null)[] = (innerScoreHistory?.scores ?? []).map((s: any) => s.score as number | null);
 
     if (recentHistory) {
       for (const r of recentHistory) {
@@ -1217,12 +1226,15 @@ export default function Today() {
     };
 
     return predictNextDay(predictionInput);
-  }, [brainTotals, latestPayload, innerScore.score, foodLogs, recentHistory]);
+  }, [brainTotals, latestPayload, innerScore.score, foodLogs, recentHistory, innerScoreHistory]);
 
-  // Persist inner score to DB (fire-and-forget)
+  // Persist inner score to DB (fire-and-forget, once per day)
   useEffect(() => {
     if (innerScore.score != null && userId) {
-      fetch(`/api/inner-score/${userId}`, {
+      const today = new Date().toISOString().slice(0, 10);
+      if (innerScorePostedRef.current === today) return;
+      innerScorePostedRef.current = today;
+      fetch(resolveUrl(`/api/inner-score/${userId}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ score: innerScore.score, tier: innerScore.tier, factors: innerScore.factors, narrative: innerScore.narrative }),

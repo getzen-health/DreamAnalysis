@@ -13,8 +13,9 @@ function emptyInput(): CorrelationInput {
 }
 
 /**
- * All helpers use UTC dates to avoid timezone issues in tests.
- * The library uses toISOString().slice(0,10) for date keys, which is UTC-based.
+ * Helpers create timestamps in local time so that getHours()/getDay()
+ * (which the library uses for local-timezone classification) return the
+ * expected hour and day-of-week values regardless of the runner's TZ.
  */
 
 /** Parse "YYYY-MM-DD" into [year, month(0-indexed), day] */
@@ -23,7 +24,22 @@ function parseDate(s: string): [number, number, number] {
   return [y, m - 1, d];
 }
 
-/** Create N emotion readings at a specific UTC hour on consecutive days. */
+/** Build an ISO string whose *local* hour matches the requested hour. */
+function localTs(year: number, month0: number, day: number, hour: number): string {
+  const d = new Date(year, month0, day, hour, 0, 0);
+  return d.toISOString();
+}
+
+/** Return "YYYY-MM-DD" in local time for a given local date. */
+function localDateStr(year: number, month0: number, day: number): string {
+  const d = new Date(year, month0, day, 12, 0, 0);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+/** Create N emotion readings at a specific local hour on consecutive days. */
 function makeEmotionHistory(
   n: number,
   overrides: Partial<{ stress: number; focus: number; valence: number; energy: number; hour: number; startDate: string }> = {},
@@ -31,8 +47,8 @@ function makeEmotionHistory(
   const { stress = 0.5, focus = 0.5, valence = 0, energy = 0.5, hour = 10, startDate = "2026-01-01" } = overrides;
   const [y, m, d] = parseDate(startDate);
   return Array.from({ length: n }, (_, i) => {
-    const ts = new Date(Date.UTC(y, m, d + i, hour, 0, 0));
-    return { stress, focus, valence, energy, timestamp: ts.toISOString() };
+    const ts = localTs(y, m, d + i, hour);
+    return { stress, focus, valence, energy, timestamp: ts };
   });
 }
 
@@ -43,8 +59,7 @@ function makeSleepData(
   const { quality = 70, duration = 7, startDate = "2026-01-01" } = overrides;
   const [y, m, d] = parseDate(startDate);
   return Array.from({ length: n }, (_, i) => {
-    const ts = new Date(Date.UTC(y, m, d + i, 12, 0, 0));
-    return { quality, duration, date: ts.toISOString().slice(0, 10) };
+    return { quality, duration, date: localDateStr(y, m, d + i) };
   });
 }
 
@@ -55,8 +70,7 @@ function makeSteps(
   const { count = 5000, startDate = "2026-01-01" } = overrides;
   const [y, m, d] = parseDate(startDate);
   return Array.from({ length: n }, (_, i) => {
-    const ts = new Date(Date.UTC(y, m, d + i, 12, 0, 0));
-    return { count, date: ts.toISOString().slice(0, 10) };
+    return { count, date: localDateStr(y, m, d + i) };
   });
 }
 
@@ -67,8 +81,8 @@ function makeFoodLogs(
   const { mealType = "dinner", totalCalories = 600, hour = 19, startDate = "2026-01-01" } = overrides;
   const [y, m, d] = parseDate(startDate);
   return Array.from({ length: n }, (_, i) => {
-    const ts = new Date(Date.UTC(y, m, d + i, hour, 0, 0));
-    return { mealType, totalCalories, loggedAt: ts.toISOString() };
+    const ts = localTs(y, m, d + i, hour);
+    return { mealType, totalCalories, loggedAt: ts };
   });
 }
 
@@ -303,19 +317,17 @@ describe("generateInsights", () => {
 
   describe("stress after meals", () => {
     it("detects stress rising after eating", () => {
-      // 6 meals at noon UTC
+      // 6 meals at noon local
       const meals = makeFoodLogs(6, { hour: 12, startDate: "2026-01-01" });
 
-      // Post-meal readings (1h after meal at 13:00 UTC) with high stress
+      // Post-meal readings (1h after meal at 13:00 local) with high stress
       const postMeal = Array.from({ length: 6 }, (_, i) => {
-        const ts = new Date(Date.UTC(2026, 0, 1 + i, 13, 0, 0));
-        return { stress: 0.8, focus: 0.5, valence: 0, energy: 0.5, timestamp: ts.toISOString() };
+        return { stress: 0.8, focus: 0.5, valence: 0, energy: 0.5, timestamp: localTs(2026, 0, 1 + i, 13) };
       });
 
-      // Baseline readings (morning 8:00 UTC, not near meals) with low stress
+      // Baseline readings (morning 8:00 local, not near meals) with low stress
       const baseline = Array.from({ length: 6 }, (_, i) => {
-        const ts = new Date(Date.UTC(2026, 0, 1 + i, 8, 0, 0));
-        return { stress: 0.3, focus: 0.5, valence: 0, energy: 0.5, timestamp: ts.toISOString() };
+        return { stress: 0.3, focus: 0.5, valence: 0, energy: 0.5, timestamp: localTs(2026, 0, 1 + i, 8) };
       });
 
       const input: CorrelationInput = {
@@ -335,16 +347,14 @@ describe("generateInsights", () => {
     it("detects stress dropping after eating", () => {
       const meals = makeFoodLogs(6, { hour: 12, startDate: "2026-01-01" });
 
-      // Post-meal: low stress (1h after meal at 13:00 UTC)
+      // Post-meal: low stress (1h after meal at 13:00 local)
       const postMeal = Array.from({ length: 6 }, (_, i) => {
-        const ts = new Date(Date.UTC(2026, 0, 1 + i, 13, 0, 0));
-        return { stress: 0.2, focus: 0.5, valence: 0, energy: 0.5, timestamp: ts.toISOString() };
+        return { stress: 0.2, focus: 0.5, valence: 0, energy: 0.5, timestamp: localTs(2026, 0, 1 + i, 13) };
       });
 
-      // Baseline: high stress (morning 8:00 UTC)
+      // Baseline: high stress (morning 8:00 local)
       const baseline = Array.from({ length: 6 }, (_, i) => {
-        const ts = new Date(Date.UTC(2026, 0, 1 + i, 8, 0, 0));
-        return { stress: 0.7, focus: 0.5, valence: 0, energy: 0.5, timestamp: ts.toISOString() };
+        return { stress: 0.7, focus: 0.5, valence: 0, energy: 0.5, timestamp: localTs(2026, 0, 1 + i, 8) };
       });
 
       const input: CorrelationInput = {
@@ -374,17 +384,16 @@ describe("generateInsights", () => {
       });
 
       // Create 5 weekend readings with low focus
-      // 2026-01-03 is a Saturday (UTC), 2026-01-04 is Sunday
+      // 2026-01-03 is a Saturday (local), 2026-01-04 is Sunday
       const weekendEntries: CorrelationInput["emotionHistory"] = [];
       for (let i = 0; i < 5; i++) {
         // Alternate between Saturdays and Sundays across weeks
-        const ts = new Date(Date.UTC(2026, 0, 3 + i * 7 + (i % 2), 10, 0, 0));
         weekendEntries.push({
           stress: 0.5,
           focus: 0.3,
           valence: 0,
           energy: 0.5,
-          timestamp: ts.toISOString(),
+          timestamp: localTs(2026, 0, 3 + i * 7 + (i % 2), 10),
         });
       }
 
@@ -516,16 +525,14 @@ describe("generateInsights", () => {
 
       // Weekday/weekend with fewer samples
       const weekdayFocus: CorrelationInput["emotionHistory"] = [];
-      // 2026-01-05 is Monday (UTC)
+      // 2026-01-05 is Monday (local)
       for (let i = 0; i < 5; i++) {
-        const ts = new Date(Date.UTC(2026, 0, 5 + i, 10, 0, 0));
-        weekdayFocus.push({ stress: 0.5, focus: 0.9, valence: 0, energy: 0.5, timestamp: ts.toISOString() });
+        weekdayFocus.push({ stress: 0.5, focus: 0.9, valence: 0, energy: 0.5, timestamp: localTs(2026, 0, 5 + i, 10) });
       }
       const weekendFocus: CorrelationInput["emotionHistory"] = [];
-      // 2026-01-03 is Saturday (UTC)
+      // 2026-01-03 is Saturday (local)
       for (let i = 0; i < 5; i++) {
-        const ts = new Date(Date.UTC(2026, 0, 3 + i * 7, 10, 0, 0));
-        weekendFocus.push({ stress: 0.5, focus: 0.3, valence: 0, energy: 0.5, timestamp: ts.toISOString() });
+        weekendFocus.push({ stress: 0.5, focus: 0.3, valence: 0, energy: 0.5, timestamp: localTs(2026, 0, 3 + i * 7, 10) });
       }
 
       const input: CorrelationInput = {

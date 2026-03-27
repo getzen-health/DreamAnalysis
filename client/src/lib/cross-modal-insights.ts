@@ -69,15 +69,18 @@ function pctDiff(a: number, b: number): number {
 }
 
 function dateStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function getHour(timestamp: string): number {
-  return new Date(timestamp).getUTCHours();
+  return new Date(timestamp).getHours();
 }
 
 function getDayOfWeek(timestamp: string): number {
-  return new Date(timestamp).getUTCDay(); // 0=Sun, 6=Sat
+  return new Date(timestamp).getDay(); // 0=Sun, 6=Sat
 }
 
 function isWeekend(dayOfWeek: number): boolean {
