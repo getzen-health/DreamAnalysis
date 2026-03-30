@@ -11,6 +11,7 @@
 - [x] **WBTB+MILD Protocol**: `/lucid-protocol` page — 5-phase flow (setup→sleep countdown→WBTB wake→20-min guided MILD→log)
 - [x] **Reality Testing System**: `reality_tests` DB table, GET/POST endpoints, `RealityTestCard` component (today count, streak, 3-step check flow); integrated into `/lucid-protocol`
 - [x] **Shareable Dream Summary Card**: `DreamSummaryCard` — gradient card with theme icon, dream excerpt, symbol, insight, Web Share API. Rendered after morning analysis.
+- [x] **Device-Agnostic Tier UI** (#557, #558): `dream-tier.ts` — `getDreamTier()` + `estimateRemWindows()` (90-min cycle model, 13 tests passing). Tier 2 phone panel in `dream-journal.tsx` (sleep onset/wake inputs, REM window list, most-likely window highlighted, honest dataNote). Tier 3 CTA when no device. Zero fabricated content.
 
 ### Frontend (22 pages)
 - [x] **Daily Brain Report** (`/brain-report` — sleep summary, focus forecast, yesterday's insight, weekly 7-day avg card, recommended action)
