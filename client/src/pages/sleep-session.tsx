@@ -10,7 +10,7 @@ import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import { backgroundEeg } from "@/lib/background-eeg";
 import CGMSleepOverlay from "@/components/cgm-sleep-overlay";
-import { SleepHypnogram, type StageEvent } from "@/components/sleep-hypnogram";
+import { SleepHypnogram, type StageEvent, type DreamEpisode } from "@/components/sleep-hypnogram";
 import {
   Moon,
   BrainCircuit,
@@ -19,6 +19,7 @@ import {
   Play,
   Square,
   Eye,
+  AlarmClock,
 } from "lucide-react";
 
 const CURRENT_USER = getParticipantId();
@@ -129,6 +130,7 @@ export default function SleepSession() {
   const [dreamFlash, setDreamFlash] = useState(false);
   const [dreamsDetected, setDreamsDetected] = useState(0); // final summary count
   const [stageHistory, setStageHistory] = useState<StageEvent[]>([]);
+  const [dreamEpisodes, setDreamEpisodes] = useState<DreamEpisode[]>([]);
 
   // Screen dim state — activates when recording starts, tap anywhere to peek
   const [dimmed, setDimmed] = useState(false);
@@ -144,6 +146,27 @@ export default function SleepSession() {
   const intervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
   const stageHistoryRef  = useRef<StageEvent[]>([]);
   const prevStageRef     = useRef<SleepStage | null>(null);
+  const dreamEpisodesRef = useRef<DreamEpisode[]>([]);
+  const dreamStartRef    = useRef<number | null>(null);
+
+  // Smart wake alarm
+  const [targetWake, setTargetWake] = useState("07:30");
+  const { data: alarmData } = useQuery<{
+    optimalWindow: { start: string; end: string; midpoint: string };
+    targetWake: string;
+    estimatedCycles: number;
+    expectedStage: string;
+    confidence: number;
+    note: string;
+  }>({
+    queryKey: ["/api/sleep-alarm", CURRENT_USER, targetWake],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/sleep-alarm/${CURRENT_USER}?targetWake=${targetWake}`));
+      if (!res.ok) throw new Error("alarm fetch failed");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Real sleep stats from DB
   const { data: healthMetrics } = useQuery<HealthMetric[]>({
@@ -250,6 +273,15 @@ export default function SleepSession() {
         setDreamFlash(true);
         hapticLight(); // subtle pulse: dream detected (doesn't fully wake user)
         setTimeout(() => setDreamFlash(false), 4000);
+        // Record dream start time
+        dreamStartRef.current = elapsedRef.current;
+      } else if (!isDreaming && lastDreamRef.current && dreamStartRef.current !== null) {
+        // Falling edge — dream ended, record the episode
+        dreamEpisodesRef.current.push({
+          startT: dreamStartRef.current,
+          endT: elapsedRef.current,
+        });
+        dreamStartRef.current = null;
       }
       lastDreamRef.current = isDreaming;
     }, 1000);
@@ -277,7 +309,10 @@ export default function SleepSession() {
     stageTimeRef.current = 0;
     stageHistoryRef.current = [];
     prevStageRef.current = null;
+    dreamEpisodesRef.current = [];
+    dreamStartRef.current = null;
     setStageHistory([]);
+    setDreamEpisodes([]);
     setElapsed(0);
     setTally({ Wake: 0, N1: 0, N2: 0, N3: 0, REM: 0 });
     setDreamCount(0);
@@ -301,6 +336,15 @@ export default function SleepSession() {
     hapticSuccess(); // session complete
     setDreamsDetected(dreamCountRef.current);
     setStageHistory([...stageHistoryRef.current]);
+    // Close any in-progress dream episode
+    if (dreamStartRef.current !== null) {
+      dreamEpisodesRef.current.push({
+        startT: dreamStartRef.current,
+        endT: elapsedRef.current,
+      });
+      dreamStartRef.current = null;
+    }
+    setDreamEpisodes([...dreamEpisodesRef.current]);
     setPhase("summary");
     stopSession(CURRENT_USER).catch(() => {});
     backgroundEeg.stopSleepRecording().catch(() => {});
@@ -359,6 +403,42 @@ export default function SleepSession() {
               </div>
             ))}
           </div>
+        </Card>
+
+        {/* Smart Wake */}
+        <Card className="rounded-[14px] bg-card border border-border p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <AlarmClock className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Smart Wake Window</h3>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Wake during N1 or REM for better recall and no sleep inertia.
+            Set your target alarm time and we'll compute the optimal 30-min window.
+          </p>
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-muted-foreground shrink-0">Wake at</label>
+            <input
+              type="time"
+              value={targetWake}
+              onChange={(e) => setTargetWake(e.target.value)}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          {alarmData && (
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-2">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs text-muted-foreground">Optimal window</span>
+                <span className="text-base font-mono font-bold text-primary">
+                  {alarmData.optimalWindow.start}–{alarmData.optimalWindow.end}
+                </span>
+              </div>
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span>Stage: <span className="text-foreground font-medium">{alarmData.expectedStage}</span></span>
+                <span>Cycles: <span className="text-foreground font-medium">{alarmData.estimatedCycles}</span></span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">{alarmData.note}</p>
+            </div>
+          )}
         </Card>
 
         {/* Start button */}
@@ -620,7 +700,7 @@ export default function SleepSession() {
           <h3 className="text-sm font-medium text-foreground">Sleep Architecture</h3>
           <span className="text-[10px] font-mono text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded-full ml-auto">EEG</span>
         </div>
-        <SleepHypnogram stageHistory={stageHistory} totalSeconds={elapsed} height={72} />
+        <SleepHypnogram stageHistory={stageHistory} totalSeconds={elapsed} height={72} dreamEpisodes={dreamEpisodes} />
       </Card>
 
       {/* Stats row */}

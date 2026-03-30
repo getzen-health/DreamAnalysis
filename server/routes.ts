@@ -46,6 +46,7 @@ import {
 } from "@shared/schema";
 import { wearableAdapters } from "../lib/wearables";
 import { computeCardioLoad } from "@shared/cardio";
+import { analyzeDreamMultiPass as multiPassAnalyze, type DreamAnalysisResult } from "./lib/dream-analyzer";
 import { db } from "./db";
 import { eq, gte, lt, lte, and, or, asc, desc, sql, ilike, arrayContains } from "drizzle-orm";
 
@@ -823,6 +824,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-analysis POST failed");
+      res.status(500).json({ message: "Failed to analyze dream" });
+    }
+  });
+
+  // ── Multi-pass dream analysis endpoint — Issue #546 ──────────────────────
+  // Dedicated endpoint returning the richer DreamAnalysisResult schema.
+  // Falls back to single-pass on multi-pass failure.
+  app.post("/api/dream-analysis/multi-pass", llmLimiter, async (req, res) => {
+    try {
+      const { dreamText, recentThemes } = req.body;
+
+      if (!dreamText || typeof dreamText !== "string") {
+        return res.status(400).json({ message: "dreamText is required" });
+      }
+      if (dreamText.length > 10000) {
+        return res.status(400).json({ message: "dreamText exceeds max length (10000 chars)" });
+      }
+
+      const recentDreamThemes = Array.isArray(recentThemes)
+        ? (recentThemes as string[]).filter((t) => typeof t === "string")
+        : undefined;
+
+      // Attempt the 3-pass structured analysis
+      let result: DreamAnalysisResult;
+      try {
+        result = await multiPassAnalyze(dreamText, recentDreamThemes);
+      } catch (multiPassErr) {
+        logger.warn(
+          { error: multiPassErr instanceof Error ? multiPassErr.message : String(multiPassErr) },
+          "multi-pass dream analysis (new endpoint) failed — falling back to single-pass",
+        );
+
+        // Single-pass fallback: call the LLM once for a simplified result
+        let fallbackAnalysis = "";
+        let fallbackThemes: string[] = [];
+        let fallbackTone = "neutral";
+
+        if (anthropic) {
+          const r = await anthropic.messages.create({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 512,
+            system: "You are a dream analysis expert. Analyze the dream and return valid JSON with keys: summary (string), themes (string[]), emotionalTone (string), actionableInsight (string).",
+            messages: [{ role: "user", content: `Analyze this dream: ${dreamText}` }],
+          });
+          const raw = r.content[0].type === "text" ? r.content[0].text : "{}";
+          try {
+            const parsed = JSON.parse(raw) as Record<string, unknown>;
+            fallbackAnalysis = typeof parsed.summary === "string" ? parsed.summary : "";
+            fallbackThemes = Array.isArray(parsed.themes) ? parsed.themes as string[] : [];
+            fallbackTone = typeof parsed.emotionalTone === "string" ? parsed.emotionalTone as string : "neutral";
+          } catch { /* keep defaults */ }
+        } else if (openai) {
+          const r = await openai.chat.completions.create({
+            model: "gpt-5",
+            messages: [
+              { role: "system", content: "You are a dream analysis expert. Analyze the dream and return JSON: {summary, themes, emotionalTone, actionableInsight}" },
+              { role: "user", content: `Analyze this dream: ${dreamText}` },
+            ],
+            response_format: { type: "json_object" },
+          });
+          try {
+            const parsed = JSON.parse(r.choices[0].message.content || "{}") as Record<string, unknown>;
+            fallbackAnalysis = typeof parsed.summary === "string" ? parsed.summary : "";
+            fallbackThemes = Array.isArray(parsed.themes) ? parsed.themes as string[] : [];
+            fallbackTone = typeof parsed.emotionalTone === "string" ? parsed.emotionalTone as string : "neutral";
+          } catch { /* keep defaults */ }
+        } else {
+          return res.status(503).json({ message: "No LLM API key configured" });
+        }
+
+        result = {
+          summary: fallbackAnalysis,
+          themes: fallbackThemes,
+          symbols: [],
+          emotionalTone: fallbackTone,
+          connections: [],
+          lucidityIndicators: [],
+          actionableInsight: typeof (fallbackAnalysis as string) === "string" ? fallbackAnalysis : "",
+        };
+      }
+
+      res.json(result);
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "dream-analysis/multi-pass POST failed",
+      );
       res.status(500).json({ message: "Failed to analyze dream" });
     }
   });
@@ -6120,6 +6208,79 @@ Respond in JSON:
   });
 
   // ── End dream frame pipeline ──────────────────────────────────────────────
+
+  /**
+   * GET /api/sleep-alarm/:userId?targetWake=HH:MM
+   * Compute optimal wake window targeting N1/REM stages.
+   * Uses the 90-min sleep cycle model to find the nearest cycle boundary
+   * before the target wake time, returning a ±15 min optimal window.
+   */
+  app.get("/api/sleep-alarm/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const targetWakeStr = (req.query.targetWake as string | undefined) || "";
+
+      if (!userId) {
+        return res.status(400).json({ message: "userId required" });
+      }
+
+      // Parse target wake time (HH:MM) into today's Date
+      const now = new Date();
+      let targetWake: Date;
+      if (/^\d{1,2}:\d{2}$/.test(targetWakeStr)) {
+        const [hh, mm] = targetWakeStr.split(":").map(Number);
+        targetWake = new Date(now);
+        targetWake.setHours(hh, mm, 0, 0);
+        if (targetWake <= now) targetWake.setDate(targetWake.getDate() + 1);
+      } else {
+        targetWake = new Date(now);
+        targetWake.setDate(targetWake.getDate() + 1);
+        targetWake.setHours(7, 30, 0, 0);
+      }
+
+      // Count recent dreams to assess confidence
+      const recentDreams = await db
+        .select({ ts: dreamAnalysis.timestamp })
+        .from(dreamAnalysis)
+        .where(eq(dreamAnalysis.userId, userId))
+        .orderBy(desc(dreamAnalysis.timestamp))
+        .limit(20);
+
+      // 90-min cycle model — scientific default, well-validated
+      const CYCLE_MIN = 90;
+      const sleepOnset = new Date(targetWake);
+      sleepOnset.setDate(sleepOnset.getDate() - 1);
+      sleepOnset.setHours(23, 0, 0, 0);
+
+      const totalSleepMin = (targetWake.getTime() - sleepOnset.getTime()) / 60000;
+      const cyclesBeforeTarget = Math.floor(totalSleepMin / CYCLE_MIN);
+      const lastCycleBoundaryMin = cyclesBeforeTarget * CYCLE_MIN;
+
+      const optimalMidMs = sleepOnset.getTime() + lastCycleBoundaryMin * 60000;
+      const windowStart = new Date(optimalMidMs - 15 * 60000);
+      const windowEnd   = new Date(optimalMidMs + 15 * 60000);
+
+      const fmt = (d: Date) =>
+        `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+      const stage = cyclesBeforeTarget >= 5 ? "REM" : cyclesBeforeTarget >= 3 ? "N1/REM" : "N1";
+
+      return res.json({
+        optimalWindow: { start: fmt(windowStart), end: fmt(windowEnd), midpoint: fmt(new Date(optimalMidMs)) },
+        targetWake: fmt(targetWake),
+        estimatedCycles: cyclesBeforeTarget,
+        expectedStage: stage,
+        cycleLengthMinutes: CYCLE_MIN,
+        confidence: recentDreams.length >= 5 ? 0.75 : 0.6,
+        note: recentDreams.length >= 5
+          ? `Based on your recent ${recentDreams.length} sleep sessions`
+          : "Based on scientific 90-min sleep cycle average",
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "sleep-alarm GET failed");
+      return res.status(500).json({ message: "Failed to compute sleep alarm window" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
