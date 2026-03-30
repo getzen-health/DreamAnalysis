@@ -827,6 +827,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Longitudinal dream pattern aggregation — Issue #549
+  app.get("/api/dream-patterns/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const days = parseInt(req.query.days as string) || 30;
+
+      const analyses = await storage.getDreamAnalyses(userId, 1000);
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const recent = analyses.filter(a => new Date(a.timestamp) >= cutoff);
+
+      if (recent.length === 0) {
+        return res.json({ period: days, entryCount: 0, themes: [], symbols: [], sentimentTrend: [], topInsights: [] });
+      }
+
+      // Aggregate theme and symbol frequencies
+      const themes: Record<string, number> = {};
+      const symbols: Record<string, number> = {};
+      const sentimentTrend: { date: string; valence: number }[] = [];
+
+      for (const entry of recent) {
+        // symbols is string[] in the schema
+        for (const sym of (entry.symbols as string[] || [])) {
+          symbols[sym] = (symbols[sym] || 0) + 1;
+        }
+        // emotions is {emotion, intensity}[]
+        for (const em of (entry.emotions as Array<{ emotion: string; intensity: number }> || [])) {
+          themes[em.emotion] = (themes[em.emotion] || 0) + 1;
+        }
+        sentimentTrend.push({
+          date: new Date(entry.timestamp).toISOString().split("T")[0],
+          valence: (entry.emotions as Array<{ emotion: string; intensity: number }> || []).reduce(
+            (sum: number, e: { emotion: string; intensity: number }) => sum + (e.intensity || 0), 0
+          ) / Math.max((entry.emotions as Array<{ emotion: string; intensity: number }> || []).length, 1)
+        });
+      }
+
+      const topSymbols = Object.entries(symbols)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+      const topThemes = Object.entries(themes)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      const topInsights = recent
+        .filter(a => a.aiAnalysis && a.aiAnalysis.length > 20)
+        .slice(0, 3)
+        .map(a => a.aiAnalysis);
+
+      res.json({
+        period: days,
+        entryCount: recent.length,
+        themes: topThemes,
+        symbols: topSymbols,
+        sentimentTrend: sentimentTrend.sort((a, b) => a.date.localeCompare(b.date)),
+        topInsights
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-patterns GET failed");
+      res.status(500).json({ message: "Failed to fetch dream patterns" });
+    }
+  });
+
   // AI chat endpoints — no auth gate (data scoped by userId, APK uses localStorage IDs)
   app.get("/api/ai-chat/:userId", async (req, res) => {
     try {
