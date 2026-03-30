@@ -562,6 +562,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Multi-pass dream analysis helper ──────────────────────────────────────
+  /**
+   * Runs 3 sequential LLM passes over a dream text and returns a structured
+   * analysis object. Falls back to undefined so the caller can use the old
+   * single-pass path on failure.
+   *
+   * Uses Anthropic claude-haiku-4-5-20251001 when ANTHROPIC_API_KEY is set;
+   * otherwise uses OpenAI gpt-5 with response_format json_object.
+   */
+  async function analyzeDreamMultiPass(dreamText: string): Promise<{
+    symbols: string[];
+    emotions: Array<{ emotion: string; intensity: number }>;
+    aiAnalysis: string;
+    themes: string[];
+    emotional_arc: string;
+    key_insight: string;
+    threat_simulation_index: number;
+  } | undefined> {
+    // ── Pass 1: Entity extraction ──────────────────────────────────────────
+    type Pass1Result = {
+      people: string[];
+      places: string[];
+      objects: string[];
+      actions: string[];
+      emotions: string[];
+    };
+
+    let pass1: Pass1Result = { people: [], places: [], objects: [], actions: [], emotions: [] };
+
+    if (anthropic) {
+      // Use Anthropic claude-haiku
+      const r1 = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 512,
+        system: "You are a dream analysis expert. Extract entities from dream text and return only valid JSON.",
+        messages: [
+          {
+            role: "user",
+            content: `Extract from this dream all people mentioned, places, objects, actions, and emotions. Return JSON exactly in this shape: {"people":[],"places":[],"objects":[],"actions":[],"emotions":[]}\n\nDream: ${dreamText}`
+          }
+        ]
+      });
+      const raw1 = r1.content[0].type === "text" ? r1.content[0].text : "{}";
+      try { pass1 = JSON.parse(raw1); } catch { /* keep defaults */ }
+    } else if (openai) {
+      const r1 = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          {
+            role: "system",
+            content: "You are a dream analysis expert. Extract entities from dream text and return only valid JSON."
+          },
+          {
+            role: "user",
+            content: `Extract from this dream all people mentioned, places, objects, actions, and emotions. Return JSON exactly in this shape: {"people":[],"places":[],"objects":[],"actions":[],"emotions":[]}\n\nDream: ${dreamText}`
+          }
+        ],
+        response_format: { type: "json_object" }
+      });
+      try { pass1 = JSON.parse(r1.choices[0].message.content || "{}"); } catch { /* keep defaults */ }
+    } else {
+      return undefined;
+    }
+
+    // ── Pass 2: Theme + symbol classification ──────────────────────────────
+    type SymbolEntry = { name: string; interpretation: string; valence: string };
+    type Pass2Result = {
+      primary_theme: string;
+      secondary_themes: string[];
+      symbols: SymbolEntry[];
+      emotional_arc: string;
+      threat_simulation_index: number;
+    };
+
+    let pass2: Pass2Result = {
+      primary_theme: "",
+      secondary_themes: [],
+      symbols: [],
+      emotional_arc: "",
+      threat_simulation_index: 0
+    };
+
+    const entitiesStr = JSON.stringify(pass1);
+    const pass2Prompt = `Given this dream and these entities: ${entitiesStr}\n\nClassify using Hall/Van de Castle dream taxonomy. Return JSON exactly in this shape: {"primary_theme":"","secondary_themes":[],"symbols":[{"name":"","interpretation":"","valence":""}],"emotional_arc":"","threat_simulation_index":0}\n\nthreat_simulation_index must be a number between 0 and 1.\n\nDream: ${dreamText}`;
+
+    if (anthropic) {
+      const r2 = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 768,
+        system: "You are a dream analysis expert specializing in Hall/Van de Castle taxonomy. Return only valid JSON.",
+        messages: [{ role: "user", content: pass2Prompt }]
+      });
+      const raw2 = r2.content[0].type === "text" ? r2.content[0].text : "{}";
+      try { pass2 = JSON.parse(raw2); } catch { /* keep defaults */ }
+    } else if (openai) {
+      const r2 = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          { role: "system", content: "You are a dream analysis expert specializing in Hall/Van de Castle taxonomy. Return only valid JSON." },
+          { role: "user", content: pass2Prompt }
+        ],
+        response_format: { type: "json_object" }
+      });
+      try { pass2 = JSON.parse(r2.choices[0].message.content || "{}"); } catch { /* keep defaults */ }
+    }
+
+    // ── Pass 3: Insight generation ─────────────────────────────────────────
+    type Pass3Result = {
+      key_insight: string;
+      morning_mood_prediction: string;
+      irt_recommended: boolean;
+      wellbeing_note: string;
+    };
+
+    let pass3: Pass3Result = {
+      key_insight: "",
+      morning_mood_prediction: "",
+      irt_recommended: false,
+      wellbeing_note: ""
+    };
+
+    const nightmareScore = Number(pass2.threat_simulation_index) || 0;
+    const pass3Prompt = `Given theme=${pass2.primary_theme}, symbols=${JSON.stringify(pass2.symbols)}, emotional_arc=${pass2.emotional_arc}, nightmare_score=${nightmareScore}:\n\nWrite ONE specific insight about this particular dream (not generic advice). Predict the dreamer's morning mood. Recommend IRT (Image Rehearsal Therapy) only if nightmareScore > 0.5. Return JSON exactly in this shape: {"key_insight":"","morning_mood_prediction":"","irt_recommended":false,"wellbeing_note":""}`;
+
+    if (anthropic) {
+      const r3 = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 512,
+        system: "You are a clinical dream analyst. Provide specific, actionable insights. Return only valid JSON.",
+        messages: [{ role: "user", content: pass3Prompt }]
+      });
+      const raw3 = r3.content[0].type === "text" ? r3.content[0].text : "{}";
+      try { pass3 = JSON.parse(raw3); } catch { /* keep defaults */ }
+    } else if (openai) {
+      const r3 = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          { role: "system", content: "You are a clinical dream analyst. Provide specific, actionable insights. Return only valid JSON." },
+          { role: "user", content: pass3Prompt }
+        ],
+        response_format: { type: "json_object" }
+      });
+      try { pass3 = JSON.parse(r3.choices[0].message.content || "{}"); } catch { /* keep defaults */ }
+    }
+
+    // ── Combine all passes into a single backward-compatible response ──────
+    const symbolNames = (pass2.symbols || []).map((s: SymbolEntry) => s.name).filter(Boolean);
+    const emotionObjects = (pass1.emotions || []).map((e: string) => ({ emotion: e, intensity: 0.7 }));
+    const allThemes = [pass2.primary_theme, ...(pass2.secondary_themes || [])].filter(Boolean);
+
+    const aiAnalysisParts: string[] = [];
+    if (pass3.key_insight) aiAnalysisParts.push(pass3.key_insight);
+    if (pass3.morning_mood_prediction) aiAnalysisParts.push(`Morning mood: ${pass3.morning_mood_prediction}`);
+    if (pass3.wellbeing_note) aiAnalysisParts.push(pass3.wellbeing_note);
+    if (pass3.irt_recommended) aiAnalysisParts.push("IRT (Image Rehearsal Therapy) is recommended for this nightmare.");
+
+    return {
+      symbols: symbolNames,
+      emotions: emotionObjects,
+      aiAnalysis: aiAnalysisParts.join(" "),
+      themes: allThemes,
+      emotional_arc: pass2.emotional_arc || "",
+      key_insight: pass3.key_insight || "",
+      threat_simulation_index: nightmareScore,
+    };
+  }
+
   // Dream analysis endpoints
   // No auth gate — data scoped by userId. Native APK uses localStorage IDs without JWT.
   app.get("/api/dream-analysis/:userId", async (req, res) => {
@@ -584,41 +751,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "dreamText exceeds max length (10000 chars)" });
       }
 
-      // Analyze dream with OpenAI
-      if (!openai) return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-      const response = await openai.chat.completions.create({
-        model: "gpt-5",
-        messages: [
-          {
-            role: "system",
-            content: "You are a dream analysis expert. Analyze the dream text and provide insights about symbols, emotions, and psychological meanings. Respond with JSON in this format: { 'symbols': string[], 'emotions': { 'emotion': string, 'intensity': number }[], 'analysis': string }"
-          },
-          {
-            role: "user",
-            content: `Analyze this dream: ${dreamText}`
-          }
-        ],
-        response_format: { type: "json_object" }
-      });
-
-      let analysis: Record<string, unknown>;
-      try {
-        analysis = JSON.parse(response.choices[0].message.content || "{}");
-      } catch {
-        analysis = {};
+      if (!openai && !anthropic) {
+        return res.status(503).json({ message: "No LLM API key configured" });
       }
 
-      const dreamAnalysis = await storage.createDreamAnalysis({
+      // Attempt 3-pass structured analysis; fall back to single-pass on any error
+      let multiPassResult: Awaited<ReturnType<typeof analyzeDreamMultiPass>> | undefined;
+      try {
+        multiPassResult = await analyzeDreamMultiPass(dreamText);
+      } catch (multiPassError) {
+        logger.warn({ error: multiPassError instanceof Error ? multiPassError.message : String(multiPassError) }, "multi-pass dream analysis failed — falling back to single-pass");
+      }
+
+      let symbols: string[];
+      let emotions: Array<{ emotion: string; intensity: number }>;
+      let aiAnalysis: string;
+      let themes: string[] | undefined;
+      let emotional_arc: string | undefined;
+      let key_insight: string | undefined;
+      let threat_simulation_index: number | undefined;
+
+      if (multiPassResult) {
+        // Use structured multi-pass result
+        ({ symbols, emotions, aiAnalysis, themes, emotional_arc, key_insight, threat_simulation_index } = multiPassResult);
+      } else {
+        // Single-pass fallback (original behavior)
+        if (!openai) return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
+        // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+        const response = await openai.chat.completions.create({
+          model: "gpt-5",
+          messages: [
+            {
+              role: "system",
+              content: "You are a dream analysis expert. Analyze the dream text and provide insights about symbols, emotions, and psychological meanings. Respond with JSON in this format: { 'symbols': string[], 'emotions': { 'emotion': string, 'intensity': number }[], 'analysis': string }"
+            },
+            {
+              role: "user",
+              content: `Analyze this dream: ${dreamText}`
+            }
+          ],
+          response_format: { type: "json_object" }
+        });
+
+        let fallbackAnalysis: Record<string, unknown>;
+        try {
+          fallbackAnalysis = JSON.parse(response.choices[0].message.content || "{}");
+        } catch {
+          fallbackAnalysis = {};
+        }
+
+        symbols = (fallbackAnalysis.symbols as string[]) || [];
+        emotions = (fallbackAnalysis.emotions as Array<{ emotion: string; intensity: number }>) || [];
+        aiAnalysis = (fallbackAnalysis.analysis as string) || "";
+      }
+
+      const savedDreamAnalysis = await storage.createDreamAnalysis({
         userId,
         dreamText,
-        symbols: (analysis.symbols as string[]) || [],
-        emotions: (analysis.emotions as Array<{emotion: string; intensity: number}>) || [],
-        aiAnalysis: (analysis.analysis as string) || ""
+        symbols,
+        emotions,
+        aiAnalysis
       });
 
-      res.json(dreamAnalysis);
+      // Return stored record augmented with the new structured fields
+      res.json({
+        ...savedDreamAnalysis,
+        ...(themes !== undefined && { themes }),
+        ...(emotional_arc !== undefined && { emotional_arc }),
+        ...(key_insight !== undefined && { key_insight }),
+        ...(threat_simulation_index !== undefined && { threat_simulation_index }),
+      });
     } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-analysis POST failed");
       res.status(500).json({ message: "Failed to analyze dream" });
     }
   });

@@ -23,8 +23,8 @@ export interface ConfidenceFactors {
 
 export interface ConfidenceResult {
   confidence: number;    // 0-1
-  label: string;         // "High confidence" | "Moderate confidence" | "Low confidence" | "Not enough data"
-  showEmotion: boolean;  // false if confidence < 0.3
+  label: string;         // "High confidence" | "Moderate" | "Low — take with grain of salt"
+  showEmotion: boolean;  // false if confidence < 0.3 (still hides emotion for very low values)
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -89,7 +89,6 @@ export function calculateEmotionConfidence(
 
 function getConfidenceLabel(confidence: number): string {
   if (confidence > 0.7) return "High confidence";
-  if (confidence >= 0.5) return "Moderate confidence";
-  if (confidence >= 0.3) return "Low confidence";
-  return "Not enough data";
+  if (confidence >= 0.4) return "Moderate";
+  return "Low — take with grain of salt";
 }

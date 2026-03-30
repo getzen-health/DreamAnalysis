@@ -36,6 +36,7 @@ import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
 import { computeBlinkStats, type BlinkStats } from "@/lib/blink-detector";
 import { detectBreathingState, type BreathingAnalysis } from "@/lib/breathing-detector";
 import { BreathingIndicator } from "@/components/breathing-indicator";
+import { SignalQualityBadge } from "@/components/signal-quality-badge";
 import { Eye } from "lucide-react";
 import { useInterventionTriggers } from "@/hooks/use-intervention-triggers";
 import { InterventionTriggerToast } from "@/components/intervention-trigger-toast";
@@ -331,6 +332,14 @@ export default function BrainMonitor() {
         ? "text-warning border-warning/30 bg-warning/10"
         : "text-destructive border-destructive/30 bg-destructive/10";
 
+  // Normalized 0-1 quality for the SignalQualityBadge.
+  // Prefer clean_ratio from the multi-method detector when it has a real value (>0);
+  // fall back to sqScore (0-100) converted to 0-1.
+  const normalizedQuality: number =
+    signalQuality && signalQuality.clean_ratio > 0
+      ? signalQuality.clean_ratio
+      : sqScore / 100;
+
   const bp = analysis?.band_powers;
   const alphaVal = bp?.alpha != null ? bp.alpha : null;
 
@@ -487,16 +496,10 @@ export default function BrainMonitor() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {isStreaming && <SessionControls onRecordingChange={setIsRecording} />}
-          {isStreaming && (
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${sqBadgeColor}`}
-              data-testid="signal-quality-status"
-              title={artifactDetected ? artifactType : sqLabel}
-            >
-              <span className={`h-2 w-2 rounded-full ${sqDotColor} shrink-0`} />
-              {sqLabel}
-            </span>
-          )}
+          <SignalQualityBadge
+            quality={normalizedQuality}
+            isStreaming={isStreaming}
+          />
           {/* Signal source badge */}
           {(() => {
             const source: string =
@@ -764,8 +767,28 @@ export default function BrainMonitor() {
       <div className="rounded-[14px] bg-card border border-border p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Brain State</h3>
-          <Brain className="text-primary" />
+          <div className="flex items-center gap-2">
+            <SignalQualityBadge
+              quality={normalizedQuality}
+              isStreaming={isStreaming}
+            />
+            <Brain className="text-primary" />
+          </div>
         </div>
+        {/* "Too noisy" overlay when signal quality is poor */}
+        {isStreaming && normalizedQuality <= 0.4 && (
+          <div
+            className="rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3 mb-4 text-center"
+            data-testid="signal-too-noisy-overlay"
+          >
+            <p className="text-sm font-medium text-red-400">
+              Signal too noisy — readings may be inaccurate
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Try relaxing your face muscles and adjusting the headband
+            </p>
+          </div>
+        )}
         {isStreaming && stableAnalysis ? (() => {
           const narrative = getBrainStateNarrative(stableAnalysis);
           return (

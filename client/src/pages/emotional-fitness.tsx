@@ -16,6 +16,17 @@ import { EFSHistoryChart } from "@/components/efs-history-chart";
 import { exportEFSCard } from "@/components/efs-share-card";
 import { Shield, Gauge, Eye, Palette, Anchor, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfidenceMeter } from "@/components/confidence-meter";
+
+// Map EFS confidence tier to a numeric value for ConfidenceMeter
+function efsConfidenceToNumber(tier: EFSData["confidence"]): number {
+  switch (tier) {
+    case "full": return 0.9;
+    case "early_estimate": return 0.55;
+    case "building": return 0.25;
+    default: return 0.5;
+  }
+}
 
 // ── Animation variants ──────────────────────────────────────────────────────
 
@@ -124,6 +135,15 @@ export default function EmotionalFitness() {
               progress={data.progress}
             />
           </motion.div>
+
+          {/* Confidence meter for the overall emotional fitness reading */}
+          <div className="px-2">
+            <ConfidenceMeter
+              confidence={efsConfidenceToNumber(data.confidence)}
+              size="sm"
+              showLabel
+            />
+          </div>
 
           {/* 5 vital cards — staggered entrance, 5th card spans full width */}
           <motion.div

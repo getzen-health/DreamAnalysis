@@ -80,30 +80,22 @@ describe("calculateEmotionConfidence", () => {
     expect(result.label).toBe("High confidence");
   });
 
-  it("returns 'Moderate confidence' label for confidence between 0.5 and 0.7", () => {
+  it("returns 'Moderate' label for confidence between 0.4 and 0.7", () => {
     const result = calculateEmotionConfidence({
       modelConfidence: 0.65,
       signalQuality: 0.85,
     });
-    expect(result.confidence).toBeGreaterThanOrEqual(0.5);
+    expect(result.confidence).toBeGreaterThanOrEqual(0.4);
     expect(result.confidence).toBeLessThanOrEqual(0.7);
-    expect(result.label).toBe("Moderate confidence");
+    expect(result.label).toBe("Moderate");
   });
 
-  it("returns 'Low confidence' label for confidence between 0.3 and 0.5", () => {
-    const result = calculateEmotionConfidence({
-      modelConfidence: 0.45,
-      signalQuality: 0.8,
-    });
-    expect(result.label).toBe("Low confidence");
-  });
-
-  it("returns 'Not enough data' label for confidence below 0.3", () => {
+  it("returns 'Low — take with grain of salt' label for confidence below 0.4", () => {
     const result = calculateEmotionConfidence({
       modelConfidence: 0.2,
       signalQuality: 0.3,
     });
-    expect(result.label).toBe("Not enough data");
+    expect(result.label).toBe("Low — take with grain of salt");
   });
 
   // 8. Missing factors use neutral defaults (don't crash)

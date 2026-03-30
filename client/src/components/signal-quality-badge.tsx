@@ -1,77 +1,59 @@
-import { Eye, Zap, Radio } from "lucide-react";
+import { Radio } from "lucide-react";
 
-interface SignalQualityBadgeProps {
-  sqi?: number;
-  artifacts?: string[];
-  compact?: boolean;
-  // Simple amplitude-threshold fields from /analyze-eeg
-  artifactDetected?: boolean;
-  artifactType?: "clean" | "blink" | "muscle" | "electrode_pop";
+export interface SignalQualityBadgeProps {
+  /** Signal quality score: 0 (worst) to 1 (best), typically from clean_ratio */
+  quality: number;
+  /** Whether the EEG stream is active */
+  isStreaming: boolean;
 }
 
-const ARTIFACT_LABELS: Record<string, string> = {
-  blink:         "Eye blink detected",
-  muscle:        "Muscle artifact — relax jaw",
-  electrode_pop: "Electrode contact lost",
-  clean:         "No artifact",
-};
+/**
+ * Inline badge showing EEG signal quality in three states:
+ *   good (>0.7)    — green dot + "Good signal"
+ *   moderate (>0.4) — amber dot + "Noisy"
+ *   poor (<=0.4)   — red dot + "Too noisy — relax face muscles"
+ *
+ * Not rendered when `isStreaming` is false.
+ */
+export function SignalQualityBadge({ quality, isStreaming }: SignalQualityBadgeProps) {
+  if (!isStreaming) return null;
 
-export function SignalQualityBadge({
-  sqi: rawSqi,
-  artifacts = [],
-  compact = false,
-  artifactDetected = false,
-  artifactType = "clean",
-}: SignalQualityBadgeProps) {
-  const sqi = rawSqi ?? 0;
-  const color =
-    sqi >= 80
-      ? "text-success border-success/30 bg-success/10"
-      : sqi >= 60
-        ? "text-warning border-warning/30 bg-warning/10"
-        : "text-destructive border-destructive/30 bg-destructive/10";
-
-  const label = sqi >= 80 ? "Good" : sqi >= 60 ? "Fair" : "Poor";
-
-  const tooltipText = artifactDetected
-    ? ARTIFACT_LABELS[artifactType] ?? artifactType
-    : undefined;
-
-  if (compact) {
-    return (
-      <span
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-mono ${color}`}
-        title={tooltipText ?? `Signal Quality: ${sqi.toFixed(0)}%`}
-      >
-        <Radio className="h-3 w-3" />
-        {sqi.toFixed(0)}
-        {artifactDetected && (
-          <span className="ml-0.5 opacity-70">!</span>
-        )}
-      </span>
-    );
-  }
+  const { label, dotColor, badgeColor } = getQualityState(quality);
 
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${color}`} title={tooltipText}>
-      <div className="flex items-center gap-1">
-        <Radio className="h-4 w-4" />
-        <span className="text-sm font-mono font-medium">SQI: {sqi.toFixed(0)}</span>
-      </div>
-      <span className="text-xs opacity-70">{label}</span>
-      {(artifacts.length > 0 || artifactDetected) && (
-        <div className="flex items-center gap-1 ml-1">
-          {(artifacts.includes("eye_blink") || artifactType === "blink") && (
-            <Eye className="h-3 w-3 opacity-70" aria-label="Eye blink detected" />
-          )}
-          {(artifacts.includes("muscle") || artifactType === "muscle") && (
-            <Zap className="h-3 w-3 opacity-70" aria-label="Muscle artifact detected" />
-          )}
-          {(artifacts.includes("electrode_pop") || artifactType === "electrode_pop") && (
-            <Radio className="h-3 w-3 opacity-70" aria-label="Electrode pop detected" />
-          )}
-        </div>
-      )}
-    </div>
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${badgeColor}`}
+      data-testid="signal-quality-badge"
+      title={`Signal quality: ${Math.round(quality * 100)}%`}
+    >
+      <span className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} />
+      {label}
+    </span>
   );
+}
+
+function getQualityState(quality: number): {
+  label: string;
+  dotColor: string;
+  badgeColor: string;
+} {
+  if (quality > 0.7) {
+    return {
+      label: "Good signal",
+      dotColor: "bg-emerald-500",
+      badgeColor: "text-emerald-500 border-emerald-500/30 bg-emerald-500/10",
+    };
+  }
+  if (quality > 0.4) {
+    return {
+      label: "Noisy",
+      dotColor: "bg-amber-500",
+      badgeColor: "text-amber-500 border-amber-500/30 bg-amber-500/10",
+    };
+  }
+  return {
+    label: "Too noisy \u2014 relax face muscles",
+    dotColor: "bg-red-500",
+    badgeColor: "text-red-500 border-red-500/30 bg-red-500/10",
+  };
 }

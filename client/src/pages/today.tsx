@@ -41,6 +41,7 @@ import { DreamFusionCard } from "@/components/dream-fusion-card";
 import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics } from "@/lib/dream-biometric-fusion";
 import { predictNextDay, type PredictionInput } from "@/lib/predictive-alerts";
 import { PredictiveAlertCard } from "@/components/predictive-alert-card";
+import { pairIntervention } from "@/lib/mood-intervention-pairer";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1436,6 +1437,14 @@ export default function Today() {
   const focusDelta = (prevFocus != null && focusVal > 0) ? (focusVal - prevFocus) : null;
   const moodDelta = (prevValence != null && checkin?.valence != null) ? (checkin.valence - prevValence) : null;
 
+  // Mood-intervention pairing (#524) — always pair mood data with actionable suggestion
+  const moodIntervention = useMemo(() => pairIntervention({
+    stress: stressVal,
+    valence: valenceVal,
+    focus: focusVal,
+    emotion: checkin?.emotion,
+  }), [stressVal, valenceVal, focusVal, checkin?.emotion]);
+
   // Score splash — show once per session when data exists
   const [showSplash, setShowSplash] = useState(() => {
     if (!checkin?.emotion) return false;
@@ -1620,6 +1629,20 @@ export default function Today() {
               delta={moodDelta}
             />
           </motion.div>
+
+          {/* ── 3c. Mood Intervention CTA (#524) ── */}
+          {checkin?.emotion && (
+            <motion.div variants={itemVariants} className="-mt-2 mb-4">
+              <button
+                onClick={() => navigate(moodIntervention.href)}
+                className="w-full flex items-center gap-2.5 rounded-xl border border-border/20 bg-card/50 px-3.5 py-2.5 text-left transition-colors hover:bg-card/80"
+              >
+                <span className="text-xs text-muted-foreground shrink-0">{moodIntervention.duration}</span>
+                <span className="text-xs font-medium text-foreground flex-1 truncate">{moodIntervention.suggestion}</span>
+                <span className="text-[10px] font-medium text-primary shrink-0">{moodIntervention.action} &rarr;</span>
+              </button>
+            </motion.div>
+          )}
 
           {/* ── Last analysis timestamp ── */}
           {checkinTimestamp && (

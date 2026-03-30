@@ -68,7 +68,11 @@ vi.mock("@/components/charts/spectrogram-chart", () => ({
 }));
 
 vi.mock("@/components/signal-quality-badge", () => ({
-  SignalQualityBadge: () => <div data-testid="signal-quality-badge" />,
+  SignalQualityBadge: ({ quality, isStreaming }: { quality: number; isStreaming: boolean }) => {
+    if (!isStreaming) return null;
+    const label = quality > 0.7 ? "Good signal" : quality > 0.4 ? "Noisy" : "Too noisy — relax face muscles";
+    return <div data-testid="signal-quality-badge">{label}</div>;
+  },
 }));
 
 vi.mock("@/components/alert-banner", () => ({
@@ -260,21 +264,13 @@ describe("BrainMonitor page", () => {
       });
     });
 
-    it("shows compact signal quality status with colored dot when streaming", async () => {
+    it("shows SignalQualityBadge when streaming", async () => {
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
-        const badge = screen.getByTestId("signal-quality-status");
-        expect(badge).toBeInTheDocument();
-        // Should show "Good Signal" (score is 100 by default)
-        expect(badge).toHaveTextContent("Good Signal");
-      });
-    });
-
-    it("does not render SignalQualityBadge component (removed for cleaner mobile)", async () => {
-      renderWithProviders(<BrainMonitor />);
-      await waitFor(() => {
-        // SignalQualityBadge mock renders with data-testid="signal-quality-badge"
-        expect(screen.queryByTestId("signal-quality-badge")).not.toBeInTheDocument();
+        const badges = screen.getAllByTestId("signal-quality-badge");
+        expect(badges.length).toBeGreaterThanOrEqual(1);
+        // Default score is 100 → quality 1.0 → "Good signal"
+        expect(badges[0]).toHaveTextContent("Good signal");
       });
     });
 
@@ -417,40 +413,41 @@ describe("BrainMonitor page", () => {
       };
     }
 
-    it("shows 'Good Signal' for high quality score (>70)", async () => {
+    it("shows 'Good signal' for high quality score (>70)", async () => {
       mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 85 }));
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
-        const badge = screen.getByTestId("signal-quality-status");
-        expect(badge).toHaveTextContent("Good Signal");
+        const badges = screen.getAllByTestId("signal-quality-badge");
+        expect(badges[0]).toHaveTextContent("Good signal");
       });
     });
 
-    it("shows 'Fair Signal' for medium quality score (40-70)", async () => {
+    it("shows 'Noisy' for medium quality score (40-70)", async () => {
       mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 55 }));
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
-        const badge = screen.getByTestId("signal-quality-status");
-        expect(badge).toHaveTextContent("Fair Signal");
+        const badges = screen.getAllByTestId("signal-quality-badge");
+        expect(badges[0]).toHaveTextContent("Noisy");
       });
     });
 
-    it("shows 'Poor Signal' for low quality score (<40)", async () => {
+    it("shows 'Too noisy' for low quality score (<40)", async () => {
       mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 20 }));
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
-        const badge = screen.getByTestId("signal-quality-status");
-        expect(badge).toHaveTextContent("Poor Signal");
+        const badges = screen.getAllByTestId("signal-quality-badge");
+        expect(badges[0]).toHaveTextContent(/too noisy/i);
       });
     });
 
-    it("signal status badge has a colored dot element", async () => {
-      mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 85 }));
+    it("shows signal-too-noisy overlay when quality is poor", async () => {
+      mockUseDevice.mockReturnValue(makeStreamingDevice({ signal_quality_score: 20 }));
       renderWithProviders(<BrainMonitor />);
       await waitFor(() => {
-        const badge = screen.getByTestId("signal-quality-status");
-        const dot = badge.querySelector("span.rounded-full");
-        expect(dot).toBeTruthy();
+        const overlay = screen.getByTestId("signal-too-noisy-overlay");
+        expect(overlay).toBeInTheDocument();
+        expect(overlay).toHaveTextContent(/signal too noisy/i);
+        expect(overlay).toHaveTextContent(/readings may be inaccurate/i);
       });
     });
   });

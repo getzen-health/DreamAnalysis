@@ -45,6 +45,12 @@ export function getMLApiUrl(): string {
 function ngrokHeaders(): Record<string, string> {
   return getMLApiUrl().includes("ngrok") ? { "ngrok-skip-browser-warning": "true" } : {};
 }
+
+/** API key header for ML backend authentication. Empty string when not configured (dev mode). */
+function apiKeyHeader(): Record<string, string> {
+  const key = import.meta.env.VITE_ML_API_KEY;
+  return key ? { "X-API-Key": key } : {};
+}
 const EXPRESS_URL = import.meta.env.VITE_EXPRESS_URL || "";
 
 // ─── Express API helpers ─────────────────────────────────────────────────
@@ -387,6 +393,7 @@ async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
         headers: {
           "Content-Type": "application/json",
           ...ngrokHeaders(),
+          ...apiKeyHeader(),
           ...options?.headers,
         },
       });
@@ -445,7 +452,7 @@ async function mlFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
 async function mlFetchRaw(endpoint: string, options?: RequestInit): Promise<string> {
   const response = await fetch(`${getMLApiUrl()}/api${endpoint}`, {
     ...options,
-    headers: { ...ngrokHeaders(), ...((options?.headers as Record<string, string>) ?? {}) },
+    headers: { ...ngrokHeaders(), ...apiKeyHeader(), ...((options?.headers as Record<string, string>) ?? {}) },
   });
   if (!response.ok) {
     throw new Error(`ML API error: ${response.status} ${response.statusText}`);
