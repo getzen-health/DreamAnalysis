@@ -25,17 +25,14 @@ import { useToast } from "@/hooks/use-toast";
 
 // ── Speech Recognition types ──────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SpeechRecognitionCtor = new () => any;
-
 declare global {
   interface Window {
-    SpeechRecognition: SpeechRecognitionCtor;
-    webkitSpeechRecognition: SpeechRecognitionCtor;
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
   }
 }
 
-interface VoiceSpeechEvent extends Event {
+interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
   resultIndex: number;
 }
@@ -47,8 +44,7 @@ const SILENCE_TIMEOUT_MS = 5000;
 function useVoiceRecorder(onTranscript: (text: string, isFinal: boolean) => void) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const interimRef = useRef("");
 
@@ -98,7 +94,7 @@ function useVoiceRecorder(onTranscript: (text: string, isFinal: boolean) => void
       resetSilenceTimer();
     };
 
-    recognition.onresult = (event: VoiceSpeechEvent) => {
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       resetSilenceTimer();
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
