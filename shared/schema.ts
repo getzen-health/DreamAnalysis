@@ -79,6 +79,29 @@ export const emotionReadings = pgTable("emotion_readings", {
   index("emotion_readings_user_ts_idx").on(table.userId, table.timestamp),
 ]);
 
+export const dreamFrames = pgTable("dream_frames", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionId: varchar("session_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  dreamIntensity: real("dream_intensity").notNull(),        // 0-1
+  remLikelihood: real("rem_likelihood").notNull(),          // 0-1
+  valence: real("valence"),                                 // -1 to 1
+  arousal: real("arousal"),                                 // 0-1
+  lucidityScore: real("lucidity_score"),                    // 0-1
+  lucidityState: text("lucidity_state"),                    // non_lucid|pre_lucid|lucid|controlled
+  thetaActivity: real("theta_activity"),                    // 0-1
+  betaActivation: real("beta_activation"),                  // 0-1
+  eyeMovementIndex: real("eye_movement_index"),             // 0-1
+  dominantEmotion: text("dominant_emotion"),                // happy|sad|angry|fear|surprise|neutral
+}, (table) => [
+  index("dream_frames_session_idx").on(table.sessionId, table.userId),
+  index("dream_frames_user_ts_idx").on(table.userId, table.timestamp),
+]);
+
+export type DreamFrame = typeof dreamFrames.$inferSelect;
+export type InsertDreamFrame = typeof dreamFrames.$inferInsert;
+
 export const aiChats = pgTable("ai_chats", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
