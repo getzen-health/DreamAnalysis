@@ -823,17 +823,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dreamText,
         symbols: symbols.map((s) => s.symbol),
         emotions,
-        aiAnalysis
+        aiAnalysis,
+        ...(themes !== undefined && { themes }),
+        ...(emotional_arc !== undefined && { emotionalArc: emotional_arc }),
+        ...(key_insight !== undefined && { keyInsight: key_insight }),
+        ...(threat_simulation_index !== undefined && { threatSimulationIndex: threat_simulation_index }),
       });
 
       // Return stored record augmented with full structured fields
       res.json({
         ...savedDreamAnalysis,
         symbols,
-        ...(themes !== undefined && { themes }),
-        ...(emotional_arc !== undefined && { emotional_arc }),
-        ...(key_insight !== undefined && { key_insight }),
-        ...(threat_simulation_index !== undefined && { threat_simulation_index }),
         ...(morning_mood_prediction !== undefined && { morning_mood_prediction }),
         ...(irt_recommended !== undefined && { irt_recommended }),
         ...(wellbeing_note !== undefined && { wellbeing_note }),
@@ -946,32 +946,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Aggregate theme and symbol frequencies
-      const themes: Record<string, number> = {};
-      const symbols: Record<string, number> = {};
+      // Prefer Hall/Van de Castle themes (stored in `themes` column); fall back to emotion names
+      const themeCounts: Record<string, number> = {};
+      const symbolCounts: Record<string, number> = {};
       const sentimentTrend: { date: string; valence: number }[] = [];
+      const nightmareDates: string[] = [];
 
       for (const entry of recent) {
-        // symbols is string[] in the schema
+        // Symbols (string[])
         for (const sym of (entry.symbols as string[] || [])) {
-          symbols[sym] = (symbols[sym] || 0) + 1;
+          if (sym) symbolCounts[sym] = (symbolCounts[sym] || 0) + 1;
         }
-        // emotions is {emotion, intensity}[]
-        for (const em of (entry.emotions as Array<{ emotion: string; intensity: number }> || [])) {
-          themes[em.emotion] = (themes[em.emotion] || 0) + 1;
+
+        // Themes: prefer persisted Hall/Van de Castle themes over emotion names
+        const storedThemes = (entry as unknown as { themes?: string[] }).themes;
+        if (storedThemes && Array.isArray(storedThemes) && storedThemes.length > 0) {
+          for (const t of storedThemes) {
+            if (t) themeCounts[t] = (themeCounts[t] || 0) + 1;
+          }
+        } else {
+          // Legacy fallback: emotion names as theme proxy
+          for (const em of (entry.emotions as Array<{ emotion: string; intensity: number }> || [])) {
+            if (em.emotion) themeCounts[em.emotion] = (themeCounts[em.emotion] || 0) + 1;
+          }
         }
+
+        // Sentiment trend — mean emotion intensity as valence proxy
+        const emArr = entry.emotions as Array<{ emotion: string; intensity: number }> || [];
         sentimentTrend.push({
           date: new Date(entry.timestamp).toISOString().split("T")[0],
-          valence: (entry.emotions as Array<{ emotion: string; intensity: number }> || []).reduce(
-            (sum: number, e: { emotion: string; intensity: number }) => sum + (e.intensity || 0), 0
-          ) / Math.max((entry.emotions as Array<{ emotion: string; intensity: number }> || []).length, 1)
+          valence: emArr.reduce((sum, e) => sum + (e.intensity || 0), 0) / Math.max(emArr.length, 1),
         });
+
+        // Nightmare tracking
+        const tsi = (entry as unknown as { threatSimulationIndex?: number }).threatSimulationIndex;
+        if (tsi != null && tsi > 0.5) {
+          nightmareDates.push(new Date(entry.timestamp).toISOString().split("T")[0]);
+        }
       }
 
-      const topSymbols = Object.entries(symbols)
+      const topSymbols = Object.entries(symbolCounts)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 5)
         .map(([name, count]) => ({ name, count }));
-      const topThemes = Object.entries(themes)
+      const topThemes = Object.entries(themeCounts)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 5)
         .map(([name, count]) => ({ name, count }));
@@ -979,15 +997,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const topInsights = recent
         .filter(a => a.aiAnalysis && a.aiAnalysis.length > 20)
         .slice(0, 3)
-        .map(a => a.aiAnalysis);
+        .map(a => ({
+          text: a.aiAnalysis,
+          keyInsight: (a as unknown as { keyInsight?: string }).keyInsight ?? null,
+          date: new Date(a.timestamp).toISOString().split("T")[0],
+        }));
+
+      // 7/30/90-day sub-views
+      const now = Date.now();
+      const counts = {
+        last7: recent.filter(a => Date.now() - new Date(a.timestamp).getTime() <= 7 * 86400_000).length,
+        last30: recent.filter(a => Date.now() - new Date(a.timestamp).getTime() <= 30 * 86400_000).length,
+        last90: recent.length,
+      };
 
       res.json({
         period: days,
         entryCount: recent.length,
+        counts,
         themes: topThemes,
         symbols: topSymbols,
         sentimentTrend: sentimentTrend.sort((a, b) => a.date.localeCompare(b.date)),
-        topInsights
+        topInsights,
+        nightmareCount: nightmareDates.length,
+        nightmareDates,
       });
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-patterns GET failed");
@@ -2402,6 +2435,10 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
               symbols: multiResult.symbols.map((s) => s.symbol),
               emotions: multiResult.emotions,
               aiAnalysis: multiResult.aiAnalysis,
+              themes: multiResult.themes,
+              emotionalArc: multiResult.emotional_arc,
+              keyInsight: multiResult.key_insight,
+              threatSimulationIndex: multiResult.threat_simulation_index,
             });
           }
         } catch (analysisErr) {
@@ -6188,6 +6225,9 @@ Respond in JSON:
         symbols: aiResult.symbols ?? [],
         emotions: [{ emotion: topEmotion, intensity: episode.avgArousal }],
         aiAnalysis: aiResult.keyInsight || "",
+        ...(aiResult.primaryTheme && { themes: [aiResult.primaryTheme] }),
+        ...(aiResult.keyInsight && { keyInsight: aiResult.keyInsight }),
+        ...(episode.avgArousal !== undefined && { threatSimulationIndex: episode.avgArousal > 0.7 ? 0.6 : 0 }),
       });
 
       return res.json({

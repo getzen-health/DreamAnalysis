@@ -277,6 +277,10 @@ export class MemStorage implements IStorage {
       voiceRecordingUrl: insertAnalysis.voiceRecordingUrl || null,
       tags: insertAnalysis.tags || null,
       sleepDuration: insertAnalysis.sleepDuration || null,
+      themes: insertAnalysis.themes || null,
+      emotionalArc: insertAnalysis.emotionalArc || null,
+      keyInsight: insertAnalysis.keyInsight || null,
+      threatSimulationIndex: insertAnalysis.threatSimulationIndex ?? null,
     };
     this.dreamAnalysesMap.set(id, analysis);
     return analysis;

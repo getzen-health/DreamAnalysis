@@ -42,6 +42,11 @@ export const dreamAnalysis = pgTable("dream_analysis", {
   voiceRecordingUrl: text("voice_recording_url"),
   tags: jsonb("tags"), // ['lucid', 'nightmare', 'recurring', 'vivid']
   sleepDuration: real("sleep_duration"),
+  // Multi-pass analysis fields (Hall/Van de Castle taxonomy + Pass-3 insight)
+  themes: jsonb("themes").$type<string[]>(),          // Hall/Van de Castle primary + secondary themes
+  emotionalArc: text("emotional_arc"),                 // narrative arc description from Pass-2
+  keyInsight: text("key_insight"),                     // specific insight from Pass-3
+  threatSimulationIndex: real("threat_simulation_index"), // 0-1 nightmare severity
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 }, (table) => [
   index("dream_analysis_user_ts_idx").on(table.userId, table.timestamp),
