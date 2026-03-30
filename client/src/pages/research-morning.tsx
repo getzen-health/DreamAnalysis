@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics, type DreamFusionInsight } from "@/lib/dream-biometric-fusion";
 import { DreamFusionCard } from "@/components/dream-fusion-card";
+import { DreamSummaryCard } from "@/components/dream-summary-card";
 
 
 const USER_ID = getParticipantId();
@@ -413,6 +414,10 @@ export default function ResearchMorning() {
 
             {fusionInsight && (
               <DreamFusionCard insight={fusionInsight} />
+            )}
+
+            {dreamAnalysis && hasRecall === "yes" && dreamText.trim() && (
+              <DreamSummaryCard dreamText={dreamText.trim()} analysis={dreamAnalysis} />
             )}
 
             <div className="bg-muted/40 rounded-lg p-4 text-sm text-left space-y-1.5">
