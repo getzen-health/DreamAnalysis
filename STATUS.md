@@ -6,6 +6,7 @@
 - [x] **EEG Dream Pipeline**: `dream_frames` table, `POST /api/dream-frames` batch endpoint, `POST /api/dream-session-complete` aggregates neurometrics → LLM narrative. Zero user input — all from EEG.
 - [x] **Multi-pass LLM**: 3-pass dream analysis (entity extraction → Hall/Van de Castle themes → insight synthesis) in `analyzeDreamMultiPass()` in routes.ts
 - [x] **Morning form → multi-pass analysis**: `POST /api/study/morning` now calls `analyzeDreamMultiPass` instead of single-pass GPT. Response includes `emotional_arc`, `key_insight`, `threat_simulation_index`, `morning_mood_prediction`, `irt_recommended`, `wellbeing_note`. Frontend renders emotional arc + IRT banner. 11 tests added.
+- [x] **Voice-to-text dream recording**: `useVoiceInput` hook (Web Speech API, continuous mode, final results only). Mic/Stop toggle in research-morning.tsx next to dream text label; progressive enhancement (hidden when API unavailable). 18 tests added.
 - [x] **Longitudinal patterns**: `GET /api/dream-patterns/:userId` aggregating themes/symbols/sentiment; `dream-patterns.tsx` Pattern Insights section
 - [x] **Dream-Biometric Fusion**: `fuseDreamBiometrics()` wired into `dream-patterns.tsx`; `DreamFusionCard` shows EEG-derived narrative + biometric correlations
 - [x] **Smart Wake Window**: `GET /api/sleep-alarm/:userId?targetWake=HH:MM` — 90-min cycle model; sleep-session.tsx idle view shows optimal ±15 min wake window
