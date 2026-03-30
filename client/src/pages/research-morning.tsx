@@ -1,5 +1,5 @@
 import { getParticipantId } from "@/lib/participant";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +17,10 @@ import {
   MessageSquare,
   ChevronRight,
   Loader2,
+  Mic,
+  Square,
 } from "lucide-react";
+import { useVoiceInput } from "@/hooks/use-voice-input";
 import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useHealthSync } from "@/hooks/use-health-sync";
@@ -215,6 +218,17 @@ export default function ResearchMorning() {
   const [sleepQuality, setSleepQuality] = useState(5);
   const [sleepHours, setSleepHours] = useState("");
   const [currentMoodRating, setCurrentMoodRating] = useState(5);
+
+  // Voice input
+  const { isSupported: voiceSupported, isListening, appendedText, clearAppended, start: startVoice, stop: stopVoice } = useVoiceInput();
+
+  // Append transcribed speech to dream text when recognition ends
+  useEffect(() => {
+    if (appendedText) {
+      setDreamText((prev) => (prev.trim() ? `${prev.trim()} ${appendedText}` : appendedText));
+      clearAppended();
+    }
+  }, [appendedText, clearAppended]);
 
   // Submit state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -513,9 +527,35 @@ export default function ResearchMorning() {
           <CardContent className="pt-5 space-y-5">
             {/* Dream text */}
             <div className="space-y-2">
-              <Label htmlFor="dream-text" className="text-sm font-semibold">
-                What do you remember?
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="dream-text" className="text-sm font-semibold">
+                  What do you remember?
+                </Label>
+                {voiceSupported && (
+                  <button
+                    type="button"
+                    aria-label={isListening ? "Stop voice recording" : "Start voice recording"}
+                    onClick={isListening ? stopVoice : startVoice}
+                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      isListening
+                        ? "border-rose-500/60 bg-rose-500/10 text-rose-400 animate-pulse"
+                        : "border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10 hover:border-indigo-400"
+                    }`}
+                  >
+                    {isListening ? (
+                      <>
+                        <Square className="w-3 h-3 fill-rose-400" />
+                        <span>Stop</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="w-3 h-3" />
+                        <span>Speak</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 Even a word, a feeling, or a single image. Whatever came first.
               </p>
