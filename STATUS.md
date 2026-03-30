@@ -2,6 +2,16 @@
 
 ## Completed Features
 
+### Dream Analysis Improvements (2026-03-30)
+- [x] **EEG Dream Pipeline**: `dream_frames` table, `POST /api/dream-frames` batch endpoint, `POST /api/dream-session-complete` aggregates neurometrics → LLM narrative. Zero user input — all from EEG.
+- [x] **Multi-pass LLM**: 3-pass dream analysis (entity extraction → Hall/Van de Castle themes → insight synthesis) in `analyzeDreamMultiPass()` in routes.ts
+- [x] **Longitudinal patterns**: `GET /api/dream-patterns/:userId` aggregating themes/symbols/sentiment; `dream-patterns.tsx` Pattern Insights section
+- [x] **Dream-Biometric Fusion**: `fuseDreamBiometrics()` wired into `dream-patterns.tsx`; `DreamFusionCard` shows EEG-derived narrative + biometric correlations
+- [x] **Smart Wake Window**: `GET /api/sleep-alarm/:userId?targetWake=HH:MM` — 90-min cycle model; sleep-session.tsx idle view shows optimal ±15 min wake window
+- [x] **WBTB+MILD Protocol**: `/lucid-protocol` page — 5-phase flow (setup→sleep countdown→WBTB wake→20-min guided MILD→log)
+- [x] **Reality Testing System**: `reality_tests` DB table, GET/POST endpoints, `RealityTestCard` component (today count, streak, 3-step check flow); integrated into `/lucid-protocol`
+- [x] **Shareable Dream Summary Card**: `DreamSummaryCard` — gradient card with theme icon, dream excerpt, symbol, insight, Web Share API. Rendered after morning analysis.
+
 ### Frontend (22 pages)
 - [x] **Daily Brain Report** (`/brain-report` — sleep summary, focus forecast, yesterday's insight, weekly 7-day avg card, recommended action)
 - [x] Landing page + authentication
