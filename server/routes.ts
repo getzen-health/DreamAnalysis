@@ -573,13 +573,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * otherwise uses OpenAI gpt-5 with response_format json_object.
    */
   async function analyzeDreamMultiPass(dreamText: string): Promise<{
-    symbols: string[];
+    symbols: Array<{ symbol: string; meaning: string }>;
     emotions: Array<{ emotion: string; intensity: number }>;
     aiAnalysis: string;
     themes: string[];
     emotional_arc: string;
     key_insight: string;
     threat_simulation_index: number;
+    morning_mood_prediction: string;
+    irt_recommended: boolean;
+    wellbeing_note: string;
   } | undefined> {
     // ── Pass 1: Entity extraction ──────────────────────────────────────────
     type Pass1Result = {
@@ -709,7 +712,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // ── Combine all passes into a single backward-compatible response ──────
-    const symbolNames = (pass2.symbols || []).map((s: SymbolEntry) => s.name).filter(Boolean);
+    const symbolObjects = (pass2.symbols || [])
+      .map((s: SymbolEntry) => ({ symbol: s.name || "", meaning: s.interpretation || "" }))
+      .filter((s) => s.symbol);
     const emotionObjects = (pass1.emotions || []).map((e: string) => ({ emotion: e, intensity: 0.7 }));
     const allThemes = [pass2.primary_theme, ...(pass2.secondary_themes || [])].filter(Boolean);
 
@@ -720,13 +725,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (pass3.irt_recommended) aiAnalysisParts.push("IRT (Image Rehearsal Therapy) is recommended for this nightmare.");
 
     return {
-      symbols: symbolNames,
+      symbols: symbolObjects,
       emotions: emotionObjects,
       aiAnalysis: aiAnalysisParts.join(" "),
       themes: allThemes,
       emotional_arc: pass2.emotional_arc || "",
       key_insight: pass3.key_insight || "",
       threat_simulation_index: nightmareScore,
+      morning_mood_prediction: pass3.morning_mood_prediction || "",
+      irt_recommended: pass3.irt_recommended ?? false,
+      wellbeing_note: pass3.wellbeing_note || "",
     };
   }
 
@@ -764,17 +772,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         logger.warn({ error: multiPassError instanceof Error ? multiPassError.message : String(multiPassError) }, "multi-pass dream analysis failed — falling back to single-pass");
       }
 
-      let symbols: string[];
+      let symbols: Array<{ symbol: string; meaning: string }>;
       let emotions: Array<{ emotion: string; intensity: number }>;
       let aiAnalysis: string;
       let themes: string[] | undefined;
       let emotional_arc: string | undefined;
       let key_insight: string | undefined;
       let threat_simulation_index: number | undefined;
+      let morning_mood_prediction: string | undefined;
+      let irt_recommended: boolean | undefined;
+      let wellbeing_note: string | undefined;
 
       if (multiPassResult) {
         // Use structured multi-pass result
-        ({ symbols, emotions, aiAnalysis, themes, emotional_arc, key_insight, threat_simulation_index } = multiPassResult);
+        ({ symbols, emotions, aiAnalysis, themes, emotional_arc, key_insight, threat_simulation_index,
+           morning_mood_prediction, irt_recommended, wellbeing_note } = multiPassResult);
       } else {
         // Single-pass fallback (original behavior)
         if (!openai) return res.status(503).json({ message: "OPENAI_API_KEY not configured" });
@@ -801,7 +813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fallbackAnalysis = {};
         }
 
-        symbols = (fallbackAnalysis.symbols as string[]) || [];
+        symbols = ((fallbackAnalysis.symbols as string[]) || []).map((s) => ({ symbol: String(s), meaning: "" }));
         emotions = (fallbackAnalysis.emotions as Array<{ emotion: string; intensity: number }>) || [];
         aiAnalysis = (fallbackAnalysis.analysis as string) || "";
       }
@@ -809,18 +821,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const savedDreamAnalysis = await storage.createDreamAnalysis({
         userId,
         dreamText,
-        symbols,
+        symbols: symbols.map((s) => s.symbol),
         emotions,
         aiAnalysis
       });
 
-      // Return stored record augmented with the new structured fields
+      // Return stored record augmented with full structured fields
       res.json({
         ...savedDreamAnalysis,
+        symbols,
         ...(themes !== undefined && { themes }),
         ...(emotional_arc !== undefined && { emotional_arc }),
         ...(key_insight !== undefined && { key_insight }),
         ...(threat_simulation_index !== undefined && { threat_simulation_index }),
+        ...(morning_mood_prediction !== undefined && { morning_mood_prediction }),
+        ...(irt_recommended !== undefined && { irt_recommended }),
+        ...(wellbeing_note !== undefined && { wellbeing_note }),
       });
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-analysis POST failed");
@@ -2347,65 +2363,47 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
       // Welfare flag: if mood ≤ 2, prompt resources in response
       const needsSupport = typeof currentMoodRating === "number" && currentMoodRating <= 2;
 
-      // Dream analysis — run inline if dreamText was submitted
+      // Dream analysis — use multi-pass analyzer (3-pass: entity extraction → theme/symbol → insight)
       let dreamAnalysisResult: {
         symbols: Array<{ symbol: string; meaning: string }>;
         emotions: string[];
         themes: string[];
         insights: string;
         morningMoodPrediction: string;
+        emotional_arc: string;
+        key_insight: string;
+        threat_simulation_index: number;
+        irt_recommended: boolean;
+        wellbeing_note: string;
       } | null = null;
 
       const effectiveDreamText = noRecall ? null : (dreamText ?? null);
-      if (effectiveDreamText && typeof effectiveDreamText === "string" && openai) {
+      if (effectiveDreamText && typeof effectiveDreamText === "string" && (openai || anthropic)) {
         try {
-          const aiResponse = await openai.chat.completions.create({
-            // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-            model: "gpt-5",
-            messages: [
-              {
-                role: "system",
-                content: `You are a dream analyst helping a sleep research participant understand their dream. Respond with JSON only, no markdown, in this exact shape:
-{
-  "symbols": [{ "symbol": string, "meaning": string }],
-  "emotions": string[],
-  "themes": string[],
-  "insights": string,
-  "morningMoodPrediction": string
-}
-Keep insights to 1-2 sentences. morningMoodPrediction should be a brief (1 sentence) prediction of likely morning mood based on the dream content.`,
-              },
-              {
-                role: "user",
-                content: `Analyze this dream: ${effectiveDreamText}`,
-              },
-            ],
-            response_format: { type: "json_object" },
-          });
+          const multiResult = await analyzeDreamMultiPass(effectiveDreamText);
+          if (multiResult) {
+            dreamAnalysisResult = {
+              symbols: multiResult.symbols,
+              emotions: multiResult.emotions.map((e) => e.emotion),
+              themes: multiResult.themes,
+              insights: multiResult.aiAnalysis,
+              morningMoodPrediction: multiResult.morning_mood_prediction,
+              emotional_arc: multiResult.emotional_arc,
+              key_insight: multiResult.key_insight,
+              threat_simulation_index: multiResult.threat_simulation_index,
+              irt_recommended: multiResult.irt_recommended,
+              wellbeing_note: multiResult.wellbeing_note,
+            };
 
-          let parsed: Record<string, unknown> = {};
-          try {
-            parsed = JSON.parse(aiResponse.choices[0].message.content || "{}");
-          } catch {
-            parsed = {};
+            // Persist to dreamAnalysis table (userId may be null for study participants without accounts)
+            await storage.createDreamAnalysis({
+              userId: userId ?? null,
+              dreamText: effectiveDreamText,
+              symbols: multiResult.symbols.map((s) => s.symbol),
+              emotions: multiResult.emotions,
+              aiAnalysis: multiResult.aiAnalysis,
+            });
           }
-
-          const symbols = (parsed.symbols as Array<{ symbol: string; meaning: string }>) || [];
-          const emotions = (parsed.emotions as string[]) || [];
-          const themes = (parsed.themes as string[]) || [];
-          const insights = (parsed.insights as string) || "";
-          const morningMoodPrediction = (parsed.morningMoodPrediction as string) || "";
-
-          dreamAnalysisResult = { symbols, emotions, themes, insights, morningMoodPrediction };
-
-          // Persist to dreamAnalysis table (userId may be null for study participants without accounts)
-          await storage.createDreamAnalysis({
-            userId: userId ?? null,
-            dreamText: effectiveDreamText,
-            symbols: symbols.map((s) => s.symbol),
-            emotions: emotions.map((e) => ({ emotion: e, intensity: 0.5 })),
-            aiAnalysis: insights,
-          });
         } catch (analysisErr) {
           // Non-fatal — log and continue without dream analysis in response
           logger.warn({ error: analysisErr instanceof Error ? analysisErr.message : String(analysisErr) }, "Dream analysis failed for morning entry");

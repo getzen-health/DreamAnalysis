@@ -226,6 +226,11 @@ export default function ResearchMorning() {
     themes: string[];
     insights: string;
     morningMoodPrediction: string;
+    emotional_arc?: string;
+    key_insight?: string;
+    threat_simulation_index?: number;
+    irt_recommended?: boolean;
+    wellbeing_note?: string;
   } | null>(null);
 
   // ── Validation ──────────────────────────────────────────────────────────────
@@ -402,10 +407,24 @@ export default function ResearchMorning() {
                     </div>
                   )}
 
+                  {dreamAnalysis.emotional_arc && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Emotional arc</p>
+                      <p className="text-sm text-muted-foreground">{dreamAnalysis.emotional_arc}</p>
+                    </div>
+                  )}
+
                   {dreamAnalysis.morningMoodPrediction && (
                     <div className="bg-background/40 rounded-md p-2.5">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Morning mood prediction</p>
                       <p className="text-sm">{dreamAnalysis.morningMoodPrediction}</p>
+                    </div>
+                  )}
+
+                  {dreamAnalysis.irt_recommended && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5">
+                      <p className="text-xs font-medium text-amber-400 uppercase tracking-wide mb-1">Nightmare treatment available</p>
+                      <p className="text-sm text-muted-foreground">Image Rehearsal Therapy (IRT) can help with recurring nightmares — ask your study coordinator.</p>
                     </div>
                   )}
                 </CardContent>
