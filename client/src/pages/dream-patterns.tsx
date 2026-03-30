@@ -17,6 +17,8 @@ import {
 import { Moon, TrendingUp, Brain, Activity, Sparkles, Radio } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
+import { getParticipantId } from "@/lib/participant";
+import { resolveUrl } from "@/lib/queryClient";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -48,6 +50,15 @@ interface SessionWellnessPoint {
   flow: number;
   relaxation: number;
   focus: number;
+}
+
+interface DreamPatternData {
+  period: number;
+  entryCount: number;
+  themes: { name: string; count: number }[];
+  symbols: { name: string; count: number }[];
+  sentimentTrend: { date: string; valence: number }[];
+  topInsights: (string | null)[];
 }
 
 const STAGE_NAMES = ["N3 (Deep)", "N2 (Light)", "N1", "REM", "Wake"];
@@ -118,6 +129,8 @@ export default function DreamPatterns() {
   const [periodDays, setPeriodDays] = useState(1);
   const isLiveToday = periodDays === 1;
 
+  const userId = getParticipantId();
+
   // Sessions query
   const { data: allSessions = [] } = useQuery<SessionSummary[]>({
     queryKey: ["sessions"],
@@ -125,6 +138,19 @@ export default function DreamPatterns() {
     retry: false,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 60_000,
+  });
+
+  // Dream patterns query — aggregated themes/symbols/sentiment from dream journal
+  const patternDays = periodDays === 1 ? 7 : periodDays;
+  const { data: dreamPatterns } = useQuery<DreamPatternData>({
+    queryKey: ["dream-patterns", userId, patternDays],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/dream-patterns/${userId}?days=${patternDays}`));
+      if (!res.ok) throw new Error("Failed to fetch dream patterns");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 
   const cutoff = Date.now() / 1000 - periodDays * 86400;
@@ -445,6 +471,61 @@ export default function DreamPatterns() {
       {/* ── HISTORICAL: Session-based charts ──────────────── */}
       {!isLiveToday && (
         <>
+          {/* Pattern Insights from dream journal */}
+          {dreamPatterns && dreamPatterns.entryCount > 0 && (
+            <Card className="glass-card p-5 hover-glow border-secondary/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="h-4 w-4 text-secondary" />
+                <h3 className="text-sm font-medium">Pattern Insights</h3>
+                <span className="ml-auto text-[10px] text-muted-foreground">
+                  {dreamPatterns.entryCount} dream{dreamPatterns.entryCount !== 1 ? "s" : ""} analyzed over {dreamPatterns.period} days
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {dreamPatterns.themes.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Top Emotions</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {dreamPatterns.themes.slice(0, 3).map((t) => (
+                        <span
+                          key={t.name}
+                          className="text-[11px] px-2.5 py-0.5 rounded-full bg-secondary/15 text-secondary capitalize"
+                        >
+                          {t.name} · {t.count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dreamPatterns.symbols.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Top Symbols</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {dreamPatterns.symbols.slice(0, 3).map((s) => (
+                        <span
+                          key={s.name}
+                          className="text-[11px] px-2.5 py-0.5 rounded-full bg-primary/10 text-primary capitalize"
+                        >
+                          {s.name} · {s.count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dreamPatterns.topInsights[0] && (
+                  <blockquote className="border-l-2 border-secondary/40 pl-3 mt-2">
+                    <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-3">
+                      {dreamPatterns.topInsights[0]}
+                    </p>
+                  </blockquote>
+                )}
+              </div>
+            </Card>
+          )}
+
           {/* Sleep Session Wellness Trend */}
           <Card className="glass-card p-5 hover-glow">
             <div className="flex items-center gap-2 mb-4">
