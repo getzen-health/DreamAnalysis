@@ -11,6 +11,7 @@ import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import { backgroundEeg } from "@/lib/background-eeg";
 import CGMSleepOverlay from "@/components/cgm-sleep-overlay";
 import { SleepHypnogram, type StageEvent, type DreamEpisode } from "@/components/sleep-hypnogram";
+import { generateAutoDreamNarrative } from "@/lib/auto-dream-narrative";
 import {
   Moon,
   BrainCircuit,
@@ -20,6 +21,7 @@ import {
   Square,
   Eye,
   AlarmClock,
+  BookOpen,
 } from "lucide-react";
 
 const CURRENT_USER = getParticipantId();
@@ -722,6 +724,28 @@ export default function SleepSession() {
           </p>
         </Card>
       </div>
+
+      {/* Auto Dream Summary */}
+      {totalSeconds > 0 && (
+        <Card className="rounded-[14px] bg-card border border-border p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <BookOpen className="h-3.5 w-3.5" style={{ color: "hsl(200, 75%, 55%)" }} />
+            <h3 className="text-sm font-medium text-foreground">Auto Dream Summary</h3>
+            <span className="text-[10px] font-mono text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded-full ml-auto">EEG-based</span>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {generateAutoDreamNarrative({
+              remPercentage: totalSeconds > 0 ? (tally.REM / totalSeconds) * 100 : 0,
+              avgValence: 0,
+              avgArousal: 0.5,
+              dreamEpisodes: dreamsDetected,
+              dominantEmotion: "neutral",
+              sleepDuration: totalSeconds / 3600,
+              deepSleepPct: totalSeconds > 0 ? (tally.N3 / totalSeconds) * 100 : 0,
+            })}
+          </p>
+        </Card>
+      )}
 
       {/* Actions */}
       <div className="flex gap-3 justify-center pt-2">
