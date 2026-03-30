@@ -250,13 +250,109 @@ export default function DreamJournal() {
         </p>
 
         {!isStreaming ? (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <Moon className="w-10 h-10 text-muted-foreground/40" />
-            <p className="text-sm font-medium">Log a dream manually</p>
-            <p className="text-xs text-muted-foreground max-w-[220px]">
-              Record a dream below using voice or text. Optional overnight EEG can add automatic dream detection later.
-            </p>
-          </div>
+          tier === "phone" ? (
+            /* ── Tier 2: Phone/health fallback ─────────────────────────────── */
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <AlarmClock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sleep Timeline Estimate</span>
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                  No EEG — estimated
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-1">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Fell asleep</label>
+                  <input
+                    type="time"
+                    value={sleepOnset}
+                    onChange={(e) => { setSleepOnset(e.target.value); setPhoneEstimate(null); }}
+                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Woke up</label>
+                  <input
+                    type="time"
+                    value={wakeTime}
+                    onChange={(e) => { setWakeTime(e.target.value); setPhoneEstimate(null); }}
+                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const now = new Date();
+                    const wt = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+                    setWakeTime(wt);
+                    setPhoneEstimate(estimateRemWindows(sleepOnset, wt, latestPayload?.sleep_total_hours));
+                  }}
+                  className="flex-1 py-1.5 rounded-lg border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                >
+                  I just woke up ↗
+                </button>
+                <button
+                  onClick={() => setPhoneEstimate(estimateRemWindows(sleepOnset, wakeTime, latestPayload?.sleep_total_hours))}
+                  className="flex-1 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:border-muted-foreground transition-colors"
+                >
+                  Estimate REM windows
+                </button>
+              </div>
+              {phoneEstimate && (
+                <div className="space-y-1.5">
+                  {phoneEstimate.remWindows.length > 0 ? (
+                    <>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Estimated REM periods ({phoneEstimate.totalHours.toFixed(1)}h sleep)</p>
+                      <div className="space-y-1">
+                        {phoneEstimate.remWindows.map((w) => (
+                          <div
+                            key={w.cycleNumber}
+                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs ${
+                              w === phoneEstimate.mostLikelyDreamWindow
+                                ? "bg-primary/10 border border-primary/20 text-primary"
+                                : "bg-muted/20 text-muted-foreground"
+                            }`}
+                          >
+                            <span className="font-mono font-medium">{w.estimatedStart}–{w.estimatedEnd}</span>
+                            <span className="text-[10px]">{w.label} · {w.durationMinutes} min</span>
+                            {w === phoneEstimate.mostLikelyDreamWindow && (
+                              <span className="ml-auto text-[10px] text-primary">most likely dream window</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed px-0.5">{phoneEstimate.dataNote}</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Less than 3 hours detected — not enough sleep for reliable REM estimation.</p>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-2 pt-1">
+                <Wifi className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                <p className="text-[11px] text-muted-foreground">
+                  Connect a BCI device for EEG-based dream analysis.{" "}
+                  <button onClick={() => navigate("/settings")} className="text-primary hover:underline">Settings</button>
+                </p>
+              </div>
+            </div>
+          ) : (
+            /* ── Tier 3: No data source ─────────────────────────────────────── */
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <Moon className="w-10 h-10 text-muted-foreground/30" />
+              <p className="text-sm font-medium">Connect a BCI device for dream analysis</p>
+              <p className="text-xs text-muted-foreground max-w-[220px] leading-relaxed">
+                EEG captures dream activity automatically while you sleep — no input required.
+              </p>
+              <button
+                onClick={() => navigate("/settings")}
+                className="mt-1 text-xs text-primary hover:underline"
+              >
+                Connect a device →
+              </button>
+            </div>
+          )
         ) : (
           <div className="space-y-4" aria-live="polite" aria-label="Dream detection status">
             {/* Sleep stage pill */}
