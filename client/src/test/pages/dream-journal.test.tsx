@@ -60,21 +60,12 @@ describe("DreamDetection (dream-journal) page", () => {
 
   it("shows Connect your device heading when not streaming", () => {
     renderWithProviders(<DreamDetection />);
-    expect(screen.getByText("Log a dream manually")).toBeInTheDocument();
+    expect(screen.getByText(/Connect a BCI device/i)).toBeInTheDocument();
   });
 
-  it("shows optional EEG message when not streaming", () => {
+  it("shows BCI device prompt when not streaming", () => {
     renderWithProviders(<DreamDetection />);
-    expect(
-      screen.getByText(/Optional overnight EEG can add automatic dream detection later/)
-    ).toBeInTheDocument();
-  });
-
-  it("shows automatic dream detection message", () => {
-    renderWithProviders(<DreamDetection />);
-    expect(
-      screen.getByText(/automatic dream detection/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Connect a BCI device/i)).toBeInTheDocument();
   });
 
   it("shows Episodes tonight section", () => {

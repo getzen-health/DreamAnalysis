@@ -9,7 +9,45 @@ Classifies EEG epochs into 5 sleep stages:
 
 Architecture: Compact CNN (EEGNet variant) optimized for ONNX export.
 Supports three inference paths: ONNX > sklearn > feature-based fallback.
+
+YASA Integration Plan (issue #556 — honest accuracy reporting)
+--------------------------------------------------------------
+YASA (Yet Another Spindle Algorithm) is a validated open-source sleep staging
+library that uses a pre-trained LightGBM classifier on 30-second epochs.
+
+Requirements:
+  pip install yasa mne
+
+YASA works with MNE-compatible EEG data and provides automatic sleep staging
+with published accuracy benchmarks:
+  - YASA published accuracy: ~79-84% on real cross-dataset data (Sleep-EDF)
+  - Our custom model accuracy: 92.98% on ISRUC synthetic dataset
+
+The 92.98% figure is inflated because it was evaluated on ISRUC synthetic data,
+not cross-subject real-world data. YASA's 79-84% is a more honest baseline for
+consumer EEG (Muse 2) sleep staging.
+
+YASA should serve as a ground-truth comparison for our custom model. When both
+are available, the API should report both accuracies so users see honest numbers.
+
+Existing YASA wrappers:
+  - ml/models/yasa_sleep.py — YASASleepStager class + standalone functions
+  - ml/processing/yasa_sleep.py — spindle/SO detection + advanced staging
+  - ml/processing/yasa_integration.py — comparison pipeline stub (planned)
+
+Next steps:
+  1. Wire YASA staging into the live /api/sleep/staging endpoint
+  2. Run YASA alongside custom model on the same epochs
+  3. Add /api/sleep/compare endpoint reporting both accuracies
+  4. Surface both accuracy numbers in the UI (dashboard sleep page)
+  5. Use YASA as ground-truth reference when evaluating custom model changes
 """
+
+# TODO: YASA integration for honest accuracy comparison (issue #556)
+# - Run YASA staging alongside custom model on every sleep session
+# - Report YASA accuracy (~79-84%) vs custom model accuracy (92.98% ISRUC)
+# - Surface epoch-by-epoch confidence scores from both models
+# - See ml/processing/yasa_integration.py for the comparison pipeline stub
 
 from __future__ import annotations
 

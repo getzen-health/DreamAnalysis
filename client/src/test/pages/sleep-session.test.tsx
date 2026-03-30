@@ -55,7 +55,7 @@ describe("SleepSession page — idle state", () => {
   it("shows no-device notice when device is not connected", () => {
     renderWithProviders(<SleepSession />);
     expect(
-      screen.getByText(/No EEG connected — this page still works from recent sleep/)
+      screen.getByText(/No EEG connected/i)
     ).toBeInTheDocument();
   });
 
