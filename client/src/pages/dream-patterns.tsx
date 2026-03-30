@@ -14,11 +14,16 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { useMemo } from "react";
 import { Moon, TrendingUp, Brain, Activity, Sparkles, Radio } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import { resolveUrl } from "@/lib/queryClient";
+import { DreamFusionCard } from "@/components/dream-fusion-card";
+import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics } from "@/lib/dream-biometric-fusion";
+import { DreamPatternsCard } from "@/components/dream-patterns-card";
+import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -152,6 +157,77 @@ export default function DreamPatterns() {
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+
+  // Latest dream analysis — auto-fetched, no user action needed
+  const { data: latestDreamArr } = useQuery<{ dreamText?: string; emotions?: Array<{emotion: string; intensity: number} | string>; lucidityScore?: number; sleepQuality?: number; timestamp?: string }[]>({
+    queryKey: ["dream-analysis", userId],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/dream-analysis/${userId}`));
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  // Latest health payload — from ML backend (EEG session data includes HRV, HR, sleep stages)
+  const { data: latestPayload } = useQuery<Record<string, number | null>>({
+    queryKey: ["health-latest", userId],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/health-samples/${userId}?limit=1`));
+      if (!res.ok) return {};
+      const rows = await res.json();
+      return rows?.[0] ?? {};
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  // Biometric fusion — EEG-derived narrative + overnight physiology, zero user input
+  const dreamFusionInsight = useMemo(() => {
+    const row = latestDreamArr?.[0];
+    if (!row?.dreamText) return null;
+    const dream: DreamEntry = {
+      dreamText: row.dreamText,
+      emotions: Array.isArray(row.emotions)
+        ? row.emotions.map((e) => (typeof e === "string" ? e : e.emotion))
+        : [],
+      lucidityScore: row.lucidityScore != null ? row.lucidityScore / 100 : undefined,
+      sleepQuality: row.sleepQuality ?? undefined,
+      timestamp: row.timestamp ?? new Date().toISOString(),
+    };
+    const bio: OvernightBiometrics = {};
+    if (latestPayload) {
+      if (latestPayload.resting_heart_rate != null) bio.avgHeartRate = latestPayload.resting_heart_rate;
+      if (latestPayload.hrv_sdnn != null) bio.hrvSdnn = latestPayload.hrv_sdnn;
+      if (latestPayload.sleep_total_hours != null) bio.sleepDuration = latestPayload.sleep_total_hours;
+      if (latestPayload.sleep_efficiency != null) bio.sleepEfficiency = latestPayload.sleep_efficiency;
+      if (latestPayload.sleep_deep_hours != null && latestPayload.sleep_total_hours)
+        bio.deepSleepPct = Math.round((latestPayload.sleep_deep_hours / latestPayload.sleep_total_hours) * 100);
+      if (latestPayload.sleep_rem_hours != null && latestPayload.sleep_total_hours)
+        bio.remSleepPct = Math.round((latestPayload.sleep_rem_hours / latestPayload.sleep_total_hours) * 100);
+    }
+    return fuseDreamBiometrics(dream, bio);
+  }, [latestDreamArr, latestPayload]);
+
+  // Transform dream analysis entries into ThemeTrackerEntry[] for DreamPatternsCard
+  const themeTrackerDreams: ThemeTrackerEntry[] = useMemo(() => {
+    if (!Array.isArray(latestDreamArr)) return [];
+    return latestDreamArr
+      .filter((d) => d.dreamText)
+      .map((d) => ({
+        dreamText: d.dreamText ?? "",
+        emotions: Array.isArray(d.emotions)
+          ? d.emotions.map((e) => (typeof e === "string" ? e : e.emotion))
+          : [],
+        symbols: Array.isArray((d as Record<string, unknown>).symbols)
+          ? ((d as Record<string, unknown>).symbols as string[])
+          : [],
+        lucidityScore:
+          d.lucidityScore != null ? d.lucidityScore / 100 : undefined,
+        timestamp: d.timestamp ?? new Date().toISOString(),
+      }));
+  }, [latestDreamArr]);
 
   const cutoff = Date.now() / 1000 - periodDays * 86400;
   const periodSessions = allSessions.filter((s) => (s.start_time ?? 0) >= cutoff);
@@ -472,6 +548,14 @@ export default function DreamPatterns() {
       {!isLiveToday && (
         <>
           {/* Pattern Insights from dream journal */}
+          {/* Dream + Biometric Fusion — auto-generated from EEG, no user input */}
+          <DreamFusionCard insight={dreamFusionInsight} />
+
+          {/* Longitudinal dream theme tracking — 7/30/90 day patterns (#549) */}
+          {themeTrackerDreams.length > 0 && (
+            <DreamPatternsCard dreams={themeTrackerDreams} />
+          )}
+
           {dreamPatterns && dreamPatterns.entryCount > 0 && (
             <Card className="glass-card p-5 hover-glow border-secondary/20">
               <div className="flex items-center gap-2 mb-3">

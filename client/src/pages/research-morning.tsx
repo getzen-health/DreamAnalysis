@@ -1,5 +1,5 @@
 import { getParticipantId } from "@/lib/participant";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,123 +17,13 @@ import {
   MessageSquare,
   ChevronRight,
   Loader2,
-  Mic,
-  MicOff,
 } from "lucide-react";
 import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useHealthSync } from "@/hooks/use-health-sync";
+import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics, type DreamFusionInsight } from "@/lib/dream-biometric-fusion";
+import { DreamFusionCard } from "@/components/dream-fusion-card";
 
-// ── Speech Recognition types ──────────────────────────────────────────────────
-
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
-
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
-}
-
-// ── Voice recorder hook ───────────────────────────────────────────────────────
-
-const SILENCE_TIMEOUT_MS = 5000;
-
-function useVoiceRecorder(onTranscript: (text: string, isFinal: boolean) => void) {
-  const [isListening, setIsListening] = useState(false);
-  const [isSupported, setIsSupported] = useState(true);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const interimRef = useRef("");
-
-  useEffect(() => {
-    const SpeechRecognitionImpl =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionImpl) {
-      setIsSupported(false);
-    }
-    return () => {
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    };
-  }, []);
-
-  const stopRecording = useCallback(() => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-    }
-    setIsListening(false);
-    interimRef.current = "";
-  }, []);
-
-  const resetSilenceTimer = useCallback(() => {
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    silenceTimerRef.current = setTimeout(() => {
-      stopRecording();
-    }, SILENCE_TIMEOUT_MS);
-  }, [stopRecording]);
-
-  const startRecording = useCallback(() => {
-    const SpeechRecognitionImpl =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionImpl) return;
-
-    const recognition = new SpeechRecognitionImpl();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      resetSilenceTimer();
-    };
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      resetSilenceTimer();
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          onTranscript(result[0].transcript, true);
-        } else {
-          interim += result[0].transcript;
-        }
-      }
-      if (interim !== interimRef.current) {
-        interimRef.current = interim;
-        onTranscript(interim, false);
-      }
-    };
-
-    recognition.onerror = () => {
-      stopRecording();
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      interimRef.current = "";
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-  }, [onTranscript, resetSilenceTimer, stopRecording]);
-
-  const toggle = useCallback(() => {
-    if (isListening) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [isListening, startRecording, stopRecording]);
-
-  return { isListening, isSupported, toggle, stopRecording };
-}
 
 const USER_ID = getParticipantId();
 
@@ -297,6 +187,10 @@ function WelfareResourcesCard({ onContinue }: { onContinue: () => void }) {
 export default function ResearchMorning() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { latestPayload } = useHealthSync();
+
+  // Dream-biometric fusion state (populated after submission)
+  const [fusionInsight, setFusionInsight] = useState<DreamFusionInsight | null>(null);
 
   // Study status
   const { data: status, isLoading: statusLoading } = useQuery<{
@@ -315,33 +209,6 @@ export default function ResearchMorning() {
   // Form state
   const [hasRecall, setHasRecall] = useState<"yes" | "no" | "">("");
   const [dreamText, setDreamText] = useState("");
-  const [interimText, setInterimText] = useState("");
-  const finalTextRef = useRef("");
-
-  const handleVoiceTranscript = useCallback(
-    (text: string, isFinal: boolean) => {
-      if (isFinal) {
-        const updated = finalTextRef.current
-          ? finalTextRef.current + " " + text.trim()
-          : text.trim();
-        finalTextRef.current = updated;
-        setDreamText(updated);
-        setInterimText("");
-      } else {
-        setInterimText(text);
-      }
-    },
-    [],
-  );
-
-  const { isListening, isSupported, toggle: toggleVoice } = useVoiceRecorder(
-    handleVoiceTranscript,
-  );
-
-  // Keep finalTextRef in sync when user edits the textarea manually
-  useEffect(() => {
-    finalTextRef.current = dreamText;
-  }, [dreamText]);
   const [dreamValence, setDreamValence] = useState(5);
   const [nightmareFlag, setNightmareFlag] = useState<"yes" | "no" | "unsure" | "">("");
   const [sleepQuality, setSleepQuality] = useState(5);
@@ -386,6 +253,37 @@ export default function ResearchMorning() {
       const data: Record<string, unknown> = await res.json();
       if (data.dreamAnalysis) {
         setDreamAnalysis(data.dreamAnalysis as typeof dreamAnalysis);
+      }
+
+      // Compute dream-biometric fusion insight when dream text was provided
+      if (hasRecall === "yes" && dreamText.trim()) {
+        const dream: DreamEntry = {
+          dreamText: dreamText.trim(),
+          emotions: (data.dreamAnalysis as any)?.emotions ?? [],
+          sleepQuality: sleepQuality * 10, // scale 1-9 slider → 0-100
+          timestamp: new Date().toISOString(),
+        };
+
+        const bio: OvernightBiometrics = {};
+        if (latestPayload) {
+          if (latestPayload.resting_heart_rate != null) bio.avgHeartRate = latestPayload.resting_heart_rate;
+          if (latestPayload.current_heart_rate != null && bio.avgHeartRate == null) bio.avgHeartRate = latestPayload.current_heart_rate;
+          if (latestPayload.hrv_sdnn != null) bio.hrvSdnn = latestPayload.hrv_sdnn;
+          if (latestPayload.sleep_total_hours != null) bio.sleepDuration = latestPayload.sleep_total_hours;
+          if (latestPayload.sleep_efficiency != null) bio.sleepEfficiency = latestPayload.sleep_efficiency;
+          if (latestPayload.sleep_deep_hours != null && latestPayload.sleep_total_hours) {
+            bio.deepSleepPct = Math.round((latestPayload.sleep_deep_hours / latestPayload.sleep_total_hours) * 100);
+          }
+          if (latestPayload.sleep_rem_hours != null && latestPayload.sleep_total_hours) {
+            bio.remSleepPct = Math.round((latestPayload.sleep_rem_hours / latestPayload.sleep_total_hours) * 100);
+          }
+        }
+        // Also use manually-entered sleep hours if health sync didn't provide it
+        if (bio.sleepDuration == null && sleepHours) {
+          bio.sleepDuration = parseFloat(sleepHours);
+        }
+
+        setFusionInsight(fuseDreamBiometrics(dream, bio));
       }
 
       setSubmitted(true);
@@ -513,6 +411,10 @@ export default function ResearchMorning() {
               </Card>
             )}
 
+            {fusionInsight && (
+              <DreamFusionCard insight={fusionInsight} />
+            )}
+
             <div className="bg-muted/40 rounded-lg p-4 text-sm text-left space-y-1.5">
               <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">What's next today</p>
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -594,47 +496,6 @@ export default function ResearchMorning() {
                 Even a word, a feeling, or a single image. Whatever came first.
               </p>
 
-              {/* Voice recording prompt + button */}
-              <div className="space-y-2">
-                <p className="text-xs text-indigo-400 font-medium">
-                  Don't move yet — speak what just happened
-                </p>
-                {isSupported ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleVoice}
-                    className={`gap-2 transition-colors ${
-                      isListening
-                        ? "border-rose-500 text-rose-400 hover:border-rose-400 hover:text-rose-300"
-                        : "border-indigo-500/50 text-indigo-400 hover:border-indigo-400 hover:text-indigo-300"
-                    }`}
-                    aria-label={isListening ? "Stop recording" : "Start voice recording"}
-                  >
-                    {isListening ? (
-                      <>
-                        <span className="relative flex h-2.5 w-2.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
-                        </span>
-                        <Mic className="w-3.5 h-3.5" />
-                        Listening… speak your dream
-                      </>
-                    ) : (
-                      <>
-                        <MicOff className="w-3.5 h-3.5" />
-                        Record with voice
-                      </>
-                    )}
-                  </Button>
-                ) : (
-                  <p className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
-                    Voice recording isn't supported in this browser. Type your dream below.
-                  </p>
-                )}
-              </div>
-
               <Textarea
                 id="dream-text"
                 aria-label="Dream description — describe what you remember, even a single word counts"
@@ -645,11 +506,8 @@ export default function ResearchMorning() {
                     ? "border-rose-500/50 focus-visible:ring-rose-500/30"
                     : ""
                 }`}
-                value={isListening && interimText ? dreamText + (dreamText ? " " : "") + interimText : dreamText}
-                onChange={(e) => {
-                  if (!isListening) setDreamText(e.target.value);
-                }}
-                readOnly={isListening}
+                value={dreamText}
+                onChange={(e) => setDreamText(e.target.value)}
               />
 
               <div className="flex items-center justify-between">
@@ -665,8 +523,8 @@ export default function ResearchMorning() {
                 </p>
               </div>
 
-              {/* Sequential recall prompts — shown after recording or if text exists */}
-              {(dreamText.trim().length > 0 || !isListening) && dreamText.trim().length > 0 && (
+              {/* Sequential recall prompts — shown when text exists */}
+              {dreamText.trim().length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs text-muted-foreground">Add more detail:</p>
                   <div className="flex flex-wrap gap-2">

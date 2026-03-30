@@ -38,7 +38,7 @@ export function DreamFusionCard({ insight }: DreamFusionCardProps) {
           data-testid="dream-fusion-empty"
           className="text-sm text-muted-foreground/60"
         >
-          Log a dream to see how your body responded
+          Connect your BCI device and sleep — dream analysis generates automatically
         </p>
       ) : (
         <>
