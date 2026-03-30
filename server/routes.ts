@@ -1991,7 +1991,72 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
       // Welfare flag: if mood ≤ 2, prompt resources in response
       const needsSupport = typeof currentMoodRating === "number" && currentMoodRating <= 2;
 
-      res.json({ success: true, dayNumber: session.dayNumber, needsSupport });
+      // Dream analysis — run inline if dreamText was submitted
+      let dreamAnalysisResult: {
+        symbols: Array<{ symbol: string; meaning: string }>;
+        emotions: string[];
+        themes: string[];
+        insights: string;
+        morningMoodPrediction: string;
+      } | null = null;
+
+      const effectiveDreamText = noRecall ? null : (dreamText ?? null);
+      if (effectiveDreamText && typeof effectiveDreamText === "string" && openai) {
+        try {
+          const aiResponse = await openai.chat.completions.create({
+            // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+            model: "gpt-5",
+            messages: [
+              {
+                role: "system",
+                content: `You are a dream analyst helping a sleep research participant understand their dream. Respond with JSON only, no markdown, in this exact shape:
+{
+  "symbols": [{ "symbol": string, "meaning": string }],
+  "emotions": string[],
+  "themes": string[],
+  "insights": string,
+  "morningMoodPrediction": string
+}
+Keep insights to 1-2 sentences. morningMoodPrediction should be a brief (1 sentence) prediction of likely morning mood based on the dream content.`,
+              },
+              {
+                role: "user",
+                content: `Analyze this dream: ${effectiveDreamText}`,
+              },
+            ],
+            response_format: { type: "json_object" },
+          });
+
+          let parsed: Record<string, unknown> = {};
+          try {
+            parsed = JSON.parse(aiResponse.choices[0].message.content || "{}");
+          } catch {
+            parsed = {};
+          }
+
+          const symbols = (parsed.symbols as Array<{ symbol: string; meaning: string }>) || [];
+          const emotions = (parsed.emotions as string[]) || [];
+          const themes = (parsed.themes as string[]) || [];
+          const insights = (parsed.insights as string) || "";
+          const morningMoodPrediction = (parsed.morningMoodPrediction as string) || "";
+
+          dreamAnalysisResult = { symbols, emotions, themes, insights, morningMoodPrediction };
+
+          // Persist to dreamAnalysis table (userId may be null for study participants without accounts)
+          await storage.createDreamAnalysis({
+            userId: userId ?? null,
+            dreamText: effectiveDreamText,
+            symbols: symbols.map((s) => s.symbol),
+            emotions: emotions.map((e) => ({ emotion: e, intensity: 0.5 })),
+            aiAnalysis: insights,
+          });
+        } catch (analysisErr) {
+          // Non-fatal — log and continue without dream analysis in response
+          logger.warn({ error: analysisErr instanceof Error ? analysisErr.message : String(analysisErr) }, "Dream analysis failed for morning entry");
+        }
+      }
+
+      res.json({ success: true, dayNumber: session.dayNumber, needsSupport, dreamAnalysis: dreamAnalysisResult });
     } catch (error) {
       res.status(500).json({ message: "Failed to submit morning entry" });
     }

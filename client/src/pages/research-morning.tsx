@@ -2,7 +2,7 @@ import { getParticipantId } from "@/lib/participant";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -211,6 +211,13 @@ export default function ResearchMorning() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showWelfareResources, setShowWelfareResources] = useState(false);
+  const [dreamAnalysis, setDreamAnalysis] = useState<{
+    symbols: Array<{ symbol: string; meaning: string }>;
+    emotions: string[];
+    themes: string[];
+    insights: string;
+    morningMoodPrediction: string;
+  } | null>(null);
 
   // ── Validation ──────────────────────────────────────────────────────────────
   const canSubmit =
@@ -222,7 +229,7 @@ export default function ResearchMorning() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      await apiRequest("POST", "/api/study/morning", {
+      const res = await apiRequest("POST", "/api/study/morning", {
         userId: USER_ID,
         noRecall: hasRecall === "no",
         dreamText: hasRecall === "yes" ? dreamText.trim() : null,
@@ -234,6 +241,11 @@ export default function ResearchMorning() {
         minutesFromWaking: null,
         currentMoodRating,
       });
+
+      const data: Record<string, unknown> = await res.json();
+      if (data.dreamAnalysis) {
+        setDreamAnalysis(data.dreamAnalysis as typeof dreamAnalysis);
+      }
 
       setSubmitted(true);
       if (currentMoodRating <= 2) {
@@ -303,16 +315,62 @@ export default function ResearchMorning() {
         {showWelfareResources ? (
           <WelfareResourcesCard onContinue={() => navigate("/research")} />
         ) : (
-          <div className="text-center space-y-5">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-full bg-cyan-600/20 flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7 text-cyan-400" />
+          <div className="space-y-5">
+            <div className="text-center space-y-3">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-full bg-cyan-600/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-7 h-7 text-cyan-400" />
+                </div>
+                <h2 className="text-xl font-semibold">Morning entry saved ✓</h2>
+                <p className="text-sm text-muted-foreground">
+                  Day {dayNumber} — great start. See you this afternoon for your EEG session.
+                </p>
               </div>
-              <h2 className="text-xl font-semibold">Morning entry saved ✓</h2>
-              <p className="text-sm text-muted-foreground">
-                Day {dayNumber} — great start. See you this afternoon for your EEG session.
-              </p>
             </div>
+
+            {dreamAnalysis && (
+              <Card className="border-indigo-500/30 bg-indigo-500/5">
+                <CardHeader className="pb-2 pt-4">
+                  <CardTitle className="text-sm font-semibold text-indigo-300">Dream Analysis</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 pb-4">
+                  {dreamAnalysis.themes.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Primary theme</p>
+                      <p className="text-sm">{dreamAnalysis.themes[0]}</p>
+                    </div>
+                  )}
+
+                  {dreamAnalysis.symbols.slice(0, 3).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Key symbols</p>
+                      <div className="space-y-1">
+                        {dreamAnalysis.symbols.slice(0, 3).map((s) => (
+                          <div key={s.symbol} className="flex gap-2 text-sm">
+                            <span className="font-medium text-indigo-300 shrink-0">{s.symbol}</span>
+                            <span className="text-muted-foreground">{s.meaning}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {dreamAnalysis.insights && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Insight</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{dreamAnalysis.insights}</p>
+                    </div>
+                  )}
+
+                  {dreamAnalysis.morningMoodPrediction && (
+                    <div className="bg-background/40 rounded-md p-2.5">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Morning mood prediction</p>
+                      <p className="text-sm">{dreamAnalysis.morningMoodPrediction}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <div className="bg-muted/40 rounded-lg p-4 text-sm text-left space-y-1.5">
               <p className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">What's next today</p>
