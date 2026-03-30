@@ -32,7 +32,7 @@ import {
   pilotParticipants, pilotSessions,
   passwordResetTokens,
   healthMetrics, healthSamples,
-  dreamAnalysis, dreamSymbols, eegSessions, userSettings,
+  dreamAnalysis, dreamSymbols, dreamFrames, eegSessions, userSettings,
   aiChats, brainReadings, emotionReadings,
   exercises, workouts, workoutSets, workoutTemplates,
   bodyMetrics, exerciseHistory,
@@ -5890,6 +5890,236 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
         return res.json(fallback);
       }
     });
+
+  // ── Dream frame pipeline ──────────────────────────────────────────────────
+
+  /**
+   * POST /api/dream-frames
+   * Batch-save EEG dream frames captured while isDreaming=true.
+   * Body: { frames: DreamFrameBuffer[], sessionId: string, userId: string }
+   */
+  app.post("/api/dream-frames", async (req, res) => {
+    try {
+      const { frames, sessionId, userId } = req.body as {
+        frames: Array<{
+          dreamIntensity: number;
+          remLikelihood: number;
+          valence?: number;
+          arousal?: number;
+          lucidityScore?: number;
+          lucidityState?: string;
+          thetaActivity?: number;
+          betaActivation?: number;
+          eyeMovementIndex?: number;
+          dominantEmotion?: string;
+        }>;
+        sessionId: string;
+        userId: string;
+      };
+
+      if (!Array.isArray(frames) || !sessionId || !userId) {
+        return res.status(400).json({ message: "frames[], sessionId, and userId required" });
+      }
+      if (frames.length === 0) {
+        return res.json({ saved: 0 });
+      }
+
+      const rows = frames.map((f) => ({
+        sessionId,
+        userId,
+        dreamIntensity: f.dreamIntensity,
+        remLikelihood: f.remLikelihood,
+        valence: f.valence ?? null,
+        arousal: f.arousal ?? null,
+        lucidityScore: f.lucidityScore ?? null,
+        lucidityState: f.lucidityState ?? null,
+        thetaActivity: f.thetaActivity ?? null,
+        betaActivation: f.betaActivation ?? null,
+        eyeMovementIndex: f.eyeMovementIndex ?? null,
+        dominantEmotion: f.dominantEmotion ?? null,
+      }));
+
+      await db.insert(dreamFrames).values(rows);
+      return res.json({ saved: frames.length });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-frames POST failed");
+      return res.status(500).json({ message: "Failed to save dream frames" });
+    }
+  });
+
+  /**
+   * POST /api/dream-session-complete
+   * Aggregate all dream frames for a session, call LLM to generate a narrative
+   * from EEG neurometrics, and save the result to dream_analysis.
+   * Body: { sessionId: string, userId: string }
+   */
+  app.post("/api/dream-session-complete", llmLimiter, async (req, res) => {
+    try {
+      const { sessionId, userId } = req.body as { sessionId: string; userId: string };
+
+      if (!sessionId || !userId) {
+        return res.status(400).json({ message: "sessionId and userId required" });
+      }
+
+      // 1. Fetch all dream frames for this session
+      const frames = await db
+        .select()
+        .from(dreamFrames)
+        .where(and(eq(dreamFrames.sessionId, sessionId), eq(dreamFrames.userId, userId)))
+        .orderBy(asc(dreamFrames.timestamp));
+
+      if (frames.length === 0) {
+        return res.json({ message: "No dream frames recorded", dreamAnalysis: null });
+      }
+
+      // 2. Aggregate neurometric episode summary
+      const avg = (arr: (number | null | undefined)[]): number => {
+        const valid = arr.filter((v): v is number => v != null);
+        return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : 0;
+      };
+
+      const dreamIntensities = frames.map((f) => f.dreamIntensity);
+      const episode = {
+        frameCount: frames.length,
+        durationMinutes: Math.round(frames.length / 30),
+        avgIntensity: avg(dreamIntensities),
+        peakIntensity: Math.max(...dreamIntensities),
+        avgValence: avg(frames.map((f) => f.valence)),
+        avgArousal: avg(frames.map((f) => f.arousal)),
+        avgLucidity: avg(frames.map((f) => f.lucidityScore)),
+        avgTheta: avg(frames.map((f) => f.thetaActivity)),
+        avgEyeMovement: avg(frames.map((f) => f.eyeMovementIndex)),
+        peakLucidityState: frames.reduce((peak, f) => {
+          const order: Record<string, number> = { non_lucid: 0, pre_lucid: 1, lucid: 2, controlled: 3 };
+          return (order[f.lucidityState ?? ""] ?? 0) > (order[peak] ?? 0)
+            ? (f.lucidityState ?? "non_lucid")
+            : peak;
+        }, "non_lucid" as string),
+        dominantEmotion: frames
+          .map((f) => f.dominantEmotion)
+          .filter((e): e is string => !!e)
+          .reduce(
+            (acc, e) => {
+              acc[e] = (acc[e] || 0) + 1;
+              return acc;
+            },
+            {} as Record<string, number>,
+          ),
+        emotionalArc:
+          frames.length > 6
+            ? [
+                avg(frames.slice(0, Math.floor(frames.length / 3)).map((f) => f.valence)),
+                avg(
+                  frames
+                    .slice(Math.floor(frames.length / 3), Math.floor((2 * frames.length) / 3))
+                    .map((f) => f.valence),
+                ),
+                avg(frames.slice(Math.floor((2 * frames.length) / 3)).map((f) => f.valence)),
+              ]
+            : null,
+      };
+
+      // 3. Build LLM prompt from EEG neurometrics
+      const valenceDesc =
+        episode.avgValence > 0.2 ? "positive" : episode.avgValence < -0.2 ? "negative" : "neutral";
+      const arousalDesc =
+        episode.avgArousal > 0.6 ? "high-energy" : episode.avgArousal < 0.3 ? "calm" : "moderately active";
+      const intensityDesc =
+        episode.peakIntensity > 0.7 ? "vivid" : episode.peakIntensity > 0.4 ? "moderate" : "faint";
+      const topEmotion =
+        Object.entries(episode.dominantEmotion).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "neutral";
+
+      const eegPrompt = `You are a dream neuroscientist. Based on these EEG neurological signatures recorded during sleep, generate a poetic but scientifically grounded dream narrative — what this person likely experienced.
+
+EEG Data from tonight's dream phase:
+- Duration: ${episode.durationMinutes} minutes
+- Dream vividness: ${intensityDesc} (peak: ${Math.round(episode.peakIntensity * 100)}%)
+- Emotional tone: ${valenceDesc} (valence: ${episode.avgValence.toFixed(2)})
+- Energy level: ${arousalDesc} (arousal: ${episode.avgArousal.toFixed(2)})
+- Theta waves (dream richness): ${Math.round(episode.avgTheta * 100)}%
+- Eye movement activity (REM indicator): ${Math.round(episode.avgEyeMovement * 100)}%
+- Lucidity level: ${episode.peakLucidityState}
+- Dominant emotional signal: ${topEmotion}
+${episode.emotionalArc ? `- Emotional arc (start→mid→end): ${episode.emotionalArc.map((v) => v.toFixed(2)).join(" → ")}` : ""}
+
+Generate a 3-4 sentence dream narrative describing what this person likely experienced. Be specific and evocative, not generic. Then provide:
+1. Primary dream theme (one word from: pursuit, transformation, flying, falling, water, conflict, discovery, supernatural, social, neutral)
+2. One psychological insight (1 sentence)
+3. Morning mood prediction: positive/neutral/negative
+
+Respond in JSON:
+{
+  "narrative": "...",
+  "primaryTheme": "...",
+  "symbols": ["symbol1", "symbol2", "symbol3"],
+  "keyInsight": "...",
+  "morningMoodPrediction": "positive|neutral|negative",
+  "eegSummary": "Brief 1-sentence description of the neurological pattern"
+}`;
+
+      let aiResult: {
+        narrative: string;
+        primaryTheme: string;
+        symbols: string[];
+        keyInsight: string;
+        morningMoodPrediction: string;
+        eegSummary: string;
+      } = {
+        narrative: "",
+        primaryTheme: "neutral",
+        symbols: [],
+        keyInsight: "",
+        morningMoodPrediction: "neutral",
+        eegSummary: `${episode.durationMinutes}-min ${intensityDesc} dream phase detected (EEG-generated narrative — no LLM configured)`,
+      };
+
+      if (anthropic) {
+        const r = await anthropic.messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 512,
+          system: "You are a dream neuroscientist. Return only valid JSON as specified.",
+          messages: [{ role: "user", content: eegPrompt }],
+        });
+        const raw = r.content[0].type === "text" ? r.content[0].text : "{}";
+        try {
+          aiResult = JSON.parse(raw);
+        } catch { /* keep defaults */ }
+      } else if (openai) {
+        const r = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: eegPrompt }],
+          response_format: { type: "json_object" },
+        });
+        try {
+          aiResult = JSON.parse(r.choices[0].message.content || "{}");
+        } catch { /* keep defaults */ }
+      }
+
+      // 4. Save to dreamAnalysis table
+      const savedAnalysis = await storage.createDreamAnalysis({
+        userId,
+        dreamText: aiResult.narrative || `EEG dream phase detected: ${intensityDesc}, ${valenceDesc} emotional tone, ${episode.durationMinutes} minutes.`,
+        symbols: aiResult.symbols ?? [],
+        emotions: [{ emotion: topEmotion, intensity: episode.avgArousal }],
+        aiAnalysis: aiResult.keyInsight || "",
+      });
+
+      return res.json({
+        dreamAnalysis: savedAnalysis,
+        episode,
+        narrative: aiResult.narrative,
+        primaryTheme: aiResult.primaryTheme,
+        keyInsight: aiResult.keyInsight,
+        morningMoodPrediction: aiResult.morningMoodPrediction,
+        eegSummary: aiResult.eegSummary,
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-session-complete failed");
+      return res.status(500).json({ message: "Failed to generate dream analysis" });
+    }
+  });
+
+  // ── End dream frame pipeline ──────────────────────────────────────────────
 
   const httpServer = createServer(app);
   return httpServer;
