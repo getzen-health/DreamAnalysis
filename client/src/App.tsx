@@ -80,6 +80,7 @@ const ResearchDaytime        = lazy(() => import("@/pages/research-daytime"));
 const ResearchEvening        = lazy(() => import("@/pages/research-evening"));
 const FoodLog                = lazy(() => import("@/pages/food-log"));
 const SleepSession           = lazy(() => import("@/pages/sleep-session"));
+const LucidProtocol          = lazy(() => import("@/pages/lucid-protocol"));
 const WeeklyBrainSummary     = lazy(() => import("@/pages/weekly-brain-summary"));
 const PersonalRecords        = lazy(() => import("@/pages/personal-records"));
 const PrivacyPolicy          = lazy(() => import("@/pages/privacy-policy"));
@@ -326,6 +327,9 @@ function AppRoutes() {
       </Route>
       <Route path="/food-log">
         <ProtectedRoute><AppLayout><Nutrition /></AppLayout></ProtectedRoute>
+      </Route>
+      <Route path="/lucid-protocol">
+        <ProtectedRoute><AppLayout><LucidProtocol /></AppLayout></ProtectedRoute>
       </Route>
       <Route path="/sleep-session">
         <ProtectedRoute><AppLayout><SleepSession /></AppLayout></ProtectedRoute>
