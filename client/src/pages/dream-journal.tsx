@@ -1,14 +1,42 @@
 import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
+import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Moon, PenLine } from "lucide-react";
+import { Moon, PenLine, Brain } from "lucide-react";
 
 /* ---------- types ---------- */
 interface DreamEpisode {
   startTime: string;
   duration: number;
   intensity: number;
+}
+
+interface DreamFrameBuffer {
+  dreamIntensity: number;
+  remLikelihood: number;
+  valence?: number;
+  arousal?: number;
+  lucidityScore?: number;
+  lucidityState?: string;
+  thetaActivity?: number;
+  betaActivation?: number;
+  eyeMovementIndex?: number;
+  dominantEmotion?: string;
+}
+
+interface DreamReport {
+  narrative: string;
+  primaryTheme: string;
+  keyInsight: string;
+  morningMoodPrediction: string;
+  eegSummary: string;
+  episode: {
+    durationMinutes: number;
+    peakIntensity: number;
+    peakLucidityState: string;
+  };
 }
 
 /* ---------- helpers ---------- */
@@ -26,10 +54,15 @@ function intensityLabel(pct: number): string {
   return "faint";
 }
 
+function generateSessionId(): string {
+  return `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
 /* ========== Component ========== */
 export default function DreamJournal() {
   const [, navigate] = useLocation();
   const { latestFrame, state: deviceState } = useDevice();
+  const { user } = useAuth();
   const isStreaming = deviceState === "streaming";
   const analysis    = latestFrame?.analysis;
 
@@ -46,26 +79,153 @@ export default function DreamJournal() {
 
   // Track dream episodes (start/end transitions)
   const [episodes, setEpisodes] = useState<DreamEpisode[]>([]);
-  const wasDreamingRef  = useRef(false);
-  const dreamStartRef   = useRef<Date | null>(null);
+  const wasDreamingRef   = useRef(false);
+  const dreamStartRef    = useRef<Date | null>(null);
   const lastIntensityRef = useRef(0);
 
+  // EEG frame buffer for dream frames
+  const frameBufferRef   = useRef<DreamFrameBuffer[]>([]);
+  const sessionIdRef     = useRef<string>(generateSessionId());
+  const [totalFramesSaved, setTotalFramesSaved] = useState(0);
+
+  // Report state
+  const [report, setReport]           = useState<DreamReport | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
+  // Collect EEG frames while dreaming
   useEffect(() => {
-    if (!isStreaming) return;
+    if (!isStreaming || !analysis) return;
     lastIntensityRef.current = dreamIntensity;
 
-    if (isDreaming && !wasDreamingRef.current) {
-      dreamStartRef.current = new Date();
-      wasDreamingRef.current = true;
+    if (isDreaming) {
+      // Buffer this frame
+      const frame: DreamFrameBuffer = {
+        dreamIntensity: dreamDetection?.dream_intensity ?? 0,
+        remLikelihood:  dreamDetection?.rem_likelihood ?? 0,
+        valence:        analysis.emotions?.valence,
+        arousal:        analysis.emotions?.arousal,
+        lucidityScore:  dreamDetection?.lucidity_estimate,
+        lucidityState:  analysis.lucid_dream?.state ?? undefined,
+        thetaActivity:  analysis.band_powers?.theta != null
+          ? Math.min(1, analysis.band_powers.theta / 50)
+          : undefined,
+        betaActivation: analysis.band_powers?.beta != null
+          ? Math.min(1, analysis.band_powers.beta / 30)
+          : undefined,
+        eyeMovementIndex: analysis.band_powers?.delta != null
+          ? Math.min(1, analysis.band_powers.delta / 100)
+          : undefined,
+        dominantEmotion: analysis.emotions?.emotion ?? undefined,
+      };
+      frameBufferRef.current.push(frame);
+
+      if (!wasDreamingRef.current) {
+        dreamStartRef.current = new Date();
+        wasDreamingRef.current = true;
+      }
     } else if (!isDreaming && wasDreamingRef.current && dreamStartRef.current) {
+      // Episode ended — flush buffered frames to the server
+      const frames = [...frameBufferRef.current];
+      frameBufferRef.current = [];
+      wasDreamingRef.current = false;
+
       const duration = Math.max(1, Math.round((Date.now() - dreamStartRef.current.getTime()) / 60000));
       const startTime = dreamStartRef.current.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      dreamStartRef.current = null;
+
       setEpisodes((prev) => [...prev, { startTime, duration, intensity: lastIntensityRef.current }]);
-      wasDreamingRef.current = false;
-      dreamStartRef.current  = null;
+
+      if (frames.length > 0 && user?.id) {
+        fetch("/api/dream-frames", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            frames,
+            sessionId: sessionIdRef.current,
+            userId: user.id,
+          }),
+        })
+          .then((r) => r.json())
+          .then((data: { saved?: number }) => {
+            if (data.saved) setTotalFramesSaved((n) => n + data.saved!);
+          })
+          .catch(() => { /* non-fatal — frames buffered client-side already */ });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDreaming, isStreaming]);
+
+  async function handleGenerateReport() {
+    if (!user?.id) return;
+
+    // If still dreaming, flush whatever we have buffered first
+    const pendingFrames = [...frameBufferRef.current];
+    if (pendingFrames.length > 0) {
+      frameBufferRef.current = [];
+      try {
+        const r = await fetch("/api/dream-frames", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            frames: pendingFrames,
+            sessionId: sessionIdRef.current,
+            userId: user.id,
+          }),
+        });
+        const d = await r.json() as { saved?: number };
+        if (d.saved) setTotalFramesSaved((n) => n + d.saved!);
+      } catch { /* ignore */ }
+    }
+
+    setIsGenerating(true);
+    setGenerateError(null);
+    try {
+      const r = await fetch("/api/dream-session-complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          userId: user.id,
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json() as { message?: string };
+        throw new Error(err.message || `HTTP ${r.status}`);
+      }
+      const data = await r.json() as {
+        narrative?: string;
+        primaryTheme?: string;
+        keyInsight?: string;
+        morningMoodPrediction?: string;
+        eegSummary?: string;
+        episode?: DreamReport["episode"];
+        message?: string;
+      };
+
+      if (data.message && !data.narrative) {
+        setGenerateError(data.message);
+        return;
+      }
+
+      setReport({
+        narrative: data.narrative ?? "",
+        primaryTheme: data.primaryTheme ?? "neutral",
+        keyInsight: data.keyInsight ?? "",
+        morningMoodPrediction: data.morningMoodPrediction ?? "neutral",
+        eegSummary: data.eegSummary ?? "",
+        episode: data.episode ?? { durationMinutes: 0, peakIntensity: 0, peakLucidityState: "non_lucid" },
+      });
+
+      // Rotate to a new session ID for the next night
+      sessionIdRef.current = generateSessionId();
+      setTotalFramesSaved(0);
+    } catch (e) {
+      setGenerateError(e instanceof Error ? e.message : "Failed to generate report");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8 pb-24 space-y-4">
@@ -115,9 +275,14 @@ export default function DreamJournal() {
               >
                 <span className="text-xl animate-pulse">✨</span>
                 <div>
-                  <p className="text-sm font-medium">Dream detected</p>
+                  <p className="text-sm font-medium">Dream detected — recording EEG</p>
                   <p className="text-xs text-muted-foreground">
                     {dreamProbability}% probability · {intensityLabel(dreamIntensity)} activity
+                    {frameBufferRef.current.length > 0 && (
+                      <span className="ml-2 text-primary/70">
+                        · {frameBufferRef.current.length} frames buffered
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -128,6 +293,9 @@ export default function DreamJournal() {
                 </p>
                 <p className="text-xs text-muted-foreground/60 mt-0.5">
                   REM likelihood: {remLikelihood}%
+                  {totalFramesSaved > 0 && (
+                    <span className="ml-2 text-primary/60">· {totalFramesSaved} frames saved from tonight</span>
+                  )}
                 </p>
               </div>
             )}
@@ -180,9 +348,102 @@ export default function DreamJournal() {
             ))}
           </div>
         )}
+
+        {/* Generate dream report button — shown when episodes exist */}
+        {(episodes.length > 0 || totalFramesSaved > 0) && (
+          <div className="mt-4 pt-3 border-t border-border/20">
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={handleGenerateReport}
+              disabled={isGenerating || !user?.id}
+            >
+              <Brain className="w-4 h-4 mr-2" />
+              {isGenerating ? "Generating from EEG..." : "Generate Dream Report from EEG"}
+            </Button>
+            {generateError && (
+              <p className="text-xs text-destructive mt-2 text-center">{generateError}</p>
+            )}
+          </div>
+        )}
       </Card>
 
-      {/* ── Card 3: Record on waking ─────────────────────────────────────── */}
+      {/* ── Card 3: EEG-generated dream narrative ────────────────────────── */}
+      {report && (
+        <Card className="p-5 space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+              Based on your EEG activity tonight
+            </p>
+            <p className="text-sm leading-relaxed">{report.narrative}</p>
+          </div>
+
+          {report.eegSummary && (
+            <p className="text-xs text-muted-foreground italic border-l-2 border-primary/30 pl-3">
+              {report.eegSummary}
+            </p>
+          )}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+              style={{
+                background: "hsl(262,45%,55%,0.15)",
+                color: "hsl(262,45%,75%)",
+                border: "1px solid hsl(262,45%,55%,0.3)",
+              }}
+            >
+              {report.primaryTheme}
+            </span>
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+              style={{
+                background:
+                  report.morningMoodPrediction === "positive"
+                    ? "hsl(152,60%,48%,0.15)"
+                    : report.morningMoodPrediction === "negative"
+                    ? "hsl(0,70%,55%,0.15)"
+                    : "hsl(220,50%,50%,0.15)",
+                color:
+                  report.morningMoodPrediction === "positive"
+                    ? "hsl(152,60%,65%)"
+                    : report.morningMoodPrediction === "negative"
+                    ? "hsl(0,70%,70%)"
+                    : "hsl(220,50%,70%)",
+                border:
+                  report.morningMoodPrediction === "positive"
+                    ? "1px solid hsl(152,60%,48%,0.3)"
+                    : report.morningMoodPrediction === "negative"
+                    ? "1px solid hsl(0,70%,55%,0.3)"
+                    : "1px solid hsl(220,50%,50%,0.3)",
+              }}
+            >
+              Morning: {report.morningMoodPrediction}
+            </span>
+            {report.episode.peakLucidityState !== "non_lucid" && (
+              <span
+                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
+                style={{
+                  background: "hsl(38,85%,58%,0.15)",
+                  color: "hsl(38,85%,70%)",
+                  border: "1px solid hsl(38,85%,58%,0.3)",
+                }}
+              >
+                {report.episode.peakLucidityState.replace("_", " ")}
+              </span>
+            )}
+          </div>
+
+          {report.keyInsight && (
+            <div className="rounded-lg bg-muted/20 px-3 py-2.5">
+              <p className="text-xs text-muted-foreground font-medium mb-0.5">Insight</p>
+              <p className="text-xs leading-relaxed">{report.keyInsight}</p>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ── Card 4: Record on waking ──────────────────────────────────────── */}
       <button
         onClick={() => navigate("/research/morning")}
         aria-label="Record this morning's dream — open dream journal entry"
