@@ -22,6 +22,15 @@ export interface StageEvent {
   t: number;
 }
 
+export interface DreamEpisode {
+  /** Elapsed seconds when dream started */
+  startT: number;
+  /** Elapsed seconds when dream ended */
+  endT: number;
+  /** Optional 0-1 dream intensity */
+  intensity?: number;
+}
+
 interface SleepHypnogramProps {
   /** Ordered list of stage transitions (first entry should be t=0 or close to it) */
   stageHistory: StageEvent[];
@@ -31,6 +40,8 @@ interface SleepHypnogramProps {
   width?: number;
   /** Height of the SVG in pixels */
   height?: number;
+  /** Optional dream episodes to overlay on the hypnogram */
+  dreamEpisodes?: DreamEpisode[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -60,6 +71,7 @@ export function SleepHypnogram({
   stageHistory,
   totalSeconds,
   height = 80,
+  dreamEpisodes,
 }: SleepHypnogramProps) {
   if (!stageHistory.length || totalSeconds <= 0) {
     return (
@@ -183,6 +195,47 @@ export function SleepHypnogram({
             opacity={0.9}
           />
         )}
+
+        {/* Dream episode overlay rectangles */}
+        {dreamEpisodes && dreamEpisodes.length > 0 && dreamEpisodes.map((ep, i) => {
+          const x1 = tToX(ep.startT);
+          const x2 = tToX(ep.endT);
+          const w = Math.max(0, x2 - x1);
+          const opacity = ep.intensity != null ? 0.08 + ep.intensity * 0.15 : 0.15;
+          // Moon icon center: top of the overlay, small
+          const iconX = x1 + w / 2;
+          const iconY = 3;
+          const iconR = 1.8;
+          return (
+            <g key={`dream-${i}`} data-testid={`dream-overlay-${i}`}>
+              <rect
+                x={x1}
+                y={0}
+                width={w}
+                height={CHART_H}
+                fill="hsl(270, 75%, 60%)"
+                opacity={opacity}
+                rx={0.5}
+                data-testid={`dream-rect-${i}`}
+              />
+              {/* Small crescent moon icon at top of each episode */}
+              <circle
+                cx={iconX}
+                cy={iconY}
+                r={iconR}
+                fill="hsl(270, 75%, 70%)"
+                opacity={0.7}
+              />
+              <circle
+                cx={iconX + iconR * 0.45}
+                cy={iconY - iconR * 0.3}
+                r={iconR * 0.7}
+                fill="hsl(0, 0%, 0%)"
+                opacity={0.8}
+              />
+            </g>
+          );
+        })}
       </svg>
     </div>
   );

@@ -27,7 +27,7 @@ describe("DreamFusionCard", () => {
     renderWithProviders(<DreamFusionCard insight={null} />);
     expect(screen.getByTestId("dream-fusion-empty")).toBeInTheDocument();
     expect(
-      screen.getByText(/log a dream to see how your body responded/i),
+      screen.getByText(/connect your BCI device/i),
     ).toBeInTheDocument();
   });
 

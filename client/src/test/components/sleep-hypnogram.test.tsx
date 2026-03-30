@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import { SleepHypnogram } from "@/components/sleep-hypnogram";
-import type { StageEvent } from "@/components/sleep-hypnogram";
+import type { StageEvent, DreamEpisode } from "@/components/sleep-hypnogram";
 
 const SAMPLE_HISTORY: StageEvent[] = [
   { stage: "N1",  t: 0    },
@@ -71,5 +71,67 @@ describe("SleepHypnogram", () => {
     const svg = container.querySelector("svg");
     expect(svg).not.toBeNull();
     expect(svg!.getAttribute("height")).toBe("120");
+  });
+
+  // ── Dream Episode Overlay Tests ────────────────────────────────────────────
+
+  it("renders without dreamEpisodes (backward compatible)", () => {
+    renderWithProviders(
+      <SleepHypnogram stageHistory={SAMPLE_HISTORY} totalSeconds={TOTAL_SEC} />
+    );
+    expect(screen.getByTestId("sleep-hypnogram")).toBeInTheDocument();
+    expect(screen.queryByTestId("dream-overlay-0")).not.toBeInTheDocument();
+  });
+
+  it("renders dream overlay rectangles when episodes provided", () => {
+    const episodes: DreamEpisode[] = [
+      { startT: 1800, endT: 2100 },
+      { startT: 2760, endT: 3000, intensity: 0.8 },
+    ];
+    renderWithProviders(
+      <SleepHypnogram
+        stageHistory={SAMPLE_HISTORY}
+        totalSeconds={TOTAL_SEC}
+        dreamEpisodes={episodes}
+      />
+    );
+    expect(screen.getByTestId("dream-overlay-0")).toBeInTheDocument();
+    expect(screen.getByTestId("dream-overlay-1")).toBeInTheDocument();
+    expect(screen.getByTestId("dream-rect-0")).toBeInTheDocument();
+    expect(screen.getByTestId("dream-rect-1")).toBeInTheDocument();
+  });
+
+  it("dream overlay positioned correctly based on time", () => {
+    const episodes: DreamEpisode[] = [
+      { startT: 900, endT: 1800 }, // quarter to half of the session
+    ];
+    const { container } = renderWithProviders(
+      <SleepHypnogram
+        stageHistory={SAMPLE_HISTORY}
+        totalSeconds={TOTAL_SEC}
+        dreamEpisodes={episodes}
+      />
+    );
+    const rect = screen.getByTestId("dream-rect-0");
+    const x = parseFloat(rect.getAttribute("x") ?? "0");
+    const width = parseFloat(rect.getAttribute("width") ?? "0");
+    // LABEL_W=32, CHART_W=68; startT=900/3600=0.25 => x=32+0.25*68=49
+    // endT=1800/3600=0.5 => x2=32+0.5*68=66; width=66-49=17
+    expect(x).toBeCloseTo(49, 0);
+    expect(width).toBeCloseTo(17, 0);
+    // Rect should span the full chart height
+    expect(rect.getAttribute("y")).toBe("0");
+  });
+
+  it("renders no dream overlays when empty array provided", () => {
+    renderWithProviders(
+      <SleepHypnogram
+        stageHistory={SAMPLE_HISTORY}
+        totalSeconds={TOTAL_SEC}
+        dreamEpisodes={[]}
+      />
+    );
+    expect(screen.getByTestId("sleep-hypnogram")).toBeInTheDocument();
+    expect(screen.queryByTestId("dream-overlay-0")).not.toBeInTheDocument();
   });
 });

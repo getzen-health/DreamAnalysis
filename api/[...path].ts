@@ -14,6 +14,7 @@
  *   GET    /api/dreams/analytics
  *   POST   /api/dreams/generate-image
  *   POST   /api/dream-analysis
+ *   POST   /api/dream-analysis/multi-pass
  *   GET    /api/dream-analysis/:userId
  *   POST   /api/ai-chat
  *   GET    /api/ai-chat/:userId
@@ -439,6 +440,90 @@ async function dreamAnalysisGet(req: VercelRequest, res: VercelResponse, userId:
   const rows = await db.select().from(schema.dreamAnalysis)
     .where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)).limit(20);
   return success(res, rows);
+}
+
+async function dreamAnalysisMultiPassPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { dreamText, recentThemes } = req.body;
+  if (!dreamText || typeof dreamText !== 'string') return badRequest(res, 'Missing dreamText');
+  if (dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
+
+  const openai = getOpenAIClient();
+  const recentCtx = Array.isArray(recentThemes) && recentThemes.length > 0
+    ? `\nRecent dream themes for continuity: ${recentThemes.join(', ')}`
+    : '';
+
+  try {
+    // Pass 1: Extract themes and symbols
+    const r1 = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are a dream analysis expert. Extract themes, symbols, and a brief summary. Return only valid JSON.' },
+        { role: 'user', content: `Extract key themes, symbolic elements, and write a 2-3 sentence summary.\nReturn JSON: {"themes":[],"symbols":[],"summary":""}${recentCtx}\n\nDream: ${dreamText}` },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    let pass1 = { themes: [] as string[], symbols: [] as string[], summary: '' };
+    try { pass1 = JSON.parse(r1.choices[0].message.content || '{}'); } catch { /* defaults */ }
+
+    // Pass 2: Interpret symbols and emotional tone
+    const r2 = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are a dream interpretation specialist combining Jungian and neuroscience perspectives. Return only valid JSON.' },
+        { role: 'user', content: `Given themes: ${JSON.stringify(pass1.themes)}, symbols: ${JSON.stringify(pass1.symbols)}\nInterpret each symbol, determine emotional tone, suggest waking life connections, identify lucidity indicators.\nReturn JSON: {"symbols":[{"symbol":"","meaning":""}],"emotionalTone":"","connections":[],"lucidityIndicators":[]}\n\nDream: ${dreamText}` },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    let pass2 = { symbols: [] as { symbol: string; meaning: string }[], emotionalTone: 'neutral', connections: [] as string[], lucidityIndicators: [] as string[] };
+    try { pass2 = JSON.parse(r2.choices[0].message.content || '{}'); } catch { /* defaults */ }
+
+    // Pass 3: Actionable insight
+    const r3 = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are a clinical dream analyst. Provide specific, actionable insights. Return only valid JSON.' },
+        { role: 'user', content: `Summary: ${pass1.summary}\nThemes: ${(pass1.themes || []).join(', ')}\nTone: ${pass2.emotionalTone}\nSymbols: ${JSON.stringify(pass2.symbols)}\n\nWrite one specific, actionable insight.\nReturn JSON: {"actionableInsight":""}` },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    let pass3 = { actionableInsight: '' };
+    try { pass3 = JSON.parse(r3.choices[0].message.content || '{}'); } catch { /* defaults */ }
+
+    return success(res, {
+      summary: pass1.summary || '',
+      themes: Array.isArray(pass1.themes) ? pass1.themes : [],
+      symbols: Array.isArray(pass2.symbols) ? pass2.symbols : [],
+      emotionalTone: pass2.emotionalTone || 'neutral',
+      connections: Array.isArray(pass2.connections) ? pass2.connections : [],
+      lucidityIndicators: Array.isArray(pass2.lucidityIndicators) ? pass2.lucidityIndicators : [],
+      actionableInsight: pass3.actionableInsight || '',
+    });
+  } catch (err) {
+    // Single-pass fallback
+    try {
+      const fallback = await openai.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: 'You are a dream analysis expert. Return JSON: {"summary":"","themes":[],"symbols":[{"symbol":"","meaning":""}],"emotionalTone":"","connections":[],"lucidityIndicators":[],"actionableInsight":""}' },
+          { role: 'user', content: `Analyze this dream: ${dreamText}` },
+        ],
+        response_format: { type: 'json_object' },
+      });
+      const parsed = JSON.parse(fallback.choices[0].message.content || '{}');
+      return success(res, {
+        summary: parsed.summary || '',
+        themes: Array.isArray(parsed.themes) ? parsed.themes : [],
+        symbols: Array.isArray(parsed.symbols) ? parsed.symbols : [],
+        emotionalTone: parsed.emotionalTone || 'neutral',
+        connections: Array.isArray(parsed.connections) ? parsed.connections : [],
+        lucidityIndicators: Array.isArray(parsed.lucidityIndicators) ? parsed.lucidityIndicators : [],
+        actionableInsight: parsed.actionableInsight || '',
+      });
+    } catch {
+      return error(res, 'Dream analysis failed', 500);
+    }
+  }
 }
 
 async function aiChatPost(req: VercelRequest, res: VercelResponse) {
@@ -1775,6 +1860,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (s0 === 'dream-analysis') {
       if (!s1) return await dreamAnalysisPost(req, res);
+      if (s1 === 'multi-pass') return await dreamAnalysisMultiPassPost(req, res);
       return await dreamAnalysisGet(req, res, s1);
     }
 

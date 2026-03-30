@@ -12,6 +12,10 @@ beforeAll(() => {
   };
 });
 
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => ({ user: { id: "test-user-123" }, isAuthenticated: true, login: vi.fn(), logout: vi.fn() }),
+}));
+
 vi.mock("@/hooks/use-device", () => ({
   useDevice: () => ({
     latestFrame: null,
