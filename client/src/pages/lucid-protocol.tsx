@@ -21,6 +21,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
+import { RealityTestCard } from "@/components/reality-test-card";
 
 const USER_ID = getParticipantId();
 
@@ -223,6 +224,9 @@ export default function LucidProtocol() {
             <li>• Keep a dream journal within reach of your bed.</li>
           </ul>
         </Card>
+
+        {/* Daytime reality testing */}
+        <RealityTestCard />
 
         <div className="flex justify-center pt-2">
           <Button

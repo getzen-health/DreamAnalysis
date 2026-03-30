@@ -32,7 +32,7 @@ import {
   pilotParticipants, pilotSessions,
   passwordResetTokens,
   healthMetrics, healthSamples,
-  dreamAnalysis, dreamSymbols, dreamFrames, eegSessions, userSettings,
+  dreamAnalysis, dreamSymbols, dreamFrames, realityTests, eegSessions, userSettings,
   aiChats, brainReadings, emotionReadings,
   exercises, workouts, workoutSets, workoutTemplates,
   bodyMetrics, exerciseHistory,
@@ -6279,6 +6279,80 @@ Respond in JSON:
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "sleep-alarm GET failed");
       return res.status(500).json({ message: "Failed to compute sleep alarm window" });
+    }
+  });
+
+  // ── Reality testing ────────────────────────────────────────────────────────
+
+  /** POST /api/reality-test — log a reality check response */
+  app.post("/api/reality-test", async (req, res) => {
+    try {
+      const { userId, result, notes } = req.body as {
+        userId: string;
+        result: "dreaming" | "awake" | "unsure";
+        notes?: string;
+      };
+      if (!userId || !result) {
+        return res.status(400).json({ message: "userId and result required" });
+      }
+      const row = await db.insert(realityTests).values({ userId, result, notes: notes ?? null }).returning();
+      return res.json(row[0]);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "reality-test POST failed");
+      return res.status(500).json({ message: "Failed to save reality test" });
+    }
+  });
+
+  /** GET /api/reality-test/:userId — today's count + streak */
+  app.get("/api/reality-test/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      if (!userId) return res.status(400).json({ message: "userId required" });
+
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const todayRows = await db
+        .select()
+        .from(realityTests)
+        .where(and(eq(realityTests.userId, userId), gte(realityTests.timestamp, startOfToday)))
+        .orderBy(desc(realityTests.timestamp));
+
+      // Compute streak: count consecutive days with ≥1 reality test
+      const allRows = await db
+        .select({ ts: realityTests.timestamp })
+        .from(realityTests)
+        .where(eq(realityTests.userId, userId))
+        .orderBy(desc(realityTests.timestamp));
+
+      let streak = 0;
+      const dayMs = 24 * 60 * 60 * 1000;
+      const todayMidnight = new Date(startOfToday);
+      const seenDays = new Set<string>();
+      for (const row of allRows) {
+        const dayKey = new Date(row.ts).toISOString().slice(0, 10);
+        seenDays.add(dayKey);
+      }
+      let checkDay = new Date(todayMidnight);
+      for (let i = 0; i < 365; i++) {
+        const key = checkDay.toISOString().slice(0, 10);
+        if (seenDays.has(key)) {
+          streak++;
+          checkDay = new Date(checkDay.getTime() - dayMs);
+        } else {
+          break;
+        }
+      }
+
+      return res.json({
+        todayCount: todayRows.length,
+        todayTests: todayRows,
+        streak,
+        totalCount: allRows.length,
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "reality-test GET failed");
+      return res.status(500).json({ message: "Failed to fetch reality tests" });
     }
   });
 

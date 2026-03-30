@@ -102,6 +102,20 @@ export const dreamFrames = pgTable("dream_frames", {
 export type DreamFrame = typeof dreamFrames.$inferSelect;
 export type InsertDreamFrame = typeof dreamFrames.$inferInsert;
 
+// Reality testing log — daytime habit for lucid dreaming
+export const realityTests = pgTable("reality_tests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  result: text("result").notNull(), // "dreaming" | "awake" | "unsure"
+  notes: text("notes"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+}, (table) => [
+  index("reality_tests_user_ts_idx").on(table.userId, table.timestamp),
+]);
+
+export type RealityTest = typeof realityTests.$inferSelect;
+export type InsertRealityTest = typeof realityTests.$inferInsert;
+
 export const aiChats = pgTable("ai_chats", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
