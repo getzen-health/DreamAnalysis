@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import {
@@ -15,7 +15,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useMemo } from "react";
-import { Moon, TrendingUp, Brain, Activity, Sparkles, Radio } from "lucide-react";
+import { Moon, TrendingUp, Brain, Activity, Sparkles, Radio, Share2 } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
@@ -24,6 +24,8 @@ import { DreamFusionCard } from "@/components/dream-fusion-card";
 import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics } from "@/lib/dream-biometric-fusion";
 import { DreamPatternsCard } from "@/components/dream-patterns-card";
 import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
+import { renderDreamShareCard, type DreamShareData } from "@/lib/dream-share-card";
+import { shareImage } from "@/lib/share-utils";
 
 /* ---------- constants ---------- */
 const PERIOD_TABS = [
@@ -241,6 +243,10 @@ export default function DreamPatterns() {
   const [inRem, setInRem] = useState(false);
   const [remStart, setRemStart] = useState(0);
 
+  // Share card state
+  const [shareGenerating, setShareGenerating] = useState(false);
+  const shareCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
   useEffect(() => {
     if (!isStreaming || !sleepStaging) return;
 
@@ -280,6 +286,69 @@ export default function DreamPatterns() {
   const avgRem = sessionData.length > 0 ? Math.round(sessionData.reduce((s, d) => s + d.remMinutes, 0) / sessionData.length) : 0;
   const avgIntensity = sessionData.length > 0 ? Math.round(sessionData.reduce((s, d) => s + d.avgIntensity, 0) / sessionData.length) : 0;
 
+  // Share dream card handler
+  const handleShareDream = useCallback(async () => {
+    if (shareGenerating) return;
+
+    // Gather data for the share card
+    const row = latestDreamArr?.[0];
+    const dreamSummary = row?.dreamText ?? "A vivid dream captured by EEG overnight monitoring.";
+    const emotions = Array.isArray(row?.emotions)
+      ? row.emotions.map((e) => (typeof e === "string" ? e : e.emotion))
+      : [];
+    const emotionalTone = emotions[0] ?? "mysterious";
+
+    const sleepHours = latestPayload?.sleep_total_hours;
+    let sleepDuration = "--";
+    if (sleepHours != null) {
+      const h = Math.floor(sleepHours);
+      const m = Math.round((sleepHours - h) * 60);
+      sleepDuration = `${h}h ${m}m`;
+    }
+
+    const remPct = latestPayload?.sleep_rem_hours != null && sleepHours
+      ? Math.round((latestPayload.sleep_rem_hours / sleepHours) * 100)
+      : avgRem;
+
+    const dreamCount = Array.isArray(latestDreamArr) ? latestDreamArr.filter((d) => d.dreamText).length : 0;
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+    const shareData: DreamShareData = {
+      dreamSummary,
+      emotionalTone,
+      sleepDuration,
+      remPercentage: remPct,
+      dreamCount: dreamCount || 1,
+      date: dateStr,
+    };
+
+    setShareGenerating(true);
+    try {
+      // Create or reuse offscreen canvas
+      if (!shareCanvasRef.current) {
+        shareCanvasRef.current = document.createElement("canvas");
+      }
+      const blob = await renderDreamShareCard(shareCanvasRef.current, shareData);
+
+      // Convert blob to data URL for share-utils
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const filename = `antarai-dream-${Date.now()}.png`;
+      await shareImage(dataUrl, filename);
+    } catch {
+      // Share cancelled or failed — no-op
+    } finally {
+      setShareGenerating(false);
+    }
+  }, [latestDreamArr, latestPayload, avgRem, shareGenerating]);
+
   // Historical summary stats
   const histAvgFlow = periodSessions.length > 0
     ? Math.round(periodSessions.reduce((s, x) => s + (x.summary?.avg_flow ?? 0), 0) / periodSessions.length * 100)
@@ -316,6 +385,15 @@ export default function DreamPatterns() {
           {isLiveToday && isStreaming && (
             <span className="text-[10px] font-mono text-primary animate-pulse">● LIVE</span>
           )}
+          <button
+            onClick={handleShareDream}
+            disabled={shareGenerating}
+            className="ml-2 p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary
+              hover:bg-primary/20 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Share dream summary card"
+          >
+            <Share2 className="h-4 w-4" />
+          </button>
         </div>
         <div className="flex gap-1 flex-wrap">
           {PERIOD_TABS.map((tab) => (

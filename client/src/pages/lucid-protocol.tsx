@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
 import { RealityTestCard } from "@/components/reality-test-card";
+import { RealityTestSettings } from "@/components/reality-test-settings";
 
 const USER_ID = getParticipantId();
 
@@ -227,6 +228,9 @@ export default function LucidProtocol() {
 
         {/* Daytime reality testing */}
         <RealityTestCard />
+
+        {/* Reality test notification settings */}
+        <RealityTestSettings />
 
         <div className="flex justify-center pt-2">
           <Button

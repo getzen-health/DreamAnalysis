@@ -3,8 +3,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
 import { useAuth } from "@/hooks/use-auth";
+import { useHealthSync } from "@/hooks/use-health-sync";
 import { useLocation } from "wouter";
-import { Moon, PenLine, Brain } from "lucide-react";
+import { Moon, PenLine, Brain, AlarmClock, Wifi } from "lucide-react";
+import { getDreamTier, estimateRemWindows, type PhoneSleepEstimate } from "@/lib/dream-tier";
 
 /* ---------- types ---------- */
 interface DreamEpisode {
@@ -63,7 +65,18 @@ export default function DreamJournal() {
   const [, navigate] = useLocation();
   const { latestFrame, state: deviceState } = useDevice();
   const { user } = useAuth();
+  const { latestPayload, isAvailable: hasHealthData } = useHealthSync();
   const isStreaming = deviceState === "streaming";
+
+  // Tier 2: phone sleep tracking state
+  const [sleepOnset, setSleepOnset] = useState("23:00");
+  const [wakeTime, setWakeTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  });
+  const [phoneEstimate, setPhoneEstimate] = useState<PhoneSleepEstimate | null>(null);
+
+  const tier = getDreamTier(isStreaming, hasHealthData);
   const analysis    = latestFrame?.analysis;
 
   const dreamDetection = analysis?.dream_detection;

@@ -34,6 +34,29 @@ export function playStartBeep() {
   } catch {}
 }
 
+/** Gentle rising alarm chime — smart wake alarm trigger */
+export function playAlarmChime() {
+  try {
+    const c = getContext();
+    // Three ascending notes, gentle volume, spread over 1.2 seconds
+    const notes = [440, 554, 659]; // A4, C#5, E5 — major triad
+    notes.forEach((freq, i) => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = "sine";
+      osc.connect(gain);
+      gain.connect(c.destination);
+      osc.frequency.value = freq;
+      const t = c.currentTime + i * 0.4;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.18, t + 0.05);
+      gain.gain.linearRampToValueAtTime(0, t + 0.35);
+      osc.start(t);
+      osc.stop(t + 0.35);
+    });
+  } catch {}
+}
+
 /** Two-tone success chime — analysis complete */
 export function playSuccessChime() {
   try {

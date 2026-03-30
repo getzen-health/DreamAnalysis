@@ -7,11 +7,14 @@ import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
 import { startSession, stopSession } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
-import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import { hapticLight, hapticSuccess, hapticHeavy } from "@/lib/haptics";
 import { backgroundEeg } from "@/lib/background-eeg";
 import CGMSleepOverlay from "@/components/cgm-sleep-overlay";
 import { SleepHypnogram, type StageEvent, type DreamEpisode } from "@/components/sleep-hypnogram";
 import { generateAutoDreamNarrative } from "@/lib/auto-dream-narrative";
+import { shouldTriggerAlarm, type SmartAlarmConfig } from "@/lib/smart-alarm";
+import SmartAlarmSettings from "@/components/smart-alarm-settings";
+import { playAlarmChime } from "@/lib/sound-effects";
 import {
   Moon,
   BrainCircuit,
@@ -22,6 +25,7 @@ import {
   Eye,
   AlarmClock,
   BookOpen,
+  Bell,
 } from "lucide-react";
 
 const CURRENT_USER = getParticipantId();
@@ -138,6 +142,14 @@ export default function SleepSession() {
   const [dimmed, setDimmed] = useState(false);
   const [peekVisible, setPeekVisible] = useState(false);
   const peekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Smart alarm state
+  const [smartAlarmEnabled, setSmartAlarmEnabled] = useState(false);
+  const [smartAlarmWindow, setSmartAlarmWindow] = useState(30);
+  const [alarmTriggered, setAlarmTriggered] = useState(false);
+  const [alarmReason, setAlarmReason] = useState("");
+  const alarmFiredRef = useRef(false);
+  const alarmPrevStageRef = useRef<string | null>(null);
 
   const startTimeRef     = useRef<number>(0);
   const elapsedRef       = useRef<number>(0);
@@ -286,6 +298,49 @@ export default function SleepSession() {
         dreamStartRef.current = null;
       }
       lastDreamRef.current = isDreaming;
+
+      // ── Smart alarm check ──────────────────────────────────────────────
+      if (smartAlarmEnabled && !alarmFiredRef.current) {
+        // Build target wake Date from "HH:MM" string for today/tomorrow
+        const [h, m] = targetWake.split(":").map(Number);
+        const target = new Date();
+        target.setHours(h, m, 0, 0);
+        // If target is in the past (e.g. set 07:00 but it's 23:00), assume tomorrow
+        if (target.getTime() < startTimeRef.current) {
+          target.setDate(target.getDate() + 1);
+        }
+
+        const config: SmartAlarmConfig = {
+          targetWakeTime: target,
+          windowMinutes: smartAlarmWindow,
+        };
+
+        const decision = shouldTriggerAlarm(
+          config,
+          stage,
+          alarmPrevStageRef.current,
+          new Date(),
+        );
+
+        if (decision.shouldWake) {
+          alarmFiredRef.current = true;
+          setAlarmTriggered(true);
+          setAlarmReason(decision.reason);
+          playAlarmChime();
+          hapticHeavy();
+          // Repeat alarm chime every 10 seconds until dismissed
+          const alarmRepeat = setInterval(() => {
+            if (alarmFiredRef.current) {
+              playAlarmChime();
+              hapticHeavy();
+            } else {
+              clearInterval(alarmRepeat);
+            }
+          }, 10_000);
+        }
+
+        alarmPrevStageRef.current = stage;
+      }
     }, 1000);
 
     return () => {
@@ -321,6 +376,10 @@ export default function SleepSession() {
     setDreamFlash(false);
     setCurrentStage("N1");
     setStageTimeSec(0);
+    setAlarmTriggered(false);
+    setAlarmReason("");
+    alarmFiredRef.current = false;
+    alarmPrevStageRef.current = null;
     setPhase("recording");
     // Dim screen after 15 seconds so the user can place their phone/laptop
     setTimeout(() => setDimmed(true), 15_000);
@@ -333,6 +392,8 @@ export default function SleepSession() {
   const handleWakeUp = () => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
+    alarmFiredRef.current = false; // stop repeating alarm chime
+    setAlarmTriggered(false);
     setDimmed(false);
     setPeekVisible(false);
     hapticSuccess(); // session complete
@@ -360,6 +421,10 @@ export default function SleepSession() {
     setDreamFlash(false);
     setDimmed(false);
     setPeekVisible(false);
+    setAlarmTriggered(false);
+    setAlarmReason("");
+    alarmFiredRef.current = false;
+    alarmPrevStageRef.current = null;
   };
 
   const stageColor = STAGE_COLORS[currentStage];
@@ -407,41 +472,32 @@ export default function SleepSession() {
           </div>
         </Card>
 
-        {/* Smart Wake */}
-        <Card className="rounded-[14px] bg-card border border-border p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <AlarmClock className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Smart Wake Window</h3>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Wake during N1 or REM for better recall and no sleep inertia.
-            Set your target alarm time and we'll compute the optimal 30-min window.
-          </p>
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-muted-foreground shrink-0">Wake at</label>
-            <input
-              type="time"
-              value={targetWake}
-              onChange={(e) => setTargetWake(e.target.value)}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          {alarmData && (
-            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-2">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs text-muted-foreground">Optimal window</span>
-                <span className="text-base font-mono font-bold text-primary">
-                  {alarmData.optimalWindow.start}–{alarmData.optimalWindow.end}
-                </span>
-              </div>
-              <div className="flex gap-4 text-xs text-muted-foreground">
-                <span>Stage: <span className="text-foreground font-medium">{alarmData.expectedStage}</span></span>
-                <span>Cycles: <span className="text-foreground font-medium">{alarmData.estimatedCycles}</span></span>
-              </div>
-              <p className="text-[10px] text-muted-foreground">{alarmData.note}</p>
+        {/* Smart Alarm Settings */}
+        <SmartAlarmSettings
+          enabled={smartAlarmEnabled}
+          onEnabledChange={setSmartAlarmEnabled}
+          targetWakeTime={targetWake}
+          onTargetWakeTimeChange={setTargetWake}
+          windowMinutes={smartAlarmWindow}
+          onWindowMinutesChange={setSmartAlarmWindow}
+        />
+
+        {/* Server-side alarm window prediction (when available) */}
+        {alarmData && smartAlarmEnabled && (
+          <Card className="rounded-[14px] bg-card border border-border p-4 space-y-2">
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs text-muted-foreground">Predicted optimal window</span>
+              <span className="text-base font-mono font-bold text-primary">
+                {alarmData.optimalWindow.start}–{alarmData.optimalWindow.end}
+              </span>
             </div>
-          )}
-        </Card>
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              <span>Stage: <span className="text-foreground font-medium">{alarmData.expectedStage}</span></span>
+              <span>Cycles: <span className="text-foreground font-medium">{alarmData.estimatedCycles}</span></span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">{alarmData.note}</p>
+          </Card>
+        )}
 
         {/* Start button */}
         <div className="flex justify-center pt-2">
@@ -460,6 +516,43 @@ export default function SleepSession() {
   // ─── Recording ────────────────────────────────────────────────────────────
 
   if (phase === "recording") {
+    // Smart alarm triggered — full-screen wake-up overlay
+    if (alarmTriggered) {
+      return (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center select-none"
+          style={{ background: "hsl(48, 80%, 55%, 0.06)" }}
+          data-testid="smart-alarm-overlay"
+        >
+          <div className="flex flex-col items-center gap-6 text-center px-8">
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center animate-pulse"
+              style={{
+                background: "hsl(48, 80%, 55%, 0.15)",
+                border: "2px solid hsl(48, 80%, 55%, 0.4)",
+              }}
+            >
+              <Bell className="h-12 w-12" style={{ color: "hsl(48, 80%, 55%)" }} />
+            </div>
+            <div>
+              <p className="text-3xl font-bold text-foreground mb-2">Time to Wake Up</p>
+              <p className="text-sm text-muted-foreground">{alarmReason}</p>
+            </div>
+            <p className="text-xs text-muted-foreground font-mono">
+              Session: {fmtClock(elapsed)}
+            </p>
+            <Button
+              onClick={handleWakeUp}
+              className="bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 px-12 h-12 text-base mt-4"
+            >
+              <AlarmClock className="h-5 w-5 mr-2" />
+              I'm Awake
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     // Dim overlay: tap to peek for 8 seconds
     if (dimmed && !peekVisible) {
       return (
