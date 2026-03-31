@@ -71,6 +71,15 @@ interface DreamPatternData {
   counts?: { last7: number; last30: number; last90: number };
 }
 
+interface DreamSymbol {
+  id: string;
+  symbol: string;
+  meaning: string | null;
+  frequency: number;
+  firstSeen: string;
+  lastSeen: string;
+}
+
 const STAGE_NAMES = ["N3 (Deep)", "N2 (Light)", "N1", "REM", "Wake"];
 const STAGE_VALUES: Record<string, number> = { Wake: 4, REM: 3, N1: 2, N2: 1, N3: 0 };
 
@@ -160,6 +169,18 @@ export default function DreamPatterns() {
       return res.json();
     },
     staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  // Dream symbol library — personal recurring symbols with frequency + meaning
+  const { data: dreamSymbols = [] } = useQuery<DreamSymbol[]>({
+    queryKey: ["dream-symbols", userId],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/dream-symbols/${userId}`));
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000,
     retry: false,
   });
 
@@ -716,6 +737,42 @@ export default function DreamPatterns() {
                   </blockquote>
                 )}
               </div>
+            </Card>
+          )}
+
+          {/* Dream Symbol Library — recurring symbols across all dreams */}
+          {dreamSymbols.length > 0 && (
+            <Card className="glass-card p-5 hover-glow border-primary/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Brain className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-medium">Symbol Library</h3>
+                <span className="ml-auto text-[10px] text-muted-foreground">
+                  {dreamSymbols.length} unique symbol{dreamSymbols.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {dreamSymbols.slice(0, 8).map((sym) => (
+                  <div key={sym.id} className="flex items-start gap-2.5">
+                    <span className="min-w-[22px] h-5 flex items-center justify-center rounded bg-primary/10 text-primary text-[10px] font-bold shrink-0 mt-0.5">
+                      {sym.frequency}×
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[12px] font-medium capitalize">{sym.symbol}</span>
+                      {sym.meaning && (
+                        <p className="text-[10px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">{sym.meaning}</p>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-muted-foreground/50 shrink-0 mt-0.5">
+                      {new Date(sym.lastSeen).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {dreamSymbols.length > 8 && (
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  +{dreamSymbols.length - 8} more symbols
+                </p>
+              )}
             </Card>
           )}
 

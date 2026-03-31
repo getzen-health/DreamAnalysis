@@ -563,6 +563,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Dream symbol library helper ───────────────────────────────────────────
+  /**
+   * Persist extracted symbols to the dreamSymbols table for the given user.
+   * Each symbol is upserted (frequency++) using storage.upsertDreamSymbol.
+   * Accepts mixed array of plain strings (EEG path) or {symbol,meaning} objects.
+   * Silently no-ops for anonymous users (userId == null).
+   */
+  async function persistDreamSymbols(
+    userId: string | null,
+    symbols: Array<string | { symbol: string; meaning?: string | null }>,
+  ): Promise<void> {
+    if (!userId || symbols.length === 0) return;
+    await Promise.all(
+      symbols.map((s) => {
+        const sym = (typeof s === "string" ? s : s.symbol)?.trim().toLowerCase();
+        const meaning = typeof s === "string" ? null : (s.meaning ?? null);
+        if (!sym) return Promise.resolve();
+        return storage.upsertDreamSymbol({ userId, symbol: sym, meaning }).catch((err) => {
+          logger.warn({ err, sym }, "Failed to upsert dream symbol — non-fatal");
+        });
+      }),
+    );
+  }
+
   // ── Morning briefing dream context helper (exported for tests) ───────────
   /**
    * Build the dream section of the morning briefing prompt.
@@ -858,6 +882,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...(threat_simulation_index !== undefined && { threatSimulationIndex: threat_simulation_index }),
       });
 
+      // Persist symbol library (non-fatal)
+      await persistDreamSymbols(userId, symbols);
+
       // Return stored record augmented with full structured fields
       res.json({
         ...savedDreamAnalysis,
@@ -1053,6 +1080,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-patterns GET failed");
       res.status(500).json({ message: "Failed to fetch dream patterns" });
+    }
+  });
+
+  // ── Dream symbol library ──────────────────────────────────────────────────
+  // GET /api/dream-symbols/:userId — personal symbol library sorted by frequency
+  app.get("/api/dream-symbols/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const symbols = await storage.getDreamSymbols(userId);
+      const sorted = [...symbols].sort(
+        (a, b) => (b.frequency ?? 0) - (a.frequency ?? 0) || a.symbol.localeCompare(b.symbol),
+      );
+      return res.json(sorted);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-symbols GET failed");
+      return res.status(500).json({ message: "Failed to fetch dream symbols" });
     }
   });
 
@@ -2468,6 +2511,9 @@ Your role: give personalised, longitudinal coaching based on the user's actual d
               keyInsight: multiResult.key_insight,
               threatSimulationIndex: multiResult.threat_simulation_index,
             });
+
+            // Persist symbol library (non-fatal)
+            await persistDreamSymbols(userId ?? null, multiResult.symbols);
           }
         } catch (analysisErr) {
           // Non-fatal — log and continue without dream analysis in response
@@ -6267,6 +6313,9 @@ Respond in JSON:
         ...(aiResult.keyInsight && { keyInsight: aiResult.keyInsight }),
         ...(episode.avgArousal !== undefined && { threatSimulationIndex: episode.avgArousal > 0.7 ? 0.6 : 0 }),
       });
+
+      // Persist symbol library (plain strings from EEG path — no meanings)
+      await persistDreamSymbols(userId, aiResult.symbols ?? []);
 
       return res.json({
         dreamAnalysis: savedAnalysis,
