@@ -1138,6 +1138,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/nightmare-recurrence/:userId — recurring nightmare trend + IRT effectiveness
+  app.get("/api/nightmare-recurrence/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const [dreams, irtSessions] = await Promise.all([
+        storage.getDreamAnalyses(userId, 50),
+        storage.getIrtSessions(userId, 100),
+      ]);
+
+      const now = Date.now();
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const isNightmare = (d: { threatSimulationIndex?: number | null }) =>
+        ((d.threatSimulationIndex as number | null) ?? 0) > 0.5;
+
+      const recentNightmares = dreams.filter((d) => {
+        const age = now - new Date(d.timestamp).getTime();
+        return age <= 7 * DAY_MS && isNightmare(d as unknown as { threatSimulationIndex?: number });
+      }).length;
+
+      const olderNightmares = dreams.filter((d) => {
+        const age = now - new Date(d.timestamp).getTime();
+        return age > 7 * DAY_MS && age <= 14 * DAY_MS && isNightmare(d as unknown as { threatSimulationIndex?: number });
+      }).length;
+
+      const nightmareDreams = dreams.filter((d) => isNightmare(d as unknown as { threatSimulationIndex?: number }));
+      const lastNightmareDate = nightmareDreams.length > 0
+        ? new Date(nightmareDreams[0].timestamp).toISOString()
+        : null;
+
+      const lastIrt = irtSessions[0] ?? null;
+      const lastIrtDate = lastIrt ? new Date(lastIrt.createdAt).toISOString() : null;
+
+      const postIrtNightmares = lastIrt
+        ? dreams.filter((d) => {
+            const dTs = new Date(d.timestamp).getTime();
+            const irtTs = new Date(lastIrt.createdAt).getTime();
+            return dTs > irtTs && isNightmare(d as unknown as { threatSimulationIndex?: number });
+          }).length
+        : 0;
+
+      const total = recentNightmares + olderNightmares;
+      let trend: "improving" | "stable" | "worsening" | "unknown";
+      if (total < 2) {
+        trend = "unknown";
+      } else if (recentNightmares < olderNightmares) {
+        trend = "improving";
+      } else if (recentNightmares > olderNightmares) {
+        trend = "worsening";
+      } else {
+        trend = "stable";
+      }
+
+      return res.json({
+        recentNightmares,
+        olderNightmares,
+        trend,
+        lastNightmareDate,
+        irtSessionCount: irtSessions.length,
+        lastIrtDate,
+        postIrtNightmares,
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "nightmare-recurrence GET failed");
+      return res.status(500).json({ message: "Failed to fetch nightmare recurrence data" });
+    }
+  });
+
   // AI chat endpoints — no auth gate (data scoped by userId, APK uses localStorage IDs)
   app.get("/api/ai-chat/:userId", async (req, res) => {
     try {

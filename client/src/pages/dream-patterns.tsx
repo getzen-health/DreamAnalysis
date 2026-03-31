@@ -23,6 +23,8 @@ import { resolveUrl } from "@/lib/queryClient";
 import { DreamFusionCard } from "@/components/dream-fusion-card";
 import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics } from "@/lib/dream-biometric-fusion";
 import { DreamPatternsCard } from "@/components/dream-patterns-card";
+import { NightmareRecurrenceCard } from "@/components/nightmare-recurrence-card";
+import type { NightmareRecurrenceData } from "@/lib/nightmare-recurrence";
 import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
 import { renderDreamShareCard, type DreamShareData } from "@/lib/dream-share-card";
 import { shareImage } from "@/lib/share-utils";
@@ -178,6 +180,18 @@ export default function DreamPatterns() {
     queryFn: async () => {
       const res = await fetch(resolveUrl(`/api/dream-symbols/${userId}`));
       if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  });
+
+  // Nightmare recurrence + IRT effectiveness — 14-day rolling window
+  const { data: nightmareRecurrence } = useQuery<NightmareRecurrenceData>({
+    queryKey: ["nightmare-recurrence", userId],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/nightmare-recurrence/${userId}`));
+      if (!res.ok) throw new Error("Failed to fetch nightmare recurrence");
       return res.json();
     },
     staleTime: 10 * 60 * 1000,
@@ -774,6 +788,11 @@ export default function DreamPatterns() {
                 </p>
               )}
             </Card>
+          )}
+
+          {/* Nightmare Recurrence + IRT Effectiveness */}
+          {nightmareRecurrence && (
+            <NightmareRecurrenceCard data={nightmareRecurrence} />
           )}
 
           {/* Sleep Session Wellness Trend */}
