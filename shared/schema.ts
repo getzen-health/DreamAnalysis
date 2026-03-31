@@ -108,6 +108,22 @@ export type DreamFrame = typeof dreamFrames.$inferSelect;
 export type InsertDreamFrame = typeof dreamFrames.$inferInsert;
 
 // Reality testing log — daytime habit for lucid dreaming
+// ── IRT Sessions ─────────────────────────────────────────────────────────────
+// Stores Image Rehearsal Therapy sessions — nightmare text + user-rewritten ending.
+export const irtSessions = pgTable("irt_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  originalDreamText: text("original_dream_text").notNull(),
+  rewrittenEnding: text("rewritten_ending").notNull(),
+  rehearsalNote: text("rehearsal_note"),          // optional user note about the rehearsal
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("irt_sessions_user_ts_idx").on(table.userId, table.createdAt),
+]);
+
+export type IrtSession = typeof irtSessions.$inferSelect;
+export type InsertIrtSession = typeof irtSessions.$inferInsert;
+
 export const realityTests = pgTable("reality_tests", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
