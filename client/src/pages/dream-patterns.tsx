@@ -28,6 +28,7 @@ import type { NightmareRecurrenceData } from "@/lib/nightmare-recurrence";
 import { DreamQualityCard } from "@/components/dream-quality-card";
 import type { DreamQualityTrend } from "@/lib/dream-quality-score";
 import { WeeklySynthesisCard } from "@/components/weekly-synthesis-card";
+import { DreamHistoryCard } from "@/components/dream-history-card";
 import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
 import { renderDreamShareCard, type DreamShareData } from "@/lib/dream-share-card";
 import { shareImage } from "@/lib/share-utils";
@@ -817,6 +818,9 @@ export default function DreamPatterns() {
           {nightmareRecurrence && (
             <NightmareRecurrenceCard data={nightmareRecurrence} />
           )}
+
+          {/* Dream Journal History — searchable/filterable past entries */}
+          <DreamHistoryCard userId={userId} />
 
           {/* Sleep Session Wellness Trend */}
           <Card className="glass-card p-5 hover-glow">
