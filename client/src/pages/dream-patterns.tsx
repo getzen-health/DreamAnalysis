@@ -34,6 +34,7 @@ import { PresleepIntentionCard } from "@/components/presleep-intention-card";
 import { DreamRecallHeatmap } from "@/components/dream-recall-heatmap";
 import { DreamSymbolContextCard } from "@/components/dream-symbol-context-card";
 import { DreamArchetypeCard } from "@/components/dream-archetype-card";
+import { LucidityPredictorCard } from "@/components/lucidity-predictor-card";
 import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
 import { renderDreamShareCard, type DreamShareData } from "@/lib/dream-share-card";
 import { shareImage } from "@/lib/share-utils";
@@ -823,6 +824,9 @@ export default function DreamPatterns() {
           {nightmareRecurrence && (
             <NightmareRecurrenceCard data={nightmareRecurrence} />
           )}
+
+          {/* Lucidity Predictor — tonight's lucid dream potential score */}
+          <LucidityPredictorCard userId={userId} />
 
           {/* Dream Recall Heatmap — 28-day calendar of recording consistency */}
           <DreamRecallHeatmap userId={userId} />
