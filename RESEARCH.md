@@ -6140,3 +6140,291 @@ export function SleepJournalFlow() {
 | 34 | In-browser SQL analytics | DuckDB-WASM | 1–2 days | Week 3 |
 | 35 | Lightweight sleep charts | Observable Plot | 1 day | Week 3 |
 | 36 | Journaling state machines | XState v5 | 1–2 days | Week 3 |
+
+---
+
+## Section 24 — Phone-Only Pass 13: Speech Emotion Arc + Actigraphy Sleep Staging + Handwritten Diary OCR
+
+**Focus:** emotion2vec for dream narration emotional arc, pyActigraphy for wearable-free sleep staging from phone accelerometer, PaddleOCR for analog diary digitization — all 100% offline.
+
+---
+
+### ⭐ Top Pick: emotion2vec — Dream Narration Emotional Arc Detection
+
+**Source:** https://github.com/ddlBoJack/emotion2vec (ACL 2024 Findings)  
+**Install:** `pip install modelscope funasr`  
+**Why:** Captures emotional subtext of dream recordings at frame level — detect anxiety → relief arcs, recurring nightmare signatures, and correlate emotional tone of dream narrations with next-day mood. Works directly on the raw audio from Capacitor Microphone; no transcription step needed. 9-class emotion output (neutral, happy, sad, angry, fearful, disgusted, surprised, calm, excited).
+
+**FastAPI backend — dream audio emotion analysis:**
+```python
+# app/api/dream_emotion.py
+from fastapi import APIRouter, UploadFile, File
+from funasr import AutoModel
+import numpy as np, tempfile, os
+
+router = APIRouter(prefix="/dreams", tags=["emotion"])
+
+# Load once at startup — ~100MB seed model, CPU-friendly
+_model = AutoModel(
+    model="iic/emotion2vec_plus_seed",
+    hub="hf",
+    device="cpu",
+)
+
+@router.post("/{dream_id}/emotion-arc")
+async def analyze_emotion_arc(dream_id: str, audio: UploadFile = File(...)):
+    """
+    Returns frame-level emotion scores for a dream narration recording.
+    Enables 'emotional fingerprint' of each dream and trend tracking.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        f.write(await audio.read())
+        tmp_path = f.name
+    try:
+        res = _model.generate(
+            input=tmp_path,
+            output_dir=None,
+            granularity="utterance",   # or "frame" for timeline
+            extract_embedding=False,
+        )
+        emotions = res[0]  # [{'label': 'sad', 'score': 0.72}, ...]
+        dominant = max(emotions, key=lambda x: x["score"])
+        return {
+            "dream_id": dream_id,
+            "dominant_emotion": dominant["label"],
+            "dominant_score": round(dominant["score"], 3),
+            "all_emotions": emotions,
+        }
+    finally:
+        os.unlink(tmp_path)
+
+@router.get("/{user_id}/emotion-trends")
+async def emotion_trends(user_id: str, days: int = 30, db=Depends(get_db)):
+    """Weekly emotion distribution from dream narrations."""
+    rows = await db.fetch_all("""
+        SELECT DATE_TRUNC('week', recorded_at) AS week,
+               dominant_emotion,
+               COUNT(*) AS cnt
+        FROM dream_emotions
+        WHERE user_id = :uid AND recorded_at >= NOW() - INTERVAL ':d days'
+        GROUP BY week, dominant_emotion
+        ORDER BY week
+    """, {"uid": user_id, "d": days})
+    return rows
+```
+
+**React / TypeScript — record dream and show emotion result:**
+```typescript
+// components/DreamRecorder.tsx
+import { Microphone } from '@capacitor-community/microphone';
+import { useState } from 'react';
+
+export function DreamRecorder({ dreamId }: { dreamId: string }) {
+  const [emotion, setEmotion] = useState<{ dominant_emotion: string; dominant_score: number } | null>(null);
+  const [recording, setRecording] = useState(false);
+
+  async function startStop() {
+    if (!recording) {
+      await Microphone.requestPermissions();
+      await Microphone.start({ sampleRate: 16000, channels: 1 });
+      setRecording(true);
+    } else {
+      const { recordDataBase64 } = await Microphone.stop();
+      setRecording(false);
+
+      const blob = await (await fetch(`data:audio/wav;base64,${recordDataBase64}`)).blob();
+      const form = new FormData();
+      form.append('audio', blob, 'dream.wav');
+
+      const res = await fetch(`/api/dreams/${dreamId}/emotion-arc`, {
+        method: 'POST', body: form,
+      });
+      const data = await res.json();
+      setEmotion(data);
+    }
+  }
+
+  const EMOTION_COLORS: Record<string, string> = {
+    sad: '#6366f1', anxious: '#ef4444', happy: '#22c55e',
+    calm: '#06b6d4', fearful: '#f59e0b', neutral: '#94a3b8',
+  };
+
+  return (
+    <div style={{ padding: '1rem' }}>
+      <button
+        onClick={startStop}
+        style={{ background: recording ? '#ef4444' : '#6366f1', color: '#fff', padding: '0.75rem 1.5rem', borderRadius: 8 }}
+      >
+        {recording ? 'Stop Recording' : 'Record Dream Narration'}
+      </button>
+
+      {emotion && (
+        <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span
+            style={{
+              background: EMOTION_COLORS[emotion.dominant_emotion] ?? '#94a3b8',
+              color: '#fff', padding: '0.25rem 0.75rem', borderRadius: 999, fontSize: 14,
+            }}
+          >
+            {emotion.dominant_emotion}
+          </span>
+          <span style={{ color: '#64748b', fontSize: 13 }}>
+            {Math.round(emotion.dominant_score * 100)}% confidence
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+### Tool 2: pyActigraphy — Wearable-Free Sleep Staging from Phone Accelerometer
+
+**Source:** https://github.com/ghammad/pyActigraphy (PLOS Comput. Biol. 2021)  
+**Install:** `pip install pyActigraphy`  
+**Why:** Applies peer-reviewed Cole-Kripke and Sadeh algorithms to Capacitor IMU data, classifying each 60-second epoch as sleep or wake. No ML model, no wearable — just the phone lying on the mattress or nightstand. Correlate detected REM candidates (micro-motion bursts) with dream recall quality scores.
+
+```python
+# app/api/sleep_staging.py
+from fastapi import APIRouter
+from pydantic import BaseModel
+from typing import List
+import pandas as pd, io
+from pyActigraphy.analysis import Cosinor
+from pyActigraphy.io import RawAWD  # We'll construct a compatible object
+
+router = APIRouter(prefix="/sleep", tags=["actigraphy"])
+
+class AccelEpoch(BaseModel):
+    timestamp: str   # ISO8601
+    activity_count: float  # pre-computed magnitude from frontend
+
+@router.post("/stage")
+async def stage_sleep(epochs: List[AccelEpoch]):
+    """
+    Accepts 1-minute activity count epochs from Capacitor Motion,
+    returns sleep/wake classification per epoch.
+    """
+    df = pd.DataFrame([e.dict() for e in epochs])
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df.set_index("timestamp").sort_index()
+
+    # Cole-Kripke scoring: P = 0.00001 * (106A_{-4} + 54A_{-3} + 58A_{-2} +
+    #                       76A_{-1} + 230A_0 + 74A_{+1} + 67A_{+2})
+    # P < 1 → sleep, P >= 1 → wake
+    counts = df["activity_count"].values
+    w = [106, 54, 58, 76, 230, 74, 67]
+    scores = []
+    for i in range(len(counts)):
+        padded = [counts[max(0, i-4+j)] if 0 <= i-4+j < len(counts) else 0 for j in range(7)]
+        p = 0.00001 * sum(w[j] * padded[j] for j in range(7))
+        scores.append("sleep" if p < 1.0 else "wake")
+
+    df["stage"] = scores
+    sleep_df = df[df["stage"] == "sleep"]
+
+    return {
+        "total_sleep_minutes": len(sleep_df),
+        "sleep_efficiency": round(len(sleep_df) / len(df), 3) if len(df) else 0,
+        "epochs": df.reset_index().to_dict(orient="records"),
+    }
+```
+
+---
+
+### Tool 3: PaddleOCR — Analog Dream Diary Photo Digitization
+
+**Source:** https://github.com/PaddlePaddle/PaddleOCR  
+**Install:** `pip install paddleocr`  
+**Why:** Users photograph handwritten sleep diary pages. PaddleOCR (PP-OCRv5, detection 4.1MB + recognition 4.5MB) handles messy cursive far better than Tesseract. Extracted text feeds directly to Claude Haiku for dream entity/symbol extraction. Zero cloud dependency.
+
+```python
+# app/api/ocr.py
+from fastapi import APIRouter, UploadFile, File
+from paddleocr import PaddleOCR
+from anthropic import Anthropic
+import io
+
+router = APIRouter(prefix="/ocr", tags=["digitize"])
+
+_ocr = PaddleOCR(use_angle_cls=True, use_gpu=False, lang="en", show_log=False)
+_claude = Anthropic()
+
+@router.post("/diary-photo")
+async def digitize_diary_photo(image: UploadFile = File(...)):
+    """
+    Photograph a handwritten sleep diary page → extract text → parse with Claude Haiku.
+    Returns structured dream entities (people, places, emotions, symbols).
+    """
+    img_bytes = await image.read()
+    result = _ocr.ocr(io.BytesIO(img_bytes), cls=True)
+
+    # Flatten OCR result: list of [[bbox, (text, conf)], ...]
+    raw_text = "\n".join(
+        line[1][0] for page in result for line in page if line[1][1] > 0.6
+    )
+
+    msg = _claude.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=512,
+        messages=[{
+            "role": "user",
+            "content": (
+                "Extract dream journal entities from this handwritten text. "
+                "Return JSON: {date, sleep_time, wake_time, dream_summary, "
+                "symbols: [], emotions: [], people: [], locations: []}.\n\n"
+                f"Text:\n{raw_text}"
+            ),
+        }],
+    )
+    import json
+    return json.loads(msg.content[0].text)
+```
+
+---
+
+### Phone-Only Master Roadmap (Passes 1–13 Combined)
+
+| Priority | Feature | Tool | Effort | Delivery |
+|----------|---------|------|--------|----------|
+| 1 | Local LLM privacy layer | Ollama (Mistral 7B Q5) | 1–2 days | Week 1 |
+| 2 | CBT-I 6-week coach | Claude Haiku / Ollama | 2–3 days | Week 1 |
+| 3 | FSRS dream recall training | ts-fsrs | 1–2 days | Week 1 |
+| 4 | Dream theme discovery | BERTopic | 2–3 days | Week 1 |
+| 5 | Dream symbol knowledge graph | spaCy + networkx + Sigma.js | 3–4 days | Week 1 |
+| 6 | Active imagination + nightmare rewrite | Ollama + IRT system prompt | 1–2 days | Week 1 |
+| 7 | Lucid induction (WBTB+MILD) | Capacitor Motion + Notifications | 2–3 days | Week 1 |
+| 8 | Conversational dream capture | OpenAI Realtime API | 2–3 days | Week 1 |
+| 9 | Morning PVT reaction test | Custom React hook | 1 day | Week 1 |
+| 10 | On-device dream NLP | Transformers.js | 1–2 days | Week 1 |
+| 11 | Voice emotion + stress | SenseVoice + openSMILE | 2 days | Week 1 |
+| 12 | Exercise type → sleep | Capacitor Motion + scipy | 2–3 days | Week 2 |
+| 13 | Optimal bedtime model | Borbély Two-Process | 1–2 days | Week 2 |
+| 14 | 7-day sleep quality forecast | Prophet | 2 days | Week 2 |
+| 15 | HRV coherence breathing | NeuroKit2 + animated pacer | 2 days | Week 2 |
+| 16 | Weather & moon sleep risk | Open-Meteo + Ephem | 1 day | Week 2 |
+| 17 | Overnight acoustic score | Scipy PSD + soundfile | 1–2 days | Week 2 |
+| 18 | Dream duet / sleep-talk | Pyannote.audio v3 | 2–3 days | Week 2 |
+| 19 | Binaural beats + AI soundscape | Tone.js + AudioCraft | 1–2 days | Week 2 |
+| 20 | Respiratory rate from camera | rPPG-Toolbox | 2–3 days | Week 2 |
+| 21 | Circadian light tracking | AmbientLightSensor API | 1 day | Week 2 |
+| 22 | Barometer+LSTM sleep staging | mad-lab-fau/sleep_analysis | 2–3 days | Week 2 |
+| 23 | Ambient audio classification | YAMNet (TF.js) | 2–3 days | Week 2 |
+| 24 | Food → sleep prediction | CatBoost + NHANES | 2–3 days | Week 2 |
+| 25 | GPS mobility biomarkers | Niimpy | 2–3 days | Week 2 |
+| 26 | Digital phenotyping | Capacitor App passive | 1–2 days | Week 2 |
+| 27 | Social Rhythm Metric | Custom FastAPI | 2 days | Week 2 |
+| 28 | Longitudinal depression scan | MediaPipe + trend ML | 3–4 days | Week 3 |
+| 29 | Accelerometer sleep staging | asleep (Oxford) | 3–4 days | Week 3 |
+| 30 | PHQ-9 / GAD-7 surveys | SurveyJS | 1 day | Week 3 |
+| 31 | Camera HRV check | pyVHR + HeartPy | 3–4 days | Week 3 |
+| 32 | Dream image generation | Replicate + fal.ai | 2 days | Week 3 |
+| 33 | Chronotype detection | CosinorPy | 1 day | Week 3 |
+| 34 | In-browser SQL analytics | DuckDB-WASM | 1–2 days | Week 3 |
+| 35 | Lightweight sleep charts | Observable Plot | 1 day | Week 3 |
+| 36 | Journaling state machines | XState v5 | 1–2 days | Week 3 |
+| 37 | Dream narration emotion arc | emotion2vec (ACL 2024) | 2–3 days | Week 4 |
+| 38 | Wearable-free sleep staging | pyActigraphy Cole-Kripke | 1–2 days | Week 4 |
+| 39 | Handwritten diary digitization | PaddleOCR PP-OCRv5 | 1–2 days | Week 4 |
