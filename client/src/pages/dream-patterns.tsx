@@ -32,6 +32,7 @@ import { DreamHistoryCard } from "@/components/dream-history-card";
 import { EmotionalArcTrendCard } from "@/components/emotional-arc-trend-card";
 import { PresleepIntentionCard } from "@/components/presleep-intention-card";
 import { DreamRecallHeatmap } from "@/components/dream-recall-heatmap";
+import { DreamSymbolContextCard } from "@/components/dream-symbol-context-card";
 import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
 import { renderDreamShareCard, type DreamShareData } from "@/lib/dream-share-card";
 import { shareImage } from "@/lib/share-utils";
@@ -833,6 +834,9 @@ export default function DreamPatterns() {
 
           {/* Dream Journal History — searchable/filterable past entries */}
           <DreamHistoryCard userId={userId} />
+
+          {/* Personal Dream Dictionary — symbol mood/context across dream history */}
+          <DreamSymbolContextCard userId={userId} />
 
           {/* Sleep Session Wellness Trend */}
           <Card className="glass-card p-5 hover-glow">
