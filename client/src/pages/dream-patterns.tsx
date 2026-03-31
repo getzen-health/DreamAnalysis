@@ -25,6 +25,8 @@ import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics } from "
 import { DreamPatternsCard } from "@/components/dream-patterns-card";
 import { NightmareRecurrenceCard } from "@/components/nightmare-recurrence-card";
 import type { NightmareRecurrenceData } from "@/lib/nightmare-recurrence";
+import { DreamQualityCard } from "@/components/dream-quality-card";
+import type { DreamQualityTrend } from "@/lib/dream-quality-score";
 import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
 import { renderDreamShareCard, type DreamShareData } from "@/lib/dream-share-card";
 import { shareImage } from "@/lib/share-utils";
@@ -180,6 +182,18 @@ export default function DreamPatterns() {
     queryFn: async () => {
       const res = await fetch(resolveUrl(`/api/dream-symbols/${userId}`));
       if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  });
+
+  // Dream quality trend — 14-day composite score sparkline
+  const { data: dreamQualityTrend } = useQuery<DreamQualityTrend>({
+    queryKey: ["dream-quality-trend", userId],
+    queryFn: async () => {
+      const res = await fetch(resolveUrl(`/api/dream-quality-trend/${userId}?days=14`));
+      if (!res.ok) throw new Error("Failed to fetch dream quality trend");
       return res.json();
     },
     staleTime: 10 * 60 * 1000,
@@ -663,6 +677,11 @@ export default function DreamPatterns() {
       {/* ── HISTORICAL: Session-based charts ──────────────── */}
       {!isLiveToday && (
         <>
+          {/* Dream Quality Score + 14-day sparkline */}
+          {dreamQualityTrend && (
+            <DreamQualityCard data={dreamQualityTrend} />
+          )}
+
           {/* Pattern Insights from dream journal */}
           {/* Dream + Biometric Fusion — auto-generated from EEG, no user input */}
           <DreamFusionCard insight={dreamFusionInsight} />

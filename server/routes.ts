@@ -1205,6 +1205,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /api/dream-quality-trend/:userId — daily 0-100 dream quality scores
+  app.get("/api/dream-quality-trend/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const days = Math.min(parseInt(String(req.query.days ?? "14"), 10) || 14, 90);
+      const dreams = await storage.getDreamAnalyses(userId, 200);
+
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      const recent = dreams.filter((d) => new Date(d.timestamp).getTime() >= cutoff);
+
+      // Score each entry
+      const scored = recent.map((d) => {
+        const sq = (d as unknown as { sleepQuality?: number | null }).sleepQuality;
+        const ls = (d as unknown as { lucidityScore?: number | null }).lucidityScore;
+        const tsi = (d as unknown as { threatSimulationIndex?: number | null }).threatSimulationIndex;
+        const hasText = Boolean((d as unknown as { dreamText?: string }).dreamText?.trim());
+
+        let score: number | null = null;
+        const hasData = sq != null || ls != null || tsi != null || hasText;
+        if (hasData) {
+          let s = 50;
+          if (sq != null && sq > 0) s += ((sq - 50) / 40) * 20;
+          if (ls != null && ls >= 0) s += (ls / 100) * 15;
+          s -= (tsi ?? 0) * 25;
+          if (hasText) s += 10;
+          score = Math.round(Math.max(0, Math.min(100, s)));
+        }
+
+        return { timestampIso: new Date(d.timestamp).toISOString(), score };
+      });
+
+      // Aggregate per day
+      const dayMap: Record<string, number[]> = {};
+      for (const e of scored) {
+        if (e.score == null) continue;
+        const date = e.timestampIso.slice(0, 10);
+        if (!dayMap[date]) dayMap[date] = [];
+        dayMap[date].push(e.score);
+      }
+      const trend = Object.entries(dayMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, scores]) => ({
+          date,
+          score: Math.round(scores.reduce((s, v) => s + v, 0) / scores.length),
+          count: scores.length,
+        }));
+
+      const validScores = scored.map((e) => e.score).filter((s): s is number => s != null);
+      const avgScore =
+        validScores.length > 0
+          ? Math.round(validScores.reduce((s, v) => s + v, 0) / validScores.length)
+          : null;
+      const current = trend.length > 0 ? trend[trend.length - 1].score : null;
+
+      return res.json({ current, avgScore, trend, totalDreams: recent.length });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-quality-trend GET failed");
+      return res.status(500).json({ message: "Failed to fetch dream quality trend" });
+    }
+  });
+
   // AI chat endpoints — no auth gate (data scoped by userId, APK uses localStorage IDs)
   app.get("/api/ai-chat/:userId", async (req, res) => {
     try {
