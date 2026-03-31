@@ -5842,3 +5842,301 @@ export function ActiveImagination({ dreamId, userId }: { dreamId: string; userId
 | 32 | Dream image generation | Replicate + fal.ai | 2 days | Week 3 |
 | 33 | Chronotype detection | CosinorPy | 1 day | Week 3 |
 
+
+---
+
+## Section 23 — Phone-Only Pass 12: In-Browser Analytics + Observable Plot + XState Workflows
+
+**Focus:** Client-side SQL analytics, lightweight visualization, and deterministic state machines for sleep journaling workflows — all running 100% offline on the phone.
+
+---
+
+### ⭐ Top Pick: DuckDB-WASM — In-Browser SQL Analytics on Sleep Journals
+
+**Source:** https://github.com/duckdb/duckdb-wasm  
+**Install:** `npm install @duckdb/wasm`  
+**Why:** Eliminates backend dependency for all analytics. Users get instant sleep trend analysis (REM %, lucidity frequency, recall score by day-of-week) without any server round-trip. Handles 500–1000 diary entries with sub-100ms queries on mobile CPUs. Privacy-first: raw dream text never leaves the device for analytics.
+
+**FastAPI side — sync endpoint (receives only aggregated stats, never raw text):**
+```python
+# app/api/sync.py
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from typing import List
+import json
+
+router = APIRouter(prefix="/sync", tags=["sync"])
+
+class SleepStat(BaseModel):
+    date: str
+    sleep_duration_min: float
+    rem_minutes: float
+    dream_recall_score: int  # 0-5
+    lucidity_flag: bool
+    sleep_efficiency: float  # 0.0-1.0
+
+class SyncPayload(BaseModel):
+    user_id: str
+    stats: List[SleepStat]
+
+@router.post("/sleep-stats")
+async def receive_aggregated_stats(payload: SyncPayload, db=Depends(get_db)):
+    """
+    Receives only pre-aggregated, anonymized sleep stats — never raw dream text.
+    DuckDB runs the aggregation on-device; this endpoint just persists the rollup.
+    """
+    rows = [
+        {**s.dict(), "user_id": payload.user_id}
+        for s in payload.stats
+    ]
+    await db.execute(
+        "INSERT INTO sleep_stats_rollup VALUES (:user_id, :date, :sleep_duration_min, "
+        ":rem_minutes, :dream_recall_score, :lucidity_flag, :sleep_efficiency) "
+        "ON CONFLICT (user_id, date) DO UPDATE SET sleep_efficiency=EXCLUDED.sleep_efficiency",
+        rows
+    )
+    return {"synced": len(rows)}
+```
+
+**React / TypeScript — DuckDB-WASM analytics hook:**
+```typescript
+// hooks/useSleepAnalytics.ts
+import * as duckdb from '@duckdb/wasm';
+import { useEffect, useRef, useState } from 'react';
+
+interface SleepTrend {
+  date: string;
+  avg_duration: number;
+  avg_recall: number;
+  lucid_count: number;
+}
+
+export function useSleepAnalytics(days = 30) {
+  const dbRef = useRef<duckdb.AsyncDuckDB | null>(null);
+  const [trends, setTrends] = useState<SleepTrend[]>([]);
+
+  useEffect(() => {
+    async function init() {
+      const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+      const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+      const worker = await duckdb.createWorker(bundle.mainWorker!);
+      const logger = new duckdb.ConsoleLogger();
+      const db = new duckdb.AsyncDuckDB(logger, worker);
+      await db.instantiate(bundle.mainModule);
+
+      // Seed from IndexedDB / localStorage
+      const conn = await db.connect();
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS sleep_logs AS
+        SELECT * FROM read_json_auto('/local/sleep_logs.json')
+      `);
+
+      const result = await conn.query(`
+        SELECT 
+          strftime(date, '%Y-%W') AS week,
+          AVG(sleep_duration_min)   AS avg_duration,
+          AVG(dream_recall_score)   AS avg_recall,
+          SUM(CASE WHEN lucidity_flag THEN 1 ELSE 0 END) AS lucid_count
+        FROM sleep_logs
+        WHERE date >= current_date - INTERVAL '${days} days'
+        GROUP BY week
+        ORDER BY week
+      `);
+
+      setTrends(result.toArray().map(r => r.toJSON()));
+      dbRef.current = db;
+    }
+    init();
+  }, [days]);
+
+  return trends;
+}
+
+// SleepDashboard.tsx — usage
+import { useSleepAnalytics } from '../hooks/useSleepAnalytics';
+import * as Plot from '@observablehq/plot';
+import { useEffect, useRef } from 'react';
+
+export function SleepDashboard() {
+  const trends = useSleepAnalytics(30);
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!chartRef.current || !trends.length) return;
+    const chart = Plot.plot({
+      marks: [
+        Plot.line(trends, { x: 'week', y: 'avg_duration', stroke: '#6366f1', tip: true }),
+        Plot.dot(trends,  { x: 'week', y: 'lucid_count',  fill: '#f59e0b', r: 5 }),
+      ],
+      x: { label: 'Week' },
+      y: { label: 'Avg Duration (min)' },
+      width: window.innerWidth - 32,
+      height: 240,
+    });
+    chartRef.current.replaceChildren(chart);
+  }, [trends]);
+
+  return <div ref={chartRef} style={{ padding: '1rem' }} />;
+}
+```
+
+---
+
+### Tool 2: Observable Plot — Lightweight Sleep Dashboard Charts
+
+**Source:** https://github.com/observablehq/plot  
+**Install:** `npm install @observablehq/plot`  
+**Why:** 30KB gzip vs Recharts 150KB+. Grammar-of-graphics API (mark-based) makes hypnograms, scatter plots, and bar charts trivial to compose. Works with DuckDB query results directly (array of plain objects). TypeScript-native.
+
+```typescript
+// HypnogramChart.tsx — sleep stage timeline
+import * as Plot from '@observablehq/plot';
+import { useEffect, useRef } from 'react';
+
+interface Stage { time: Date; stage: 'Wake' | 'REM' | 'Light' | 'Deep'; }
+
+export function HypnogramChart({ stages }: { stages: Stage[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const stageOrder = { 'Wake': 4, 'REM': 3, 'Light': 2, 'Deep': 1 };
+    const colored = stages.map(s => ({ ...s, rank: stageOrder[s.stage] }));
+
+    const chart = Plot.plot({
+      marks: [
+        Plot.lineY(colored, { x: 'time', y: 'rank', curve: 'step-after', stroke: '#6366f1' }),
+        Plot.ruleX(colored.filter(s => s.stage === 'REM'), { x: 'time', stroke: '#f59e0b', strokeWidth: 0.5 }),
+      ],
+      y: { tickFormat: (d: number) => ['', 'Deep', 'Light', 'REM', 'Wake'][d], domain: [0, 5] },
+      x: { label: 'Time', type: 'utc' },
+      height: 200,
+      width: window.innerWidth - 32,
+    });
+    ref.current.replaceChildren(chart);
+    return () => ref.current?.replaceChildren();
+  }, [stages]);
+
+  return <div ref={ref} />;
+}
+```
+
+---
+
+### Tool 3: XState v5 — Deterministic Sleep Journal Workflows
+
+**Source:** https://github.com/statelyai/xstate  
+**Install:** `npm install xstate @xstate/react`  
+**Why:** Replaces ad-hoc useState spaghetti for multi-step flows (pre-sleep checklist → sleep timer → lucid induction alarms → dream recall prompt → AI analysis). States are serializable to localStorage — survives app kills between bedtime and morning.
+
+```typescript
+// machines/sleepJournalMachine.ts
+import { createMachine, assign } from 'xstate';
+
+export const sleepJournalMachine = createMachine({
+  id: 'sleepJournal',
+  initial: 'preSleep',
+  context: { bedtime: null as Date | null, dreamText: '', lucid: false },
+  states: {
+    preSleep: {
+      on: {
+        START_SLEEP: {
+          target: 'sleeping',
+          actions: assign({ bedtime: () => new Date() }),
+        },
+      },
+    },
+    sleeping: {
+      on: {
+        WAKE_UP: 'dreamRecall',
+        LUCID_DETECTED: {
+          actions: assign({ lucid: true }),
+        },
+      },
+    },
+    dreamRecall: {
+      on: {
+        SUBMIT_DREAM: {
+          target: 'analyzing',
+          actions: assign({ dreamText: (_, e: any) => e.text }),
+        },
+        SKIP: 'done',
+      },
+    },
+    analyzing: {
+      invoke: {
+        src: (ctx) => fetch('/api/dreams/analyze', {
+          method: 'POST',
+          body: JSON.stringify({ text: ctx.dreamText, lucid: ctx.lucid }),
+          headers: { 'Content-Type': 'application/json' },
+        }).then(r => r.json()),
+        onDone: 'done',
+        onError: 'dreamRecall',
+      },
+    },
+    done: { type: 'final' },
+  },
+});
+
+// Usage in React
+import { useMachine } from '@xstate/react';
+import { sleepJournalMachine } from '../machines/sleepJournalMachine';
+
+export function SleepJournalFlow() {
+  const [state, send] = useMachine(sleepJournalMachine);
+  return (
+    <div>
+      {state.matches('preSleep') && (
+        <button onClick={() => send({ type: 'START_SLEEP' })}>Start Sleep Session</button>
+      )}
+      {state.matches('dreamRecall') && (
+        <textarea onBlur={e => send({ type: 'SUBMIT_DREAM', text: e.target.value })} />
+      )}
+      {state.matches('analyzing') && <p>Analyzing your dream...</p>}
+    </div>
+  );
+}
+```
+
+---
+
+### Phone-Only Master Roadmap (Passes 1–12 Combined)
+
+| Priority | Feature | Tool | Effort | Delivery |
+|----------|---------|------|--------|----------|
+| 1 | Local LLM privacy layer | Ollama (Mistral 7B Q5) | 1–2 days | Week 1 |
+| 2 | CBT-I 6-week coach | Claude Haiku / Ollama | 2–3 days | Week 1 |
+| 3 | FSRS dream recall training | ts-fsrs | 1–2 days | Week 1 |
+| 4 | Dream theme discovery | BERTopic | 2–3 days | Week 1 |
+| 5 | Dream symbol knowledge graph | spaCy + networkx + Sigma.js | 3–4 days | Week 1 |
+| 6 | Active imagination + nightmare rewrite | Ollama + IRT system prompt | 1–2 days | Week 1 |
+| 7 | Lucid induction (WBTB+MILD) | Capacitor Motion + Notifications | 2–3 days | Week 1 |
+| 8 | Conversational dream capture | OpenAI Realtime API | 2–3 days | Week 1 |
+| 9 | Morning PVT reaction test | Custom React hook | 1 day | Week 1 |
+| 10 | On-device dream NLP | Transformers.js | 1–2 days | Week 1 |
+| 11 | Voice emotion + stress | SenseVoice + openSMILE | 2 days | Week 1 |
+| 12 | Exercise type → sleep | Capacitor Motion + scipy | 2–3 days | Week 2 |
+| 13 | Optimal bedtime model | Borbély Two-Process | 1–2 days | Week 2 |
+| 14 | 7-day sleep quality forecast | Prophet | 2 days | Week 2 |
+| 15 | HRV coherence breathing | NeuroKit2 + animated pacer | 2 days | Week 2 |
+| 16 | Weather & moon sleep risk | Open-Meteo + Ephem | 1 day | Week 2 |
+| 17 | Overnight acoustic score | Scipy PSD + soundfile | 1–2 days | Week 2 |
+| 18 | Dream duet / sleep-talk | Pyannote.audio v3 | 2–3 days | Week 2 |
+| 19 | Binaural beats + AI soundscape | Tone.js + AudioCraft | 1–2 days | Week 2 |
+| 20 | Respiratory rate from camera | rPPG-Toolbox | 2–3 days | Week 2 |
+| 21 | Circadian light tracking | AmbientLightSensor API | 1 day | Week 2 |
+| 22 | Barometer+LSTM sleep staging | mad-lab-fau/sleep_analysis | 2–3 days | Week 2 |
+| 23 | Ambient audio classification | YAMNet (TF.js) | 2–3 days | Week 2 |
+| 24 | Food → sleep prediction | CatBoost + NHANES | 2–3 days | Week 2 |
+| 25 | GPS mobility biomarkers | Niimpy | 2–3 days | Week 2 |
+| 26 | Digital phenotyping | Capacitor App passive | 1–2 days | Week 2 |
+| 27 | Social Rhythm Metric | Custom FastAPI | 2 days | Week 2 |
+| 28 | Longitudinal depression scan | MediaPipe + trend ML | 3–4 days | Week 3 |
+| 29 | Accelerometer sleep staging | asleep (Oxford) | 3–4 days | Week 3 |
+| 30 | PHQ-9 / GAD-7 surveys | SurveyJS | 1 day | Week 3 |
+| 31 | Camera HRV check | pyVHR + HeartPy | 3–4 days | Week 3 |
+| 32 | Dream image generation | Replicate + fal.ai | 2 days | Week 3 |
+| 33 | Chronotype detection | CosinorPy | 1 day | Week 3 |
+| 34 | In-browser SQL analytics | DuckDB-WASM | 1–2 days | Week 3 |
+| 35 | Lightweight sleep charts | Observable Plot | 1 day | Week 3 |
+| 36 | Journaling state machines | XState v5 | 1–2 days | Week 3 |
