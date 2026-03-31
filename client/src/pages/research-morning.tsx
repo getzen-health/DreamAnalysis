@@ -28,6 +28,7 @@ import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics, type Dr
 import { DreamFusionCard } from "@/components/dream-fusion-card";
 import { DreamSummaryCard } from "@/components/dream-summary-card";
 import { IrtWorkflowCard } from "@/components/irt-workflow-card";
+import { scoreAlignment, persistAlignmentScore, getTodayIntention } from "@/lib/sleep-intention";
 
 
 const USER_ID = getParticipantId();
@@ -305,6 +306,17 @@ export default function ResearchMorning() {
         }
 
         setFusionInsight(fuseDreamBiometrics(dream, bio));
+      }
+
+      // Score presleep intention alignment when a dream was recorded
+      if (hasRecall === "yes" && dreamText.trim()) {
+        const intention = getTodayIntention();
+        if (intention && !intention.alignmentScore) {
+          const themes = (data.dreamAnalysis as any)?.themes ?? null;
+          const score = scoreAlignment(intention.text, dreamText.trim(), themes);
+          const dreamId = (data.dreamAnalysis as any)?.id ?? "unknown";
+          persistAlignmentScore(intention.date, score, dreamId);
+        }
       }
 
       setSubmitted(true);
