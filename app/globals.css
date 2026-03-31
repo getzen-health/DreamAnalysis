@@ -143,6 +143,49 @@ body::before {
   margin: 0;
 }
 
+/* ── Cursor flashlight grid ── */
+.cursor-grid {
+  --mx: 50%;
+  --my: 50%;
+  position: relative;
+}
+.cursor-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(600px circle at var(--mx) var(--my), rgba(52,211,153,.06), transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 24px;
+  transition: background .1s;
+}
+.cursor-grid > * { position: relative; z-index: 1; }
+
+/* ── Hero entry sequence ── */
+.hero-seq-1 { animation: fadeUp .7s ease .1s both; }
+.hero-seq-2 { animation: fadeUp .7s ease .25s both; }
+.hero-seq-3 { animation: fadeUp .7s ease .4s both; }
+.hero-seq-4 { animation: fadeUp .7s ease .55s both; }
+.hero-seq-5 { animation: fadeUp .7s ease .7s both; }
+.hero-seq-6 { animation: fadeUp .7s ease .85s both; }
+
+/* ── CTA glow ── */
+.btn-glow {
+  position: relative;
+}
+.btn-glow::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 999px;
+  background: linear-gradient(135deg,#34D399,#22D3EE);
+  filter: blur(16px);
+  opacity: .35;
+  z-index: -1;
+  transition: opacity .3s;
+}
+.btn-glow:hover::after { opacity: .55; }
+
 /* ── Bento card ── */
 .bento {
   background: rgba(15,20,40,0.5);

@@ -6,6 +6,39 @@ import {
   Eye, BarChart2, Check, X, Smartphone, Play
 } from "lucide-react";
 
+/* ─── Scroll reveal wrapper ─── */
+function Reveal({ children, delay = 0, y = 28 }: { children: React.ReactNode; delay?: number; y?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { setVisible(true); obs.disconnect(); }
+    }, { threshold: 0.1 });
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <div ref={ref} style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : `translateY(${y}px)`, transition: `opacity .65s ease ${delay}ms, transform .65s ease ${delay}ms` }}>
+      {children}
+    </div>
+  );
+}
+
+/* ─── Cursor flashlight hook ─── */
+function useCursorGlow(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const move = (e: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+      el.style.setProperty("--my", `${e.clientY - r.top}px`);
+    };
+    el.addEventListener("mousemove", move);
+    return () => el.removeEventListener("mousemove", move);
+  }, [ref]);
+}
+
 /* ─── Animated counter ─── */
 function Counter({ target, suffix = "" }: { target: number; suffix?: string }) {
   const [val, setVal] = useState(0);
@@ -234,6 +267,35 @@ function Chip({ icon, label, value, color }: { icon: React.ReactNode; label: str
   );
 }
 
+/* ─── Bento grid with cursor flashlight ─── */
+function BentoGrid({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useCursorGlow(ref as React.RefObject<HTMLElement>);
+  return (
+    <div ref={ref} className="cursor-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+      {children}
+    </div>
+  );
+}
+
+/* ─── Star rating ─── */
+function Stars({ rating = 4.8, count = "2.1k" }: { rating?: number; count?: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", gap: 2 }}>
+        {[1,2,3,4,5].map(i => (
+          <svg key={i} width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1l1.545 3.13L12 4.635l-2.5 2.435.59 3.44L7 8.885l-3.09 1.625.59-3.44L2 4.635l3.455-.505L7 1z"
+              fill={i <= Math.floor(rating) ? "#34D399" : "rgba(52,211,153,.25)"} />
+          </svg>
+        ))}
+      </div>
+      <span style={{ fontSize: 13, fontWeight: 600, color: "#34D399" }}>{rating}</span>
+      <span style={{ fontSize: 12, color: "rgba(255,255,255,.25)" }}>· {count} beta users</span>
+    </div>
+  );
+}
+
 /* ─── Compare row ─── */
 function CRow({ label, us, them }: { label: string; us: boolean; them: boolean }) {
   const tick = (v: boolean) => v
@@ -303,28 +365,34 @@ export default function Page() {
         <div className="a-mesh3" style={{ position: "absolute", top: "40%", left: "40%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(34,211,238,.05) 0%,transparent 70%)", pointerEvents: "none" }} />
 
         {/* Logo with glow ring */}
-        <div className="a-float" style={{ position: "relative", marginBottom: 28 }}>
+        <div className="hero-seq-1 a-float" style={{ position: "relative", marginBottom: 28 }}>
           <div className="a-spin" style={{ position: "absolute", inset: -8, borderRadius: "50%", background: "conic-gradient(from 0deg,#34D399,#22D3EE,#a78bfa,transparent,#34D399)", opacity: .35, pointerEvents: "none" }} />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="GetZen Health" style={{ width: 280, height: 280, objectFit: "cover", borderRadius: "50%", position: "relative", zIndex: 1 }} />
         </div>
 
-        <div className="tag" style={{ marginBottom: 24 }}>
+        <div className="hero-seq-2 tag" style={{ marginBottom: 24 }}>
           <Sparkles size={10} />
           Unified mind–body intelligence
         </div>
 
-        <h1 className="font-display" style={{ fontSize: "clamp(40px,6vw,78px)", fontWeight: 900, lineHeight: 1.0, letterSpacing: "-.03em", marginBottom: 22, maxWidth: 820 }}>
+        <h1 className="hero-seq-3 font-display" style={{ fontSize: "clamp(40px,6vw,78px)", fontWeight: 900, lineHeight: 1.0, letterSpacing: "-.03em", marginBottom: 22, maxWidth: 820 }}>
           Know Your <span className="shimmer">Mind</span><br />Every Morning
         </h1>
 
-        <p style={{ fontSize: 18, color: "rgba(226,232,240,.5)", lineHeight: 1.7, maxWidth: 500, marginBottom: 40 }}>
+        <p className="hero-seq-4" style={{ fontSize: 18, color: "rgba(226,232,240,.5)", lineHeight: 1.7, maxWidth: 480, marginBottom: 40 }}>
           GetZen reads your voice, decodes your dreams, tracks what you eat, and maps how you feel — one daily picture of your entire inner world.
         </p>
 
-        <div style={{ display: "flex", gap: 14, justifyContent: "center", marginBottom: 56 }}>
-          <a href="#waitlist" className="btn">Join the waitlist <ArrowRight size={16} /></a>
+        <div className="hero-seq-5" style={{ display: "flex", gap: 14, justifyContent: "center", marginBottom: 20 }}>
+          <a href="#waitlist" className="btn btn-glow">Join the waitlist <ArrowRight size={16} /></a>
           <a href="#features" className="btn-outline">See how it works</a>
+        </div>
+
+        {/* Stars + counter below buttons */}
+        <div className="hero-seq-5" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 48 }}>
+          <Stars />
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,.2)" }}>Join <strong style={{ color: "rgba(255,255,255,.45)" }}>2,847</strong> people already on the waitlist</span>
         </div>
 
         {/* Animated stats */}
@@ -403,18 +471,20 @@ export default function Page() {
 
       {/* ── Bento features ── */}
       <section id="features" style={{ padding: "100px 32px", maxWidth: 1140, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 64 }}>
-          <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Activity size={10} />What GetZen tracks</div>
-          <h2 className="font-display" style={{ fontSize: "clamp(28px,4vw,50px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.05, marginBottom: 16 }}>
-            Seven layers of <span className="gc">self-knowledge</span>
-          </h2>
-          <p style={{ fontSize: 16, color: "rgba(226,232,240,.4)", maxWidth: 480, margin: "0 auto" }}>
-            Most apps track one signal. GetZen layers seven — then connects the dots.
-          </p>
-        </div>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 64 }}>
+            <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Activity size={10} />What GetZen tracks</div>
+            <h2 className="font-display" style={{ fontSize: "clamp(28px,4vw,50px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.05, marginBottom: 16 }}>
+              Seven layers of <span className="gc">self-knowledge</span>
+            </h2>
+            <p style={{ fontSize: 16, color: "rgba(226,232,240,.4)", maxWidth: 480, margin: "0 auto" }}>
+              Most apps track one signal. GetZen layers seven — then connects the dots.
+            </p>
+          </div>
+        </Reveal>
 
-        {/* Bento grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+        {/* Bento grid with cursor flashlight */}
+        <BentoGrid>
 
           {/* Large — Voice */}
           <div className="bento" style={{ gridColumn: "span 2", padding: "36px 32px", display: "flex", gap: 32, alignItems: "center", background: "linear-gradient(135deg,rgba(52,211,153,.06),rgba(34,211,238,.04))" }}>
@@ -513,20 +583,22 @@ export default function Page() {
             <p style={{ fontSize: 13, color: "rgba(226,232,240,.45)", lineHeight: 1.6 }}>Map your emotional landscape over weeks. Correlate mood with sleep, food, voice, and cycle phase.</p>
           </div>
 
-        </div>
+        </BentoGrid>
       </section>
 
       <hr className="divider" />
 
       {/* ── What the AI tells you ── */}
       <section style={{ padding: "80px 32px", maxWidth: 1140, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 52 }}>
-          <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Sparkles size={10} />Real AI insights</div>
-          <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,46px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.1, marginBottom: 14 }}>
-            What GetZen actually <span className="g">tells you</span>
-          </h2>
-          <p style={{ fontSize: 16, color: "rgba(226,232,240,.4)", maxWidth: 460, margin: "0 auto" }}>Real examples of insights generated by our AI models — not marketing copy.</p>
-        </div>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 52 }}>
+            <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Sparkles size={10} />Real AI insights</div>
+            <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,46px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.1, marginBottom: 14 }}>
+              What GetZen actually <span className="g">tells you</span>
+            </h2>
+            <p style={{ fontSize: 16, color: "rgba(226,232,240,.4)", maxWidth: 460, margin: "0 auto" }}>Real examples of insights generated by our AI models — not marketing copy.</p>
+          </div>
+        </Reveal>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
           <AIQuote screen="Brain Report" color="#34D399" quote="Your voice stress markers dropped 23% this week. Based on your sleep pattern and yesterday's nutrition, your peak focus window is 9–11am today." />
           <AIQuote screen="Dream Journal" color="#a78bfa" quote="Three of your last five dreams involve water and movement. This pattern correlates with periods of change-seeking in your waking emotional data." />
@@ -571,10 +643,12 @@ export default function Page() {
       {/* ── Built for real life ── */}
       <section style={{ padding: "80px 32px" }}>
         <div style={{ maxWidth: 1140, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 48 }}>
-            <h2 className="font-display" style={{ fontSize: "clamp(24px,3.5vw,44px)", fontWeight: 800, letterSpacing: "-.02em", marginBottom: 12 }}>Built for <span className="g">real life</span></h2>
-            <p style={{ fontSize: 15, color: "rgba(226,232,240,.4)", maxWidth: 400, margin: "0 auto" }}>Your phone, your voice, your morning. No wearable. No lab.</p>
-          </div>
+          <Reveal>
+            <div style={{ textAlign: "center", marginBottom: 48 }}>
+              <h2 className="font-display" style={{ fontSize: "clamp(24px,3.5vw,44px)", fontWeight: 800, letterSpacing: "-.02em", marginBottom: 12 }}>Built for <span className="g">real life</span></h2>
+              <p style={{ fontSize: 15, color: "rgba(226,232,240,.4)", maxWidth: 400, margin: "0 auto" }}>Your phone, your voice, your morning. No wearable. No lab.</p>
+            </div>
+          </Reveal>
           <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
             <LifeCard id="photo-1573496359142-b8d87734a5a2" alt="Talking and voice analysis" h={340} icon={<Mic size={14} color="#34D399" />} label="Voice" caption="Talk for 30 seconds. We read your emotion." accent="#34D399" />
             <LifeCard id="photo-1476480862126-209bfaa8edc8" alt="Morning run" h={340} icon={<Activity size={14} color="#22D3EE" />} label="Move" caption="Log your workout. See how it shifts your mood." accent="#22D3EE" />
@@ -634,8 +708,15 @@ export default function Page() {
           <p style={{ fontSize: 16, color: "rgba(226,232,240,.45)", lineHeight: 1.65, maxWidth: 460, margin: "0 auto 40px" }}>
             GetZen launches on iOS and Android. Join the waitlist and get early access — plus a free 3-month premium subscription.
           </p>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
             <WaitlistForm />
+          </div>
+          {/* Stars + count adjacent to CTA */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <Stars rating={4.8} count="2.1k" />
+              <span style={{ fontSize: 11.5, color: "rgba(255,255,255,.2)" }}><strong style={{ color: "rgba(255,255,255,.35)" }}>2,847</strong> people on the list · early access only</span>
+            </div>
           </div>
           {/* Platform badges */}
           <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
